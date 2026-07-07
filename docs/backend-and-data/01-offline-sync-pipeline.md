@@ -120,8 +120,8 @@ first wins:
 Once queued media has been written or adopted into `URL.documentsDirectory`, a
 new `OfflineQueuedScan` SwiftData record is inserted with the available
 telemetry payload attached. On a successful `context.save()`,
-`AppTelemetry.trackOfflineQueued()` fires a `OfflineQueuedScan` TelemetryDeck
-signal to measure offline usage rate. If the save fails, the main context rolls
+`AppTelemetry.trackOfflineQueued()` fires a `ScanQueuedForSync` PostHog event
+to measure offline usage rate. If the save fails, the main context rolls
 back, any consumed free-tier quota token is refunded, and staged files are
 deleted without dispatching sync.
 

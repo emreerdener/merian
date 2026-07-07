@@ -502,9 +502,9 @@ missing content groups for existing sparse rows and adds an insert trigger so
 future dictionary rows created by scans, Community ID materialization, taxonomy
 imports, or service-role repair share the same queue contract.
 
-TelemetryDeck tracks `SpeciesDictionaryOpened`, `SpeciesDictionaryLoaded`,
+PostHog tracks `SpeciesDictionaryOpened`, `SpeciesDictionaryPageLoaded`,
 `SpeciesDictionaryNotFound`, `SpeciesDictionaryRetry`, and
-`SpeciesDictionaryImageFallback`. Events include only `entryPoint`,
+`SpeciesDictionaryReferenceImageFallback`. Events include only `entryPoint`,
 `contentQuality`, and image `source` where relevant. They never attach species
 names, species IDs, user locations, scans, Explore post identifiers, field
 notes, comments, image URLs, or review state.

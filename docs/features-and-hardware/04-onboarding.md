@@ -54,7 +54,7 @@ func completeOnboarding() {
 }
 ```
 
-`completeOnboarding()` is called on the `.ready` step. It fires a `OnboardingCompleted` TelemetryDeck signal before writing the flag, capturing the activation moment. Writing `true` to `hasCompletedOnboarding` is the gate that activates the full app lifecycle:
+`completeOnboarding()` is called on the `.ready` step. It fires an `OnboardingCompleted` PostHog event before writing the flag, capturing the activation moment. Writing `true` to `hasCompletedOnboarding` is the gate that activates the full app lifecycle:
 
 - `AppLifecycleManager.handleActivePhase()` checks this flag first and returns immediately if false
 - `AppLifecycleManager.handleInactivePhase()` — same guard

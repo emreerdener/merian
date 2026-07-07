@@ -70,8 +70,8 @@ triggering excessive SwiftUI view rebuilds.
   countdown halted). Can only be `true` when `isRecording` is also `true`.
 - **`recordingProgress: Double`** — 0.0 → 1.0 over 15 seconds, driven by a
   100-tick countdown Task (150 ms per tick).
-- **`spectrogramColumns: [SpectrogramColumn]`** — rolling 180-column display
-  buffer fed by `SpectrogramActor` on each tap callback.
+- **`spectrogramColumns: [SpectrogramColumn]`** — rolling 360-column display
+  buffer fed by `SpectrogramActor` from each 2048-frame FFT window.
 - **`snrLevel: SNRLevel`** — most recent SNR classification from
   `SpectrogramActor.snrLevel(from:)`.
 - **`pendingPlaybackPath: String?`** — non-nil after recording finishes, before
@@ -135,11 +135,14 @@ triggering excessive SwiftUI view rebuilds.
 - **2048-point real FFT** via Accelerate `vDSP_fft_zrip` with
   `vDSP_hann_window`. Wrapped in `autoreleasepool` per buffer to prevent
   `AVAudioPCMBuffer` Obj-C object accumulation.
-- **64-bin mel scale**, 80 Hz – 16 kHz: covers the bioacoustically relevant
+- **128-bin mel scale**, 80 Hz – 16 kHz: covers the bioacoustically relevant
   range for bird, insect, and frog ID.
-- **`process(buffer:) -> SpectrogramColumn?`** — main entry point from the tap
-  callback; returns `nil` if FFT setup unavailable or buffer empty.
-- **`snrLevel(from:) -> SNRLevel`** — rolling 96-entry noise floor history (~2
+- **`processColumns(buffer:) -> [SpectrogramColumn]`** — main entry point from
+  the tap callback; emits one column per 2048-frame window so a 4096-frame tap
+  contributes two visual columns instead of dropping half of the buffer.
+- **`process(buffer:) -> SpectrogramColumn?`** — compatibility helper that
+  returns the first processed column.
+- **`snrLevel(from:) -> SNRLevel`** — rolling 48-entry noise floor history (~2
   s). Thresholds: `.clipping` (peak > 0.95), `.warning` (SNR < 10 dB),
   `.caution` (10–20 dB), `.clear` (≥ 20 dB).
 - **`reset()`** — clears the noise floor history. Called by

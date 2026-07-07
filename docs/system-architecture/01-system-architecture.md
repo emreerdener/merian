@@ -198,17 +198,19 @@ single-responsibility functions under `/services/supabase/functions/`.
 
 ### 5. Private Analytics (`AppTelemetry`, `PostHog`)
 
-- PII-free tracking mapping OS limits passively via `TelemetryClient`.
-- Identifies usage funnels and telemetry across UI interactions with `PostHog`,
-  mapped by UUID and automatically enriched with Email and Name identifiers from
+- PII-free app analytics flow through `AppTelemetry` into `PostHog`, preserving
+  the existing client event names and marking iOS-emitted events with
+  `event_source = "ios_client"`.
+- PostHog identifies usage funnels and telemetry across UI interactions, mapped
+  by UUID and automatically enriched with Email and Name identifiers from
   authenticated Supabase sessions.
 
 ### 6. UI Initialization & Memory Operations
 
 - **Instant Cold Boot:** `AppTelemetry.initialize()` runs synchronously in
-  `MerianApp.init()` (it is just config storage — no I/O). `PostHog.configure()`
-  is idempotent and runs before Supabase auth begins restoring a session,
-  preventing identity-link races. Heavy `CameraManager` hardware initialization
+  `MerianApp.init()` after `PostHogManager.configure()` has been invoked by
+  `SupabaseManager`. PostHog configuration is idempotent, preventing
+  identity-link races. Heavy `CameraManager` hardware initialization
   (`AVCaptureSession.beginConfiguration`) stays off the critical render path.
 - **RAM Image Cache (`ImageCache`):** A thread-safe `@unchecked Sendable`
   `NSCache` stores downsampled scan thumbnails in RAM, avoiding massive disk I/O

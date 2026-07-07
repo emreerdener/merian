@@ -8,6 +8,5 @@ SUPABASE_URL = https:/$()/qlarqavoqhkuwzmevrmf.supabase.co
 SUPABASE_ANON_KEY = sb_publishable_7zM8XNRg-rv-pPBQFQDU0g_4TnOjtQQ
 REVENUECAT_API_KEY = test_KDYnJNpPWfrsUvmYhfNUTSIufuT
 POSTHOG_API_KEY = phc_7HHe4JA1LnDczaaedBDgylxCYQAYVJXyhM8my3HUoQY
-TELEMETRY_APP_ID = A316F801-4566-4F85-AF50-F23E31EC9BBD
 GIDClientID = 837988435097-6kclt4r7lhrf1jg2gn4djm65bkh6839u.apps.googleusercontent.com
 REVERSED_CLIENT_ID = com.googleusercontent.apps.837988435097-6kclt4r7lhrf1jg2gn4djm65bkh6839u

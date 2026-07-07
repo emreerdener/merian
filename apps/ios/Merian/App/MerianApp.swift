@@ -355,9 +355,8 @@ struct MerianApp: App {
         // Keep app-hosted test sessions hermetic: no analytics startup, no disk-backed
         // production store, and no background sync noise racing the test containers.
         if !TestExecutionCoordinator.isRunningTests {
-            // Initialize TelemetryDeck synchronously — this just stores config and is safe
-            // on the main thread. PostHog is configured by SupabaseManager before auth
-            // events can identify the restored session.
+            // Initialize the app analytics facade after PostHog has been configured
+            // by SupabaseManager, before startup recovery can emit its event.
             AppTelemetry.initialize()
             if let telemetryEvent = bootstrapOutcome.telemetryEvent {
                 AppTelemetry.trackStartupStoreRecovery(

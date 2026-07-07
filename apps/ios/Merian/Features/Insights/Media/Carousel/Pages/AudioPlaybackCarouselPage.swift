@@ -52,7 +52,7 @@ struct AudioPlaybackCarouselPage: View {
                 .foregroundStyle(.white.opacity(0.6))
             } else {
                 GeometryReader { proxy in
-                    SpectrogramView(columns: columns, columnCap: columns.count)
+                    SpectrogramView(columns: columns, layout: .fitToData)
                         .equatable()
                         .allowsHitTesting(false)
                         .overlay(alignment: .leading) {

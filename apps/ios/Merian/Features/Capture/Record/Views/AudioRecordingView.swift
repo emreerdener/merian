@@ -126,7 +126,7 @@ struct AudioRecordingView: View {
         let isReview = audioCaptureManager.pendingPlaybackPath != nil
         return SpectrogramView(
             columns: audioCaptureManager.spectrogramColumns,
-            columnCap: AudioCaptureManager.columnCap
+            layout: isReview ? .fitToData : .liveHorizon(capacity: AudioCaptureManager.columnCap)
         )
         .frame(maxWidth: .infinity)
         .frame(height: height)

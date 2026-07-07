@@ -3,8 +3,8 @@ import os
 import PostHog
 
 /// Handles PostHog anonymous telemetry for UX funnels, retention, and feature tracking.
-/// Not isolated to @MainActor — PostHogSDK is thread-safe and configure() runs on a
-/// background thread via Task.detached in MerianApp.init().
+/// Not isolated to @MainActor — PostHogSDK is thread-safe and configure() is
+/// idempotent across Supabase and AppTelemetry startup paths.
 final class PostHogManager {
     static let shared = PostHogManager()
     private init() {}

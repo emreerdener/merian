@@ -25,9 +25,6 @@ packages:
   Supabase:
     url: https://github.com/supabase-community/supabase-swift.git
     from: 2.41.1
-  TelemetryDeck:
-    url: https://github.com/TelemetryDeck/SwiftClient.git
-    from: 2.9.4
   RiveRuntime:
     url: https://github.com/rive-app/rive-ios.git
     from: 6.16.0
@@ -79,8 +76,6 @@ targets:
       - package: RevenueCat
       - package: PostHog
       - package: Supabase
-      - product: TelemetryClient
-        package: TelemetryDeck
       - package: RiveRuntime
       - package: GoogleSignIn
     postBuildScripts:

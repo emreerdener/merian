@@ -127,7 +127,7 @@ Merian is a field-ready biological identification app built around zero-friction
 | Cloud storage | Cloudflare R2 (S3-compatible) |
 | AI model | Google Gemini 2.5 Flash / Pro |
 | Payments | RevenueCat |
-| Analytics | TelemetryDeck and PostHog |
+| Analytics | PostHog |
 | CI/CD | GitHub Actions |
 | Email Services | Resend |
 

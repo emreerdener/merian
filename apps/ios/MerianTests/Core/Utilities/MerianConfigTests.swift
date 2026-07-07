@@ -119,8 +119,7 @@ struct MerianEnvironmentTests {
             "SUPABASE_URL": "not a valid url",
             "SUPABASE_ANON_KEY": "anon-key",
             "REVENUECAT_API_KEY": "revenuecat-key",
-            "POSTHOG_API_KEY": "posthog-key",
-            "TELEMETRY_APP_ID": "telemetry-id"
+            "POSTHOG_API_KEY": "posthog-key"
         ])
 
         #expect(configuration.supabaseUrl == MerianEnvironment.fallbackSupabaseURL)
@@ -134,15 +133,13 @@ struct MerianEnvironmentTests {
             "SUPABASE_URL": " https://project.supabase.co ",
             "SUPABASE_ANON_KEY": " anon-key ",
             "REVENUECAT_API_KEY": " revenuecat-key ",
-            "POSTHOG_API_KEY": " posthog-key ",
-            "TELEMETRY_APP_ID": " telemetry-id "
+            "POSTHOG_API_KEY": " posthog-key "
         ])
 
         #expect(configuration.supabaseUrl == "https://project.supabase.co")
         #expect(configuration.supabaseAnonKey == "anon-key")
         #expect(configuration.revenueCatApiKey == "revenuecat-key")
         #expect(configuration.postHogApiKey == "posthog-key")
-        #expect(configuration.telemetryAppID == "telemetry-id")
         #expect(configuration.hasSupabaseConfiguration)
         #expect(configuration.issues.isEmpty)
     }

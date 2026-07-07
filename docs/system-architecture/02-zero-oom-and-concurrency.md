@@ -474,7 +474,7 @@ bounded for normal upgrades while preserving a
 deterministic recovery surface if SwiftData cannot open the store.
 
 ### App Boot SDK Stutter (`MerianApp`)
-Deferring external SDK boot sequences via `DispatchQueue.main.asyncAfter` caused a UI hitch milliseconds after `CaptureWorkspaceView` finished rendering. Merian avoids delayed startup jolts by doing only lightweight configuration in the launch path: TelemetryDeck stores config synchronously, and `PostHogManager.configure()` is idempotent and invoked before Supabase starts listening for restored auth sessions. Heavy hardware work remains outside the critical render path.
+Deferring external SDK boot sequences via `DispatchQueue.main.asyncAfter` caused a UI hitch milliseconds after `CaptureWorkspaceView` finished rendering. Merian avoids delayed startup jolts by doing only lightweight analytics configuration in the launch path: `PostHogManager.configure()` is idempotent and invoked before Supabase starts listening for restored auth sessions, while `AppTelemetry.initialize()` only marks the app analytics facade ready once PostHog is configured. Heavy hardware work remains outside the critical render path.
 
 ### Accelerate Vector Optimizations (`CameraManager`)
 Calculating target Luma brightness by looping through `CVPixelBuffer` matrix addresses byte-by-byte (`totalLuma += UInt64(buffer[rowOffset + x])`) pegs the processor inside the 60fps capture loop, provoking thermal throttling in outdoor environments. Merian optimizes this calculation via Apple's Accelerate framework. Using `vImage_Buffer` alongside `vImageHistogramCalculation_Planar8`, execution drops from milliseconds to microseconds.

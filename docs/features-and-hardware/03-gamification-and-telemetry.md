@@ -107,52 +107,51 @@ sort" closures. These primitives are defined in
 
 ## Secure Telemetry Ecosystem
 
-Merian uses two analytics systems with a strict privacy boundary:
+Merian uses PostHog as its single product analytics system with a strict privacy
+boundary:
 
-- **TelemetryDeck (`AppTelemetry`)** — anonymous, PII-free product metrics. No
-  user identity is ever attached.
-- **PostHog (`PostHogManager`)** — user-identified session and lifecycle
-  tracking, linked to the Supabase UUID and dynamically upgraded to include
-  authenticated metadata (email and name) via backend `$set` properties.
+- **iOS app analytics (`AppTelemetry`)** — PII-free product metrics routed to
+  PostHog with preserved event names and `event_source = "ios_client"`.
+- **PostHog identity (`PostHogManager`)** — user-identified session and
+  lifecycle tracking, linked to the Supabase UUID and dynamically upgraded to
+  include authenticated metadata (email and name) via backend `$set` properties.
 
 ### Initialization
 
-`AppTelemetry.initialize()` is called synchronously in `MerianApp.init()` —
-`TelemetryDeck.initialize(config:)` is pure config storage with no I/O, safe on
-the main thread.
+`AppTelemetry.initialize()` is called synchronously in `MerianApp.init()` after
+the dependency container has invoked `SupabaseManager.shared`, whose initializer
+configures PostHog before auth listening begins.
 
-`PostHogManager.configure()` is called by `SupabaseManager` before the Supabase
-auth listener is started. The wrapper is not `@MainActor` and its configuration
-path is idempotent, so restored-session identity can be linked without the
-cold-start race where auth emits before PostHog exists.
-`AppTelemetry.initialize()` remains in `MerianApp.init()` because TelemetryDeck
-is anonymous and does not participate in auth identity.
+`PostHogManager.configure()` remains idempotent, so both `SupabaseManager` and
+`AppTelemetry` can safely call it without double setup. Restored-session
+identity can be linked without the cold-start race where auth emits before
+PostHog exists.
 
-### `AppTelemetry` (TelemetryDeck SDK)
+### `AppTelemetry` (PostHog Facade)
 
-Thin enum wrapper around `TelemetryDeck`. All sends go through a private
-`send(_:with:)` helper that checks `isInitialized` and logs a warning (rather
-than silently no-oping) if called before `initialize()`. The `isInitialized`
-flag is protected by `NSLock` for thread safety.
+Thin enum wrapper around app product events. All sends go through a private
+`send(_:with:)` helper that checks `isInitialized`, adds
+`event_source = "ios_client"`, and captures through `PostHogManager`. The
+`isInitialized` flag is protected by `NSLock` for thread safety.
 
 **Signal inventory:**
 
 | Signal                           | Method                                                     | Payload                                                                                     | Trigger                                                                                          |
 | -------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `ScanCompleted`                  | `trackScan(isPro:isSubscribed:inferenceTier:)`             | `tier: "Pro"/"Free"`, `plan: "pro_paid"/"pro_trial"/"free"`, `inferenceTier: "pro"/"flash"` | Successful inference result                                                                      |
+| `ClientScanCompleted`            | `trackScan(isPro:isSubscribed:inferenceTier:)`             | `tier: "Pro"/"Free"`, `plan: "pro_paid"/"pro_trial"/"free"`, `inferenceTier: "pro"/"flash"` | Successful client-side parse/save after inference                                                |
 | `NewSpeciesDiscovered`           | `trackNewDiscovery(isPro:)`                                | `tier: "Pro"/"Free"`                                                                        | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires) |
 | `PaywallViewed`                  | `trackPaywallImpression()`                                 | —                                                                                           | Camera shutter or gallery picker hits free scan cap                                              |
-| `ThermalThrottled`               | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                                           | Device thermal state reaches critical                                                            |
-| `OfflineQueuedScan`              | `trackOfflineQueued()`                                     | —                                                                                           | Scan successfully written to offline queue after `context.save()`                                |
+| `CaptureThermalThrottled`        | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                                           | Capture throttles frame rate after device thermal state reaches critical                         |
+| `ScanQueuedForSync`              | `trackOfflineQueued()`                                     | —                                                                                           | Scan successfully written to offline queue after `context.save()`                                |
 | `OnboardingCompleted`            | `trackOnboardingCompleted()`                               | —                                                                                           | User taps Continue on the `.ready` onboarding step                                               |
 | `SpeciesDictionaryOpened`        | `trackSpeciesDictionaryOpened(entryPoint:)`                | `entryPoint`                                                                                | Species dictionary sheet opens                                                                   |
-| `SpeciesDictionaryLoaded`        | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"`                      | Species dictionary page loads a public dictionary row                                            |
+| `SpeciesDictionaryPageLoaded`    | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"`                      | Species dictionary page loads a public dictionary row                                            |
 | `SpeciesDictionaryNotFound`      | `trackSpeciesDictionaryNotFound(entryPoint:)`              | `entryPoint`                                                                                | Species dictionary lookup returns no public row                                                  |
 | `SpeciesDictionaryRetry`         | `trackSpeciesDictionaryRetry(entryPoint:)`                 | `entryPoint`                                                                                | User taps retry from a dictionary error/not-found state                                          |
-| `SpeciesDictionaryImageFallback` | `trackSpeciesDictionaryImageFallback(entryPoint:source:)`  | `entryPoint`, `source: "wikipedia"/"gbif"`                                                  | Species dictionary reference image fails to load and falls back to placeholder UI                |
+| `SpeciesDictionaryReferenceImageFallback` | `trackSpeciesDictionaryImageFallback(entryPoint:source:)`  | `entryPoint`, `source: "wikipedia"/"gbif"`                                                  | Species dictionary reference image fails to load and falls back to placeholder UI                |
 | `APIDecodingFailure`             | `trackError("APIDecodingFailure")`                         | `domain: "APIDecodingFailure"`                                                              | Gemini response fails schema decoding                                                            |
 | `InferenceNetworkFailure`        | `trackError("InferenceNetworkFailure")`                    | `domain: "InferenceNetworkFailure"`                                                         | Network error on live inference (non-cancellation path)                                          |
-| `SystemError`                    | `trackError(_:)`                                           | `domain: <errorDomain>`                                                                     | Available for future error domains                                                               |
+| `ClientErrorCaptured`            | `trackError(_:)`                                           | `domain: <errorDomain>`                                                                     | Available for future client error domains                                                        |
 | `StartupStoreRecovery`           | `trackStartupStoreRecovery(outcome:reason:)`               | `outcome`, `reason`                                                                         | App startup enters local store recovery, safe mode, or startup-blocked fallback                   |
 
 Species dictionary telemetry must remain zero-PII. `entryPoint` may be
@@ -176,8 +175,7 @@ and expedition mode.
 
 ### `PostHogManager` & Edge Telemetry
 
-Tracks session lifecycle, feature interactions, and backend AI token usage,
-linked anonymously.
+Tracks session lifecycle, feature interactions, and backend AI token usage.
 
 **iOS Client (`PostHogManager`)**:
 

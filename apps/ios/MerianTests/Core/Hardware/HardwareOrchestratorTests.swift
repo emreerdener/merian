@@ -1,6 +1,6 @@
 import Testing
+import AVFoundation
 import Foundation
-import TelemetryClient
 @testable import Merian
 
 @MainActor
@@ -198,6 +198,68 @@ struct AudioCaptureManagerLifecycleTests {
         #expect(manager.audioFilePath == nil, "Manual early stops should still let the user review the shorter clip")
         #expect(manager.pendingPlaybackPath == fileName)
         #expect(manager.isRecording == false)
+    }
+}
+
+struct SpectrogramActorTests {
+    @Test func testProcessColumnsUsesEveryFFTWindowInBuffer() async throws {
+        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
+        let buffer = try #require(AVAudioPCMBuffer(
+            pcmFormat: format,
+            frameCapacity: AVAudioFrameCount(SpectrogramActor.fftSize * 2)
+        ))
+        buffer.frameLength = AVAudioFrameCount(SpectrogramActor.fftSize * 2)
+
+        let channel = try #require(buffer.floatChannelData?[0])
+        for sampleIndex in 0..<(SpectrogramActor.fftSize * 2) {
+            let phase = 2 * Float.pi * 1_200 * Float(sampleIndex) / 48_000
+            channel[sampleIndex] = sinf(phase) * 0.5
+        }
+
+        let actor = SpectrogramActor()
+        let columns = await actor.processColumns(buffer: buffer)
+
+        #expect(columns.count == 2, "A 4096-frame tap buffer should produce two 2048-frame spectrogram windows")
+        #expect(SpectrogramActor.outputBinCount == 128)
+        #expect(columns.allSatisfy { $0.magnitudes.count == SpectrogramActor.outputBinCount })
+        #expect(columns.contains { ($0.magnitudes.max() ?? 0) > 0 })
+    }
+}
+
+struct SpectrogramRendererTests {
+    @Test func testRasterLayoutsUseFitAndLiveDimensions() throws {
+        let columns = (0..<3).map { columnIndex in
+            SpectrogramColumn(
+                magnitudes: (0..<SpectrogramActor.outputBinCount).map { binIndex in
+                    Float(columnIndex + binIndex + 1) / Float(SpectrogramActor.outputBinCount + 3)
+                },
+                rms: 0.1,
+                peak: 0.2
+            )
+        }
+
+        let fitRaster = try #require(SpectrogramRenderer.raster(columns: columns, layout: .fitToData))
+        #expect(fitRaster.width == columns.count)
+        #expect(fitRaster.height == SpectrogramActor.outputBinCount)
+
+        let liveRaster = try #require(SpectrogramRenderer.raster(
+            columns: columns,
+            layout: .liveHorizon(capacity: 10)
+        ))
+        #expect(liveRaster.width == 10)
+        #expect(liveRaster.height == SpectrogramActor.outputBinCount)
+
+        let background = SpectrogramPalette.backgroundRGBA
+        let hasSignalPixel = stride(from: 0, to: liveRaster.pixels.count, by: 4).contains { offset in
+            liveRaster.pixels[offset] != background.red ||
+            liveRaster.pixels[offset + 1] != background.green ||
+            liveRaster.pixels[offset + 2] != background.blue
+        }
+        #expect(hasSignalPixel, "Rendered raster should include signal-colored pixels, not only the background")
+
+        let image = try #require(SpectrogramRenderer.cgImage(columns: columns, layout: .liveHorizon(capacity: 10)))
+        #expect(image.width == 10)
+        #expect(image.height == SpectrogramActor.outputBinCount)
     }
 }
 

@@ -101,7 +101,7 @@ export default function PrivacyPolicyPage() {
         <Text>
           Merian uses trusted infrastructure and product providers to operate the app,
           including Supabase, Cloudflare R2, Google Gemini, Apple platform services,
-          Google sign-in, RevenueCat, PostHog, TelemetryDeck, and Resend. These providers
+          Google sign-in, RevenueCat, PostHog, and Resend. These providers
           process information only as needed to provide, secure, analyze, or support
           Merian.
         </Text>

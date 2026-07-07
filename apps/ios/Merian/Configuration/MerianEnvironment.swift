@@ -23,7 +23,6 @@ enum MerianEnvironment {
         let supabaseAnonKey: String
         let revenueCatApiKey: String
         let postHogApiKey: String
-        let telemetryAppID: String
         let issues: [ConfigurationIssue]
 
         var hasSupabaseConfiguration: Bool {
@@ -41,7 +40,6 @@ enum MerianEnvironment {
         static let supabaseAnonKey = "SUPABASE_ANON_KEY"
         static let revenueCatApiKey = "REVENUECAT_API_KEY"
         static let postHogApiKey = "POSTHOG_API_KEY"
-        static let telemetryAppID = "TELEMETRY_APP_ID"
     }
 
     static let fallbackSupabaseURL = "https://missing-supabase-config.supabase.co"
@@ -61,7 +59,6 @@ enum MerianEnvironment {
     static var supabaseAnonKey: String { configuration.supabaseAnonKey }
     static var revenueCatApiKey: String { configuration.revenueCatApiKey }
     static var postHogApiKey: String { configuration.postHogApiKey }
-    static var telemetryAppID: String { configuration.telemetryAppID }
 
     static func load(bundle: Bundle = .main) -> Configuration {
         load(infoDictionary: bundle.infoDictionary)
@@ -74,14 +71,12 @@ enum MerianEnvironment {
                 supabaseAnonKey: fallbackSupabaseAnonKey,
                 revenueCatApiKey: "",
                 postHogApiKey: "",
-                telemetryAppID: "",
                 issues: [
                     .missingInfoDictionary,
                     .missingValue(Keys.supabaseUrl),
                     .missingValue(Keys.supabaseAnonKey),
                     .missingValue(Keys.revenueCatApiKey),
-                    .missingValue(Keys.postHogApiKey),
-                    .missingValue(Keys.telemetryAppID)
+                    .missingValue(Keys.postHogApiKey)
                 ]
             )
         }
@@ -92,7 +87,6 @@ enum MerianEnvironment {
         let supabaseAnonKey = value(for: Keys.supabaseAnonKey, in: infoDictionary, issues: &issues) ?? fallbackSupabaseAnonKey
         let revenueCatApiKey = value(for: Keys.revenueCatApiKey, in: infoDictionary, issues: &issues) ?? ""
         let postHogApiKey = value(for: Keys.postHogApiKey, in: infoDictionary, issues: &issues) ?? ""
-        let telemetryAppID = value(for: Keys.telemetryAppID, in: infoDictionary, issues: &issues) ?? ""
 
         if URL(string: supabaseUrl)?.scheme == nil || URL(string: supabaseUrl)?.host == nil {
             issues.append(.invalidSupabaseURL(supabaseUrl))
@@ -106,7 +100,6 @@ enum MerianEnvironment {
             supabaseAnonKey: supabaseAnonKey,
             revenueCatApiKey: revenueCatApiKey,
             postHogApiKey: postHogApiKey,
-            telemetryAppID: telemetryAppID,
             issues: issues
         )
     }

@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-07-posthog-analytics-consolidation",
+      "date": "2026-07-07",
+      "title": "Analytics consolidation",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Product analytics now use PostHog across app events, session funnels, and backend events, with clearer client event names for scan completion, queueing, thermal throttling, errors, and species dictionary page loads."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-07-audio-spectrogram-rendering",
+      "date": "2026-07-07",
+      "title": "Audio spectrogram detail",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Audio recordings now show denser, smoother spectrograms while recording, reviewing, playing back Insight audio, and browsing scan thumbnails."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-07-bounded-image-preparation",
       "date": "2026-07-07",
       "title": "Large photo stability",

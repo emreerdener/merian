@@ -187,7 +187,7 @@ Current rules:
   older payloads that do not include the field.
 - Sparse and needs-enrichment pages render a small status card instead of
   silently omitting most sections.
-- TelemetryDeck events from Scope 10 track sparse-load and not-found rates with
+- PostHog events from Scope 10 track sparse-load and not-found rates with
   zero-PII entry-point metadata.
 
 Why it matters: users will tap into incomplete species rows, especially early in
@@ -237,18 +237,18 @@ Current rules:
   reserved values are `search`, `deep_link`, `web`, and `unknown`.
 - `SpeciesDictionaryOpened` tracks sheet opens once per route/view-model
   lifecycle.
-- `SpeciesDictionaryLoaded` tracks successful loads with `entryPoint` and
+- `SpeciesDictionaryPageLoaded` tracks successful loads with `entryPoint` and
   `contentQuality`, which covers sparse-load rates.
 - `SpeciesDictionaryNotFound` tracks missing public rows with `entryPoint`.
 - `SpeciesDictionaryRetry` tracks explicit retry taps from error/not-found
   states.
-- `SpeciesDictionaryImageFallback` tracks dictionary reference-image load
+- `SpeciesDictionaryReferenceImageFallback` tracks dictionary reference-image load
   failures with `entryPoint` and image `source`.
 - No event attaches species name, species ID, scan ID, Explore post ID, user
   location, field notes, comments, image URL, or user review state.
-- Prioritization query pattern: group `SpeciesDictionaryLoaded` by
+- Prioritization query pattern: group `SpeciesDictionaryPageLoaded` by
   `contentQuality` and `entryPoint` to find sparse surfaces, group
-  `SpeciesDictionaryImageFallback` by `source` to clean reference imagery, and
+  `SpeciesDictionaryReferenceImageFallback` by `source` to clean reference imagery, and
   group `SpeciesDictionaryNotFound`/`Retry` by `entryPoint` to find missing
   dictionary coverage in launch flows.
 

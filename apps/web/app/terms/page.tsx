@@ -74,7 +74,7 @@ export default function TermsPage() {
       <LegalSection title="Third-Party Services">
         <Text>
           Merian depends on third-party services including Apple, Supabase, Cloudflare,
-          Google, RevenueCat, PostHog, TelemetryDeck, and Resend. Your use of those
+          Google, RevenueCat, PostHog, and Resend. Your use of those
           services through Merian may also be subject to their own terms and policies.
         </Text>
       </LegalSection>

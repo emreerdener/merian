@@ -1179,8 +1179,8 @@ Content quality:
 - iOS treats the field as optional and estimates the same state for older
   payloads. Sparse and needs-enrichment pages render an intentional status card
   rather than leaving the missing sections unexplained.
-- iOS sends species dictionary analytics through TelemetryDeck only. Events
-  include `entryPoint`, `contentQuality`, and image `source` where relevant;
+- iOS sends species dictionary analytics through `AppTelemetry` to PostHog.
+  Events include `entryPoint`, `contentQuality`, and image `source` where relevant;
   species names, species IDs, scan IDs, Explore post IDs, user locations, field
   notes, comments, image URLs, and review state are not attached.
 

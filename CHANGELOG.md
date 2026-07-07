@@ -6,6 +6,13 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Analytics
+
+- Consolidated product analytics under PostHog so app events, session funnels,
+  and backend events share one tracking system, with clearer client event names
+  for scan completion, queueing, thermal throttling, errors, and species
+  dictionary page loads.
+
 ### Species Dictionary
 
 - Added durable species dictionary enrichment queueing so new and existing
@@ -14,6 +21,9 @@ TestFlight, App Store, support, and QA.
 
 ### Capture
 
+- Upgraded audio spectrograms with denser detail, smoother rendering, and a
+  shared polished palette across recording, review, Insight playback, and scan
+  thumbnails.
 - Improved large-photo handling so gallery scans, reanalysis images, and profile
   avatar previews are bounded before staging, reducing memory pressure when very
   large local photos are selected.

@@ -59,8 +59,8 @@ environment variable.**
   `apps/web/lib/supabase.ts`.
 - `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is
   injected via `Config.xcconfig` into `MerianEnvironment.swift`.
-- `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `TELEMETRY_APP_ID`,
-  `GIDClientID`, and `REVERSED_CLIENT_ID` are also public client config values
+- `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `GIDClientID`, and
+  `REVERSED_CLIENT_ID` are also public client config values
   used by the app at runtime.
 
 That means committed client config is acceptable for values in the second group,

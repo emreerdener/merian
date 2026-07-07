@@ -1,14 +1,15 @@
 import Foundation
 import os
-import TelemetryClient
 
-/// Thin wrapper around TelemetryDeck for anonymous, PII-free analytics.
+/// Thin app-wide facade for PII-free product analytics.
 enum AppTelemetry {
+    typealias CaptureHandler = (_ event: String, _ properties: [String: Any]) -> Void
 
     // MARK: - State
 
     private static let lock = NSLock()
     private nonisolated(unsafe) static var _isInitialized = false
+    private nonisolated(unsafe) static var captureHandlerForTesting: CaptureHandler?
 
     static var isInitialized: Bool {
         get { lock.withLock { _isInitialized } }
@@ -17,25 +18,34 @@ enum AppTelemetry {
 
     // MARK: - Setup
 
-    /// Initializes TelemetryDeck with the app's configured ID.
+    /// Initializes the app analytics facade with PostHog as the only event sink.
     static func initialize() {
-        guard !MerianEnvironment.telemetryAppID.isEmpty else {
-            MerianLog.general.error("TelemetryDeck configuration skipped because TELEMETRY_APP_ID is missing.")
-            isInitialized = false
+        if TestExecutionCoordinator.isRunningTests {
+            isInitialized = testCaptureHandler != nil
             return
         }
 
-        let configuration = TelemetryDeck.Config(appID: MerianEnvironment.telemetryAppID)
-        TelemetryDeck.initialize(config: configuration)
-        isInitialized = true
-        MerianLog.general.debug("TelemetryDeck initialized.")
+        PostHogManager.shared.configure()
+        isInitialized = PostHogManager.shared.isConfigured
+        if isInitialized {
+            MerianLog.general.debug("AppTelemetry initialized with PostHog.")
+        } else {
+            MerianLog.general.error("AppTelemetry configuration skipped because PostHog is not configured.")
+        }
+    }
+
+    static func installCaptureHandlerForTesting(_ handler: CaptureHandler?) {
+        lock.withLock {
+            captureHandlerForTesting = handler
+            _isInitialized = false
+        }
     }
 
     // MARK: - Scan Events
 
     /// Records a completed scan.
     static func trackScan(isPro: Bool, isSubscribed: Bool, inferenceTier: String? = nil) {
-        send("ScanCompleted", with: scanTelemetryParameters(
+        send("ClientScanCompleted", with: scanTelemetryParameters(
             isPro: isPro,
             isSubscribed: isSubscribed,
             inferenceTier: inferenceTier
@@ -69,7 +79,7 @@ enum AppTelemetry {
 
     /// Records a scan successfully queued for offline sync.
     static func trackOfflineQueued() {
-        send("OfflineQueuedScan")
+        send("ScanQueuedForSync")
     }
 
     // MARK: - Activation Events
@@ -137,7 +147,7 @@ enum AppTelemetry {
 
     /// Records a successful species dictionary load without attaching species identity.
     static func trackSpeciesDictionaryLoaded(entryPoint: String, contentQuality: String) {
-        send("SpeciesDictionaryLoaded", with: [
+        send("SpeciesDictionaryPageLoaded", with: [
             "entryPoint": entryPoint,
             "contentQuality": contentQuality
         ])
@@ -155,7 +165,7 @@ enum AppTelemetry {
 
     /// Records a public reference image load failure that falls back to placeholder UI.
     static func trackSpeciesDictionaryImageFallback(entryPoint: String, source: String) {
-        send("SpeciesDictionaryImageFallback", with: [
+        send("SpeciesDictionaryReferenceImageFallback", with: [
             "entryPoint": entryPoint,
             "source": source
         ])
@@ -165,14 +175,14 @@ enum AppTelemetry {
 
     /// Records a thermal throttling event.
     static func trackThermalThrottling(fpsLimit: Int) {
-        send("ThermalThrottled", with: ["targetFPS": String(fpsLimit)])
+        send("CaptureThermalThrottled", with: ["targetFPS": String(fpsLimit)])
     }
 
     // MARK: - Error Events
 
     /// Records a named error domain for custom error tracking.
     static func trackError(_ errorDomain: String) {
-        send("SystemError", with: ["domain": errorDomain])
+        send("ClientErrorCaptured", with: ["domain": errorDomain])
     }
 
     /// Records launch-time local store recovery without including paths, user IDs, or exception text.
@@ -190,10 +200,21 @@ enum AppTelemetry {
             MerianLog.general.warning("AppTelemetry.send() called before initialize() — signal '\(signal)' dropped.")
             return
         }
-        if let params {
-            TelemetryDeck.signal(signal, parameters: params)
-        } else {
-            TelemetryDeck.signal(signal)
+
+        var properties = params?.reduce(into: [String: Any]()) { result, element in
+            result[element.key] = element.value
+        } ?? [:]
+        properties["event_source"] = "ios_client"
+
+        if let testCaptureHandler {
+            testCaptureHandler(signal, properties)
+            return
         }
+
+        PostHogManager.shared.capture(signal, properties: properties)
+    }
+
+    private static var testCaptureHandler: CaptureHandler? {
+        lock.withLock { captureHandlerForTesting }
     }
 }

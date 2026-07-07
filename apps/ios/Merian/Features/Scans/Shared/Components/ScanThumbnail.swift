@@ -420,27 +420,12 @@ actor AudioSpectrogramThumbnailLoader {
 
         let dimension = max(64, maxDimension)
         let size = CGSize(width: dimension, height: dimension)
-        let format = UIGraphicsImageRendererFormat.default()
-        format.opaque = true
-        format.scale = 1
-
-        return UIGraphicsImageRenderer(size: size, format: format).image { rendererContext in
-            let context = rendererContext.cgContext
-            context.setFillColor(SpectrogramPalette.backgroundUIColor.cgColor)
-            context.fill(CGRect(origin: .zero, size: size))
-
-            let columnWidth = size.width / CGFloat(columns.count)
-            let binHeight = size.height / CGFloat(SpectrogramActor.outputBinCount)
-
-            for (columnIndex, column) in columns.enumerated() {
-                let x = CGFloat(columnIndex) * columnWidth
-                for (binIndex, magnitude) in column.magnitudes.enumerated() {
-                    let y = size.height - CGFloat(binIndex + 1) * binHeight
-                    context.setFillColor(SpectrogramPalette.uiColor(for: magnitude).cgColor)
-                    context.fill(CGRect(x: x, y: y, width: columnWidth + 0.5, height: binHeight + 0.5))
-                }
-            }
-        }
+        return SpectrogramRenderer.image(
+            columns: columns,
+            layout: .fitToData,
+            targetSize: size,
+            scale: 1
+        )
     }
 }
 

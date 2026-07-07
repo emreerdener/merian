@@ -83,8 +83,8 @@ final class AudioCaptureManager {
     // MARK: Constants
 
     static let maxDuration: TimeInterval = 15
-    // Full-clip buffer: ~85 ms / column × 180 ≈ 15 s of visible history
-    static let columnCap = 180
+    // Full-clip buffer: ~42 ms / column × 360 ≈ 15 s of visible history
+    static let columnCap = 360
 
     // MARK: Private
 
@@ -102,6 +102,7 @@ final class AudioCaptureManager {
     private var isStartingRecording: Bool = false
     private var audioSessionLease: AudioSessionCoordinator.Lease?
     private var autoSubmitOnMaxDuration: Bool = false
+    private static let snrHoldTickCount = 48
 
     #if targetEnvironment(simulator)
     private static let preferredRecordSampleRate: Double? = 48_000
@@ -199,28 +200,37 @@ final class AudioCaptureManager {
                     manager?.dspTask = Task.detached { [weak manager] in
                         for await buffer in stream {
                             if Task.isCancelled { break }
-                            guard let col = await actor.process(buffer: buffer) else { continue }
-                            let snr = await actor.snrLevel(from: col)
+                            let columns = await actor.processColumns(buffer: buffer)
+                            guard !columns.isEmpty else { continue }
+
+                            var evaluatedColumns: [(column: SpectrogramColumn, snr: SNRLevel)] = []
+                            evaluatedColumns.reserveCapacity(columns.count)
+                            for column in columns {
+                                let snr = await actor.snrLevel(from: column)
+                                evaluatedColumns.append((column, snr))
+                            }
 
                             await MainActor.run { [weak manager] in
                                 guard let manager else { return }
-                                manager.spectrogramHistory.append(col)
-                                manager.spectrogramColumns = manager.spectrogramHistory.elements
+                                for evaluatedColumn in evaluatedColumns {
+                                    manager.spectrogramHistory.append(evaluatedColumn.column)
 
-                                let severity: [SNRLevel: Int] = [.clear: 0, .caution: 1, .warning: 2, .clipping: 3]
-                                let currentSeverity = severity[manager.snrLevel] ?? 0
-                                let newSeverity = severity[snr] ?? 0
+                                    let severity: [SNRLevel: Int] = [.clear: 0, .caution: 1, .warning: 2, .clipping: 3]
+                                    let currentSeverity = severity[manager.snrLevel] ?? 0
+                                    let newSeverity = severity[evaluatedColumn.snr] ?? 0
 
-                                if newSeverity > currentSeverity {
-                                    manager.snrLevel = snr
-                                    manager.snrHoldTicks = 24 // ~2 seconds at ~85ms per buffer slice
-                                } else if newSeverity == currentSeverity && newSeverity > 0 {
-                                    manager.snrHoldTicks = 24
-                                } else if manager.snrHoldTicks > 0 {
-                                    manager.snrHoldTicks -= 1
-                                } else {
-                                    manager.snrLevel = snr
+                                    if newSeverity > currentSeverity {
+                                        manager.snrLevel = evaluatedColumn.snr
+                                        manager.snrHoldTicks = Self.snrHoldTickCount
+                                    } else if newSeverity == currentSeverity && newSeverity > 0 {
+                                        manager.snrHoldTicks = Self.snrHoldTickCount
+                                    } else if manager.snrHoldTicks > 0 {
+                                        manager.snrHoldTicks -= 1
+                                    } else {
+                                        manager.snrLevel = evaluatedColumn.snr
+                                    }
                                 }
+                                manager.spectrogramColumns = manager.spectrogramHistory.elements
                             }
                         }
                     }

@@ -108,12 +108,11 @@ MerianTests/
 
 ### Analytics & Telemetry
 
-- **`AppTelemetryTests.swift`**: Calls `AppTelemetry.initialize()` in `setUp()`
-  so the `isInitialized` guard passes and `TelemetryDeck.signal()` is actually
-  exercised. `testAllTrackMethodsDoNotCrash` covers every public signal
-  including `trackOfflineQueued` and `trackOnboardingCompleted`.
-  `testIsInitializedAfterSetUp` asserts `isInitialized == true` to catch any
-  future regression where `setUp()` drops the initialization call.
+- **`AppTelemetryTests.swift`**: Installs a local capture handler and calls
+  `AppTelemetry.initialize()` in `setUp()` so the `isInitialized` guard passes
+  without touching the live PostHog SDK. The tests cover every public signal,
+  preserved event names, `event_source = "ios_client"`, and the Pro
+  paid/trial/free scan payload matrix.
 - **`PostHogManagerTests.swift`**: Smoke-tests `identifyUser` and `reset`
   against the shared singleton to verify the SDK binding does not crash.
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct

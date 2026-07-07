@@ -4,7 +4,7 @@ import Foundation
 
 // MARK: - Spectrogram Types
 
-struct SpectrogramColumn: Sendable {
+struct SpectrogramColumn: Sendable, Equatable {
     let magnitudes: [Float]  // outputBinCount mel-scaled bins, 0.0–1.0 normalized
     let rms: Float           // pre-window RMS for SNR calculation
     let peak: Float          // pre-window peak for clipping detection
@@ -58,19 +58,19 @@ struct CircularBuffer<Element> {
 /// Swift actor, keeping the Main Actor free for 60fps SwiftUI rendering.
 ///
 /// Uses Accelerate vDSP for a 2048-point real FFT (42ms windows at 48kHz),
-/// then maps linear frequency bins to 64 mel-scaled output bins spanning the
+/// then maps linear frequency bins to 128 mel-scaled output bins spanning the
 /// bioacoustically relevant range of 80Hz–16kHz (birds, insects, frogs).
 actor SpectrogramActor {
 
     static let fftSize = 2048
-    static let outputBinCount = 64
-    private static let noiseFloorCapacity = 96
+    static let outputBinCount = 128
+    private static let noiseFloorCapacity = 48
 
     private let log2n: vDSP_Length
     private var fftSetup: FFTSetup?
     private var hannWindow: [Float]
 
-    // Rolling minimum RMS over ~2 seconds — used as the estimated noise floor.
+    // Rolling minimum RMS over ~2 seconds of 2048-frame windows — used as the estimated noise floor.
     private var noiseFloorHistory = CircularBuffer<Float>(capacity: SpectrogramActor.noiseFloorCapacity)
 
     init() {
@@ -86,25 +86,53 @@ actor SpectrogramActor {
 
     // MARK: - Public API
 
-    /// Computes a spectrogram column from one `AVAudioPCMBuffer` tap callback.
+    /// Computes the first spectrogram column from an audio buffer.
     /// Returns `nil` if the buffer is too short or the FFT setup is unavailable.
     func process(buffer: AVAudioPCMBuffer) -> SpectrogramColumn? {
+        processColumns(buffer: buffer).first
+    }
+
+    /// Computes one spectrogram column per 2048-frame FFT window in the buffer.
+    /// Short final windows are zero-padded so the decoder does not discard audio tail data.
+    func processColumns(buffer: AVAudioPCMBuffer) -> [SpectrogramColumn] {
         guard let fftSetup,
               let channelData = buffer.floatChannelData?[0],
-              buffer.frameLength > 0 else { return nil }
+              buffer.frameLength > 0 else { return [] }
 
         let n = SpectrogramActor.fftSize
         let frameCount = Int(buffer.frameLength)
+        let sampleRate = Float(buffer.format.sampleRate > 0 ? buffer.format.sampleRate : 48_000)
+
+        return stride(from: 0, to: frameCount, by: n).compactMap { offset in
+            processWindow(
+                channelData: channelData,
+                offset: offset,
+                availableFrames: frameCount - offset,
+                sampleRate: sampleRate,
+                fftSetup: fftSetup
+            )
+        }
+    }
+
+    private func processWindow(
+        channelData: UnsafePointer<Float>,
+        offset: Int,
+        availableFrames: Int,
+        sampleRate: Float,
+        fftSetup: FFTSetup
+    ) -> SpectrogramColumn? {
+        let n = SpectrogramActor.fftSize
 
         // autoreleasepool prevents PCMBuffer Obj-C objects from accumulating
         // across repeated tap callbacks before ARC can collect them.
         return autoreleasepool {
             // Copy up to fftSize samples; zero-pad tail if buffer is shorter.
             var windowed = [Float](repeating: 0, count: n)
-            let copyCount = min(frameCount, n)
+            let copyCount = min(max(availableFrames, 0), n)
+            guard copyCount > 0 else { return nil }
             windowed.withUnsafeMutableBufferPointer { dst in
                 guard let base = dst.baseAddress else { return }
-                memcpy(base, channelData, copyCount * MemoryLayout<Float>.stride)
+                memcpy(base, channelData.advanced(by: offset), copyCount * MemoryLayout<Float>.stride)
             }
 
             // Capture RMS and peak from the raw (pre-window) signal.
@@ -144,7 +172,7 @@ actor SpectrogramActor {
             mags = mags.map { Swift.max(0, Swift.min(1, ($0 - minDb) / (maxDb - minDb))) }
 
             return SpectrogramColumn(
-                magnitudes: melScale(mags, halfN: n / 2),
+                magnitudes: melScale(mags, halfN: n / 2, sampleRate: sampleRate),
                 rms: rms,
                 peak: peak
             )
@@ -184,10 +212,9 @@ actor SpectrogramActor {
     ///
     /// Covers 80Hz–16kHz with triangular filter banks spaced on the mel scale —
     /// perceptually uniform and captures the critical 1–8kHz bird/insect ID range.
-    private func melScale(_ linearMags: [Float], halfN: Int) -> [Float] {
-        let sampleRate: Float = 48_000
+    private func melScale(_ linearMags: [Float], halfN: Int, sampleRate: Float) -> [Float] {
         let minHz: Float = 80
-        let maxHz: Float = 16_000
+        let maxHz = min(sampleRate / 2, 16_000)
         let outBins = SpectrogramActor.outputBinCount
 
         func hzToMel(_ hz: Float) -> Float { 2595 * log10f(1 + hz / 700) }
@@ -285,9 +312,8 @@ enum AudioSpectrogramDecoder {
                 }
 
                 if status == .haveData, outputBuffer.frameLength > 0 {
-                    if let column = await spectrogramActor.process(buffer: outputBuffer) {
-                        columns.append(column)
-                    }
+                    let decodedColumns = await spectrogramActor.processColumns(buffer: outputBuffer)
+                    columns.append(contentsOf: decodedColumns)
                     continue
                 }
 

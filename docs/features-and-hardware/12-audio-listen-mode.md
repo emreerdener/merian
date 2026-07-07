@@ -48,22 +48,27 @@ AVAudioPCMBuffer → [zero-pad to 2048] → Hann window → Real FFT → power m
 | Parameter       | Value          | Rationale                                                                         |
 | --------------- | -------------- | --------------------------------------------------------------------------------- |
 | FFT size        | 2048 points    | 42.67 ms window at 48 kHz — enough frequency resolution to resolve bird harmonics |
-| mel bins        | 64             | Dense enough for species differentiation without memory pressure                  |
+| mel bins        | 128            | Dense enough for species differentiation without memory pressure                  |
 | Frequency range | 80 Hz – 16 kHz | Covers the bioacoustically relevant range for birds, insects, and frogs           |
 | dB floor        | −80 dB         | Clamps below-noise-floor energy to zero before normalization                      |
 
-**`process(buffer:) -> SpectrogramColumn?`**\
+**`processColumns(buffer:) -> [SpectrogramColumn]`**\
 Wrapped in `autoreleasepool` to prevent Obj-C `AVAudioPCMBuffer` objects from
-accumulating across repeated tap callbacks. Returns `nil` if the FFT setup is
-unavailable or the buffer is empty. The returned `SpectrogramColumn` carries:
+accumulating across repeated tap callbacks. Emits one spectrogram column per
+2048-frame FFT window, so the live 4096-frame tap buffer contributes two visual
+columns instead of dropping half of the buffer. The returned
+`SpectrogramColumn` values carry:
 
-- `magnitudes: [Float]` — 64 mel-scaled bins, 0.0–1.0 normalized
+- `magnitudes: [Float]` — 128 mel-scaled bins, 0.0–1.0 normalized
 - `rms: Float` — pre-window RMS (used for SNR estimation)
 - `peak: Float` — pre-window peak (used for clipping detection)
 
+`process(buffer:) -> SpectrogramColumn?` remains as a compatibility helper that
+returns the first processed column.
+
 ### SNR Estimation
 
-**`snrLevel(from:) -> SNRLevel`** maintains a rolling history of the last 96 RMS
+**`snrLevel(from:) -> SNRLevel`** maintains a rolling history of the last 48 RMS
 values (~2 seconds at 4096-sample tap buffers). The minimum of this window is
 used as the estimated noise floor.
 
@@ -95,7 +100,7 @@ from contaminating the next recording.
 | `isRecording`         | `Bool`                | Whether a recording session is active (set `true` only after `audioEngine.start()` succeeds)                                                                                                                                                                                           |
 | `isPaused`            | `Bool`                | Whether the engine is paused mid-recording (tap preserved, countdown halted)                                                                                                                                                                                                           |
 | `recordingProgress`   | `Double`              | 0.0 → 1.0 over `maxDuration` (15 s)                                                                                                                                                                                                                                                    |
-| `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (180 columns ≈ 15 s)                                                                                                                                                                                                                                            |
+| `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (360 columns ≈ 15 s)                                                                                                                                                                                                                                            |
 | `snrLevel`            | `SNRLevel`            | Most recent noise level classification                                                                                                                                                                                                                                                 |
 | `pendingPlaybackPath` | `String?`             | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`.                                                                                                                                                                |
 | `isPlaying`           | `Bool`                | Whether `AVAudioPlayer` is currently playing back a pending recording                                                                                                                                                                                                                  |
@@ -152,8 +157,9 @@ automatically on each write.
    yields it into a bounded `AsyncStream(bufferingNewest: 2)` so reused engine
    buffers never cross the async boundary.
 3. A detached DSP consumer drains that bounded stream, calls
-   `SpectrogramActor.process(buffer:)`, derives the SNR level, and hops back to
-   `@MainActor` only for the small UI update.
+   `SpectrogramActor.processColumns(buffer:)`, derives the SNR level for each
+   emitted 2048-frame column, and hops back to `@MainActor` only for the small
+   UI update.
 
 The `[weak manager]` capture in the inner `@MainActor` task breaks the retain
 cycle: `AudioCaptureManager → audioEngine → inputNode → tap closure → manager`.
@@ -351,8 +357,8 @@ let spectrogramHeight = max(180, halfHeight * 2)
 This ensures the spectrogram clears the `MediaModeToggle` toolbar above and the
 tooltip hint zone above the FAB below. The view uses
 `.frame(width: proxy.size.width)` before `.position()` to correctly offer full
-width to the Canvas (`.position()` detaches from layout flow and would otherwise
-receive zero width from `maxWidth: .infinity`).
+width to the spectrogram image (`.position()` detaches from layout flow and
+would otherwise receive zero width from `maxWidth: .infinity`).
 
 **Review state — playhead**: A vertical scrub line overlays the spectrogram
 during review. It is visible only when
@@ -361,7 +367,7 @@ once the user has started playback or manually scrubbed — not by default when
 the recording first enters review. If the user scrubs the playhead away from the
 start position and stops, the playhead remains visible at the parked position.
 On full-clip playback completion, `playbackProgress` resets to 0 and the
-playhead disappears. A `DragGesture` on the spectrogram canvas drives
+playhead disappears. A `DragGesture` on the spectrogram image drives
 `seekPlayback(to:)`, enabling scrub-to-any-position with live playhead tracking.
 
 **Insight carousel playback**: Persisted audio pages use
@@ -379,31 +385,23 @@ The countdown ring uses `Circle.trim(from: 0, to: recordingProgress)` with
 
 **File**: `apps/ios/Merian/Features/Capture/Record/Views/SpectrogramView.swift`
 
-Canvas-based 2D spectrogram. Draws one vertical strip per `SpectrogramColumn`,
-left (oldest) to right (newest), with frequency increasing bottom-to-top (bin 0
-= 80 Hz at bottom, bin 63 = 16 kHz at top). The canvas background is a fixed
-dark field (`Color(red: 0.06, green: 0.06, blue: 0.1)`) so the colormap's
-near-black low-magnitude cells blend seamlessly into the background.
+Raster-backed 2D spectrogram. `SpectrogramRenderer` builds a tiny RGBA bitmap
+from `SpectrogramColumn` values, then `SpectrogramView` scales that image with
+high-quality interpolation so the display reads as a continuous spectrogram
+instead of a grid of large rectangles. Frequency still increases bottom-to-top
+(bin 0 = 80 Hz at bottom, bin 127 = 16 kHz at top).
 
-**Column width**: `colWidth = size.width / CGFloat(columns.count)`. Dividing by
-the actual column count (not `columnCap`) ensures data always fills edge-to-edge
-regardless of whether the buffer is partially populated at early recording
-frames. At 44.1 kHz the engine produces ~161 columns at clip end — using
-`columnCap` (180) as the divisor would leave a ~40 px gap at the right edge.
+**Display layouts**:
 
-**Colormap** (5-stop inferno-style, no magnitude threshold — all values
-rendered):
+| Layout | Use | Behavior |
+| ------ | --- | -------- |
+| `.liveHorizon(capacity:)` | Active recording | Renders against the full 360-column live horizon so early audio does not stretch into oversized blocks |
+| `.fitToData` | Review, Insight playback, scan thumbnails | Fits the captured columns edge-to-edge for static playback and saved previews |
 
-| Magnitude  | Color                                 |
-| ---------- | ------------------------------------- |
-| 0.0 – 0.2  | Black → dark blue (`rgb(0, 0, 0.8t)`) |
-| 0.2 – 0.5  | Dark blue → cyan                      |
-| 0.5 – 0.75 | Cyan → yellow                         |
-| 0.75 – 1.0 | Yellow → white                        |
-
-Draws up to `columnCap × outputBinCount = 180 × 64 = 11,520` filled rects per
-frame. At 60fps this is ~690K path fills/second — acceptable for `Canvas` (no
-SwiftUI view allocations).
+**Colormap**: A smoothed perceptual palette maps near-black background values
+through deep blue, cyan, green, warm yellow, and pale highlights. The same
+palette is used for live capture, review, Insight audio playback, and scan
+thumbnails.
 
 ### `SNRGaugeView`
 
