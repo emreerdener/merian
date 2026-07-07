@@ -44,11 +44,13 @@ import {
   fetchCachedSpecies,
   fetchCandidateCommonNames,
   insertDescribeScan,
+  mergeSpeciesCommonNames,
   updateGroupTags,
   upsertGhostUserIfMissing,
   upsertSpeciesDictionary,
 } from "./db.ts";
 import { isNewToMerianDictionary } from "../_shared/identify/clientPayload.ts";
+import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 
 // Text-only model configs — no image parts, so thinking budgets are smaller.
 // Flash text calls for describes are less ambiguous than vision (the user already
@@ -321,6 +323,19 @@ Deno.serve((req: Request) =>
     parsedData.invasive_confidence = sanitizeObservationConfidence(
       parsedData.invasive_confidence,
     );
+    const processedMaterialNormalization = normalizeProcessedMaterialSubject(
+      parsedData,
+    );
+    if (processedMaterialNormalization.demoted) {
+      logStructuredError("identify-describe/processed_material_demoted", {
+        user_id: user.id,
+        reason: processedMaterialNormalization.reason,
+        previous_common_name:
+          processedMaterialNormalization.previousCommonName ?? null,
+        previous_scientific_name:
+          processedMaterialNormalization.previousScientificName ?? null,
+      });
+    }
     if (!parsedData.is_biological_subject) {
       parsedData.is_invasive = undefined;
       parsedData.invasive_status_region = undefined;
@@ -513,11 +528,10 @@ Deno.serve((req: Request) =>
             supabaseAdmin,
           );
 
-          const newCommonNames = {
-            ...(freshSpecies?.common_names ?? cachedSpecies?.common_names ??
-              {}),
-            ...(parsedData.common_name ? { en: parsedData.common_name } : {}),
-          };
+          const newCommonNames = mergeSpeciesCommonNames(
+            freshSpecies?.common_names ?? cachedSpecies?.common_names,
+            parsedData.common_name,
+          );
           const primaryEn = (newCommonNames.en ?? "").toLowerCase();
           const newAltNames: string[] | null =
             externalData.alternativeCommonNames.length > 0
@@ -635,10 +649,22 @@ Deno.serve((req: Request) =>
             missingCandidates.slice().map(async (candidateName) => {
               const externalData = await fetchExternalEnrichment(candidateName);
               if (externalData.wikiExtract || externalData.gbifKey) {
+                const primaryEnName = (externalData.wikiTitle &&
+                    externalData.wikiTitle.toLowerCase() !==
+                      candidateName.toLowerCase())
+                  ? externalData.wikiTitle.replace(/\s*\([^)]+\)$/, "").trim()
+                  : (externalData.alternativeCommonNames[0] ?? null);
+                const freshCandidateSpecies = await fetchCachedSpecies(
+                  candidateName,
+                  supabaseAdmin,
+                );
                 await upsertSpeciesDictionary(
                   {
                     scientific_name: candidateName,
-                    common_names: {},
+                    common_names: mergeSpeciesCommonNames(
+                      freshCandidateSpecies?.common_names,
+                      primaryEnName,
+                    ),
                     native_region: "Unknown",
                     wikipedia_overview: externalData.wikiExtract ?? null,
                     wikipedia_url: externalData.wikipediaUrl,

@@ -93,11 +93,33 @@ non-resumable.
 - `/scan-media-health` reports stuck jobs, stale media assets, missing replay
   intents, and non-resumable redacted intents for operations.
 
+## Biological Boundary
+
+The primary subject must be an organism, organism part, fossil, or preserved
+specimen before the response can write or enrich species data. Manufactured or
+processed objects stay non-biological even when made from biological material:
+wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard,
+cotton or linen fabric, prepared food, toys, artwork, ornaments, and
+printed/painted/sculpted species depictions must not be identified as the
+source organism.
+
+After parsing and sanitization, the route calls the shared
+`normalizeProcessedMaterialSubject(...)` guard before `isIdentifiedBio` is
+computed. A demoted result keeps the object `common_name` when useful for the
+non-biological Insight, but clears source-species `scientific_name`, candidates,
+biology-only fields, and `is_new_to_merian_dictionary`. Demotions emit a
+structured `multimodal/processed_material_demoted` event.
+
+Dictionary writes also preserve existing canonical English names. If a
+`species_dictionary.common_names.en` value already exists, a scan-level
+`common_name` cannot replace it; scan names only fill an empty English name for
+a normalized biological subject.
+
 ## Local Verification
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-multimodal/index.ts
-deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/identify-multimodal/index.test.ts services/supabase/functions/_shared/scanIngestionIntents_test.ts services/supabase/functions/_shared/scanIngestionJobs_test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-multimodal/index.ts services/supabase/functions/_shared/identify/subjectClassification.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/identify-multimodal/index.test.ts services/supabase/functions/_shared/scanIngestionIntents_test.ts services/supabase/functions/_shared/scanIngestionJobs_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```
 
 Database integration tests require a running local Supabase Postgres instance.

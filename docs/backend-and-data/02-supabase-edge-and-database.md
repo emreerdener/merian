@@ -420,12 +420,16 @@ The `/identify` Edge Function acts as the inference proxy:
     `supabaseAdmin.from('species_dictionary').upsert()` with
     `{ onConflict: "scientific_name", ignoreDuplicates: false }`. This always
     merges on conflict rather than skipping, ensuring that locale-miss Cache
-    Misses can add new `common_names` entries to an existing row. To prevent
+    Misses can add new `common_names` entries to an existing row. Existing
+    `common_names.en` values are canonical and win over scan-level names; the
+    scan name can only fill an empty English name for a normalized biological
+    subject. To prevent
     lower-quality Flash-generated data from overwriting previously stored
     Pro-sourced taxonomy, toxicity, IUCN status, and habitat data, all those
     fields are written using `??` null-coalescing — existing non-null values are
-    always preserved. Only `common_names` is unconditionally merged, as it is an
-    intentionally keyed dictionary.
+    always preserved. `common_names` is merged through the shared keyed helper
+    so existing English names remain stable while missing locale keys can still
+    be filled.
 11. **Tier Resolution + Ghost Upsert (split critical path / background)**: Tier
     resolution is split: `resolveTierForUser(userId, supabaseAdmin)` from
     `_shared/tierCache.ts` runs on the critical path (before the Gemini call) to
@@ -684,7 +688,11 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    scientific names are sanitized before cache lookup/persistence, `candidates`
    are stripped at `confidence_score >= diagnosticTrigger`, cached English
    common names are attached synchronously when available, and cache misses are
-   enriched in the background so the next scan is warm.
+   enriched in the background so the next scan is warm. A shared
+   processed-material guard runs before this gate: manufactured/processed
+   objects are normalized to non-biological, have candidates and source-species
+   scientific names cleared, skip dictionary novelty, and cannot upsert
+   `species_dictionary`.
 6. Persisted multimodal scan imagery still lands in `scans.image_storage_urls`;
    promoted playback clips land separately in `scans.video_storage_urls`. Staged
    audio, including extracted video audio, is an inference input, not a public

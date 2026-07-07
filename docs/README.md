@@ -29,7 +29,9 @@ networking, and hardware orchestration logic.
   but scan-producing compatibility requests now write the same ingestion ledger;
   staged media and text-only intents can be replayed through
   `/identify-multimodal`, while inline media remains client-retry only because
-  raw bytes are never stored server-side.
+  raw bytes are never stored server-side. The shared identify boundary demotes
+  manufactured or processed materials to non-biological before candidates,
+  dictionary novelty, or `species_dictionary` writes can run.
 - **Media durability safety net**: Backend deploys run a media-ingestion
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident

@@ -109,6 +109,20 @@ This object is scan-level display metadata. It is persisted to
 not written to `species_dictionary` and must not alter species common-name
 preferences.
 
+## Processed Material Guardrail
+
+Processed or manufactured objects are not biological observations, even when
+they are made from biological material. Rugs, kilims, leather goods, wooden
+furniture, paper, textiles, prepared food, toys, artwork, ornaments, and species
+depictions are normalized to `is_biological_subject=false` before dictionary
+lookup or upsert. The result may keep the object common name for the
+non-biological Insight, but source-species scientific names, candidates, and
+`is_new_to_merian_dictionary` are cleared.
+
+When a valid biological cache miss does write `species_dictionary.common_names`,
+the existing `common_names.en` value wins. Scan-level names only fill an empty
+English name so a malformed scan cannot rename an existing species row.
+
 ## Shared Micro-Agents
 
 If you need to adjust encyclopedic enrichment or similar species data arrays,
@@ -122,6 +136,6 @@ they do not live here. Merian uses shared micro-agents available globally:
 ## Local Verification
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/identify/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/identify/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/identify/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts services/supabase/functions/_shared/identify/subjectClassification.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/identify/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```

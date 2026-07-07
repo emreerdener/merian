@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-07-processed-material-identification",
+      "date": "2026-07-07",
+      "title": "Processed material scans",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Processed materials such as wool rugs, leather goods, wooden furniture, paper, textiles, prepared food, toys, and artwork now stay out of the species dictionary even when they are made from biological material."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-06-field-notes-empty-badges",
       "date": "2026-07-06",
       "title": "Field notes badges",

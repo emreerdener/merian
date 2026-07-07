@@ -48,6 +48,25 @@ export function normalizeScanEcologyType(value: unknown): ScanEcologyType {
     : "unknown";
 }
 
+export function mergeSpeciesCommonNames(
+  existingCommonNames: Record<string, string | undefined> | null | undefined,
+  scanCommonName: string | null | undefined,
+): Record<string, string | undefined> {
+  const merged = { ...(existingCommonNames ?? {}) };
+  const existingEnglishName = merged.en?.trim();
+  if (existingEnglishName) {
+    merged.en = existingEnglishName;
+    return merged;
+  }
+
+  const normalizedScanCommonName = scanCommonName?.trim();
+  if (normalizedScanCommonName) {
+    merged.en = normalizedScanCommonName;
+  }
+
+  return merged;
+}
+
 export async function resolveScanGeoprivacy(
   userId: string,
   supabaseAdmin: SupabaseClient,

@@ -185,6 +185,14 @@ Inference and media staging:
 - `enrich-scan`
 - `insight-chat`
 
+Shared identify helpers under
+`services/supabase/functions/_shared/identify/` own cross-route contracts for
+schema, thresholds, cache hydration, database writes, media resolution,
+moderation, and subject classification. `subjectClassification.ts` is the
+processed-material boundary: visual and describe routes call it before
+biological gates so manufactured or processed objects cannot enter
+`species_dictionary` through one route while another blocks them.
+
 Public species data:
 
 - `species-dictionary`

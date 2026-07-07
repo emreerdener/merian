@@ -21,9 +21,29 @@ row plus a sanitized `scan_ingestion_intents` row through
 - Successful background insert marks the job `complete`; insert failures mark it
   `failed_retryable`.
 
+## Biological Boundary
+
+Text descriptions use the same post-parse processed-material guard as the
+visual routes. A description of a manufactured or processed object is
+non-biological even when it mentions biological source material, for example a
+wool rug, leather jacket, wooden table, paper sheet, cotton textile, prepared
+food, artwork, toy, ornament, or species depiction.
+
+Before cache lookup or dictionary writes, `identify-describe` normalizes these
+results to `is_biological_subject=false`, clears source-species
+`scientific_name`, strips candidates, and prevents
+`is_new_to_merian_dictionary`. Demotions emit a structured
+`identify-describe/processed_material_demoted` event. Valid biological
+descriptions, fossils, pressed plants, dried specimens, and preserved specimens
+remain biological.
+
+Dictionary common-name writes preserve any existing
+`species_dictionary.common_names.en`; a scan-level name only fills an empty
+English name for a normalized biological subject.
+
 ## Local Verification
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts services/supabase/functions/_shared/identify/subjectClassification.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```

@@ -524,6 +524,16 @@ Common name fallback order:
 2. first non-empty value in `common_names`
 3. `scientific_name`
 
+Dictionary rows are biological species rows, not material provenance records.
+The identify boundary demotes processed/manufactured objects such as wool rugs,
+leather goods, wooden furniture, paper/cardboard, cotton or linen fabric,
+prepared food, toys, artwork, ornaments, and species depictions before they can
+create or update dictionary entries. If a malformed scan tries to label
+`Ovis aries` as "Wool Kilim Rug", the existing
+`species_dictionary.common_names.en` value, such as "Domestic Sheep", remains
+canonical. A scan-level common name only fills an empty English name for a
+normalized biological subject.
+
 Reference image mapping:
 
 - The Edge Function prefers ordered rows from `species_reference_images`.

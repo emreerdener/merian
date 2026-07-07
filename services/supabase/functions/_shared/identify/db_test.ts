@@ -5,6 +5,7 @@ import {
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   insertScan,
+  mergeSpeciesCommonNames,
   normalizeScanEcologyType,
   resolveScanGeoprivacy,
   speciesReferenceImageRowsFromCache,
@@ -158,6 +159,29 @@ Deno.test("normalizeScanEcologyType clamps missing or invalid values to unknown"
   assertEquals(normalizeScanEcologyType(null), "unknown");
   assertEquals(normalizeScanEcologyType("terrestrial"), "unknown");
   assertEquals(normalizeScanEcologyType(""), "unknown");
+});
+
+Deno.test("mergeSpeciesCommonNames preserves an existing canonical English name", () => {
+  assertEquals(
+    mergeSpeciesCommonNames(
+      { en: "Domestic Sheep", es: "Oveja domestica" },
+      "Wool Kilim Rug",
+    ),
+    { en: "Domestic Sheep", es: "Oveja domestica" },
+  );
+});
+
+Deno.test("mergeSpeciesCommonNames fills an empty English name from a biological scan", () => {
+  assertEquals(
+    mergeSpeciesCommonNames({ es: "Mariposa monarca" }, "Monarch Butterfly"),
+    { es: "Mariposa monarca", en: "Monarch Butterfly" },
+  );
+});
+
+Deno.test("mergeSpeciesCommonNames ignores blank scan common names", () => {
+  assertEquals(mergeSpeciesCommonNames({ fr: "Renard roux" }, "  "), {
+    fr: "Renard roux",
+  });
 });
 
 Deno.test("insertScan clears public location labels for private scans", async () => {

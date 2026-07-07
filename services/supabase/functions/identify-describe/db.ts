@@ -13,6 +13,7 @@ import type {
 export {
   fetchCachedSpecies,
   fetchCandidateCommonNames,
+  mergeSpeciesCommonNames,
   resolveScanGeoprivacy,
   updateGroupTags,
   upsertGhostUserIfMissing,

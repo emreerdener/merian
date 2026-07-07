@@ -14,10 +14,11 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 - **Micro-CoT & Pareidolia Avoidance:** Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return \`is_biological_subject=false\` for ambiguous debris. You MUST extract 3 structural observations in \`extracted_visual_traits\` BEFORE determining \`is_biological_subject\` or \`scientific_name\`.
 
 # Subject Liveness & Status
-- **Biological Subjects:** Fossils, pressed/preserved/dried specimens are \`is_biological_subject=true\` with \`is_live_capture=false\` — identify these to the species level.
-- **Non-Biological Objects:** Rocks, buildings, food, debris, shadows, and cracks are \`is_biological_subject=false\`. 
-- **Geological Exceptions:** For geological subjects (rocks, minerals), you MUST still provide \`common_name\` and \`scientific_name\` if identifiable. Omit these for generic debris.
-- **Conditional Formatting:** If \`is_biological_subject=false\`, you MUST omit: \`is_invasive\`, \`invasive_status_region\`, \`invasive_rationale\`, \`invasive_confidence\`, \`ecology_type\`, \`life_stage\`, \`reproductive_condition\`, \`sex\`, \`sex_confidence\`, \`sex_evidence\`, \`individual_count\`, and \`ecological_interactions\`.
+- **Biological Subjects:** Living organisms, recently dead organisms, intact organism parts, fossils, and pressed/preserved/dried specimens are \`is_biological_subject=true\` with \`is_live_capture=false\` when not alive — identify these to the species level.
+- **Processed Materials Are Not Biological Subjects:** Manufactured or processed objects are \`is_biological_subject=false\` even when made from biological material. This includes wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard, cotton or linen fabric, prepared food, toys, artwork, ornaments, and printed/painted/sculpted species depictions. Do NOT classify a rug as sheep, leather as cattle, wood furniture as a tree, paper as a plant, or a species drawing/toy as the depicted organism.
+- **Non-Biological Objects:** Rocks, buildings, vehicles, food, debris, shadows, cracks, manufactured objects, and species depictions are \`is_biological_subject=false\`.
+- **Geological Exceptions:** For geological subjects (rocks, minerals), you MUST still provide \`common_name\` and \`scientific_name\` if identifiable. Omit these for generic debris and manufactured/processed objects.
+- **Conditional Formatting:** If \`is_biological_subject=false\` and the subject is not an identifiable geological exception, you MUST omit \`scientific_name\`. All non-biological results MUST omit: \`is_invasive\`, \`invasive_status_region\`, \`invasive_rationale\`, \`invasive_confidence\`, \`ecology_type\`, \`life_stage\`, \`reproductive_condition\`, \`sex\`, \`sex_confidence\`, \`sex_evidence\`, \`individual_count\`, and \`ecological_interactions\`; use an empty \`candidates\` array.
 
 # Identification Rules
 1. **Nomenclature:** \`common_name\` must be maximally specific in Title Case.
@@ -38,7 +39,7 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 # Output Data Definitions
 
 ## Candidates Array
-You MUST always populate exactly 2 alternative species in the \`candidates\` array.
+For biological subjects, you MUST populate exactly 2 alternative species in the \`candidates\` array. For non-biological subjects, use an empty \`candidates\` array.
 - Choose candidates that share the most traits from \`extracted_visual_traits\` with the primary ID. Prioritize visually confusable species over merely taxonomically related ones.
 - **Distinguishing Feature:** For each candidate, provide the single most important observable morphological difference that separates it from your primary ID. State this as a concise clause referencing a specific visible trait (e.g., "cap margin lacks striations present on primary"). Do NOT repeat the species name here.
 
@@ -150,7 +151,7 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
       ],
     },
     description:
-      "ALWAYS provide exactly 2 alternative species candidates grounded in the extracted_visual_traits. Choose candidates that share the most observed traits with the primary identification — not just taxonomically related species. For each, distinguishing_feature must name the specific observable difference that rules it in or out.",
+      "For biological subjects, provide exactly 2 alternative species candidates grounded in the extracted_visual_traits. For non-biological subjects, return an empty array. Choose candidates that share the most observed traits with the primary identification — not just taxonomically related species. For each, distinguishing_feature must name the specific observable difference that rules it in or out.",
   },
   image_quality: {
     type: SchemaType.OBJECT,
@@ -245,7 +246,7 @@ export const getMerianResponseSchema = (
         type: SchemaType.STRING,
         nullable: true,
         description:
-          "Formally accepted binomial scientific name. Required for biological subjects and identifiable geological specimens. Null for unidentifiable non-natural objects.",
+          "Formally accepted binomial scientific name. Required for biological subjects and identifiable geological specimens. Null for manufactured, processed, or unidentifiable non-natural objects.",
       },
       common_name: {
         type: SchemaType.STRING,

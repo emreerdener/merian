@@ -318,7 +318,7 @@ extension SpeciesData {
         self.invasiveConfidence = edgeRes.invasive_confidence
         self.ecologyType = edgeRes.ecology_type ?? "unknown"
         self.taxonomy = taxonomyData
-        self.isNewToMerianDictionary = edgeRes.is_new_to_merian_dictionary ?? false
+        self.isNewToMerianDictionary = isBiological ? (edgeRes.is_new_to_merian_dictionary ?? false) : false
         self.locationName = locationName
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
@@ -343,12 +343,12 @@ extension SpeciesData {
         self.inferenceTier = edgeRes.inference_tier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(edgeRes.alternative_common_names)
         self.petIdentification = edgeRes.pet_identification?.isDisplayable == true ? edgeRes.pet_identification : nil
-        self.candidates = edgeRes.candidates.map { entries in
+        self.candidates = isBiological ? edgeRes.candidates.map { entries in
             entries.map { 
                 let splitCandidateCommon = $0.common_name?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines)
                 return IdentificationCandidate(scientificName: $0.scientific_name, commonName: splitCandidateCommon, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature) 
             }
-        }
+        } : nil
         self.imageQualityScore = edgeRes.image_quality?.overall_score
         self.aiScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
         self.userIdentificationOverride = nil

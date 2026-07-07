@@ -17,7 +17,8 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
   user" and is intentionally not the user-facing celebration signal.
   `is_new_to_merian_dictionary` comes from the identify Edge payload when a
   biological scan adds a species that was not already in Merian's shared
-  `species_dictionary`.
+  `species_dictionary`. Non-biological results, including processed-material
+  demotions such as wool rugs or leather goods, cannot set this flag.
 - Drives the shared `MilestoneToastPresenter` for in-app milestone UX.
   Achievement unlocks enter from
   `GamificationManager.evaluateAchievementsForNotifications(awards:)`.

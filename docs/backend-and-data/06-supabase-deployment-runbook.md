@@ -51,6 +51,33 @@ Deploying all function directories is intentional. Shared modules such as
 at deploy time; deploying a hand-maintained partial list risks leaving
 production on mixed helper versions.
 
+## Manual Data Repair Utilities
+
+Processed-material scan pollution must be repaired manually, not as an automatic
+migration. If historical scans linked artifacts such as wool rugs, kilims,
+textiles, leather goods, or man-made objects to biological species rows, run the
+audit script in dry-run mode first:
+
+```sh
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+  deno run --allow-net --allow-env \
+  services/supabase/scripts/repair_processed_material_scan_pollution.ts
+```
+
+Review every planned row before applying:
+
+```sh
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+  deno run --allow-net --allow-env \
+  services/supabase/scripts/repair_processed_material_scan_pollution.ts --apply
+```
+
+The script only plans rows whose scan evidence explicitly contains
+artifact/process terms, then nulls scan species links, marks the scan
+non-biological, clears biological metadata/candidates, and restores or removes
+polluted dictionary English names. It is intentionally narrow and should not be
+converted into a broad production migration.
+
 Media-upload contract changes are migration-plus-function releases. For example,
 the video staging contract that allows five sampled inference frames plus one
 playback clip requires the `scan_media_assets.scan_id` and

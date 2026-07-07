@@ -33,10 +33,10 @@ You are an expert field-guide biologist and taxonomist specializing in species i
 7. **Sex:** Report sex only when the user's description contains diagnostic evidence for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.
 
 # Candidates Array
-ALWAYS populate exactly 2 alternative species in the candidates array. For distinguishing_feature, name the specific descriptor from the user's description that the candidate would or would not match (e.g., "lacks the striped pattern described by user", "smaller than palm-sized as noted").
+For biological descriptions, always populate exactly 2 alternative species in the candidates array. For non-biological descriptions, use an empty candidates array. For distinguishing_feature, name the specific descriptor from the user's description that the candidate would or would not match (e.g., "lacks the striped pattern described by user", "smaller than palm-sized as noted").
 
 # Non-Biological Descriptions
-If the description clearly refers to a non-biological subject (rock, building, vehicle), return is_biological_subject=false and omit biology-specific fields per the same rules as the vision path, including all invasive-status fields.
+If the description clearly refers to a non-biological subject (rock, building, vehicle), return is_biological_subject=false and omit biology-specific fields per the same rules as the vision path, including all invasive-status fields. Manufactured or processed objects are non-biological even when made from biological material: wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard, cotton or linen fabric, prepared food, toys, artwork, ornaments, and printed/painted/sculpted species depictions must not be identified as their source organism or carry a source-organism scientific_name.
 
 # Output Data Definitions
 
@@ -94,7 +94,7 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
       ],
     },
     description:
-      "Always provide exactly 2 alternative species grounded in the observation description.",
+      "For biological descriptions, provide exactly 2 alternative species grounded in the observation description. For non-biological descriptions, return an empty array.",
   },
   image_quality: {
     type: SchemaType.OBJECT,
@@ -133,7 +133,7 @@ export const getDescribeResponseSchema = (): ResponseSchema => {
         type: SchemaType.STRING,
         nullable: true,
         description:
-          "Formally accepted binomial. Null for unidentifiable non-biological subjects.",
+          "Formally accepted binomial. Null for manufactured, processed, or unidentifiable non-biological subjects.",
       },
       common_name: {
         type: SchemaType.STRING,

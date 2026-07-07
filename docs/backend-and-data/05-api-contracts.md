@@ -690,7 +690,10 @@ support both the Pro schema and Free text-prompt shapes without causing
 Hit**, `index.ts` overrides the Gemini-supplied `common_name` with the canonical
 `species_dictionary.common_names.en` value so repeat scans of the same species
 always show a consistent display name regardless of which Gemini response
-generated it. The Swift decoding layer applies `.capitalized` on rendering for
+generated it. Cache-miss writes preserve an existing `common_names.en` and only
+fill it from the scan when the dictionary row does not already have an English
+name, preventing a single malformed scan label from overwriting canonical
+species naming. The Swift decoding layer applies `.capitalized` on rendering for
 display consistency. For geological targets, it relies wholly on the Gemini
 output (no cache override applies).
 
@@ -713,6 +716,45 @@ row for the normalized scientific name. iOS decodes the field as
 from missing enrichment fields such as `alternative_common_names`; cache gaps,
 GBIF gaps, and partial rows are not milestone signals. Existing dictionary rows
 with incomplete taxonomy/enrichment are still treated as not new to Merian.
+
+**Processed-material guardrail**: The identify routes demote manufactured or
+processed objects to `is_biological_subject=false` before cache lookup,
+dictionary upsert, candidate enrichment, or milestone evaluation. Wool rugs,
+kilims, leather goods, wooden furniture, paper/cardboard, cotton or linen
+fabric, prepared food, toys, artwork, ornaments, and species depictions are not
+biological observations even when made from biological material. The response
+keeps the object `common_name` when useful for the non-biological result, clears
+source-species `scientific_name`, strips candidates, and never sets
+`is_new_to_merian_dictionary`. iOS also treats
+`is_biological_subject=false` as authoritative during decode, forcing
+`SpeciesData.isNewToMerianDictionary=false` and `SpeciesData.candidates=nil`
+even if a stale or malformed Edge response includes those fields.
+
+Processed-material response shape:
+
+```json
+{
+  "scan_id": "Generated via crypto.randomUUID() on Deno Edge",
+  "is_biological_subject": false,
+  "is_live_capture": false,
+  "is_new_to_merian_dictionary": false,
+  "common_name": "Wool Kilim Rug",
+  "scientific_name": null,
+  "confidence_score": 0.82,
+  "candidates": null,
+  "insight_data": {
+    "ai_reasoning": "The subject is an inanimate, man-made textile rather than an organism.",
+    "hazard_type": "none"
+  }
+}
+```
+
+Operational cleanup for historical pollution is intentionally manual. Use
+`services/supabase/scripts/repair_processed_material_scan_pollution.ts` in dry
+run first; apply mode only patches rows whose scan evidence explicitly contains
+artifact/process terms and then nulls scan species links, marks the scan
+non-biological, clears biological metadata, and restores/removes polluted
+dictionary English names.
 
 **Critical Edge Limitation (Gemini 2.5):** The model returns `400 Bad Request`
 when enum fields include descriptive strings. `ecology_type` must be formatted
@@ -826,10 +868,13 @@ constraint in the Deno schema.
 > `{"species_group":"dog","label":"Australian Cattle Dog mix","label_type":"breed_mix","confidence_score":0.82,"evidence":["blue-roan ticking","black saddle patch","compact herding-dog build"]}`.
 > The stored species would still be `Domestic Dog` / `Canis lupus familiaris`.
 >
-> `candidates` is required in `merianResponseSchema`; `identify` strips it to
-> `null` only when `confidence_score >= diagnosticTrigger` (`0.99` for both
-> Flash and Pro), preserving candidates for Possible, Weak, and Strong scans
-> below that near-certain threshold. Candidates are scan-specific and persist to
+> `candidates` is required in `merianResponseSchema`; biological subjects are
+> instructed to return exactly 2 alternatives, while non-biological subjects
+> return an empty array. The identify routes strip candidates to `null` when
+> `confidence_score >= diagnosticTrigger` (`0.99` for both Flash and Pro),
+> preserving candidates for Possible, Weak, and Strong biological scans below
+> that near-certain threshold. Non-biological and processed-material results are
+> stripped to `null` regardless of confidence. Candidates are scan-specific and persist to
 > `public.scans.candidates` plus `LocalScanRecord.candidatesData`, while client
 > display is separately gated by `CandidateReviewVisibilityPolicy`.
 

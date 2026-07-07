@@ -120,8 +120,14 @@ helpers, media validation, and moderation logic:
   image resolution to protect Deno's V8 heap under multi-image payloads.
 - **`_shared/identify/db.ts`**: Encapsulates PostgreSQL operations as typed,
   error-throwing helpers: `fetchCachedSpecies`, `fetchCandidateCommonNames`,
-  `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`, and
-  `upsertGhostUserIfMissing`.
+  `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`,
+  `upsertGhostUserIfMissing`, and the dictionary common-name merge rule that
+  preserves existing `common_names.en` values over scan-level names.
+- **`_shared/identify/subjectClassification.ts`**: Post-parse classification
+  guard shared by visual and describe routes. It demotes manufactured or
+  processed objects made from biological material to non-biological results
+  before `isIdentifiedBio`, dictionary lookup/upsert, candidate enrichment, or
+  novelty evaluation can run.
 - **`../_shared/` Micro-Agents**: Auxiliary generation tools like
   `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling in `external.ts`),
   `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` are aggregated
@@ -412,6 +418,15 @@ or audio attached:
     deferred until later cache hits or `enrich-scan`. The same external helper
     now returns GBIF match taxonomy so the scheduled `refresh-species-content`
     worker can repair stale taxonomy without a model call.
+  - **Processed-material demotion**: If the model output describes the primary
+    subject as inanimate, man-made, manufactured, or processed material, and the
+    subject evidence is an object/material such as a rug, textile, leather good,
+    wooden furniture, paper, prepared food, artwork, toy, or species depiction,
+    the shared classifier flips the result to `is_biological_subject=false`.
+    It clears source-species scientific names, candidates, biology-only fields,
+    and dictionary novelty before cache or upsert work can run. Living
+    organisms, dead organisms, intact organism parts, fossils, pressed plants,
+    dried specimens, and preserved specimens remain biological.
   - **Gap-fill condition**: If a species exists in `species_dictionary` but is
     missing `habitat_description`, the background task fires a Flash text call
     to fill the field. This covers species stored before the enrichment pipeline
@@ -485,11 +500,11 @@ or audio attached:
        `required` array — it is declared `nullable: true` so the model may omit
        it for non-biological subjects such as generic debris, while still
        populating it for identifiable geological subjects (rocks, minerals).
-       `common_name` is not persisted to `public.scans` — it is stored only in
-       `species_dictionary.common_names` as a locale-keyed JSONB object
-       (`{"en": "..."}`) and always sourced fresh from the vision model response
-       on every scan. The DB value is locale storage only; the live Gemini
-       output is always the authoritative display value.
+       `common_name` is not persisted to `public.scans`. For biological cache
+       misses it may fill `species_dictionary.common_names.en`, but an existing
+       English dictionary name always wins over the scan label. Non-biological
+       processed-material results may still return an object display name, but
+       they never write that name into `species_dictionary`.
   2. **Enrichment Text pass** (`enrich-scan`, plus follow-up cache warming):
      Generates the bulky metadata. `fetchStaticEncyclopedicData` is a text-only,
      image-free Flash prompt used by enrichment flows to deduce `hazard_type`,
@@ -623,12 +638,14 @@ or audio attached:
     uncertainty UX lives in `CandidatesCard`, not in the similar-species
     gallery.
   - **Identification candidates**: `candidates` is a **required field** in
-    `merianResponseSchema` (`schema.ts`) — Gemini always generates exactly 2
-    alternative species regardless of its confidence level. The `identify`
-    `index.ts` server-side strips this array to `null` if
+    `merianResponseSchema` (`schema.ts`). Biological subjects are instructed to
+    return exactly 2 alternative species, while non-biological subjects return an
+    empty array. The server clears candidates for processed-material demotions
+    and strips biological candidates to `null` if
     `confidence_score >= diagnosticTrigger` _before_ sending the response and
-    before `insertScan`. This server gate is the sole enforcement mechanism; the
-    model is not asked to conditionally self-suppress (which was unreliable).
+    before `insertScan`. This server gate is the sole confidence enforcement
+    mechanism; the model is not asked to conditionally self-suppress biological
+    candidates (which was unreliable).
     Candidates are persisted per-scan to `public.scans.candidates` (JSONB) and
     on-device to `LocalScanRecord.candidatesData` (Data blob,
     `MerianSchemaV28`). Persisted candidates do not automatically render UI: the

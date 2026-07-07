@@ -56,6 +56,9 @@ TestFlight, App Store, support, and QA.
 - Improved scan media health monitoring with incident-action guidance for each
   detected issue code, including owner, next step, runbook, and sample-field
   hints.
+- Hardened identification so processed materials like wool rugs, leather goods,
+  wooden furniture, paper, textiles, prepared food, toys, and artwork are kept
+  out of the species dictionary even when made from biological material.
 - Updated iOS offline recovery so queued scans respect server ingestion job
   state instead of resubmitting while video/media finalization is still in
   progress.

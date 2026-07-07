@@ -218,6 +218,11 @@ machine-parseable and can trigger alerting pipelines on the ops side.
 - **`_shared/identify/clientPayload.ts`**: Normalizes cache-hit response
   hydration so `identify` and `identify-multimodal` return the same cached
   taxonomy, hazard, habitat, IUCN, GBIF, and synonym fields.
+- **`_shared/identify/subjectClassification.ts`**: Normalizes parsed model
+  output before biological gates run. Shared by `identify`,
+  `identify-multimodal`, and `identify-describe` so processed/manufactured
+  materials cannot drift into `species_dictionary` through one route while
+  another route blocks them.
 - **`_shared/identify/moderation.ts`**: Evaluates Gemini safety ratings, manages
   abuse strikes, and promotes safe media from `staging/` to `public_uploads/` in
   Cloudflare R2. Always runs inside `runBackground` — never on the critical HTTP
@@ -659,3 +664,7 @@ object alongside `systemInstruction`, `temperature`, and `maxOutputTokens`.
   are safe to share when they consume and produce the same shape. If a helper
   needs modality branching to stay correct, keep that logic local to the
   function.
+- Subject-boundary helpers must run before `isIdentifiedBio` or dictionary
+  upserts. A processed-material demotion must clear source-species scientific
+  names, candidates, biological metadata, and dictionary novelty in every route
+  that can produce scan results.

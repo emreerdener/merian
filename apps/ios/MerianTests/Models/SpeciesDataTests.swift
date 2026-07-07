@@ -143,6 +143,38 @@ struct SpeciesDataTests {
         #expect(species.alternativeCommonNames == nil)
     }
 
+    @Test func nonBiologicalEdgeResponseIgnoresDictionaryMilestoneFlag() throws {
+        let json = Data("""
+        {
+          "success": true,
+          "data": {
+            "scan_id": "scan_nonbio_dictionary_flag",
+            "is_biological_subject": false,
+            "is_live_capture": false,
+            "scientific_name": "Ovis aries",
+            "common_name": "Wool Kilim Rug",
+            "confidence_score": 0.82,
+            "is_new_to_merian_dictionary": true,
+            "insight_data": {
+              "ai_reasoning": "The subject is an inanimate textile.",
+              "hazard_type": "none"
+            }
+          }
+        }
+        """.utf8)
+
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: json)
+        let species = SpeciesData(
+            fromEdgeResponse: wrapper.data,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil
+        )
+
+        #expect(species.isBiological == false)
+        #expect(species.isNewToMerianDictionary == false)
+    }
+
     // MARK: - Premium Insights: default nil state
 
     @Test func testPremiumFieldsDefaultToNilWhenOmitted() {
@@ -556,6 +588,31 @@ struct SpeciesDataTests {
         let species = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
 
         #expect(species.candidates == nil, "Absent candidates key must produce nil — not an empty array")
+    }
+
+    @Test func testNonBiologicalEdgeResponseIgnoresCandidates() throws {
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "is_biological_subject": false,
+                "is_live_capture": false,
+                "scientific_name": "Ovis aries",
+                "common_name": "Wool Kilim Rug",
+                "confidence_score": 0.82,
+                "insight_data": { "ai_reasoning": "A processed textile.", "hazard_type": "none" },
+                "candidates": [
+                    { "scientific_name": "Capra hircus", "confidence_score": 0.41 }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let species = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
+
+        #expect(species.isBiological == false)
+        #expect(species.candidates == nil)
     }
 
     @Test func testPetIdentificationDecodesFromEdgeResponse() throws {

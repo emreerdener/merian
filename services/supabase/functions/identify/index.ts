@@ -68,6 +68,7 @@ import {
   fetchCachedSpecies,
   fetchCandidateCommonNames,
   insertScan,
+  mergeSpeciesCommonNames,
   updateGroupTags,
   upsertGhostUserIfMissing,
   upsertSpeciesDictionary,
@@ -76,6 +77,7 @@ import {
   hydratePayloadFromCachedSpecies,
   isNewToMerianDictionary,
 } from "../_shared/identify/clientPayload.ts";
+import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 
 // Safety settings shared by all vision model tiers.
 // Biological photography legitimately triggers Gemini's medium-sensitivity defaults:
@@ -555,6 +557,19 @@ Deno.serve((req: Request) =>
     parsedData.invasive_confidence = sanitizeObservationConfidence(
       parsedData.invasive_confidence,
     );
+    const processedMaterialNormalization = normalizeProcessedMaterialSubject(
+      parsedData,
+    );
+    if (processedMaterialNormalization.demoted) {
+      logStructuredError("identify/processed_material_demoted", {
+        user_id: user.id,
+        reason: processedMaterialNormalization.reason,
+        previous_common_name:
+          processedMaterialNormalization.previousCommonName ?? null,
+        previous_scientific_name:
+          processedMaterialNormalization.previousScientificName ?? null,
+      });
+    }
     if (!parsedData.is_biological_subject) {
       parsedData.is_invasive = undefined;
       parsedData.invasive_status_region = undefined;
@@ -800,11 +815,10 @@ Deno.serve((req: Request) =>
             supabaseAdmin,
           );
 
-          const newCommonNames = {
-            ...(freshSpecies?.common_names ?? cachedSpecies?.common_names ??
-              {}),
-            ...(parsedData.common_name ? { en: parsedData.common_name } : {}),
-          };
+          const newCommonNames = mergeSpeciesCommonNames(
+            freshSpecies?.common_names ?? cachedSpecies?.common_names,
+            parsedData.common_name,
+          );
 
           // Build the deduplicated alternative names list. Exclude the primary canonical
           // name (common_names.en) so the two lists are mutually exclusive on the client.
@@ -970,8 +984,17 @@ Deno.serve((req: Request) =>
                     candidateName.toLowerCase())
                 ? externalData.wikiTitle.replace(/\s*\([^)]+\)$/, "").trim()
                 : (externalData.alternativeCommonNames[0] ?? null);
+              const freshCandidateSpecies = await fetchCachedSpecies(
+                candidateName,
+                supabaseAdmin,
+              );
+              const candidateCommonNames = mergeSpeciesCommonNames(
+                freshCandidateSpecies?.common_names,
+                primaryEnName,
+              );
 
-              const primaryEnLower = (primaryEnName ?? "").toLowerCase();
+              const primaryEnLower = (candidateCommonNames.en ?? "")
+                .toLowerCase();
               const newAltNames: string[] | null =
                 externalData.alternativeCommonNames.length > 0
                   ? externalData.alternativeCommonNames.filter(
@@ -982,7 +1005,7 @@ Deno.serve((req: Request) =>
               await upsertSpeciesDictionary(
                 {
                   scientific_name: candidateName,
-                  common_names: primaryEnName ? { en: primaryEnName } : {},
+                  common_names: candidateCommonNames,
                   alternative_common_names: newAltNames,
                   kingdom: null,
                   phylum: null,

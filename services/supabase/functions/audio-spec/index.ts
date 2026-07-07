@@ -21,6 +21,7 @@ import {
   TARGET_AUDIO_SAMPLE_RATE,
 } from "../_shared/audioProcessing.ts";
 import { resolveAudioBuffers } from "../_shared/identify/media.ts";
+import { mergeSpeciesCommonNames } from "../_shared/identify/db.ts";
 import {
   buildContextText,
   normalizeCurrentMonth,
@@ -556,10 +557,10 @@ Deno.serve((req: Request) =>
               supabaseAdmin,
             );
 
-            const newCommonNames = {
-              ...(freshSpecies?.common_names ?? {}),
-              ...(parsedData.common_name ? { en: parsedData.common_name } : {}),
-            };
+            const newCommonNames = mergeSpeciesCommonNames(
+              freshSpecies?.common_names,
+              parsedData.common_name,
+            );
             const primaryEn = (newCommonNames.en ?? "").toLowerCase();
             const newAltNames: string[] | null =
               externalData.alternativeCommonNames.length > 0

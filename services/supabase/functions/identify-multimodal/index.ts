@@ -44,10 +44,12 @@ import {
   fetchCachedSpecies,
   fetchCandidateCommonNames,
   insertScan,
+  mergeSpeciesCommonNames,
   updateGroupTags,
   upsertGhostUserIfMissing,
   upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
+import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 import { processWAV } from "./audio.ts";
 import {
   resolveAudioBuffers,
@@ -125,6 +127,9 @@ You are a taxonomic analyst interpreting user text descriptions to identify biol
 # Task
 Read the user's description and identify the biological subject they are describing.
 
+# Non-Biological Descriptions
+Manufactured or processed objects are not biological subjects even when made from biological material. Wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard, cotton or linen fabric, prepared food, toys, artwork, ornaments, and printed/painted/sculpted species depictions must return is_biological_subject=false and must not be identified as their source organism or carry a source-organism scientific_name.
+
 # Sex
 Report sex only when the user's description contains diagnostic evidence for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
@@ -136,6 +141,7 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 - **Modality Synthesis:** Weigh BOTH visual and acoustic evidence. Prioritize the bio-acoustic trace unless it clearly contradicts the vision context or the vision context is overwhelmingly diagnostic.
 - **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.
 - **Video Language:** When the scan includes video, refer to the evidence as video, a video scan, or sampled frames/audio from the video. Do not describe video scans as images, photos, or a set of provided images in user-facing reasoning.
+- **Processed Materials Are Not Biological Subjects:** Manufactured or processed objects are \`is_biological_subject=false\` even when made from biological material. This includes wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard, cotton or linen fabric, prepared food, toys, artwork, ornaments, and printed/painted/sculpted species depictions. Do NOT classify a rug as sheep, leather as cattle, wood furniture as a tree, paper as a plant, or a species drawing/toy as the depicted organism; do not include a source-organism scientific_name for these results.
 - **Sex:** Report sex only when visual, described, or acoustic evidence is diagnostic for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
 const telemetryCount = (value: unknown): number => {
@@ -1089,6 +1095,19 @@ export async function handleIdentifyMultimodalRequest(
   parsedData.invasive_confidence = sanitizeObservationConfidence(
     parsedData.invasive_confidence,
   );
+  const processedMaterialNormalization = normalizeProcessedMaterialSubject(
+    parsedData,
+  );
+  if (processedMaterialNormalization.demoted) {
+    logStructuredError("multimodal/processed_material_demoted", {
+      user_id: user.id,
+      reason: processedMaterialNormalization.reason,
+      previous_common_name: processedMaterialNormalization.previousCommonName ??
+        null,
+      previous_scientific_name:
+        processedMaterialNormalization.previousScientificName ?? null,
+    });
+  }
   if (!parsedData.is_biological_subject) {
     parsedData.is_invasive = undefined;
     parsedData.invasive_status_region = undefined;
@@ -1453,15 +1472,14 @@ export async function handleIdentifyMultimodalRequest(
             parsedData.scientific_name!,
             supabaseAdmin,
           );
+          const newCommonNames = mergeSpeciesCommonNames(
+            freshSpecies?.common_names,
+            payloadReadyForClient.common_name,
+          );
           const upsertedId = await upsertSpeciesDictionary(
             {
               scientific_name: parsedData.scientific_name!,
-              common_names: {
-                ...(freshSpecies?.common_names ?? {}),
-                ...(payloadReadyForClient.common_name
-                  ? { en: payloadReadyForClient.common_name }
-                  : {}),
-              },
+              common_names: newCommonNames,
               kingdom: coalesceTaxonomyValue(freshSpecies?.kingdom),
               phylum: coalesceTaxonomyValue(freshSpecies?.phylum),
               class: coalesceTaxonomyValue(freshSpecies?.class),
@@ -1598,8 +1616,17 @@ export async function handleIdentifyMultimodalRequest(
               ? candidateExternalData.wikiTitle.replace(/\s*\([^)]+\)$/, "")
                 .trim()
               : (candidateExternalData.alternativeCommonNames[0] ?? null);
+            const freshCandidateSpecies = await fetchCachedSpecies(
+              candidateName,
+              supabaseAdmin,
+            );
+            const candidateCommonNames = mergeSpeciesCommonNames(
+              freshCandidateSpecies?.common_names,
+              primaryEnName,
+            );
 
-            const primaryEnLower = (primaryEnName ?? "").toLowerCase();
+            const primaryEnLower = (candidateCommonNames.en ?? "")
+              .toLowerCase();
             const newAltNames: string[] | null =
               candidateExternalData.alternativeCommonNames.length > 0
                 ? candidateExternalData.alternativeCommonNames.filter((
@@ -1610,7 +1637,7 @@ export async function handleIdentifyMultimodalRequest(
             await upsertSpeciesDictionary(
               {
                 scientific_name: candidateName,
-                common_names: primaryEnName ? { en: primaryEnName } : {},
+                common_names: candidateCommonNames,
                 alternative_common_names: newAltNames,
                 kingdom: null,
                 phylum: null,
