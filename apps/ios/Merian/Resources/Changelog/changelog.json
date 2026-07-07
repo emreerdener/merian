@@ -22,7 +22,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Explore video posts now autoplay when opened, fill their square preview, and use a centered play/pause control instead of showing a static marker."
+            "Explore video posts now autoplay when opened, fill their square preview, use a centered play/pause control, and keep mute or sound-on state synced across videos."
           ]
         }
       ]

@@ -95,7 +95,7 @@ TestFlight, App Store, support, and QA.
   indicators on compact surfaces.
 - Fixed Explore video playback so shared video posts autoplay when opened, fill
   their square preview, and use a centered play/pause control instead of a
-  static marker.
+  static marker; muting or unmuting one Explore video now applies to the rest.
 - Fixed video Explore sharing so composer-selected video clips publish, edit,
   and request Community ID from the server media source list, while failed media
   snapshots no longer leave the Share sheet showing a phantom Explore post.

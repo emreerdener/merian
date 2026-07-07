@@ -518,7 +518,7 @@ struct ExplorePublicMediaView: View {
     @State private var configuredVideoURL: String?
     @State private var playbackEndObserver: NSObjectProtocol?
     @State private var isPlaying = false
-    @State private var isMuted = true
+    @AppStorage("MerianExplorePublicVideoMuted") private var isMuted = true
 
     init(
         mediaItem: ExploreMediaItem,
@@ -563,6 +563,9 @@ struct ExplorePublicMediaView: View {
         .task(id: "\(mediaItem.url)|\(reloadGeneration)") {
             configurePlayer()
             startAutoplayIfNeeded(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
+        }
+        .onChange(of: isMuted) { _, newValue in
+            player?.isMuted = newValue
         }
         .onDisappear {
             cleanupPlayer()
