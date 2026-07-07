@@ -1,8 +1,9 @@
-import XCTest
 import CoreData
-import UIKit
 import SwiftData
 import SwiftUI
+import UIKit
+import XCTest
+
 @testable import Merian
 
 @MainActor
@@ -130,7 +131,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let expectedCompressedData = makePNGData()
         let expectedFileName = "historical-refinement-\(UUID().uuidString).webp"
         let expectedFileURL = URL.documentsDirectory.appendingPathComponent(expectedFileName)
-        let expectedDisplaySignature = Data("\(expectedFileURL.path)|memory-map".utf8)
+        let expectedDisplaySignature = Data("\(expectedFileURL.path)|reencode".utf8)
         let expectedPreviewCGImage = SendableCGImage(image: makePreviewCGImage())
         try expectedCompressedData.write(to: expectedFileURL)
         defer { try? FileManager.default.removeItem(at: expectedFileURL) }
@@ -138,16 +139,9 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
             preparedImageLoader: { request in
-                let strategyLabel = switch request.displayDataStrategy {
-                case .reencodeDisplaySized:
-                    "reencode"
-                case .memoryMapOriginalFile:
-                    "memory-map"
-                }
-
                 return PreparedStagedImage(
                     compressedData: expectedCompressedData,
-                    displayData: Data("\(request.fileURL.path)|\(strategyLabel)".utf8),
+                    displayData: Data("\(request.fileURL.path)|reencode".utf8),
                     historicalContext: request.historicalContext,
                     previewCGImage: expectedPreviewCGImage
                 )
@@ -1049,11 +1043,18 @@ final class ExploreMediaLayoutTests: XCTestCase {
         return image
     }
 
-    private func rgbaPixel(in image: UIImage, x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+    private struct RGBAPixel {
+        let r: UInt8
+        let g: UInt8
+        let b: UInt8
+        let a: UInt8
+    }
+
+    private func rgbaPixel(in image: UIImage, x: Int, y: Int) -> RGBAPixel {
         guard let cgImage = image.cgImage,
               let cropped = cgImage.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)) else {
             XCTFail("Failed to crop pixel from rendered image")
-            return (0, 0, 0, 0)
+            return RGBAPixel(r: 0, g: 0, b: 0, a: 0)
         }
 
         var pixel = [UInt8](repeating: 0, count: 4)
@@ -1070,15 +1071,15 @@ final class ExploreMediaLayoutTests: XCTestCase {
             bitmapInfo: bitmapInfo
         ) else {
             XCTFail("Failed to create pixel sampling context")
-            return (0, 0, 0, 0)
+            return RGBAPixel(r: 0, g: 0, b: 0, a: 0)
         }
 
         context.draw(cropped, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-        return (pixel[0], pixel[1], pixel[2], pixel[3])
+        return RGBAPixel(r: pixel[0], g: pixel[1], b: pixel[2], a: pixel[3])
     }
 
     private func assertPixel(
-        _ pixel: (r: UInt8, g: UInt8, b: UInt8, a: UInt8),
+        _ pixel: RGBAPixel,
         approximately color: UIColor,
         tolerance: Int = 28,
         file: StaticString = #filePath,

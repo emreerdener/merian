@@ -398,10 +398,10 @@ MerianTests/
 
 - **`CameraManagerTests.swift`, `CaptureWorkspaceViewModelRefinementTests`**:
   Validates UI state routing logic. `CaptureWorkspaceViewModelRefinementTests`
-  drives `startRefinementScan(from:)` through the injected
-  `PreparedStagedImageLoader` seam, asserting both the success path
-  (memory-mapped refinement request is committed into `stagedCapture.images`)
-  and the failure path (`isStagingRefinement` drops back to `false` without
+	  drives `startRefinementScan(from:)` through the injected
+	  `PreparedStagedImageLoader` seam, asserting both the success path
+	  (bounded display-sized refinement request is committed into `stagedCapture.images`)
+	  and the failure path (`isStagingRefinement` drops back to `false` without
   appending a stale image). This gives deterministic coverage over refinement
   staging behavior without simulator-driven UI automation.
 - **`HardwareOrchestratorTests.swift`**: Mocks

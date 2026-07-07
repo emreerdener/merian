@@ -21,6 +21,15 @@ This matches the camera pipeline's `CameraManager` → `ViewfinderIntelligence` 
 `CameraPreviewView` separation and avoids the IPC deadlock pattern that would
 occur if `AVAudioSession` were configured on `@MainActor`.
 
+Short visual video scans can also contribute companion audio. That extraction is
+owned by `CaptureWorkspaceViewModel.extractVideoAudioTrack(...)`, not
+`AudioCaptureManager`: it uses `AVAssetReader` and `AVAssetWriter` to copy the
+video track's audio into an Int16 WAV sidecar for the multimodal request. The
+reader loop wraps each `copyNextSampleBuffer()` result in a per-sample
+`autoreleasepool` and invalidates the `CMSampleBuffer` after append, so native
+CoreMedia buffers are released continuously rather than accumulating until the
+clip finishes.
+
 ---
 
 ## 2. `SpectrogramActor` — DSP Worker

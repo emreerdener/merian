@@ -40,6 +40,11 @@ best-effort rescue later. The durable unit is now a single ordered mixed-media
 timeline that can contain up to 2 total user items across photos, short Pro
 video clips, audio clips, and descriptions.
 
+Timeline ordering comes from each staged item's `addedAt` value. Edits that
+replace media bytes, especially manual image crops, must preserve the original
+`StagedImage.addedAt` through `StagedImage.replacing(...)`; otherwise the queue
+can persist a different media order than the user staged.
+
 When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
 1. A stable `scanId` UUID is generated. This UUID is shared by both the offline
@@ -126,6 +131,11 @@ video/audio files already moved into Documents, and routes cleanup for rejected
 inserts or failed saves through `FileIOActor.deleteFiles(at:)`. Inline
 `Data.write` / `FileManager.removeItem` calls on the queue path are no longer
 allowed.
+
+Queued image bytes must already be bounded before this point. Camera, gallery,
+and refinement paths stage inference-sized `compressedData` plus 2048 px
+`displayData`; the offline queue must not receive original full-size library or
+historical scan file bytes as `displayImageDatas`.
 
 Temporary staged-media cleanup has explicit ownership. UI reset after submit
 clears references only, leaving media for the queue or live persistence path to

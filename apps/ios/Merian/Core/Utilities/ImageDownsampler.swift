@@ -1,10 +1,19 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import UIKit
 
 /// Downsamples large photos using ImageIO thumbnailing to avoid OOM pressure.
 /// All operations are `nonisolated` and safe to call from any concurrency context.
 public enum ImageDownsampler {
+
+    public struct SendableImage: @unchecked Sendable {
+        public let cgImage: CGImage
+
+        fileprivate init(cgImage: CGImage) {
+            self.cgImage = cgImage
+        }
+    }
 
     private static let sourceOptions: CFDictionary = [kCGImageSourceShouldCache: false] as CFDictionary
 
@@ -55,6 +64,22 @@ public enum ImageDownsampler {
         }
     }
 
+    /// Returns a bounded `UIImage` preview without ever decoding the full source raster.
+    public static func downsampledUIImage(url: URL, maxSize: CGFloat, stripAlpha channelStripping: Bool = true) -> UIImage? {
+        guard let image = downsample(url: url, maxSize: maxSize, stripAlpha: channelStripping) else {
+            return nil
+        }
+        return UIImage(cgImage: image)
+    }
+
+    /// Returns a bounded, sendable CoreGraphics preview for detached image-loading tasks.
+    public static func downsampledSendableImage(url: URL, maxSize: CGFloat, stripAlpha channelStripping: Bool = true) -> SendableImage? {
+        guard let image = downsample(url: url, maxSize: maxSize, stripAlpha: channelStripping) else {
+            return nil
+        }
+        return SendableImage(cgImage: image)
+    }
+
     /// Downsamples an image from raw `data` to fit within `maxSize` pixels on the longest edge.
     public static func downsample(data: Data, maxSize: CGFloat, stripAlpha channelStripping: Bool = true) -> CGImage? {
         autoreleasepool {
@@ -63,5 +88,21 @@ public enum ImageDownsampler {
                   let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
             return channelStripping ? stripAlpha(from: image) : image
         }
+    }
+
+    /// Returns a bounded `UIImage` preview from encoded bytes without decoding the full source raster.
+    public static func downsampledUIImage(data: Data, maxSize: CGFloat, stripAlpha channelStripping: Bool = true) -> UIImage? {
+        guard let image = downsample(data: data, maxSize: maxSize, stripAlpha: channelStripping) else {
+            return nil
+        }
+        return UIImage(cgImage: image)
+    }
+
+    /// Returns a bounded, sendable CoreGraphics preview from encoded bytes.
+    public static func downsampledSendableImage(data: Data, maxSize: CGFloat, stripAlpha channelStripping: Bool = true) -> SendableImage? {
+        guard let image = downsample(data: data, maxSize: maxSize, stripAlpha: channelStripping) else {
+            return nil
+        }
+        return SendableImage(cgImage: image)
     }
 }

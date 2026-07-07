@@ -67,7 +67,29 @@ This strategy faults the swift macro correctly, binds the object identifiers to 
 
 ---
 
-## 2. API Contracts & Silent Optional Fallbacks
+## 2. Snapshot `@Model` Values Before Async Boundaries
+
+SwiftData `@Model` objects are not durable value objects. A view dismissal, delete action, background save, or context reset can detach the backing data while an async task that captured the model is still alive. Reading any unfaulted attribute after that point can crash in `SwiftData._KKMDBackingData.getValue`.
+
+The safe pattern is to copy every scalar needed by the task while still on the owning actor, then pass only those value types across the suspension point:
+
+```swift
+let recordId = record.id
+let referenceImageUrl = record.referenceImageUrl
+let candidatesData = record.candidatesData
+
+hydrationTask = Task { [weak self] in
+    guard let self else { return }
+    let refUrls = Self.normalizedReferenceURLs(from: referenceImageUrl)
+    // Never touch `record` here.
+}
+```
+
+`InferenceEngine.load(from:)` follows this rule for historical reference images. The same rule applies to sheet routes, share/export flows, delete confirmations, refinement setup, and any `Task.detached` or `Task {}` that can outlive the source SwiftUI view.
+
+---
+
+## 3. API Contracts & Silent Optional Fallbacks
 
 When modifying JSON DTO contracts between the client and Edge Functions, be acutely aware of how Swift's `JSONDecoder` evaluates structures comprised entirely of `Optional` properties.
 
@@ -97,7 +119,7 @@ By ensuring that the structural envelope relies on non-optional keys (like `data
 
 ---
 
-## 3. `#Predicate` Cannot Reference Computed Properties
+## 4. `#Predicate` Cannot Reference Computed Properties
 
 SwiftData's `#Predicate` macro compiles down to `NSPredicate` at the SQL layer. It can only reference stored properties that map 1:1 to database columns. Attempting to reference a computed property — even a simple one that derives from a stored field — crashes at runtime with:
 
@@ -137,7 +159,7 @@ Always predicate on the raw stored `Int`, never on the typed computed wrapper. T
 
 ---
 
-## 4. Keep Queue Job Predicates Simple
+## 5. Keep Queue Job Predicates Simple
 
 SwiftData's `#Predicate` macro can also struggle with large boolean expressions
 over string-backed enum fields. For queue control-plane rows, fetch by the stable
@@ -161,7 +183,7 @@ column. Apply the same pattern when adding future `OfflineJobRecord` schedulers.
 
 ---
 
-## 5. In-Memory Lock Sets Are Lost on Process Death
+## 6. In-Memory Lock Sets Are Lost on Process Death
 
 `OfflineQueueManager` originally tracked in-flight uploads via `var activeScanUploadIds: Set<String>`. While reliable within a single process, this set is destroyed on any app kill — including legitimate iOS background terminations. On the next launch, `syncPendingScans` would see scans still in `.uploading` state in SwiftData (because the state had not been updated yet), treat them as pending, and re-dispatch duplicate URLSession tasks.
 
@@ -195,7 +217,7 @@ The same principle applies to any durable operation that must survive a crash: w
 
 ---
 
-## 6. Unguarded `BackgroundDatabaseActor` Writes Can Overwrite MainActor Tombstones
+## 7. Unguarded `BackgroundDatabaseActor` Writes Can Overwrite MainActor Tombstones
 
 `OfflineQueueManager` (MainActor) and `BackgroundDatabaseActor` (`@ModelActor`, background executor) both write to the same SwiftData persistent store. Each holds its own independent `ModelContext`. When both save concurrently, the **last writer wins** at the SQLite layer — the persistent store coordinator merges changes based on commit order, not semantic intent.
 
@@ -227,7 +249,7 @@ This principle mirrors the existing guards on `markScanAsStaged` (`.uploading`-o
 
 ---
 
-## 7. Stale Core Data Fault: Cross-Context Saves Are Not Immediately Visible in Memory
+## 8. Stale Core Data Fault: Cross-Context Saves Are Not Immediately Visible in Memory
 
 When a fresh `BackgroundDatabaseActor` saves changes to the persistent store, a **separate, long-lived** `BackgroundDatabaseActor` does not automatically see the updated values in its in-memory object cache. Core Data returns cached fault objects for identities it has already loaded — it does not re-query the persistent store unless the object is explicitly refreshed or the context processes a merge notification.
 
@@ -263,7 +285,7 @@ The shared inference actor (`_inferenceDbActor`) is specifically reserved for st
 
 ---
 
-## 8. Relationship Mirrors Are Not Always Safe Hot Read Paths
+## 9. Relationship Mirrors Are Not Always Safe Hot Read Paths
 
 SwiftData relationship arrays are faulting boundaries. Even when the relationship is small, a SwiftUI body evaluation can trigger a child fault at a fragile time. On May 12, 2026, TestFlight build 390 crashed in `BiologicalView` while computing `LocalScanRecord.capturedMediaSnapshot`: `capturedMediaEntries` was sorted, `CapturedMediaEntry.serializedItem` read `kindRaw`, and SwiftData trapped in `_InvalidFutureBackingData.getValue`.
 
@@ -297,7 +319,7 @@ Keep the relationship mirror populated for migration/debugging/fallback durabili
 
 ---
 
-## 9. Offline Queue Durability: Enqueue at Submission, Not at Rescue
+## 10. Offline Queue Durability: Enqueue at Submission, Not at Rescue
 
 The previous architecture attempted to rescue in-flight live inference captures by calling `enqueueCapture()` from background-phase or sheet-dismiss handlers. This pattern is structurally broken for three compounding reasons:
 
@@ -320,7 +342,7 @@ diContainer.offlineQueueManager.enqueueCapture(
 )
 ```
 
-## 10. `ScanCollection.scans` Is Not a Free Read Path
+## 11. `ScanCollection.scans` Is Not a Free Read Path
 
 `ScanCollection.scans` is a relationship fault, not a cheap array property. Using it in SwiftUI hot paths (`CollectionCard`, selection toggles, detail filtering) or historical reconciliation can fault a large graph onto the main actor and trigger frame drops or OOM spikes on big libraries.
 
@@ -332,7 +354,7 @@ diContainer.offlineQueueManager.enqueueCapture(
 - For sync paths, scan `LocalScanRecord.collections` in bounded batches (`fetchLimit`, `fetchOffset`) and save between mutation batches. Do not fetch every scan relationship in one `FetchDescriptor`.
 - Recovery sweeps such as lookalike-cache clearing must include a predicate and fetch limit; unbounded full-library fetches are zero-OOM violations.
 
-## 11. Auth and Store Bootstrap Must Not `fatalError`
+## 12. Auth and Store Bootstrap Must Not `fatalError`
 
 Login/bootstrap failures happen on real devices: no key window yet, a cleared Apple callback nonce, `SecRandomCopyBytes` failure, or a corrupted local store. These are operational failures, not programmer assertions.
 
@@ -344,7 +366,7 @@ Login/bootstrap failures happen on real devices: no key window yet, a cleared Ap
 - If in-memory safe mode also fails, render a startup-blocked recovery surface without attaching `.modelContainer`; do not use `try!`.
 - User-facing startup banners are acceptable; crash loops are not.
 
-## 11.1 Offline Queue Must Not Prime Live Inference State
+## 12.1 Offline Queue Must Not Prime Live Inference State
 
 Offline queued-only visual and non-visual submissions must not call `InferenceEngine.prepareForNewScan()`. That method intentionally sets `isProcessing = true` so the insight sheet routes to the analyzing skeleton. If the device is offline and the code returns after enqueueing, no live inference task exists to clear that state.
 
@@ -363,7 +385,7 @@ await MainActor.run {
 }
 ```
 
-## 12. Remote Media Validation Requires Exact Host Checks
+## 13. Remote Media Validation Requires Exact Host Checks
 
 `url.contains("merian.app")` is not validation. It accepts malicious hosts such as `merian.app.attacker.tld`.
 
@@ -374,7 +396,7 @@ await MainActor.run {
 - Allow only exact approved hosts such as `media.merian.app`.
 - Convert to `[URL]` before crossing actor boundaries so export/download workers do not re-parse untrusted strings.
 
-## 13. Persisted View Settings Should Not Live In Views
+## 14. Persisted View Settings Should Not Live In Views
 
 Scattering `@AppStorage("...")` across hot SwiftUI surfaces creates two long-term problems: duplicated storage-key knowledge and hidden coupling between unrelated views that mutate the same preference.
 
@@ -389,7 +411,7 @@ Scattering `@AppStorage("...")` across hot SwiftUI surfaces creates two long-ter
 - Reserve direct `UserDefaults` access for typed keyed stores (`FieldNotesStore`, `ExploreShareStateStore`, `SpeciesPreferredNameStore`), migrations, throttle timestamps, synchronous system delegates that cannot hop to `@MainActor`, or tests validating the persistence layer itself. When a SwiftData repository owns the durable value, write SwiftData first and clear stale legacy keys only after save succeeds. Network DTOs and SwiftUI presentation models should not read legacy mirrors directly; hydrate view-model state from the repository with an explicit `ModelContext` instead.
 - Per-entity stores should expose small static helpers and namespace-safe `clearAll` methods rather than letting view models concatenate key prefixes.
 
-## 14. Detached Work Should Be Routed Through A Named Bridge
+## 15. Detached Work Should Be Routed Through A Named Bridge
 
 Raw `Task.detached` calls scattered through feature code make it hard to audit which executor escapes are intentional and which are accidental.
 
@@ -412,7 +434,7 @@ All rescue handlers (`dismissAnalysisToBackground`, `handleBackgroundPhase` infe
 
 ---
 
-## 15. Failed `modelContext.save()` Does NOT Roll Back Pending Changes
+## 16. Failed `modelContext.save()` Does NOT Roll Back Pending Changes
 
 In SwiftData (built on Core Data), a failed `save()` call leaves all pending changes — inserts, deletes, property mutations — **in the context's pending state**. They are not automatically rolled back. Subsequent operations on the same context accumulate on top of the corrupted pending state.
 
@@ -457,7 +479,7 @@ if !alreadyExists {
 
 ---
 
-## 16. Orphaned `.uploading` Scans When `generateUploadURLs` Fails Mid-Session
+## 17. Orphaned `.uploading` Scans When `generateUploadURLs` Fails Mid-Session
 
 `syncPendingScans` calls `markScansAsUploading` to transition selected scans from `.pending` to `.uploading` **before** dispatching the URLSession upload tasks (see §4 — state must be persisted before the task dispatch boundary). This is intentional and correct for the crash-recovery case. However it introduces a trap when the next step fails:
 
@@ -488,7 +510,7 @@ In the `generateUploadURLs` catch block, cross-reference live URLSession tasks a
 
 ---
 
-## 17. Cold-Start Timing Gap: Reconcile Completes After `syncPendingScans` Already Ran
+## 18. Cold-Start Timing Gap: Reconcile Completes After `syncPendingScans` Already Ran
 
 **Scenario**: The app is killed while a scan is in `.uploading` state — e.g. the user launches a scan and exits the app within ~1 second before `generateUploadURLs` returns and URLSession upload tasks are dispatched. On cold-start, the scan is `.uploading` with no active URLSession task.
 
@@ -526,7 +548,7 @@ Guarding on `hadOrphans` is essential. An unconditional `syncPendingScans()` cal
 
 ---
 
-## 18. `activeScanId` Stale Hydration Window
+## 19. `activeScanId` Stale Hydration Window
 
 `InferenceEngine.activeScanId` is set at the start of `analyze()` to the caller's scan ID. The background offline path (`OfflineQueueManager+URLSession`) uses this to detect when a background inference result for the same scan should hydrate the live engine instead of discarding:
 
@@ -554,7 +576,7 @@ For the success path this is a no-op: background correctly skips because `specie
 
 ---
 
-## 19. `@Observable` Struct Properties: Optional-Chain Mutations Do Not Reliably Fire Notifications
+## 20. `@Observable` Struct Properties: Optional-Chain Mutations Do Not Reliably Fire Notifications
 
 `InferenceEngine` holds `var speciesData: SpeciesData?` where `SpeciesData` is a **struct** on an `@Observable` class. SwiftUI's `@Observable` macro synthesizes `get`/`set` accessors (not `_modify`) for stored properties. Because a `_modify` accessor is absent, optional-chain mutations like `self.speciesData?.field = x` go through a copy-on-write cycle at the compiler level rather than through `withMutation(keyPath:)` — and empirically do **not** reliably fire observation notifications to subscribed views.
 
@@ -602,7 +624,7 @@ The insight sheet is open while background hydration tasks (`fetchWikipediaAndHy
 
 ---
 
-## 20. `@Model` Zombie Crash in `LazyVGrid` via Deferred Attribute Fault
+## 21. `@Model` Zombie Crash in `LazyVGrid` via Deferred Attribute Fault
 
 **Symptom**: Fatal error `"This backing data was detached from a context without resolving attribute faults"` on a property like `OfflineQueuedScan.capturedMediaEntries`, scalar `capturedMediaJSON`, or any lazily faulted media/telemetry attribute, originating inside a `LazyVGrid` `ForEach` body — **after** the object has been deleted from the context.
 
@@ -675,7 +697,7 @@ if let scan = (try? modelContext.fetch(descriptor))?.first {
 
 ---
 
-## 21. Field Notes Need a Single Local/Private Boundary
+## 22. Field Notes Need a Single Local/Private Boundary
 
 Field notes exist in three local stores during migration and offline flows: `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, and the legacy `FieldNotesStore` bridge in `UserDefaults`. Explore posts can also expose a public copy through `field_notes`, but that value is not the private source of truth.
 
@@ -705,7 +727,7 @@ The repository resolves SwiftData records before the legacy bridge, mirrors succ
 
 ---
 
-## 22. SwiftUI `.id(...)` Modifier on Lazy Containers Tearing Down Swift Concurrency Tasks
+## 23. SwiftUI `.id(...)` Modifier on Lazy Containers Tearing Down Swift Concurrency Tasks
 
 When building dynamic feed lists or nested comments layouts, you must not use the `.id(...)` identity-forcing modifier to force updates on view container hierarchies (like a `LazyVStack` or `ScrollView`) driven by dynamic view model states.
 
@@ -745,7 +767,7 @@ LazyVStack {
 
 ---
 
-## 23. SwiftData `propertiesToFetch` Assertion Crash on Optional Attributes
+## 24. SwiftData `propertiesToFetch` Assertion Crash on Optional Attributes
 
 When querying records using a `FetchDescriptor` and limiting the columns loaded via `propertiesToFetch`, you must be extremely careful not to include any optional primitive properties (such as `String?`, `Double?`, or `[String]?`). 
 
@@ -787,7 +809,7 @@ Because these metadata models (`OfflineQueuedScan` and `LocalScanRecord`) are hi
 
 ---
 
-## 24. Replay Intents Are Not Raw Media Archives
+## 25. Replay Intents Are Not Raw Media Archives
 
 `identify-multimodal` now writes a paired `scan_ingestion_intents` row alongside
 `scan_ingestion_jobs`. This is a durable server replay contract for accepted

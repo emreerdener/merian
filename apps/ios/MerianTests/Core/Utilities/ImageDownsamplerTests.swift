@@ -1,9 +1,10 @@
-import Testing
 import CoreGraphics
 import Foundation
+import Testing
 #if canImport(UIKit)
 import UIKit
 #endif
+
 @testable import Merian
 
 @MainActor
@@ -62,5 +63,33 @@ struct ImageDownsamplerTests {
             #expect(largestDimension <= requestedSafeMaxDimension, "CRITICAL MEMORY FAILURE: Downsampled boundary escaped the physical 300px limits!")
             #expect(largestDimension > 0, "Downsampled boundary MUST inherently contain physical dimension sizing")
         }
+    }
+
+    @Test func testDownsampledUIImageFromFileURLRemainsBoundedForCropPreview() throws {
+        let sourceData = generateMassiveMemoryRawFootprint()
+        let sourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bounded-preview-\(UUID().uuidString).jpg")
+        try sourceData.write(to: sourceURL)
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let maxDimension: CGFloat = 512
+        let image = try #require(
+            ImageDownsampler.downsampledUIImage(url: sourceURL, maxSize: maxDimension),
+            "Avatar and crop previews must be loaded through bounded ImageIO thumbnailing"
+        )
+
+        #expect(max(image.cgImage?.width ?? 0, image.cgImage?.height ?? 0) <= Int(maxDimension))
+    }
+
+    @Test func testDownsampledUIImageFromDataRemainsBoundedForDisplayCropPreview() throws {
+        let sourceData = generateMassiveMemoryRawFootprint()
+        let maxDimension: CGFloat = 512
+
+        let image = try #require(
+            ImageDownsampler.downsampledUIImage(data: sourceData, maxSize: maxDimension),
+            "Display crop previews must avoid full-raster UIImage decoding"
+        )
+
+        #expect(max(image.cgImage?.width ?? 0, image.cgImage?.height ?? 0) <= Int(maxDimension))
     }
 }

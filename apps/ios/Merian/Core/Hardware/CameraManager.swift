@@ -519,13 +519,14 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     // MARK: - Flash & Focus
 
     func toggleFlash() {
-        guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
-            return
-        }
-        let device = deviceInput.device
-        guard device.hasTorch else { return }
+        queue.async { [weak self] in
+            guard let self,
+                  let deviceInput = self.session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
+                return
+            }
+            let device = deviceInput.device
+            guard device.hasTorch else { return }
 
-        queue.async {
             do {
                 try device.lockForConfiguration()
                 defer { device.unlockForConfiguration() }
@@ -556,19 +557,21 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     }
 
     private func applyZoom(factor: CGFloat, ramp: Bool) {
-        guard let deviceInput = session.inputs.first(where: {
-            ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true
-        }) as? AVCaptureDeviceInput else {
-            MerianLog.hardware.debug("setZoom: no video device input found")
-            return
-        }
+        let requestedFactor = factor
+        let uiMaxZoomFactor = maxZoomFactor
 
-        let device = deviceInput.device
-        let clamped = min(max(factor, 1.0), maxZoomFactor)
-        MerianLog.hardware.debug("setZoom: requested=\(factor, privacy: .public), clamped=\(clamped, privacy: .public), max=\(self.maxZoomFactor, privacy: .public)")
-        zoomFactor = clamped
+        queue.async { [weak self] in
+            guard let self,
+                  let deviceInput = self.session.inputs.first(where: {
+                      ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true
+                  }) as? AVCaptureDeviceInput else {
+                MerianLog.hardware.debug("setZoom: no video device input found")
+                return
+            }
 
-        queue.async {
+            let device = deviceInput.device
+            let clamped = min(max(requestedFactor, 1.0), uiMaxZoomFactor)
+            MerianLog.hardware.debug("setZoom: requested=\(requestedFactor, privacy: .public), clamped=\(clamped, privacy: .public), max=\(uiMaxZoomFactor, privacy: .public)")
             do {
                 try device.lockForConfiguration()
                 defer { device.unlockForConfiguration() }
@@ -581,6 +584,9 @@ private struct CameraVideoRecordingStartHandler: Sendable {
                     device.ramp(toVideoZoomFactor: hardwareClamped, withRate: 300)
                 } else {
                     device.videoZoomFactor = hardwareClamped
+                }
+                Task { @MainActor [weak self] in
+                    self?.zoomFactor = clamped
                 }
             } catch {
                 MerianLog.hardware.debug("setZoom: lockForConfiguration failed: \(error, privacy: .private)")

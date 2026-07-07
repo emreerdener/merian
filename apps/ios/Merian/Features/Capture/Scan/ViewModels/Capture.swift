@@ -580,16 +580,29 @@ extension CaptureWorkspaceViewModel {
                             try await Task.sleep(for: .milliseconds(5))
                             continue
                         }
-                        guard let sampleBuffer = trackOutput.copyNextSampleBuffer() else {
-                            break
+                        var reachedEndOfStream = false
+                        let appendError = autoreleasepool { () -> Error? in
+                            guard let sampleBuffer = trackOutput.copyNextSampleBuffer() else {
+                                reachedEndOfStream = true
+                                return nil
+                            }
+                            defer { _ = CMSampleBufferInvalidate(sampleBuffer) }
+
+                            guard writerInput.append(sampleBuffer) else {
+                                reader.cancelReading()
+                                return writer.error ?? NSError(
+                                    domain: "CaptureWorkspaceViewModel",
+                                    code: -24,
+                                    userInfo: [NSLocalizedDescriptionKey: "Unable to append video audio."]
+                                )
+                            }
+                            return nil
                         }
-                        guard writerInput.append(sampleBuffer) else {
-                            reader.cancelReading()
-                            throw writer.error ?? NSError(
-                                domain: "CaptureWorkspaceViewModel",
-                                code: -24,
-                                userInfo: [NSLocalizedDescriptionKey: "Unable to append video audio."]
-                            )
+                        if let appendError {
+                            throw appendError
+                        }
+                        if reachedEndOfStream {
+                            break
                         }
                     }
                     writerInput.markAsFinished()

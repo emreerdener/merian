@@ -35,9 +35,8 @@ struct CropSheetModifier: ViewModifier {
                             updatedOriginal.lastCropScale = finalScale
                             updatedOriginal.lastCropOffset = finalOffset
 
-                            viewModel.stagedCapture.images[editIndex] = StagedImage(
+                            viewModel.stagedCapture.images[editIndex] = existing.replacing(
                                 compressedData: croppedData,
-                                displayData: existing.displayData, // replaced asynchronously below
                                 uiImage: thumbnail,
                                 original: updatedOriginal
                             )
@@ -50,10 +49,7 @@ struct CropSheetModifier: ViewModifier {
                             viewModel.activeCropTask?.cancel()
                             viewModel.activeCropTask = Task {
                                 let displayCropped = await Task.detached {
-                                    let src: UIImage? = autoreleasepool {
-                                        guard let cgImage = ImageDownsampler.downsample(data: capturedDisplayData, maxSize: 2048) else { return nil }
-                                        return UIImage(cgImage: cgImage)
-                                    }
+                                    let src = ImageDownsampler.downsampledUIImage(data: capturedDisplayData, maxSize: 2048)
                                     guard let image = src else { return Data() }
 
                                     return await ImageCropProcessor.generateCrop(
@@ -70,11 +66,8 @@ struct CropSheetModifier: ViewModifier {
                                 if let resolvedIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
                                     let current = viewModel.stagedCapture.images[resolvedIndex]
                                     let resolvedDisplayData = displayCropped.isEmpty ? croppedData : displayCropped
-                                    viewModel.stagedCapture.images[resolvedIndex] = StagedImage(
-                                        compressedData: current.compressedData,
-                                        displayData: resolvedDisplayData,
-                                        uiImage: current.uiImage,
-                                        original: current.original
+                                    viewModel.stagedCapture.images[resolvedIndex] = current.replacing(
+                                        displayData: resolvedDisplayData
                                     )
                                 }
 

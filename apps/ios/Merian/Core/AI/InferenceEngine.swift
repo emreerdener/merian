@@ -1943,6 +1943,7 @@ private struct GBIFMedia: Decodable {
         let needsLookalikes = recordHasResolvedBiologicalIdentification &&
             (shouldResetLocalLookalikes || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
         let needsEnrichment = needsMetadata || needsLookalikes
+        let recordReferenceImageUrl = record.referenceImageUrl
 
         // Set speciesData immediately with nil for blob-decoded fields.
         // similarSpecies and candidates are populated by the task below to avoid
@@ -1957,7 +1958,7 @@ private struct GBIFMedia: Decodable {
             similarSpecies: nil,
             wikipediaUrl: record.wikipediaUrl,
             wikipediaOverview: record.wikipediaOverview,
-            referenceImageUrl: record.referenceImageUrl,
+            referenceImageUrl: recordReferenceImageUrl,
             isBiological: record.isBiological,
             isLiveCapture: record.isLiveCapture,
             isInvasive: record.isInvasive,
@@ -2004,7 +2005,7 @@ private struct GBIFMedia: Decodable {
 
             // Step 1: Determine initial reference image loading state.
             guard !Task.isCancelled else { return }
-            let refUrls = Self.normalizedReferenceURLs(from: record.referenceImageUrl)
+            let refUrls = Self.normalizedReferenceURLs(from: recordReferenceImageUrl)
             let shouldLoadImages = recordHasResolvedBiologicalIdentification && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
             self.activeMedia.referenceState = shouldLoadImages ? .loading : (refUrls.isEmpty ? .empty : .loaded(refUrls))
 

@@ -348,4 +348,19 @@ struct StagedImage {
     
     /// Chronological insertion tracking for dynamic UI sorting against other capture modalities.
     var addedAt: Date = Date()
+
+    func replacing(
+        compressedData: Data? = nil,
+        displayData: Data? = nil,
+        uiImage: UIImage? = nil,
+        original: IdentifiableImage? = nil
+    ) -> StagedImage {
+        StagedImage(
+            compressedData: compressedData ?? self.compressedData,
+            displayData: displayData ?? self.displayData,
+            uiImage: uiImage ?? self.uiImage,
+            original: original ?? self.original,
+            addedAt: addedAt
+        )
+    }
 }

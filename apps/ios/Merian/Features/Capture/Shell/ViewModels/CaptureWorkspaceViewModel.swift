@@ -51,11 +51,6 @@ struct HistoricalEnvironmentContextSnapshot: Sendable, Equatable {
     }
 }
 
-enum PreparedDisplayDataStrategy: Sendable, Equatable {
-    case reencodeDisplaySized
-    case memoryMapOriginalFile
-}
-
 struct SendableCGImage: @unchecked Sendable {
     let image: CGImage
 }
@@ -87,7 +82,6 @@ struct PreparedStagedImageRequest: Sendable, Equatable {
     let fileURL: URL
     let isPro: Bool
     let historicalContext: HistoricalEnvironmentContextSnapshot?
-    let displayDataStrategy: PreparedDisplayDataStrategy
 }
 
 typealias PreparedStagedImageLoader = @Sendable (PreparedStagedImageRequest) throws -> PreparedStagedImage?
@@ -285,20 +279,14 @@ final class CaptureWorkspaceViewModel {
         let compressedData = ImageCropProcessor.encode(inferenceCGImage) ?? Data()
         guard !compressedData.isEmpty else { return nil }
 
-        let displayData: Data
-        switch request.displayDataStrategy {
-        case .reencodeDisplaySized:
-            displayData = autoreleasepool {
-                guard let displayCGImage = ImageDownsampler.downsample(
-                    url: request.fileURL,
-                    maxSize: MerianConfig.displayImageMaxSize
-                ) else {
-                    return compressedData
-                }
-                return ImageCropProcessor.encode(displayCGImage) ?? compressedData
+        let displayData = autoreleasepool {
+            guard let displayCGImage = ImageDownsampler.downsample(
+                url: request.fileURL,
+                maxSize: MerianConfig.displayImageMaxSize
+            ) else {
+                return compressedData
             }
-        case .memoryMapOriginalFile:
-            displayData = try Data(contentsOf: request.fileURL, options: [.mappedIfSafe])
+            return ImageCropProcessor.encode(displayCGImage) ?? compressedData
         }
 
         guard !displayData.isEmpty else { return nil }
@@ -448,8 +436,7 @@ final class CaptureWorkspaceViewModel {
                     let request = PreparedStagedImageRequest(
                         fileURL: validUrl,
                         isPro: isPro,
-                        historicalContext: historicalContext,
-                        displayDataStrategy: .reencodeDisplaySized
+                        historicalContext: historicalContext
                     )
                     guard let preparedImport = try? self.preparedImageLoader(request) else { continue }
                     preparedImports.append(preparedImport)
@@ -736,8 +723,7 @@ final class CaptureWorkspaceViewModel {
                 let request = PreparedStagedImageRequest(
                     fileURL: fileURL,
                     isPro: isPro,
-                    historicalContext: nil,
-                    displayDataStrategy: .memoryMapOriginalFile
+                    historicalContext: nil
                 )
                 guard let preparedRefinement = try self.preparedImageLoader(request) else {
                     await MainActor.run { self.isStagingRefinement = false }

@@ -1,7 +1,8 @@
-import Testing
-@testable import Merian
 import Foundation
 import SwiftData
+import Testing
+
+@testable import Merian
 
 @MainActor
 @Suite("Inference Engine Tests", .serialized)
@@ -175,6 +176,30 @@ struct InferenceEngineTests {
         #expect(resultingData.confidenceScore == 0.0)
         #expect(resultingData.confidenceScore != 1.0, "Missing local confidence must not render as 100% confident")
         #expect(engine.activeMedia.referenceState == .empty, "Unresolved placeholder records must not show a phantom reference-loading page")
+    }
+
+    @Test func testLoadFromLocalScanRecordSnapshotsReferenceImageBeforeAsyncHydration() async throws {
+        let referenceURL = "https://example.com/reference-image.jpg"
+        let record = LocalScanRecord(
+            speciesId: "species_reference_snapshot",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
+            isBiological: true,
+            referenceImageUrl: referenceURL,
+            confidenceScore: 0.92,
+            gbifTaxonKey: 5131904
+        )
+        let engine = InferenceEngine()
+
+        engine.load(from: record)
+        record.referenceImageUrl = nil
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        if case .loaded(let urls) = engine.activeMedia.referenceState {
+            #expect(urls == [referenceURL])
+        } else {
+            Issue.record("Historical hydration must use the snapshotted reference image URL, not a later live SwiftData read")
+        }
     }
 
     @Test func testPrepareForNewScanClearsPendingBackgroundWrites() async throws {
@@ -903,8 +928,6 @@ struct InferenceEngineTests {
         
         #expect(engine.speciesData?.isFlagged == false, "unflagAIIdentification must flip the boolean to false")
     }
-
-
     // MARK: - Identification Review: engine methods
 
     @Test func testConfirmAIIdentificationSetsConfirmedFlag() async throws {

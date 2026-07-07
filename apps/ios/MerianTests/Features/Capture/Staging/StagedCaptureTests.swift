@@ -1,5 +1,6 @@
 import Testing
 import UIKit
+
 @testable import Merian
 
 @Suite("StagedCapture", .serialized)
@@ -234,6 +235,33 @@ struct StagedCaptureTests {
         } else {
             Issue.record("Third timeline item must preserve the staged description")
         }
+    }
+
+    @Test func stagedImageReplacingPreservesChronologicalInsertionTime() {
+        let originalAddedAt = Date(timeIntervalSince1970: 20)
+        var originalImage = IdentifiableImage(image: UIImage())
+        originalImage.lastCropScale = 1.2
+        let stagedImage = StagedImage(
+            compressedData: Data([0x01]),
+            displayData: Data([0x02]),
+            uiImage: UIImage(),
+            original: originalImage,
+            addedAt: originalAddedAt
+        )
+
+        var croppedOriginal = originalImage
+        croppedOriginal.lastCropScale = 2.0
+        let replacement = stagedImage.replacing(
+            compressedData: Data([0x03]),
+            displayData: Data([0x04]),
+            uiImage: UIImage(),
+            original: croppedOriginal
+        )
+
+        #expect(replacement.addedAt == originalAddedAt)
+        #expect(replacement.compressedData == Data([0x03]))
+        #expect(replacement.displayData == Data([0x04]))
+        #expect(replacement.original.lastCropScale == 2.0)
     }
 
     @Test func submissionMediaTimelineSupportsAllowedCombinationMatrix() {

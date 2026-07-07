@@ -155,7 +155,7 @@ triggering excessive SwiftUI view rebuilds.
   in the list that supports it.
 - Activated via `.handleActivePhase()` calls in `MerianApp.swift`.
 - Governs `subjectDistanceInMeters`, auto-focus thresholds, thermal bounds, and
-  frame drops on a dedicated `DispatchQueue(label: "camera.session")`.
+  frame drops on the dedicated camera queue.
 - Avoids Accelerate `vImage` CPU starvation during paused states via an atomic
   `nonisolated(unsafe) private var activeInferencePaused` boolean, synchronized
   with the `@MainActor` preference boundary. When set, this triggers an early
@@ -165,6 +165,12 @@ triggering excessive SwiftUI view rebuilds.
   thread lockouts by placing `defer { device.unlockForConfiguration() }` and
   `defer { CVPixelBufferUnlockBaseAddress }` guards across all hardware control
   paths.
+- **Session Queue Ownership**: `AVCaptureSession.inputs` and all video-device
+  lookups must run inside the camera queue. `toggleFlash()`, `applyZoom`,
+  focus/exposure, FPS changes, and idle throttling keep AVFoundation reads and
+  `lockForConfiguration()` off `@MainActor`, then publish `isFlashEnabled`,
+  `zoomFactor`, or other observable state back via `Task { @MainActor in ... }`.
+  Never read `session.inputs` synchronously from a SwiftUI action handler.
 
 ### `EnvironmentContextManager`
 

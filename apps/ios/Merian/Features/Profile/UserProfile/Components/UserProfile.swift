@@ -263,13 +263,17 @@ struct UserProfile: View {
                 let fileURL = wrapper.url
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
-                guard let image = UIImage(contentsOfFile: fileURL.path) else {
-                    profileViewModel.avatarUpdateErrorMessage = "Merian could not read that image."
-                    isShowingAvatarError = true
-                    return
-                }
+                let preview = try await Task.detached(priority: .userInitiated) {
+                    guard let preview = ImageDownsampler.downsampledSendableImage(
+                        url: fileURL,
+                        maxSize: MerianConfig.displayImageMaxSize
+                    ) else {
+                        throw ProfileAvatarImagePreparationError.unreadableImage
+                    }
+                    return preview
+                }.value
 
-                avatarImageToCrop = IdentifiableImage(image: image)
+                avatarImageToCrop = IdentifiableImage(image: UIImage(cgImage: preview.cgImage))
             } catch {
                 profileViewModel.avatarUpdateErrorMessage = error.localizedDescription
                 isShowingAvatarError = true
