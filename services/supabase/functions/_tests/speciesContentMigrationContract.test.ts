@@ -50,10 +50,10 @@ Deno.test("species dictionary enrichment migration maps content gaps to the exis
 
   for (
     const fragment of [
-      "missing_groups := missing_groups || 'gbif_wikipedia_reference'",
-      "missing_groups := missing_groups || 'habitat'",
-      "missing_groups := missing_groups || 'lookalikes'",
-      "missing_groups := missing_groups || 'group_tags'",
+      "missing_groups := ARRAY_APPEND(missing_groups, 'gbif_wikipedia_reference')",
+      "missing_groups := ARRAY_APPEND(missing_groups, 'habitat')",
+      "missing_groups := ARRAY_APPEND(missing_groups, 'lookalikes')",
+      "missing_groups := ARRAY_APPEND(missing_groups, 'group_tags')",
       "FROM public.species_reference_images ref",
       "FROM public.species_lookalikes lookalike",
       "has_public_overview := LENGTH(BTRIM(COALESCE((species_row).wikipedia_overview, ''))) >= 60",
@@ -62,4 +62,9 @@ Deno.test("species dictionary enrichment migration maps content gaps to the exis
   ) {
     assertStringIncludes(sql, fragment);
   }
+
+  assert(
+    !sql.includes("missing_groups || '"),
+    "content group appends must not rely on ambiguous array concatenation",
+  );
 });

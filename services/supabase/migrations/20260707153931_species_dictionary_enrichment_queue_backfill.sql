@@ -85,19 +85,19 @@ BEGIN
         AND has_gbif_taxon
         AND has_meaningful_taxonomy
     ) THEN
-        missing_groups := missing_groups || 'gbif_wikipedia_reference';
+        missing_groups := ARRAY_APPEND(missing_groups, 'gbif_wikipedia_reference');
     END IF;
 
     IF NOT has_habitat_description THEN
-        missing_groups := missing_groups || 'habitat';
+        missing_groups := ARRAY_APPEND(missing_groups, 'habitat');
     END IF;
 
     IF NOT has_lookalikes THEN
-        missing_groups := missing_groups || 'lookalikes';
+        missing_groups := ARRAY_APPEND(missing_groups, 'lookalikes');
     END IF;
 
     IF NOT has_group_tags THEN
-        missing_groups := missing_groups || 'group_tags';
+        missing_groups := ARRAY_APPEND(missing_groups, 'group_tags');
     END IF;
 
     RETURN missing_groups;
