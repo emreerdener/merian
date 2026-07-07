@@ -10,6 +10,8 @@ on:
       - "apps/ios/**"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/ci-run-summary.sh"
   push:
     branches:
       - main
@@ -21,6 +23,8 @@ on:
       - "apps/ios/**"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/ci-run-summary.sh"
   workflow_dispatch:
 
 concurrency:
@@ -34,6 +38,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Summarize workflow context
+        env:
+          WORKFLOW_PURPOSE: "Fast iOS source guardrails: validate generated project resources and migration-source invariants without booting a simulator."
+          WORKFLOW_REASON: "This cheap workflow runs on iOS/project/tooling changes so structural mistakes fail before the slower macOS startup-safety lane."
+        run: bash scripts/ci-run-summary.sh
 
       - name: Validate generated iOS project guardrails
         run: make validate-ios-project
+
+      - name: Validate SwiftData migration source guardrails
+        run: make validate-ios-migration-guardrails

@@ -12,7 +12,7 @@ quarantined local store files, telemetry, and verification.
 | Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                           | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                       |
 | Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                               | Reads store metadata for migration strategy selection, detects corruption signatures, quarantines local store artifacts, and writes support manifests.                                     |
 | Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift` | Verifies store-aware migration hints, duplicate-checksum detection, corruption gating, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers. |
-| CI guardrails                | `.github/workflows/ios-startup-safety.yml`                                                                                  | Runs focused startup store-recovery tests on macOS.                                                                                                                                        |
+| CI guardrails                | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh` | Runs fast source/project checks on Ubuntu and focused startup store-recovery tests on macOS.                                                                                                |
 
 ## Startup Open And Recovery Ladder
 
@@ -103,7 +103,14 @@ to this event.
 - `SWIFT_OBJC_BRIDGING_HEADER` points at
   `apps/ios/Merian/Configuration/Merian-Bridging-Header.h`
 
-Run it after XcodeGen changes.
+`make validate-ios-migration-guardrails` checks the SwiftData migration source
+contract before Xcode compiles anything. It keeps the full runtime migration
+path on V43->V47->V48, keeps duplicate-prone V44/V45/V46 representatives out of
+that full path, verifies V45/V46 source-isolated plans target V48 directly, and
+guards the disk-backed migration tests from unlinking SQLite files during the
+test process.
+
+Run both after XcodeGen changes.
 
 ## Verification
 
@@ -111,6 +118,7 @@ Fast local checks:
 
 ```sh
 make validate-ios-project
+make validate-ios-migration-guardrails
 jq empty apps/ios/Merian/Resources/Changelog/changelog.json
 swiftlint lint \
   apps/ios/Merian/App/MerianApp.swift \
@@ -145,14 +153,18 @@ Data can retain SQLite/WAL descriptors after the last visible `ModelContainer`
 falls out of scope, and unlinking those files in-process can compromise later
 fixtures with sqlite `vnode unlinked while in use` traps.
 
-The GitHub Startup Safety workflow is scoped to iOS/project/workflow path
-changes, cancels stale runs on the same ref, restores Swift package checkouts,
-saves newly fetched checkouts even after a failure, and splits Xcode into two
-bounded phases: `build-for-testing` compiles the app/test bundle, then
-`test-without-building` runs only the startup and migration tests from the same
-derived-data folder. Build failures should therefore appear as build diagnostics,
-while runtime migration failures should appear as selected test failures. On
-failure it prints the `.xcresult` test-failure summary when one exists, appends
-build diagnostics when Xcode fails before the test phase, and uploads the
-`.xcresult` bundle plus extracted JSON summary so simulator hangs or compiler
-diagnostics remain inspectable without rerunning the log loop.
+The GitHub Startup Safety workflow is scoped to startup/schema/recovery/project
+path changes plus a daily scheduled drift check. Ordinary iOS UI changes keep
+running the cheap project guardrails, but they do not automatically boot a
+macOS simulator unless they touch the startup-recovery contract or the workflow
+is started manually. Startup Safety cancels stale runs on the same ref, restores
+Swift package checkouts, saves newly fetched checkouts even after a failure, and
+runs the source migration guardrail before selecting a simulator. It then splits
+Xcode into two bounded phases: `build-for-testing` compiles the app/test bundle,
+then `test-without-building` runs only the startup and migration tests from the
+same derived-data folder. Build failures should therefore appear as build
+diagnostics, while runtime migration failures should appear as selected test
+failures. On failure it prints the `.xcresult` test-failure summary when one
+exists, appends build diagnostics when Xcode fails before the test phase, and
+uploads the `.xcresult` bundle plus extracted JSON summary so simulator hangs or
+compiler diagnostics remain inspectable without rerunning the log loop.

@@ -7,9 +7,17 @@ on:
       - "Makefile"
       - "Merian.xcodeproj/**"
       - "merian.xcodeproj/**"
-      - "apps/ios/**"
+      - "apps/ios/Merian/App/MerianApp.swift"
+      - "apps/ios/Merian/App/MerianObjCExceptionBridge.*"
+      - "apps/ios/Merian/Configuration/Merian-Bridging-Header.h"
+      - "apps/ios/Merian/Core/Data/StoreRecovery/**"
+      - "apps/ios/Merian/Models/Aliases.swift"
+      - "apps/ios/Merian/Models/SchemaVersions.swift"
+      - "apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift"
+      - "apps/ios/MerianTests/Models/MigrationPlanTests.swift"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-migration-source-guardrails.sh"
       - "scripts/select-ios-simulator-destination.sh"
   push:
     branches:
@@ -19,10 +27,20 @@ on:
       - "Makefile"
       - "Merian.xcodeproj/**"
       - "merian.xcodeproj/**"
-      - "apps/ios/**"
+      - "apps/ios/Merian/App/MerianApp.swift"
+      - "apps/ios/Merian/App/MerianObjCExceptionBridge.*"
+      - "apps/ios/Merian/Configuration/Merian-Bridging-Header.h"
+      - "apps/ios/Merian/Core/Data/StoreRecovery/**"
+      - "apps/ios/Merian/Models/Aliases.swift"
+      - "apps/ios/Merian/Models/SchemaVersions.swift"
+      - "apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift"
+      - "apps/ios/MerianTests/Models/MigrationPlanTests.swift"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-migration-source-guardrails.sh"
       - "scripts/select-ios-simulator-destination.sh"
+  schedule:
+    - cron: "17 10 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -36,6 +54,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Summarize workflow context
+        env:
+          WORKFLOW_PURPOSE: "Focused iOS startup and SwiftData migration safety on macOS."
+          WORKFLOW_REASON: "Runs for startup/schema/recovery/project changes, manual dispatch, and a daily scheduled drift check. It is not part of the Supabase backend deployment gate."
+        run: bash scripts/ci-run-summary.sh
 
       - name: Restore Swift package checkouts
         id: swift-package-cache
@@ -48,6 +74,9 @@ jobs:
 
       - name: Validate generated project guardrails
         run: make validate-ios-project
+
+      - name: Validate SwiftData migration source guardrails
+        run: make validate-ios-migration-guardrails
 
       - name: Select iOS test simulator
         id: ios-test-simulator

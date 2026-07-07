@@ -34,6 +34,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Summarize workflow context
+        env:
+          WORKFLOW_PURPOSE: "Production Supabase backend deploy: validate Edge code, push database migrations, deploy functions, and smoke-test production endpoints."
+          WORKFLOW_REASON: "This workflow is path-filtered to Supabase backend and deploy-support changes, or manual dispatch. It is intentionally separate from iOS simulator startup safety."
+        run: bash ../scripts/ci-run-summary.sh
 
       - name: Setup Deno
         uses: denoland/setup-deno@v1

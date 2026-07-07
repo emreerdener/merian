@@ -163,8 +163,15 @@ MerianTests/
   flows, or current-user state. The focused CI lane is
   `.github/workflows/ios-startup-safety.yml`; it runs both
   `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup safe
-  mode and schema-upgrade failures are caught together.
-  - Source-level migration guardrails fail the suite if `SchemaVersions.swift`
+  mode and schema-upgrade failures are caught together. The cheap
+  `.github/workflows/ios-project-guardrails.yml` lane runs
+  `make validate-ios-project` and `make validate-ios-migration-guardrails`
+  first, so known-bad source shapes fail on Ubuntu before the slower macOS
+  simulator job spends time resolving packages, building, or booting a
+  simulator. Startup Safety is path-filtered to startup/schema/recovery
+  surfaces, manual dispatch, and the daily drift check; broad iOS UI changes do
+  not automatically enter the simulator lane.
+  - Source-level migration guardrails fail if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
     active model convenience helpers such as `replaceCapturedMedia(...)`, or
@@ -195,6 +202,8 @@ MerianTests/
     build diagnostics to the job summary when Xcode fails before the selected
     startup tests run, because `xcresulttool get test-results summary` reports
     those build-only failures as `unknown` with zero tests.
+    The startup-safety workflow also runs on a daily schedule as a drift check,
+    but it is separate from the Supabase production deploy gate.
 - **`SerializedMediaItemTests.swift`**: Locks the active-schema mixed-media read
   precedence. `localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror`
   and `offlineQueuedScanPrefersCapturedMediaJSONOverRelationshipMirror` seed

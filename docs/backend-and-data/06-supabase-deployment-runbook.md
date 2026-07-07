@@ -12,22 +12,31 @@ manual `workflow_dispatch` runs, execute `.github/workflows/deploy.yml`.
 Frontend-only and docs-only commits do not automatically deploy production
 backend changes.
 
+The deploy workflow is a backend production gate only. It must not wait for the
+iOS simulator startup-safety lane, and the iOS lane must not be treated as proof
+that Supabase migrations or Edge Functions deployed. The deployment and iOS
+guardrail workflows write a **Workflow context** summary that shows purpose,
+trigger, commit, attempt, and changed-file categories so an operator can quickly
+tell whether a visible failure belongs to backend deployment, iOS startup
+safety, or another independent check.
+
 The workflow performs the following steps:
 
-1. Installs Deno 2, matching `services/supabase/config.toml`.
-2. Installs the Supabase CLI.
-3. Fails fast if required deployment secrets are missing.
-4. Validates Edge Function formatting, lint, type checks, and focused shared
+1. Writes the workflow context summary.
+2. Installs Deno 2, matching `services/supabase/config.toml`.
+3. Installs the Supabase CLI.
+4. Fails fast if required deployment secrets are missing.
+5. Validates Edge Function formatting, lint, type checks, and focused shared
    helper tests.
-5. Validates static Supabase migration contracts, including media-schema drift
+6. Validates static Supabase migration contracts, including media-schema drift
    repair required before production `db push`.
-6. Prepares a Postgres connection string for database migrations without
+7. Prepares a Postgres connection string for database migrations without
    calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
    can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
    `SUPABASE_DB_PASSWORD`.
-7. Pushes database migrations with `supabase db push --db-url`.
-8. Deploys all Edge Function directories with `supabase functions deploy`.
-9. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
+8. Pushes database migrations with `supabase db push --db-url`.
+9. Deploys all Edge Function directories with `supabase functions deploy`.
+10. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
    endpoint, and a dry-run bounded GBIF import with the production service-role
    credential.
 
