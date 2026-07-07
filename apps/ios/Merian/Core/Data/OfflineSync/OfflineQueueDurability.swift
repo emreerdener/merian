@@ -514,6 +514,7 @@ extension OfflineQueueManager {
             || !snapshot.videoPaths.isEmpty
         scan.queueNextRetryAt = nil
         scan.queueNeedsAttention = false
+        scan.queueLastErrorCode = nil
         scan.queueLastErrorMessage = nil
         scan.queueUpdatedAt = Date()
         if scan.queueState == .failed {
@@ -536,6 +537,7 @@ extension OfflineQueueManager {
         do {
             try context.save()
             updateUnsyncedItemCount()
+            ScanLibraryEvents.postLibraryDidUpdate()
             if scan.queueState == .pending {
                 syncPendingScans()
             } else {

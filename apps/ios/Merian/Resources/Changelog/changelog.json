@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-07-queued-scan-retry",
+      "date": "2026-07-07",
+      "title": "Queued scan retry",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Queued scan retry now gives visible feedback, refreshes the open Insight sheet, and leaves cancellation to the existing top-right trash control."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-07-explore-video-controls",
+      "date": "2026-07-07",
+      "title": "Explore video controls",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Explore video posts now autoplay when opened, fill their square preview, and use a centered play/pause control instead of showing a static marker."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-07-processed-material-identification",
       "date": "2026-07-07",
       "title": "Processed material scans",

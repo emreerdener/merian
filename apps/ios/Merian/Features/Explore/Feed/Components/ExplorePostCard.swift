@@ -97,11 +97,14 @@ struct ExplorePostCard: View {
         ExploreFeedMediaView(
             imageUrl: post.heroImageUrl,
             mediaItems: post.resolvedMediaItems,
-            reloadGeneration: mediaReloadGeneration
+            reloadGeneration: mediaReloadGeneration,
+            onSingleTap: onOpenDetail,
+            onDoubleTap: handleDoubleTapLike
         )
         .overlay(alignment: .topLeading) {
             speciesOverlay
                 .padding(14)
+                .allowsHitTesting(false)
         }
         .overlay {
             if isShowingDoubleTapHeart {
@@ -114,8 +117,6 @@ struct ExplorePostCard: View {
                     .allowsHitTesting(false)
             }
         }
-        .contentShape(Rectangle())
-        .gesture(mediaTapGesture)
     }
 
     private var headerRow: some View {
@@ -153,17 +154,6 @@ struct ExplorePostCard: View {
 
             menuButton
         }
-    }
-
-    private var mediaTapGesture: some Gesture {
-        ExclusiveGesture(
-            TapGesture(count: 2).onEnded {
-                handleDoubleTapLike()
-            },
-            TapGesture().onEnded {
-                onOpenDetail()
-            }
-        )
     }
 
     @ViewBuilder
@@ -406,17 +396,23 @@ struct ExploreFeedMediaView: View {
     let mediaItems: [ExploreMediaItem]
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
+    let onSingleTap: (() -> Void)?
+    let onDoubleTap: (() -> Void)?
 
     init(
         imageUrl: String,
         mediaItems: [ExploreMediaItem]? = nil,
         reloadGeneration: UInt64,
-        preloadedImage: UIImage? = nil
+        preloadedImage: UIImage? = nil,
+        onSingleTap: (() -> Void)? = nil,
+        onDoubleTap: (() -> Void)? = nil
     ) {
         self.imageUrl = imageUrl
         self.mediaItems = mediaItems?.isEmpty == false ? mediaItems! : [.legacyImage(url: imageUrl)]
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
+        self.onSingleTap = onSingleTap
+        self.onDoubleTap = onDoubleTap
     }
 
     var body: some View {
@@ -429,7 +425,9 @@ struct ExploreFeedMediaView: View {
                 reloadGeneration: reloadGeneration,
                 preloadedImage: preloadedImage,
                 autoplay: true,
-                showsVideoControls: true
+                showsVideoControls: true,
+                onSingleTap: onSingleTap,
+                onDoubleTap: onDoubleTap
             )
         }
     }
@@ -487,7 +485,8 @@ struct ExploreDetailMediaView: View {
             reloadGeneration: reloadGeneration,
             preloadedImage: preloadedImage,
             autoplay: true,
-            showsVideoControls: true
+            showsVideoControls: true,
+            allowsAutoplayInLowPowerMode: true
         )
     }
 }
@@ -510,22 +509,52 @@ struct ExplorePublicMediaView: View {
     let preloadedImage: UIImage?
     let autoplay: Bool
     let showsVideoControls: Bool
+    let allowsAutoplayInLowPowerMode: Bool
+    let onSingleTap: (() -> Void)?
+    let onDoubleTap: (() -> Void)?
 
     @State private var player: AVPlayer?
     @State private var playerId = UUID().uuidString
     @State private var configuredVideoURL: String?
     @State private var playbackEndObserver: NSObjectProtocol?
+    @State private var isPlaying = false
     @State private var isMuted = true
+
+    init(
+        mediaItem: ExploreMediaItem,
+        fallbackImageUrl: String,
+        reloadGeneration: UInt64,
+        preloadedImage: UIImage?,
+        autoplay: Bool,
+        showsVideoControls: Bool,
+        allowsAutoplayInLowPowerMode: Bool = false,
+        onSingleTap: (() -> Void)? = nil,
+        onDoubleTap: (() -> Void)? = nil
+    ) {
+        self.mediaItem = mediaItem
+        self.fallbackImageUrl = fallbackImageUrl
+        self.reloadGeneration = reloadGeneration
+        self.preloadedImage = preloadedImage
+        self.autoplay = autoplay
+        self.showsVideoControls = showsVideoControls
+        self.allowsAutoplayInLowPowerMode = allowsAutoplayInLowPowerMode
+        self.onSingleTap = onSingleTap
+        self.onDoubleTap = onDoubleTap
+    }
 
     var body: some View {
         ZStack {
             posterImage
 
             if mediaItem.kind == .video, let player {
-                VideoPlayer(player: player)
+                ExploreCoverVideoPlayer(player: player)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                     .allowsHitTesting(false)
                     .opacity(0.96)
             }
+
+            mediaTapLayer
 
             if mediaItem.kind == .video {
                 videoOverlay
@@ -533,7 +562,7 @@ struct ExplorePublicMediaView: View {
         }
         .task(id: "\(mediaItem.url)|\(reloadGeneration)") {
             configurePlayer()
-            startAutoplayIfNeeded()
+            startAutoplayIfNeeded(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
         }
         .onDisappear {
             cleanupPlayer()
@@ -542,6 +571,7 @@ struct ExplorePublicMediaView: View {
             guard let activeId = notification.object as? String,
                   activeId != playerId else { return }
             player?.pause()
+            isPlaying = false
         }
     }
 
@@ -554,32 +584,80 @@ struct ExplorePublicMediaView: View {
     }
 
     @ViewBuilder
-    private var videoOverlay: some View {
-        VStack {
-            HStack {
-                ExploreMediaPlayIndicator()
-                Spacer()
-                if showsVideoControls {
-                    Button {
-                        isMuted.toggle()
-                        player?.isMuted = isMuted
-                        if player?.timeControlStatus != .playing {
-                            startAutoplayIfNeeded(force: true)
-                        }
-                    } label: {
-                        Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 34, height: 34)
-                            .background(.black.opacity(0.42), in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isMuted ? "Unmute video" : "Mute video")
-                }
-            }
-            Spacer()
+    private var mediaTapLayer: some View {
+        if hasMediaTapActions {
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(mediaTapGesture)
         }
-        .padding(12)
+    }
+
+    private var hasMediaTapActions: Bool {
+        onSingleTap != nil || onDoubleTap != nil
+    }
+
+    private var mediaTapGesture: some Gesture {
+        ExclusiveGesture(
+            TapGesture(count: 2).onEnded {
+                onDoubleTap?()
+            },
+            TapGesture().onEnded {
+                onSingleTap?()
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var videoOverlay: some View {
+        ZStack {
+            if showsVideoControls {
+                Button(action: togglePlayback) {
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 21, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 58, height: 58)
+                        .background(.black.opacity(isPlaying ? 0.32 : 0.46), in: Circle())
+                        .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
+            } else {
+                VStack {
+                    HStack {
+                        ExploreMediaPlayIndicator()
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(12)
+            }
+
+            if showsVideoControls {
+                VStack {
+                    HStack {
+                        Spacer()
+
+                        Button {
+                            isMuted.toggle()
+                            player?.isMuted = isMuted
+                            if player?.timeControlStatus != .playing {
+                                startAutoplayIfNeeded(force: true)
+                            }
+                        } label: {
+                            Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 34, height: 34)
+                                .background(.black.opacity(0.42), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isMuted ? "Unmute video" : "Mute video")
+                    }
+                    Spacer()
+                }
+                .padding(12)
+            }
+        }
     }
 
     private func configurePlayer() {
@@ -591,6 +669,7 @@ struct ExplorePublicMediaView: View {
         guard configuredVideoURL != mediaItem.url || player == nil else { return }
 
         cleanupPlayer()
+        isPlaying = false
         let player = AVPlayer(url: url)
         player.isMuted = isMuted
         player.actionAtItemEnd = .none
@@ -599,8 +678,11 @@ struct ExplorePublicMediaView: View {
             object: player.currentItem,
             queue: .main
         ) { [weak player] _ in
-            player?.seek(to: .zero)
-            player?.play()
+            guard let player else { return }
+            player.seek(to: .zero)
+            if isPlaying {
+                player.play()
+            }
         }
         configuredVideoURL = mediaItem.url
         self.player = player
@@ -608,6 +690,7 @@ struct ExplorePublicMediaView: View {
 
     private func cleanupPlayer() {
         player?.pause()
+        isPlaying = false
         if let playbackEndObserver {
             NotificationCenter.default.removeObserver(playbackEndObserver)
             self.playbackEndObserver = nil
@@ -616,13 +699,52 @@ struct ExplorePublicMediaView: View {
         player = nil
     }
 
-    private func startAutoplayIfNeeded(force: Bool = false) {
+    private func togglePlayback() {
+        guard let player else {
+            configurePlayer()
+            startAutoplayIfNeeded(force: true)
+            return
+        }
+
+        if isPlaying || player.timeControlStatus == .playing {
+            player.pause()
+            isPlaying = false
+        } else {
+            startAutoplayIfNeeded(force: true)
+        }
+    }
+
+    private func startAutoplayIfNeeded(force: Bool = false, ignoreLowPowerMode: Bool = false) {
         guard mediaItem.kind == .video,
               let player,
               autoplay || force,
-              force || !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+              force || ignoreLowPowerMode || !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
         ExploreVideoAutoplayCoordinator.activate(playerId)
         player.play()
+        isPlaying = true
+    }
+}
+
+private struct ExploreCoverVideoPlayer: UIViewControllerRepresentable {
+    let player: AVPlayer
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.videoGravity = .resizeAspectFill
+        controller.showsPlaybackControls = false
+        controller.view.backgroundColor = .black
+        controller.view.clipsToBounds = true
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player {
+            controller.player = player
+        }
+        controller.videoGravity = .resizeAspectFill
+        controller.showsPlaybackControls = false
+        controller.view.clipsToBounds = true
     }
 }
 

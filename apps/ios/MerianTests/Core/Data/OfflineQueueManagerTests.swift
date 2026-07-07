@@ -648,6 +648,40 @@ struct OfflineQueueManagerTests {
         #expect(fetched?.queueState == .failed, "Scan must transition to failed state")
     }
 
+    @Test func testRetryQueuedScanNow_MakesFailedVisualScanRunnable() async throws {
+        let ctx = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let originalIsOnline = manager.isOnline
+        defer { manager.isOnline = originalIsOnline }
+        manager.isOnline = false
+
+        let scanId = UUID().uuidString
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .failed,
+            inferenceImagePaths: ["retry-image.webp"],
+            queueAttemptCount: 2,
+            queueNextRetryAt: Date().addingTimeInterval(600),
+            queueLastErrorCode: "upload_failed",
+            queueLastErrorMessage: "Upload failed.",
+            queueNeedsAttention: true
+        )
+        ctx.insert(scan)
+        try ctx.save()
+
+        let didRetry = manager.retryQueuedScanNow(scanId: scanId)
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        #expect(didRetry)
+        #expect(fetched.queueState == .pending, "Visual failed scans must become runnable pending uploads")
+        #expect(fetched.queueNextRetryAt == nil)
+        #expect(fetched.queueLastErrorCode == nil)
+        #expect(fetched.queueLastErrorMessage == nil)
+        #expect(!fetched.queueNeedsAttention)
+    }
+
     @Test func testDeleteQueuedScan_RemovesDatabaseRecord() async throws {
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString

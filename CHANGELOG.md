@@ -93,6 +93,9 @@ TestFlight, App Store, support, and QA.
 - Added public video Explore posts: shared video scans can now appear in Explore
   and Ask the Community with muted playback in feed/detail and thumbnail play
   indicators on compact surfaces.
+- Fixed Explore video playback so shared video posts autoplay when opened, fill
+  their square preview, and use a centered play/pause control instead of a
+  static marker.
 - Fixed video Explore sharing so composer-selected video clips publish, edit,
   and request Community ID from the server media source list, while failed media
   snapshots no longer leave the Share sheet showing a phantom Explore post.
@@ -114,6 +117,9 @@ TestFlight, App Store, support, and QA.
 - Improved offline queue reliability so image, video, audio, and description
   scans keep retry state across app restarts, show retry/needs-attention status,
   and no longer discard user media after a fixed number of transient failures.
+- Fixed queued scan retry from Insight sheets so Retry now gives visible
+  feedback, refreshes the open scan state, and no longer duplicates the existing
+  cancel control.
 - Added redacted offline queue diagnostics for support, including queued job
   state and recent queue events without private media.
 - Added Image and Video media filters to the Scans filter sheet.

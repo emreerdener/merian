@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Previews
@@ -90,9 +91,11 @@ private extension QueuedScanContext {
 /// distinguishes a scan purposefully waiting in queue from one actively under edge resolution.
 struct QueuedContentView: View {
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: InsightSheetViewModel
 
     let queuedContext: QueuedScanContext
+    @State private var isRetrying = false
 
     private var serverJobStatus: ScanIngestionJobStatus? {
         offlineQueueManager.scanIngestionJobStates[queuedContext.id]
@@ -253,26 +256,16 @@ struct QueuedContentView: View {
                             .multilineTextAlignment(.center)
                     }
 
-                    HStack(spacing: 10) {
-                        if queuedContext.canRetryNow {
-                            Button {
-                                _ = offlineQueueManager.retryQueuedScanNow(scanId: queuedContext.id)
-                            } label: {
-                                Label("Retry now", systemImage: "arrow.clockwise")
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-
-                        Button(role: .destructive) {
-                            Task {
-                                await offlineQueueManager.deleteQueuedScan(scanId: queuedContext.id)
-                            }
+                    if queuedContext.canRetryNow {
+                        Button {
+                            retryQueuedScanNow()
                         } label: {
-                            Label("Cancel", systemImage: "trash")
+                            Label(isRetrying ? "Retrying..." : "Retry now", systemImage: "arrow.clockwise")
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isRetrying)
+                        .labelStyle(.titleAndIcon)
                     }
-                    .labelStyle(.titleAndIcon)
                 }
                 .padding(.horizontal, 8)
             }
@@ -308,5 +301,45 @@ struct QueuedContentView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
+    }
+}
+
+private extension QueuedContentView {
+    @MainActor
+    func retryQueuedScanNow() {
+        guard !isRetrying else { return }
+        isRetrying = true
+
+        let scanId = queuedContext.id
+        guard offlineQueueManager.retryQueuedScanNow(scanId: scanId) else {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.state.toastMessage = "Retry could not start"
+            }
+            isRetrying = false
+            return
+        }
+
+        HapticManager.shared.triggerSelectionPulse()
+        refreshQueuedContext(scanId: scanId)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            viewModel.state.toastMessage = "Retry queued"
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            refreshQueuedContext(scanId: scanId)
+            isRetrying = false
+        }
+    }
+
+    @MainActor
+    func refreshQueuedContext(scanId: String) {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
+        viewModel.queuedContext = QueuedScanContext(from: scan)
     }
 }
