@@ -41,9 +41,11 @@ networking, and hardware orchestration logic.
   arbitrary gallery import. The app submits five sampled frames plus optional
   extracted WAV audio for inference, stages one upload-bounded playback `.mp4`
   for storage/sharing, and treats `captured_media` plus ready
-  `scan_media_assets` rows as the canonical playback timeline. Public
-  `has_audio` metadata is true only when captured-media or normalized media rows
-  prove that an audio companion exists.
+  `scan_media_assets` rows as the canonical playback timeline. The client uses
+  native AVFoundation stabilization only while the recording is active, then
+  resets the prepared movie connection so still-photo capture retains normal
+  resolution and latency. Public `has_audio` metadata is true only when
+  captured-media or normalized media rows prove that an audio companion exists.
 
 ## Directory Structure
 
@@ -110,8 +112,8 @@ networking, and hardware orchestration logic.
 ### Features & Hardware
 
 - **[`/features-and-hardware/01-camera-and-hardware.md`](./features-and-hardware/01-camera-and-hardware.md)**
-  — AVFoundation bindings, LiDAR depth logic, and ViewfinderIntelligence
-  constraints.
+  — AVFoundation bindings, LiDAR depth logic, Pro video stabilization
+  boundaries, and ViewfinderIntelligence constraints.
 - **[`/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md)**
   — RevenueCat integration, Pro entitlements, and Ghost Session identity model.
 - **[`/features-and-hardware/03-gamification-and-telemetry.md`](./features-and-hardware/03-gamification-and-telemetry.md)**

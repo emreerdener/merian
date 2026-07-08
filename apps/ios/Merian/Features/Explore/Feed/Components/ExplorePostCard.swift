@@ -491,8 +491,9 @@ struct ExploreDetailMediaView: View {
     }
 }
 
-private enum ExploreVideoAutoplayCoordinator {
+enum ExploreVideoAutoplayCoordinator {
     static let activePlayerDidChange = Notification.Name("MerianExploreActiveVideoPlayerDidChange")
+    static let overlayWillPresent = Notification.Name("MerianExploreVideoOverlayWillPresent")
     static let resumeAutoplayRequested = Notification.Name("MerianExploreVideoAutoplayResumeRequested")
 
     static func activate(_ id: String) {
@@ -500,6 +501,10 @@ private enum ExploreVideoAutoplayCoordinator {
             name: activePlayerDidChange,
             object: id
         )
+    }
+
+    static func prepareForOverlayPresentation() {
+        NotificationCenter.default.post(name: overlayWillPresent, object: nil)
     }
 
     static func requestResume() {
@@ -619,6 +624,10 @@ struct ExplorePublicMediaView: View {
         .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.activePlayerDidChange)) { notification in
             guard let activeId = notification.object as? String,
                   activeId != playerId else { return }
+            player?.pause()
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.overlayWillPresent)) { _ in
             shouldResumeAfterCoordinatorPause = playbackOverlayState.isPlaying || player?.timeControlStatus == .playing
             player?.pause()
             reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
@@ -736,89 +745,116 @@ struct ExplorePublicMediaView: View {
         }
     }
 
-    private func configurePlayer() {
+    @discardableResult
+    private func configurePlayerIfNeeded() -> AVPlayer? {
         guard mediaItem.kind == .video,
               let url = URL(string: mediaItem.url) else {
             cleanupPlayer()
-            return
+            reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
+            return nil
         }
-        guard configuredVideoURL != mediaItem.url || player == nil else { return }
+        guard configuredVideoURL != mediaItem.url || player == nil else { return player }
 
         cleanupPlayer()
-        isPlaying = false
-        showPlaybackControlPersistently()
         let player = AVPlayer(url: url)
         player.isMuted = isMuted
         player.actionAtItemEnd = .none
-        playbackEndObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { [weak player] _ in
-            guard let player else { return }
-            player.seek(to: .zero)
-            if isPlaying {
-                player.play()
+        playbackObservers = [
+            NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: player.currentItem,
+                queue: .main
+            ) { [weak player] _ in
+                guard let player else { return }
+                player.seek(to: .zero)
+                if playbackOverlayState.isPlaying {
+                    player.play()
+                } else {
+                    reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+                }
+            },
+            NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemPlaybackStalled,
+                object: player.currentItem,
+                queue: .main
+            ) { _ in
+                reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
             }
-        }
+        ]
         configuredVideoURL = mediaItem.url
         self.player = player
+        reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        return player
     }
 
     private func cleanupPlayer() {
         player?.pause()
-        isPlaying = false
+        shouldResumeAfterCoordinatorPause = false
         playbackControlFadeTask?.cancel()
         playbackControlFadeTask = nil
-        if let playbackEndObserver {
-            NotificationCenter.default.removeObserver(playbackEndObserver)
-            self.playbackEndObserver = nil
+        for observer in playbackObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
+        playbackObservers = []
         configuredVideoURL = nil
         player = nil
+        reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
+    }
+
+    private func pauseForUserInteraction() {
+        player?.pause()
+        shouldResumeAfterCoordinatorPause = false
+        reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        playbackControlFadeTask?.cancel()
+        playbackControlFadeTask = nil
+    }
+
+    private func reducePlaybackOverlay(
+        _ event: ExploreVideoPlaybackOverlayState.Event,
+        animation: Animation? = nil
+    ) {
+        if let animation {
+            withAnimation(animation) {
+                playbackOverlayState.reduce(event)
+            }
+        } else {
+            playbackOverlayState.reduce(event)
+        }
     }
 
     private func togglePlayback() {
+        let player = configurePlayerIfNeeded()
         guard let player else {
-            configurePlayer()
-            startAutoplayIfNeeded(force: true)
+            reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
             return
         }
 
-        if isPlaying || player.timeControlStatus == .playing {
-            player.pause()
-            isPlaying = false
-            showPlaybackControlPersistently()
+        if playbackOverlayState.isPlaying || player.timeControlStatus == .playing {
+            pauseForUserInteraction()
         } else {
-            startAutoplayIfNeeded(force: true)
+            resumeAutoplayIfEligible(force: true)
         }
     }
 
-    private func startAutoplayIfNeeded(force: Bool = false, ignoreLowPowerMode: Bool = false) {
+    private func resumeAutoplayIfEligible(force: Bool = false, ignoreLowPowerMode: Bool = false) {
         guard mediaItem.kind == .video,
-              let player,
               autoplay || force,
               force || ignoreLowPowerMode || !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        guard let player = configurePlayerIfNeeded() else {
+            reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
+            return
+        }
         ExploreVideoAutoplayCoordinator.activate(playerId)
         player.play()
-        isPlaying = true
+        shouldResumeAfterCoordinatorPause = false
+        reducePlaybackOverlay(.playbackStarted, animation: .easeInOut(duration: 0.18))
         showPlaybackControlTemporarily()
-    }
-
-    private func showPlaybackControlPersistently() {
-        playbackControlFadeTask?.cancel()
-        playbackControlFadeTask = nil
-        withAnimation(.easeInOut(duration: 0.18)) {
-            showsPlaybackControl = true
-        }
     }
 
     private func showPlaybackControlTemporarily() {
         playbackControlFadeTask?.cancel()
-        withAnimation(.easeInOut(duration: 0.18)) {
-            showsPlaybackControl = true
-        }
-        guard isPlaying else {
+        reducePlaybackOverlay(.revealControls, animation: .easeInOut(duration: 0.18))
+        guard playbackOverlayState.isPlaying else {
             playbackControlFadeTask = nil
             return
         }
@@ -827,10 +863,7 @@ struct ExplorePublicMediaView: View {
             try? await Task.sleep(nanoseconds: 1_400_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard isPlaying else { return }
-                withAnimation(.easeInOut(duration: 0.26)) {
-                    showsPlaybackControl = false
-                }
+                reducePlaybackOverlay(.controlFadeCompleted, animation: .easeInOut(duration: 0.26))
             }
         }
     }

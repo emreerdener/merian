@@ -30,7 +30,7 @@ enum MerianLog {
 | `MerianLog.auth` | `SupabaseManager` — sign in, Ghost sessions, JWT refresh, OAuth flows |
 | `MerianLog.network` | `MerianNetworkClient` — HTTP requests, R2 uploads, Edge function calls, status codes |
 | `MerianLog.data` | All SwiftData actors, `OfflineQueueManager`, `ScanRepository`, `FileIOActor`, `ArchiveManager` |
-| `MerianLog.hardware` | `CameraManager` — AVFoundation locks, focus, torch, thermal states |
+| `MerianLog.hardware` | `CameraManager` — AVFoundation locks, focus, torch, thermal states, video stabilization mode |
 | `MerianLog.general` | `InferenceEngine`, `CircuitBreakerManager`, `GamificationManager`, `PostHogManager`, `AppTelemetry`, everything else |
 
 When in doubt, use `MerianLog.general`. Do not create new `Logger` instances outside of `MerianLog` — adding a new category requires updating the enum and this document.

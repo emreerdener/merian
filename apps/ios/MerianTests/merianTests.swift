@@ -990,6 +990,40 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
     }
 }
 
+final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
+    func testPlaybackUnavailableRestoresVisiblePlayControlAfterFadedAutoplay() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+
+        state.reduce(.playbackUnavailable)
+
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+    }
+
+    func testCoordinatorPauseRestoresVisiblePlayControl() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+
+        state.reduce(.playbackPaused)
+
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+    }
+
+    func testControlFadeOnlyHidesWhilePlaybackIsStillMarkedPlaying() {
+        var pausedState = ExploreVideoPlaybackOverlayState(isPlaying: false, showsPlaybackControl: true)
+        pausedState.reduce(.controlFadeCompleted)
+
+        XCTAssertFalse(pausedState.isPlaying)
+        XCTAssertTrue(pausedState.showsPlaybackControl)
+
+        var playingState = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: true)
+        playingState.reduce(.controlFadeCompleted)
+
+        XCTAssertTrue(playingState.isPlaying)
+        XCTAssertFalse(playingState.showsPlaybackControl)
+    }
+}
+
 @MainActor
 final class ExploreMediaLayoutTests: XCTestCase {
     private func makeStripedImage(

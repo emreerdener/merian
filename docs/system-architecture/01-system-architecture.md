@@ -53,6 +53,11 @@ flowchart TD
   and pinch gestures on the preview; the control hides itself
   (`isZoomSupported = maxZoomFactor >= 2.0`) on hardware without a meaningful
   zoom range.
+- Short Pro video capture uses `AVCaptureMovieFileOutput` for bounded clips.
+  The movie output may be prepared with the visual camera session for a fast
+  hold-to-record path, but AVFoundation video stabilization is enabled only for
+  the active recording and reset afterward so still-photo capture does not
+  inherit crop, latency, or resolution changes.
 - Active thermal monitoring manipulates OS frame rate (`targetFPS`) and renders
   Glassmorphism `.ultraThinMaterial` overlays dynamically to prevent critical
   heat loads in outdoor environments.

@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-08-explore-video-profile-resume",
+      "date": "2026-07-08",
+      "title": "Explore video recovery",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Explore videos now recover after opening and closing an author's profile sheet, keeping feed and post-detail playback usable."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-08-pro-video-stabilization",
       "date": "2026-07-08",
       "title": "Pro video stabilization",

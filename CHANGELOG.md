@@ -118,6 +118,8 @@ TestFlight, App Store, support, and QA.
 - Added public video Explore posts: shared video scans can now appear in Explore
   and Ask the Community with muted playback in feed/detail and thumbnail play
   indicators on compact surfaces.
+- Fixed Explore videos so opening and closing an author's profile sheet no
+  longer leaves feed or post-detail playback stuck without usable controls.
 - Fixed Explore video playback so shared video posts autoplay when opened, fill
   their square preview, and use a centered play/pause control that fades during
   playback instead of a static marker; muting or unmuting one Explore video now

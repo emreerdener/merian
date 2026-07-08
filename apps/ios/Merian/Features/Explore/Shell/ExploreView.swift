@@ -273,7 +273,9 @@ struct ExploreView: View {
                 }
             )
         }
-        .sheet(item: $selectedAuthorProfileRoute) { route in
+        .sheet(item: $selectedAuthorProfileRoute, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
+        }) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -397,6 +399,7 @@ struct ExploreView: View {
 
     private func openAuthorProfile(for post: ExplorePost) {
         HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         viewModel.upsertPost(post)
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
     }

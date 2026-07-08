@@ -154,6 +154,17 @@ Now, `InferenceEngine` emits notifications unconditionally. The delegate execute
 ### Hardware Rotation Defenses (`CameraManager`)
 Historically, attempting to manually map `UIDevice.orientation` against `videoOrientation` triggered a double-rotation sequence because Apple's camera firmware independently injected EXIF `CGImagePropertyOrientation` into the output buffer. Merian resolves this using iOS 17's `AVCaptureDevice.RotationCoordinator`. By instantiating a hardware rotation coordinator against the active camera device, the app continuously monitors physical accelerometer data independent of the user's software Control Center orientation lock. The capture sequence synchronously injects `videoRotationAngleForHorizonLevelCapture` into the `photoConnection` prior to executing the shutter. This delegates the geometric rotation to the image signal processor without corrupting Apple's resulting EXIF headers, guaranteeing perfectly oriented portrait and landscape shots even while the device software rotation is locked.
 
+### Recorded Video Stabilization Boundary (`CameraManager`)
+`AVCaptureMovieFileOutput` is attached during visual camera setup so Pro video
+recording can start without reconfiguring the session after the hold threshold.
+Because AVFoundation stabilization can crop the field of view, add latency, and
+reduce still-photo dimensions when left enabled on a prepared output, Merian
+keeps the movie connection's preferred stabilization mode `.off` until
+`recordVideo(...)` starts a real clip. The start path requests `.auto`
+stabilization only when the video connection supports it, records the requested
+and active modes in hardware logs for physical-device QA, and resets the
+connection to `.off` on finish, cancellation, or failure.
+
 ### Hanging Continuations (`CameraManager`)
 Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation, failing to return an image frame via `AVCapturePhotoCaptureDelegate`. Rather than silently hanging the `isShutterActive` UI state, Merian wraps `withCheckedThrowingContinuation` patterns inside a `withTaskCancellationHandler`. To handle multiple overlapping captures on a single UI state, Merian associates an array tracking queue (`activeCaptureRequests`), isolating concurrent `timeoutTask?.cancel()` closures via unique UUID identifiers. This clears specific stalling entries from RAM and resolves dropped continuations via `CancellationError` without blocking subsequent captures.
 

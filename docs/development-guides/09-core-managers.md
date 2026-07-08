@@ -174,6 +174,14 @@ triggering excessive SwiftUI view rebuilds.
   `lockForConfiguration()` off `@MainActor`, then publish `isFlashEnabled`,
   `zoomFactor`, or other observable state back via `Task { @MainActor in ... }`.
   Never read `session.inputs` synchronously from a SwiftUI action handler.
+- **Recorded Video Stabilization Boundary**: `AVCaptureMovieFileOutput` may be
+  pre-attached during visual camera setup so the hold-to-record path feels
+  immediate, but its video connection keeps stabilization off until
+  `recordVideo(...)` is actually starting a clip. The start path requests
+  AVFoundation `.auto` stabilization only when the connection reports support,
+  logs the requested and active mode through `MerianLog.hardware`, and resets
+  the connection to `.off` on finish, cancellation, or failure so still-photo
+  captures do not inherit stabilization crop, latency, or resolution changes.
 
 ### `EnvironmentContextManager`
 
@@ -397,9 +405,10 @@ triggering excessive SwiftUI view rebuilds.
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
   `FileIOActor`. Pro video capture samples five inference frames and extracts
-  video-audio WAVs from the original temporary recording, then stages an
-  upload-bounded playback `.mp4` for local review, scan-library playback,
-  Explore sharing, and cloud storage. The preferred playback file is a
+  video-audio WAVs from the original temporary recording, requests native
+  AVFoundation stabilization for the active recording when supported, then
+  stages an upload-bounded playback `.mp4` for local review, scan-library
+  playback, Explore sharing, and cloud storage. The preferred playback file is a
   compressed network-optimized 720p export, but compression failure or timeout
   falls back to the original recording only when it remains within the hard
   video upload cap. Extracted video-audio WAVs are exported into Documents with

@@ -101,6 +101,7 @@ struct ExplorePostDetailView: View {
                                 locationText: locationText(for: post),
                                 opensAuthorProfile: allowsAuthorProfilePresentation,
                                 onOpenAuthorProfile: {
+                                    ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
                                     selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
                                 }
                             )
@@ -353,7 +354,9 @@ struct ExplorePostDetailView: View {
                 }
             )
         }
-        .sheet(item: $selectedAuthorProfileRoute) { route in
+        .sheet(item: $selectedAuthorProfileRoute, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
+        }) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
         .sheet(item: $selectedNotificationReplyThreadRoute) { route in
