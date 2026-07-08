@@ -86,6 +86,10 @@ natively.
   adds `prompt.ts` for text-only Gemini chat context plus AI quick-prompt
   generation, and `guards.ts` for action, limit, entitlement, prompt-suggestion,
   and deterministic safety checks.
+- `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
+  validates the action payload, user identity, UUIDs, cursor pairs, and comment
+  lengths; `db.ts` is the only layer that calls the Field Trip RPCs and
+  publication/comment tables.
 - The identify and enrich-scan `db.ts` files include `alternative_common_names`
   in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new
   column added to `species_dictionary` that is served to the client must be

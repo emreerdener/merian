@@ -88,3 +88,17 @@ Deno.test("Field Trips seed catalog keeps starter and Pro access distinct", asyn
     assertStringIncludes(sql, fragment);
   }
 });
+
+Deno.test("Field Trips migration avoids reserved SQL parameter names", async () => {
+  const sql = normalized(
+    await migrationSql("20260708021110_field_trips_v1.sql"),
+  );
+
+  const reservedParameterPattern =
+    /CREATE OR REPLACE FUNCTION public\.field_trip_[^(]+\([^)]*\b(values|user|order|limit|offset|table|select|where|from|to|group)\s+[A-Z]/i;
+
+  assert(
+    !reservedParameterPattern.test(sql),
+    "Field Trip helper functions should avoid unquoted reserved SQL parameter names",
+  );
+});

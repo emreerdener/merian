@@ -95,6 +95,8 @@ The sheet renders:
 - current streak
 - 52-week scan heatmap
 - up to 9 preview published scans in a 3-column grid
+- active Field Trip checklist progress, when visible
+- published Field Trip cards, when visible
 - achievements as informational cards
 - a "View all published scans" control that side-transitions into a paginated 3-column library
 
@@ -102,12 +104,14 @@ The profile and library have deliberately different privacy scopes:
 
 - Profile stats, streak, heatmap, and achievement progress are computed from all of the author's non-tombstoned scans.
 - Preview and full library grids include only currently visible Explore posts.
+- Active Field Trip profile rows include checklist status only and never expose scan IDs, media, field notes, exact coordinates, public location labels, or evidence.
+- Published Field Trip rows open Field Trip publication details, not Explore post details.
 - Achievement payloads contain progress only and never include qualifying scan IDs.
 - Public achievement cards do not open detail sheets or scans.
 - Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
 - The `Follow` button is hidden for the viewer's own public profile. It follows asymmetrically; there are no friend requests, mutual-only states, DMs, or access changes to private scans.
 
-The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without image media, and posts without a species key are all filtered using the same visibility posture as the rest of Explore.
+The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field Trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without image media, posts without a species key, and non-visible Field Trips are all filtered using the same visibility posture as the rest of Explore.
 
 The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
 
@@ -463,6 +467,8 @@ Recommended V1 endpoints:
   - Returns public species-detail data for a single Explore post, including `alternative_common_names` for the detail header, conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden, normalized-reference-image-backed `reference_image_url` compatibility output, plus public `similar_species` hydrated from the species dictionary lookalike join table with `species_id` for canonical dictionary routing
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
+- `field-trips`
+  - Returns Field Trip catalog, scan-progress, profile-summary, publication, like, and comment actions. Field Trip comments/likes are stored separately from Explore post interactions, and publishing a Field Trip does not write Explore posts, map points, or notifications.
 - `get-explore-map-points`
   - Returns privacy-safe map clusters or individual map points for the current visible area
 - `get-explore-notifications`

@@ -77,10 +77,21 @@ projects post-owned public map coordinates. Open posts may still render
 Global Darwin Core exports include only open public records; personal exports
 may include the user's own exact telemetry when they request their own archive.
 
+Field Trips have a separate public-profile boundary:
+
+- active Field Trip progress can appear on public profiles by default, but only
+  as checklist status;
+- active summaries must not expose scan IDs, media URLs, field notes, exact
+  coordinates, public location labels, or private evidence;
+- publishing a Field Trip creates a Field Trip snapshot, not an Explore post;
+- published Field Trip pages may show selected snapshot media/species cards but
+  do not create Explore map points or change scan geoprivacy.
+
 When adding a new public, shared, widget, extension, notification, or export
 surface, use this checklist:
 
 - never read exact GPS directly in public read RPCs;
+- keep active Field Trip profile summaries status-only;
 - keep public Explore post visibility separate from scan geoprivacy;
 - require `explore_posts.location_sharing = 'open'` for public spatial result
   sets such as Explore Map and non-owned Nearby matches;

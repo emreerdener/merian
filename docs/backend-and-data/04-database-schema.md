@@ -1626,28 +1626,84 @@ coordinates to the client contract.
   visible. Public video clips are excluded from Dictionary/reference galleries.
 - `public.can_view_explore_author_profile(self_id UUID, target_author_user_id UUID)`:
   Returns whether the target author has a visible Explore profile for the
-  requester. `set-user-follow` uses this before inserting follows so following
-  does not become a general user lookup surface.
+  requester through either a currently visible Explore post or a visible Field
+  Trip profile surface. `set-user-follow` uses this before inserting follows so
+  following does not become a general user lookup surface.
 - `public.get_user_follow_state(self_id UUID, target_author_user_id UUID)`:
   Returns `author_user_id`, aggregate `follower_count`, aggregate
   `following_count`, and requester-specific `viewer_is_following`. Counts ignore
   shadowbanned counterpart users and do not expose identities.
 - `public.get_explore_author_profile(self_id UUID, target_author_user_id UUID, preview_limit INTEGER)`:
   Returns a public author profile row only when the target author has at least
-  one currently visible Explore post for the requester. It emits public author
-  identity, species count, current streak, 52-week heatmap JSON,
-  achievement-progress JSON, total visible published post count,
-  follower/following counts, requester follow state, and up to `preview_limit`
-  preview posts. Aggregate scan stats are computed from all non-tombstoned
-  scans; follow counts are computed from `user_follows`; preview posts use the
-  stricter Explore visibility filters and never include private, unshared,
-  tombstoned, media-less, or non-species-backed scans. Achievement progress
-  never returns qualifying scan IDs.
+  one currently visible Explore post or visible Field Trip profile surface for
+  the requester. It emits public author identity, species count, current streak,
+  52-week heatmap JSON, achievement-progress JSON, total visible published post
+  count, follower/following counts, requester follow state, up to
+  `preview_limit` preview posts, and Field Trip summaries. Aggregate scan stats
+  are computed from all non-tombstoned scans; follow counts are computed from
+  `user_follows`; preview posts use the stricter Explore visibility filters and
+  never include private, unshared, tombstoned, media-less, or
+  non-species-backed scans. Active Field Trip summaries include checklist
+  status only and never return scan IDs, media URLs, field notes, exact
+  coordinates, public location labels, or private evidence. Achievement
+  progress never returns qualifying scan IDs.
 - `public.get_explore_author_posts(self_id UUID, target_author_user_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   Returns the author's currently visible published Explore posts for the full
   profile library. Rows share the same card projection as the feed, use the same
   visibility filters as `get_explore_author_profile.preview_posts`, and page
   stably on `(shared_at DESC, post_id DESC)`.
+- `public.field_trip_templates`:
+  Curated Field Trip definitions with slug, title, region/season/habitat tags,
+  difficulty, Pro/rotating-free access flags, and active state.
+- `public.field_trip_levels`:
+  Sequential levels for a template. Levels unlock in `level_number` order.
+- `public.field_trip_checklist_items`:
+  Curated checklist prompts for each level. Items support species,
+  scientific-name, taxonomy/group, habitat/ecology, and prompt-text matching.
+- `public.user_field_trips`:
+  Per-user progress rows with start time, current level, profile visibility,
+  completion time, and denormalized progress counts.
+- `public.user_field_trip_item_completions`:
+  Idempotent item completion rows linking a Field Trip item to the saved scan
+  that completed it. Rows are written only for caller-owned scans made after the
+  Field Trip start time.
+- `public.field_trip_publications`:
+  Published Field Trip snapshot headers with user-editable title, optional
+  description, optional AI summary, counts, and author/template linkage.
+- `public.field_trip_publication_items`:
+  Snapshot item rows for published pages. These can include species/taxonomy
+  labels and selected snapshot media, but they do not make the underlying scans
+  Explore posts.
+- `public.field_trip_publication_likes`:
+  Field Trip publication likes, separate from `explore_post_likes`.
+- `public.field_trip_publication_comments`:
+  Field Trip publication comments and one-level replies, separate from
+  `explore_post_comments`.
+- `public.get_field_trip_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
+  Returns active templates with access state, levels, checklist items, and the
+  requester's progress.
+- `public.field_trip_item_matches_scan(target_item_id UUID, target_scan_id UUID)`:
+  Internal matcher used by progress application. It checks species,
+  scientific-name, taxonomy/group, habitat/ecology, and prompt-text signals
+  against the saved scan.
+- `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
+  Applies server-authoritative progress for one caller-owned scan. It counts
+  only scans made after the trip starts and only against the current unlocked
+  level.
+- `public.get_field_trip_profile_summaries(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
+  Returns active status-only and published Field Trip summaries visible to the
+  requester.
+- `public.can_view_field_trip_publication(self_id UUID, target_publication_id UUID)`:
+  Returns whether the requester may view a published Field Trip after
+  publication state, shadowban, and block checks.
+- `public.publish_field_trip(self_id UUID, target_user_field_trip_id UUID, title TEXT, description TEXT, ai_summary TEXT)`:
+  Publishes a completed trip into Field Trip publication tables without writing
+  `explore_posts`, map points, or Explore notifications.
+- `public.get_field_trip_publication_detail(self_id UUID, target_publication_id UUID)`:
+  Returns a visible Field Trip publication detail payload.
+- `public.get_field_trip_comments(self_id UUID, target_publication_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
+  Returns paginated Field Trip comments using the Explore comment-shaped client
+  DTO.
 - `public.get_explore_comments(self_id UUID, target_post_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
   Returns visible public comments for one Explore post. Rows are ordered on
   `(created_at ASC, comment_id ASC)`, filter soft-deleted, moderated, hidden, or

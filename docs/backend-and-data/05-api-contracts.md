@@ -4,6 +4,288 @@ Merian operates decoupled. The iOS application exclusively hits Supabase Edge
 Functions, abstracting its networking away from 3rd-party providers like Google
 Gemini.
 
+## Deno `/field-trips` Edge Node
+
+`/field-trips` is an action-based Explore-adjacent social endpoint. It is
+authenticated through `withEdgeHandler`; request bodies cannot choose `self_id`
+or otherwise assign progress to another user.
+
+### Catalog
+
+Request:
+
+```json
+{
+  "action": "catalog",
+  "user_region": "us-ca",
+  "limit": 40
+}
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "template_id": "uuid",
+      "slug": "backyard_safari",
+      "title": "Backyard Safari",
+      "subtitle": "Find nearby everyday wildlife",
+      "description": "A starter checklist for neighborhood discoveries.",
+      "region_tags": ["global"],
+      "season_tags": ["all"],
+      "habitat_tags": ["neighborhood"],
+      "difficulty": "starter",
+      "is_pro_only": false,
+      "is_rotating_free": true,
+      "viewer_has_access": true,
+      "access_kind": "starter",
+      "active_progress": {
+        "user_field_trip_id": "uuid",
+        "started_at": "2026-07-08T12:00:00.000Z",
+        "current_level_number": 1,
+        "completed_at": null,
+        "is_profile_visible": true,
+        "completed_count": 2,
+        "target_count": 4
+      },
+      "levels": [
+        {
+          "level_id": "uuid",
+          "level_number": 1,
+          "title": "Level 1",
+          "description": "Start close to home.",
+          "items": [
+            {
+              "item_id": "uuid",
+              "prompt": "Butterfly",
+              "match_type": "taxonomy_group",
+              "is_completed": true,
+              "completed_at": "2026-07-08T12:05:00.000Z",
+              "completed_common_name": "Monarch",
+              "completed_scientific_name": "Danaus plexippus"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Free users receive starter and rotating-free trips plus locked Pro templates for
+upgrade display. Pro users receive the full active catalog. The backend owns
+access decisions; iOS uses `viewer_has_access` and `access_kind` only for UI
+state.
+
+### Scan Progress
+
+Request:
+
+```json
+{
+  "action": "apply_scan_progress",
+  "scan_id": "saved-scan-uuid"
+}
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "user_field_trip_id": "uuid",
+      "template_id": "uuid",
+      "slug": "backyard_safari",
+      "title": "Backyard Safari",
+      "current_level_number": 1,
+      "current_level_title": "Level 1",
+      "completed_count": 3,
+      "target_count": 4,
+      "is_complete": false,
+      "newly_completed_items": [
+        {
+          "item_id": "uuid",
+          "prompt": "Bird",
+          "common_name": "Northern Cardinal",
+          "scientific_name": "Cardinalis cardinalis",
+          "completed_at": "2026-07-08T12:07:00.000Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+The backing RPC counts only scans owned by the caller, only after the Field
+Trip starts, and only against the current unlocked level. Matching accepts AI
+identifications and later user-confirmed/corrected identifications through the
+same scan row, then writes idempotent item completions.
+
+### Profile Summaries
+
+Request:
+
+```json
+{
+  "action": "profile_summaries",
+  "author_user_id": "uuid",
+  "limit": 6
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "active": [
+      {
+        "user_field_trip_id": "uuid",
+        "template_id": "uuid",
+        "slug": "backyard_safari",
+        "title": "Backyard Safari",
+        "started_at": "2026-07-08T12:00:00.000Z",
+        "current_level_number": 1,
+        "current_level_title": "Level 1",
+        "completed_count": 3,
+        "target_count": 4,
+        "is_complete": false
+      }
+    ],
+    "published": [
+      {
+        "publication_id": "uuid",
+        "title": "Backyard Safari with Sam",
+        "description": "A quiet morning checklist.",
+        "published_at": "2026-07-08T13:00:00.000Z",
+        "like_count": 4,
+        "comment_count": 1,
+        "slug": "backyard_safari",
+        "template_title": "Backyard Safari",
+        "cover_image_url": "https://...",
+        "item_count": 4,
+        "viewer_has_liked": false
+      }
+    ]
+  }
+}
+```
+
+Active summaries are profile-status only. They must not expose scan IDs, media
+URLs, field notes, exact coordinates, public location labels, or private
+evidence. Published summaries expose only Field Trip publication IDs and
+snapshot metadata. Shadowbanned authors and mutual blocks are excluded.
+
+### Publication Detail, Likes, and Comments
+
+Publish request:
+
+```json
+{
+  "action": "publish",
+  "user_field_trip_id": "uuid",
+  "title": "Backyard Safari with Sam",
+  "description": "A quiet morning checklist.",
+  "ai_summary": "Optional generated summary."
+}
+```
+
+Detail request:
+
+```json
+{
+  "action": "detail",
+  "publication_id": "uuid"
+}
+```
+
+Detail response:
+
+```json
+{
+  "data": {
+    "publication_id": "uuid",
+    "user_field_trip_id": "uuid",
+    "template_id": "uuid",
+    "template_slug": "backyard_safari",
+    "template_title": "Backyard Safari",
+    "title": "Backyard Safari with Sam",
+    "description": "A quiet morning checklist.",
+    "ai_summary": null,
+    "published_at": "2026-07-08T13:00:00.000Z",
+    "author_user_id": "uuid",
+    "author_name": "River W.",
+    "author_username": "river_w",
+    "author_avatar_url": "https://...",
+    "like_count": 4,
+    "comment_count": 1,
+    "viewer_has_liked": false,
+    "items": [
+      {
+        "publication_item_id": "uuid",
+        "item_id": "uuid",
+        "prompt": "Bird",
+        "common_name": "Northern Cardinal",
+        "scientific_name": "Cardinalis cardinalis",
+        "hero_image_url": "https://...",
+        "reference_image_url": "https://...",
+        "taxonomy": {
+          "kingdom": "Animalia",
+          "class": "Aves"
+        }
+      }
+    ]
+  }
+}
+```
+
+Like request:
+
+```json
+{
+  "action": "set_like",
+  "publication_id": "uuid",
+  "liked": true
+}
+```
+
+Comments request:
+
+```json
+{
+  "action": "comments",
+  "publication_id": "uuid",
+  "limit": 50,
+  "after_created_at": "2026-07-08T13:01:00.000Z",
+  "after_comment_id": "uuid"
+}
+```
+
+Create-comment request:
+
+```json
+{
+  "action": "create_comment",
+  "publication_id": "uuid",
+  "body": "Nice finds!",
+  "parent_comment_id": null
+}
+```
+
+Field Trip likes and comments are stored in
+`field_trip_publication_likes` and `field_trip_publication_comments`, not in
+Explore post tables. Comment payloads intentionally mirror the compact
+`ExploreComment` shape for iOS reuse, with `post_id` carrying the Field Trip
+publication ID inside this scoped endpoint.
+
+Publishing a Field Trip never writes `explore_posts`, Explore map rows, or
+Explore notifications. Sharing is a future layer.
+
+---
+
 ## Deno `/generate-upload-urls` Edge Node
 
 To fetch cryptographic keys for direct-to-Cloudflare uploads, the client sends a

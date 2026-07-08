@@ -10,7 +10,11 @@ Following does three user-visible things:
 - Adds public follower/following counts and a `Follow` / `Following` button to visible Explore author profile sheets.
 - Adds an informational in-app "followed you" notification row.
 
-Following does not affect `Recent`, `Trending`, `Nearby`, map results, the Home Screen widget, APNs pushes, private scan access, or the Explore author-profile visibility gate. A profile is still discoverable only when the target author has at least one Explore post visible to the requester.
+Following does not affect `Recent`, `Trending`, `Nearby`, map results, the
+Home Screen widget, APNs pushes, private scan access, or the Explore
+author-profile visibility gate. A profile is discoverable only when the target
+author has at least one Explore post visible to the requester or at least one
+visible Field Trip profile surface.
 
 ## UX Rules
 
@@ -50,7 +54,9 @@ Indexes:
 
 New and extended RPCs:
 
-- `public.can_view_explore_author_profile(self_id, target_author_user_id)`: validates that the target has a currently visible Explore profile for the requester.
+- `public.can_view_explore_author_profile(self_id, target_author_user_id)`:
+  validates that the target has a currently visible Explore post or Field Trip
+  profile surface for the requester.
 - `public.get_user_follow_state(self_id, target_author_user_id)`: returns `author_user_id`, `follower_count`, `following_count`, and `viewer_is_following`.
 - `public.get_explore_feed_following(self_id, max_limit, before_shared_at, before_post_id)`: returns the same card projection as the feed, filtered to followed authors and ordered by `(shared_at DESC, post_id DESC)`.
 - `public.get_explore_author_profile(...)`: now includes `follower_count`, `following_count`, and `viewer_is_following`.
@@ -99,6 +105,10 @@ Other Edge Function changes:
 
 - `/get-explore-feed` accepts `filter: "following"` and routes to `public.get_explore_feed_following(...)`.
 - `/get-explore-author-profile` returns the new count/state fields.
+- `/get-explore-author-profile` can now return visible Field Trip summaries in
+  addition to Explore post previews. Follow counts and buttons use the same
+  profile visibility gate, so Field Trips can make a followable public profile
+  discoverable without exposing scan evidence.
 - `/get-explore-notifications` decodes `post_id` as nullable and includes `type: "follow"`.
 - `/block-user` removes follow rows in both directions after an idempotent block request.
 - `/merge-ghost-profile` calls `reparent_user_follows` before purging the ghost public user row.

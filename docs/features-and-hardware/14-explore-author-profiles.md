@@ -1,6 +1,9 @@
 # Explore Author Profiles
 
-Explore author profiles are public, privacy-preserving profile sheets opened from an Explore post's author header. They let a viewer understand an author's public activity and overall Merian progress without exposing private scan IDs or opening private achievement evidence.
+Explore author profiles are public, privacy-preserving profile sheets opened
+from visible Explore social surfaces. They let a viewer understand an author's
+public activity and overall Merian progress without exposing private scan IDs
+or opening private achievement evidence.
 
 ## User Experience
 
@@ -8,6 +11,8 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
 - Tapping an author row in `ExplorePostDetailView` opens the same sheet unless that detail view is already being presented from a public profile library.
 - Tapping the post media still opens `ExplorePostDetailView`; author-profile navigation is intentionally scoped to the header.
 - The user's own Profile tab shows an `Explore scans` preview for their currently visible Explore publications. It seeds from locally cached share state when available, then reconciles with the author-post endpoint.
+- The user's own Profile tab also shows active and published Field Trip modules
+  when the Field Trips endpoint returns visible summaries.
 - The profile sheet shows:
   - public avatar and centered serif author display name
   - `@public_username` underneath when available
@@ -18,6 +23,8 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
   - current streak
   - 52-week scan heatmap
   - a 3-column preview of up to 9 published Explore scans
+  - active Field Trip checklist progress, when visible
+  - published Field Trip cards, when visible
   - achievements rendered as informational cards only
 - The "View all published scans" button side-transitions the sheet into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
 - Library tiles open `ExplorePostDetailView` inside the sheet navigation stack. That nested detail disables insight presentation and author-profile presentation to avoid exposing private local state or recursively opening another profile sheet, but public similar-species cards can still open the species dictionary page.
@@ -38,10 +45,16 @@ The feature has two separate data scopes:
 |---|---|
 | Profile stats, streak, heatmap, achievements | All of the author's non-tombstoned scans |
 | Preview grid and full library | Only the author's currently visible Explore posts |
+| Active Field Trips | Status-only checklist progress from `user_field_trips` |
+| Published Field Trips | Snapshot items from `field_trip_publications` and `field_trip_publication_items` |
 
 Profile aggregates intentionally include private scans because they mirror the user's own profile stats at a high level. Published grids never include private scans, unshared posts, tombstoned scans, posts with no image media, or scans that no longer resolve to a species-backed row.
 
-The backend returns a profile only when the target author has at least one Explore post currently visible to the requesting viewer. This prevents the endpoint from becoming a user lookup API.
+The backend returns a profile only when the target author has at least one
+Explore post currently visible to the requesting viewer or at least one visible
+Field Trip profile surface. This prevents the endpoint from becoming a user
+lookup API while allowing active or published Field Trips to make a profile
+discoverable.
 
 The same Explore visibility rules apply to both profile and library reads:
 
@@ -54,6 +67,11 @@ The same Explore visibility rules apply to both profile and library reads:
 
 Post-level `location_sharing` controls public location fields but does not hide
 published posts from profile grids.
+
+Active Field Trip summaries deliberately exclude scan IDs, media URLs, field
+notes, exact coordinates, public location labels, and private evidence details.
+Published Field Trip cards link to `FieldTripPublicationDetailView`, not to
+normal Explore posts.
 
 Public achievement payloads contain only progress fields:
 
@@ -131,6 +149,19 @@ Ghost-account merge repair:
 - `20260622010000_reparent_community_requests_after_identity_merge.sql` repairs existing Community requests whose requester no longer matches the backing scan owner.
 - This keeps own-profile Explore previews, author sheets, `is_owned_by_viewer` checks, and Identify's Yours filter aligned with the current Supabase account.
 
+Field Trips extension:
+
+- `20260708021110_field_trips_v1.sql` adds Field Trip template, progress,
+  publication, like, and comment storage.
+- `public.user_has_visible_field_trip_profile(...)` extends author-profile
+  discoverability.
+- `public.get_field_trip_profile_summaries(...)` returns active status-only and
+  published Field Trip summaries.
+- `get-explore-author-profile` includes a `field_trips` object in the profile
+  response.
+- `field-trips` owns Field Trip detail, like, comment, catalog, progress, and
+  publication actions.
+
 ## iOS Implementation
 
 Primary files:
@@ -140,7 +171,10 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/ProfilePublicScansPreview.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripProfileModules.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripPublicationDetailView.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/Achievements.swift`
 
@@ -155,6 +189,9 @@ Important model types:
 - `ExploreAuthorPostCursor`
 - `ExploreAuthorProfileRoute`
 - `PublicUsernameUpdateResponse`
+- `FieldTripProfileSummaries`
+- `FieldTripProfileActiveSummary`
+- `FieldTripProfilePublishedSummary`
 
 Conversion rules:
 
@@ -167,6 +204,9 @@ Conversion rules:
 - Remote author rows decode `authorAvatarUrl` from the public identity
   projection; the Profile tab updates that projection when a user uploads a
   custom avatar.
+- Remote author rows decode optional `fieldTrips`. The public profile sheet and
+  the local Profile tab render active status-only progress and published cards
+  through `FieldTripProfilePreview` / `CurrentUserFieldTripProfilePreview`.
 - Preferred species names are refreshed for preview/library posts after profile and page loads.
 - The local Profile tab preview reads the current Supabase user from the view environment, displays any locally cached published scans immediately, calls `getExploreAuthorPosts(authorUserId:limit:)`, shows a lightweight loading grid while fetching, and renders an empty state when no visible Explore publications are returned.
 - Share and unshare flows publish `exploreShareStateChanged` so an already-open Profile tab can refresh its local preview state.
@@ -191,6 +231,8 @@ MerianNetworkClient.shared.getExploreAuthorPosts(authorUserId:limit:cursor:)
 MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
 MerianNetworkClient.shared.updatePublicUsername(_:)
 MerianNetworkClient.shared.updatePublicAvatar(r2ObjectKey:mimeType:)
+MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
+MerianNetworkClient.shared.getFieldTripPublication(publicationId:)
 ```
 
 ## Testing
@@ -202,6 +244,8 @@ Backend:
 - Covers aggregate privacy boundaries and cursor pagination.
 - Covers username normalization and validation.
 - Covers custom-avatar precedence in the public identity DB test.
+- Field Trips profile privacy contracts live in
+  `services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts`.
 - Tests skip live assertions when the local Supabase DB is not running at `127.0.0.1:54322`.
 
 iOS:
@@ -211,6 +255,8 @@ iOS:
 - Covers follow-state decoding and `/set-user-follow` request payload construction.
 - Covers `/update-public-avatar` response decoding and request payload
   construction.
+- `apps/ios/MerianTests/Core/Network/FieldTripAPIModelsTests.swift` covers
+  Field Trip DTO decoding used by profile modules and publication detail.
 
 Recommended verification:
 
@@ -221,6 +267,7 @@ deno check --config services/supabase/functions/deno.json services/supabase/func
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
 deno test --config services/supabase/functions/deno.json services/supabase/functions/_tests/updatePublicUsername.test.ts
 deno test --config services/supabase/functions/deno.json services/supabase/functions/update-public-avatar/avatar_test.ts
+deno test --config services/supabase/functions/deno.json --allow-read=services/supabase/migrations services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
 ```
@@ -228,6 +275,11 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic
 ## Deployment Notes
 
 Deploy the migration before deploying the two new Edge Functions. The functions depend on the RPCs and on the `device_time_zone` column existing.
+
+For Field Trips, deploy `20260708021110_field_trips_v1.sql` before deploying
+`field-trips` and the updated `get-explore-author-profile` function. The
+profile endpoint depends on the Field Trip summary RPC when returning
+`field_trips`.
 
 All identify paths now persist `device_time_zone` when the client sends a valid IANA timezone. Existing scans without a timezone continue to compute public profile streaks and heatmaps in UTC.
 

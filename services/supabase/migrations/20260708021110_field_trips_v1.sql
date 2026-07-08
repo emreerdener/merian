@@ -338,13 +338,13 @@ AS $$
     );
 $$;
 
-CREATE OR REPLACE FUNCTION public.field_trip_lower_text_array(values TEXT[])
+CREATE OR REPLACE FUNCTION public.field_trip_lower_text_array(input_values TEXT[])
 RETURNS TEXT[]
 LANGUAGE sql
 IMMUTABLE
 AS $$
-    SELECT COALESCE(ARRAY_AGG(LOWER(BTRIM(value))) FILTER (WHERE BTRIM(value) <> ''), ARRAY[]::TEXT[])
-    FROM UNNEST(COALESCE(values, ARRAY[]::TEXT[])) AS value;
+    SELECT COALESCE(ARRAY_AGG(LOWER(BTRIM(raw_value))) FILTER (WHERE BTRIM(raw_value) <> ''), ARRAY[]::TEXT[])
+    FROM UNNEST(COALESCE(input_values, ARRAY[]::TEXT[])) AS raw_value;
 $$;
 
 CREATE OR REPLACE FUNCTION public.field_trip_item_matches_scan(
