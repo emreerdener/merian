@@ -74,17 +74,30 @@ for retired_recent_schema in MerianSchemaV44.self MerianSchemaV45.self MerianSch
   fi
 done
 
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV43toV47" \
-  || fail "MerianMigrationPlan.stages must jump from V43 to V47."
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV47toV48" \
-  || fail "MerianMigrationPlan.stages must finish with V47 to V48."
+printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV43toV48" \
+  || fail "MerianMigrationPlan.stages must jump from V43 to V48."
+if printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV47toV48"; then
+  fail "MerianMigrationPlan.stages must not route historical stores through V47."
+fi
 
-for source_isolated_stage in migrateV45toV48 migrateV46toV48 migrateV45toV47 migrateV46toV47 migrateV45toV46; do
+for source_isolated_stage in migrateV44toV48 migrateV45toV48 migrateV46toV48 migrateV43toV47 migrateV44toV47 migrateV45toV47 migrateV46toV47 migrateV45toV46; do
   if printf '%s\n' "$migration_plan_stages" | grep -Fq "$source_isolated_stage"; then
     fail "MerianMigrationPlan.stages must not include source-isolated or duplicate recent stage $source_isolated_stage."
   fi
 done
 
+contains "$schema_file" "static let migrateV43toV48 = MigrationStage.custom" \
+  || fail "Missing full-plan V43 to V48 migration."
+contains "$schema_file" "fromVersion: MerianSchemaV43.self" \
+  || fail "V43 to V48 migration must use MerianSchemaV43 as the source."
+contains "$schema_file" "try initializeV48OfflineQueueRecords(in: context, stage: \"V43->V48 didMigrate\")" \
+  || fail "V43 to V48 migration must use the durable V48 queue backfill."
+contains "$schema_file" "static let migrateV44toV48 = MigrationStage.custom" \
+  || fail "Missing source-isolated V44 to V48 migration."
+contains "$schema_file" "fromVersion: MerianSchemaV44.self" \
+  || fail "V44 to V48 migration must use MerianSchemaV44 as the source."
+contains "$schema_file" "try initializeV48OfflineQueueRecords(in: context, stage: \"V44->V48 didMigrate\")" \
+  || fail "V44 to V48 migration must use the durable V48 queue backfill."
 contains "$schema_file" "static let migrateV45toV48 = MigrationStage.custom" \
   || fail "Missing source-isolated V45 to V48 migration."
 contains "$schema_file" "fromVersion: MerianSchemaV45.self" \
@@ -97,12 +110,25 @@ contains "$schema_file" "try initializeV48OfflineQueueRecords(in: context, stage
   || fail "V45 to V48 migration must use the durable V48 queue backfill."
 contains "$schema_file" "try initializeV48OfflineQueueRecords(in: context, stage: \"V46->V48 didMigrate\")" \
   || fail "V46 to V48 migration must use the durable V48 queue backfill."
+not_contains "$schema_file" "static let migrateV43toV47"
+not_contains "$schema_file" "static let migrateV44toV47"
 not_contains "$schema_file" "static let migrateV45toV47"
 not_contains "$schema_file" "static let migrateV46toV47"
 
+recent_v44_plan="$(extract_block "enum MerianRecentV44MigrationPlan" "enum MerianRecentV45MigrationPlan")"
 recent_v45_plan="$(extract_block "enum MerianRecentV45MigrationPlan" "enum MerianRecentV46MigrationPlan")"
 recent_v46_plan="$(extract_block "enum MerianRecentV46MigrationPlan" "enum MerianRecentV47MigrationPlan")"
 recent_v47_plan="$(extract_block "enum MerianRecentV47MigrationPlan" "__MERIAN_STOP__")"
+
+printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianSchemaV44.self" \
+  || fail "Recent V44 plan must include MerianSchemaV44."
+printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianSchemaV48.self" \
+  || fail "Recent V44 plan must target V48."
+printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianMigrationPlan.migrateV44toV48" \
+  || fail "Recent V44 plan must run migrateV44toV48."
+if printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianSchemaV47.self"; then
+  fail "Recent V44 plan must skip V47."
+fi
 
 printf '%s\n' "$recent_v45_plan" | grep -Fq "MerianSchemaV45.self" \
   || fail "Recent V45 plan must include MerianSchemaV45."

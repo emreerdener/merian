@@ -90,7 +90,7 @@ actor BackgroundDatabaseActor {
         }
         let now = Date()
         let runnable = pending.filter { scan in
-            !scan.queueNeedsAttention && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
+            scan.queueNeedsAttention != true && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
         }
         MerianLog.data.debug("fetchPendingScans: fetched \(pending.count, privacy: .public) pending scans runnable=\(runnable.count, privacy: .public)")
         return runnable.prefix(limit).map { scan in
@@ -422,7 +422,7 @@ actor BackgroundDatabaseActor {
                         job.updatedAt = Date()
                         job.lastAttemptAt = Date()
                         job.nextRunAt = nil
-                        job.attemptCount = scan.queueAttemptCount
+                        job.attemptCount = scan.queueAttemptCount ?? 0
                     }
                     modelContext.insert(OfflineQueueEvent(
                         jobId: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),

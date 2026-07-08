@@ -237,7 +237,7 @@ struct MigrationPlanTests {
         #expect(scan.queueLastServerStatus == nil)
         #expect(scan.queueLastServerStage == nil)
         #expect(scan.queueLastServerRetryAfter == nil)
-        #expect(scan.queueUpdatedAt.timeIntervalSinceReferenceDate > 0)
+        #expect((scan.queueUpdatedAt?.timeIntervalSinceReferenceDate ?? 0) > 0)
         #expect(scan.queueNeedsAttention == false)
     }
 
@@ -565,7 +565,7 @@ struct MigrationPlanTests {
 
     /// Simulates the last stable pre-cluster source path.
     /// V44/V45/V46 are recent duplicate-prone representatives, so the full
-    /// historical plan jumps V43 directly to V47 and leaves V44/V45/V46 to
+    /// historical plan jumps V43 directly to V48 and leaves V44/V45/V46 to
     /// source-isolated recent plans.
     @Test func migrationFromV43ToCurrentSchemaDoesNotSafeMode() throws {
         let url = migrationStoreURL(named: "v43migration_test")
@@ -670,8 +670,22 @@ struct MigrationPlanTests {
             "static let migrateV46toV48 = MigrationStage.custom",
             "FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>",
             "FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>",
-            "if snapshots.isEmpty",
-            "queuedScans = []",
+            "let snapshotIds = Set(snapshots.map(\\.id))",
+            "var existingScansById = Dictionary(uniqueKeysWithValues: queuedScans.map { ($0.id, $0) })",
+            "let capturedMediaJSON: String?",
+            "let stagedR2Keys: [String]?",
+            "let inferenceImagePaths: [String]?",
+            "let visualMediaItemsJSON: String?",
+            "let fieldNotes: String?",
+            "func initializeQueueMetadata(on scan: MerianSchemaV48.OfflineQueuedScan)",
+            "func upsertQueuedScan(from snapshot: V47QueuedScanMigrationSnapshot)",
+            "if let existingScan = existingScansById[snapshot.id]",
+            "apply(snapshot: snapshot, to: scan)",
+            "upsertQueuedScan(from: snapshot)",
+            "let entries = CapturedMediaEntry.makeEntries(from: items)",
+            "scan.capturedMediaEntries = entries",
+            "context.insert(scan)",
+            "context.delete(scan)",
             "insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)",
             "scan.queueAttemptCount = 0",
             "scan.queueLastAttemptAt = nil",
@@ -704,12 +718,12 @@ struct MigrationPlanTests {
             "V47->V48 cannot be lightweight because existing queued scans need retry metadata and scheduler rows."
         )
         #expect(
-            !source.contains("snapshot.apply(to: existingScan)"),
-            "V47 scheduler rows must be created from snapshots rather than by fetching just-migrated queued scans as V48 rows; fetching them during didMigrate can trap on stale SwiftData model identity."
+            source.contains("apply(snapshot: snapshot, to: scan)"),
+            "V47 snapshots must repair just-migrated V48 rows before save so required queue metadata cannot remain nil."
         )
         #expect(
-            !v47StageSource.contains("context.delete(scan)"),
-            "V47 queued scans must not be deleted from the source store before the migration has finished."
+            v47StageSource.contains("context.delete(scan)"),
+            "V47 queued scans must be deleted after snapshotting so SwiftData cannot reopen them as stale V47-backed current models."
         )
     }
 
@@ -718,9 +732,13 @@ struct MigrationPlanTests {
         let schemasSource = try migrationPlanSchemasListSource()
         let stagesSource = try migrationPlanStagesListSource()
         let requiredSnippets = [
-            "static let migrateV43toV47 = MigrationStage.lightweight",
+            "static let migrateV43toV48 = MigrationStage.custom",
             "fromVersion: MerianSchemaV43.self",
-            "toVersion: MerianSchemaV47.self",
+            "toVersion: MerianSchemaV48.self",
+            #"try initializeV48OfflineQueueRecords(in: context, stage: "V43->V48 didMigrate")"#,
+            "static let migrateV44toV48 = MigrationStage.custom",
+            "fromVersion: MerianSchemaV44.self",
+            #"try initializeV48OfflineQueueRecords(in: context, stage: "V44->V48 didMigrate")"#,
             "static let migrateV45toV48 = MigrationStage.custom",
             "fromVersion: MerianSchemaV45.self",
             "toVersion: MerianSchemaV48.self",
@@ -741,41 +759,70 @@ struct MigrationPlanTests {
             "MerianMigrationPlan.schemas must omit duplicate-prone V44/V45/V46 representatives; source-isolated recent plans handle those stores."
         )
         #expect(
-            !stagesSource.contains("migrateV43toV44") &&
+                !stagesSource.contains("migrateV43toV44") &&
                 !stagesSource.contains("migrateV44toV45") &&
+                !stagesSource.contains("migrateV43toV47") &&
                 !stagesSource.contains("migrateV45toV47") &&
+                !stagesSource.contains("migrateV44toV48") &&
                 !stagesSource.contains("migrateV45toV48") &&
                 !stagesSource.contains("migrateV46toV48") &&
-                stagesSource.contains("migrateV43toV47"),
-            "The full historical stage list must jump V43->V47 and avoid V44/V45/V46 representatives and source-isolated recent hops."
+                !stagesSource.contains("migrateV47toV48") &&
+                stagesSource.contains("migrateV43toV48"),
+            "The full historical stage list must jump V43->V48 and avoid V44/V45/V46/V47 source-isolated recent hops."
         )
         #expect(
             !source.contains("migrateV45toV46") &&
+                !source.contains("static let migrateV43toV47") &&
+                !source.contains("static let migrateV44toV47") &&
                 !source.contains("migrateV46toV47") &&
                 !source.contains("migrateV45toV47"),
-            "Do not reintroduce staged V45->V46, V46->V47, or V45->V47 hops; V46 is a no-op checksum duplicate and V47 reuses V45 classes."
+            "Do not reintroduce staged V43/V44/V45/V46 hops through V47; V47 queued-scan fetches are only safe for true V47 stores."
         )
     }
 
-    @Test func v47ReusesV45ChecksumRepresentativeForUnchangedModels() throws {
+    @Test func v47AvoidsHistoricalQueueModelAliases() throws {
         let source = try schemaVersionsSource()
         let requiredSnippets = [
             "extension MerianSchemaV47",
-            "typealias LocalScanRecord = MerianSchemaV45.LocalScanRecord",
-            "typealias CapturedMediaEntry = MerianSchemaV45.CapturedMediaEntry",
-            "typealias ScanCollection = MerianSchemaV45.ScanCollection"
+            "final class CapturedMediaEntry",
+            "final class LocalScanRecord",
+            "final class ScanCollection",
+            "final class OfflineQueuedScan",
+            "@Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV47.CapturedMediaEntry]? = []",
+            "@Relationship(inverse: \\MerianSchemaV47.LocalScanRecord.collections) var scans: [MerianSchemaV47.LocalScanRecord]? = []"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
         #expect(
             missing.isEmpty,
-            "V47 must reuse the V45 checksum representative for unchanged models so V44 stores can jump to V47 without reintroducing V46 classes:\n\(missing.joined(separator: "\n"))"
+            "V47 must keep its scan/media/collection models frozen inside V47 so neither active models nor V45/V42 aliases can pull the wrong OfflineQueuedScan metadata into V47 stores:\n\(missing.joined(separator: "\n"))"
         )
+
+        let v47Extension = source
+            .components(separatedBy: "extension MerianSchemaV47")
+            .dropFirst()
+            .first?
+            .components(separatedBy: "\nextension MerianSchemaV44")
+            .first ?? ""
         #expect(
-            !source.contains("typealias LocalScanRecord = MerianSchemaV46.LocalScanRecord") &&
-                !source.contains("typealias CapturedMediaEntry = MerianSchemaV46.CapturedMediaEntry") &&
-                !source.contains("typealias ScanCollection = MerianSchemaV46.ScanCollection"),
-            "V47 cannot point unchanged models at the no-op V46 classes; that reintroduces duplicate-checksum migration validation failures."
+            !v47Extension.contains("typealias LocalScanRecord = MerianSchemaV45.LocalScanRecord") &&
+                !v47Extension.contains("typealias CapturedMediaEntry = MerianSchemaV45.CapturedMediaEntry") &&
+                !v47Extension.contains("typealias ScanCollection = MerianSchemaV45.ScanCollection") &&
+                !v47Extension.contains("typealias LocalScanRecord = MerianSchemaV46.LocalScanRecord") &&
+                !v47Extension.contains("typealias CapturedMediaEntry = MerianSchemaV46.CapturedMediaEntry") &&
+                !v47Extension.contains("typealias ScanCollection = MerianSchemaV46.ScanCollection") &&
+                !v47Extension.contains("typealias LocalScanRecord = LocalScanRecord") &&
+                !v47Extension.contains("typealias CapturedMediaEntry = CapturedMediaEntry") &&
+                !v47Extension.contains("typealias ScanCollection = ScanCollection"),
+            "V47 cannot point unchanged models at the V45/V46 alias chain or active models; that reintroduces stale queued-scan metadata casts."
+        )
+        let v47QueuedScanSource = v47Extension
+            .components(separatedBy: "final class OfflineQueuedScan")
+            .dropFirst()
+            .first ?? ""
+        #expect(
+            !v47QueuedScanSource.contains("capturedMediaEntries"),
+            "V47 queued scans must stay scalar-only and let V48 rebuild CapturedMediaEntry rows from capturedMediaJSON; a V47 relationship can trap while SwiftData casts the queued scan model."
         )
     }
 
@@ -784,12 +831,8 @@ struct MigrationPlanTests {
         let requiredSnippets = [
             "enum MerianRecentV44MigrationPlan",
             "MerianSchemaV44.self",
-            "MerianSchemaV47.self",
             "MerianSchemaV48.self",
-            "static let migrateV44toV47 = MigrationStage.lightweight",
-            "fromVersion: MerianSchemaV44.self",
-            "toVersion: MerianSchemaV47.self",
-            "MerianMigrationPlan.migrateV47toV48"
+            "MerianMigrationPlan.migrateV44toV48"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -800,7 +843,10 @@ struct MigrationPlanTests {
         #expect(
             !source.contains("MerianSchemaV43.self") &&
                 !source.contains("MerianSchemaV45.self") &&
-                !source.contains("MerianSchemaV46.self"),
+                !source.contains("MerianSchemaV46.self") &&
+                !source.contains("MerianSchemaV47.self") &&
+                !source.contains("migrateV44toV47") &&
+                !source.contains("migrateV47toV48"),
             "The recent V44 recovery plan must include only one V44/V45/V46-family representative."
         )
     }

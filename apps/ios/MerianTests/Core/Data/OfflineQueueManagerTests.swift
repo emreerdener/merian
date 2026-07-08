@@ -679,7 +679,7 @@ struct OfflineQueueManagerTests {
         #expect(fetched.queueNextRetryAt == nil)
         #expect(fetched.queueLastErrorCode == nil)
         #expect(fetched.queueLastErrorMessage == nil)
-        #expect(!fetched.queueNeedsAttention)
+        #expect(fetched.queueNeedsAttention != true)
     }
 
     @Test func testDeleteQueuedScan_RemovesDatabaseRecord() async throws {

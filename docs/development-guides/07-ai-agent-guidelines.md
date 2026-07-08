@@ -173,20 +173,24 @@ Only use `typealias` for models that are **unchanged AND not referenced by any r
 **Migration regression tests**:
 `apps/ios/MerianTests/Models/MigrationPlanTests.swift` must pass on an iOS 26
 simulator on every schema bump. It covers fresh-store initialization, historical
-disk-store migrations, V44/V45/V46/V47 source-isolated recent plans, V47→V48,
-V46→V48, and V45→V48 offline queue media fixtures, and source scans for migration safety invariants:
+disk-store migrations, V44/V45/V46/V47 source-isolated recent plans, direct
+V43/V44/V45/V46→V48 queue migrations, V47→V48, and source scans for migration safety invariants:
 no silent custom-stage saves, no active/global fetch descriptors or active model
 convenience helpers in `MerianMigrationPlan`, and no bare active
 `CapturedMediaEntry` relationship targets in retired schemas. The full
-historical plan must skip the duplicate-prone V44/V45/V46 recent cluster by
-jumping V43→V47; the source-isolated V44/V45/V46 recent plans handle already
-stamped recent stores. Because V46 is a no-op checksum twin of V45, the V45 and
-V46 recent plans must keep those sources isolated from each other and jump
-directly to V48 rather than routing through V47. V47 still reuses the V45
-representative for unchanged local-scan, captured-media, and collection models on
-the V43/V44→V47 paths.
+historical plan must skip the duplicate-prone V44/V45/V46/V47 recent cluster by
+jumping V43→V48; the source-isolated V44/V45/V46 recent plans also jump directly
+to V48. Because V46 is a no-op checksum twin of V45, the V45 and V46 recent
+plans must keep those sources isolated from each other and never route through
+V47. V47 must not alias its
+local-scan, captured-media, or collection representatives back through active
+models or the V45/V42 chain, because that can pull stale queued-scan metadata
+into V47 stores. Keep those models frozen inside V47. V47 queued scans
+intentionally keep queued media scalar-only: do not add a
+`capturedMediaEntries` relationship there. V48 rebuilds those relationship rows
+from `capturedMediaJSON` after snapshotting and replacing the V47 queued rows.
 
-**Custom migration save rule**: Never use `try? context.save()` inside `MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call the shared migration save helper, rollback on failure, and rethrow so SwiftData aborts the migration rather than opening a store with missing backfilled fields. Scratchpad namespaces are cleared only after the save succeeds, and migration fetch failures must propagate instead of being logged and ignored. Migration-stage fetches must use the concrete source/target schema type for that stage, never `CurrentSchema`, active global model classes, or active-only convenience helpers, because SwiftData can trap while casting historical migration objects. Any relationship model introduced in a retired schema must be frozen in that schema too, even if the active model has the same fields. When a source schema uses the same entity name with a distinct Swift type, follow the V47 queued-scan pattern: snapshot the source IDs and timestamps in `willMigrate`, then create target-side scheduler rows from those snapshots instead of fetching the just-migrated rows as the target type. Custom migrations that create relationship rows must insert those rows into the migration `ModelContext` before assigning the relationship; relying on relationship assignment alone can crash during SwiftData store migration.
+**Custom migration save rule**: Never use `try? context.save()` inside `MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call the shared migration save helper, rollback on failure, and rethrow so SwiftData aborts the migration rather than opening a store with missing backfilled fields. Scratchpad namespaces are cleared only after the save succeeds, and migration fetch failures must propagate instead of being logged and ignored. Migration-stage fetches must use the concrete source/target schema type for that stage, never `CurrentSchema`, active global model classes, or active-only convenience helpers, because SwiftData can trap while casting historical migration objects. Any relationship model introduced in a retired schema must be frozen in that schema too, even if the active model has the same fields. When a source schema uses the same entity name with a distinct Swift type, follow the V47 queued-scan pattern: snapshot every source field needed to recreate the row, keep relationship mirrors out of the source model when scalar mirrors already preserve the same data, delete the source row inside `willMigrate`, then insert a clean target-schema row from that snapshot in `didMigrate` instead of fetching the just-migrated row as the target type. Custom migrations that create relationship rows must insert those rows into the migration `ModelContext` before assigning the relationship; relying on relationship assignment alone can crash during SwiftData store migration.
 
 **Startup recovery rule**: `ModelContainer` creation may raise Objective-C
 `NSException`s before Swift can throw. Merian routes those exceptions through

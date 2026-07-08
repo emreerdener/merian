@@ -1147,16 +1147,292 @@ extension MerianSchemaV48 {
 }
 
 extension MerianSchemaV47 {
-    typealias LocalScanRecord = MerianSchemaV45.LocalScanRecord
-    typealias CapturedMediaEntry = MerianSchemaV45.CapturedMediaEntry
-    typealias ScanCollection = MerianSchemaV45.ScanCollection
+    @Model
+    final class CapturedMediaEntry {
+        @Attribute(.unique) var id: String
+        var orderIndex: Int
+        var kindRaw: String
+        var storageRaw: String
+        var mediaPath: String
+        var observationContextJSON: String
+
+        init(
+            id: String = UUID().uuidString,
+            orderIndex: Int,
+            item: SerializedMediaItem
+        ) {
+            self.id = id
+            self.orderIndex = orderIndex
+
+            switch item {
+            case .image(let reference):
+                kindRaw = PersistedCapturedMediaKind.image.rawValue
+                storageRaw = reference.storage.rawValue
+                mediaPath = reference.serializedPath
+                observationContextJSON = ""
+            case .audio(let reference):
+                kindRaw = PersistedCapturedMediaKind.audio.rawValue
+                storageRaw = reference.storage.rawValue
+                mediaPath = reference.serializedPath
+                observationContextJSON = ""
+            case .video(let reference):
+                kindRaw = PersistedCapturedMediaKind.video.rawValue
+                storageRaw = reference.video.storage.rawValue
+                mediaPath = reference.serializedPath
+                observationContextJSON = ""
+            case .description(let context):
+                kindRaw = PersistedCapturedMediaKind.description.rawValue
+                storageRaw = ""
+                mediaPath = ""
+                let contextData = try? JSONEncoder().encode(context)
+                observationContextJSON = contextData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            }
+        }
+    }
+
+    @Model
+    final class LocalScanRecord {
+        @Attribute(.unique) var id: String
+        var speciesId: String
+        var scientificName: String
+        var commonName: String
+        var timestamp: Date
+        var captureDate: Date?
+        var capturedMediaJSON: String?
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV47.CapturedMediaEntry]? = []
+
+        var semanticTags: [String]
+        var hazardType: String = "none"
+        var isBiological: Bool
+        var isLiveCapture: Bool
+        var isInvasive: Bool
+        @Attribute var invasiveStatusRegion: String?
+        @Attribute var invasiveRationale: String?
+        @Attribute var invasiveConfidence: Double?
+        var ecologyType: String
+        var wikipediaUrl: String?
+        @Attribute(originalName: "wikipediaExtract") var wikipediaOverview: String?
+        var referenceImageUrl: String?
+        var confidenceScore: Double?
+        @Attribute var isLocallyArchived: Bool = false
+
+        var taxonomyKingdom: String?
+        var taxonomyPhylum: String?
+        var taxonomyClass: String?
+        var taxonomyOrder: String?
+        var taxonomyFamily: String?
+        var taxonomyGenus: String?
+
+        var locationName: String?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+
+        var collections: [MerianSchemaV47.ScanCollection]? = []
+
+        var similarSpecies: [String]?
+        var lookalikesData: Data?
+        @Attribute var candidatesData: Data?
+        @Attribute var userIdentificationOverride: String?
+        @Attribute var userConfirmedIdentification: Bool = false
+        @Attribute var isFlagged: Bool = false
+
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
+        @Attribute var zoomFactor: Double?
+
+        @Attribute var aiReasoning: String?
+        @Attribute var habitatDescription: String?
+        @Attribute var gbifTaxonKey: Int?
+
+        @Attribute var estimatedSizeCm: Double?
+        @Attribute var lifeStage: String?
+        @Attribute var reproductiveCondition: String?
+        @Attribute var sex: String?
+        @Attribute var sexConfidence: Double?
+        @Attribute var sexEvidence: String?
+        @Attribute var individualCount: Int?
+        @Attribute var ecologicalInteractions: [String]?
+        @Attribute var inferenceTier: String?
+        @Attribute var customTags: [String] = []
+        var hasBeenViewed: Bool = true
+        @Attribute var imageQualityScore: Int?
+        @Attribute var alternativeCommonNames: [String]?
+        @Attribute var petIdentificationData: Data?
+        @Attribute var confirmedSpeciesId: String?
+        @Attribute var userReviewStateRaw: String? = "unreviewed"
+        @Attribute var observationContextsJSON: [String]?
+        @Attribute var fieldNotes: String?
+        @Attribute var coverImagePath: String?
+
+        var userReviewState: UserReviewState {
+            get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
+            set { userReviewStateRaw = newValue.rawValue }
+        }
+
+        init(
+            id: String = UUID().uuidString,
+            speciesId: String,
+            scientificName: String,
+            commonName: String,
+            timestamp: Date = Date(),
+            captureDate: Date? = nil,
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            semanticTags: [String] = [],
+            hazardType: String = "none",
+            isBiological: Bool = true,
+            isLiveCapture: Bool = true,
+            isInvasive: Bool = false,
+            invasiveStatusRegion: String? = nil,
+            invasiveRationale: String? = nil,
+            invasiveConfidence: Double? = nil,
+            ecologyType: String = "unknown",
+            wikipediaUrl: String? = nil,
+            wikipediaOverview: String? = nil,
+            referenceImageUrl: String? = nil,
+            confidenceScore: Double? = nil,
+            isLocallyArchived: Bool = false,
+            taxonomyKingdom: String? = nil,
+            taxonomyPhylum: String? = nil,
+            taxonomyClass: String? = nil,
+            taxonomyOrder: String? = nil,
+            taxonomyFamily: String? = nil,
+            taxonomyGenus: String? = nil,
+            locationName: String? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            collections: [MerianSchemaV47.ScanCollection]? = [],
+            similarSpecies: [String]? = nil,
+            lookalikesData: Data? = nil,
+            candidatesData: Data? = nil,
+            iucnRedListStatus: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            zoomFactor: Double? = nil,
+            aiReasoning: String? = nil,
+            habitatDescription: String? = nil,
+            gbifTaxonKey: Int? = nil,
+            estimatedSizeCm: Double? = nil,
+            lifeStage: String? = nil,
+            reproductiveCondition: String? = nil,
+            sex: String? = nil,
+            sexConfidence: Double? = nil,
+            sexEvidence: String? = nil,
+            individualCount: Int? = nil,
+            ecologicalInteractions: [String]? = nil,
+            inferenceTier: String? = nil,
+            customTags: [String] = [],
+            hasBeenViewed: Bool = false,
+            userIdentificationOverride: String? = nil,
+            userConfirmedIdentification: Bool = false,
+            isFlagged: Bool = false,
+            imageQualityScore: Int? = nil,
+            alternativeCommonNames: [String]? = nil,
+            petIdentificationData: Data? = nil,
+            confirmedSpeciesId: String? = nil,
+            userReviewStateRaw: String? = nil,
+            observationContextsJSON: [String]? = nil,
+            fieldNotes: String? = nil
+        ) {
+            self.id = id
+            self.speciesId = speciesId
+            self.scientificName = scientificName
+            self.commonName = commonName
+            self.timestamp = timestamp
+            self.captureDate = captureDate
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.semanticTags = semanticTags
+            self.hazardType = hazardType
+            self.isBiological = isBiological
+            self.isLiveCapture = isLiveCapture
+            self.isInvasive = isInvasive
+            self.invasiveStatusRegion = invasiveStatusRegion
+            self.invasiveRationale = invasiveRationale
+            self.invasiveConfidence = invasiveConfidence
+            self.ecologyType = ecologyType
+            self.wikipediaUrl = wikipediaUrl
+            self.wikipediaOverview = wikipediaOverview
+            self.referenceImageUrl = referenceImageUrl
+            self.confidenceScore = confidenceScore
+            self.isLocallyArchived = isLocallyArchived
+            self.taxonomyKingdom = taxonomyKingdom
+            self.taxonomyPhylum = taxonomyPhylum
+            self.taxonomyClass = taxonomyClass
+            self.taxonomyOrder = taxonomyOrder
+            self.taxonomyFamily = taxonomyFamily
+            self.taxonomyGenus = taxonomyGenus
+            self.locationName = locationName
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.collections = collections
+            self.similarSpecies = similarSpecies
+            self.lookalikesData = lookalikesData
+            self.candidatesData = candidatesData
+            self.iucnRedListStatus = iucnRedListStatus
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.zoomFactor = zoomFactor
+            self.aiReasoning = aiReasoning
+            self.habitatDescription = habitatDescription
+            self.gbifTaxonKey = gbifTaxonKey
+            self.estimatedSizeCm = estimatedSizeCm
+            self.lifeStage = lifeStage
+            self.reproductiveCondition = reproductiveCondition
+            self.sex = sex
+            self.sexConfidence = sexConfidence
+            self.sexEvidence = sexEvidence
+            self.individualCount = individualCount
+            self.ecologicalInteractions = ecologicalInteractions
+            self.inferenceTier = inferenceTier
+            self.customTags = customTags
+            self.hasBeenViewed = hasBeenViewed
+            self.userIdentificationOverride = userIdentificationOverride
+            self.userConfirmedIdentification = userConfirmedIdentification
+            self.isFlagged = isFlagged
+            self.imageQualityScore = imageQualityScore
+            self.alternativeCommonNames = alternativeCommonNames
+            self.petIdentificationData = petIdentificationData
+            self.confirmedSpeciesId = confirmedSpeciesId
+            self.userReviewStateRaw = userReviewStateRaw
+            self.observationContextsJSON = observationContextsJSON
+            self.fieldNotes = fieldNotes
+        }
+    }
+
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \MerianSchemaV47.LocalScanRecord.collections) var scans: [MerianSchemaV47.LocalScanRecord]? = []
+
+        init(
+            id: String = UUID().uuidString,
+            name: String,
+            createdAt: Date = Date(),
+            isDeleted: Bool = false,
+            scans: [MerianSchemaV47.LocalScanRecord]? = []
+        ) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
 
     @Model
     final class OfflineQueuedScan {
         @Attribute(.unique) var id: String
         var timestamp: Date
         var capturedMediaJSON: String?
-        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV47.CapturedMediaEntry]? = []
 
         var gpsLatitude: Double?
         var gpsLongitude: Double?
@@ -2203,10 +2479,52 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     private struct V47QueuedScanMigrationSnapshot: Sendable {
         let id: String
         let timestamp: Date
+        let capturedMediaJSON: String?
+        let coverImagePath: String?
+        let gpsLatitude: Double?
+        let gpsLongitude: Double?
+        let gpsElevation: Double?
+        let weatherCondition: String?
+        let weatherTemperatureF: Double?
+        let blurScore: Double?
+        let subjectDistanceInMeters: Float?
+        let locationName: String?
+        let isFlashFired: Bool?
+        let cameraPitchDegrees: Double?
+        let compassHeading: Double?
+        let relativeHumidity: Double?
+        let uvIndex: Int?
+        let zoomFactor: Double?
+        let scanStateRaw: Int
+        let stagedR2Keys: [String]?
+        let inferenceImagePaths: [String]?
+        let visualMediaItemsJSON: String?
+        let fieldNotes: String?
 
         init(_ scan: MerianSchemaV47.OfflineQueuedScan) {
             id = scan.id
             timestamp = scan.timestamp
+            capturedMediaJSON = scan.capturedMediaJSON
+            coverImagePath = scan.coverImagePath
+            gpsLatitude = scan.gpsLatitude
+            gpsLongitude = scan.gpsLongitude
+            gpsElevation = scan.gpsElevation
+            weatherCondition = scan.weatherCondition
+            weatherTemperatureF = scan.weatherTemperatureF
+            blurScore = scan.blurScore
+            subjectDistanceInMeters = scan.subjectDistanceInMeters
+            locationName = scan.locationName
+            isFlashFired = scan.isFlashFired
+            cameraPitchDegrees = scan.cameraPitchDegrees
+            compassHeading = scan.compassHeading
+            relativeHumidity = scan.relativeHumidity
+            uvIndex = scan.uvIndex
+            zoomFactor = scan.zoomFactor
+            scanStateRaw = scan.scanStateRaw
+            stagedR2Keys = scan.stagedR2Keys
+            inferenceImagePaths = scan.inferenceImagePaths
+            visualMediaItemsJSON = scan.visualMediaItemsJSON
+            fieldNotes = scan.fieldNotes
         }
     }
 
@@ -2342,8 +2660,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV40toV41,
             migrateV41toV42,
             migrateV42toV43,
-            migrateV43toV47,
-            migrateV47toV48
+            migrateV43toV48
         ]
     }
 
@@ -2354,12 +2671,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         let now = Date()
         let namespace = migrationNamespace(for: context)
         let snapshots = _v47QueuedScanBackfill.values(namespace: namespace)
-        let queuedScans: [MerianSchemaV48.OfflineQueuedScan]
-        if snapshots.isEmpty {
-            queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
-        } else {
-            queuedScans = []
-        }
+        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
+        let snapshotIds = Set(snapshots.map(\.id))
+        var existingScansById = Dictionary(uniqueKeysWithValues: queuedScans.map { ($0.id, $0) })
 
         let existingJobs = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineJobRecord>())
         var existingJobIds = Set(existingJobs.map(\.id))
@@ -2389,7 +2703,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             ))
         }
 
-        for scan in queuedScans {
+        func initializeQueueMetadata(on scan: MerianSchemaV48.OfflineQueuedScan) {
             scan.queueAttemptCount = 0
             scan.queueLastAttemptAt = nil
             scan.queueNextRetryAt = nil
@@ -2401,12 +2715,78 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             scan.queueLastServerRetryAfter = nil
             scan.queueUpdatedAt = now
             scan.queueNeedsAttention = false
+        }
 
+        func replaceQueuedCapturedMedia(
+            on scan: MerianSchemaV48.OfflineQueuedScan,
+            capturedMediaJSON: String?
+        ) {
+            for existingEntry in scan.capturedMediaEntries ?? [] {
+                context.delete(existingEntry)
+            }
+
+            guard let jsonString = capturedMediaJSON,
+                  let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
+                scan.capturedMediaEntries = []
+                return
+            }
+
+            let entries = CapturedMediaEntry.makeEntries(from: items)
+            entries.forEach { context.insert($0) }
+            scan.capturedMediaEntries = entries
+        }
+
+        func apply(
+            snapshot: V47QueuedScanMigrationSnapshot,
+            to scan: MerianSchemaV48.OfflineQueuedScan
+        ) {
+            scan.timestamp = snapshot.timestamp
+            scan.capturedMediaJSON = snapshot.capturedMediaJSON
+            scan.coverImagePath = snapshot.coverImagePath
+            scan.gpsLatitude = snapshot.gpsLatitude
+            scan.gpsLongitude = snapshot.gpsLongitude
+            scan.gpsElevation = snapshot.gpsElevation
+            scan.weatherCondition = snapshot.weatherCondition
+            scan.weatherTemperatureF = snapshot.weatherTemperatureF
+            scan.blurScore = snapshot.blurScore
+            scan.subjectDistanceInMeters = snapshot.subjectDistanceInMeters
+            scan.locationName = snapshot.locationName
+            scan.isFlashFired = snapshot.isFlashFired
+            scan.cameraPitchDegrees = snapshot.cameraPitchDegrees
+            scan.compassHeading = snapshot.compassHeading
+            scan.relativeHumidity = snapshot.relativeHumidity
+            scan.uvIndex = snapshot.uvIndex
+            scan.zoomFactor = snapshot.zoomFactor
+            scan.scanStateRaw = snapshot.scanStateRaw
+            scan.stagedR2Keys = snapshot.stagedR2Keys
+            scan.inferenceImagePaths = snapshot.inferenceImagePaths
+            scan.visualMediaItemsJSON = snapshot.visualMediaItemsJSON
+            scan.fieldNotes = snapshot.fieldNotes
+            initializeQueueMetadata(on: scan)
+            replaceQueuedCapturedMedia(on: scan, capturedMediaJSON: snapshot.capturedMediaJSON)
+        }
+
+        func upsertQueuedScan(from snapshot: V47QueuedScanMigrationSnapshot) {
+            let scan: MerianSchemaV48.OfflineQueuedScan
+            if let existingScan = existingScansById[snapshot.id] {
+                scan = existingScan
+            } else {
+                scan = MerianSchemaV48.OfflineQueuedScan(id: snapshot.id)
+                context.insert(scan)
+                existingScansById[snapshot.id] = scan
+            }
+
+            apply(snapshot: snapshot, to: scan)
+            insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)
+        }
+
+        for scan in queuedScans where !snapshotIds.contains(scan.id) {
+            initializeQueueMetadata(on: scan)
             insertSchedulerRows(scanId: scan.id, createdAt: scan.timestamp)
         }
 
         for snapshot in snapshots {
-            insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)
+            upsertQueuedScan(from: snapshot)
         }
 
         try saveMigrationContext(context, stage: stage)
@@ -2422,6 +2802,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>())
             for scan in queuedScans {
                 _v47QueuedScanBackfill[namespace: namespace, key: scan.id] = V47QueuedScanMigrationSnapshot(scan)
+                context.delete(scan)
             }
         },
         didMigrate: { context in
@@ -2429,10 +2810,28 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     )
 
-    // V45/V46-checksum stores skip V47 because V47 intentionally reuses the V45
-    // model classes for unchanged entities. The source-isolated plans route each
-    // stamped source directly to V48 while still applying the durable queue
-    // metadata backfill.
+    // V43/V44/V45/V46-checksum stores skip V47 so their historical queued-scan
+    // rows are opened as the V48 target model rather than being fetched through a
+    // transient V47 source type. The V47->V48 stage is reserved for stores already
+    // stamped as V47.
+    static let migrateV43toV48 = MigrationStage.custom(
+        fromVersion: MerianSchemaV43.self,
+        toVersion: MerianSchemaV48.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            try initializeV48OfflineQueueRecords(in: context, stage: "V43->V48 didMigrate")
+        }
+    )
+
+    static let migrateV44toV48 = MigrationStage.custom(
+        fromVersion: MerianSchemaV44.self,
+        toVersion: MerianSchemaV48.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            try initializeV48OfflineQueueRecords(in: context, stage: "V44->V48 didMigrate")
+        }
+    )
+
     static let migrateV45toV48 = MigrationStage.custom(
         fromVersion: MerianSchemaV45.self,
         toVersion: MerianSchemaV48.self,
@@ -2449,15 +2848,6 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         didMigrate: { context in
             try initializeV48OfflineQueueRecords(in: context, stage: "V46->V48 didMigrate")
         }
-    )
-
-    // V44/V45/V46 are recent schema representatives that can trip SwiftData's
-    // duplicate-checksum validator when the full historical plan is built for
-    // older stores. Older stores jump from the last stable pre-cluster source to
-    // V47, while known recent stores use the source-isolated plans below.
-    static let migrateV43toV47 = MigrationStage.lightweight(
-        fromVersion: MerianSchemaV43.self,
-        toVersion: MerianSchemaV47.self
     )
 
     static let migrateV41toV42 = MigrationStage.lightweight(
@@ -3002,22 +3392,15 @@ enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV44.self,
-            MerianSchemaV47.self,
             MerianSchemaV48.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            migrateV44toV47,
-            MerianMigrationPlan.migrateV47toV48
+            MerianMigrationPlan.migrateV44toV48
         ]
     }
-
-    static let migrateV44toV47 = MigrationStage.lightweight(
-        fromVersion: MerianSchemaV44.self,
-        toVersion: MerianSchemaV47.self
-    )
 }
 
 /// Short recovery plan for stores on the V45 representative.

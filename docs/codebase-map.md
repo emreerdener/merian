@@ -91,22 +91,21 @@ Recent schema milestones:
 - V45 added optional invasive-status context to completed local scans. V46 was a
   shipped no-op checksum twin of V45; runtime migration keeps the
   duplicate-prone V44/V45/V46 recent cluster out of the full historical plan,
-  jumps older stores V43→V47, and uses source-isolated recent plans for stores
-  already stamped V44, V45, or V46. V45 and V46 stores jump through separate
-  direct V45→V48 and V46→V48 plans.
+  jumps older stores V43→V48, and uses source-isolated recent plans for stores
+  already stamped V44, V45, or V46. V44, V45, and V46 stores jump through
+  separate direct V44→V48, V45→V48, and V46→V48 plans.
 - V47 added offline video inference replay fields so sampled frames can be
   queued separately from the user-visible playback video timeline. Its frozen
-  schema reuses the V45 representative for unchanged local-scan,
-  captured-media, and collection models, and only changes `OfflineQueuedScan`.
+  schema keeps local-scan, captured-media, and collection models self-contained
+  inside V47, and keeps `OfflineQueuedScan` scalar-only.
 - V48 added durable queue retry metadata on `OfflineQueuedScan`, plus
   `OfflineJobRecord` and bounded `OfflineQueueEvent` rows for scan ingestion,
   cloud deletion, collection sync, diagnostics, and future offline work. The
   V47→V48 migration is custom, not lightweight: every existing queued scan must
   leave migration with retry fields initialized and a `scan-ingestion:{id}` job
   row so startup does not fall back to safe mode on stores with queued media.
-  V47 job/event rows are seeded from migration snapshots instead of fetching
-  just-migrated queued scans as V48 rows during `didMigrate`, avoiding stale
-  SwiftData model-identity traps.
+  V47 job/event rows and replacement queued-scan rows are seeded from migration
+  snapshots so stale SwiftData model-identity traps cannot survive into V48.
   `MigrationPlanTests` carries the disk-store fixture matrix for image, video,
   audio, description-only, and mixed queued media, and
   `.github/workflows/ios-startup-safety.yml` runs that suite beside store

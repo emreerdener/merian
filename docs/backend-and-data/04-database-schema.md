@@ -1994,13 +1994,12 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
   V44/V45/V46 remain available as historical types and source-specific recovery
   inputs, but they must not appear in the full historical
   `MerianMigrationPlan.schemas` or `MerianMigrationPlan.stages`; that plan jumps
-  V43→V47 so unknown older stores do not force SwiftData to validate the
-  duplicate-prone recent representatives. V47 reuses the V45 model classes for
-  unchanged local-scan, captured-media, and collection entities, and only
-  introduces a new `OfflineQueuedScan`. V44 stores can still jump V44→V47, but
-  V45 and V46 stores skip V47 and jump directly to V48 from source-isolated
-  V45→V48 and V46→V48 plans so SwiftData never migrates unchanged entities
-  across the V47 V45-class reuse boundary.
+  V43→V48 so unknown older stores do not force SwiftData to validate the
+  duplicate-prone recent representatives. V47 keeps local-scan, captured-media,
+  and collection entities frozen inside V47, and keeps its queued scan model
+  scalar-only. V44, V45, and V46 stores skip V47 and jump directly to V48 from
+  source-isolated V44→V48, V45→V48, and V46→V48 plans so SwiftData never
+  migrates unchanged entities across duplicate-prone recent representatives.
   App startup reads store metadata before creating `ModelContainer`: fresh/current
   stores open without a migration plan, known recent stores use the source-isolated
   V47/V46/V45/V44 plans, and only unknown older stores use the full historical
@@ -2176,9 +2175,10 @@ mirror for migration safety and compatibility.
   `[IdentifyVisualMediaItem]` aligned one-to-one with `inferenceImagePaths`, so
   replay can tell `/identify-multimodal` which inference images are still photos
   versus ordered video frames.)
-- `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count
+- `queueAttemptCount`: Int? (Added in `MerianSchemaV48`. Persisted retry count
   for the queued scan. Replaces the older process-local `uploadRetryCount`
-  authority and feeds the automatic retry budget.)
+  authority and feeds the automatic retry budget. `nil` is treated as `0` while
+  migration normalizes older rows.)
 - `queueLastAttemptAt`, `queueNextRetryAt`: Date? (Added in V48. Used by
   `OfflineQueueRetryPolicy` and the scheduler to survive app relaunch without
   losing backoff state.)
@@ -2190,9 +2190,12 @@ mirror for migration safety and compatibility.
   Mirrors `/check-scan-status` ingestion job state for server-owned work.)
 - `queueLastServerRetryAfter`: Date? (Added in V48. Parsed server retry window
   for retryable ingestion jobs.)
-- `queueUpdatedAt`: Date (Added in V48. Last durable queue metadata mutation.)
-- `queueNeedsAttention`: Bool (Added in V48. Terminal user-actionable local
-  problems stay visible instead of being purged as disposable tombstones.)
+- `queueUpdatedAt`: Date? (Added in V48. Last durable queue metadata mutation.
+  Diagnostics fall back to the scan timestamp if an older row has not been
+  normalized yet.)
+- `queueNeedsAttention`: Bool? (Added in V48. Terminal user-actionable local
+  problems stay visible instead of being purged as disposable tombstones. `nil`
+  is treated as `false`.)
 
 The V47→V48 migration is custom. It initializes the new retry/status fields for
 every existing queued scan and creates a `scan-ingestion:{scanId}`
@@ -2200,11 +2203,11 @@ every existing queued scan and creates a `scan-ingestion:{scanId}`
 description scans reopen persistently instead of falling back to safe mode after
 the schema update. Preserve the display timeline (`capturedMediaJSON` /
 `capturedMediaEntries`) and inference-only video frame fields during this
-backfill. V47 source stores snapshot queued scan IDs and timestamps in
-`willMigrate`, then use those snapshots to insert `OfflineJobRecord` and
-`OfflineQueueEvent` rows without fetching the just-migrated queued scans as V48
-objects during `didMigrate`. That avoids SwiftData carrying a stale V47 model
-identity into V48 fetches.
+backfill. V47 source stores snapshot every queued-scan field needed to recreate
+the row in `willMigrate`, delete the scalar V47 source rows, then use those
+snapshots to repair or recreate current-schema queued scans and seed
+`OfflineJobRecord` / `OfflineQueueEvent` rows. That avoids SwiftData carrying a
+stale V47 model identity into V48 while preserving all queued media kinds.
 
 ### `OfflineJobRecord`
 

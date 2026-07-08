@@ -66,11 +66,11 @@ struct QueuedScanContext: Identifiable, Equatable {
             gpsElevation: scan.gpsElevation,
             gpsLatitude: scan.gpsLatitude,
             gpsLongitude: scan.gpsLongitude,
-            queueAttemptCount: scan.queueAttemptCount,
+            queueAttemptCount: scan.queueAttemptCount ?? 0,
             queueNextRetryAt: scan.queueNextRetryAt,
             queueLastErrorCode: scan.queueLastErrorCode,
             queueLastErrorMessage: scan.queueLastErrorMessage,
-            queueNeedsAttention: scan.queueNeedsAttention,
+            queueNeedsAttention: scan.queueNeedsAttention ?? false,
             approximateQueuedBytes: Self.approximateQueuedBytes(
                 mediaItems: scan.serializedCapturedMediaItems,
                 inferenceImagePaths: scan.inferenceImagePaths
