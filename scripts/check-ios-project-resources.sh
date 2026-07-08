@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-project_file="${1:-merian.xcodeproj/project.pbxproj}"
+if [[ $# -gt 0 ]]; then
+  project_file="$1"
+elif [[ -f "Merian.xcodeproj/project.pbxproj" ]]; then
+  project_file="Merian.xcodeproj/project.pbxproj"
+else
+  project_file="merian.xcodeproj/project.pbxproj"
+fi
 
 if [[ ! -f "$project_file" ]]; then
   echo "Missing generated Xcode project file: $project_file" >&2

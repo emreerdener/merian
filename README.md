@@ -172,9 +172,13 @@ From the repo root:
 
 ```bash
 make xcodegen
+make prepare-ios-release VERSION=1.0.1
 make db-push
 make functions-deploy
 ```
+
+Run `make prepare-ios-release VERSION=x.y.z` only when preparing a TestFlight
+archive. Normal local builds should not change the app version or build number.
 
 ### Release Notes & Changelog
 

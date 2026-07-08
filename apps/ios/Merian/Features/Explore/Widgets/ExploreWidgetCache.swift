@@ -52,7 +52,6 @@ struct ExploreWidgetItem: Codable, Equatable, Hashable, Identifiable, Sendable {
     let sharedAt: String
     let speciesCommonName: String?
     let speciesScientificName: String?
-    let hasVideo: Bool?
 
     var id: String { postId }
 }

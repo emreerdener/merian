@@ -28,6 +28,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
     make db-push
     make functions-deploy
     ```
+6.  **TestFlight Release Prep**: Before archiving in Xcode, run `make prepare-ios-release VERSION=x.y.z` from the repo root. The command updates the tracked XcodeGen source, regenerates `Merian.xcodeproj`, and writes the local archive-prep marker. See [`docs/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md).
 
 ## Testing Protocol
 

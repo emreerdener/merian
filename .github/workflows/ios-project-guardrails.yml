@@ -10,9 +10,13 @@ on:
       - "apps/ios/**"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-release-prep.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/prepare-ios-release.sh"
       - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/ci-run-summary.sh"
+      - "scripts/test-ios-versioning.sh"
+      - "scripts/validate-ios-versioning.sh"
   push:
     branches:
       - main
@@ -24,9 +28,13 @@ on:
       - "apps/ios/**"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-release-prep.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/prepare-ios-release.sh"
       - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/ci-run-summary.sh"
+      - "scripts/test-ios-versioning.sh"
+      - "scripts/validate-ios-versioning.sh"
   workflow_dispatch:
 
 concurrency:
@@ -51,6 +59,9 @@ jobs:
 
       - name: Validate generated iOS project guardrails
         run: make validate-ios-project
+
+      - name: Validate iOS release versioning guardrails
+        run: make validate-ios-versioning
 
       - name: Validate SwiftData migration source guardrails
         run: make validate-ios-migration-guardrails

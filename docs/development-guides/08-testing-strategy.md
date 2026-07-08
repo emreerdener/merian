@@ -196,7 +196,7 @@ MerianTests/
     later tests.
     The workflow's
     Swift package cache key depends on the checked-in
-    `merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
+    `Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
     lockfile and runs with automatic package resolution disabled so startup
     failures are not hidden behind cold dependency resolution or silent package
     upgrades. The workflow also uploads the raw `xcodebuild` log and appends

@@ -415,7 +415,7 @@ iOS:
 
 ```sh
 make xcodegen
-xcodebuild -scheme Merian -project merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
 Also verify that publishing a Field Trip appears only on profiles and Field

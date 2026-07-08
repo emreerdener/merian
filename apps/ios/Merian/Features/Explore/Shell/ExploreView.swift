@@ -271,7 +271,10 @@ struct ExploreView: View {
             isPresented: Binding(
                 get: { viewModel.isCommentsSheetPresented },
                 set: { if !$0 { viewModel.dismissCommentsSheet() } }
-            )
+            ),
+            onDismiss: {
+                ExploreVideoAutoplayCoordinator.requestResume()
+            }
         ) {
             if let post = viewModel.activeCommentsPost {
                 ExploreCommentsSheet(viewModel: viewModel, post: post)
@@ -283,6 +286,7 @@ struct ExploreView: View {
                 set: { if !$0 { viewModel.dismissNotifications() } }
             ),
             onDismiss: {
+                ExploreVideoAutoplayCoordinator.requestResume()
                 Task { await viewModel.refreshUnreadNotificationCount() }
             }
         ) {
@@ -299,6 +303,7 @@ struct ExploreView: View {
         .sheet(
             item: $selectedInsightRoute,
             onDismiss: {
+                ExploreVideoAutoplayCoordinator.requestResume()
                 viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
             }
         ) { route in
@@ -522,6 +527,7 @@ struct ExploreView: View {
 
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }
 
@@ -552,6 +558,7 @@ struct ExploreView: View {
         ZStack(alignment: .topTrailing) {
             Button {
                 HapticManager.shared.triggerSelectionPulse()
+                ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
                 viewModel.presentNotifications()
             } label: {
                 Image(systemName: "bell")
@@ -747,7 +754,10 @@ private struct ExploreFeedTabContent: View {
                             speciesDisplayName: viewModel.resolvedSpeciesCommonName(for: post),
                             mediaReloadGeneration: viewModel.mediaReloadGeneration,
                             onLike: { Task { await viewModel.toggleLike(for: post) } },
-                            onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
+                            onComments: {
+                                ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
+                                Task { await viewModel.openCommentsSheet(for: post) }
+                            },
                             onShare: { viewModel.share(post) },
                             onOpenDetail: { onOpenPostDetail(post) },
                             onOpenAuthorProfile: { onOpenAuthorProfile(post) },

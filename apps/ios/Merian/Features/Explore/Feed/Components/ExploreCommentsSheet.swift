@@ -74,7 +74,9 @@ struct ExploreCommentsSheet: View {
         .onChange(of: viewModel.replyStateVersion) { _, newValue in
             localReplyStateVersion = newValue
         }
-        .sheet(item: $selectedAuthorProfileRoute) { route in
+        .sheet(item: $selectedAuthorProfileRoute, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
+        }) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
     }
@@ -427,11 +429,13 @@ struct ExploreCommentsSheet: View {
 
     private func openAuthorProfile(for comment: ExploreComment) {
         HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(comment: comment)
     }
 
     private func openMentionProfile(_ mention: ExploreCommentMention) {
         HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(mention: mention)
     }
 

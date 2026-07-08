@@ -67,8 +67,8 @@ ruby -rjson -e 'ARGV.each { |path| JSON.parse(File.read(path)); puts "#{path}: O
 7. Build and run focused tests:
 
 ```bash
-xcodebuild -scheme Merian -project merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
-xcodebuild test-without-building -scheme Merian -project merian.xcodeproj -destination 'id=<BOOTED_SIMULATOR_ID>' -only-testing:merianTests/ChangelogTests
+xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcodebuild test-without-building -scheme Merian -project Merian.xcodeproj -destination 'id=<BOOTED_SIMULATOR_ID>' -only-testing:merianTests/ChangelogTests
 ```
 
 ## Writing Guidelines

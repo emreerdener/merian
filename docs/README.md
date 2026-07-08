@@ -240,6 +240,9 @@ networking, and hardware orchestration logic.
 - **[`/development-guides/13-asset-catalog.md`](./development-guides/13-asset-catalog.md)**
   — Asset catalog grouping and naming rules for reusable 3D graphics, app
   assets, brand marks, and personas.
+- **[`/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md)**
+  — Semantic app versions, TestFlight build-number prep, and Xcode archive
+  preflight rules.
 
 ## About Merian
 

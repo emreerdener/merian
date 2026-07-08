@@ -330,6 +330,7 @@ struct ExplorePostDetailView: View {
             }
         }
         .sheet(item: $selectedInsightRoute, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
             isRefreshingAfterInsightDismiss = true
             Task {
                 if let post = currentPost {
@@ -359,10 +360,13 @@ struct ExplorePostDetailView: View {
         }) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
-        .sheet(item: $selectedNotificationReplyThreadRoute) { route in
+        .sheet(item: $selectedNotificationReplyThreadRoute, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
+        }) { route in
             ExploreNotificationReplyThreadSheet(viewModel: viewModel, route: route)
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
             Task {
                 if let post = currentPost {
                     syncLocalFieldNotes(for: post)
@@ -388,7 +392,9 @@ struct ExplorePostDetailView: View {
                 )
             }
         }
-        .sheet(isPresented: $showPostComposer) {
+        .sheet(isPresented: $showPostComposer, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
+        }) {
             if let post = currentPost {
                 ExplorePostComposerView(
                     mode: .edit,
@@ -535,6 +541,7 @@ struct ExplorePostDetailView: View {
               let notificationReplyThreadTarget else { return }
 
         didPresentNotificationReplyThread = true
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedNotificationReplyThreadRoute = ExploreNotificationReplyThreadRoute(
             post: post,
             parentCommentId: notificationReplyThreadTarget.parentCommentId,
@@ -687,6 +694,7 @@ struct ExplorePostDetailView: View {
         }
 
         HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         showFieldNotesEditor = true
     }
 
@@ -705,6 +713,7 @@ struct ExplorePostDetailView: View {
             }
 
             HapticManager.shared.triggerSelectionPulse()
+            ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
             showPostComposer = true
         }
     }
@@ -864,6 +873,7 @@ struct ExplorePostDetailView: View {
 
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }
 

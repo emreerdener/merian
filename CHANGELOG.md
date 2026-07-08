@@ -131,10 +131,13 @@ TestFlight, App Store, support, and QA.
   publications without sending APNs or adding Field Trips to Explore feeds,
   maps, or widgets.
 - Added public video Explore posts: shared video scans can now appear in Explore
-  and Ask the Community with muted playback in feed/detail and thumbnail play
-  indicators on compact surfaces.
-- Fixed Explore videos so playback interruptions no longer leave feed or
-  post-detail videos stuck without usable controls.
+  and Ask the Community with muted playback in feed/detail and in-app thumbnail
+  play indicators on compact surfaces.
+- Removed the play badge from Explore Home Screen widgets so video posts appear
+  as clean still thumbnails there.
+- Fixed Explore videos so interrupted feed and post-detail playback rebuilds
+  before resuming, with a visible play control left behind if autoplay cannot
+  restart.
 - Fixed Explore video playback so shared video posts autoplay when opened, fill
   their square preview, and use a centered play/pause control that fades during
   playback instead of a static marker; muting or unmuting one Explore video now

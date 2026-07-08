@@ -20,7 +20,7 @@ The `docs/` folder contains the master reference for the application:
 - **ALWAYS** update `project.yml` when adding new packages, frameworks, scopes, or entitlements.
 - Run `xcodegen generate` before attempting to build.
 - Do not hardcode a real Apple Developer Team ID in `project.yml` or shared tracked config. Signing must flow through `Signing.xcconfig` -> optional `Signing.local.xcconfig`, with the local file ignored by git.
-- **Build Versioning**: Do not manually modify build versions in `Info.plist` or inject postGen scripts to map them. The project uses `agvtool` and `VERSIONING_SYSTEM: apple-generic` dynamically. `Info.plist` must strictly inherit `$(CURRENT_PROJECT_VERSION)` and `$(MARKETING_VERSION)`. *Never downgrade `MARKETING_VERSION` as it will break TestFlight delivery algorithms.*
+- **Build Versioning**: `project.yml` owns `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`; `Info.plist` files must strictly inherit `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`. Use `make prepare-ios-release VERSION=x.y.z` before TestFlight archives, and use `agvtool` only as an optional read-only sanity check because XcodeGen overwrites generated-project-only changes. *Never downgrade `MARKETING_VERSION` or reuse a TestFlight build number.*
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`. NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
 
 ## 2. Directory Structure

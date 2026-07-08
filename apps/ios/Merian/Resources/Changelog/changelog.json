@@ -20,6 +20,19 @@
       ]
     },
     {
+      "id": "2026-07-08-explore-widget-thumbnails",
+      "date": "2026-07-08",
+      "title": "Explore widget thumbnails",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Explore Home Screen widgets now show video posts as clean still thumbnails without a play badge."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-08-explore-video-profile-resume",
       "date": "2026-07-08",
       "title": "Explore video recovery",
@@ -27,7 +40,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Explore videos now recover after playback interruptions, keeping feed and post-detail controls usable."
+            "Explore videos now rebuild interrupted feed and post-detail playback before resuming, and leave a visible play control if autoplay cannot restart."
           ]
         }
       ]
@@ -604,7 +617,7 @@
         {
           "title": "Added",
           "items": [
-            "Shared video scans can now appear in Explore and Ask the Community, with muted playback in feed/detail and thumbnail play indicators on compact surfaces."
+            "Shared video scans can now appear in Explore and Ask the Community, with muted playback in feed/detail and in-app thumbnail play indicators on compact surfaces."
           ]
         }
       ]

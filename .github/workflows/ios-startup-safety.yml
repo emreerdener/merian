@@ -17,9 +17,11 @@ on:
       - "apps/ios/MerianTests/Models/MigrationPlanTests.swift"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-release-prep.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
       - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/select-ios-simulator-destination.sh"
+      - "scripts/validate-ios-versioning.sh"
   push:
     branches:
       - main
@@ -38,9 +40,11 @@ on:
       - "apps/ios/MerianTests/Models/MigrationPlanTests.swift"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-release-prep.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
       - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/select-ios-simulator-destination.sh"
+      - "scripts/validate-ios-versioning.sh"
   schedule:
     - cron: "17 10 * * *"
   workflow_dispatch:
@@ -81,7 +85,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-xcode-spm-
 
@@ -101,9 +105,13 @@ jobs:
           XCODE_DERIVED_DATA: ${{ runner.temp }}/startup-safety-derived-data
         run: |
           set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
           xcodebuild build-for-testing \
             -scheme Merian \
-            -project merian.xcodeproj \
+            -project "$xcode_project" \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -clonedSourcePackagesDirPath .build/xcode-source-packages \
             -skipPackageUpdates \
@@ -120,9 +128,13 @@ jobs:
           XCODE_DERIVED_DATA: ${{ runner.temp }}/startup-safety-derived-data
         run: |
           set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
           xcodebuild test-without-building \
             -scheme Merian \
-            -project merian.xcodeproj \
+            -project "$xcode_project" \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -clonedSourcePackagesDirPath .build/xcode-source-packages \
             -skipPackageUpdates \
@@ -139,7 +151,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Print startup safety failure summary
         if: failure() && steps.startup-scope.outputs.should_run == 'true'

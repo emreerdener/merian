@@ -2,7 +2,7 @@ name: Merian
 settings:
   base:
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: 1.0
+    MARKETING_VERSION: 1.0.0
     CURRENT_PROJECT_VERSION: 199
     VERSIONING_SYSTEM: apple-generic
   configs:
@@ -78,6 +78,11 @@ targets:
       - package: Supabase
       - package: RiveRuntime
       - package: GoogleSignIn
+    preBuildScripts:
+      - name: Release Versioning Preflight
+        basedOnDependencyAnalysis: false
+        script: |
+          bash "${SRCROOT}/scripts/check-ios-release-prep.sh"
     postBuildScripts:
       - name: SwiftLint Validation
         basedOnDependencyAnalysis: false
@@ -103,6 +108,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.merian.Merian
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
+        INFOPLIST_KEY_CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        INFOPLIST_KEY_CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         INFOPLIST_KEY_CFBundleIconFiles: AppIcon

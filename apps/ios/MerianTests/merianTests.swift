@@ -1022,6 +1022,41 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
         XCTAssertTrue(state.showsPlaybackControl)
     }
 
+    func testHiddenVideoTapRevealsControlsWhilePlaybackIsStillMarkedPlaying() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+
+        state.reduce(.revealControls)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+    }
+
+    func testInterruptionMarksPlaybackRecoverableWithVisiblePlayControl() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+
+        state.reduce(.playbackInterrupted)
+
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertTrue(state.needsPlayerRebuildForRecovery)
+    }
+
+    func testSuccessfulRecoveryRebuildAndResumeClearsRecoveryState() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+        state.reduce(.playbackInterrupted)
+
+        state.reduce(.recoveryRebuildCompleted)
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+
+        state.reduce(.playbackStarted)
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+    }
+
     func testControlFadeOnlyHidesWhilePlaybackIsStillMarkedPlaying() {
         var pausedState = ExploreVideoPlaybackOverlayState(isPlaying: false, showsPlaybackControl: true)
         pausedState.reduce(.controlFadeCompleted)
@@ -1034,6 +1069,20 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
 
         XCTAssertTrue(playingState.isPlaying)
         XCTAssertFalse(playingState.showsPlaybackControl)
+    }
+
+    func testControlFadeDoesNotHideControlsWhileRecoveryIsPending() {
+        var state = ExploreVideoPlaybackOverlayState(
+            isPlaying: true,
+            showsPlaybackControl: true,
+            needsPlayerRebuildForRecovery: true
+        )
+
+        state.reduce(.controlFadeCompleted)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertTrue(state.needsPlayerRebuildForRecovery)
     }
 }
 

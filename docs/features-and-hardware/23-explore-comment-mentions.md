@@ -192,8 +192,8 @@ Recommended checks:
 deno check --config services/supabase/functions/deno.json services/supabase/functions/create-explore-comment/index.ts services/supabase/functions/get-explore-mention-suggestions/index.ts services/supabase/functions/get-explore-comments/index.ts services/supabase/functions/get-explore-comment-replies/index.ts services/supabase/functions/get-explore-notifications/index.ts services/supabase/functions/send-push-notification/index.ts
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreMentionsDb.test.ts
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreCommentsDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts services/supabase/functions/_tests/userFollowsDb.test.ts
-xcodebuild -scheme Merian -project merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
-xcodebuild test -scheme Merian -project merian.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:merianTests/ExploreCommentMentionTextTests
+xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcodebuild test -scheme Merian -project Merian.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:merianTests/ExploreCommentMentionTextTests
 ```
 
 The DB-backed Deno tests require a local Supabase Postgres schema at
