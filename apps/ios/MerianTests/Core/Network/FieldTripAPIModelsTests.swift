@@ -13,6 +13,11 @@ struct FieldTripAPIModelsTests {
               "title": "Backyard Safari",
               "subtitle": "A starter trip.",
               "description": "Find nearby species.",
+              "cover_image_url": "https://example.com/backyard.jpg",
+              "estimated_duration_minutes": 30,
+              "guide_where_to_look": "Look near flowers.",
+              "guide_why_it_matters": "Neighborhoods have biodiversity.",
+              "guide_safety_ethics": "Stay on public paths.",
               "region_tags": ["global"],
               "season_tags": ["spring"],
               "habitat_tags": ["yard"],
@@ -41,6 +46,7 @@ struct FieldTripAPIModelsTests {
                       "item_id": "item-1",
                       "prompt": "Bird",
                       "match_type": "taxonomy",
+                      "guide_tip": "Listen before scanning.",
                       "is_completed": true,
                       "completed_at": "2026-07-08T00:10:00Z",
                       "completed_common_name": "Northern Cardinal",
@@ -57,9 +63,97 @@ struct FieldTripAPIModelsTests {
         let response = try decoder.decode(FieldTripsCatalogResponse.self, from: json)
 
         #expect(response.data.count == 1)
+        #expect(response.data[0].coverImageUrl == "https://example.com/backyard.jpg")
+        #expect(response.data[0].estimatedDurationMinutes == 30)
+        #expect(response.data[0].guideWhereToLook == "Look near flowers.")
         #expect(response.data[0].activeProgress?.completedCount == 1)
         #expect(response.data[0].activeProgress?.fractionComplete == 0.25)
+        #expect(response.data[0].levels[0].items[0].guideTip == "Listen before scanning.")
         #expect(response.data[0].levels[0].items[0].completedCommonName == "Northern Cardinal")
+    }
+
+    @Test func recentPublicationsDecodeAuthorAndCursorFields() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "publication_id": "publication-1",
+              "template_id": "template-1",
+              "title": "Backyard Safari",
+              "description": "A morning walk.",
+              "published_at": "2026-07-08T01:00:00Z",
+              "like_count": 2,
+              "comment_count": 1,
+              "slug": "backyard_safari",
+              "template_title": "Backyard Safari",
+              "region_tags": ["global", "neighborhood"],
+              "season_tags": ["spring"],
+              "habitat_tags": ["yard"],
+              "cover_image_url": "https://example.com/backyard.jpg",
+              "item_count": 4,
+              "viewer_has_liked": false,
+              "author_user_id": "author-1",
+              "author_name": "Ari",
+              "author_username": "ari",
+              "author_avatar_url": null,
+              "is_pinned": false,
+              "pin_position": null
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let response = try decoder.decode(FieldTripRecentPublicationsResponse.self, from: json)
+
+        #expect(response.data.count == 1)
+        #expect(response.data[0].publicationId == "publication-1")
+        #expect(response.data[0].publicAuthorDisplayName == "@ari")
+        #expect(response.data[0].publishedAt == "2026-07-08T01:00:00Z")
+    }
+
+    @Test func profileSummariesDecodePinnedTripsAndFallbackWhenMissing() throws {
+        let v2Json = """
+        {
+          "data": {
+            "active": [],
+            "pinned": [
+              {
+                "publication_id": "publication-1",
+                "title": "Pinned Trip",
+                "description": null,
+                "published_at": "2026-07-08T01:00:00Z",
+                "like_count": 2,
+                "comment_count": 1,
+                "slug": "backyard_safari",
+                "template_title": "Backyard Safari",
+                "cover_image_url": null,
+                "item_count": 4,
+                "viewer_has_liked": false,
+                "is_pinned": true,
+                "pin_position": 1
+              }
+            ],
+            "published": []
+          }
+        }
+        """.data(using: .utf8)!
+
+        let legacyJson = """
+        {
+          "data": {
+            "active": [],
+            "published": []
+          }
+        }
+        """.data(using: .utf8)!
+
+        let v2Response = try decoder.decode(FieldTripProfileSummariesResponse.self, from: v2Json)
+        let legacyResponse = try decoder.decode(FieldTripProfileSummariesResponse.self, from: legacyJson)
+
+        #expect(v2Response.data.pinned.count == 1)
+        #expect(v2Response.data.pinned[0].isPinned)
+        #expect(v2Response.data.pinned[0].pinPosition == 1)
+        #expect(legacyResponse.data.pinned.isEmpty)
     }
 
     @Test func publicationDetailDoesNotRequireRawScanIds() throws {

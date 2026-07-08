@@ -235,9 +235,9 @@ struct ExploreAuthorProfileSheet: View {
                 ScansHeatmap(heatmapData: profile.profileHeatmapData)
 
                 if let fieldTrips = profile.fieldTrips, !fieldTrips.isEmpty {
-                    FieldTripProfilePreview(summaries: fieldTrips) { publicationId in
+                    FieldTripProfilePreview(summaries: fieldTrips, onOpenPublication: { publicationId in
                         navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
-                    }
+                    })
                 }
 
                 publishedPreview(profile)

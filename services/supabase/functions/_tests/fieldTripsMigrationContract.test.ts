@@ -102,3 +102,61 @@ Deno.test("Field Trips migration avoids reserved SQL parameter names", async () 
     "Field Trip helper functions should avoid unquoted reserved SQL parameter names",
   );
 });
+
+Deno.test("Field Trips v2 migration adds guided detail, start, recent trips, and profile pin contracts", async () => {
+  const sql = normalized(
+    await migrationSql("20260708033451_field_trips_v2.sql"),
+  );
+
+  for (
+    const fragment of [
+      "ADD COLUMN IF NOT EXISTS cover_image_url TEXT",
+      "ADD COLUMN IF NOT EXISTS estimated_duration_minutes INTEGER",
+      "ADD COLUMN IF NOT EXISTS guide_where_to_look TEXT",
+      "ADD COLUMN IF NOT EXISTS guide_why_it_matters TEXT",
+      "ADD COLUMN IF NOT EXISTS guide_safety_ethics TEXT",
+      "ADD COLUMN IF NOT EXISTS guide_tip TEXT",
+      "ADD COLUMN IF NOT EXISTS profile_pin_position INTEGER",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_template_detail",
+      "CREATE OR REPLACE FUNCTION public.start_field_trip",
+      "CREATE OR REPLACE FUNCTION public.get_recent_field_trip_publications",
+      "CREATE OR REPLACE FUNCTION public.set_field_trip_pinned_publications",
+      "GRANT EXECUTE ON FUNCTION public.start_field_trip(UUID, UUID) TO authenticated",
+      "ORDER BY t.region_rank, t.sort_order, t.title",
+      "preferred_count < resolved_limit",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
+Deno.test("Field Trips v2 keeps published trips out of Explore feed infrastructure", async () => {
+  const sql = normalized(
+    await migrationSql("20260708033451_field_trips_v2.sql"),
+  );
+
+  for (
+    const forbidden of [
+      "INSERT INTO public.explore_posts",
+      "explore_post_notifications",
+      "get_explore_feed",
+      "get_explore_feed_following",
+      "get_explore_feed_trending",
+      "get_explore_feed_nearby",
+    ]
+  ) {
+    assert(
+      !sql.includes(forbidden),
+      `Field Trips v2 must not write to or extend normal Explore feed infrastructure: ${forbidden}`,
+    );
+  }
+
+  assertStringIncludes(
+    sql,
+    "ORDER BY ftp.published_at DESC, ftp.id DESC",
+  );
+  assertStringIncludes(
+    sql,
+    "OR (ftp.published_at, ftp.id) < (before_published_at, before_publication_id)",
+  );
+});

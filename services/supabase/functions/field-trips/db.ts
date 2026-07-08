@@ -62,6 +62,51 @@ export async function fetchFieldTripCatalog(
   return Array.isArray(data) ? data : [];
 }
 
+export async function fetchFieldTripTemplateDetail(
+  userId: string,
+  templateId: string | null,
+  slug: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_template_detail",
+    {
+      self_id: userId,
+      target_template_id: templateId,
+      target_slug: slug,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip template: ${error.message}`,
+    );
+  }
+
+  return data ?? null;
+}
+
+export async function startFieldTrip(
+  userId: string,
+  templateId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown> {
+  const { data, error } = await supabaseAdmin.rpc("start_field_trip", {
+    self_id: userId,
+    target_template_id: templateId,
+  });
+
+  if (error) {
+    throw new Error(`Failed to start Field Trip: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error("Failed to start Field Trip: missing template detail.");
+  }
+
+  return data;
+}
+
 export async function applyFieldTripScanProgress(
   userId: string,
   scanId: string,
@@ -77,6 +122,38 @@ export async function applyFieldTripScanProgress(
 
   if (error) {
     throw new Error(`Failed to update Field Trip progress: ${error.message}`);
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchRecentFieldTripPublications(
+  userId: string,
+  userRegion: string | null,
+  habitatTags: string[],
+  limit: number,
+  cursor: {
+    beforePublishedAt: string | null;
+    beforePublicationId: string | null;
+  },
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_recent_field_trip_publications",
+    {
+      self_id: userId,
+      user_region: userRegion,
+      viewer_habitat_tags: habitatTags,
+      max_limit: limit,
+      before_published_at: cursor.beforePublishedAt,
+      before_publication_id: cursor.beforePublicationId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch recent Field Trips: ${error.message}`,
+    );
   }
 
   return Array.isArray(data) ? data : [];
@@ -103,7 +180,27 @@ export async function fetchFieldTripProfileSummaries(
     );
   }
 
-  return data ?? { active: [], published: [] };
+  return data ?? { active: [], pinned: [], published: [] };
+}
+
+export async function setPinnedFieldTripPublications(
+  userId: string,
+  publicationIds: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "set_field_trip_pinned_publications",
+    {
+      self_id: userId,
+      publication_ids: publicationIds,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Failed to update pinned Field Trips: ${error.message}`);
+  }
+
+  return data ?? { active: [], pinned: [], published: [] };
 }
 
 export async function fetchFieldTripPublicationDetail(

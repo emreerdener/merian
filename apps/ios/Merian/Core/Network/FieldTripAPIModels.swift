@@ -4,11 +4,27 @@ struct FieldTripsCatalogResponse: Decodable {
     let data: [FieldTripTemplate]
 }
 
+struct FieldTripTemplateDetailResponse: Decodable {
+    let data: FieldTripTemplate
+}
+
+struct FieldTripStartResponse: Decodable {
+    let data: FieldTripTemplate
+}
+
+struct FieldTripRecentPublicationsResponse: Decodable {
+    let data: [FieldTripRecentPublication]
+}
+
 struct FieldTripProgressUpdatesResponse: Decodable {
     let data: [FieldTripProgressUpdate]
 }
 
 struct FieldTripProfileSummariesResponse: Decodable {
+    let data: FieldTripProfileSummaries
+}
+
+struct FieldTripSetPinnedPublicationsResponse: Decodable {
     let data: FieldTripProfileSummaries
 }
 
@@ -38,6 +54,11 @@ struct FieldTripTemplate: Decodable, Identifiable, Equatable {
     let title: String
     let subtitle: String?
     let description: String?
+    let coverImageUrl: String?
+    let estimatedDurationMinutes: Int?
+    let guideWhereToLook: String?
+    let guideWhyItMatters: String?
+    let guideSafetyEthics: String?
     let regionTags: [String]
     let seasonTags: [String]
     let habitatTags: [String]
@@ -66,6 +87,7 @@ struct FieldTripChecklistItem: Decodable, Identifiable, Equatable {
     let itemId: String
     let prompt: String
     let matchType: String
+    let guideTip: String?
     let isCompleted: Bool
     let completedAt: String?
     let completedCommonName: String?
@@ -117,10 +139,24 @@ struct FieldTripProgressCompletedItem: Decodable, Identifiable, Equatable {
 
 struct FieldTripProfileSummaries: Decodable, Equatable {
     let active: [FieldTripProfileActiveSummary]
+    let pinned: [FieldTripProfilePublishedSummary]
     let published: [FieldTripProfilePublishedSummary]
 
     var isEmpty: Bool {
-        active.isEmpty && published.isEmpty
+        active.isEmpty && pinned.isEmpty && published.isEmpty
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case active
+        case pinned
+        case published
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        active = try container.decodeIfPresent([FieldTripProfileActiveSummary].self, forKey: .active) ?? []
+        pinned = try container.decodeIfPresent([FieldTripProfilePublishedSummary].self, forKey: .pinned) ?? []
+        published = try container.decodeIfPresent([FieldTripProfilePublishedSummary].self, forKey: .published) ?? []
     }
 }
 
@@ -151,8 +187,73 @@ struct FieldTripProfilePublishedSummary: Decodable, Identifiable, Equatable {
     let coverImageUrl: String?
     let itemCount: Int
     let viewerHasLiked: Bool
+    let isPinned: Bool
+    let pinPosition: Int?
 
     var id: String { publicationId }
+
+    private enum CodingKeys: String, CodingKey {
+        case publicationId
+        case title
+        case description
+        case publishedAt
+        case likeCount
+        case commentCount
+        case slug
+        case templateTitle
+        case coverImageUrl
+        case itemCount
+        case viewerHasLiked
+        case isPinned
+        case pinPosition
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        publicationId = try container.decode(String.self, forKey: .publicationId)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        publishedAt = try container.decode(String.self, forKey: .publishedAt)
+        likeCount = try container.decode(Int.self, forKey: .likeCount)
+        commentCount = try container.decode(Int.self, forKey: .commentCount)
+        slug = try container.decode(String.self, forKey: .slug)
+        templateTitle = try container.decode(String.self, forKey: .templateTitle)
+        coverImageUrl = try container.decodeIfPresent(String.self, forKey: .coverImageUrl)
+        itemCount = try container.decode(Int.self, forKey: .itemCount)
+        viewerHasLiked = try container.decode(Bool.self, forKey: .viewerHasLiked)
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        pinPosition = try container.decodeIfPresent(Int.self, forKey: .pinPosition)
+    }
+}
+
+struct FieldTripRecentPublication: Decodable, Identifiable, Equatable {
+    let publicationId: String
+    let templateId: String
+    let title: String
+    let description: String?
+    let publishedAt: String
+    let likeCount: Int
+    let commentCount: Int
+    let slug: String
+    let templateTitle: String
+    let regionTags: [String]
+    let seasonTags: [String]
+    let habitatTags: [String]
+    let coverImageUrl: String?
+    let itemCount: Int
+    let viewerHasLiked: Bool
+    let authorUserId: String
+    let authorName: String
+    let authorUsername: String?
+    let authorAvatarUrl: String?
+    let isPinned: Bool
+    let pinPosition: Int?
+
+    var id: String { publicationId }
+
+    var publicAuthorDisplayName: String {
+        ExplorePost.publicAuthorDisplayName(from: authorName, username: authorUsername)
+    }
 }
 
 struct FieldTripPublicationDetail: Decodable, Identifiable, Equatable {

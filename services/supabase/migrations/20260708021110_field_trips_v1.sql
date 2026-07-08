@@ -1098,7 +1098,7 @@ BEGIN
     WHERE publication_id = created_publication_id;
 
     INSERT INTO public.field_trip_publication_items(
-        created_publication_id,
+        publication_id,
         item_id,
         scan_id,
         species_id,

@@ -16,9 +16,11 @@ Field Trips, and Dictionary.
   show the request image and submitted-ID count without exposing the AI-derived
   name in the grid.
 - **Field Trips** shows curated regional checklist quests backed by the
-  `/field-trips` Edge Function. Active Field Trip progress can appear on public
-  profiles as checklist status only; published Field Trips open
-  `FieldTripPublicationDetailView` and remain separate from Explore posts.
+  `/field-trips` Edge Function. The tab defaults to `Available` trips and also
+  includes `Recent Trips` for region-aware published completed trips. Active
+  Field Trip progress can appear on public profiles as checklist status only;
+  published Field Trips open `FieldTripPublicationDetailView` and remain
+  separate from Explore posts, feed filters, maps, notifications, and widgets.
 - **Map** lives inside Observations and shows open-location public discoveries.
   It includes a horizontal species-type filter row below the Explore heading;
   the filter button opens a sheet with the region's available categories, and
@@ -62,9 +64,10 @@ for the surface they are changing:
 - `apps/ios/Merian/Features/Explore/Identify/` owns Community ID requests,
   activity, request detail, taxonomy search, disagreement handling, and
   community feedback entry points.
-- `apps/ios/Merian/Features/Explore/FieldTrips/` owns the Field Trips catalog,
-  progress cards, publication detail pages, profile modules, and Field Trip
-  comment presentation.
+- `apps/ios/Merian/Features/Explore/FieldTrips/` owns the Field Trips
+  Available/Recent tabs, guided template detail, progress cards, publication
+  detail pages, profile modules, pin controls, and Field Trip comment
+  presentation.
 - `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
   rows, sheet UI, and notification fetch/read state.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author

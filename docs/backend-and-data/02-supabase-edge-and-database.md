@@ -825,12 +825,13 @@ when the target author has at least one visible Explore post or visible Field
 Trip profile surface for the requester. Aggregates are computed from the
 author's non-tombstoned scans, preview posts are filtered to currently visible
 Explore posts, and Field Trip summaries are pulled from the separate Field Trip
-tables. It also returns public follower/following counts plus the
-requester-specific `viewer_is_following` flag. `get-explore-author-posts`
-returns the full published library projection with stable `(shared_at, post_id)`
-cursor pagination. Neither endpoint exposes raw auth metadata, exact
-coordinates, private scan IDs for achievements, qualifying achievement scans,
-browsable follower/following identities, or active Field Trip scan evidence.
+tables, including pinned published trips when present. It also returns public
+follower/following counts plus the requester-specific `viewer_is_following`
+flag. `get-explore-author-posts` returns the full published library projection
+with stable `(shared_at, post_id)` cursor pagination. Neither endpoint exposes
+raw auth metadata, exact coordinates, private scan IDs for achievements,
+qualifying achievement scans, browsable follower/following identities, or active
+Field Trip scan evidence.
 
 `get-explore-feed` now supports four shipped feed modes through one edge
 contract:

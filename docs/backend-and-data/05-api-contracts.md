@@ -33,6 +33,11 @@ Response:
       "title": "Backyard Safari",
       "subtitle": "Find nearby everyday wildlife",
       "description": "A starter checklist for neighborhood discoveries.",
+      "cover_image_url": "https://...",
+      "estimated_duration_minutes": 30,
+      "guide_where_to_look": "Look near flowers, fences, planters, and quiet corners.",
+      "guide_why_it_matters": "Neighborhood trips build a habit of noticing everyday biodiversity.",
+      "guide_safety_ethics": "Stay where you have permission and avoid handling animals.",
       "region_tags": ["global"],
       "season_tags": ["all"],
       "habitat_tags": ["neighborhood"],
@@ -60,7 +65,8 @@ Response:
             {
               "item_id": "uuid",
               "prompt": "Butterfly",
-              "match_type": "taxonomy_group",
+              "match_type": "taxonomy",
+              "guide_tip": "Wait for the insect to settle with wings visible.",
               "is_completed": true,
               "completed_at": "2026-07-08T12:05:00.000Z",
               "completed_common_name": "Monarch",
@@ -78,6 +84,35 @@ Free users receive starter and rotating-free trips plus locked Pro templates for
 upgrade display. Pro users receive the full active catalog. The backend owns
 access decisions; iOS uses `viewer_has_access` and `access_kind` only for UI
 state.
+
+### Template Detail and Explicit Start
+
+Template detail request:
+
+```json
+{
+  "action": "template_detail",
+  "template_id": "uuid"
+}
+```
+
+`slug` may be sent instead of `template_id`. The response is one catalog-shaped
+template object with guide fields, levels, item tips, access state, and viewer
+progress.
+
+Start request:
+
+```json
+{
+  "action": "start",
+  "template_id": "uuid"
+}
+```
+
+The start action is idempotent for an existing trip. It creates or unhides the
+caller's `user_field_trips` row for an accessible template and returns the
+refreshed template detail. Auto-start from matching scans remains supported as a
+fallback.
 
 ### Scan Progress
 
@@ -155,6 +190,23 @@ Response:
         "is_complete": false
       }
     ],
+    "pinned": [
+      {
+        "publication_id": "uuid",
+        "title": "Backyard Safari with Sam",
+        "description": "A quiet morning checklist.",
+        "published_at": "2026-07-08T13:00:00.000Z",
+        "like_count": 4,
+        "comment_count": 1,
+        "slug": "backyard_safari",
+        "template_title": "Backyard Safari",
+        "cover_image_url": "https://...",
+        "item_count": 4,
+        "viewer_has_liked": false,
+        "is_pinned": true,
+        "pin_position": 1
+      }
+    ],
     "published": [
       {
         "publication_id": "uuid",
@@ -167,7 +219,9 @@ Response:
         "template_title": "Backyard Safari",
         "cover_image_url": "https://...",
         "item_count": 4,
-        "viewer_has_liked": false
+        "viewer_has_liked": false,
+        "is_pinned": false,
+        "pin_position": null
       }
     ]
   }
@@ -177,7 +231,75 @@ Response:
 Active summaries are profile-status only. They must not expose scan IDs, media
 URLs, field notes, exact coordinates, public location labels, or private
 evidence. Published summaries expose only Field Trip publication IDs and
-snapshot metadata. Shadowbanned authors and mutual blocks are excluded.
+snapshot metadata. `pinned` is capped at 3 and omitted from the general
+`published` list. Shadowbanned authors and mutual blocks are excluded.
+
+Set pinned publications request:
+
+```json
+{
+  "action": "set_pinned_publications",
+  "publication_ids": ["uuid"]
+}
+```
+
+The response is the refreshed profile summaries payload. The endpoint replaces
+the caller's pin list, preserves the supplied order, rejects more than 3 IDs,
+and accepts only the caller's visible Field Trip publications.
+
+### Recent Trips
+
+Request:
+
+```json
+{
+  "action": "recent_publications",
+  "user_region": "us-ca",
+  "habitat_tags": ["neighborhood"],
+  "limit": 20,
+  "before_published_at": "2026-07-08T13:00:00.000Z",
+  "before_publication_id": "uuid"
+}
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "publication_id": "uuid",
+      "template_id": "uuid",
+      "title": "Backyard Safari with Sam",
+      "description": "A quiet morning checklist.",
+      "published_at": "2026-07-08T13:00:00.000Z",
+      "like_count": 4,
+      "comment_count": 1,
+      "slug": "backyard_safari",
+      "template_title": "Backyard Safari",
+      "region_tags": ["global", "neighborhood"],
+      "season_tags": ["spring"],
+      "habitat_tags": ["yard"],
+      "cover_image_url": "https://...",
+      "item_count": 4,
+      "viewer_has_liked": false,
+      "author_user_id": "uuid",
+      "author_name": "River W.",
+      "author_username": "river_w",
+      "author_avatar_url": "https://...",
+      "is_pinned": false,
+      "pin_position": null
+    }
+  ]
+}
+```
+
+Recent Trips is Field Trips-native. It does not extend Explore Recent,
+Following, Trending, Nearby, map, notifications, widgets, or public web share
+surfaces. When a region or habitat hint is supplied, the backend uses matching
+published trips while there is enough local inventory; thin local inventory
+adds `global` or no-region trips as fallback. Pagination is stable on
+`(published_at DESC, publication_id DESC)`.
 
 ### Publication Detail, Likes, and Comments
 
@@ -281,8 +403,9 @@ Explore post tables. Comment payloads intentionally mirror the compact
 `ExploreComment` shape for iOS reuse, with `post_id` carrying the Field Trip
 publication ID inside this scoped endpoint.
 
-Publishing a Field Trip never writes `explore_posts`, Explore map rows, or
-Explore notifications. Sharing is a future layer.
+Publishing a Field Trip never writes `explore_posts`, Explore feed cards,
+Explore map rows, Explore notifications, APNs, widgets, or unread badges.
+Sharing is a future layer.
 
 ---
 

@@ -5,11 +5,18 @@ import Observation
 @Observable
 final class FieldTripsViewModel {
     var templates: [FieldTripTemplate] = []
+    var recentPublications: [FieldTripRecentPublication] = []
     var isLoading = false
+    var isLoadingRecent = false
+    var isLoadingMoreRecent = false
     var errorMessage: String?
+    var recentErrorMessage: String?
     var toastMessage: String?
+    var hasMoreRecentPublications = true
 
     private var didLoad = false
+    private var didLoadRecent = false
+    private let recentPageSize = 20
 
     func load(userRegion: String? = nil, force: Bool = false) async {
         guard force || !didLoad else { return }
@@ -29,6 +36,70 @@ final class FieldTripsViewModel {
 
     func refresh(userRegion: String? = nil) async {
         await load(userRegion: userRegion, force: true)
+    }
+
+    func loadRecent(userRegion: String? = nil, force: Bool = false) async {
+        guard force || !didLoadRecent else { return }
+        isLoadingRecent = true
+        recentErrorMessage = nil
+        if force {
+            hasMoreRecentPublications = true
+        }
+        defer {
+            isLoadingRecent = false
+            didLoadRecent = true
+        }
+
+        do {
+            recentPublications = try await MerianNetworkClient.shared.getRecentFieldTripPublications(
+                userRegion: userRegion,
+                limit: recentPageSize
+            )
+            hasMoreRecentPublications = recentPublications.count >= recentPageSize
+        } catch {
+            recentErrorMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    func refreshRecent(userRegion: String? = nil) async {
+        await loadRecent(userRegion: userRegion, force: true)
+    }
+
+    func loadMoreRecent(userRegion: String? = nil) async {
+        guard hasMoreRecentPublications,
+              !isLoadingRecent,
+              !isLoadingMoreRecent,
+              let cursor = recentPublications.last else {
+            return
+        }
+
+        isLoadingMoreRecent = true
+        recentErrorMessage = nil
+        defer { isLoadingMoreRecent = false }
+
+        do {
+            let page = try await MerianNetworkClient.shared.getRecentFieldTripPublications(
+                userRegion: userRegion,
+                limit: recentPageSize,
+                beforePublishedAt: cursor.publishedAt,
+                beforePublicationId: cursor.publicationId
+            )
+            recentPublications.append(contentsOf: page)
+            hasMoreRecentPublications = page.count >= recentPageSize
+        } catch {
+            recentErrorMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    func template(withId templateId: String) -> FieldTripTemplate? {
+        templates.first { $0.templateId == templateId }
+    }
+
+    func replaceTemplate(_ template: FieldTripTemplate) {
+        guard let index = templates.firstIndex(where: { $0.templateId == template.templateId }) else {
+            return
+        }
+        templates[index] = template
     }
 
     func applyProgressToast(_ updates: [FieldTripProgressUpdate]) {

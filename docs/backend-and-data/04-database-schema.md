@@ -1654,12 +1654,14 @@ coordinates to the client contract.
   stably on `(shared_at DESC, post_id DESC)`.
 - `public.field_trip_templates`:
   Curated Field Trip definitions with slug, title, region/season/habitat tags,
-  difficulty, Pro/rotating-free access flags, and active state.
+  difficulty, Pro/rotating-free access flags, active state, optional cover
+  image, estimated duration, and curated guide sections.
 - `public.field_trip_levels`:
   Sequential levels for a template. Levels unlock in `level_number` order.
 - `public.field_trip_checklist_items`:
   Curated checklist prompts for each level. Items support species,
-  scientific-name, taxonomy/group, habitat/ecology, and prompt-text matching.
+  scientific-name, taxonomy/group, habitat/ecology, prompt-text matching, and
+  optional curated item-level tips.
 - `public.user_field_trips`:
   Per-user progress rows with start time, current level, profile visibility,
   completion time, and denormalized progress counts.
@@ -1669,7 +1671,8 @@ coordinates to the client contract.
   Field Trip start time.
 - `public.field_trip_publications`:
   Published Field Trip snapshot headers with user-editable title, optional
-  description, optional AI summary, counts, and author/template linkage.
+  description, optional AI summary, counts, author/template linkage, and
+  optional profile pin position metadata capped at 3 per author.
 - `public.field_trip_publication_items`:
   Snapshot item rows for published pages. These can include species/taxonomy
   labels and selected snapshot media, but they do not make the underlying scans
@@ -1682,6 +1685,16 @@ coordinates to the client contract.
 - `public.get_field_trip_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
   Returns active templates with access state, levels, checklist items, and the
   requester's progress.
+- `public.get_field_trip_template_detail(self_id UUID, target_template_id UUID, target_slug TEXT)`:
+  Returns one catalog-shaped template payload with guide fields, item tips,
+  access state, and viewer progress.
+- `public.start_field_trip(self_id UUID, target_template_id UUID)`:
+  Explicitly starts or unhides the caller's progress row for an accessible
+  Field Trip template.
+- `public.get_recent_field_trip_publications(self_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], max_limit INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
+  Returns Field Trips-native recent published completed trips with coarse
+  region/habitat preference and stable `(published_at DESC, publication_id DESC)`
+  pagination. This does not participate in normal Explore feed RPCs.
 - `public.field_trip_item_matches_scan(target_item_id UUID, target_scan_id UUID)`:
   Internal matcher used by progress application. It checks species,
   scientific-name, taxonomy/group, habitat/ecology, and prompt-text signals
@@ -1691,8 +1704,12 @@ coordinates to the client contract.
   only scans made after the trip starts and only against the current unlocked
   level.
 - `public.get_field_trip_profile_summaries(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
-  Returns active status-only and published Field Trip summaries visible to the
-  requester.
+  Returns active status-only, pinned published, and general published Field Trip
+  summaries visible to the requester. Pinned publications are omitted from the
+  general published list.
+- `public.set_field_trip_pinned_publications(self_id UUID, publication_ids UUID[])`:
+  Replaces the caller's pinned published Field Trips, preserving supplied order
+  and rejecting more than 3 publication IDs.
 - `public.can_view_field_trip_publication(self_id UUID, target_publication_id UUID)`:
   Returns whether the requester may view a published Field Trip after
   publication state, shadowban, and block checks.

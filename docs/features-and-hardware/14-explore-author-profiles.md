@@ -153,14 +153,17 @@ Field Trips extension:
 
 - `20260708021110_field_trips_v1.sql` adds Field Trip template, progress,
   publication, like, and comment storage.
+- `20260708033451_field_trips_v2.sql` adds template guide fields, item tips,
+  explicit starts, Recent Trips publication feed support, and pinned profile
+  publication metadata.
 - `public.user_has_visible_field_trip_profile(...)` extends author-profile
   discoverability.
-- `public.get_field_trip_profile_summaries(...)` returns active status-only and
-  published Field Trip summaries.
+- `public.get_field_trip_profile_summaries(...)` returns active status-only,
+  pinned published, and general published Field Trip summaries.
 - `get-explore-author-profile` includes a `field_trips` object in the profile
   response.
-- `field-trips` owns Field Trip detail, like, comment, catalog, progress, and
-  publication actions.
+- `field-trips` owns Field Trip catalog, template detail, start, Recent Trips,
+  profile pin, progress, publication, like, and comment actions.
 
 ## iOS Implementation
 
@@ -276,10 +279,10 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic
 
 Deploy the migration before deploying the two new Edge Functions. The functions depend on the RPCs and on the `device_time_zone` column existing.
 
-For Field Trips, deploy `20260708021110_field_trips_v1.sql` before deploying
-`field-trips` and the updated `get-explore-author-profile` function. The
-profile endpoint depends on the Field Trip summary RPC when returning
-`field_trips`.
+For Field Trips, deploy `20260708021110_field_trips_v1.sql` and
+`20260708033451_field_trips_v2.sql` before deploying `field-trips` and the
+updated `get-explore-author-profile` function. The profile endpoint depends on
+the Field Trip summary RPC when returning `field_trips`.
 
 All identify paths now persist `device_time_zone` when the client sends a valid IANA timezone. Existing scans without a timezone continue to compute public profile streaks and heatmaps in UTC.
 

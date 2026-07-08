@@ -195,6 +195,12 @@ struct ExploreView: View {
                 ExploreCommunityIdentificationDetailView(requestId: route.requestId)
                     .toolbar(.hidden, for: .tabBar)
             }
+            .navigationDestination(for: FieldTripTemplateRoute.self) { route in
+                FieldTripTemplateDetailView(templateId: route.templateId) { publicationId in
+                    navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                }
+                .toolbar(.hidden, for: .tabBar)
+            }
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in
                 FieldTripPublicationDetailView(publicationId: route.publicationId)
                     .toolbar(.hidden, for: .tabBar)
@@ -1068,6 +1074,10 @@ struct ExploreNotificationReplyThreadTarget: Hashable {
 
 struct FieldTripPublicationRoute: Hashable {
     let publicationId: String
+}
+
+struct FieldTripTemplateRoute: Hashable {
+    let templateId: String
 }
 
 private extension String {

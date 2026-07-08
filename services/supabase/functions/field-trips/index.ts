@@ -17,15 +17,23 @@ import {
   fetchFieldTripProfileSummaries,
   fetchFieldTripPublicationCounts,
   fetchFieldTripPublicationDetail,
+  fetchFieldTripTemplateDetail,
+  fetchRecentFieldTripPublications,
   insertFieldTripComment,
   publishFieldTrip,
   setFieldTripLike,
+  setPinnedFieldTripPublications,
+  startFieldTrip,
 } from "./db.ts";
 
 type FieldTripAction =
   | "catalog"
+  | "template_detail"
+  | "start"
+  | "recent_publications"
   | "apply_scan_progress"
   | "profile_summaries"
+  | "set_pinned_publications"
   | "publish"
   | "detail"
   | "set_like"
@@ -48,8 +56,12 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
 
   switch (rawAction) {
     case "catalog":
+    case "template_detail":
+    case "start":
+    case "recent_publications":
     case "apply_scan_progress":
     case "profile_summaries":
+    case "set_pinned_publications":
     case "publish":
     case "detail":
     case "set_like":
@@ -81,6 +93,60 @@ function nullableTrimmedString(
   return trimmed;
 }
 
+function nullableTrimmedStringArray(
+  rawValue: unknown,
+  maxCount: number,
+  maxLength: number,
+): string[] {
+  if (rawValue == null) return [];
+  if (!Array.isArray(rawValue)) {
+    throw makeHttpError(400, "Expected an array of strings.");
+  }
+  if (rawValue.length > maxCount) {
+    throw makeHttpError(
+      400,
+      `Array value must contain ${maxCount} items or fewer.`,
+    );
+  }
+
+  const values: string[] = [];
+  for (const item of rawValue) {
+    if (typeof item !== "string") {
+      throw makeHttpError(400, "Expected an array of strings.");
+    }
+    const trimmed = item.trim();
+    if (trimmed.length === 0) continue;
+    if (trimmed.length > maxLength) {
+      throw makeHttpError(
+        400,
+        `Array string values must be ${maxLength} characters or fewer.`,
+      );
+    }
+    values.push(trimmed);
+  }
+  return values;
+}
+
+function requireUuidArray(
+  rawValue: unknown,
+  fieldName: string,
+  maxCount: number,
+): string[] {
+  if (!Array.isArray(rawValue)) {
+    throw makeHttpError(400, `${fieldName} must be an array.`);
+  }
+  if (rawValue.length > maxCount) {
+    throw makeHttpError(
+      400,
+      `${fieldName} must contain ${maxCount} ids or fewer.`,
+    );
+  }
+
+  return rawValue.map((value, index) =>
+    requireUuid(value, `${fieldName}[${index}]`)
+  );
+}
+
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -100,6 +166,73 @@ Deno.serve((req: Request) =>
           user.id,
           userRegion,
           limit,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "template_detail": {
+        const templateId = body.template_id == null
+          ? null
+          : requireUuid(body.template_id, "template_id");
+        const slug = nullableTrimmedString(body.slug, 90);
+        if (templateId == null && slug == null) {
+          throw makeHttpError(400, "template_id or slug is required.");
+        }
+
+        const data = await fetchFieldTripTemplateDetail(
+          user.id,
+          templateId,
+          slug,
+          supabaseAdmin,
+        );
+        if (!data) {
+          return jsonResponse({ error: "Field Trip template not found" }, 404);
+        }
+        return jsonResponse({ data });
+      }
+
+      case "start": {
+        const actionErr = requireParams(body, ["template_id"]);
+        if (actionErr) return actionErr;
+        const templateId = requireUuid(body.template_id, "template_id");
+        const data = await startFieldTrip(
+          user.id,
+          templateId,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "recent_publications": {
+        const limit = normalizeLimit(body.limit, 20, 60);
+        const userRegion = nullableTrimmedString(body.user_region, 80);
+        const habitatTags = nullableTrimmedStringArray(
+          body.habitat_tags,
+          12,
+          80,
+        );
+        const beforePublishedAt = normalizeCursorTimestamp(
+          body.before_published_at,
+          "before_published_at",
+        );
+        const beforePublicationId = body.before_publication_id == null
+          ? null
+          : requireUuid(body.before_publication_id, "before_publication_id");
+
+        if ((beforePublishedAt == null) != (beforePublicationId == null)) {
+          throw makeHttpError(
+            400,
+            "before_published_at and before_publication_id must be provided together.",
+          );
+        }
+
+        const data = await fetchRecentFieldTripPublications(
+          user.id,
+          userRegion,
+          habitatTags,
+          limit,
+          { beforePublishedAt, beforePublicationId },
           supabaseAdmin,
         );
         return jsonResponse({ data });
@@ -126,6 +259,22 @@ Deno.serve((req: Request) =>
           user.id,
           authorUserId,
           limit,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "set_pinned_publications": {
+        const actionErr = requireParams(body, ["publication_ids"]);
+        if (actionErr) return actionErr;
+        const publicationIds = requireUuidArray(
+          body.publication_ids,
+          "publication_ids",
+          3,
+        );
+        const data = await setPinnedFieldTripPublications(
+          user.id,
+          publicationIds,
           supabaseAdmin,
         );
         return jsonResponse({ data });

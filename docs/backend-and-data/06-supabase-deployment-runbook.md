@@ -93,6 +93,16 @@ composer/share/edit function bundles must deploy together so
 `scan_media_assets` and `explore_post_media` only set `has_audio` when
 `captured_media` proves an audio companion exists.
 
+Field Trips releases are migration-plus-function releases too. Deploy
+`20260708021110_field_trips_v1.sql` before
+`20260708033451_field_trips_v2.sql`, then deploy the `field-trips` Edge
+Function and the updated `get-explore-author-profile` bundle together. V1
+creates the Field Trip tables, progress/publication/comment storage, profile
+visibility helpers, and publication snapshots. V2 adds guided template detail,
+explicit starts, Recent Trips pagination, and profile pins. A function-only
+deploy cannot serve V2 actions until both migrations are applied; a
+database-only deploy leaves the app without the Field Trips action router.
+
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
 anonymous-compatible app routes set `verify_jwt = false` and then perform manual
@@ -428,6 +438,11 @@ actionable if a command fails while applying Auth provider config.
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- For Field Trips releases, confirm `field-trips` serves `catalog`,
+  `template_detail`, `start`, `recent_publications`, and `profile_summaries`
+  after the V1 and V2 migrations. Publishing a Field Trip must not write
+  `explore_posts`, map points, Explore notification rows, APNs, widgets, or
+  unread badges.
 - For video-upload contract releases, confirm `scan_media_assets.scan_id` and
   `scan_media_assets.url` are nullable in production
   (`information_schema.columns.is_nullable = YES`) before expecting six-file

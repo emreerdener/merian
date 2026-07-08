@@ -4,8 +4,9 @@ Action-based Edge Function for Field Trips. The function is authenticated via
 `withEdgeHandler`; request bodies cannot choose `self_id`.
 
 The backing SQL lives in
-`services/supabase/migrations/20260708021110_field_trips_v1.sql`. Deploy that
-migration before deploying this function.
+`services/supabase/migrations/20260708021110_field_trips_v1.sql` and
+`services/supabase/migrations/20260708033451_field_trips_v2.sql`. Deploy both
+migrations before deploying this function.
 
 ## Privacy Contract
 
@@ -14,7 +15,10 @@ migration before deploying this function.
   coordinates, public location labels, or private evidence.
 - Published Field Trips are snapshots in Field Trip tables, not Explore posts.
 - Publishing a Field Trip must not create Explore feed posts, Explore map
-  points, or Explore notifications.
+  points, Explore notifications, APNs, widgets, or unread badges.
+- Published Field Trips appear on public profiles and the Field Trips
+  `Recent Trips` tab only, not in Explore Recent, Following, Trending, Nearby,
+  map, notifications, or widgets.
 - Field Trip comments and likes use Field Trip publication tables, not Explore
   post interaction tables.
 - Visibility checks must reject shadowbanned authors and mutual blocks.
@@ -26,7 +30,42 @@ migration before deploying this function.
 ```
 
 Returns active templates, access state, levels, checklist items, and the
-requesting user's active progress.
+requesting user's active progress. V2 catalog rows may include
+`cover_image_url`, `estimated_duration_minutes`, `guide_where_to_look`,
+`guide_why_it_matters`, `guide_safety_ethics`, and item-level `guide_tip`
+values.
+
+```json
+{ "action": "template_detail", "template_id": "uuid" }
+```
+
+Returns one template detail payload with guide fields, levels, checklist tips,
+access state, and viewer progress. `slug` may be supplied instead of
+`template_id`.
+
+```json
+{ "action": "start", "template_id": "uuid" }
+```
+
+Explicitly starts or unhides the caller's progress for an accessible template
+and returns the refreshed template detail. Matching scans can still auto-start
+eligible trips as a fallback.
+
+```json
+{
+  "action": "recent_publications",
+  "user_region": "us-ca",
+  "limit": 20,
+  "before_published_at": "2026-07-08T13:00:00.000Z",
+  "before_publication_id": "uuid"
+}
+```
+
+Returns published completed Field Trips for the Field Trips `Recent Trips` tab.
+The backend uses coarse region/habitat matches when there is enough local
+inventory and adds globally tagged or no-region publications when local
+inventory is thin. Pagination is stable on
+`(published_at DESC, publication_id DESC)`.
 
 ```json
 { "action": "apply_scan_progress", "scan_id": "uuid" }
@@ -61,9 +100,17 @@ Returns:
 { "action": "profile_summaries", "author_user_id": "uuid", "limit": 6 }
 ```
 
-Returns active and published Field Trip summaries visible to the requester.
-Active summaries are checklist-status only and must not include scan IDs, media,
-field notes, or location details.
+Returns active, pinned, and published Field Trip summaries visible to the
+requester. Active summaries are checklist-status only and must not include scan
+IDs, media, field notes, or location details. Pinned summaries are capped at 3
+and are omitted from the general `published` list.
+
+```json
+{ "action": "set_pinned_publications", "publication_ids": ["uuid"] }
+```
+
+Replaces the caller's profile-pinned published Field Trips and returns refreshed
+profile summaries. The list is capped at 3 publication IDs.
 
 ```json
 {
@@ -97,8 +144,12 @@ The iOS client maps this endpoint through:
 
 ```swift
 MerianNetworkClient.shared.getFieldTrips(userRegion:limit:)
+MerianNetworkClient.shared.getFieldTripTemplate(templateId:)
+MerianNetworkClient.shared.startFieldTrip(templateId:)
+MerianNetworkClient.shared.getRecentFieldTripPublications(userRegion:habitatTags:limit:beforePublishedAt:beforePublicationId:)
 MerianNetworkClient.shared.applyFieldTripProgress(scanId:)
 MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
+MerianNetworkClient.shared.setPinnedFieldTripPublications(publicationIds:)
 MerianNetworkClient.shared.publishFieldTrip(userFieldTripId:title:description:aiSummary:)
 MerianNetworkClient.shared.getFieldTripPublication(publicationId:)
 MerianNetworkClient.shared.setFieldTripLike(publicationId:liked:)
@@ -112,10 +163,11 @@ not fail scan persistence.
 ## Deployment Order
 
 1. Apply `20260708021110_field_trips_v1.sql`.
-2. Deploy this function.
-3. Deploy `get-explore-author-profile` so profile responses include
+2. Apply `20260708033451_field_trips_v2.sql`.
+3. Deploy this function.
+4. Deploy `get-explore-author-profile` so profile responses include
    `field_trips`.
-4. Ship the iOS client.
+5. Ship the iOS client.
 
 ## Verification
 

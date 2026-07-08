@@ -2031,6 +2031,57 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripsCatalogResponse.self, from: data).data
     }
 
+    func getFieldTripTemplate(templateId: String) async throws -> FieldTripTemplate {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "template_detail",
+            "template_id": templateId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripTemplateDetailResponse.self, from: data).data
+    }
+
+    func startFieldTrip(templateId: String) async throws -> FieldTripTemplate {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "start",
+            "template_id": templateId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripStartResponse.self, from: data).data
+    }
+
+    func getRecentFieldTripPublications(
+        userRegion: String? = nil,
+        habitatTags: [String] = [],
+        limit: Int = 20,
+        beforePublishedAt: String? = nil,
+        beforePublicationId: String? = nil
+    ) async throws -> [FieldTripRecentPublication] {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "recent_publications",
+            "limit": limit
+        ]
+        if let userRegion = userRegion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["user_region"] = userRegion
+        }
+        let trimmedHabitatTags = habitatTags.compactMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        }
+        if !trimmedHabitatTags.isEmpty {
+            payload["habitat_tags"] = trimmedHabitatTags
+        }
+        if let beforePublishedAt, let beforePublicationId {
+            payload["before_published_at"] = beforePublishedAt
+            payload["before_publication_id"] = beforePublicationId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripRecentPublicationsResponse.self, from: data).data
+    }
+
     func applyFieldTripProgress(scanId: String) async throws -> [FieldTripProgressUpdate] {
         let functionUrl = try endpointURL("field-trips")
         let bodyData = try JSONSerialization.data(withJSONObject: [
@@ -2050,6 +2101,16 @@ final class MerianNetworkClient {
         ])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(FieldTripProfileSummariesResponse.self, from: data).data
+    }
+
+    func setPinnedFieldTripPublications(publicationIds: [String]) async throws -> FieldTripProfileSummaries {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "set_pinned_publications",
+            "publication_ids": Array(publicationIds.prefix(3))
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripSetPinnedPublicationsResponse.self, from: data).data
     }
 
     func publishFieldTrip(

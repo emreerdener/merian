@@ -10,6 +10,7 @@
           "title": "Added",
           "items": [
             "Explore now includes Field Trips: regional checklist quests that can auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
+            "Field Trips now include guided detail pages, explicit Start, curated checklist tips, Recent Trips inside Field Trips, and up to 3 pinned published trips on profiles.",
             "Published Field Trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map."
           ]
         }

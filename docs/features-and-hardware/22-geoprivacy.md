@@ -85,7 +85,8 @@ Field Trips have a separate public-profile boundary:
   coordinates, public location labels, or private evidence;
 - publishing a Field Trip creates a Field Trip snapshot, not an Explore post;
 - published Field Trip pages may show selected snapshot media/species cards but
-  do not create Explore map points or change scan geoprivacy.
+  do not create Explore feed cards, Explore map points, notifications, widgets,
+  unread badges, or change scan geoprivacy.
 
 When adding a new public, shared, widget, extension, notification, or export
 surface, use this checklist:

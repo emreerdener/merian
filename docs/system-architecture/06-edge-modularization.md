@@ -87,9 +87,13 @@ natively.
   generation, and `guards.ts` for action, limit, entitlement, prompt-suggestion,
   and deterministic safety checks.
 - `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
-  validates the action payload, user identity, UUIDs, cursor pairs, and comment
-  lengths; `db.ts` is the only layer that calls the Field Trip RPCs and
-  publication/comment tables.
+  validates the action payload, user identity, UUIDs, cursor pairs, pin arrays,
+  habitat tags, and comment lengths; `db.ts` is the only layer that calls the
+  Field Trip RPCs and publication/comment tables. The endpoint is intentionally
+  action-based because V2 serves catalog, template detail, explicit start,
+  Recent Trips, profile pins, scan progress, publication detail, likes, and
+  comments from one Field Trips-native surface without extending Explore feed
+  functions.
 - The identify and enrich-scan `db.ts` files include `alternative_common_names`
   in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new
   column added to `species_dictionary` that is served to the client must be
