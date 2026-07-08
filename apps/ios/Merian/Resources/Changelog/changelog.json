@@ -11,7 +11,9 @@
           "items": [
             "Explore now includes Field Trips: regional checklist quests that can auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
             "Field Trips now include guided detail pages, explicit Start, curated checklist tips, a Field Trips-only Community segment with For You, Following, and Recent filters, and up to 3 pinned published trips on profiles.",
+            "Seasonal Challenges add curated, non-competitive Field Trip goals with explicit Join, challenge progress, completion badges, and challenge entry pages.",
             "Published Field Trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map.",
+            "Eligible challenge hashtags can appear as optional Explore sharing suggestions, but Merian never auto-posts or auto-tags a scan for a challenge.",
             "Field Trip comments, replies, and followed-author publications can now appear in the in-app activity bell without sending push notifications."
           ]
         }

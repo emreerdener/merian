@@ -34,6 +34,7 @@ struct ExploreView: View {
     @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
     @State private var activeDictionaryMode: ExploreDictionaryMode = .dictionary
     @State private var activeCommunityMode: CommunityIdentificationMode = .requests
+    @State private var activeFieldTripsSection: FieldTripsSection = .available
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
 
     private let allowsInsightPresentation: Bool
@@ -105,6 +106,7 @@ struct ExploreView: View {
 
                 FieldTripsView(
                     userRegion: dictionaryUserRegionIdentifier,
+                    selectedSection: $activeFieldTripsSection,
                     onOpenPublication: { publicationId in
                         navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
                     },
@@ -209,8 +211,22 @@ struct ExploreView: View {
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
+            .navigationDestination(for: FieldTripChallengeRoute.self) { route in
+                FieldTripChallengeDetailView(
+                    challengeId: route.challengeId,
+                    onOpenEntry: { entryId in
+                        navigationPath.append(FieldTripChallengeEntryRoute(entryId: entryId))
+                    },
+                    onOpenAuthorProfile: openAuthorProfile
+                )
+                .toolbar(.hidden, for: .tabBar)
+            }
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in
                 FieldTripPublicationDetailView(publicationId: route.publicationId)
+                    .toolbar(.hidden, for: .tabBar)
+            }
+            .navigationDestination(for: FieldTripChallengeEntryRoute.self) { route in
+                FieldTripChallengeEntryDetailView(entryId: route.entryId)
                     .toolbar(.hidden, for: .tabBar)
             }
             .toolbar { exploreToolbar }
@@ -361,7 +377,8 @@ struct ExploreView: View {
                 activeTab: activeTab,
                 activeDiscoveryMode: $activeDiscoveryMode,
                 activeDictionaryMode: $activeDictionaryMode,
-                activeCommunityMode: $activeCommunityMode
+                activeCommunityMode: $activeCommunityMode,
+                activeFieldTripsSection: $activeFieldTripsSection
             )
         }
 
@@ -446,6 +463,17 @@ struct ExploreView: View {
             authorName: publication.authorName,
             authorUsername: publication.authorUsername,
             authorAvatarUrl: publication.authorAvatarUrl
+        )
+    }
+
+    private func openAuthorProfile(for entry: FieldTripChallengeEntry) {
+        HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
+        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
+            authorUserId: entry.authorUserId,
+            authorName: entry.authorName,
+            authorUsername: entry.authorUsername,
+            authorAvatarUrl: entry.authorAvatarUrl
         )
     }
 
@@ -1018,6 +1046,7 @@ private struct ExploreRootModePicker: View {
     @Binding var activeDiscoveryMode: ExploreDiscoveryMode
     @Binding var activeDictionaryMode: ExploreDictionaryMode
     @Binding var activeCommunityMode: CommunityIdentificationMode
+    @Binding var activeFieldTripsSection: FieldTripsSection
 
     var body: some View {
         picker
@@ -1043,11 +1072,11 @@ private struct ExploreRootModePicker: View {
                 }
             }
         case .fieldTrips:
-            Text("Field Trips")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
+            Picker("Field Trips view", selection: $activeFieldTripsSection) {
+                ForEach(FieldTripsSection.allCases) { section in
+                    Text(section.title).tag(section)
+                }
+            }
         case .dictionary:
             Picker("Dictionary view", selection: $activeDictionaryMode) {
                 Text("Catalog").tag(ExploreDictionaryMode.dictionary)
@@ -1061,7 +1090,7 @@ private struct ExploreRootModePicker: View {
         case .community:
             240
         case .fieldTrips:
-            170
+            240
         case .feed, .dictionary:
             220
         }
@@ -1105,6 +1134,14 @@ struct FieldTripPublicationRoute: Hashable {
 
 struct FieldTripTemplateRoute: Hashable {
     let templateId: String
+}
+
+struct FieldTripChallengeRoute: Hashable {
+    let challengeId: String
+}
+
+struct FieldTripChallengeEntryRoute: Hashable {
+    let entryId: String
 }
 
 private extension String {

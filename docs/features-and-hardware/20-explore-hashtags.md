@@ -12,7 +12,9 @@ comments, or captions.
 - The share sheet also renders quick-tap AI-assisted suggestions below the
   hashtag text field. Suggestions are derived locally from the scan's field
   notes, species identity, AI metadata, public location label, habitat/weather
-  context, image-quality signals, and event tags when supplied.
+  context, image-quality signals, and event tags when supplied. Field Trip
+  Challenges may supply event tags for scans that completed joined live
+  challenge items, but those tags remain suggestions only.
 - A stored tag is lowercase text without the leading `#`.
 - Feed cards render hashtag chips below the post media and above the action row.
   The chip row stays one line and scrolls horizontally on overflow.
@@ -70,6 +72,7 @@ uses the already-available identification and scan metadata:
   group tags, semantic tags, invasive flag, image quality score, life stage,
   reproductive condition, and ecological interactions
 - optional `eventHashtags` for future local event or BioBlitz configuration
+  and Field Trip Challenge suggestions returned for the scan
 
 Suggestions are normalized through the same client-side helper used for typed
 hashtags:
@@ -94,6 +97,13 @@ species name, location tags such as `#austintx`, taxonomy/ecology tags such as
 `#freshwaterfish`, then field-note and image-quality tags. Individual words from
 the common name are deliberately lower priority so they do not crowd out useful
 context.
+
+Field Trip Challenge suggestions come from `/field-trips` with
+`action: "scan_challenge_hashtags"` when the share sheet has a scan ID. The
+server returns normalized suggested hashtags only for challenge items completed
+by that caller's scan. The composer does not preselect them, require them,
+persist private challenge evidence, create Explore challenge feeds, or publish a
+post automatically.
 
 Read paths:
 
@@ -137,6 +147,8 @@ shadowbanned authors, and blocked relationships are excluded.
   `Features/Explore/Feed/Models/ExploreHashtagSuggestion.swift`
 - Context assembly from scan/identification metadata:
   `Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift`
+- Field Trip Challenge hashtag lookup:
+  `MerianNetworkClient.shared.getFieldTripChallengeHashtags(scanId:)`
 - Regression tests:
   `MerianTests/Features/Explore/ExploreHashtagSuggestionTests.swift`
 
@@ -146,7 +158,8 @@ newer UI can make spacing decisions without per-card detail requests.
 
 ## Future Event Matching
 
-Hashtag browsing does not auto-submit a post to an event yet. Event or BioBlitz
-configuration should reference the same normalized tag strings and match the
-public edge table server-side, preserving the existing Explore visibility and
-moderation boundaries.
+Hashtag browsing does not auto-submit a post to an event or challenge. Event,
+BioBlitz, or Field Trip Challenge configuration should reference the same
+normalized tag strings and match the public edge table server-side only after a
+user manually publishes an Explore post with those tags, preserving the existing
+Explore visibility and moderation boundaries.

@@ -242,6 +242,156 @@ struct FieldTripAPIModelsTests {
         #expect(response.data.viewerHasLiked)
     }
 
+    @Test func challengeCatalogDecodesParticipationAndEntries() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "challenge_id": "challenge-1",
+              "template_id": "template-1",
+              "template_slug": "park_pollinators",
+              "template_title": "Park Pollinators",
+              "slug": "summer_pollinator_watch",
+              "title": "Summer Pollinator Watch",
+              "subtitle": "A seasonal pollinator challenge.",
+              "description": "Find pollinators during summer.",
+              "cover_image_url": "https://example.com/pollinators.jpg",
+              "starts_at": "2026-06-01T00:00:00Z",
+              "ends_at": "2026-08-31T23:59:59Z",
+              "status": "live",
+              "region_tags": ["global"],
+              "season_tags": ["summer"],
+              "habitat_tags": ["park"],
+              "suggested_hashtags": ["summerpollinators"],
+              "is_pro_only": false,
+              "is_temporarily_free": true,
+              "viewer_has_access": true,
+              "access_kind": "temporarily_free",
+              "participant_count": 12,
+              "completion_count": 4,
+              "published_entry_count": 2,
+              "viewer_participation": {
+                "participation_id": "participation-1",
+                "user_field_trip_id": "trip-1",
+                "joined_at": "2026-07-08T00:00:00Z",
+                "current_level_number": 1,
+                "completed_at": null,
+                "badge_awarded_at": null,
+                "completed_count": 1,
+                "target_count": 4
+              },
+              "template": null,
+              "entries": [
+                {
+                  "entry_id": "entry-1",
+                  "challenge_id": "challenge-1",
+                  "challenge_slug": "summer_pollinator_watch",
+                  "challenge_title": "Summer Pollinator Watch",
+                  "template_id": "template-1",
+                  "template_slug": "park_pollinators",
+                  "template_title": "Park Pollinators",
+                  "title": "My Pollinator Watch",
+                  "description": null,
+                  "published_at": "2026-07-08T01:00:00Z",
+                  "like_count": 3,
+                  "comment_count": 1,
+                  "region_tags": ["global"],
+                  "season_tags": ["summer"],
+                  "habitat_tags": ["park"],
+                  "cover_image_url": null,
+                  "item_count": 4,
+                  "viewer_has_liked": false,
+                  "author_user_id": "author-1",
+                  "author_name": "Ari",
+                  "author_username": "ari",
+                  "author_avatar_url": null
+                }
+              ]
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let response = try decoder.decode(FieldTripChallengesCatalogResponse.self, from: json)
+
+        #expect(response.data[0].isLive)
+        #expect(response.data[0].viewerParticipation?.fractionComplete == 0.25)
+        #expect(response.data[0].suggestedHashtags == ["summerpollinators"])
+        #expect(response.data[0].entries[0].publicAuthorDisplayName == "@ari")
+    }
+
+    @Test func challengeProgressResponseDecodesOptionalChallengeUpdates() throws {
+        let json = """
+        {
+          "data": [],
+          "challenge_updates": [
+            {
+              "participation_id": "participation-1",
+              "challenge_id": "challenge-1",
+              "slug": "summer_pollinator_watch",
+              "title": "Summer Pollinator Watch",
+              "current_level_number": 1,
+              "current_level_title": "Level 1",
+              "completed_count": 2,
+              "target_count": 4,
+              "is_complete": false,
+              "badge_awarded_at": null,
+              "suggested_hashtags": ["summerpollinators"],
+              "newly_completed_items": [
+                {
+                  "item_id": "item-1",
+                  "prompt": "Butterfly",
+                  "common_name": "Monarch",
+                  "scientific_name": "Danaus plexippus",
+                  "completed_at": "2026-07-08T01:00:00Z"
+                }
+              ]
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let response = try decoder.decode(FieldTripProgressUpdatesResponse.self, from: json)
+
+        #expect(response.data.isEmpty)
+        #expect(response.challengeUpdates.count == 1)
+        #expect(response.challengeUpdates[0].suggestedHashtags == ["summerpollinators"])
+        #expect(response.challengeUpdates[0].newlyCompletedItems[0].commonName == "Monarch")
+    }
+
+    @Test func profileSummariesDecodeChallengeBadges() throws {
+        let json = """
+        {
+          "data": {
+            "active": [],
+            "pinned": [],
+            "published": [],
+            "challenge_badges": [
+              {
+                "badge_id": "badge-1",
+                "challenge_id": "challenge-1",
+                "badge_key": "summer_pollinator_watch_complete",
+                "title": "Summer Pollinator Watch",
+                "awarded_at": "2026-07-08T01:00:00Z",
+                "challenge_slug": "summer_pollinator_watch",
+                "challenge_title": "Summer Pollinator Watch",
+                "cover_image_url": null,
+                "region_tags": ["global"],
+                "season_tags": ["summer"],
+                "habitat_tags": ["park"]
+              }
+            ]
+          }
+        }
+        """.data(using: .utf8)!
+
+        let response = try decoder.decode(FieldTripProfileSummariesResponse.self, from: json)
+
+        #expect(response.data.challengeBadges.count == 1)
+        #expect(!response.data.isEmpty)
+        #expect(response.data.challengeBadges[0].challengeTitle == "Summer Pollinator Watch")
+    }
+
     private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

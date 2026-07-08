@@ -71,6 +71,19 @@ struct ExploreHashtagSuggestionContext: Equatable {
         copy.fieldNotes = fieldNotes
         return copy
     }
+
+    func updating(eventHashtags additionalEventHashtags: [String]) -> ExploreHashtagSuggestionContext {
+        var copy = self
+        var seen = Set(copy.eventHashtags.compactMap { ExploreHashtagSuggestionEngine.normalizedTag(from: $0) })
+        for hashtag in additionalEventHashtags {
+            guard let normalized = ExploreHashtagSuggestionEngine.normalizedTag(from: hashtag),
+                  seen.insert(normalized).inserted else {
+                continue
+            }
+            copy.eventHashtags.append(normalized)
+        }
+        return copy
+    }
 }
 
 enum ExploreHashtagSuggestionEngine {

@@ -18,12 +18,17 @@ Field Trips, and Dictionary.
 - **Field Trips** shows curated regional checklist quests backed by the
   `/field-trips` Edge Function. The tab defaults to `Available` trips and also
   includes `Community` for Field Trips-native published completions with
-  `For You`, `Following`, and `Recent` filters. Active Field Trip progress can
-  appear on public profiles as checklist status only; published Field Trips open
-  `FieldTripPublicationDetailView` and remain separate from Explore posts, feed
-  filters, maps, APNs, and widgets. Field Trip comment/reply/followed-publication
-  activity may appear in the Explore activity sheet and unread badge, but it is
-  in-app only.
+  `For You`, `Following`, and `Recent` filters. `Available` may show
+  Seasonal Challenges above the catalog; challenges require explicit Join,
+  count only in-window scans after `joined_at`, award profile badges, and
+  publish challenge entries through Field Trips-specific pages. Active Field
+  Trip progress can appear on public profiles as checklist status only;
+  published Field Trips open `FieldTripPublicationDetailView`, challenge
+  entries open `FieldTripChallengeEntryDetailView`, and all of these remain
+  separate from Explore posts, feed filters, maps, APNs, widgets, prizes, and
+  leaderboards. Challenge hashtags are optional composer suggestions only.
+  Field Trip comment/reply/followed-publication activity may appear in the
+  Explore activity sheet and unread badge, but it is in-app only.
 - **Map** lives inside Observations and shows open-location public discoveries.
   It includes a horizontal species-type filter row below the Explore heading;
   the filter button opens a sheet with the region's available categories, and
@@ -68,9 +73,10 @@ for the surface they are changing:
   activity, request detail, taxonomy search, disagreement handling, and
   community feedback entry points.
 - `apps/ios/Merian/Features/Explore/FieldTrips/` owns the Field Trips
-  Available/Community segments, Community filters, guided template detail,
-  progress cards, publication detail pages, profile modules, pin controls, and
-  Field Trip comment presentation.
+  Available/Community segments, Seasonal Challenges cards/detail, Community
+  filters, guided template detail, progress cards, publication and challenge
+  entry detail pages, profile modules, challenge badges, pin controls, and Field
+  Trip comment presentation.
 - `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
   rows, sheet UI, and notification fetch/read state.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author

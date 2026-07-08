@@ -2051,6 +2051,42 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripStartResponse.self, from: data).data
     }
 
+    func getFieldTripChallenges(userRegion: String? = nil, limit: Int = 20) async throws -> [FieldTripChallenge] {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "challenges_catalog",
+            "limit": limit
+        ]
+        if let userRegion = userRegion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["user_region"] = userRegion
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengesCatalogResponse.self, from: data).data
+    }
+
+    func getFieldTripChallenge(challengeId: String, entriesLimit: Int = 12) async throws -> FieldTripChallenge {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "challenge_detail",
+            "challenge_id": challengeId,
+            "entries_limit": entriesLimit
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengeDetailResponse.self, from: data).data
+    }
+
+    func joinFieldTripChallenge(challengeId: String) async throws -> FieldTripChallenge {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "join_challenge",
+            "challenge_id": challengeId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengeDetailResponse.self, from: data).data
+    }
+
     func getRecentFieldTripPublications(
         userRegion: String? = nil,
         habitatTags: [String] = [],
@@ -2115,14 +2151,28 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripCommunityPublicationsResponse.self, from: data).data
     }
 
-    func applyFieldTripProgress(scanId: String) async throws -> [FieldTripProgressUpdate] {
+    func applyFieldTripProgress(scanId: String) async throws -> FieldTripProgressResult {
         let functionUrl = try endpointURL("field-trips")
         let bodyData = try JSONSerialization.data(withJSONObject: [
             "action": "apply_scan_progress",
             "scan_id": scanId
         ])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 15.0)
-        return try makeExploreDecoder().decode(FieldTripProgressUpdatesResponse.self, from: data).data
+        let response = try makeExploreDecoder().decode(FieldTripProgressUpdatesResponse.self, from: data)
+        return FieldTripProgressResult(
+            fieldTripUpdates: response.data,
+            challengeUpdates: response.challengeUpdates
+        )
+    }
+
+    func getFieldTripChallengeHashtags(scanId: String) async throws -> [String] {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "scan_challenge_hashtags",
+            "scan_id": scanId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengeHashtagsResponse.self, from: data).data
     }
 
     func getFieldTripProfileSummaries(authorUserId: String, limit: Int = 6) async throws -> FieldTripProfileSummaries {
@@ -2166,6 +2216,56 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripPublicationDetailResponse.self, from: data).data
     }
 
+    func getFieldTripChallengePublications(
+        challengeId: String,
+        limit: Int = 20,
+        beforePublishedAt: String? = nil,
+        beforeEntryId: String? = nil
+    ) async throws -> [FieldTripChallengeEntry] {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "challenge_publications",
+            "challenge_id": challengeId,
+            "limit": limit
+        ]
+        if let beforePublishedAt, let beforeEntryId {
+            payload["before_published_at"] = beforePublishedAt
+            payload["before_entry_id"] = beforeEntryId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengePublicationsResponse.self, from: data).data
+    }
+
+    func publishFieldTripChallengeEntry(
+        participationId: String,
+        title: String? = nil,
+        description: String? = nil
+    ) async throws -> FieldTripChallengeEntryDetail {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "publish_challenge_entry",
+            "participation_id": participationId
+        ]
+        payload["title"] = title ?? NSNull()
+        payload["description"] = description ?? NSNull()
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengeEntryDetailResponse.self, from: data).data
+    }
+
+    func getFieldTripChallengeEntry(entryId: String) async throws -> FieldTripChallengeEntryDetail {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "challenge_entry_detail",
+            "entry_id": entryId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengeEntryDetailResponse.self, from: data).data
+    }
+
     func getFieldTripPublication(publicationId: String) async throws -> FieldTripPublicationDetail {
         let functionUrl = try endpointURL("field-trips")
         let bodyData = try JSONSerialization.data(withJSONObject: [
@@ -2185,6 +2285,17 @@ final class MerianNetworkClient {
         ])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(FieldTripLikeResponse.self, from: data)
+    }
+
+    func setFieldTripChallengeEntryLike(entryId: String, liked: Bool) async throws -> FieldTripChallengeEntryLikeResponse {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "set_challenge_entry_like",
+            "entry_id": entryId,
+            "liked": liked
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripChallengeEntryLikeResponse.self, from: data)
     }
 
     func getFieldTripComments(
@@ -2210,6 +2321,29 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripCommentsResponse.self, from: data).data
     }
 
+    func getFieldTripChallengeEntryComments(
+        entryId: String,
+        limit: Int = 100,
+        afterCreatedAt: String? = nil,
+        afterCommentId: String? = nil
+    ) async throws -> [ExploreComment] {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "challenge_entry_comments",
+            "entry_id": entryId,
+            "limit": limit
+        ]
+
+        if let afterCreatedAt, let afterCommentId {
+            payload["after_created_at"] = afterCreatedAt
+            payload["after_comment_id"] = afterCommentId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripCommentsResponse.self, from: data).data
+    }
+
     func createFieldTripComment(
         publicationId: String,
         body: String,
@@ -2219,6 +2353,26 @@ final class MerianNetworkClient {
         var payload: [String: Any] = [
             "action": "create_comment",
             "publication_id": publicationId,
+            "body": body
+        ]
+        if let parentCommentId {
+            payload["parent_comment_id"] = parentCommentId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripCreateCommentResponse.self, from: data)
+    }
+
+    func createFieldTripChallengeEntryComment(
+        entryId: String,
+        body: String,
+        parentCommentId: String? = nil
+    ) async throws -> FieldTripCreateCommentResponse {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "create_challenge_entry_comment",
+            "entry_id": entryId,
             "body": body
         ]
         if let parentCommentId {

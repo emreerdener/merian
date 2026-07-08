@@ -398,9 +398,13 @@ private struct GBIFMedia: Decodable {
         guard let scanId else { return }
 
         do {
-            let updates = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: scanId)
-            guard !updates.isEmpty else { return }
-            AppEventPublisher.shared.send(.fieldTripProgressUpdated(updates))
+            let result = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: scanId)
+            if !result.fieldTripUpdates.isEmpty {
+                AppEventPublisher.shared.send(.fieldTripProgressUpdated(result.fieldTripUpdates))
+            }
+            if !result.challengeUpdates.isEmpty {
+                AppEventPublisher.shared.send(.fieldTripChallengeProgressUpdated(result.challengeUpdates))
+            }
         } catch {
             MerianLog.general.debug("Field Trip progress update failed: \(error, privacy: .private)")
         }

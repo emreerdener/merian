@@ -97,6 +97,7 @@ The sheet renders:
 - up to 9 preview published scans in a 3-column grid
 - active Field Trip checklist progress, when visible
 - published Field Trip cards, when visible
+- Field Trip challenge completion badges, when visible
 - achievements as informational cards
 - a "View all published scans" control that side-transitions into a paginated 3-column library
 
@@ -106,6 +107,9 @@ The profile and library have deliberately different privacy scopes:
 - Preview and full library grids include only currently visible Explore posts.
 - Active Field Trip profile rows include checklist status only and never expose scan IDs, media, field notes, exact coordinates, public location labels, or evidence.
 - Published Field Trip rows open Field Trip publication details, not Explore post details.
+- Field Trip challenge badges are lightweight public reward cards. They expose
+  badge/challenge labels and broad tags only, never scan IDs, media, exact
+  locations, notes, or private evidence.
 - Achievement payloads contain progress only and never include qualifying scan IDs.
 - Public achievement cards do not open detail sheets or scans.
 - Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
@@ -468,7 +472,7 @@ Recommended V1 endpoints:
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `field-trips`
-  - Returns Field Trip catalog, template-detail, explicit-start, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, publication, like, and comment actions. Field Trip comments/likes are stored separately from Explore post interactions, and publishing a Field Trip does not write Explore posts, map points, APNs, widgets, or feed cards.
+  - Returns Field Trip catalog, template-detail, explicit-start, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, publication, like, and comment actions, plus Seasonal Challenge catalog/detail/join/progress, challenge entry, badge, and optional challenge hashtag suggestion actions. Field Trip and challenge comments/likes are stored separately from Explore post interactions, and publishing a Field Trip or challenge entry does not write Explore posts, map points, APNs, widgets, public web share pages, prizes, leaderboards, or feed cards.
 - `get-explore-map-points`
   - Returns privacy-safe map clusters or individual map points for the current visible area
 - `get-explore-notifications`

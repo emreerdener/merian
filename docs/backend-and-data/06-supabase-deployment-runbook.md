@@ -96,15 +96,19 @@ composer/share/edit function bundles must deploy together so
 Field Trips releases are migration-plus-function releases too. Deploy
 `20260708021110_field_trips_v1.sql` before
 `20260708033451_field_trips_v2.sql` before
-`20260708042713_field_trips_v3_community.sql`, then deploy the `field-trips`
-Edge Function and the updated Explore activity bundles together. V1
+`20260708042713_field_trips_v3_community.sql` before
+`20260708051414_field_trips_v4_challenges.sql`, then deploy the `field-trips`
+Edge Function and the updated Explore/profile activity bundles together. V1
 creates the Field Trip tables, progress/publication/comment storage, profile
 visibility helpers, and publication snapshots. V2 adds guided template detail,
 explicit starts, Recent compatibility pagination, and profile pins. V3 adds
 the Community publication RPC, Field Trip in-app activity storage, and Explore
-activity union/read/count RPC updates. A function-only deploy cannot serve V3
-actions until all migrations are applied; a database-only deploy leaves the app
-without the Field Trips action router.
+activity union/read/count RPC updates. V4 adds curated seasonal challenge
+storage, explicit joins, challenge-specific item completions, completion badges,
+challenge entry snapshots, challenge entry comments/likes, and scan-scoped
+hashtag suggestion helpers. A function-only deploy cannot serve V4 actions
+until all migrations are applied; a database-only deploy leaves the app without
+the Field Trips action router.
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
@@ -443,11 +447,14 @@ After deployment:
 - Confirm `supabase db push` applied the newest migration.
 - For Field Trips releases, confirm `field-trips` serves `catalog`,
   `template_detail`, `start`, `community_publications`, `recent_publications`,
-  and `profile_summaries` after the V1, V2, and V3 migrations. Publishing a
-  Field Trip must not write `explore_posts`, map points, normal Explore post
-  notification rows, APNs, widgets, or public web share pages. Field Trip
-  comment/reply/followed-publication activity may appear in
-  `field_trip_activity_notifications` and the in-app Explore activity feed.
+  `challenges_catalog`, `challenge_detail`, `join_challenge`,
+  `challenge_publications`, `scan_challenge_hashtags`, and
+  `profile_summaries` after the V1, V2, V3, and V4 migrations. Publishing a
+  Field Trip or challenge entry must not write `explore_posts`, map points,
+  normal Explore post notification rows, APNs, widgets, public web share pages,
+  prize rows, or leaderboard rows. Field Trip comment/reply/followed-publication
+  activity may appear in `field_trip_activity_notifications` and the in-app
+  Explore activity feed.
 - For video-upload contract releases, confirm `scan_media_assets.scan_id` and
   `scan_media_assets.url` are nullable in production
   (`information_schema.columns.is_nullable = YES`) before expecting six-file

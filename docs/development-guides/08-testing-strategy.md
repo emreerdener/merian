@@ -471,7 +471,8 @@ MerianTests/
 - **`ExploreHashtagSuggestionTests.swift`**: Covers the share composer's
   AI-assisted hashtag suggestions, including
   species/taxonomy/location/field-note ranking, selected-tag exclusion, five-tag
-  slot handling, and normalization of typed hashtag input before publishing.
+  slot handling, optional Field Trip Challenge `eventHashtags`, and
+  normalization of typed hashtag input before publishing.
 - **`ScansManagerTests.swift`**: Verifies search-index construction, incremental
   reindexing, sort behavior, and selection limits for the Scans library.
 - **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine

@@ -1687,6 +1687,36 @@ coordinates to the client contract.
   followed-author publications. These rows are separate from
   `explore_post_notifications` and never trigger APNs, widgets, feed cards, map
   rows, or `explore_posts`.
+- `public.field_trip_challenges`:
+  Curated/admin-created seasonal challenge definitions linked to a Field Trip
+  template. Rows store title, description, cover image, start/end timestamps,
+  region/season/habitat tags, normalized suggested hashtags, access flags,
+  active state, and sort order.
+- `public.field_trip_challenge_participants`:
+  Explicit per-user challenge joins with `joined_at`, linked
+  `user_field_trip_id`, current level, completion time, badge timestamp, and
+  private/profile visibility flags.
+- `public.field_trip_challenge_item_completions`:
+  Challenge-specific item completions keyed by participation and checklist item.
+  Rows link to caller-owned scans made after `joined_at` and before the
+  challenge `ends_at`; they do not retroactively satisfy normal Field Trip
+  progress.
+- `public.field_trip_challenge_badges`:
+  Completion badge rows for non-competitive challenges. Profile-visible badges
+  expose no scan IDs, media, exact locations, notes, or private evidence.
+- `public.field_trip_challenge_entries`:
+  Published challenge completion snapshots. These are distinct from
+  `field_trip_publications` so repeat seasonal challenges on the same template
+  do not overwrite normal Field Trip publication history.
+- `public.field_trip_challenge_entry_items`:
+  Snapshot item rows for challenge entries, including species/taxonomy labels
+  and selected snapshot media without creating Explore posts.
+- `public.field_trip_challenge_entry_likes`:
+  Challenge entry likes, separate from Explore post likes and normal Field Trip
+  publication likes.
+- `public.field_trip_challenge_entry_comments`:
+  Challenge entry comments and one-level replies, separate from Explore post
+  comments and normal Field Trip publication comments.
 - `public.get_field_trip_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
   Returns active templates with access state, levels, checklist items, and the
   requester's progress.
@@ -1733,6 +1763,38 @@ coordinates to the client contract.
 - `public.get_field_trip_comments(self_id UUID, target_publication_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
   Returns paginated Field Trip comments using the Explore comment-shaped client
   DTO.
+- `public.get_field_trip_challenges_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
+  Returns curated seasonal challenges with schedule status, access state,
+  suggested hashtags, aggregate counts, and the requester's participation
+  summary.
+- `public.get_field_trip_challenge_detail(self_id UUID, target_challenge_id UUID, target_slug TEXT, entries_limit INTEGER)`:
+  Returns one challenge with linked template guide context, schedule, counts,
+  viewer progress, badge state, and initial published challenge entries.
+- `public.join_field_trip_challenge(self_id UUID, target_challenge_id UUID)`:
+  Idempotently joins a live accessible challenge, starts or continues the linked
+  Field Trip, and creates/returns the separate participant row.
+- `public.apply_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
+  Applies challenge progress for a caller-owned scan when the user joined the
+  live challenge before the scan and the scan falls before the challenge ends.
+  It returns `challenge_updates` payloads for V4 clients.
+- `public.get_field_trip_challenge_hashtags_for_scan(self_id UUID, target_scan_id UUID)`:
+  Returns normalized suggested hashtags for challenge items completed by a scan,
+  for optional Explore composer suggestions only.
+- `public.get_field_trip_challenge_publications(self_id UUID, target_challenge_id UUID, max_limit INTEGER, before_published_at TIMESTAMPTZ, before_entry_id UUID)`:
+  Returns visible published challenge entries with stable
+  `(published_at DESC, entry_id DESC)` pagination and Field Trip block/shadowban
+  checks.
+- `public.publish_field_trip_challenge_entry(self_id UUID, target_participation_id UUID, entry_title TEXT, entry_description TEXT)`:
+  Publishes or updates a completed challenge participation into challenge entry
+  snapshot tables without writing Explore posts, maps, widgets, APNs, prizes,
+  leaderboards, or automatic hashtags.
+- `public.get_field_trip_challenge_entry_detail(self_id UUID, target_entry_id UUID)`:
+  Returns a visible challenge entry detail payload.
+- `public.get_field_trip_challenge_entry_comments(self_id UUID, target_entry_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
+  Returns paginated challenge entry comments using the compact Explore
+  comment-shaped client DTO.
+- `public.get_field_trip_challenge_badges(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
+  Returns profile-visible completion badges for public profile modules.
 - `public.get_explore_comments(self_id UUID, target_post_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
   Returns visible public comments for one Explore post. Rows are ordered on
   `(created_at ASC, comment_id ASC)`, filter soft-deleted, moderated, hidden, or

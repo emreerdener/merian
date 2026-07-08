@@ -150,6 +150,22 @@ Response:
         }
       ]
     }
+  ],
+  "challenge_updates": [
+    {
+      "participation_id": "uuid",
+      "challenge_id": "uuid",
+      "slug": "summer_pollinator_watch",
+      "title": "Summer Pollinator Watch",
+      "current_level_number": 1,
+      "current_level_title": "Level 1",
+      "completed_count": 2,
+      "target_count": 4,
+      "is_complete": false,
+      "badge_awarded_at": null,
+      "suggested_hashtags": ["summerpollinators"],
+      "newly_completed_items": []
+    }
   ]
 }
 ```
@@ -158,6 +174,142 @@ The backing RPC counts only scans owned by the caller, only after the Field
 Trip starts, and only against the current unlocked level. Matching accepts AI
 identifications and later user-confirmed/corrected identifications through the
 same scan row, then writes idempotent item completions.
+
+V4 clients should continue reading `data` for normal Field Trip progress and
+may read `challenge_updates` for joined live challenge progress. Older clients
+can ignore `challenge_updates`.
+
+### Seasonal Challenges
+
+Catalog request:
+
+```json
+{
+  "action": "challenges_catalog",
+  "user_region": "us-ca",
+  "limit": 20
+}
+```
+
+Catalog rows include:
+
+```json
+{
+  "challenge_id": "uuid",
+  "template_id": "uuid",
+  "template_slug": "park_pollinators",
+  "template_title": "Park Pollinators",
+  "slug": "summer_pollinator_watch",
+  "title": "Summer Pollinator Watch",
+  "subtitle": "Find pollinators while flowers are active.",
+  "description": "A non-competitive seasonal challenge.",
+  "cover_image_url": "https://...",
+  "starts_at": "2026-06-01T00:00:00.000Z",
+  "ends_at": "2026-08-31T23:59:59.000Z",
+  "status": "live",
+  "region_tags": ["global"],
+  "season_tags": ["summer"],
+  "habitat_tags": ["park", "garden"],
+  "suggested_hashtags": ["summerpollinators", "pollinators"],
+  "is_pro_only": false,
+  "is_temporarily_free": true,
+  "viewer_has_access": true,
+  "access_kind": "temporarily_free",
+  "participant_count": 42,
+  "completion_count": 9,
+  "published_entry_count": 4,
+  "viewer_participation": {
+    "participation_id": "uuid",
+    "user_field_trip_id": "uuid",
+    "joined_at": "2026-07-08T12:00:00.000Z",
+    "current_level_number": 1,
+    "completed_at": null,
+    "badge_awarded_at": null,
+    "completed_count": 1,
+    "target_count": 4
+  },
+  "template": null,
+  "entries": []
+}
+```
+
+`status` is one of `live`, `upcoming`, or `ended`. Access is
+server-authoritative and independent from the linked template's ordinary
+catalog access; a challenge can be free, Pro-only, or temporarily free during
+its schedule.
+
+Detail and join requests:
+
+```json
+{ "action": "challenge_detail", "challenge_id": "uuid", "entries_limit": 12 }
+{ "action": "join_challenge", "challenge_id": "uuid" }
+```
+
+`challenge_detail` returns one challenge object with linked template guide
+context and initial entries. `join_challenge` requires a live accessible
+challenge, starts or continues the linked Field Trip, creates or returns the
+separate participation row, and returns refreshed challenge detail. It is
+idempotent for repeated joins.
+
+Challenge progress is updated through `apply_scan_progress`. A scan counts only
+when it is owned by the caller, created at or after `joined_at`, created at or
+before `ends_at`, and matches the participant's current challenge level.
+Challenge completions are separate from normal Field Trip completions.
+
+Challenge hashtag request:
+
+```json
+{ "action": "scan_challenge_hashtags", "scan_id": "saved-scan-uuid" }
+```
+
+Response:
+
+```json
+{ "data": ["summerpollinators", "pollinators"] }
+```
+
+The response is for optional Explore composer suggestions only. The endpoint
+does not auto-post, auto-tag, create Explore challenge feeds, or persist private
+challenge evidence on device.
+
+### Challenge Entries
+
+Publication list request:
+
+```json
+{
+  "action": "challenge_publications",
+  "challenge_id": "uuid",
+  "limit": 20,
+  "before_published_at": "2026-07-08T13:00:00.000Z",
+  "before_entry_id": "uuid"
+}
+```
+
+Rows paginate by `(published_at DESC, entry_id DESC)` and use the same
+block/shadowban visibility rules as Field Trip publications. Challenge entries
+are not `field_trip_publications` and do not create Explore posts.
+
+Publish/detail/like/comment requests:
+
+```json
+{
+  "action": "publish_challenge_entry",
+  "participation_id": "uuid",
+  "title": "My Pollinator Watch",
+  "description": "Optional"
+}
+{ "action": "challenge_entry_detail", "entry_id": "uuid" }
+{ "action": "set_challenge_entry_like", "entry_id": "uuid", "liked": true }
+{ "action": "challenge_entry_comments", "entry_id": "uuid", "limit": 50 }
+{ "action": "create_challenge_entry_comment", "entry_id": "uuid", "body": "Nice finds!" }
+```
+
+Publishing requires a completed challenge participation and snapshots challenge
+item completions into `field_trip_challenge_entry_items`. Challenge entry likes
+and comments are stored in challenge-specific tables, not Explore or normal
+Field Trip publication tables. Joins, likes, badges, and progress updates do
+not notify other users in V4.
 
 ### Profile Summaries
 
@@ -223,6 +375,21 @@ Response:
         "is_pinned": false,
         "pin_position": null
       }
+    ],
+    "challenge_badges": [
+      {
+        "badge_id": "uuid",
+        "challenge_id": "uuid",
+        "badge_key": "summer_pollinator_watch_complete",
+        "title": "Summer Pollinator Watch",
+        "awarded_at": "2026-07-08T13:00:00.000Z",
+        "challenge_slug": "summer_pollinator_watch",
+        "challenge_title": "Summer Pollinator Watch",
+        "cover_image_url": "https://...",
+        "region_tags": ["global"],
+        "season_tags": ["summer"],
+        "habitat_tags": ["park"]
+      }
     ]
   }
 }
@@ -233,6 +400,8 @@ URLs, field notes, exact coordinates, public location labels, or private
 evidence. Published summaries expose only Field Trip publication IDs and
 snapshot metadata. `pinned` is capped at 3 and omitted from the general
 `published` list. Shadowbanned authors and mutual blocks are excluded.
+Challenge badges are lightweight profile rewards only; they expose no scan IDs,
+media URLs, exact location, field notes, or private evidence.
 
 Set pinned publications request:
 

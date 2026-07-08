@@ -88,12 +88,17 @@ Field Trips have a separate public-profile boundary:
   do not create Explore feed cards, Explore map points, normal Explore post
   notifications, APNs, widgets, public web share pages, or change scan
   geoprivacy.
+- Seasonal Challenge participation is private by default. Challenge badges are
+  evidence-free profile cards, and challenge entries are Field Trips-native
+  snapshots that follow the same no-Explore-feed/no-map/no-widget boundary.
 
 When adding a new public, shared, widget, extension, notification, or export
 surface, use this checklist:
 
 - never read exact GPS directly in public read RPCs;
 - keep active Field Trip profile summaries status-only;
+- keep Field Trip Challenge badges evidence-free and challenge entries scoped
+  to Field Trips surfaces;
 - keep public Explore post visibility separate from scan geoprivacy;
 - require `explore_posts.location_sharing = 'open'` for public spatial result
   sets such as Explore Map and non-owned Nearby matches;

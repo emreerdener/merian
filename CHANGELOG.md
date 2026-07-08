@@ -123,6 +123,10 @@ TestFlight, App Store, support, and QA.
   item tips, a Field Trips-only Community segment with For You, Following, and
   Recent filters, template Community previews, and up to 3 pinned published
   trips on profiles.
+- Added Field Trip Seasonal Challenges: curated, explicit-join, non-competitive
+  challenge pages with schedule/counts, after-join-only progress, completion
+  badges, challenge-specific published entries, and optional Explore hashtag
+  suggestions without auto-posting or auto-tagging.
 - Added in-app Field Trip activity for comments, replies, and followed-author
   publications without sending APNs or adding Field Trips to Explore feeds,
   maps, or widgets.

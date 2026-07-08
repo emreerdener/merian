@@ -50,6 +50,8 @@ enum AppEvent {
     case openCommunityIdentificationRequest(requestId: String)
     /// Dispatched after a scan completes one or more Field Trip checklist items.
     case fieldTripProgressUpdated([FieldTripProgressUpdate])
+    /// Dispatched after a scan completes one or more seasonal challenge items.
+    case fieldTripChallengeProgressUpdated([FieldTripChallengeProgressUpdate])
     /// Dispatched after OAuth sign-in/linking or session restore refreshes the public Explore author identity.
     case publicAuthorIdentityChanged(previousUserId: String?, currentUserId: String)
 }

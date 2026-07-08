@@ -171,7 +171,8 @@ networking, and hardware orchestration logic.
   ownership, App Group boundaries, privacy rules, and QA.
 - **[`/features-and-hardware/20-explore-hashtags.md`](./features-and-hardware/20-explore-hashtags.md)**
   — Explore hashtag publishing, composer suggestions, feed/detail chip behavior,
-  tagged-post collections, API paths, and event/BioBlitz groundwork.
+  tagged-post collections, API paths, event/BioBlitz groundwork, and Field Trip
+  Challenge suggestion boundaries.
 - **[`/features-and-hardware/21-public-usernames.md`](./features-and-hardware/21-public-usernames.md)**
   — Canonical public username handles, edit UX, Explore display-name behavior,
   Edge update contract, and future mention boundary.
@@ -187,8 +188,9 @@ networking, and hardware orchestration logic.
   boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Field Trips Available/Community segments, guided template detail, progress
-  matching, publication snapshots, profile pins, access gating, in-app activity,
-  and deferred leaderboard/prize scope.
+  matching, seasonal challenges, challenge badges, publication snapshots,
+  profile pins, access gating, in-app activity, and deferred leaderboard/prize
+  scope.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

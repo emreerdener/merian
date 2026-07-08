@@ -43,6 +43,12 @@ without a local Postgres instance. It checks the normalized scan-media lifecycle
 schema, the scan-ingestion job ledger, and the drift-repair SQL that must run
 before media reconciliation indexes are created.
 
+Field Trips migrations also have static contract coverage. The current chain is
+V1 template/progress/publication storage, V2 guided detail/start/pins, V3
+Community/activity, and V4 curated Seasonal Challenges with explicit joins,
+challenge progress, badges, challenge entries, and optional Explore hashtag
+suggestions.
+
 From the repo root:
 
 ```bash

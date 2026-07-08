@@ -43,6 +43,7 @@ struct InsightShareButton: View {
     @State var showingExplorePublishConfirmation = false
     @State var pendingAction: PendingAction?
     @State var composerMediaItems: [ExplorePostComposerMediaDraft]?
+    @State var challengeEventHashtags: [String] = []
 
     private var showsExploreAction: Bool {
         onShareToExplore != nil
@@ -186,7 +187,9 @@ struct InsightShareButton: View {
                 initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,
                 initialLocationSharing: initialLocationSharing,
                 mediaItems: composerMediaItems ?? mediaItems,
-                hashtagSuggestionContext: hashtagSuggestionContext.updating(fieldNotes: fieldNotesPreview),
+                hashtagSuggestionContext: hashtagSuggestionContext
+                    .updating(fieldNotes: fieldNotesPreview)
+                    .updating(eventHashtags: challengeEventHashtags),
                 isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
                 onSubmit: { draft in
                     if sharedExplorePostId == nil {
@@ -198,6 +201,22 @@ struct InsightShareButton: View {
                 }
             )
         }
+        .task(id: scanId) {
+            await loadChallengeEventHashtags()
+        }
     }
 
+    private func loadChallengeEventHashtags() async {
+        guard let scanId = scanId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !scanId.isEmpty else {
+            challengeEventHashtags = []
+            return
+        }
+
+        do {
+            challengeEventHashtags = try await MerianNetworkClient.shared.getFieldTripChallengeHashtags(scanId: scanId)
+        } catch {
+            challengeEventHashtags = []
+        }
+    }
 }

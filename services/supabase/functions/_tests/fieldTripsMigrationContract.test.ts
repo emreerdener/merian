@@ -222,3 +222,77 @@ Deno.test("Field Trips v3 activity is in-app only and does not extend Explore fe
     );
   }
 });
+
+Deno.test("Field Trips v4 adds curated seasonal challenge contracts", async () => {
+  const sql = normalized(
+    await migrationSql("20260708051414_field_trips_v4_challenges.sql"),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenges",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenge_participants",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenge_item_completions",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenge_badges",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenge_entries",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenge_entry_items",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenge_entry_likes",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_challenge_entry_comments",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_challenges_catalog",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_challenge_detail",
+      "CREATE OR REPLACE FUNCTION public.join_field_trip_challenge",
+      "CREATE OR REPLACE FUNCTION public.apply_field_trip_challenge_scan_progress",
+      "CREATE OR REPLACE FUNCTION public.publish_field_trip_challenge_entry",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_challenge_entry_detail",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_challenge_hashtags_for_scan",
+      "'summer_pollinator_watch'",
+      "'neighborhood_night_watch'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
+Deno.test("Field Trips v4 challenges stay non-competitive and Explore-separated", async () => {
+  const sql = normalized(
+    await migrationSql("20260708051414_field_trips_v4_challenges.sql"),
+  );
+
+  for (
+    const fragment of [
+      "Challenges are admin-created and never create Explore posts, maps, widgets, APNs, prizes, or leaderboards.",
+      "scan_row.timestamp >= p.joined_at",
+      "scan_row.timestamp <= c.ends_at",
+      "Completion badges for non-competitive Field Trip challenges",
+      "suggested_hashtags",
+      "ON CONFLICT(participation_id)",
+      "new_entry_id UUID",
+      "RETURN JSONB_BUILD_OBJECT('entry_id', new_entry_id)",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(" entry_id UUID;"),
+    "Challenge entry publishing should avoid an entry_id PL/pgSQL variable that collides with item columns",
+  );
+
+  for (
+    const forbidden of [
+      "INSERT INTO public.explore_posts",
+      "functions/v1/send-push-notification",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_leaderboards",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_prizes",
+      "CREATE TABLE IF NOT EXISTS public.field_trip_winners",
+      "explore_widget",
+      "get_explore_map",
+      "get_explore_feed_trending",
+    ]
+  ) {
+    assert(
+      !sql.toLowerCase().includes(forbidden.toLowerCase()),
+      `Field Trips v4 challenges must not create competitive or Explore feed/push infrastructure: ${forbidden}`,
+    );
+  }
+});

@@ -693,10 +693,15 @@ extension OfflineQueueManager {
                 }
                 Task {
                     do {
-                        let updates = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: dbScanId)
-                        guard !updates.isEmpty else { return }
+                        let result = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: dbScanId)
+                        guard !result.fieldTripUpdates.isEmpty || !result.challengeUpdates.isEmpty else { return }
                         await MainActor.run {
-                            AppEventPublisher.shared.send(.fieldTripProgressUpdated(updates))
+                            if !result.fieldTripUpdates.isEmpty {
+                                AppEventPublisher.shared.send(.fieldTripProgressUpdated(result.fieldTripUpdates))
+                            }
+                            if !result.challengeUpdates.isEmpty {
+                                AppEventPublisher.shared.send(.fieldTripChallengeProgressUpdated(result.challengeUpdates))
+                            }
                         }
                     } catch {
                         MerianLog.data.debug("Field Trip progress update failed: \(error, privacy: .private)")

@@ -34,6 +34,22 @@ export interface FieldTripCommentParent {
   moderated_at?: string | null;
 }
 
+export interface FieldTripChallengeCommentParent {
+  id: string;
+  entry_id: string;
+  user_id: string;
+  parent_comment_id?: string | null;
+  deleted_at?: string | null;
+  moderated_at?: string | null;
+}
+
+export interface InsertedFieldTripChallengeComment {
+  id: string;
+  entry_id: string;
+  parent_comment_id?: string | null;
+  created_at: string;
+}
+
 function makeHttpError(
   status: number,
   message: string,
@@ -111,7 +127,7 @@ export async function applyFieldTripScanProgress(
   userId: string,
   scanId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<unknown[]> {
+): Promise<{ fieldTripUpdates: unknown[]; challengeUpdates: unknown[] }> {
   const { data, error } = await supabaseAdmin.rpc(
     "apply_field_trip_scan_progress",
     {
@@ -124,7 +140,25 @@ export async function applyFieldTripScanProgress(
     throw new Error(`Failed to update Field Trip progress: ${error.message}`);
   }
 
-  return Array.isArray(data) ? data : [];
+  const { data: challengeData, error: challengeError } = await supabaseAdmin
+    .rpc(
+      "apply_field_trip_challenge_scan_progress",
+      {
+        self_id: userId,
+        target_scan_id: scanId,
+      },
+    );
+
+  if (challengeError) {
+    throw new Error(
+      `Failed to update Field Trip challenge progress: ${challengeError.message}`,
+    );
+  }
+
+  return {
+    fieldTripUpdates: Array.isArray(data) ? data : [],
+    challengeUpdates: Array.isArray(challengeData) ? challengeData : [],
+  };
 }
 
 export async function fetchRecentFieldTripPublications(
@@ -220,7 +254,29 @@ export async function fetchFieldTripProfileSummaries(
     );
   }
 
-  return data ?? { active: [], pinned: [], published: [] };
+  const basePayload = data != null && typeof data === "object"
+    ? data as Record<string, unknown>
+    : { active: [], pinned: [], published: [] };
+
+  const { data: badgesData, error: badgesError } = await supabaseAdmin.rpc(
+    "get_field_trip_challenge_badges",
+    {
+      self_id: userId,
+      target_author_user_id: authorUserId,
+      max_limit: limit,
+    },
+  );
+
+  if (badgesError) {
+    throw new Error(
+      `Failed to fetch Field Trip challenge badges: ${badgesError.message}`,
+    );
+  }
+
+  return {
+    ...basePayload,
+    challenge_badges: Array.isArray(badgesData) ? badgesData : [],
+  };
 }
 
 export async function setPinnedFieldTripPublications(
@@ -467,4 +523,373 @@ export async function insertFieldTripComment(
   }
 
   return data as InsertedFieldTripComment;
+}
+
+export async function fetchFieldTripChallengesCatalog(
+  userId: string,
+  userRegion: string | null,
+  limit: number,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_challenges_catalog",
+    {
+      self_id: userId,
+      user_region: userRegion,
+      max_limit: limit,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip challenges: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchFieldTripChallengeDetail(
+  userId: string,
+  challengeId: string | null,
+  slug: string | null,
+  entriesLimit: number,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_challenge_detail",
+    {
+      self_id: userId,
+      target_challenge_id: challengeId,
+      target_slug: slug,
+      entries_limit: entriesLimit,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip challenge: ${error.message}`,
+    );
+  }
+
+  return data ?? null;
+}
+
+export async function joinFieldTripChallenge(
+  userId: string,
+  challengeId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "join_field_trip_challenge",
+    {
+      self_id: userId,
+      target_challenge_id: challengeId,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Failed to join Field Trip challenge: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error("Failed to join Field Trip challenge: missing detail.");
+  }
+
+  return data;
+}
+
+export async function fetchFieldTripChallengePublications(
+  userId: string,
+  challengeId: string,
+  limit: number,
+  cursor: {
+    beforePublishedAt: string | null;
+    beforeEntryId: string | null;
+  },
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_challenge_publications",
+    {
+      self_id: userId,
+      target_challenge_id: challengeId,
+      max_limit: limit,
+      before_published_at: cursor.beforePublishedAt,
+      before_entry_id: cursor.beforeEntryId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip challenge entries: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchFieldTripChallengeHashtagsForScan(
+  userId: string,
+  scanId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<string[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_challenge_hashtags_for_scan",
+    {
+      self_id: userId,
+      target_scan_id: scanId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip challenge hashtags: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data)
+    ? data.filter((value): value is string => typeof value === "string")
+    : [];
+}
+
+export async function fetchFieldTripChallengeEntryDetail(
+  userId: string,
+  entryId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_challenge_entry_detail",
+    {
+      self_id: userId,
+      target_entry_id: entryId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip challenge entry: ${error.message}`,
+    );
+  }
+
+  return data ?? null;
+}
+
+export async function publishFieldTripChallengeEntry(
+  userId: string,
+  participationId: string,
+  title: string | null,
+  description: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "publish_field_trip_challenge_entry",
+    {
+      self_id: userId,
+      target_participation_id: participationId,
+      entry_title: title,
+      entry_description: description,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to publish Field Trip challenge entry: ${error.message}`,
+    );
+  }
+
+  const entryId = typeof data === "object" && data != null && "entry_id" in data
+    ? String((data as Record<string, unknown>).entry_id)
+    : null;
+  if (!entryId) {
+    throw new Error(
+      "Failed to publish Field Trip challenge entry: missing entry id.",
+    );
+  }
+
+  const detail = await fetchFieldTripChallengeEntryDetail(
+    userId,
+    entryId,
+    supabaseAdmin,
+  );
+  if (!detail) {
+    throw new Error(
+      "Failed to publish Field Trip challenge entry: entry not visible.",
+    );
+  }
+  return detail;
+}
+
+export async function assertCanViewFieldTripChallengeEntry(
+  userId: string,
+  entryId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "can_view_field_trip_challenge_entry",
+    {
+      self_id: userId,
+      target_entry_id: entryId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to resolve Field Trip challenge visibility: ${error.message}`,
+    );
+  }
+
+  if (data !== true) {
+    throw makeHttpError(404, "Field Trip challenge entry not found.");
+  }
+}
+
+export async function setFieldTripChallengeEntryLike(
+  entryId: string,
+  userId: string,
+  liked: boolean,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  if (liked) {
+    const { error } = await supabaseAdmin
+      .from("field_trip_challenge_entry_likes")
+      .upsert(
+        { entry_id: entryId, user_id: userId },
+        { onConflict: "entry_id,user_id", ignoreDuplicates: true },
+      );
+
+    if (error) {
+      throw new Error(
+        `Failed to like Field Trip challenge entry: ${error.message}`,
+      );
+    }
+    return;
+  }
+
+  const { error } = await supabaseAdmin
+    .from("field_trip_challenge_entry_likes")
+    .delete()
+    .eq("entry_id", entryId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(
+      `Failed to unlike Field Trip challenge entry: ${error.message}`,
+    );
+  }
+}
+
+export async function fetchFieldTripChallengeEntryCounts(
+  entryId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<{ likeCount: number; commentCount: number }> {
+  const { data, error } = await supabaseAdmin
+    .from("field_trip_challenge_entries")
+    .select("like_count,comment_count")
+    .eq("id", entryId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `Failed to fetch Field Trip challenge entry counts: ${
+        error?.message ?? "No data"
+      }`,
+    );
+  }
+
+  return {
+    likeCount: Number(data.like_count ?? 0),
+    commentCount: Number(data.comment_count ?? 0),
+  };
+}
+
+export async function fetchFieldTripChallengeEntryComments(
+  userId: string,
+  entryId: string,
+  limit: number,
+  cursor: { afterCreatedAt: string | null; afterCommentId: string | null },
+  supabaseAdmin: SupabaseClient,
+): Promise<FieldTripCommentRow[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_challenge_entry_comments",
+    {
+      self_id: userId,
+      target_entry_id: entryId,
+      max_limit: limit,
+      after_created_at: cursor.afterCreatedAt,
+      after_comment_id: cursor.afterCommentId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip challenge entry comments: ${error.message}`,
+    );
+  }
+
+  return (data ?? []) as FieldTripCommentRow[];
+}
+
+export async function fetchFieldTripChallengeCommentParent(
+  parentCommentId: string,
+  entryId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<FieldTripChallengeCommentParent> {
+  const { data, error } = await supabaseAdmin
+    .from("field_trip_challenge_entry_comments")
+    .select("id,entry_id,user_id,parent_comment_id,deleted_at,moderated_at")
+    .eq("id", parentCommentId)
+    .single();
+
+  if (error || !data) {
+    throw makeHttpError(404, "Field Trip challenge parent comment not found.");
+  }
+
+  const parent = data as FieldTripChallengeCommentParent;
+  if (parent.entry_id !== entryId) {
+    throw makeHttpError(
+      400,
+      "parent_comment_id must belong to the same Field Trip challenge entry.",
+    );
+  }
+  if (parent.parent_comment_id != null) {
+    throw makeHttpError(400, "Replies can only target top-level comments.");
+  }
+  if (parent.deleted_at != null || parent.moderated_at != null) {
+    throw makeHttpError(
+      404,
+      "Field Trip challenge parent comment is no longer available.",
+    );
+  }
+
+  return parent;
+}
+
+export async function insertFieldTripChallengeEntryComment(
+  entryId: string,
+  userId: string,
+  body: string,
+  parentCommentId: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<InsertedFieldTripChallengeComment> {
+  const { data, error } = await supabaseAdmin
+    .from("field_trip_challenge_entry_comments")
+    .insert({
+      entry_id: entryId,
+      user_id: userId,
+      body,
+      parent_comment_id: parentCommentId,
+    })
+    .select("id,entry_id,parent_comment_id,created_at")
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `Failed to create Field Trip challenge entry comment: ${
+        error?.message ?? "Unknown error"
+      }`,
+    );
+  }
+
+  return data as InsertedFieldTripChallengeComment;
 }

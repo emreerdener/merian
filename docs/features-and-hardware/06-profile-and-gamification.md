@@ -156,6 +156,22 @@ All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimi
 
 ---
 
+## Achievements vs Field Trip Challenge Badges
+
+Achievements are always-on account awards computed from the local scan history
+projection. They can progress without joining anything, and they are recalculated
+after successful inference so long-running milestones stay current.
+
+Field Trip Challenge badges are seasonal, curated, and server-authoritative.
+They require an explicit challenge join, count only scans made after `joined_at`
+and before the challenge ends, and are awarded through Supabase challenge
+participation tables. Challenge badges can appear near Field Trip profile
+modules as lightweight public reward cards, but they do not expose scan IDs,
+media, exact locations, notes, or private evidence, and they are not prizes,
+rankings, or contest eligibility markers.
+
+---
+
 ## AchievementsCalculator
 
 `AchievementsCalculator.calculate(from:) -> [AwardPayload]` is a pure, synchronous function with no side effects. It accepts any `AchievementRecordRepresentable`, so profile rendering can pass lightweight projection structs instead of full SwiftData models. It iterates all records once, maintaining running canonical-species accumulators per award criterion:

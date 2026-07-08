@@ -28,8 +28,12 @@ struct CurrentUserFieldTripProfilePreview: View {
             await load()
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
-            guard case .fieldTripProgressUpdated = event else { return }
-            Task { await load() }
+            switch event {
+            case .fieldTripProgressUpdated, .fieldTripChallengeProgressUpdated:
+                Task { await load() }
+            default:
+                break
+            }
         }
         .merianSystemFeedback(
             toastMessage: Binding(
@@ -99,10 +103,22 @@ struct FieldTripProfilePreview: View {
 
                 Spacer()
 
-                let count = summaries.active.count + summaries.pinned.count + summaries.published.count
+                let count = summaries.active.count + summaries.pinned.count + summaries.published.count + summaries.challengeBadges.count
                 Text(count.formatted(.number.notation(.compactName)))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
+            }
+
+            if !summaries.challengeBadges.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Badges")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(summaries.challengeBadges.prefix(3)) { badge in
+                        FieldTripChallengeBadgeProfileRow(badge: badge)
+                    }
+                }
             }
 
             if !summaries.pinned.isEmpty {
@@ -164,6 +180,76 @@ struct FieldTripProfilePreview: View {
                 .buttonStyle(.plain)
                 .disabled(isUpdatingPins)
                 .accessibilityLabel(trip.isPinned ? "Unpin Field Trip" : "Pin Field Trip")
+            }
+        }
+    }
+}
+
+private struct FieldTripChallengeBadgeProfileRow: View {
+    let badge: FieldTripChallengeBadge
+
+    var body: some View {
+        HStack(spacing: 12) {
+            FieldTripProfileCover(urlString: badge.coverImageUrl)
+                .frame(width: 58, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Image(systemName: "rosette")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.accentColor)
+                    Text(badge.title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+
+                Text(badge.challengeTitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                FieldTripBadgeTagRow(tags: Array((badge.regionTags + badge.seasonTags + badge.habitatTags).prefix(3)))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+private struct FieldTripBadgeTagRow: View {
+    let tags: [String]
+
+    private var displayTags: [String] {
+        var seen = Set<String>()
+        return tags.compactMap { tag in
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = trimmed.lowercased()
+            guard !trimmed.isEmpty, seen.insert(key).inserted else { return nil }
+            return trimmed
+        }
+    }
+
+    var body: some View {
+        if !displayTags.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(displayTags, id: \.self) { tag in
+                    Text(tag.replacingOccurrences(of: "_", with: " ").capitalized)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
         }
     }
