@@ -36,6 +36,7 @@ struct ExploreView: View {
     @State private var activeCommunityMode: CommunityIdentificationMode = .requests
     @State private var activeFieldTripsSection: FieldTripsSection = .available
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
+    @State private var playbackCoordinator = ExploreVideoPlaybackCoordinator()
 
     private let allowsInsightPresentation: Bool
     private let onOpenOwnedPostInsight: ((String) -> Bool)?
@@ -47,6 +48,13 @@ struct ExploreView: View {
     private var ownedPostInsightHandler: ((String) -> Bool)? {
         guard onOpenOwnedPostInsight != nil else { return nil }
         return { scanId in openOwnedPostInsightFromParent(scanId) }
+    }
+
+    private var hasPresentedRootOverlay: Bool {
+        viewModel.isCommentsSheetPresented ||
+            viewModel.isNotificationsSheetPresented ||
+            selectedInsightRoute != nil ||
+            selectedAuthorProfileRoute != nil
     }
 
     private var activeTabBinding: Binding<ExploreTab> {
@@ -231,6 +239,11 @@ struct ExploreView: View {
             }
             .toolbar { exploreToolbar }
         }
+        .exploreVideoOverlayLifecycle(
+            isPresented: hasPresentedRootOverlay,
+            reason: "explore-root-sheet"
+        )
+        .environment(playbackCoordinator)
         .task {
             viewModel.bindSettings(appSettings)
             await viewModel.loadInitialFeed()
@@ -272,9 +285,7 @@ struct ExploreView: View {
                 get: { viewModel.isCommentsSheetPresented },
                 set: { if !$0 { viewModel.dismissCommentsSheet() } }
             ),
-            onDismiss: {
-                ExploreVideoAutoplayCoordinator.requestResume()
-            }
+            onDismiss: {}
         ) {
             if let post = viewModel.activeCommentsPost {
                 ExploreCommentsSheet(viewModel: viewModel, post: post)
@@ -286,7 +297,6 @@ struct ExploreView: View {
                 set: { if !$0 { viewModel.dismissNotifications() } }
             ),
             onDismiss: {
-                ExploreVideoAutoplayCoordinator.requestResume()
                 Task { await viewModel.refreshUnreadNotificationCount() }
             }
         ) {
@@ -303,7 +313,6 @@ struct ExploreView: View {
         .sheet(
             item: $selectedInsightRoute,
             onDismiss: {
-                ExploreVideoAutoplayCoordinator.requestResume()
                 viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
             }
         ) { route in
@@ -321,9 +330,7 @@ struct ExploreView: View {
                 }
             )
         }
-        .sheet(item: $selectedAuthorProfileRoute, onDismiss: {
-            ExploreVideoAutoplayCoordinator.requestResume()
-        }) { route in
+        .sheet(item: $selectedAuthorProfileRoute) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -455,14 +462,12 @@ struct ExploreView: View {
 
     private func openAuthorProfile(for post: ExplorePost) {
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         viewModel.upsertPost(post)
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
     }
 
     private func openAuthorProfile(for publication: FieldTripRecentPublication) {
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
             authorUserId: publication.authorUserId,
             authorName: publication.authorName,
@@ -473,7 +478,6 @@ struct ExploreView: View {
 
     private func openAuthorProfile(for entry: FieldTripChallengeEntry) {
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
             authorUserId: entry.authorUserId,
             authorName: entry.authorName,
@@ -527,7 +531,6 @@ struct ExploreView: View {
 
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }
 
@@ -558,7 +561,6 @@ struct ExploreView: View {
         ZStack(alignment: .topTrailing) {
             Button {
                 HapticManager.shared.triggerSelectionPulse()
-                ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
                 viewModel.presentNotifications()
             } label: {
                 Image(systemName: "bell")
@@ -677,6 +679,7 @@ struct ExploreView: View {
 private struct ExploreFeedTabContent: View {
     @Bindable var viewModel: ExploreFeedViewModel
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @State private var isLocationSettingsAlertPresented = false
@@ -710,6 +713,10 @@ private struct ExploreFeedTabContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
+        .exploreVideoOverlayLifecycle(
+            isPresented: editingPost != nil,
+            reason: "explore-feed-edit-post"
+        )
         .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
             Button("Not Now", role: .cancel) {}
             Button("Settings") {
@@ -721,7 +728,6 @@ private struct ExploreFeedTabContent: View {
             Text("Nearby uses your current location to show discoveries shared within \(ExploreFeedFilter.nearbyRadiusMiles) miles.")
         }
         .sheet(item: $editingPost, onDismiss: {
-            ExploreVideoAutoplayCoordinator.requestResume()
             clearPostEditor()
         }) { post in
             ExplorePostComposerView(
@@ -758,10 +764,9 @@ private struct ExploreFeedTabContent: View {
                             mediaReloadGeneration: viewModel.mediaReloadGeneration,
                             onLike: { Task { await viewModel.toggleLike(for: post) } },
                             onComments: {
-                                ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
                                 Task { await viewModel.openCommentsSheet(for: post) }
                             },
-                            onShare: { viewModel.share(post) },
+                            onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
                             onOpenDetail: { onOpenPostDetail(post) },
                             onOpenAuthorProfile: { onOpenAuthorProfile(post) },
                             onOpenHashtag: onOpenHashtag,
@@ -915,7 +920,6 @@ private struct ExploreFeedTabContent: View {
         }
 
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         editingPost = post
     }
 

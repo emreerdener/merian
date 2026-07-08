@@ -62,7 +62,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Explore posts support public image/video media snapshots; feed and detail can play muted playback videos while maps, widgets, and compact profile previews stay thumbnail-first.
 - Author profile sheets expose privacy-scoped public stats, non-opening public
   achievements, and active/published Field Trip previews.
-- Home Screen widget caches thumbnail-first Explore snapshots through the shared App Group, including play indicators for video posts.
+- Home Screen widget caches thumbnail-first Explore snapshots through the shared App Group, with video posts rendered as clean still thumbnails.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
 
 ### Native Share Extensions

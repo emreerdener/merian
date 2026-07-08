@@ -1295,8 +1295,10 @@ migration `20260703130000_add_explore_post_media.sql`.
 
 `public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
 detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
-grid, and compact surfaces should keep using `hero_image_url` thumbnails plus a
-play indicator when any returned media item is video. Scan media source
+grid, and compact surfaces should keep using `hero_image_url` thumbnails.
+In-app compact previews may add a play indicator when any returned media item is
+video, but Home Screen widgets intentionally show clean still thumbnails without
+a video badge. Scan media source
 resolution prefers ready display/playback `scan_media_assets` rows, then
 `captured_media`, and finally legacy URL arrays so playback video URLs and
 poster thumbnails remain paired.

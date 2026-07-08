@@ -998,6 +998,7 @@ private struct CommunityDetailHero: View {
                 fallbackImageUrl: detail.heroImageUrl,
                 reloadGeneration: 0,
                 preloadedImage: nil,
+                surface: .communityIdentification,
                 autoplay: true,
                 showsVideoControls: true
             )

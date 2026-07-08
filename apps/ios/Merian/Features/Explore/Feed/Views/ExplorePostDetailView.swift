@@ -15,6 +15,7 @@ struct ExplorePostDetailView: View {
     let onOpenCommunityIdentificationRequest: ((String) -> Void)?
 
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isComposerFocused: Bool
@@ -46,6 +47,14 @@ struct ExplorePostDetailView: View {
 
     private var presentedComposerIsSticky: Bool {
         focusedComposerIsSticky ?? isComposerSticky
+    }
+
+    private var hasPresentedOverlay: Bool {
+        selectedInsightRoute != nil ||
+            selectedAuthorProfileRoute != nil ||
+            selectedNotificationReplyThreadRoute != nil ||
+            showFieldNotesEditor ||
+            showPostComposer
     }
 
     private let commentsSectionId = "explore-comments-section"
@@ -101,7 +110,6 @@ struct ExplorePostDetailView: View {
                                 locationText: locationText(for: post),
                                 opensAuthorProfile: allowsAuthorProfilePresentation,
                                 onOpenAuthorProfile: {
-                                    ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
                                     selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
                                 }
                             )
@@ -126,7 +134,7 @@ struct ExplorePostDetailView: View {
                                     focusComments(using: scrollProxy)
                                 },
                                 onShare: {
-                                    viewModel.share(post)
+                                    viewModel.share(post, playbackCoordinator: playbackCoordinator)
                                 }
                             )
                                 .padding(.horizontal, 16)
@@ -329,8 +337,11 @@ struct ExplorePostDetailView: View {
                 break
             }
         }
+        .exploreVideoOverlayLifecycle(
+            isPresented: hasPresentedOverlay,
+            reason: "explore-post-detail-sheet"
+        )
         .sheet(item: $selectedInsightRoute, onDismiss: {
-            ExploreVideoAutoplayCoordinator.requestResume()
             isRefreshingAfterInsightDismiss = true
             Task {
                 if let post = currentPost {
@@ -355,18 +366,13 @@ struct ExplorePostDetailView: View {
                 }
             )
         }
-        .sheet(item: $selectedAuthorProfileRoute, onDismiss: {
-            ExploreVideoAutoplayCoordinator.requestResume()
-        }) { route in
+        .sheet(item: $selectedAuthorProfileRoute) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
-        .sheet(item: $selectedNotificationReplyThreadRoute, onDismiss: {
-            ExploreVideoAutoplayCoordinator.requestResume()
-        }) { route in
+        .sheet(item: $selectedNotificationReplyThreadRoute) { route in
             ExploreNotificationReplyThreadSheet(viewModel: viewModel, route: route)
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
-            ExploreVideoAutoplayCoordinator.requestResume()
             Task {
                 if let post = currentPost {
                     syncLocalFieldNotes(for: post)
@@ -392,9 +398,7 @@ struct ExplorePostDetailView: View {
                 )
             }
         }
-        .sheet(isPresented: $showPostComposer, onDismiss: {
-            ExploreVideoAutoplayCoordinator.requestResume()
-        }) {
+        .sheet(isPresented: $showPostComposer) {
             if let post = currentPost {
                 ExplorePostComposerView(
                     mode: .edit,
@@ -541,7 +545,6 @@ struct ExplorePostDetailView: View {
               let notificationReplyThreadTarget else { return }
 
         didPresentNotificationReplyThread = true
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedNotificationReplyThreadRoute = ExploreNotificationReplyThreadRoute(
             post: post,
             parentCommentId: notificationReplyThreadTarget.parentCommentId,
@@ -694,7 +697,6 @@ struct ExplorePostDetailView: View {
         }
 
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         showFieldNotesEditor = true
     }
 
@@ -713,7 +715,6 @@ struct ExplorePostDetailView: View {
             }
 
             HapticManager.shared.triggerSelectionPulse()
-            ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
             showPostComposer = true
         }
     }
@@ -873,7 +874,6 @@ struct ExplorePostDetailView: View {
 
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }
 

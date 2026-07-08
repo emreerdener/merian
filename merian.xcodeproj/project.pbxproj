@@ -51,6 +51,7 @@
 		154EC46FA24F76CC26B999C4 /* AsyncLocalImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129416A094476710A501004A /* AsyncLocalImageView.swift */; };
 		16117E2F26BB086D39E35C9D /* MigrationPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EDDCE10B91F221180EC337A /* MigrationPlanTests.swift */; };
 		17F718591BBA6FEC7060DE77 /* ExplorePostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011E6F770EE2F8F672A2153C /* ExplorePostCard.swift */; };
+		CB5E361EA58F46F19DF8F170 /* ExploreVideoPlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7C4B36E2D94156B44AF901 /* ExploreVideoPlaybackCoordinator.swift */; };
 		1860B283987E62C85450DD6A /* ExploreNotificationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00654B9326DA3580470C9B41 /* ExploreNotificationsViewModel.swift */; };
 		18EC97C2942235DA710A6918 /* PendingCloudDeletionTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E4D076704BCB877669A2788 /* PendingCloudDeletionTask.swift */; };
 		19736EAE5976CD9C24BAF178 /* UserTagsMutationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA6BDC535107FBD98098715 /* UserTagsMutationController.swift */; };
@@ -571,6 +572,7 @@
 		00D2D4D5A3C8173ACDDA5812 /* OfflineQueueManager+URLSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineQueueManager+URLSession.swift"; sourceTree = "<group>"; };
 		00D8870499EEE56428174193 /* DangerZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DangerZone.swift; sourceTree = "<group>"; };
 		011E6F770EE2F8F672A2153C /* ExplorePostCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePostCard.swift; sourceTree = "<group>"; };
+		0F7C4B36E2D94156B44AF901 /* ExploreVideoPlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreVideoPlaybackCoordinator.swift; sourceTree = "<group>"; };
 		020A91B9BA297B240C06DAAF /* PushNotificationRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationRoutingTests.swift; sourceTree = "<group>"; };
 		0319B3B13A22FD7957C2B352 /* SwipeableCandidateCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeableCandidateCard.swift; sourceTree = "<group>"; };
 		03A46A82CE53DBDA65D792F1 /* ScanQueueState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQueueState.swift; sourceTree = "<group>"; };
@@ -2296,11 +2298,12 @@
 		71D92C0DAA474971D537E7E8 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				B3FFCE0D8EB595409BF9BB15 /* ExploreBadgePolicy.swift */,
-				BE6FDB5E1DE68B5CFB336D05 /* ExploreCommentMentionText.swift */,
-				5CA8B3B1919865906114EF1F /* ExploreHashtagSuggestion.swift */,
-				9D29BC4B6F4EC5B75840687C /* ExplorePost+Formatting.swift */,
-			);
+					B3FFCE0D8EB595409BF9BB15 /* ExploreBadgePolicy.swift */,
+					BE6FDB5E1DE68B5CFB336D05 /* ExploreCommentMentionText.swift */,
+					5CA8B3B1919865906114EF1F /* ExploreHashtagSuggestion.swift */,
+					9D29BC4B6F4EC5B75840687C /* ExplorePost+Formatting.swift */,
+					0F7C4B36E2D94156B44AF901 /* ExploreVideoPlaybackCoordinator.swift */,
+				);
 			path = Models;
 			sourceTree = "<group>";
 		};
@@ -4043,11 +4046,12 @@
 				1860B283987E62C85450DD6A /* ExploreNotificationsViewModel.swift in Sources */,
 				F994C599A1F2DB1B338784DE /* ExploreObservationContextCard.swift in Sources */,
 				C298A6B3AD3CD9BA99E45235 /* ExploreOnboardingPrompt.swift in Sources */,
-				A98C3C9FD1172F00FB757060 /* ExploreOverviewCard.swift in Sources */,
-				FF8274F356DD00E573B909FE /* ExplorePost+Formatting.swift in Sources */,
-				17F718591BBA6FEC7060DE77 /* ExplorePostCard.swift in Sources */,
-				8CB28B80BCF2962877681372 /* ExplorePostComposerView.swift in Sources */,
-				2EEE9619819E26DEF33F76CD /* ExplorePostDetailActions.swift in Sources */,
+					A98C3C9FD1172F00FB757060 /* ExploreOverviewCard.swift in Sources */,
+					FF8274F356DD00E573B909FE /* ExplorePost+Formatting.swift in Sources */,
+					17F718591BBA6FEC7060DE77 /* ExplorePostCard.swift in Sources */,
+					8CB28B80BCF2962877681372 /* ExplorePostComposerView.swift in Sources */,
+					CB5E361EA58F46F19DF8F170 /* ExploreVideoPlaybackCoordinator.swift in Sources */,
+					2EEE9619819E26DEF33F76CD /* ExplorePostDetailActions.swift in Sources */,
 				50BE1A0A27003909CEF5B72D /* ExplorePostDetailCommentsSection.swift in Sources */,
 				56C01ABF33FF2E437B98EAD7 /* ExplorePostDetailInsightSection.swift in Sources */,
 				FC8B1FFEE949A22001BD3B83 /* ExplorePostDetailTopSection.swift in Sources */,

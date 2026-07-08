@@ -40,7 +40,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Explore videos now rebuild interrupted feed and post-detail playback before resuming, leave a visible play control if autoplay cannot restart, and avoid stuck or flashing pause controls during healthy autoplay."
+            "Explore videos now pause through a scoped sheet lifecycle, rebuild feed and post-detail playback only after the final Explore overlay closes, and leave a visible play control if autoplay cannot restart."
           ]
         }
       ]

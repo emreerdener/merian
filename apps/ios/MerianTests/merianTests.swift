@@ -1157,6 +1157,19 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
         XCTAssertTrue(state.needsPlayerRebuildForRecovery)
     }
 
+    func testAutoplayFailureAfterRecoveryLeavesVisiblePlayControl() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+        state.reduce(.playbackInterrupted)
+        state.reduce(.recoveryRebuildCompleted)
+
+        state.reduce(.playbackPaused)
+
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+        XCTAssertFalse(state.isAutoplayControlSuppressed)
+    }
+
     func testSuccessfulRecoveryRebuildAndResumeClearsRecoveryState() {
         var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
         state.reduce(.playbackInterrupted)
@@ -1170,6 +1183,19 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
         XCTAssertTrue(state.isPlaying)
         XCTAssertTrue(state.showsPlaybackControl)
         XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+    }
+
+    func testHiddenUnhealthyTapRepairCanStartWithVisibleControl() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+        state.reduce(.playbackInterrupted)
+        state.reduce(.recoveryRebuildCompleted)
+
+        state.reduce(.playbackStarted)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+        XCTAssertFalse(state.isAutoplayControlSuppressed)
     }
 
     func testControlFadeOnlyHidesWhilePlaybackIsStillMarkedPlaying() {
@@ -1231,6 +1257,75 @@ final class ExploreVideoPlaybackResumeIntentStateTests: XCTestCase {
 
         XCTAssertFalse(state.consumeOverlayResumeIntent())
         XCTAssertFalse(state.consumeSystemResumeIntent())
+    }
+}
+
+@MainActor
+final class ExploreVideoPlaybackCoordinatorTests: XCTestCase {
+    func testSingleOverlayPausesAndResumesWhenDismissed() {
+        let coordinator = ExploreVideoPlaybackCoordinator()
+
+        let token = coordinator.beginOverlay(reason: "comments")
+
+        XCTAssertEqual(coordinator.overlayDepth, 1)
+        XCTAssertEqual(coordinator.pauseGeneration, 1)
+        XCTAssertEqual(coordinator.resumeGeneration, 0)
+        XCTAssertTrue(coordinator.hasActiveOverlay)
+
+        coordinator.endOverlay(token)
+
+        XCTAssertEqual(coordinator.overlayDepth, 0)
+        XCTAssertEqual(coordinator.pauseGeneration, 1)
+        XCTAssertEqual(coordinator.resumeGeneration, 1)
+        XCTAssertFalse(coordinator.hasActiveOverlay)
+    }
+
+    func testNestedOverlaysResumeOnlyAfterFinalDismissal() {
+        let coordinator = ExploreVideoPlaybackCoordinator()
+
+        let commentsToken = coordinator.beginOverlay(reason: "comments")
+        let profileToken = coordinator.beginOverlay(reason: "profile")
+
+        XCTAssertEqual(coordinator.overlayDepth, 2)
+        XCTAssertEqual(coordinator.pauseGeneration, 2)
+        XCTAssertEqual(coordinator.resumeGeneration, 0)
+
+        coordinator.endOverlay(profileToken)
+
+        XCTAssertEqual(coordinator.overlayDepth, 1)
+        XCTAssertEqual(coordinator.resumeGeneration, 0)
+        XCTAssertTrue(coordinator.hasActiveOverlay)
+
+        coordinator.endOverlay(commentsToken)
+
+        XCTAssertEqual(coordinator.overlayDepth, 0)
+        XCTAssertEqual(coordinator.resumeGeneration, 1)
+        XCTAssertFalse(coordinator.hasActiveOverlay)
+    }
+
+    func testDuplicateOverlayDismissIsIgnored() {
+        let coordinator = ExploreVideoPlaybackCoordinator()
+        let token = coordinator.beginOverlay(reason: "share")
+
+        coordinator.endOverlay(token)
+        coordinator.endOverlay(token)
+
+        XCTAssertEqual(coordinator.overlayDepth, 0)
+        XCTAssertEqual(coordinator.pauseGeneration, 1)
+        XCTAssertEqual(coordinator.resumeGeneration, 1)
+    }
+
+    func testActivePlayerCanBeActivatedAndCleared() {
+        let coordinator = ExploreVideoPlaybackCoordinator()
+
+        coordinator.activate(playerID: "player-a", surface: .feed)
+        XCTAssertEqual(coordinator.activePlayerID, "player-a")
+
+        coordinator.clearActivePlayer("player-b")
+        XCTAssertEqual(coordinator.activePlayerID, "player-a")
+
+        coordinator.clearActivePlayer("player-a")
+        XCTAssertNil(coordinator.activePlayerID)
     }
 }
 

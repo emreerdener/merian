@@ -425,6 +425,7 @@ struct ExploreFeedMediaView: View {
                 fallbackImageUrl: imageUrl,
                 reloadGeneration: reloadGeneration,
                 preloadedImage: preloadedImage,
+                surface: .feed,
                 autoplay: true,
                 showsVideoControls: true,
                 onSingleTap: onSingleTap,
@@ -485,31 +486,11 @@ struct ExploreDetailMediaView: View {
             fallbackImageUrl: imageUrl,
             reloadGeneration: reloadGeneration,
             preloadedImage: preloadedImage,
+            surface: .detail,
             autoplay: true,
             showsVideoControls: true,
             allowsAutoplayInLowPowerMode: true
         )
-    }
-}
-
-enum ExploreVideoAutoplayCoordinator {
-    static let activePlayerDidChange = Notification.Name("MerianExploreActiveVideoPlayerDidChange")
-    static let overlayWillPresent = Notification.Name("MerianExploreVideoOverlayWillPresent")
-    static let resumeAutoplayRequested = Notification.Name("MerianExploreVideoAutoplayResumeRequested")
-
-    static func activate(_ id: String) {
-        NotificationCenter.default.post(
-            name: activePlayerDidChange,
-            object: id
-        )
-    }
-
-    static func prepareForOverlayPresentation() {
-        NotificationCenter.default.post(name: overlayWillPresent, object: nil)
-    }
-
-    static func requestResume() {
-        NotificationCenter.default.post(name: resumeAutoplayRequested, object: nil)
     }
 }
 
@@ -632,12 +613,14 @@ struct ExplorePublicMediaView: View {
     let fallbackImageUrl: String
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
+    let surface: ExploreVideoPlaybackSurface
     let autoplay: Bool
     let showsVideoControls: Bool
     let allowsAutoplayInLowPowerMode: Bool
     let onSingleTap: (() -> Void)?
     let onDoubleTap: (() -> Void)?
 
+    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @State private var player: AVPlayer?
     @State private var playerId = UUID().uuidString
     @State private var configuredVideoURL: String?
@@ -658,6 +641,7 @@ struct ExplorePublicMediaView: View {
         fallbackImageUrl: String,
         reloadGeneration: UInt64,
         preloadedImage: UIImage?,
+        surface: ExploreVideoPlaybackSurface,
         autoplay: Bool,
         showsVideoControls: Bool,
         allowsAutoplayInLowPowerMode: Bool = false,
@@ -668,6 +652,7 @@ struct ExplorePublicMediaView: View {
         self.fallbackImageUrl = fallbackImageUrl
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
+        self.surface = surface
         self.autoplay = autoplay
         self.showsVideoControls = showsVideoControls
         self.allowsAutoplayInLowPowerMode = allowsAutoplayInLowPowerMode
@@ -680,7 +665,7 @@ struct ExplorePublicMediaView: View {
             posterImage
 
             if mediaItem.kind == .video, let player {
-                ExploreCoverVideoPlayer(player: player)
+                ExploreCoverVideoPlayer(player: player, playerId: playerId, surface: surface)
                     .id("\(mediaItem.url)|\(videoSurfaceGeneration)")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
@@ -696,27 +681,32 @@ struct ExplorePublicMediaView: View {
         }
         .task(id: "\(mediaItem.url)|\(reloadGeneration)") {
             configurePlayerIfNeeded()
-            resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
+            resumeAutoplayIfUncovered()
         }
         .onAppear {
-            resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
+            logPlayback("appear")
+            resumeAutoplayIfUncovered()
         }
         .onChange(of: isMuted) { _, newValue in
             player?.isMuted = newValue
+            logPlayback("mute-changed", extra: "muted=\(newValue)")
         }
         .onDisappear {
+            logPlayback("disappear")
             cleanupPlayer()
         }
-        .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.activePlayerDidChange)) { notification in
-            guard let activeId = notification.object as? String,
-                  activeId != playerId else { return }
-            player?.pause()
-            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        .onChange(of: playbackCoordinator?.activePlayerID) { _, activeId in
+            guard let activeId,
+                  activeId != playerId,
+                  player != nil else { return }
+            pauseForExternalActivePlayer()
         }
-        .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.overlayWillPresent)) { _ in
+        .onChange(of: playbackCoordinator?.pauseGeneration) { _, _ in
+            guard playbackCoordinator?.hasActiveOverlay == true else { return }
             pauseForOverlayPresentation(shouldResume: playbackOverlayState.isPlaying || player?.timeControlStatus == .playing)
         }
-        .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.resumeAutoplayRequested)) { _ in
+        .onChange(of: playbackCoordinator?.resumeGeneration) { _, _ in
+            guard playbackCoordinator?.hasActiveOverlay != true else { return }
             guard playbackResumeIntentState.consumeOverlayResumeIntent() else {
                 reconcilePlaybackStateWithPlayer()
                 return
@@ -748,11 +738,15 @@ struct ExplorePublicMediaView: View {
             Color.clear
                 .contentShape(Rectangle())
                 .gesture(mediaTapGesture)
-        } else if shouldRevealPlaybackControlOnTap {
+        } else if shouldRepairHiddenPlaybackControlOnTap || shouldRevealPlaybackControlOnTap {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    showPlaybackControlTemporarily()
+                    if shouldRepairHiddenPlaybackControlOnTap {
+                        repairHiddenPlaybackControlFromTap()
+                    } else {
+                        revealPlaybackControlFromTap()
+                    }
                 }
         }
     }
@@ -765,7 +759,15 @@ struct ExplorePublicMediaView: View {
         mediaItem.kind == .video &&
             showsVideoControls &&
             !playbackOverlayState.showsPlaybackControl &&
+            !shouldRepairHiddenPlaybackControlOnTap &&
             (onSingleTap == nil || playbackOverlayState.needsPlayerRebuildForRecovery)
+    }
+
+    private var shouldRepairHiddenPlaybackControlOnTap: Bool {
+        mediaItem.kind == .video &&
+            showsVideoControls &&
+            !playbackOverlayState.showsPlaybackControl &&
+            (playbackOverlayState.needsPlayerRebuildForRecovery || player?.timeControlStatus != .playing)
     }
 
     private var mediaTapGesture: some Gesture {
@@ -774,6 +776,10 @@ struct ExplorePublicMediaView: View {
                 onDoubleTap?()
             },
             TapGesture().onEnded {
+                if shouldRepairHiddenPlaybackControlOnTap {
+                    repairHiddenPlaybackControlFromTap()
+                    return
+                }
                 if shouldRevealPlaybackControlOnTap {
                     revealPlaybackControlFromTap()
                     return
@@ -856,6 +862,10 @@ struct ExplorePublicMediaView: View {
         if shouldRebuildPlayer {
             videoSurfaceGeneration += 1
         }
+        logPlayback(
+            shouldRebuildPlayer ? "configure-rebuild" : "configure",
+            extra: "generation=\(videoSurfaceGeneration)"
+        )
         let player = AVPlayer(url: url)
         player.isMuted = isMuted
         player.actionAtItemEnd = .none
@@ -866,6 +876,7 @@ struct ExplorePublicMediaView: View {
                 queue: .main
             ) { [weak player] _ in
                 guard let player else { return }
+                logPlayback("item-ended")
                 player.seek(to: .zero)
                 if playbackOverlayState.isPlaying {
                     player.play()
@@ -878,6 +889,7 @@ struct ExplorePublicMediaView: View {
                 object: player.currentItem,
                 queue: .main
             ) { _ in
+                logPlayback("item-stalled")
                 pauseForRecoverableInterruption()
             },
             NotificationCenter.default.addObserver(
@@ -885,6 +897,7 @@ struct ExplorePublicMediaView: View {
                 object: player.currentItem,
                 queue: .main
             ) { _ in
+                logPlayback("item-failed-to-end")
                 pauseForRecoverableInterruption()
             }
         ]
@@ -896,6 +909,7 @@ struct ExplorePublicMediaView: View {
         configuredVideoURL = mediaItem.url
         self.player = player
         if let recoverySeekTime {
+            logPlayback("seek-recovery", extra: "seconds=\(recoverySeekTime.seconds)")
             player.seek(to: recoverySeekTime, toleranceBefore: .zero, toleranceAfter: .zero)
         }
         pendingRecoverySeekTime = nil
@@ -907,6 +921,7 @@ struct ExplorePublicMediaView: View {
     }
 
     private func cleanupPlayer() {
+        logPlayback("cleanup")
         resetCurrentPlayer()
         playbackResumeIntentState.clear()
         pendingRecoverySeekTime = nil
@@ -914,6 +929,10 @@ struct ExplorePublicMediaView: View {
     }
 
     private func resetCurrentPlayer() {
+        if player != nil {
+            logPlayback("reset-player")
+            playbackCoordinator?.clearActivePlayer(playerId)
+        }
         player?.pause()
         overlayResumeTask?.cancel()
         overlayResumeTask = nil
@@ -953,6 +972,7 @@ struct ExplorePublicMediaView: View {
     }
 
     private func pauseForUserInteraction() {
+        logPlayback("pause-user")
         player?.pause()
         overlayResumeTask?.cancel()
         overlayResumeTask = nil
@@ -967,12 +987,20 @@ struct ExplorePublicMediaView: View {
         playbackControlFadeTask = nil
     }
 
+    private func pauseForExternalActivePlayer() {
+        logPlayback("pause-external-active-player")
+        player?.pause()
+        reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+    }
+
     private func pauseForOverlayPresentation(shouldResume: Bool) {
+        logPlayback("pause-overlay", extra: "shouldResume=\(shouldResume)")
         playbackResumeIntentState.markOverlayPresentation(shouldResume: shouldResume)
         pauseForRecoverableInterruption()
     }
 
     private func pauseForSystemInterruption(shouldResume: Bool) {
+        logPlayback("pause-system", extra: "shouldResume=\(shouldResume)")
         playbackResumeIntentState.markSystemInterruption(shouldResume: shouldResume)
         pauseForRecoverableInterruption()
     }
@@ -980,6 +1008,10 @@ struct ExplorePublicMediaView: View {
     private func pauseForRecoverableInterruption() {
         guard mediaItem.kind == .video else { return }
         pendingRecoverySeekTime = currentRecoverySeekTime()
+        logPlayback(
+            "pause-recoverable",
+            extra: "seek=\(pendingRecoverySeekTime?.seconds ?? -1)"
+        )
         player?.pause()
         overlayResumeTask?.cancel()
         overlayResumeTask = nil
@@ -994,6 +1026,7 @@ struct ExplorePublicMediaView: View {
 
     private func scheduleOverlayResume() {
         overlayResumeTask?.cancel()
+        logPlayback("schedule-overlay-resume")
         overlayResumeTask = Task {
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
@@ -1017,10 +1050,34 @@ struct ExplorePublicMediaView: View {
         resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
     }
 
+    private func resumeAutoplayIfUncovered() {
+        guard playbackCoordinator?.hasActiveOverlay != true else {
+            logPlayback("skip-autoplay-covered")
+            pauseForOverlayPresentation(shouldResume: false)
+            return
+        }
+
+        resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
+    }
+
     private func revealPlaybackControlFromTap() {
+        logPlayback("tap-reveal-control")
         playbackControlFadeTask?.cancel()
         playbackControlFadeTask = nil
         reducePlaybackOverlay(.revealControls, animation: .easeInOut(duration: 0.18))
+    }
+
+    private func repairHiddenPlaybackControlFromTap() {
+        logPlayback(
+            "tap-repair-hidden-control",
+            extra: "status=\(playbackStatusDescription(player?.timeControlStatus)) rebuild=\(playbackOverlayState.needsPlayerRebuildForRecovery)"
+        )
+        resumeAutoplayIfEligible(
+            force: true,
+            revealsPlaybackControl: true,
+            forcePlayerRebuild: playbackOverlayState.needsPlayerRebuildForRecovery || player?.timeControlStatus != .playing,
+            verifiesRecovery: true
+        )
     }
 
     private func reducePlaybackOverlay(
@@ -1063,8 +1120,14 @@ struct ExplorePublicMediaView: View {
         verifiesRecovery: Bool = false
     ) {
         guard mediaItem.kind == .video else { return }
+        guard force || playbackCoordinator?.hasActiveOverlay != true else {
+            logPlayback("skip-resume-covered")
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+            return
+        }
         guard autoplay || force,
               force || ignoreLowPowerMode || !ProcessInfo.processInfo.isLowPowerModeEnabled else {
+            logPlayback("skip-resume-low-power")
             reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
             return
         }
@@ -1074,10 +1137,15 @@ struct ExplorePublicMediaView: View {
         guard let player = configurePlayerIfNeeded(
             forceRebuildForRecovery: isRecoveringPlayback
         ) else {
+            logPlayback("resume-unavailable")
             reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
             return
         }
-        ExploreVideoAutoplayCoordinator.activate(playerId)
+        playbackCoordinator?.activate(playerID: playerId, surface: surface)
+        logPlayback(
+            "resume",
+            extra: "force=\(force) rebuild=\(isRecoveringPlayback) reveal=\(shouldRevealPlaybackControl) verify=\(shouldVerifyRecovery)"
+        )
         if shouldRevealPlaybackControl {
             reducePlaybackOverlay(.playbackStarted, animation: .easeInOut(duration: 0.18))
             showPlaybackControlTemporarily()
@@ -1093,6 +1161,7 @@ struct ExplorePublicMediaView: View {
 
     private func startPlaybackRecoveryWatchdog(for watchedPlayer: AVPlayer) {
         playbackRecoveryWatchdogTask?.cancel()
+        logPlayback("start-recovery-watchdog")
         playbackRecoveryWatchdogTask = Task {
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             guard !Task.isCancelled else { return }
@@ -1101,9 +1170,15 @@ struct ExplorePublicMediaView: View {
                 playbackRecoveryWatchdogTask = nil
 
                 guard watchedPlayer.timeControlStatus == .playing else {
+                    logPlayback(
+                        "recovery-watchdog-failed",
+                        extra: "status=\(playbackStatusDescription(watchedPlayer.timeControlStatus))"
+                    )
                     pauseForRecoverableInterruption()
                     return
                 }
+
+                logPlayback("recovery-watchdog-passed")
             }
         }
     }
@@ -1124,6 +1199,10 @@ struct ExplorePublicMediaView: View {
 
                 unexpectedPauseRecoveryTask = nil
                 guard watchedPlayer.timeControlStatus == .playing else {
+                    logPlayback(
+                        "unexpected-pause-confirmed",
+                        extra: "status=\(playbackStatusDescription(watchedPlayer.timeControlStatus))"
+                    )
                     pauseForRecoverableInterruption()
                     return
                 }
@@ -1133,6 +1212,7 @@ struct ExplorePublicMediaView: View {
 
     private func showPlaybackControlTemporarily() {
         playbackControlFadeTask?.cancel()
+        logPlayback("show-control-temporarily")
         reducePlaybackOverlay(.revealControls, animation: .easeInOut(duration: 0.18))
         guard playbackOverlayState.isPlaying,
               !playbackOverlayState.needsPlayerRebuildForRecovery else {
@@ -1148,12 +1228,14 @@ struct ExplorePublicMediaView: View {
                       !playbackOverlayState.needsPlayerRebuildForRecovery else {
                     return
                 }
+                logPlayback("control-fade-completed")
                 reducePlaybackOverlay(.controlFadeCompleted, animation: .easeInOut(duration: 0.26))
             }
         }
     }
 
     private func handlePlaybackStatusChange(_ status: AVPlayer.TimeControlStatus) {
+        logPlayback("status-change", extra: "status=\(playbackStatusDescription(status))")
         guard !playbackOverlayState.needsPlayerRebuildForRecovery else {
             reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
             return
@@ -1194,6 +1276,10 @@ struct ExplorePublicMediaView: View {
     }
 
     private func reconcilePlaybackStateWithPlayer() {
+        logPlayback(
+            "reconcile",
+            extra: "status=\(playbackStatusDescription(player?.timeControlStatus)) rebuild=\(playbackOverlayState.needsPlayerRebuildForRecovery)"
+        )
         guard !playbackOverlayState.needsPlayerRebuildForRecovery else {
             playbackControlFadeTask?.cancel()
             playbackControlFadeTask = nil
@@ -1228,25 +1314,55 @@ struct ExplorePublicMediaView: View {
             reconcilePlaybackStateWithPlayer()
         }
     }
+
+    private func playbackStatusDescription(_ status: AVPlayer.TimeControlStatus?) -> String {
+        switch status {
+        case .playing:
+            return "playing"
+        case .paused:
+            return "paused"
+        case .waitingToPlayAtSpecifiedRate:
+            return "waiting"
+        case nil:
+            return "nil"
+        @unknown default:
+            return "unknown"
+        }
+    }
+
+    private func logPlayback(_ event: String, extra: String = "") {
+        MerianLog.exploreVideo.debug(
+            "player=\(self.playerId, privacy: .public) surface=\(self.surface.rawValue, privacy: .public) event=\(event, privacy: .public) \(extra, privacy: .public)"
+        )
+    }
 }
 
 private struct ExploreCoverVideoPlayer: UIViewRepresentable {
     let player: AVPlayer
+    let playerId: String
+    let surface: ExploreVideoPlaybackSurface
 
     func makeUIView(context: Context) -> ExplorePlayerLayerView {
         let view = ExplorePlayerLayerView()
         view.playerLayer.player = player
+        MerianLog.exploreVideo.debug(
+            "layer attach player=\(self.playerId, privacy: .public) surface=\(self.surface.rawValue, privacy: .public)"
+        )
         return view
     }
 
     func updateUIView(_ view: ExplorePlayerLayerView, context: Context) {
         if view.playerLayer.player !== player {
             view.playerLayer.player = player
+            MerianLog.exploreVideo.debug(
+                "layer update player=\(self.playerId, privacy: .public) surface=\(self.surface.rawValue, privacy: .public)"
+            )
         }
         view.playerLayer.videoGravity = .resizeAspectFill
     }
 
     static func dismantleUIView(_ view: ExplorePlayerLayerView, coordinator: ()) {
+        MerianLog.exploreVideo.debug("layer dismantle")
         view.playerLayer.player = nil
     }
 }

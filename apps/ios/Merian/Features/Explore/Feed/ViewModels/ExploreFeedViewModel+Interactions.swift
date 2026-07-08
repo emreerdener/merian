@@ -93,7 +93,7 @@ extension ExploreFeedViewModel {
         }
     }
 
-    func share(_ post: ExplorePost) {
+    func share(_ post: ExplorePost, playbackCoordinator: ExploreVideoPlaybackCoordinator? = nil) {
         var shareText = "Check out this Merian Explore post: \(resolvedSpeciesCommonName(for: post))"
         if !post.speciesScientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             shareText += " (\(post.speciesScientificName))"
@@ -104,9 +104,12 @@ extension ExploreFeedViewModel {
 
         shareText += "\nhttps://merian.earth/explore/post/\(post.id)"
 
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
+        let overlayToken = playbackCoordinator?.beginOverlay(reason: "explore-share-sheet")
         ShareSheetUtility.present(items: [shareText]) {
-            ExploreVideoAutoplayCoordinator.requestResume()
+            guard let overlayToken else { return }
+            Task { @MainActor in
+                playbackCoordinator?.endOverlay(overlayToken)
+            }
         }
         HapticManager.shared.triggerSelectionPulse()
     }

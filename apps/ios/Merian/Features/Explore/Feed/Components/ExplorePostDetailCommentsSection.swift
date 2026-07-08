@@ -71,9 +71,11 @@ struct ExplorePostDetailCommentsSection: View {
                             .id(composerId)
                     }
                 }
-                .sheet(item: $selectedAuthorProfileRoute, onDismiss: {
-                    ExploreVideoAutoplayCoordinator.requestResume()
-                }) { route in
+                .exploreVideoOverlayLifecycle(
+                    isPresented: selectedAuthorProfileRoute != nil,
+                    reason: "explore-detail-comments-author-profile"
+                )
+                .sheet(item: $selectedAuthorProfileRoute) { route in
                     ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
                 }
             }
@@ -477,13 +479,11 @@ struct ExplorePostDetailCommentsSection: View {
 
     private func openAuthorProfile(for comment: ExploreComment) {
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(comment: comment)
     }
 
     private func openMentionProfile(_ mention: ExploreCommentMention) {
         HapticManager.shared.triggerSelectionPulse()
-        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(mention: mention)
     }
 

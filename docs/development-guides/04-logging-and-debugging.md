@@ -15,6 +15,7 @@ enum MerianLog {
     static let network  = Logger(subsystem: "com.merian.app", category: "Network")
     static let data     = Logger(subsystem: "com.merian.app", category: "Data")
     static let hardware = Logger(subsystem: "com.merian.app", category: "Hardware")
+    static let exploreVideo = Logger(subsystem: "com.merian.app", category: "ExploreVideo")
     static let general  = Logger(subsystem: "com.merian.app", category: "General")
 }
 ```
@@ -31,6 +32,7 @@ enum MerianLog {
 | `MerianLog.network` | `MerianNetworkClient` — HTTP requests, R2 uploads, Edge function calls, status codes |
 | `MerianLog.data` | All SwiftData actors, `OfflineQueueManager`, `ScanRepository`, `FileIOActor`, `ArchiveManager` |
 | `MerianLog.hardware` | `CameraManager` — AVFoundation locks, focus, torch, thermal states, video stabilization mode |
+| `MerianLog.exploreVideo` | Explore public video playback — active player changes, sheet overlay pause/resume, player/layer rebuilds, recovery watchdogs |
 | `MerianLog.general` | `InferenceEngine`, `CircuitBreakerManager`, `GamificationManager`, `PostHogManager`, `AppTelemetry`, everything else |
 
 When in doubt, use `MerianLog.general`. Do not create new `Logger` instances outside of `MerianLog` — adding a new category requires updating the enum and this document.
@@ -105,6 +107,36 @@ Some noisy lines come from Apple frameworks or third-party development configura
 | `nw_connection_copy_connected_local_endpoint... no local endpoint` | Network framework inspected a socket before connection establishment completed. | Usually harmless; investigate only with request failures in `MerianLog.network`. |
 | `PostHog identity buffered until SDK configuration completes` | Expected defensive path if identity arrives before setup in a future startup order. | Should be rare because Supabase configures PostHog before auth listening. |
 | `AttributeGraph: cycle detected` | SwiftUI detected a state/layout feedback loop. | Investigate immediately. Layout measurements must be guarded by equality tolerances and deferred out of the active layout pass before writing `@State` or observable view-model state. |
+
+---
+
+## Explore Video Playback Triage
+
+Explore feed/detail video playback logs use `MerianLog.exploreVideo`. In
+Console.app or Instruments, filter with:
+
+```text
+subsystem:com.merian.app category:ExploreVideo
+```
+
+Useful event names:
+
+| Event | Meaning |
+|---|---|
+| `active player=... surface=...` | The scoped coordinator selected the only Explore player that should be playing. Other visible players should pause after this. |
+| `overlay began` / `overlay ended` | An Explore sheet or UIKit share surface changed the coordinator's overlay depth. Playback should resume only when depth returns to zero. |
+| `pause-overlay` / `schedule-overlay-resume` | `ExplorePublicMediaView` converted a covering sheet into a recoverable interruption and queued a resume after dismissal. |
+| `configure-rebuild` / `layer attach` / `layer dismantle` | The player or `AVPlayerLayer` was rebuilt. These should appear after sheet interruption recovery, not during ordinary healthy playback. |
+| `status-change` | The underlying `AVPlayer.timeControlStatus` changed. Pair this with `pause-recoverable`, `unexpected-pause-confirmed`, or watchdog events. |
+| `recovery-watchdog-passed` / `recovery-watchdog-failed` | The recovery attempt either reached `.playing` or left the visible play control as the user-facing recovery path. |
+| `tap-repair-hidden-control` | A hidden, unhealthy video tap repaired/revealed playback instead of routing the feed card to detail. |
+
+If a video freezes after a sheet closes, first check that every covering
+Explore-hosted sheet owns exactly one
+`.exploreVideoOverlayLifecycle(isPresented:reason:)` token, or that a UIKit
+presenter ends the token returned by `beginOverlay(reason:)`. Do not reintroduce
+global `NotificationCenter` playback notifications; nested sheet depth is what
+keeps dismissal order deterministic.
 
 ---
 

@@ -813,7 +813,9 @@ image and video URLs from the scan into `explore_post_media` and keeps
 `hero_image_url` as the backward-compatible universal thumbnail. Feed, detail,
 author, hashtag, map, and Community ID reads include ordered `media_items` JSON.
 Feed/detail surfaces may play muted videos conservatively, while maps, widgets,
-profile grids, and compact previews stay thumbnail-first with play indicators.
+profile grids, and compact previews stay thumbnail-first. In-app compact
+previews may add a play indicator, but Home Screen widgets deliberately render
+video posts as clean still thumbnails with no badge or inline playback.
 Dictionary galleries and reference-image promotion remain image-only and read
 from the eligible scan image URLs rather than public video clips.
 
