@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-08-pro-video-stabilization",
+      "date": "2026-07-08",
+      "title": "Pro video stabilization",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Pro video recordings now use native iOS stabilization when available, and Merian resets the camera connection afterward so still photos keep their normal resolution and latency."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-07-posthog-analytics-consolidation",
       "date": "2026-07-07",
       "title": "Analytics consolidation",

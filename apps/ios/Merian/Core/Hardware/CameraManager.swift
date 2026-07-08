@@ -895,12 +895,20 @@ private struct CameraVideoRecordingStartHandler: Sendable {
                 }
 
                 queue.async {
-                    self.configureMovieOutputConnection(maxDuration: resolvedMaxDuration)
+                    self.configureMovieOutputConnection(
+                        maxDuration: resolvedMaxDuration,
+                        prefersVideoStabilization: true
+                    )
+                    let preferredStabilizationMode = self.movieOutput
+                        .connection(with: .video)?
+                        .preferredVideoStabilizationMode
+                        .rawValue ?? AVCaptureVideoStabilizationMode.off.rawValue
                     MerianLog.hardware.debug(
                         """
                         Video recording start requested: \
                         url=\(outputURL.lastPathComponent, privacy: .public), \
-                        maxDuration=\(resolvedMaxDuration, privacy: .public)
+                        maxDuration=\(resolvedMaxDuration, privacy: .public), \
+                        preferredStabilizationMode=\(preferredStabilizationMode, privacy: .public)
                         """
                     )
                     self.movieOutput.startRecording(to: outputURL, recordingDelegate: self)
@@ -1016,14 +1024,41 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         }
     }
 
-    nonisolated private func configureMovieOutputConnection(maxDuration: TimeInterval) {
+    nonisolated private func configureMovieOutputConnection(
+        maxDuration: TimeInterval,
+        prefersVideoStabilization: Bool = false
+    ) {
         movieOutput.maxRecordedDuration = CMTime(seconds: max(maxDuration, 0.5), preferredTimescale: 600)
         movieOutput.maxRecordedFileSize = Int64(MerianConfig.videoPayloadMaxBytes)
-        if let connection = movieOutput.connection(with: .video),
-           let rotationAngle = stateLock.withLock({ rotationCoordinator?.videoRotationAngleForHorizonLevelCapture }),
+        guard let connection = movieOutput.connection(with: .video) else { return }
+
+        if let rotationAngle = stateLock.withLock({ rotationCoordinator?.videoRotationAngleForHorizonLevelCapture }),
            connection.isVideoRotationAngleSupported(rotationAngle) {
             connection.videoRotationAngle = rotationAngle
         }
+
+        configureRecordedVideoStabilization(on: connection, enabled: prefersVideoStabilization)
+    }
+
+    nonisolated private func configureRecordedVideoStabilization(
+        on connection: AVCaptureConnection,
+        enabled: Bool
+    ) {
+        let targetMode: AVCaptureVideoStabilizationMode
+        if enabled && connection.isVideoStabilizationSupported {
+            targetMode = .auto
+        } else {
+            targetMode = .off
+        }
+
+        if connection.preferredVideoStabilizationMode != targetMode {
+            connection.preferredVideoStabilizationMode = targetMode
+        }
+    }
+
+    nonisolated private func disableRecordedVideoStabilization() {
+        guard let connection = movieOutput.connection(with: .video) else { return }
+        configureRecordedVideoStabilization(on: connection, enabled: false)
     }
 
     nonisolated private func scheduleVideoRecordingTimeout(
@@ -1074,6 +1109,8 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         removingFile: Bool,
         logMessage: String
     ) {
+        disableRecordedVideoStabilization()
+
         let result = videoRecordingLock.withLock { () -> CameraVideoRecordingCompletion in
             let captured = CameraVideoRecordingCompletion(
                 continuation: activeVideoContinuation,
@@ -1137,6 +1174,8 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         didStartRecordingTo fileURL: URL,
         from connections: [AVCaptureConnection]
     ) {
+        let activeStabilizationMode = movieOutput.connection(with: .video)?.activeVideoStabilizationMode.rawValue
+            ?? AVCaptureVideoStabilizationMode.off.rawValue
         let startContext = videoRecordingLock.withLock { () -> (CameraVideoRecordingStartHandler?, TimeInterval) in
             activeVideoStartedAt = Date()
             let handler = activeVideoStartHandler
@@ -1151,6 +1190,10 @@ private struct CameraVideoRecordingStartHandler: Sendable {
             message: "Video recording timed out before the camera returned a file."
         )
 
+        MerianLog.hardware.debug(
+            "Video recording started: activeStabilizationMode=\(activeStabilizationMode, privacy: .public)"
+        )
+
         Task { @MainActor in
             self.isRecordingVideo = true
             startContext.0?.action()
@@ -1163,6 +1206,8 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         from connections: [AVCaptureConnection],
         error: Error?
     ) {
+        disableRecordedVideoStabilization()
+
         let result = videoRecordingLock.withLock { () -> CameraVideoRecordingCompletion in
             let captured = CameraVideoRecordingCompletion(
                 continuation: activeVideoContinuation,

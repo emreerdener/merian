@@ -493,12 +493,53 @@ struct ExploreDetailMediaView: View {
 
 private enum ExploreVideoAutoplayCoordinator {
     static let activePlayerDidChange = Notification.Name("MerianExploreActiveVideoPlayerDidChange")
+    static let resumeAutoplayRequested = Notification.Name("MerianExploreVideoAutoplayResumeRequested")
 
     static func activate(_ id: String) {
         NotificationCenter.default.post(
             name: activePlayerDidChange,
             object: id
         )
+    }
+
+    static func requestResume() {
+        NotificationCenter.default.post(name: resumeAutoplayRequested, object: nil)
+    }
+}
+
+struct ExploreVideoPlaybackOverlayState: Equatable {
+    enum Event: Equatable {
+        case playbackStarted
+        case playbackPaused
+        case playbackUnavailable
+        case revealControls
+        case controlFadeCompleted
+    }
+
+    private(set) var isPlaying: Bool
+    private(set) var showsPlaybackControl: Bool
+
+    init(
+        isPlaying: Bool = false,
+        showsPlaybackControl: Bool = true
+    ) {
+        self.isPlaying = isPlaying
+        self.showsPlaybackControl = showsPlaybackControl
+    }
+
+    mutating func reduce(_ event: Event) {
+        switch event {
+        case .playbackStarted:
+            isPlaying = true
+            showsPlaybackControl = true
+        case .playbackPaused, .playbackUnavailable:
+            isPlaying = false
+            showsPlaybackControl = true
+        case .revealControls:
+            showsPlaybackControl = true
+        case .controlFadeCompleted:
+            showsPlaybackControl = !isPlaying
+        }
     }
 }
 
@@ -516,10 +557,10 @@ struct ExplorePublicMediaView: View {
     @State private var player: AVPlayer?
     @State private var playerId = UUID().uuidString
     @State private var configuredVideoURL: String?
-    @State private var playbackEndObserver: NSObjectProtocol?
-    @State private var isPlaying = false
-    @State private var showsPlaybackControl = true
+    @State private var playbackObservers: [NSObjectProtocol] = []
+    @State private var playbackOverlayState = ExploreVideoPlaybackOverlayState()
     @State private var playbackControlFadeTask: Task<Void, Never>?
+    @State private var shouldResumeAfterCoordinatorPause = false
     @AppStorage("MerianExplorePublicVideoMuted") private var isMuted = true
 
     init(
@@ -563,8 +604,11 @@ struct ExplorePublicMediaView: View {
             }
         }
         .task(id: "\(mediaItem.url)|\(reloadGeneration)") {
-            configurePlayer()
-            startAutoplayIfNeeded(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
+            configurePlayerIfNeeded()
+            resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
+        }
+        .onAppear {
+            resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
         }
         .onChange(of: isMuted) { _, newValue in
             player?.isMuted = newValue
@@ -575,9 +619,17 @@ struct ExplorePublicMediaView: View {
         .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.activePlayerDidChange)) { notification in
             guard let activeId = notification.object as? String,
                   activeId != playerId else { return }
+            shouldResumeAfterCoordinatorPause = playbackOverlayState.isPlaying || player?.timeControlStatus == .playing
             player?.pause()
-            isPlaying = false
-            showPlaybackControlPersistently()
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.resumeAutoplayRequested)) { _ in
+            guard shouldResumeAfterCoordinatorPause else {
+                reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+                return
+            }
+            shouldResumeAfterCoordinatorPause = false
+            resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
         }
     }
 
@@ -609,7 +661,10 @@ struct ExplorePublicMediaView: View {
     }
 
     private var shouldRevealPlaybackControlOnTap: Bool {
-        mediaItem.kind == .video && showsVideoControls && isPlaying && !showsPlaybackControl
+        mediaItem.kind == .video &&
+            showsVideoControls &&
+            playbackOverlayState.isPlaying &&
+            !playbackOverlayState.showsPlaybackControl
     }
 
     private var mediaTapGesture: some Gesture {
@@ -628,20 +683,20 @@ struct ExplorePublicMediaView: View {
         ZStack {
             if showsVideoControls {
                 Button(action: togglePlayback) {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    Image(systemName: playbackOverlayState.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 21, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 58, height: 58)
-                        .background(.black.opacity(isPlaying ? 0.32 : 0.46), in: Circle())
+                        .background(.black.opacity(playbackOverlayState.isPlaying ? 0.32 : 0.46), in: Circle())
                         .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
-                .accessibilityHidden(!showsPlaybackControl)
-                .allowsHitTesting(showsPlaybackControl)
-                .opacity(showsPlaybackControl ? 1 : 0)
-                .scaleEffect(showsPlaybackControl ? 1 : 0.96)
-                .animation(.easeInOut(duration: 0.22), value: showsPlaybackControl)
+                .accessibilityLabel(playbackOverlayState.isPlaying ? "Pause video" : "Play video")
+                .accessibilityHidden(!playbackOverlayState.showsPlaybackControl)
+                .allowsHitTesting(playbackOverlayState.showsPlaybackControl)
+                .opacity(playbackOverlayState.showsPlaybackControl ? 1 : 0)
+                .scaleEffect(playbackOverlayState.showsPlaybackControl ? 1 : 0.96)
+                .animation(.easeInOut(duration: 0.22), value: playbackOverlayState.showsPlaybackControl)
             } else {
                 VStack {
                     HStack {
@@ -662,7 +717,7 @@ struct ExplorePublicMediaView: View {
                             isMuted.toggle()
                             player?.isMuted = isMuted
                             if player?.timeControlStatus != .playing {
-                                startAutoplayIfNeeded(force: true)
+                                resumeAutoplayIfEligible(force: true)
                             }
                         } label: {
                             Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")

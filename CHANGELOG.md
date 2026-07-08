@@ -35,6 +35,9 @@ TestFlight, App Store, support, and QA.
 - Added Pro short video scans from the visual shutter: tap still takes a photo,
   while a brief hold latches into a 5-second video recording with saved playback
   and image-based thumbnails.
+- Enabled native iOS stabilization for Pro video recordings, while resetting
+  the prepared movie output after stop, cancel, or failure so still-photo
+  capture keeps its normal resolution and latency.
 - Added clearer haptic feedback for video recording start, finish, successful
   staging, and recording failures.
 - Fixed a crash that could happen after tapping stop on a Pro video recording
