@@ -43,6 +43,11 @@ Follow-up page:
 - `field_trip_followed_publication`: postless row when a followed author
   publishes a completed Field Trip.
 
+Field Trip activity types are checked text values on
+`public.field_trip_activity_notifications`, not added values on
+`public.explore_notification_type`. This keeps the Field Trips-only activity
+surface deployable independently from the push-backed Explore notification enum.
+
 Follow notifications and Field Trip activity have `post_id = null`. Follow rows
 are shown in-app, contribute to unread counts, and are marked read by the normal
 mark-read endpoint, but tapping them does not navigate to a post. Field Trip

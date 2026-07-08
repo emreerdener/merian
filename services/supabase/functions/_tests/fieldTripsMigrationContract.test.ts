@@ -175,6 +175,8 @@ Deno.test("Field Trips v3 adds community feed ranking and compatibility contract
       "'field_trip_comment'",
       "'field_trip_reply'",
       "'field_trip_followed_publication'",
+      "type TEXT NOT NULL CHECK",
+      "n.type::TEXT AS type",
       "'rank_bucket', rank_bucket",
       "'community_reason', community_reason",
       "'viewer_is_following_author', viewer_is_following_author",
@@ -214,6 +216,7 @@ Deno.test("Field Trips v3 activity is in-app only and does not extend Explore fe
       "explore_widget",
       "get_explore_feed_nearby",
       "get_explore_map",
+      "ALTER TYPE public.explore_notification_type ADD VALUE IF NOT EXISTS 'field_trip_",
     ]
   ) {
     assert(
@@ -267,6 +270,10 @@ Deno.test("Field Trips v4 challenges stay non-competitive and Explore-separated"
       "suggested_hashtags",
       "ON CONFLICT(participation_id)",
       "new_entry_id UUID",
+      "AND s.user_id = self_id",
+      "AND s.is_tombstoned = FALSE",
+      "AND NOW() <= c.ends_at",
+      "public.user_has_visible_field_trip_profile((SELECT auth.uid()), user_id)",
       "RETURN JSONB_BUILD_OBJECT('entry_id', new_entry_id)",
     ]
   ) {

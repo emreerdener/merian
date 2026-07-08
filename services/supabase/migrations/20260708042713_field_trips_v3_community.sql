@@ -1,7 +1,3 @@
-ALTER TYPE public.explore_notification_type ADD VALUE IF NOT EXISTS 'field_trip_comment';
-ALTER TYPE public.explore_notification_type ADD VALUE IF NOT EXISTS 'field_trip_reply';
-ALTER TYPE public.explore_notification_type ADD VALUE IF NOT EXISTS 'field_trip_followed_publication';
-
 COMMENT ON TABLE public.field_trip_publications IS
     'Field Trip-scoped published pages. Publishing here does not create Explore posts, map points, widgets, APNs, or normal Explore post notifications; V3 may create Field Trip-only in-app activity rows.';
 
@@ -11,7 +7,7 @@ CREATE TABLE IF NOT EXISTS public.field_trip_activity_notifications (
     actor_user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     publication_id UUID NOT NULL REFERENCES public.field_trip_publications(id) ON DELETE CASCADE,
     comment_id UUID REFERENCES public.field_trip_publication_comments(id) ON DELETE CASCADE,
-    type public.explore_notification_type NOT NULL CHECK (
+    type TEXT NOT NULL CHECK (
         type IN (
             'field_trip_comment',
             'field_trip_reply',
@@ -308,7 +304,7 @@ CREATE OR REPLACE FUNCTION public.create_field_trip_comment_activity_notificatio
     actor_user_id UUID,
     target_publication_id UUID,
     target_comment_id UUID,
-    notification_type public.explore_notification_type
+    notification_type TEXT
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -560,7 +556,7 @@ RETURNS TABLE(
     post_id UUID,
     community_request_id UUID,
     field_trip_publication_id UUID,
-    type public.explore_notification_type,
+    type TEXT,
     comment_id UUID,
     parent_comment_id UUID,
     reaction_emoji TEXT,
@@ -695,7 +691,7 @@ AS $$
             n.post_id,
             n.community_request_id,
             NULL::UUID AS field_trip_publication_id,
-            n.type,
+            n.type::TEXT AS type,
             n.comment_id,
             c.parent_comment_id,
             n.reaction_emoji,

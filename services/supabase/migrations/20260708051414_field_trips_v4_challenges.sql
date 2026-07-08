@@ -1101,6 +1101,8 @@ AS $$
     WHERE comp.scan_id = target_scan_id
       AND p.user_id = self_id
       AND c.is_active = TRUE
+      AND NOW() >= c.starts_at
+      AND NOW() <= c.ends_at
       AND comp.completed_at >= p.joined_at
       AND comp.completed_at <= c.ends_at;
 $$;
@@ -1206,6 +1208,8 @@ BEGIN
         ON fci.id = comp.item_id
     JOIN public.scans s
         ON s.id = comp.scan_id
+       AND s.user_id = self_id
+       AND s.is_tombstoned = FALSE
     LEFT JOIN public.species_dictionary sd
         ON sd.id = comp.species_id
     WHERE comp.participation_id = target_participation_id
@@ -1638,7 +1642,13 @@ DROP POLICY IF EXISTS "Users can read visible field trip challenge badges" ON pu
 CREATE POLICY "Users can read visible field trip challenge badges"
     ON public.field_trip_challenge_badges FOR SELECT
     TO authenticated
-    USING (is_profile_visible = TRUE OR (SELECT auth.uid()) = user_id);
+    USING (
+        (SELECT auth.uid()) = user_id
+        OR (
+            is_profile_visible = TRUE
+            AND public.user_has_visible_field_trip_profile((SELECT auth.uid()), user_id)
+        )
+    );
 
 DROP POLICY IF EXISTS "Users can read visible field trip challenge entries" ON public.field_trip_challenge_entries;
 CREATE POLICY "Users can read visible field trip challenge entries"

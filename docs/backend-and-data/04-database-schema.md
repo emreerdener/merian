@@ -1686,7 +1686,12 @@ coordinates to the client contract.
   Field Trip-only in-app activity rows for publication comments, replies, and
   followed-author publications. These rows are separate from
   `explore_post_notifications` and never trigger APNs, widgets, feed cards, map
-  rows, or `explore_posts`.
+  rows, or `explore_posts`. `type` is checked text
+  (`field_trip_comment`, `field_trip_reply`, or
+  `field_trip_followed_publication`) rather than a new
+  `explore_notification_type` enum value, so the migration can deploy in one
+  transaction while keeping Field Trip activity separate from push-backed Explore
+  notifications.
 - `public.field_trip_challenges`:
   Curated/admin-created seasonal challenge definitions linked to a Field Trip
   template. Rows store title, description, cover image, start/end timestamps,
