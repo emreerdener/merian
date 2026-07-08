@@ -653,6 +653,14 @@ struct MigrationPlanTests {
 
     @Test func latestQueueMetadataMigrationStaysDurable() throws {
         let source = try migrationPlanSource()
+        let v47StageSource: String
+        if let stageStart = source.range(of: "static let migrateV47toV48")?.lowerBound {
+            let stageRemainder = source[stageStart...]
+            let stageEnd = stageRemainder.range(of: "\n    // V45/V46")?.lowerBound ?? stageRemainder.endIndex
+            v47StageSource = String(stageRemainder[..<stageEnd])
+        } else {
+            v47StageSource = source
+        }
         let requiredSnippets = [
             "private static func initializeV48OfflineQueueRecords",
             "private struct V47QueuedScanMigrationSnapshot",
@@ -662,8 +670,9 @@ struct MigrationPlanTests {
             "static let migrateV46toV48 = MigrationStage.custom",
             "FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>",
             "FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>",
-            "snapshot.apply(to: existingScan)",
-            "snapshot.makeV48QueuedScan()",
+            "if snapshots.isEmpty",
+            "queuedScans = []",
+            "insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)",
             "scan.queueAttemptCount = 0",
             "scan.queueLastAttemptAt = nil",
             "scan.queueNextRetryAt = nil",
@@ -675,7 +684,7 @@ struct MigrationPlanTests {
             "scan.queueLastServerRetryAfter = nil",
             "scan.queueUpdatedAt = now",
             "scan.queueNeedsAttention = false",
-            #"let jobId = "scan-ingestion:\(scan.id)""#,
+            #"let jobId = "scan-ingestion:\(scanId)""#,
             "MerianSchemaV48.OfflineJobRecord",
             "MerianSchemaV48.OfflineQueueEvent",
             #"try initializeV48OfflineQueueRecords(in: context, stage: "V47->V48 didMigrate")"#,
@@ -693,6 +702,14 @@ struct MigrationPlanTests {
         #expect(
             !source.contains("static let migrateV47toV48 = MigrationStage.lightweight"),
             "V47->V48 cannot be lightweight because existing queued scans need retry metadata and scheduler rows."
+        )
+        #expect(
+            !source.contains("snapshot.apply(to: existingScan)"),
+            "V47 scheduler rows must be created from snapshots rather than by fetching just-migrated queued scans as V48 rows; fetching them during didMigrate can trap on stale SwiftData model identity."
+        )
+        #expect(
+            !v47StageSource.contains("context.delete(scan)"),
+            "V47 queued scans must not be deleted from the source store before the migration has finished."
         )
     }
 

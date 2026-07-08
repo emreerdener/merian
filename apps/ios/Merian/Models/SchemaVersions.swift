@@ -2203,106 +2203,10 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     private struct V47QueuedScanMigrationSnapshot: Sendable {
         let id: String
         let timestamp: Date
-        let capturedMediaJSON: String?
-        let coverImagePath: String?
-        let gpsLatitude: Double?
-        let gpsLongitude: Double?
-        let gpsElevation: Double?
-        let weatherCondition: String?
-        let weatherTemperatureF: Double?
-        let blurScore: Double?
-        let subjectDistanceInMeters: Float?
-        let locationName: String?
-        let isFlashFired: Bool?
-        let cameraPitchDegrees: Double?
-        let compassHeading: Double?
-        let relativeHumidity: Double?
-        let uvIndex: Int?
-        let zoomFactor: Double?
-        let scanStateRaw: Int
-        let stagedR2Keys: [String]?
-        let inferenceImagePaths: [String]?
-        let visualMediaItemsJSON: String?
-        let fieldNotes: String?
 
         init(_ scan: MerianSchemaV47.OfflineQueuedScan) {
             id = scan.id
             timestamp = scan.timestamp
-            capturedMediaJSON = scan.capturedMediaJSON
-            coverImagePath = scan.coverImagePath
-            gpsLatitude = scan.gpsLatitude
-            gpsLongitude = scan.gpsLongitude
-            gpsElevation = scan.gpsElevation
-            weatherCondition = scan.weatherCondition
-            weatherTemperatureF = scan.weatherTemperatureF
-            blurScore = scan.blurScore
-            subjectDistanceInMeters = scan.subjectDistanceInMeters
-            locationName = scan.locationName
-            isFlashFired = scan.isFlashFired
-            cameraPitchDegrees = scan.cameraPitchDegrees
-            compassHeading = scan.compassHeading
-            relativeHumidity = scan.relativeHumidity
-            uvIndex = scan.uvIndex
-            zoomFactor = scan.zoomFactor
-            scanStateRaw = scan.scanStateRaw
-            stagedR2Keys = scan.stagedR2Keys
-            inferenceImagePaths = scan.inferenceImagePaths
-            visualMediaItemsJSON = scan.visualMediaItemsJSON
-            fieldNotes = scan.fieldNotes
-        }
-
-        func apply(to scan: MerianSchemaV48.OfflineQueuedScan) {
-            scan.timestamp = timestamp
-            scan.capturedMediaJSON = capturedMediaJSON
-            scan.coverImagePath = coverImagePath
-            scan.gpsLatitude = gpsLatitude
-            scan.gpsLongitude = gpsLongitude
-            scan.gpsElevation = gpsElevation
-            scan.weatherCondition = weatherCondition
-            scan.weatherTemperatureF = weatherTemperatureF
-            scan.blurScore = blurScore
-            scan.subjectDistanceInMeters = subjectDistanceInMeters
-            scan.locationName = locationName
-            scan.isFlashFired = isFlashFired
-            scan.cameraPitchDegrees = cameraPitchDegrees
-            scan.compassHeading = compassHeading
-            scan.relativeHumidity = relativeHumidity
-            scan.uvIndex = uvIndex
-            scan.zoomFactor = zoomFactor
-            scan.scanStateRaw = scanStateRaw
-            scan.stagedR2Keys = stagedR2Keys
-            scan.inferenceImagePaths = inferenceImagePaths
-            scan.visualMediaItemsJSON = visualMediaItemsJSON
-            scan.fieldNotes = fieldNotes
-        }
-
-        func makeV48QueuedScan() -> MerianSchemaV48.OfflineQueuedScan {
-            let scan = MerianSchemaV48.OfflineQueuedScan(
-                id: id,
-                timestamp: timestamp,
-                capturedMediaJSON: capturedMediaJSON,
-                coverImagePath: coverImagePath,
-                gpsLatitude: gpsLatitude,
-                gpsLongitude: gpsLongitude,
-                gpsElevation: gpsElevation,
-                weatherCondition: weatherCondition,
-                weatherTemperatureF: weatherTemperatureF,
-                blurScore: blurScore,
-                subjectDistanceInMeters: subjectDistanceInMeters,
-                locationName: locationName,
-                isFlashFired: isFlashFired,
-                cameraPitchDegrees: cameraPitchDegrees,
-                compassHeading: compassHeading,
-                relativeHumidity: relativeHumidity,
-                uvIndex: uvIndex,
-                zoomFactor: zoomFactor,
-                stagedR2Keys: stagedR2Keys,
-                inferenceImagePaths: inferenceImagePaths,
-                visualMediaItemsJSON: visualMediaItemsJSON,
-                fieldNotes: fieldNotes
-            )
-            scan.scanStateRaw = scanStateRaw
-            return scan
         }
     }
 
@@ -2450,22 +2354,40 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         let now = Date()
         let namespace = migrationNamespace(for: context)
         let snapshots = _v47QueuedScanBackfill.values(namespace: namespace)
-        var queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
-        var queuedScansById = Dictionary(uniqueKeysWithValues: queuedScans.map { ($0.id, $0) })
-
-        for snapshot in snapshots {
-            if let existingScan = queuedScansById[snapshot.id] {
-                snapshot.apply(to: existingScan)
-            } else {
-                let insertedScan = snapshot.makeV48QueuedScan()
-                context.insert(insertedScan)
-                queuedScansById[snapshot.id] = insertedScan
-                queuedScans.append(insertedScan)
-            }
+        let queuedScans: [MerianSchemaV48.OfflineQueuedScan]
+        if snapshots.isEmpty {
+            queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
+        } else {
+            queuedScans = []
         }
 
         let existingJobs = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineJobRecord>())
         var existingJobIds = Set(existingJobs.map(\.id))
+
+        func insertSchedulerRows(scanId: String, createdAt: Date) {
+            let jobId = "scan-ingestion:\(scanId)"
+            if !existingJobIds.contains(jobId) {
+                let job = MerianSchemaV48.OfflineJobRecord(
+                    id: jobId,
+                    kind: .scanIngestion,
+                    subjectId: scanId,
+                    priority: 100,
+                    status: .pending,
+                    createdAt: createdAt,
+                    updatedAt: now
+                )
+                context.insert(job)
+                existingJobIds.insert(jobId)
+            }
+
+            context.insert(MerianSchemaV48.OfflineQueueEvent(
+                jobId: jobId,
+                scanId: scanId,
+                kind: .queued,
+                createdAt: now,
+                message: "Queued scan migrated into durable offline scheduler."
+            ))
+        }
 
         for scan in queuedScans {
             scan.queueAttemptCount = 0
@@ -2480,28 +2402,11 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             scan.queueUpdatedAt = now
             scan.queueNeedsAttention = false
 
-            let jobId = "scan-ingestion:\(scan.id)"
-            if !existingJobIds.contains(jobId) {
-                let job = MerianSchemaV48.OfflineJobRecord(
-                    id: jobId,
-                    kind: .scanIngestion,
-                    subjectId: scan.id,
-                    priority: 100,
-                    status: .pending,
-                    createdAt: scan.timestamp,
-                    updatedAt: now
-                )
-                context.insert(job)
-                existingJobIds.insert(jobId)
-            }
+            insertSchedulerRows(scanId: scan.id, createdAt: scan.timestamp)
+        }
 
-            context.insert(MerianSchemaV48.OfflineQueueEvent(
-                jobId: jobId,
-                scanId: scan.id,
-                kind: .queued,
-                createdAt: now,
-                message: "Queued scan migrated into durable offline scheduler."
-            ))
+        for snapshot in snapshots {
+            insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)
         }
 
         try saveMigrationContext(context, stage: stage)

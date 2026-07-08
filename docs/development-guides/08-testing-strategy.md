@@ -151,7 +151,10 @@ MerianTests/
     description-only, and mixed-media submissions, with display video media,
     inference-only frame paths, durable retry defaults, and a
     `scan-ingestion:{id}` scheduler row so startup-safe-mode regressions are
-    caught before release. This is the preferred place for schema-version
+    caught before release. The V47 fixture also guards the snapshot-backed
+    scheduler-row migration shape that prevents SwiftData from casting stale V47
+    queued rows as the current model during `didMigrate`. This is the preferred
+    place for schema-version
     migration fixtures and SwiftData checksum regressions.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged local stores. It verifies corruption-only quarantine, no quarantine

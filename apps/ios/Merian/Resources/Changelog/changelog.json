@@ -269,6 +269,7 @@
             "Local libraries blocked by duplicate schema checksums now retry startup with short, recent-only migration plans before falling back to safe mode.",
             "Fresh and already-current local libraries now open without validating the full historical migration plan, while recent older libraries use the smallest source-specific plan available.",
             "Offline-queue schema upgrades now initialize durable retry state for existing queued scans instead of repeatedly reopening in safe mode.",
+            "V47 queued-media library upgrades no longer refetch old queued rows as the current model, avoiding a SwiftData startup crash during upgrade checks.",
             "Startup safe mode now reports local library upgrade failures more clearly while keeping the existing store in place."
           ]
         },

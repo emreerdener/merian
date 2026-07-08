@@ -2200,7 +2200,11 @@ every existing queued scan and creates a `scan-ingestion:{scanId}`
 description scans reopen persistently instead of falling back to safe mode after
 the schema update. Preserve the display timeline (`capturedMediaJSON` /
 `capturedMediaEntries`) and inference-only video frame fields during this
-backfill.
+backfill. V47 source stores snapshot queued scan IDs and timestamps in
+`willMigrate`, then use those snapshots to insert `OfflineJobRecord` and
+`OfflineQueueEvent` rows without fetching the just-migrated queued scans as V48
+objects during `didMigrate`. That avoids SwiftData carrying a stale V47 model
+identity into V48 fetches.
 
 ### `OfflineJobRecord`
 

@@ -104,6 +104,9 @@ Recent schema milestones:
   V47→V48 migration is custom, not lightweight: every existing queued scan must
   leave migration with retry fields initialized and a `scan-ingestion:{id}` job
   row so startup does not fall back to safe mode on stores with queued media.
+  V47 job/event rows are seeded from migration snapshots instead of fetching
+  just-migrated queued scans as V48 rows during `didMigrate`, avoiding stale
+  SwiftData model-identity traps.
   `MigrationPlanTests` carries the disk-store fixture matrix for image, video,
   audio, description-only, and mixed queued media, and
   `.github/workflows/ios-startup-safety.yml` runs that suite beside store

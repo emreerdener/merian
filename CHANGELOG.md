@@ -190,6 +190,9 @@ TestFlight, App Store, support, and QA.
   recent older libraries use the smallest source-specific plan available.
 - Fixed offline-queue schema upgrades so existing queued scans initialize their
   durable retry state instead of repeatedly reopening in safe mode.
+- Fixed V47 queued-media library upgrades so the migration no longer refetches
+  old queued rows as the current model, avoiding a SwiftData startup crash
+  during TestFlight upgrade checks.
 - Added broader startup migration safety checks so queued image, video, audio,
   description, and mixed-media scans are tested together before release.
 - Improved safe-mode diagnostics when a local library upgrade fails, keeping the
