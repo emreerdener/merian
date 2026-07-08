@@ -5,18 +5,18 @@ import Observation
 @Observable
 final class FieldTripsViewModel {
     var templates: [FieldTripTemplate] = []
-    var recentPublications: [FieldTripRecentPublication] = []
+    var communityPublications: [FieldTripRecentPublication] = []
     var isLoading = false
-    var isLoadingRecent = false
-    var isLoadingMoreRecent = false
+    var isLoadingCommunity = false
+    var isLoadingMoreCommunity = false
     var errorMessage: String?
-    var recentErrorMessage: String?
+    var communityErrorMessage: String?
     var toastMessage: String?
-    var hasMoreRecentPublications = true
+    var hasMoreCommunityPublications = true
 
     private var didLoad = false
-    private var didLoadRecent = false
-    private let recentPageSize = 20
+    private var loadedCommunityMode: FieldTripCommunityMode?
+    private let communityPageSize = 20
 
     func load(userRegion: String? = nil, force: Bool = false) async {
         guard force || !didLoad else { return }
@@ -38,56 +38,67 @@ final class FieldTripsViewModel {
         await load(userRegion: userRegion, force: true)
     }
 
-    func loadRecent(userRegion: String? = nil, force: Bool = false) async {
-        guard force || !didLoadRecent else { return }
-        isLoadingRecent = true
-        recentErrorMessage = nil
+    func loadCommunity(
+        mode: FieldTripCommunityMode = .smart,
+        userRegion: String? = nil,
+        force: Bool = false
+    ) async {
+        guard force || loadedCommunityMode != mode else { return }
+        if loadedCommunityMode != mode {
+            communityPublications = []
+            hasMoreCommunityPublications = true
+        }
+        isLoadingCommunity = true
+        communityErrorMessage = nil
         if force {
-            hasMoreRecentPublications = true
+            hasMoreCommunityPublications = true
         }
         defer {
-            isLoadingRecent = false
-            didLoadRecent = true
+            isLoadingCommunity = false
+            loadedCommunityMode = mode
         }
 
         do {
-            recentPublications = try await MerianNetworkClient.shared.getRecentFieldTripPublications(
+            communityPublications = try await MerianNetworkClient.shared.getFieldTripCommunityPublications(
+                mode: mode,
                 userRegion: userRegion,
-                limit: recentPageSize
+                limit: communityPageSize
             )
-            hasMoreRecentPublications = recentPublications.count >= recentPageSize
+            hasMoreCommunityPublications = communityPublications.count >= communityPageSize
         } catch {
-            recentErrorMessage = ExploreErrorFormatter.message(for: error)
+            communityErrorMessage = ExploreErrorFormatter.message(for: error)
         }
     }
 
-    func refreshRecent(userRegion: String? = nil) async {
-        await loadRecent(userRegion: userRegion, force: true)
+    func refreshCommunity(mode: FieldTripCommunityMode = .smart, userRegion: String? = nil) async {
+        await loadCommunity(mode: mode, userRegion: userRegion, force: true)
     }
 
-    func loadMoreRecent(userRegion: String? = nil) async {
-        guard hasMoreRecentPublications,
-              !isLoadingRecent,
-              !isLoadingMoreRecent,
-              let cursor = recentPublications.last else {
+    func loadMoreCommunity(mode: FieldTripCommunityMode = .smart, userRegion: String? = nil) async {
+        guard hasMoreCommunityPublications,
+              !isLoadingCommunity,
+              !isLoadingMoreCommunity,
+              let cursor = communityPublications.last else {
             return
         }
 
-        isLoadingMoreRecent = true
-        recentErrorMessage = nil
-        defer { isLoadingMoreRecent = false }
+        isLoadingMoreCommunity = true
+        communityErrorMessage = nil
+        defer { isLoadingMoreCommunity = false }
 
         do {
-            let page = try await MerianNetworkClient.shared.getRecentFieldTripPublications(
+            let page = try await MerianNetworkClient.shared.getFieldTripCommunityPublications(
+                mode: mode,
                 userRegion: userRegion,
-                limit: recentPageSize,
+                limit: communityPageSize,
+                beforeRankBucket: cursor.rankBucket ?? 0,
                 beforePublishedAt: cursor.publishedAt,
                 beforePublicationId: cursor.publicationId
             )
-            recentPublications.append(contentsOf: page)
-            hasMoreRecentPublications = page.count >= recentPageSize
+            communityPublications.append(contentsOf: page)
+            hasMoreCommunityPublications = page.count >= communityPageSize
         } catch {
-            recentErrorMessage = ExploreErrorFormatter.message(for: error)
+            communityErrorMessage = ExploreErrorFormatter.message(for: error)
         }
     }
 

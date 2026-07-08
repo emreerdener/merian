@@ -54,8 +54,9 @@ Merian is a field-ready biological identification app built around zero-friction
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
 - Field Trips add guided regional checklist quests beside Explore, with
-  Available and Recent Trips tabs, explicit start, curated tips, profile pins,
-  and published pages that stay separate from Explore feeds and maps.
+  Available and Community segments, explicit start, curated tips, profile pins,
+  following-weighted Community discovery, and published pages that stay separate
+  from Explore feeds and maps.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support public image/video media snapshots; feed and detail can play muted playback videos while maps, widgets, and compact profile previews stay thumbnail-first.
 - Author profile sheets expose privacy-scoped public stats, non-opening public

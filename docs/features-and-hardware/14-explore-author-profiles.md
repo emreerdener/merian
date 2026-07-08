@@ -25,6 +25,7 @@ or opening private achievement evidence.
   - a 3-column preview of up to 9 published Explore scans
   - active Field Trip checklist progress, when visible
   - published Field Trip cards, when visible
+  - up to 3 pinned published Field Trips before the general Field Trip modules
   - achievements rendered as informational cards only
 - The "View all published scans" button side-transitions the sheet into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
 - Library tiles open `ExplorePostDetailView` inside the sheet navigation stack. That nested detail disables insight presentation and author-profile presentation to avoid exposing private local state or recursively opening another profile sheet, but public similar-species cards can still open the species dictionary page.
@@ -71,7 +72,8 @@ published posts from profile grids.
 Active Field Trip summaries deliberately exclude scan IDs, media URLs, field
 notes, exact coordinates, public location labels, and private evidence details.
 Published Field Trip cards link to `FieldTripPublicationDetailView`, not to
-normal Explore posts.
+normal Explore posts. Field Trip Community cards reuse the same author profile
+sheet when the author identity is tapped.
 
 Public achievement payloads contain only progress fields:
 
@@ -154,16 +156,20 @@ Field Trips extension:
 - `20260708021110_field_trips_v1.sql` adds Field Trip template, progress,
   publication, like, and comment storage.
 - `20260708033451_field_trips_v2.sql` adds template guide fields, item tips,
-  explicit starts, Recent Trips publication feed support, and pinned profile
+  explicit starts, Recent compatibility support, and pinned profile
   publication metadata.
+- `20260708042713_field_trips_v3_community.sql` adds the Field Trips Community
+  feed RPC, following-weighted ranking metadata, template-filtered Community
+  previews, and Field Trip-only in-app activity rows.
 - `public.user_has_visible_field_trip_profile(...)` extends author-profile
   discoverability.
 - `public.get_field_trip_profile_summaries(...)` returns active status-only,
   pinned published, and general published Field Trip summaries.
 - `get-explore-author-profile` includes a `field_trips` object in the profile
   response.
-- `field-trips` owns Field Trip catalog, template detail, start, Recent Trips,
-  profile pin, progress, publication, like, and comment actions.
+- `field-trips` owns Field Trip catalog, template detail, start, Community
+  publication feed, Recent compatibility, profile pin, progress, publication,
+  like, and comment actions.
 
 ## iOS Implementation
 
@@ -277,12 +283,17 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic
 
 ## Deployment Notes
 
-Deploy the migration before deploying the two new Edge Functions. The functions depend on the RPCs and on the `device_time_zone` column existing.
+Deploy the migrations before deploying the profile and Field Trips Edge
+Functions. The functions depend on the RPCs and on the `device_time_zone`
+column existing.
 
-For Field Trips, deploy `20260708021110_field_trips_v1.sql` and
-`20260708033451_field_trips_v2.sql` before deploying `field-trips` and the
-updated `get-explore-author-profile` function. The profile endpoint depends on
-the Field Trip summary RPC when returning `field_trips`.
+For Field Trips, deploy `20260708021110_field_trips_v1.sql`,
+`20260708033451_field_trips_v2.sql`, and
+`20260708042713_field_trips_v3_community.sql` before deploying `field-trips`,
+`get-explore-author-profile`, and the Explore activity functions. The profile
+endpoint depends on the Field Trip summary RPC when returning `field_trips`,
+and the activity functions depend on the V3 Field Trip activity RPC/table
+updates.
 
 All identify paths now persist `device_time_zone` when the client sends a valid IANA timezone. Existing scans without a timezone continue to compute public profile streaks and heatmaps in UTC.
 

@@ -3,9 +3,11 @@ import SwiftUI
 struct FieldTripsView: View {
     let userRegion: String?
     let onOpenPublication: (String) -> Void
+    let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
     @State private var viewModel = FieldTripsViewModel()
     @State private var selectedSection: FieldTripsSection = .available
+    @State private var selectedCommunityMode: FieldTripCommunityMode = .smart
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,8 +24,8 @@ struct FieldTripsView: View {
             switch selectedSection {
             case .available:
                 availableTripsContent
-            case .recent:
-                recentTripsContent
+            case .community:
+                communityTripsContent
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
@@ -31,8 +33,12 @@ struct FieldTripsView: View {
             await viewModel.load(userRegion: userRegion)
         }
         .task(id: selectedSection) {
-            guard selectedSection == .recent else { return }
-            await viewModel.loadRecent(userRegion: userRegion)
+            guard selectedSection == .community else { return }
+            await viewModel.loadCommunity(mode: selectedCommunityMode, userRegion: userRegion)
+        }
+        .task(id: selectedCommunityMode) {
+            guard selectedSection == .community else { return }
+            await viewModel.loadCommunity(mode: selectedCommunityMode, userRegion: userRegion)
         }
         .onChange(of: selectedSection) { _, _ in
             HapticManager.shared.triggerSelectionPulse()
@@ -84,37 +90,44 @@ struct FieldTripsView: View {
         }
     }
 
-    private var recentTripsContent: some View {
+    private var communityTripsContent: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 12) {
-                if viewModel.isLoadingRecent && viewModel.recentPublications.isEmpty {
+                FieldTripCommunityModeChips(selectedMode: $selectedCommunityMode)
+                    .padding(.bottom, 2)
+
+                if viewModel.isLoadingCommunity && viewModel.communityPublications.isEmpty {
                     ForEach(0..<4, id: \.self) { _ in
                         FieldTripRecentSkeletonCard()
                     }
-                } else if let errorMessage = viewModel.recentErrorMessage, viewModel.recentPublications.isEmpty {
+                } else if let errorMessage = viewModel.communityErrorMessage, viewModel.communityPublications.isEmpty {
                     FieldTripUnavailableCard(message: errorMessage) {
-                        Task { await viewModel.refreshRecent(userRegion: userRegion) }
+                        Task { await viewModel.refreshCommunity(mode: selectedCommunityMode, userRegion: userRegion) }
                     }
-                } else if viewModel.recentPublications.isEmpty {
-                    FieldTripUnavailableCard(message: "No recent Field Trips are visible right now.") {
-                        Task { await viewModel.refreshRecent(userRegion: userRegion) }
+                } else if viewModel.communityPublications.isEmpty {
+                    FieldTripUnavailableCard(message: communityEmptyMessage) {
+                        Task { await viewModel.refreshCommunity(mode: selectedCommunityMode, userRegion: userRegion) }
                     }
                 } else {
-                    ForEach(viewModel.recentPublications) { publication in
-                        Button {
-                            onOpenPublication(publication.publicationId)
-                        } label: {
-                            FieldTripRecentPublicationCard(publication: publication)
-                        }
-                        .buttonStyle(.plain)
+                    ForEach(viewModel.communityPublications) { publication in
+                        FieldTripCommunityPublicationCard(
+                            publication: publication,
+                            onOpenPublication: onOpenPublication,
+                            onOpenAuthorProfile: onOpenAuthorProfile
+                        )
                     }
 
-                    if viewModel.hasMoreRecentPublications {
+                    if viewModel.hasMoreCommunityPublications {
                         Button {
-                            Task { await viewModel.loadMoreRecent(userRegion: userRegion) }
+                            Task {
+                                await viewModel.loadMoreCommunity(
+                                    mode: selectedCommunityMode,
+                                    userRegion: userRegion
+                                )
+                            }
                         } label: {
                             HStack(spacing: 8) {
-                                if viewModel.isLoadingMoreRecent {
+                                if viewModel.isLoadingMoreCommunity {
                                     ProgressView()
                                         .controlSize(.small)
                                 } else {
@@ -127,7 +140,7 @@ struct FieldTripsView: View {
                             .padding(.vertical, 12)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(viewModel.isLoadingMoreRecent)
+                        .disabled(viewModel.isLoadingMoreCommunity)
                     }
                 }
             }
@@ -136,7 +149,18 @@ struct FieldTripsView: View {
             .padding(.bottom, 32)
         }
         .refreshable {
-            await viewModel.refreshRecent(userRegion: userRegion)
+            await viewModel.refreshCommunity(mode: selectedCommunityMode, userRegion: userRegion)
+        }
+    }
+
+    private var communityEmptyMessage: String {
+        switch selectedCommunityMode {
+        case .smart:
+            "No community Field Trips are visible right now."
+        case .following:
+            "Follow explorers to see their published Field Trips here."
+        case .recent:
+            "No recent published Field Trips are visible right now."
         }
     }
 }
@@ -144,10 +168,13 @@ struct FieldTripsView: View {
 struct FieldTripTemplateDetailView: View {
     let templateId: String
     let onOpenPublication: (String) -> Void
+    let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
     @State private var template: FieldTripTemplate?
+    @State private var communityPreview: [FieldTripRecentPublication] = []
     @State private var isLoading = false
     @State private var isStarting = false
+    @State private var isLoadingCommunityPreview = false
     @State private var errorMessage: String?
     @State private var publishingTemplate: FieldTripTemplate?
     @State private var toastMessage: String?
@@ -237,6 +264,13 @@ struct FieldTripTemplateDetailView: View {
             }
 
             FieldTripGuideSections(template: template)
+
+            FieldTripCommunityPreviewSection(
+                publications: communityPreview,
+                isLoading: isLoadingCommunityPreview,
+                onOpenPublication: onOpenPublication,
+                onOpenAuthorProfile: onOpenAuthorProfile
+            )
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Levels")
@@ -329,7 +363,9 @@ struct FieldTripTemplateDetailView: View {
         defer { isLoading = false }
 
         do {
-            template = try await MerianNetworkClient.shared.getFieldTripTemplate(templateId: templateId)
+            let loadedTemplate = try await MerianNetworkClient.shared.getFieldTripTemplate(templateId: templateId)
+            template = loadedTemplate
+            await loadCommunityPreview(templateId: loadedTemplate.templateId)
         } catch {
             errorMessage = ExploreErrorFormatter.message(for: error)
         }
@@ -350,11 +386,23 @@ struct FieldTripTemplateDetailView: View {
             toastMessage = ExploreErrorFormatter.message(for: error)
         }
     }
+
+    private func loadCommunityPreview(templateId: String) async {
+        isLoadingCommunityPreview = true
+        defer { isLoadingCommunityPreview = false }
+
+        communityPreview = (try? await MerianNetworkClient.shared.getFieldTripCommunityPublications(
+            mode: .smart,
+            templateId: templateId,
+            userRegion: nil,
+            limit: 3
+        )) ?? []
+    }
 }
 
 private enum FieldTripsSection: String, CaseIterable, Identifiable {
     case available
-    case recent
+    case community
 
     var id: String { rawValue }
 
@@ -362,8 +410,8 @@ private enum FieldTripsSection: String, CaseIterable, Identifiable {
         switch self {
         case .available:
             "Available"
-        case .recent:
-            "Recent Trips"
+        case .community:
+            "Community"
         }
     }
 }
@@ -442,25 +490,87 @@ private struct FieldTripTemplateCard: View {
     }
 }
 
-private struct FieldTripRecentPublicationCard: View {
+private struct FieldTripCommunityModeChips: View {
+    @Binding var selectedMode: FieldTripCommunityMode
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(FieldTripCommunityMode.allCases) { mode in
+                Button {
+                    selectedMode = mode
+                } label: {
+                    Text(mode.title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(selectedMode == mode ? Color(uiColor: .systemBackground) : .primary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(selectedMode == mode ? Color.primary : Color(uiColor: .secondarySystemGroupedBackground))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.primary.opacity(selectedMode == mode ? 0 : 0.08), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct FieldTripCommunityPublicationCard: View {
     let publication: FieldTripRecentPublication
+    let onOpenPublication: (String) -> Void
+    let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            FieldTripCoverImage(urlString: publication.coverImageUrl)
-                .frame(width: 92, height: 92)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Button {
+                onOpenPublication(publication.publicationId)
+            } label: {
+                FieldTripCoverImage(urlString: publication.coverImageUrl)
+                    .frame(width: 92, height: 92)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(publication.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
+                Button {
+                    onOpenPublication(publication.publicationId)
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(publication.title)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
 
-                Text(publication.publicAuthorDisplayName)
-                    .font(.caption.weight(.semibold))
+                        Text(publication.templateTitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    onOpenAuthorProfile(publication)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "person.crop.circle")
+                            .font(.caption.weight(.semibold))
+                        Text(publication.publicAuthorDisplayName)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                    }
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                }
+                .buttonStyle(.plain)
 
                 FieldTripTagRow(tags: Array((publication.regionTags + publication.habitatTags).prefix(3)))
 
@@ -468,6 +578,9 @@ private struct FieldTripRecentPublicationCard: View {
                     Label("\(publication.itemCount)", systemImage: "leaf")
                     Label(publication.likeCount.formatted(), systemImage: "heart")
                     Label(publication.commentCount.formatted(), systemImage: "bubble.left")
+                    if let reason = publication.communityReasonLabel {
+                        Label(reason, systemImage: reason == "Following" ? "person.fill.checkmark" : "sparkle")
+                    }
                 }
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -475,9 +588,15 @@ private struct FieldTripRecentPublicationCard: View {
 
             Spacer(minLength: 0)
 
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.tertiary)
+            Button {
+                onOpenPublication(publication.publicationId)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
         }
         .padding(10)
         .background(
@@ -488,6 +607,36 @@ private struct FieldTripRecentPublicationCard: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
+    }
+}
+
+private struct FieldTripCommunityPreviewSection: View {
+    let publications: [FieldTripRecentPublication]
+    let isLoading: Bool
+    let onOpenPublication: (String) -> Void
+    let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
+
+    var body: some View {
+        if isLoading || !publications.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Community")
+                    .font(.headline.weight(.bold))
+
+                if isLoading && publications.isEmpty {
+                    ForEach(0..<2, id: \.self) { _ in
+                        FieldTripRecentSkeletonCard()
+                    }
+                } else {
+                    ForEach(publications) { publication in
+                        FieldTripCommunityPublicationCard(
+                            publication: publication,
+                            onOpenPublication: onOpenPublication,
+                            onOpenAuthorProfile: onOpenAuthorProfile
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -669,11 +818,21 @@ private struct FieldTripAccessBadge: View {
 private struct FieldTripTagRow: View {
     let tags: [String]
 
+    private var displayTags: [String] {
+        var seen = Set<String>()
+        return tags.compactMap { tag in
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = trimmed.lowercased()
+            guard !trimmed.isEmpty, seen.insert(key).inserted else { return nil }
+            return trimmed
+        }
+    }
+
     var body: some View {
-        if !tags.isEmpty {
+        if !displayTags.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(tags, id: \.self) { tag in
+                    ForEach(displayTags, id: \.self) { tag in
                         Text(tag.replacingOccurrences(of: "_", with: " ").capitalized)
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(.secondary)

@@ -72,7 +72,7 @@ struct FieldTripAPIModelsTests {
         #expect(response.data[0].levels[0].items[0].completedCommonName == "Northern Cardinal")
     }
 
-    @Test func recentPublicationsDecodeAuthorAndCursorFields() throws {
+    @Test func communityPublicationsDecodeAuthorRankingAndCursorFields() throws {
         let json = """
         {
           "data": [
@@ -97,18 +97,60 @@ struct FieldTripAPIModelsTests {
               "author_username": "ari",
               "author_avatar_url": null,
               "is_pinned": false,
-              "pin_position": null
+              "pin_position": null,
+              "rank_bucket": 0,
+              "community_reason": "following",
+              "viewer_is_following_author": true
             }
           ]
         }
         """.data(using: .utf8)!
 
-        let response = try decoder.decode(FieldTripRecentPublicationsResponse.self, from: json)
+        let response = try decoder.decode(FieldTripCommunityPublicationsResponse.self, from: json)
 
         #expect(response.data.count == 1)
         #expect(response.data[0].publicationId == "publication-1")
         #expect(response.data[0].publicAuthorDisplayName == "@ari")
         #expect(response.data[0].publishedAt == "2026-07-08T01:00:00Z")
+        #expect(response.data[0].rankBucket == 0)
+        #expect(response.data[0].communityReasonLabel == "Following")
+    }
+
+    @Test func fieldTripActivityNotificationDecodesPublicationRoute() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "notification_id": "notification-1",
+              "post_id": null,
+              "community_request_id": null,
+              "field_trip_publication_id": "publication-1",
+              "type": "field_trip_comment",
+              "comment_id": "comment-1",
+              "parent_comment_id": null,
+              "reaction_emoji": null,
+              "triggering_user_id": "author-2",
+              "triggering_user_name": "Mina",
+              "comment_body": "Great finds.",
+              "recent_actor_names": [],
+              "action_count": 1,
+              "is_read": false,
+              "is_reply_to_viewer_comment": false,
+              "community_taxon_common_name": null,
+              "community_taxon_scientific_name": null,
+              "community_request_display_name": null,
+              "created_at": "2026-07-08T01:00:00Z",
+              "updated_at": "2026-07-08T01:00:00Z"
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let response = try decoder.decode(ExploreNotificationsResponse.self, from: json)
+
+        #expect(response.data[0].fieldTripPublicationId == "publication-1")
+        #expect(response.data[0].type == .fieldTripComment)
+        #expect(response.data[0].type.isFieldTripNotification)
     }
 
     @Test func profileSummariesDecodePinnedTripsAndFallbackWhenMissing() throws {

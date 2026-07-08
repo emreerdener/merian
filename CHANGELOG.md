@@ -120,8 +120,12 @@ TestFlight, App Store, support, and QA.
   public profiles, and publish Field Trip pages with species snapshots, likes,
   and comments without creating Explore feed posts or map points.
 - Expanded Field Trips with guided trip detail pages, explicit Start, curated
-  item tips, a Field Trips-only Recent Trips tab, and up to 3 pinned published
+  item tips, a Field Trips-only Community segment with For You, Following, and
+  Recent filters, template Community previews, and up to 3 pinned published
   trips on profiles.
+- Added in-app Field Trip activity for comments, replies, and followed-author
+  publications without sending APNs or adding Field Trips to Explore feeds,
+  maps, or widgets.
 - Added public video Explore posts: shared video scans can now appear in Explore
   and Ask the Community with muted playback in feed/detail and thumbnail play
   indicators on compact surfaces.

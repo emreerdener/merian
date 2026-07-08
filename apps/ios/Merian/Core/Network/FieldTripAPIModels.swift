@@ -16,6 +16,29 @@ struct FieldTripRecentPublicationsResponse: Decodable {
     let data: [FieldTripRecentPublication]
 }
 
+struct FieldTripCommunityPublicationsResponse: Decodable {
+    let data: [FieldTripRecentPublication]
+}
+
+enum FieldTripCommunityMode: String, CaseIterable, Identifiable {
+    case smart
+    case following
+    case recent
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .smart:
+            "For You"
+        case .following:
+            "Following"
+        case .recent:
+            "Recent"
+        }
+    }
+}
+
 struct FieldTripProgressUpdatesResponse: Decodable {
     let data: [FieldTripProgressUpdate]
 }
@@ -248,11 +271,88 @@ struct FieldTripRecentPublication: Decodable, Identifiable, Equatable {
     let authorAvatarUrl: String?
     let isPinned: Bool
     let pinPosition: Int?
+    let rankBucket: Int?
+    let communityReason: String?
+    let viewerIsFollowingAuthor: Bool
 
     var id: String { publicationId }
 
     var publicAuthorDisplayName: String {
         ExplorePost.publicAuthorDisplayName(from: authorName, username: authorUsername)
+    }
+
+    var communityReasonLabel: String? {
+        if viewerIsFollowingAuthor {
+            return "Following"
+        }
+
+        switch communityReason {
+        case "near_you":
+            return "Near you"
+        case "global":
+            return "Global"
+        case "new":
+            return "New"
+        case "following":
+            return "Following"
+        default:
+            return nil
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case publicationId
+        case templateId
+        case title
+        case description
+        case publishedAt
+        case likeCount
+        case commentCount
+        case slug
+        case templateTitle
+        case regionTags
+        case seasonTags
+        case habitatTags
+        case coverImageUrl
+        case itemCount
+        case viewerHasLiked
+        case authorUserId
+        case authorName
+        case authorUsername
+        case authorAvatarUrl
+        case isPinned
+        case pinPosition
+        case rankBucket
+        case communityReason
+        case viewerIsFollowingAuthor
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        publicationId = try container.decode(String.self, forKey: .publicationId)
+        templateId = try container.decode(String.self, forKey: .templateId)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        publishedAt = try container.decode(String.self, forKey: .publishedAt)
+        likeCount = try container.decode(Int.self, forKey: .likeCount)
+        commentCount = try container.decode(Int.self, forKey: .commentCount)
+        slug = try container.decode(String.self, forKey: .slug)
+        templateTitle = try container.decode(String.self, forKey: .templateTitle)
+        regionTags = try container.decodeIfPresent([String].self, forKey: .regionTags) ?? []
+        seasonTags = try container.decodeIfPresent([String].self, forKey: .seasonTags) ?? []
+        habitatTags = try container.decodeIfPresent([String].self, forKey: .habitatTags) ?? []
+        coverImageUrl = try container.decodeIfPresent(String.self, forKey: .coverImageUrl)
+        itemCount = try container.decode(Int.self, forKey: .itemCount)
+        viewerHasLiked = try container.decode(Bool.self, forKey: .viewerHasLiked)
+        authorUserId = try container.decode(String.self, forKey: .authorUserId)
+        authorName = try container.decode(String.self, forKey: .authorName)
+        authorUsername = try container.decodeIfPresent(String.self, forKey: .authorUsername)
+        authorAvatarUrl = try container.decodeIfPresent(String.self, forKey: .authorAvatarUrl)
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        pinPosition = try container.decodeIfPresent(Int.self, forKey: .pinPosition)
+        rankBucket = try container.decodeIfPresent(Int.self, forKey: .rankBucket)
+        communityReason = try container.decodeIfPresent(String.self, forKey: .communityReason)
+        viewerIsFollowingAuthor = try container.decodeIfPresent(Bool.self, forKey: .viewerIsFollowingAuthor) ?? false
     }
 }
 

@@ -10,12 +10,40 @@ enum ExploreNotificationType: String, Decodable {
     case communityIdentificationAdded = "community_identification_added"
     case communityRequestResolved = "community_request_resolved"
     case communityIdentificationHelped = "community_identification_helped"
+    case fieldTripComment = "field_trip_comment"
+    case fieldTripReply = "field_trip_reply"
+    case fieldTripFollowedPublication = "field_trip_followed_publication"
 
     var isCommunityNotification: Bool {
         switch self {
         case .communityIdentificationAdded, .communityRequestResolved, .communityIdentificationHelped:
             return true
-        case .likeAggregated, .comment, .commentReaction, .commentReply, .commentMention, .follow:
+        case .likeAggregated,
+             .comment,
+             .commentReaction,
+             .commentReply,
+             .commentMention,
+             .follow,
+             .fieldTripComment,
+             .fieldTripReply,
+             .fieldTripFollowedPublication:
+            return false
+        }
+    }
+
+    var isFieldTripNotification: Bool {
+        switch self {
+        case .fieldTripComment, .fieldTripReply, .fieldTripFollowedPublication:
+            return true
+        case .likeAggregated,
+             .comment,
+             .commentReaction,
+             .commentReply,
+             .commentMention,
+             .follow,
+             .communityIdentificationAdded,
+             .communityRequestResolved,
+             .communityIdentificationHelped:
             return false
         }
     }
@@ -25,6 +53,7 @@ struct ExploreNotification: Decodable, Identifiable, Equatable {
     let notificationId: String
     let postId: String?
     let communityRequestId: String?
+    let fieldTripPublicationId: String?
     let type: ExploreNotificationType
     let commentId: String?
     let parentCommentId: String?

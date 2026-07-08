@@ -160,3 +160,65 @@ Deno.test("Field Trips v2 keeps published trips out of Explore feed infrastructu
     "OR (ftp.published_at, ftp.id) < (before_published_at, before_publication_id)",
   );
 });
+
+Deno.test("Field Trips v3 adds community feed ranking and compatibility contracts", async () => {
+  const sql = normalized(
+    await migrationSql("20260708042713_field_trips_v3_community.sql"),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_community_publications",
+      "mode TEXT DEFAULT 'smart'",
+      "target_template_id UUID DEFAULT NULL",
+      "before_rank_bucket INTEGER DEFAULT NULL",
+      "'field_trip_comment'",
+      "'field_trip_reply'",
+      "'field_trip_followed_publication'",
+      "'rank_bucket', rank_bucket",
+      "'community_reason', community_reason",
+      "'viewer_is_following_author', viewer_is_following_author",
+      "rank_bucket ASC, published_at DESC, publication_id DESC",
+      "CREATE OR REPLACE FUNCTION public.get_recent_field_trip_publications",
+      "'recent'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
+Deno.test("Field Trips v3 activity is in-app only and does not extend Explore feed push surfaces", async () => {
+  const sql = normalized(
+    await migrationSql("20260708042713_field_trips_v3_community.sql"),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE IF NOT EXISTS public.field_trip_activity_notifications",
+      "public.get_explore_notifications",
+      "field_trip_publication_id UUID",
+      "public.get_unread_explore_notification_count",
+      "public.mark_explore_notifications_read",
+      "public.trg_field_trip_activity_user_blocks_cleanup",
+      "These rows never fan out to APNs, widgets, Explore feed cards, map rows, or explore_posts.",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  for (
+    const forbidden of [
+      "INSERT INTO public.explore_posts",
+      "INSERT INTO public.explore_post_notifications",
+      "functions/v1/send-push-notification",
+      "explore_widget",
+      "get_explore_feed_nearby",
+      "get_explore_map",
+    ]
+  ) {
+    assert(
+      !sql.includes(forbidden),
+      `Field Trips v3 must not write to or extend Explore feed/push infrastructure: ${forbidden}`,
+    );
+  }
+});

@@ -45,6 +45,7 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
     ],
     "preview_posts": [],
     "field_trips": {
+      "pinned": [],
       "active": [],
       "published": []
     }
@@ -84,8 +85,15 @@ Field Trip summaries use separate storage from Explore posts:
 
 - active Field Trips show template title, level number, and checklist progress only
 - active summaries never return scan IDs, media URLs, field notes, or location details
-- published Field Trips return publication IDs and snapshot media from `field_trip_publication_items`
-- publishing a Field Trip does not create Explore feed posts, map points, or Explore notifications
+- pinned published Field Trips are capped at 3 and are returned before the
+  general active/published modules on iOS
+- published Field Trips return publication IDs and snapshot media from
+  `field_trip_publication_items`
+- publishing a Field Trip does not create Explore feed posts, map points,
+  normal Explore post notifications, APNs, widgets, or public web share pages
+- Field Trip comments, replies, and followed-author publications may appear as
+  Field Trip-only rows in the in-app Explore activity sheet; they remain
+  separate from Explore post notifications and never fan out to APNs
 - shadowbanned authors and mutual blocks are excluded
 
 Post `location_sharing` controls public location fields; it does not hide

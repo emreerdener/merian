@@ -4,6 +4,7 @@ export interface ExploreNotificationRow {
   notification_id: string;
   post_id?: string | null;
   community_request_id?: string | null;
+  field_trip_publication_id?: string | null;
   type:
     | "like_aggregated"
     | "comment"
@@ -13,7 +14,10 @@ export interface ExploreNotificationRow {
     | "follow"
     | "community_identification_added"
     | "community_request_resolved"
-    | "community_identification_helped";
+    | "community_identification_helped"
+    | "field_trip_comment"
+    | "field_trip_reply"
+    | "field_trip_followed_publication";
   comment_id?: string | null;
   parent_comment_id?: string | null;
   reaction_emoji?: string | null;

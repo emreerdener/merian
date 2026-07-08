@@ -11,6 +11,7 @@ import {
 import {
   applyFieldTripScanProgress,
   assertCanViewFieldTripPublication,
+  fetchCommunityFieldTripPublications,
   fetchFieldTripCatalog,
   fetchFieldTripCommentParent,
   fetchFieldTripComments,
@@ -30,6 +31,7 @@ type FieldTripAction =
   | "catalog"
   | "template_detail"
   | "start"
+  | "community_publications"
   | "recent_publications"
   | "apply_scan_progress"
   | "profile_summaries"
@@ -58,6 +60,7 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
     case "catalog":
     case "template_detail":
     case "start":
+    case "community_publications":
     case "recent_publications":
     case "apply_scan_progress":
     case "profile_summaries":
@@ -71,6 +74,35 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
     default:
       throw makeHttpError(400, "Unsupported Field Trip action.");
   }
+}
+
+function normalizeCommunityMode(
+  rawMode: unknown,
+): "smart" | "following" | "recent" {
+  if (rawMode == null) return "smart";
+  if (typeof rawMode !== "string") {
+    throw makeHttpError(400, "mode must be a string.");
+  }
+
+  switch (rawMode.trim().toLowerCase()) {
+    case "smart":
+    case "following":
+    case "recent":
+      return rawMode.trim().toLowerCase() as "smart" | "following" | "recent";
+    default:
+      throw makeHttpError(400, "Unsupported Field Trip community mode.");
+  }
+}
+
+function normalizeRankBucket(rawValue: unknown): number | null {
+  if (rawValue == null) return null;
+  if (typeof rawValue !== "number" || !Number.isInteger(rawValue)) {
+    throw makeHttpError(400, "before_rank_bucket must be an integer.");
+  }
+  if (rawValue < 0 || rawValue > 10) {
+    throw makeHttpError(400, "before_rank_bucket is out of range.");
+  }
+  return rawValue;
 }
 
 function nullableTrimmedString(
@@ -233,6 +265,61 @@ Deno.serve((req: Request) =>
           habitatTags,
           limit,
           { beforePublishedAt, beforePublicationId },
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "community_publications": {
+        const limit = normalizeLimit(body.limit, 20, 60);
+        const mode = normalizeCommunityMode(body.mode);
+        const templateId = body.template_id == null
+          ? null
+          : requireUuid(body.template_id, "template_id");
+        const userRegion = nullableTrimmedString(body.user_region, 80);
+        const habitatTags = nullableTrimmedStringArray(
+          body.habitat_tags,
+          12,
+          80,
+        );
+        const seasonTags = nullableTrimmedStringArray(
+          body.season_tags,
+          8,
+          80,
+        );
+        const beforeRankBucket = normalizeRankBucket(body.before_rank_bucket);
+        const beforePublishedAt = normalizeCursorTimestamp(
+          body.before_published_at,
+          "before_published_at",
+        );
+        const beforePublicationId = body.before_publication_id == null
+          ? null
+          : requireUuid(body.before_publication_id, "before_publication_id");
+
+        const hasCursor = beforeRankBucket != null ||
+          beforePublishedAt != null ||
+          beforePublicationId != null;
+        if (
+          hasCursor &&
+          (beforeRankBucket == null ||
+            beforePublishedAt == null ||
+            beforePublicationId == null)
+        ) {
+          throw makeHttpError(
+            400,
+            "before_rank_bucket, before_published_at, and before_publication_id must be provided together.",
+          );
+        }
+
+        const data = await fetchCommunityFieldTripPublications(
+          user.id,
+          mode,
+          templateId,
+          userRegion,
+          habitatTags,
+          seasonTags,
+          limit,
+          { beforeRankBucket, beforePublishedAt, beforePublicationId },
           supabaseAdmin,
         );
         return jsonResponse({ data });

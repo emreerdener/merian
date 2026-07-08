@@ -7,7 +7,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.
 - Explore is image-only in V1. Audio is out of scope.
 - Post descriptions/captions are out of scope in V1.
-- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications are in-app only.
+- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications and Field Trip activity are in-app only.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
 - The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
 - Explore includes a privacy-scoped public author profile sheet reachable from feed/detail author headers.
@@ -65,7 +65,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 
 The Explore feed and map shell are now live. The current shipped implementation is:
 
-- `ExploreView` uses bottom navigation for `Observations`, `Identify`, `Field Trips`, and `Dictionary`. Observations owns a root-only Feed/Map header toggle with Feed first, Field Trips owns Available/Recent Trips, and Dictionary keeps Tree behind its Catalog/Tree header toggle.
+- `ExploreView` uses bottom navigation for `Observations`, `Identify`, `Field Trips`, and `Dictionary`. Observations owns a root-only Feed/Map header toggle with Feed first, Field Trips owns Available/Community, and Dictionary keeps Tree behind its Catalog/Tree header toggle.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
 - Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.
@@ -468,7 +468,7 @@ Recommended V1 endpoints:
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `field-trips`
-  - Returns Field Trip catalog, template-detail, explicit-start, Recent Trips, profile-summary/pin, scan-progress, publication, like, and comment actions. Field Trip comments/likes are stored separately from Explore post interactions, and publishing a Field Trip does not write Explore posts, map points, notifications, widgets, or feed cards.
+  - Returns Field Trip catalog, template-detail, explicit-start, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, publication, like, and comment actions. Field Trip comments/likes are stored separately from Explore post interactions, and publishing a Field Trip does not write Explore posts, map points, APNs, widgets, or feed cards.
 - `get-explore-map-points`
   - Returns privacy-safe map clusters or individual map points for the current visible area
 - `get-explore-notifications`
@@ -492,7 +492,10 @@ Existing endpoint reuse:
 
 - Reuse `/block-user` for author and commenter blocking.
 
-The in-app notifications feed is the Explore source of truth. Remote APNs fan-out layers on top of that same notification row model for eligible post-backed activity through push-device registration plus a server-side webhook trigger. Follow notifications stay in-app only.
+The in-app notifications feed is the Explore source of truth. Remote APNs
+fan-out layers on top of that same notification row model for eligible
+post-backed activity through push-device registration plus a server-side
+webhook trigger. Follow notifications and Field Trip activity stay in-app only.
 
 ## Feed Query Rules
 

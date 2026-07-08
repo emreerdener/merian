@@ -159,6 +159,46 @@ export async function fetchRecentFieldTripPublications(
   return Array.isArray(data) ? data : [];
 }
 
+export async function fetchCommunityFieldTripPublications(
+  userId: string,
+  mode: "smart" | "following" | "recent",
+  templateId: string | null,
+  userRegion: string | null,
+  habitatTags: string[],
+  seasonTags: string[],
+  limit: number,
+  cursor: {
+    beforeRankBucket: number | null;
+    beforePublishedAt: string | null;
+    beforePublicationId: string | null;
+  },
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_community_publications",
+    {
+      self_id: userId,
+      mode,
+      target_template_id: templateId,
+      user_region: userRegion,
+      viewer_habitat_tags: habitatTags,
+      viewer_season_tags: seasonTags,
+      max_limit: limit,
+      before_rank_bucket: cursor.beforeRankBucket,
+      before_published_at: cursor.beforePublishedAt,
+      before_publication_id: cursor.beforePublicationId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip community publications: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
 export async function fetchFieldTripProfileSummaries(
   userId: string,
   authorUserId: string,

@@ -47,7 +47,7 @@ struct NotificationRowView: View {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .padding(.top, 2)
-                } else if notification.postId != nil || notification.communityRequestId != nil {
+                } else if notification.postId != nil || notification.communityRequestId != nil || notification.fieldTripPublicationId != nil {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -102,6 +102,12 @@ struct NotificationRowView: View {
             return "checkmark.seal.fill"
         case .communityIdentificationHelped:
             return "sparkles"
+        case .fieldTripComment:
+            return "map.fill"
+        case .fieldTripReply:
+            return "arrowshape.turn.up.left.fill"
+        case .fieldTripFollowedPublication:
+            return "map.circle.fill"
         }
     }
 
@@ -125,6 +131,12 @@ struct NotificationRowView: View {
             return .green
         case .communityIdentificationHelped:
             return .indigo
+        case .fieldTripComment:
+            return .blue
+        case .fieldTripReply:
+            return .purple
+        case .fieldTripFollowedPublication:
+            return .green
         }
     }
 
@@ -148,6 +160,12 @@ struct NotificationRowView: View {
             return Color.green.opacity(0.12)
         case .communityIdentificationHelped:
             return Color.indigo.opacity(0.12)
+        case .fieldTripComment:
+            return Color.blue.opacity(0.12)
+        case .fieldTripReply:
+            return Color.purple.opacity(0.12)
+        case .fieldTripFollowedPublication:
+            return Color.green.opacity(0.12)
         }
     }
 
@@ -192,6 +210,18 @@ struct NotificationRowView: View {
             return "Your Community request was identified."
         case .communityIdentificationHelped:
             return "Your ID helped resolve a request."
+        case .fieldTripComment:
+            let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
+            return "\(actorName) commented on your Field Trip."
+        case .fieldTripReply:
+            let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
+            if notification.isReplyToViewerComment == true {
+                return "\(actorName) replied to your Field Trip comment."
+            }
+            return "\(actorName) replied on a Field Trip."
+        case .fieldTripFollowedPublication:
+            let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
+            return "\(actorName) published a Field Trip."
         }
     }
 
@@ -207,6 +237,10 @@ struct NotificationRowView: View {
             return nil
         case .communityIdentificationAdded, .communityRequestResolved, .communityIdentificationHelped:
             return communityDisplayName()
+        case .fieldTripComment, .fieldTripReply:
+            return trimmed(notification.commentBody)
+        case .fieldTripFollowedPublication:
+            return "From someone you follow."
         }
     }
 

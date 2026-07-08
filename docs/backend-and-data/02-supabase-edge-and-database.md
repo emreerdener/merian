@@ -775,16 +775,20 @@ the identify pipeline. The current shipped surface includes:
 - device registration and delivery: `register-push-device`,
   `send-push-notification`
 
-The in-app notifications feed is backed by `public.explore_post_notifications`,
-not by local client state. Like notifications are recomputed from the
-authoritative `explore_post_likes` table after each insert/delete so concurrency
-cannot drift the aggregate count, comment notifications are created and removed
-via triggers on `explore_post_comments`, comment-reaction notifications are
-recomputed per `(comment, emoji)` from `explore_comment_reactions`, follow
-notifications are created and removed via triggers on `user_follows`,
-self-notifications are suppressed server-side, and notification rows are pruned
-when a post is unshared, a comment is author-deleted or owner-moderated, a
-follow is removed, or either user blocks the other.
+The in-app notifications feed is backed by server tables, not by local client
+state. Explore post activity lives in `public.explore_post_notifications`.
+Field Trip-only activity for comments, replies, and followed-author
+publications lives in `public.field_trip_activity_notifications` and is unioned
+into `get_explore_notifications` for the in-app activity sheet and unread bell.
+Like notifications are recomputed from the authoritative `explore_post_likes`
+table after each insert/delete so concurrency cannot drift the aggregate count,
+comment notifications are created and removed via triggers on
+`explore_post_comments`, comment-reaction notifications are recomputed per
+`(comment, emoji)` from `explore_comment_reactions`, follow notifications are
+created and removed via triggers on `user_follows`, Field Trip activity is
+created from Field Trip publication/comment triggers, self-notifications are
+suppressed server-side, and rows are pruned or hidden when relevant content is
+removed, a follow is removed, or either user blocks the other.
 
 `get-explore-post` is an important routing helper for the iOS client and the
 public Next.js web app: it returns a single privacy-safe feed-card projection so
@@ -894,7 +898,9 @@ stores them in `public.user_push_devices`, and a Postgres trigger on
 `send-push-notification` whenever a visible post-backed notification row is
 inserted or a like/comment-reaction aggregate count increases. Follow
 notifications are postless, informational, and intentionally skipped by the push
-trigger. Delivery fanout is bounded with
+trigger. Field Trip activity rows are stored in
+`field_trip_activity_notifications`, which has no push trigger. Delivery fanout
+is bounded with
 `mapWithConcurrencyLimit(devices, 8,
 ...)` so one notification row cannot launch
 unbounded APNs requests and device state writes from a single V8 isolate.

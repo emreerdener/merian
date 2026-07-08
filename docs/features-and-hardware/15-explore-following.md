@@ -128,6 +128,13 @@ Follow notifications are created by an `AFTER INSERT` trigger on `user_follows` 
 
 The push-delivery trigger intentionally skips `type = 'follow'`. Follow activity is in-app only.
 
+Field Trips V3 reuses this same `user_follows` graph. The Field Trips
+`Community` feed uses followed authors for its `For You` buckets and
+`Following` filter, and published Field Trips can create
+`field_trip_followed_publication` in-app activity for current followers. V3
+does not add trip follows, follower-list browsers, friend states, DMs, or
+private scan access.
+
 ## iOS Implementation
 
 Primary files:

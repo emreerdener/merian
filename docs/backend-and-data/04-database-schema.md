@@ -1682,6 +1682,11 @@ coordinates to the client contract.
 - `public.field_trip_publication_comments`:
   Field Trip publication comments and one-level replies, separate from
   `explore_post_comments`.
+- `public.field_trip_activity_notifications`:
+  Field Trip-only in-app activity rows for publication comments, replies, and
+  followed-author publications. These rows are separate from
+  `explore_post_notifications` and never trigger APNs, widgets, feed cards, map
+  rows, or `explore_posts`.
 - `public.get_field_trip_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
   Returns active templates with access state, levels, checklist items, and the
   requester's progress.
@@ -1691,10 +1696,15 @@ coordinates to the client contract.
 - `public.start_field_trip(self_id UUID, target_template_id UUID)`:
   Explicitly starts or unhides the caller's progress row for an accessible
   Field Trip template.
+- `public.get_field_trip_community_publications(self_id UUID, mode TEXT, target_template_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], viewer_season_tags TEXT[], max_limit INTEGER, before_rank_bucket INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
+  Returns visible published completed trips for the Field Trips `Community`
+  surface. `smart` ranks by followed-author and coarse region/habitat/season or
+  template relevance buckets, `following` filters to `user_follows`, and
+  `recent` orders reverse chronologically. Pagination is stable on
+  `(rank_bucket ASC, published_at DESC, publication_id DESC)`.
 - `public.get_recent_field_trip_publications(self_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], max_limit INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
-  Returns Field Trips-native recent published completed trips with coarse
-  region/habitat preference and stable `(published_at DESC, publication_id DESC)`
-  pagination. This does not participate in normal Explore feed RPCs.
+  Compatibility wrapper for `get_field_trip_community_publications(...)` with
+  `mode = 'recent'`.
 - `public.field_trip_item_matches_scan(target_item_id UUID, target_scan_id UUID)`:
   Internal matcher used by progress application. It checks species,
   scientific-name, taxonomy/group, habitat/ecology, and prompt-text signals
@@ -1715,7 +1725,9 @@ coordinates to the client contract.
   publication state, shadowban, and block checks.
 - `public.publish_field_trip(self_id UUID, target_user_field_trip_id UUID, title TEXT, description TEXT, ai_summary TEXT)`:
   Publishes a completed trip into Field Trip publication tables without writing
-  `explore_posts`, map points, or Explore notifications.
+  `explore_posts`, map points, APNs, widgets, or normal Explore post
+  notifications. V3 followed-author publication activity is stored only in
+  `field_trip_activity_notifications`.
 - `public.get_field_trip_publication_detail(self_id UUID, target_publication_id UUID)`:
   Returns a visible Field Trip publication detail payload.
 - `public.get_field_trip_comments(self_id UUID, target_publication_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
@@ -1744,14 +1756,16 @@ coordinates to the client contract.
   relationship, Community rows include `community_request_id` and request/taxon
   display fields, and `recent_actor_names` preserves the server-side actor order
   from `recent_actor_ids`. Follow rows have `post_id = NULL` and are
-  informational only. Paging is stable on
+  informational only; Field Trip rows have `field_trip_publication_id` and route
+  to Field Trip publication detail. Paging is stable on
   `(updated_at DESC, notification_id DESC)` so new activity does not cause
   duplicates while the sheet paginates.
 - `public.get_unread_explore_notification_count(self_id UUID)`: Returns the
-  unread bell badge count for visible Explore notifications only.
+  unread bell badge count for visible Explore notifications and Field Trip
+  in-app activity rows.
 - `public.mark_explore_notifications_read(self_id UUID)`: Marks all of the
-  viewer's Explore notification rows as read. The iOS client calls this only
-  after a successful notifications fetch.
+  viewer's Explore notification and Field Trip activity rows as read. The iOS
+  client calls this only after a successful notifications fetch.
 - `public.get_explore_push_notification_payload(target_notification_id UUID)`:
   Internal push-delivery projection used by `send-push-notification`. It filters
   hidden/unshared/blocked activity the same way the in-app feed does and returns

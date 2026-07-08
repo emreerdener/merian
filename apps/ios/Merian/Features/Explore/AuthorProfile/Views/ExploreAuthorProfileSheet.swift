@@ -33,6 +33,18 @@ struct ExploreAuthorProfileRoute: Identifiable, Equatable {
         self.authorUsername = mention.username
         self.authorAvatarUrl = mention.avatarUrl
     }
+
+    init(
+        authorUserId: String,
+        authorName: String,
+        authorUsername: String?,
+        authorAvatarUrl: String?
+    ) {
+        self.authorUserId = authorUserId
+        self.authorName = authorName
+        self.authorUsername = authorUsername
+        self.authorAvatarUrl = authorAvatarUrl
+    }
 }
 
 struct ExploreAuthorProfileSheet: View {

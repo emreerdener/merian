@@ -5,8 +5,9 @@ Action-based Edge Function for Field Trips. The function is authenticated via
 
 The backing SQL lives in
 `services/supabase/migrations/20260708021110_field_trips_v1.sql` and
-`services/supabase/migrations/20260708033451_field_trips_v2.sql`. Deploy both
-migrations before deploying this function.
+`services/supabase/migrations/20260708033451_field_trips_v2.sql`, plus
+`services/supabase/migrations/20260708042713_field_trips_v3_community.sql`.
+Deploy all three migrations before deploying this function.
 
 ## Privacy Contract
 
@@ -15,12 +16,17 @@ migrations before deploying this function.
   coordinates, public location labels, or private evidence.
 - Published Field Trips are snapshots in Field Trip tables, not Explore posts.
 - Publishing a Field Trip must not create Explore feed posts, Explore map
-  points, Explore notifications, APNs, widgets, or unread badges.
+  points, normal Explore post notifications, APNs, widgets, or public web share
+  pages.
 - Published Field Trips appear on public profiles and the Field Trips
-  `Recent Trips` tab only, not in Explore Recent, Following, Trending, Nearby,
-  map, notifications, or widgets.
+  `Community` segment only, not in Explore Recent, Following, Trending, Nearby,
+  map, APNs, or widgets.
+- Field Trip comments, replies, and followed-author publications can create
+  Field Trip-only in-app activity rows. They appear in Explore activity and may
+  increment the bell, but never fan out to push delivery.
 - Field Trip comments and likes use Field Trip publication tables, not Explore
   post interaction tables.
+- Field Trip likes do not create notifications in V3.
 - Visibility checks must reject shadowbanned authors and mutual blocks.
 
 ## Actions
@@ -53,6 +59,29 @@ eligible trips as a fallback.
 
 ```json
 {
+  "action": "community_publications",
+  "mode": "smart",
+  "template_id": "optional-template-uuid",
+  "user_region": "us-ca",
+  "habitat_tags": ["neighborhood"],
+  "season_tags": ["spring"],
+  "limit": 20,
+  "before_rank_bucket": 2,
+  "before_published_at": "2026-07-08T13:00:00.000Z",
+  "before_publication_id": "uuid"
+}
+```
+
+Returns published completed Field Trips for the Field Trips `Community`
+segment. `mode` accepts `smart`, `following`, or `recent`. `smart` ranks by
+followed-author plus local/template relevance, followed author, local/habitat/
+season match, global fallback, then other visible fallback. Within each bucket,
+pagination is stable on
+`(rank_bucket ASC, published_at DESC, publication_id DESC)`. `template_id`
+filters results for template-detail Community previews.
+
+```json
+{
   "action": "recent_publications",
   "user_region": "us-ca",
   "limit": 20,
@@ -61,11 +90,8 @@ eligible trips as a fallback.
 }
 ```
 
-Returns published completed Field Trips for the Field Trips `Recent Trips` tab.
-The backend uses coarse region/habitat matches when there is enough local
-inventory and adds globally tagged or no-region publications when local
-inventory is thin. Pagination is stable on
-`(published_at DESC, publication_id DESC)`.
+`recent_publications` remains as a compatibility alias for
+`community_publications` with `mode: "recent"`.
 
 ```json
 { "action": "apply_scan_progress", "scan_id": "uuid" }
@@ -123,7 +149,8 @@ profile summaries. The list is capped at 3 publication IDs.
 ```
 
 Publishes a completed Field Trip into Field Trip snapshot tables. This does not
-write `explore_posts`, Explore map points, or Explore notifications.
+write `explore_posts`, Explore map points, normal Explore post notifications,
+APNs, widgets, or public web share pages.
 
 ```json
 { "action": "detail", "publication_id": "uuid" }
@@ -146,6 +173,7 @@ The iOS client maps this endpoint through:
 MerianNetworkClient.shared.getFieldTrips(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripTemplate(templateId:)
 MerianNetworkClient.shared.startFieldTrip(templateId:)
+MerianNetworkClient.shared.getFieldTripCommunityPublications(mode:templateId:userRegion:habitatTags:seasonTags:limit:beforeRankBucket:beforePublishedAt:beforePublicationId:)
 MerianNetworkClient.shared.getRecentFieldTripPublications(userRegion:habitatTags:limit:beforePublishedAt:beforePublicationId:)
 MerianNetworkClient.shared.applyFieldTripProgress(scanId:)
 MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
@@ -164,16 +192,20 @@ not fail scan persistence.
 
 1. Apply `20260708021110_field_trips_v1.sql`.
 2. Apply `20260708033451_field_trips_v2.sql`.
-3. Deploy this function.
-4. Deploy `get-explore-author-profile` so profile responses include
+3. Apply `20260708042713_field_trips_v3_community.sql`.
+4. Deploy this function.
+5. Deploy `get-explore-author-profile` so profile responses include
    `field_trips`.
-5. Ship the iOS client.
+6. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+   and `mark-explore-notifications-read` so Field Trip activity appears in the
+   in-app activity sheet and bell.
+7. Ship the iOS client.
 
 ## Verification
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
-deno check --config services/supabase/functions/deno.json services/supabase/functions/field-trips/index.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/get-explore-notifications services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/field-trips/index.ts services/supabase/functions/get-explore-notifications/index.ts
 deno test --config services/supabase/functions/deno.json --allow-read=services/supabase/migrations services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
 supabase db lint --workdir services
 ```

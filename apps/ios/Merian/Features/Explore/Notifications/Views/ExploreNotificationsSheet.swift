@@ -125,7 +125,11 @@ struct ExploreNotificationsSheet: View {
     }
 
     private func openNotification(_ notification: ExploreNotification) async {
-        guard notification.postId != nil else { return }
+        guard notification.postId != nil ||
+            notification.communityRequestId != nil ||
+            notification.fieldTripPublicationId != nil else {
+            return
+        }
         guard selectedNotificationId == nil else { return }
 
         selectedNotificationId = notification.id

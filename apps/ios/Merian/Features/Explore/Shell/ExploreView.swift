@@ -103,9 +103,13 @@ struct ExploreView: View {
                     Label("Identify", systemImage: "person.crop.badge.magnifyingglass.fill")
                 }
 
-                FieldTripsView(userRegion: dictionaryUserRegionIdentifier) { publicationId in
-                    navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
-                }
+                FieldTripsView(
+                    userRegion: dictionaryUserRegionIdentifier,
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenAuthorProfile: openAuthorProfile
+                )
                 .tag(ExploreTab.fieldTrips)
                 .tabItem {
                     Label("Field Trips", systemImage: "map")
@@ -196,9 +200,13 @@ struct ExploreView: View {
                     .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: FieldTripTemplateRoute.self) { route in
-                FieldTripTemplateDetailView(templateId: route.templateId) { publicationId in
-                    navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
-                }
+                FieldTripTemplateDetailView(
+                    templateId: route.templateId,
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenAuthorProfile: openAuthorProfile
+                )
                 .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in
@@ -430,6 +438,17 @@ struct ExploreView: View {
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
     }
 
+    private func openAuthorProfile(for publication: FieldTripRecentPublication) {
+        HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
+        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
+            authorUserId: publication.authorUserId,
+            authorName: publication.authorName,
+            authorUsername: publication.authorUsername,
+            authorAvatarUrl: publication.authorAvatarUrl
+        )
+    }
+
     private func openHashtag(_ hashtag: String) {
         HapticManager.shared.triggerSelectionPulse()
         navigationPath.append(ExploreHashtagRoute(hashtag: hashtag))
@@ -544,6 +563,14 @@ struct ExploreView: View {
            let requestId = notification.communityRequestId {
             viewModel.dismissNotifications()
             openCommunityIdentificationRequest(requestId)
+            return
+        }
+
+        if notification.type.isFieldTripNotification,
+           let publicationId = notification.fieldTripPublicationId {
+            viewModel.dismissNotifications()
+            activeTab = .fieldTrips
+            navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
             return
         }
 

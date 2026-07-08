@@ -186,9 +186,9 @@ networking, and hardware orchestration logic.
   identification queue, Dictionary catalog, and Tree of Life canvas routing/data
   boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
-  — Field Trips Available/Recent tabs, guided template detail, progress
-  matching, publication snapshots, profile pins, access gating, and deferred
-  leaderboard/prize scope.
+  — Field Trips Available/Community segments, guided template detail, progress
+  matching, publication snapshots, profile pins, access gating, in-app activity,
+  and deferred leaderboard/prize scope.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

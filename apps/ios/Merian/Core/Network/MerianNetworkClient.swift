@@ -2058,11 +2058,37 @@ final class MerianNetworkClient {
         beforePublishedAt: String? = nil,
         beforePublicationId: String? = nil
     ) async throws -> [FieldTripRecentPublication] {
+        try await getFieldTripCommunityPublications(
+            mode: .recent,
+            userRegion: userRegion,
+            habitatTags: habitatTags,
+            limit: limit,
+            beforeRankBucket: beforePublishedAt == nil ? nil : 0,
+            beforePublishedAt: beforePublishedAt,
+            beforePublicationId: beforePublicationId
+        )
+    }
+
+    func getFieldTripCommunityPublications(
+        mode: FieldTripCommunityMode = .smart,
+        templateId: String? = nil,
+        userRegion: String? = nil,
+        habitatTags: [String] = [],
+        seasonTags: [String] = [],
+        limit: Int = 20,
+        beforeRankBucket: Int? = nil,
+        beforePublishedAt: String? = nil,
+        beforePublicationId: String? = nil
+    ) async throws -> [FieldTripRecentPublication] {
         let functionUrl = try endpointURL("field-trips")
         var payload: [String: Any] = [
-            "action": "recent_publications",
+            "action": "community_publications",
+            "mode": mode.rawValue,
             "limit": limit
         ]
+        if let templateId = templateId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["template_id"] = templateId
+        }
         if let userRegion = userRegion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
             payload["user_region"] = userRegion
         }
@@ -2072,14 +2098,21 @@ final class MerianNetworkClient {
         if !trimmedHabitatTags.isEmpty {
             payload["habitat_tags"] = trimmedHabitatTags
         }
-        if let beforePublishedAt, let beforePublicationId {
+        let trimmedSeasonTags = seasonTags.compactMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        }
+        if !trimmedSeasonTags.isEmpty {
+            payload["season_tags"] = trimmedSeasonTags
+        }
+        if let beforeRankBucket, let beforePublishedAt, let beforePublicationId {
+            payload["before_rank_bucket"] = beforeRankBucket
             payload["before_published_at"] = beforePublishedAt
             payload["before_publication_id"] = beforePublicationId
         }
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try makeExploreDecoder().decode(FieldTripRecentPublicationsResponse.self, from: data).data
+        return try makeExploreDecoder().decode(FieldTripCommunityPublicationsResponse.self, from: data).data
     }
 
     func applyFieldTripProgress(scanId: String) async throws -> [FieldTripProgressUpdate] {

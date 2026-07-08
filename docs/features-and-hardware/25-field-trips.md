@@ -5,15 +5,17 @@ ecological categories in a neighborhood, park, state, national park, or other
 regional environment. They are separate from low-power Expedition Mode, which is
 only a camera/performance setting.
 
-## V2 Scope
+## V3 Scope
 
 - Field Trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
-- The Field Trips surface has two tabs: `Available` first by default and
-  `Recent Trips` second for region-aware published completed trips.
+- The Field Trips surface has two page-header segments: `Available` first by
+  default and `Community` second for Field Trips-native discovery.
+- `Community` has filter chips for `For You`, `Following`, and `Recent`.
+  `For You` is deterministic bucketed ranking, not ML.
 - Templates are curated in Supabase with region, season, habitat, difficulty,
   rotating-free, Pro access tags, cover images, estimated duration, and curated
   guide sections.
-- Checklist items can include curated item-level tips. V2 does not generate
+- Checklist items can include curated item-level tips. V3 does not generate
   pre-trip guidance with AI.
 - Users can explicitly start a Field Trip from the template detail page before
   their first matching scan.
@@ -27,10 +29,10 @@ only a camera/performance setting.
   updater.
 - Field Trip comments and likes are separate from Explore post comments and
   likes, even though the iOS UI reuses the compact Explore comment presentation.
-- V2 supports profile showcase, up to 3 pinned published Field Trips, published
-  Field Trip pages, and a Field Trips-native `Recent Trips` tab. It does not
-  create Explore feed posts, map points, public web share pages, push
-  notifications, widgets, leaderboards, prizes, rankings, or sponsored-trip
+- V3 supports profile showcase, up to 3 pinned published Field Trips, published
+  Field Trip pages, template-detail Community previews, and a Field Trips-native
+  Community feed. It does not create Explore feed posts, map points, public web
+  share pages, APNs, widgets, leaderboards, prizes, rankings, or sponsored-trip
   eligibility.
 
 ## Product Flow
@@ -53,9 +55,10 @@ only a camera/performance setting.
    the next load.
 8. Once all levels are complete, the user may publish a Field Trip snapshot
    with an editable title and optional description or AI summary.
-9. Published Field Trips appear on public profiles and in the Field Trips
-   `Recent Trips` tab only. They open `FieldTripPublicationDetailView` with item
-   cards, likes, comments, and author identity.
+9. Published Field Trips appear on public profiles and in Field Trips
+   `Community` only. They open `FieldTripPublicationDetailView` with item cards,
+   likes, comments, and author identity. Author taps open the existing Explore
+   author profile sheet.
 
 ## Progress Rules
 
@@ -87,8 +90,11 @@ exact coordinates, public location labels, or private evidence details.
 Published Field Trip pages are explicit snapshots stored separately from
 Explore posts. Publication items may include species names, taxonomy, reference
 images, and selected scan media snapshots, but publishing a Field Trip does not
-create Explore feed posts, Explore map points, normal Explore notifications,
-APNs, widgets, or unread badges.
+create Explore feed posts, Explore map points, normal Explore post
+notifications, APNs, widgets, or public web pages. V3 may create Field
+Trip-only in-app activity rows for comments, replies, and followed-author
+publications; those rows appear in Explore activity and may increment the bell,
+but they never fan out to push delivery.
 
 Public author profiles can be discoverable through either visible Explore posts
 or visible Field Trip surfaces. Field Trip discoverability still respects
@@ -97,8 +103,10 @@ shadowbans and mutual blocks.
 ## Backend
 
 Field Trip storage is created by
-`services/supabase/migrations/20260708021110_field_trips_v1.sql` and extended
-by `services/supabase/migrations/20260708033451_field_trips_v2.sql`.
+`services/supabase/migrations/20260708021110_field_trips_v1.sql`, extended by
+`services/supabase/migrations/20260708033451_field_trips_v2.sql`, and expanded
+for Community discovery by
+`services/supabase/migrations/20260708042713_field_trips_v3_community.sql`.
 
 Core tables:
 
@@ -111,12 +119,14 @@ Core tables:
 - `field_trip_publication_items`
 - `field_trip_publication_likes`
 - `field_trip_publication_comments`
+- `field_trip_activity_notifications`
 
 Core RPCs and helpers:
 
 - `public.get_field_trip_catalog(...)`
 - `public.get_field_trip_template_detail(...)`
 - `public.start_field_trip(...)`
+- `public.get_field_trip_community_publications(...)`
 - `public.get_recent_field_trip_publications(...)`
 - `public.apply_field_trip_scan_progress(...)`
 - `public.get_field_trip_profile_summaries(...)`
@@ -145,8 +155,11 @@ Actions:
   tips, access state, and viewer progress.
 - `start`: explicitly starts or unhides the caller's progress row for an
   accessible template.
-- `recent_publications`: returns region-aware published completed Field Trips
-  with stable `(published_at, publication_id)` pagination.
+- `community_publications`: returns visible published completed Field Trips for
+  `smart`, `following`, or `recent` mode with optional template filtering and
+  stable `(rank_bucket, published_at, publication_id)` pagination.
+- `recent_publications`: compatibility alias for `community_publications` with
+  `mode: "recent"`.
 - `apply_scan_progress`: applies progress for one saved scan owned by the
   caller.
 - `profile_summaries`: returns active status-only and published summaries for a
@@ -206,6 +219,7 @@ Client methods:
 MerianNetworkClient.shared.getFieldTrips(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripTemplate(templateId:)
 MerianNetworkClient.shared.startFieldTrip(templateId:)
+MerianNetworkClient.shared.getFieldTripCommunityPublications(mode:templateId:userRegion:habitatTags:seasonTags:limit:beforeRankBucket:beforePublishedAt:beforePublicationId:)
 MerianNetworkClient.shared.getRecentFieldTripPublications(userRegion:habitatTags:limit:beforePublishedAt:beforePublicationId:)
 MerianNetworkClient.shared.applyFieldTripProgress(scanId:)
 MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
@@ -217,9 +231,35 @@ MerianNetworkClient.shared.getFieldTripComments(publicationId:limit:afterCreated
 MerianNetworkClient.shared.createFieldTripComment(publicationId:body:parentCommentId:)
 ```
 
+## Community Ranking
+
+`For You` ranks visible published Field Trips in stable buckets:
+
+1. followed author plus local/template relevance
+2. followed author
+3. local, habitat, season, or template match
+4. global or no-region fallback
+5. other visible fallback
+
+Within each bucket, results order by `published_at DESC, publication_id DESC`.
+`Following` filters to followed authors. `Recent` uses reverse chronology with
+all visible published trips. Template detail pages request the same Community
+feed with `template_id` and a small limit for their preview section.
+
+## Activity
+
+Field Trip comments, replies, and followed-author publications create rows in
+`field_trip_activity_notifications`. These rows are read through
+`get_explore_notifications`, counted by `get_unread_explore_notification_count`,
+and marked through `mark_explore_notifications_read`. They are not stored in
+`explore_post_notifications`, do not call `send-push-notification`, and are
+deleted or hidden when relevant comments/publications are removed, authors are
+shadowbanned, or either user blocks the other. Field Trip likes intentionally do
+not notify in V3.
+
 ## Deferred
 
-V2 intentionally excludes leaderboards, prizes, sponsored trips, regional
+V3 intentionally excludes leaderboards, prizes, sponsored trips, regional
 rankings, and reward eligibility. Those require stronger verification, abuse
 controls, moderation policy, and legal/eligibility rules.
 
@@ -229,9 +269,13 @@ Deploy in this order:
 
 1. `20260708021110_field_trips_v1.sql`
 2. `20260708033451_field_trips_v2.sql`
-3. `field-trips` Edge Function
-4. `get-explore-author-profile` Edge Function update
-5. iOS client update
+3. `20260708042713_field_trips_v3_community.sql`
+4. `field-trips` Edge Function
+5. `get-explore-author-profile` so public profiles include Field Trip
+   summaries and pins
+6. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+   `mark-explore-notifications-read` Edge Function updates
+7. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
@@ -245,8 +289,8 @@ should not be dropped casually after release.
 Backend:
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-author-profile/db.ts
-deno check --config services/supabase/functions/deno.json services/supabase/functions/field-trips/index.ts services/supabase/functions/get-explore-author-profile/index.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/get-explore-notifications services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/field-trips/index.ts services/supabase/functions/get-explore-notifications/index.ts
 deno test --config services/supabase/functions/deno.json --allow-read=services/supabase/migrations services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
 supabase db lint --workdir services
 ```
@@ -259,5 +303,7 @@ xcodebuild -scheme Merian -project merian.xcodeproj -destination 'generic/platfo
 ```
 
 Also verify that publishing a Field Trip appears only on profiles and Field
-Trips `Recent Trips`, and does not create `explore_posts`, Explore feed cards,
-Explore map points, Explore notifications, APNs, widgets, or unread badges.
+Trips `Community`, and does not create `explore_posts`, Explore feed cards,
+Explore map points, normal Explore post notifications, APNs, widgets, or public
+web share pages. Comment/reply/followed-publication activity may appear in the
+Explore activity sheet and unread count.

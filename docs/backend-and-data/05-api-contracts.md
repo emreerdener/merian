@@ -247,16 +247,20 @@ The response is the refreshed profile summaries payload. The endpoint replaces
 the caller's pin list, preserves the supplied order, rejects more than 3 IDs,
 and accepts only the caller's visible Field Trip publications.
 
-### Recent Trips
+### Community Publications
 
 Request:
 
 ```json
 {
-  "action": "recent_publications",
+  "action": "community_publications",
+  "mode": "smart",
+  "template_id": "optional-template-uuid",
   "user_region": "us-ca",
   "habitat_tags": ["neighborhood"],
+  "season_tags": ["spring"],
   "limit": 20,
+  "before_rank_bucket": 2,
   "before_published_at": "2026-07-08T13:00:00.000Z",
   "before_publication_id": "uuid"
 }
@@ -288,18 +292,47 @@ Response:
       "author_username": "river_w",
       "author_avatar_url": "https://...",
       "is_pinned": false,
-      "pin_position": null
+      "pin_position": null,
+      "rank_bucket": 0,
+      "community_reason": "following",
+      "viewer_is_following_author": true
     }
   ]
 }
 ```
 
-Recent Trips is Field Trips-native. It does not extend Explore Recent,
-Following, Trending, Nearby, map, notifications, widgets, or public web share
-surfaces. When a region or habitat hint is supplied, the backend uses matching
-published trips while there is enough local inventory; thin local inventory
-adds `global` or no-region trips as fallback. Pagination is stable on
-`(published_at DESC, publication_id DESC)`.
+`mode` accepts `smart`, `following`, or `recent`. `smart` is deterministic
+bucketed ranking, not ML: followed author plus local/template relevance,
+followed author, local/habitat/season/template match, global/no-region
+fallback, then other visible fallback. Within each bucket, rows order by
+`published_at DESC, publication_id DESC`. `following` filters to existing
+`user_follows` relationships. `recent` is reverse chronological for all visible
+published Field Trips. `template_id` limits results for template-detail
+Community previews.
+
+Pagination is stable on
+`(rank_bucket ASC, published_at DESC, publication_id DESC)`, so community
+cursors must send all three cursor fields together.
+
+Compatibility request:
+
+```json
+{
+  "action": "recent_publications",
+  "user_region": "us-ca",
+  "habitat_tags": ["neighborhood"],
+  "limit": 20,
+  "before_published_at": "2026-07-08T13:00:00.000Z",
+  "before_publication_id": "uuid"
+}
+```
+
+`recent_publications` is a compatibility alias for
+`community_publications` with `mode: "recent"`.
+
+Community Publications is Field Trips-native. It does not extend Explore
+Recent, Following, Trending, Nearby, map, widgets, public web share surfaces, or
+Explore post rows.
 
 ### Publication Detail, Likes, and Comments
 
@@ -404,8 +437,10 @@ Explore post tables. Comment payloads intentionally mirror the compact
 publication ID inside this scoped endpoint.
 
 Publishing a Field Trip never writes `explore_posts`, Explore feed cards,
-Explore map rows, Explore notifications, APNs, widgets, or unread badges.
-Sharing is a future layer.
+Explore map rows, normal Explore post notifications, APNs, widgets, or public
+web share pages. Field Trip comments, replies, and followed-author publications
+may create Field Trip-only in-app activity rows that appear in Explore activity
+and the unread bell. Sharing is a future layer.
 
 ---
 
@@ -3056,6 +3091,8 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
 - Community Identification notifications include `community_request_id` plus
   display fields for the current or resolved taxon, and the client routes them
   to the Community request detail instead of regular post detail.
+- Field Trip activity notifications include `field_trip_publication_id`; the
+  client routes them to `FieldTripPublicationDetailView`.
 - Pagination is cursor-based on `(updated_at DESC, notification_id DESC)`.
   Follow-up page requests send:
 
@@ -3076,6 +3113,7 @@ Current response shape:
       "notification_id": "uuid",
       "post_id": "uuid",
       "community_request_id": null,
+      "field_trip_publication_id": null,
       "type": "like_aggregated",
       "comment_id": null,
       "reaction_emoji": null,
@@ -3094,6 +3132,8 @@ Current response shape:
     {
       "notification_id": "uuid",
       "post_id": "uuid",
+      "community_request_id": null,
+      "field_trip_publication_id": null,
       "type": "comment",
       "comment_id": "uuid",
       "reaction_emoji": null,
@@ -3109,6 +3149,8 @@ Current response shape:
     {
       "notification_id": "uuid",
       "post_id": "uuid",
+      "community_request_id": null,
+      "field_trip_publication_id": null,
       "type": "comment_mention",
       "comment_id": "uuid",
       "reaction_emoji": null,
@@ -3124,6 +3166,8 @@ Current response shape:
     {
       "notification_id": "uuid",
       "post_id": "uuid",
+      "community_request_id": null,
+      "field_trip_publication_id": null,
       "type": "comment_reaction",
       "comment_id": "uuid",
       "reaction_emoji": "🔥",
@@ -3140,6 +3184,7 @@ Current response shape:
       "notification_id": "uuid",
       "post_id": "uuid",
       "community_request_id": "uuid",
+      "field_trip_publication_id": null,
       "type": "community_request_resolved",
       "comment_id": null,
       "reaction_emoji": null,
@@ -3158,6 +3203,25 @@ Current response shape:
     {
       "notification_id": "uuid",
       "post_id": null,
+      "community_request_id": null,
+      "field_trip_publication_id": "uuid",
+      "type": "field_trip_comment",
+      "comment_id": "uuid",
+      "reaction_emoji": null,
+      "triggering_user_id": "uuid",
+      "triggering_user_name": "User T",
+      "comment_body": "Great Field Trip.",
+      "recent_actor_names": [],
+      "action_count": 1,
+      "is_read": false,
+      "created_at": "2026-07-08T16:00:00.000Z",
+      "updated_at": "2026-07-08T16:00:00.000Z"
+    },
+    {
+      "notification_id": "uuid",
+      "post_id": null,
+      "community_request_id": null,
+      "field_trip_publication_id": null,
       "type": "follow",
       "comment_id": null,
       "reaction_emoji": null,
@@ -3174,13 +3238,15 @@ Current response shape:
 }
 ```
 
-`post_id` is nullable because follow notifications are not post-backed. The iOS
-notifications UI treats follow rows as informational and does not attempt post
-navigation.
+`post_id` is nullable because follow notifications and Field Trip activity are
+not Explore-post-backed. Field Trip activity rows include
+`field_trip_publication_id` and route to `FieldTripPublicationDetailView`; follow
+rows remain informational and do not attempt post navigation.
 
 ### `/get-explore-unread-notification-count`
 
-Returns the unread bell badge count for visible Explore notifications:
+Returns the unread bell badge count for visible Explore and Field Trip in-app
+activity notifications:
 
 ```json
 {
