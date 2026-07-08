@@ -203,12 +203,13 @@ final class AudioCaptureManager {
                             let columns = await actor.processColumns(buffer: buffer)
                             guard !columns.isEmpty else { continue }
 
-                            var evaluatedColumns: [(column: SpectrogramColumn, snr: SNRLevel)] = []
-                            evaluatedColumns.reserveCapacity(columns.count)
+                            var columnEvaluations: [(column: SpectrogramColumn, snr: SNRLevel)] = []
+                            columnEvaluations.reserveCapacity(columns.count)
                             for column in columns {
                                 let snr = await actor.snrLevel(from: column)
-                                evaluatedColumns.append((column, snr))
+                                columnEvaluations.append((column, snr))
                             }
+                            let evaluatedColumns = columnEvaluations
 
                             await MainActor.run { [weak manager] in
                                 guard let manager else { return }
