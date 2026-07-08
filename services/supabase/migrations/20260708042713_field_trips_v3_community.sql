@@ -914,7 +914,7 @@ AS $$
         n.community_request_id,
         n.comment_id,
         n.parent_comment_id,
-        n.type,
+        n.type::public.explore_notification_type AS type,
         n.action_count,
         n.reaction_emoji,
         n.comment_body,
@@ -929,5 +929,6 @@ AS $$
     JOIN LATERAL public.get_explore_notifications(epn.user_id, 1000000, NULL, NULL) n
         ON n.notification_id = epn.id
     WHERE epn.id = target_notification_id
+      AND n.field_trip_publication_id IS NULL
       AND n.type <> 'follow';
 $$;

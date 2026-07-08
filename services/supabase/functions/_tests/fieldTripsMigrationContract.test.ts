@@ -177,6 +177,8 @@ Deno.test("Field Trips v3 adds community feed ranking and compatibility contract
       "'field_trip_followed_publication'",
       "type TEXT NOT NULL CHECK",
       "n.type::TEXT AS type",
+      "n.type::public.explore_notification_type AS type",
+      "AND n.field_trip_publication_id IS NULL",
       "'rank_bucket', rank_bucket",
       "'community_reason', community_reason",
       "'viewer_is_following_author', viewer_is_following_author",
