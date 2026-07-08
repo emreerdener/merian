@@ -2175,10 +2175,9 @@ mirror for migration safety and compatibility.
   `[IdentifyVisualMediaItem]` aligned one-to-one with `inferenceImagePaths`, so
   replay can tell `/identify-multimodal` which inference images are still photos
   versus ordered video frames.)
-- `queueAttemptCount`: Int? (Added in `MerianSchemaV48`. Persisted retry count
+- `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count
   for the queued scan. Replaces the older process-local `uploadRetryCount`
-  authority and feeds the automatic retry budget. `nil` is treated as `0` while
-  migration normalizes older rows.)
+  authority and feeds the automatic retry budget.)
 - `queueLastAttemptAt`, `queueNextRetryAt`: Date? (Added in V48. Used by
   `OfflineQueueRetryPolicy` and the scheduler to survive app relaunch without
   losing backoff state.)
@@ -2190,12 +2189,9 @@ mirror for migration safety and compatibility.
   Mirrors `/check-scan-status` ingestion job state for server-owned work.)
 - `queueLastServerRetryAfter`: Date? (Added in V48. Parsed server retry window
   for retryable ingestion jobs.)
-- `queueUpdatedAt`: Date? (Added in V48. Last durable queue metadata mutation.
-  Diagnostics fall back to the scan timestamp if an older row has not been
-  normalized yet.)
-- `queueNeedsAttention`: Bool? (Added in V48. Terminal user-actionable local
-  problems stay visible instead of being purged as disposable tombstones. `nil`
-  is treated as `false`.)
+- `queueUpdatedAt`: Date (Added in V48. Last durable queue metadata mutation.)
+- `queueNeedsAttention`: Bool (Added in V48. Terminal user-actionable local
+  problems stay visible instead of being purged as disposable tombstones.)
 
 The V47→V48 migration is custom. It initializes the new retry/status fields for
 every existing queued scan and creates a `scan-ingestion:{scanId}`

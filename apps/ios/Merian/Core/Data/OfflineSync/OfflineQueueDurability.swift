@@ -329,7 +329,7 @@ extension OfflineQueueManager {
                 id: scan.id,
                 queueState: String(scan.queueState.rawValue),
                 timestamp: scan.timestamp,
-                attemptCount: scan.queueAttemptCount ?? 0,
+                attemptCount: scan.queueAttemptCount,
                 lastAttemptAt: scan.queueLastAttemptAt,
                 nextRetryAt: scan.queueNextRetryAt,
                 lastErrorCode: scan.queueLastErrorCode,
@@ -338,8 +338,8 @@ extension OfflineQueueManager {
                 lastServerStatus: scan.queueLastServerStatus,
                 lastServerStage: scan.queueLastServerStage,
                 lastServerRetryAfter: scan.queueLastServerRetryAfter,
-                updatedAt: scan.queueUpdatedAt ?? scan.timestamp,
-                needsAttention: scan.queueNeedsAttention ?? false,
+                updatedAt: scan.queueUpdatedAt,
+                needsAttention: scan.queueNeedsAttention,
                 mediaKinds: QueuedScanContext(
                     from: scan
                 ).mediaKinds,
@@ -447,7 +447,7 @@ extension OfflineQueueManager {
         descriptor.fetchLimit = 1
 
         guard let scan = (try? context.fetch(descriptor))?.first else { return 0 }
-        let attempt = (scan.queueAttemptCount ?? 0) + 1
+        let attempt = scan.queueAttemptCount + 1
         let now = Date()
         scan.queueAttemptCount = attempt
         scan.queueLastAttemptAt = now

@@ -2,10 +2,16 @@
 set -euo pipefail
 
 schema_file="apps/ios/Merian/Models/SchemaVersions.swift"
+active_queue_file="apps/ios/Merian/Models/ActiveSchema/OfflineQueuedScan.swift"
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
 
 if [ ! -f "$schema_file" ]; then
   echo "Missing $schema_file" >&2
+  exit 1
+fi
+
+if [ ! -f "$active_queue_file" ]; then
+  echo "Missing $active_queue_file" >&2
   exit 1
 fi
 
@@ -115,6 +121,16 @@ not_contains "$schema_file" "static let migrateV44toV47"
 not_contains "$schema_file" "static let migrateV45toV47"
 not_contains "$schema_file" "static let migrateV46toV47"
 
+contains "$active_queue_file" "@Attribute public var queueAttemptCount: Int = 0" \
+  || fail "Active V48 OfflineQueuedScan.queueAttemptCount must remain non-optional to preserve already-current store compatibility."
+contains "$active_queue_file" "@Attribute public var queueUpdatedAt: Date = Date()" \
+  || fail "Active V48 OfflineQueuedScan.queueUpdatedAt must remain non-optional to preserve already-current store compatibility."
+contains "$active_queue_file" "@Attribute public var queueNeedsAttention: Bool = false" \
+  || fail "Active V48 OfflineQueuedScan.queueNeedsAttention must remain non-optional to preserve already-current store compatibility."
+not_contains "$active_queue_file" "queueAttemptCount: Int?"
+not_contains "$active_queue_file" "queueUpdatedAt: Date?"
+not_contains "$active_queue_file" "queueNeedsAttention: Bool?"
+
 recent_v44_plan="$(extract_block "enum MerianRecentV44MigrationPlan" "enum MerianRecentV45MigrationPlan")"
 recent_v45_plan="$(extract_block "enum MerianRecentV45MigrationPlan" "enum MerianRecentV46MigrationPlan")"
 recent_v46_plan="$(extract_block "enum MerianRecentV46MigrationPlan" "enum MerianRecentV47MigrationPlan")"
@@ -161,5 +177,7 @@ not_contains "$test_file" "FileManager.default.removeItem(at: url)"
 not_contains "$test_file" "Duplicate version checksums across stages detected"
 contains "$test_file" "keepSQLiteStoreForProcessLifetime" \
   || fail "MigrationPlanTests must keep disk-backed migration stores alive for the process lifetime."
+contains "$test_file" "activeOfflineQueuedScanKeepsDurableRetryFieldsNonOptional" \
+  || fail "MigrationPlanTests must guard active V48 queue retry fields against optionality changes."
 
 echo "iOS migration source guardrails passed."

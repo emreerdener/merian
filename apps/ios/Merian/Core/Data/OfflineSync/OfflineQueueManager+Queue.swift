@@ -263,7 +263,7 @@ extension OfflineQueueManager {
         guard let context = modelContext else { return }
         let failedRaw = ScanQueueState.failed.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == failedRaw && $0.queueNeedsAttention != true }
+            predicate: #Predicate { $0.scanStateRaw == failedRaw && !$0.queueNeedsAttention }
         )
         descriptor.fetchLimit = 500
 
@@ -460,7 +460,7 @@ extension OfflineQueueManager {
         }
         let now = Date()
         let staged = fetched.filter { scan in
-            scan.queueNeedsAttention != true && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
+            !scan.queueNeedsAttention && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
         }
         guard !staged.isEmpty else {
             MerianLog.data.debug("replayInferenceStagedScans: no staged scans ready for retry")

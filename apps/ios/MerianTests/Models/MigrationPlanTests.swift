@@ -29,6 +29,15 @@ struct MigrationPlanTests {
         return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 
+    private func activeOfflineQueuedScanSource() throws -> String {
+        let sourceURL = repositoryRoot
+            .appendingPathComponent("Merian")
+            .appendingPathComponent("Models")
+            .appendingPathComponent("ActiveSchema")
+            .appendingPathComponent("OfflineQueuedScan.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
     private func migrationPlanSource() throws -> String {
         let source = try schemaVersionsSource()
         guard let migrationStart = source.range(of: "enum MerianMigrationPlan")?.lowerBound else {
@@ -237,7 +246,7 @@ struct MigrationPlanTests {
         #expect(scan.queueLastServerStatus == nil)
         #expect(scan.queueLastServerStage == nil)
         #expect(scan.queueLastServerRetryAfter == nil)
-        #expect((scan.queueUpdatedAt?.timeIntervalSinceReferenceDate ?? 0) > 0)
+        #expect(scan.queueUpdatedAt.timeIntervalSinceReferenceDate > 0)
         #expect(scan.queueNeedsAttention == false)
     }
 
@@ -724,6 +733,34 @@ struct MigrationPlanTests {
         #expect(
             v47StageSource.contains("context.delete(scan)"),
             "V47 queued scans must be deleted after snapshotting so SwiftData cannot reopen them as stale V47-backed current models."
+        )
+    }
+
+    @Test func activeOfflineQueuedScanKeepsDurableRetryFieldsNonOptional() throws {
+        let source = try activeOfflineQueuedScanSource()
+        let requiredSnippets = [
+            "@Attribute public var queueAttemptCount: Int = 0",
+            "@Attribute public var queueUpdatedAt: Date = Date()",
+            "@Attribute public var queueNeedsAttention: Bool = false",
+            "queueAttemptCount: Int = 0,",
+            "queueUpdatedAt: Date = Date(),",
+            "queueNeedsAttention: Bool = false"
+        ]
+        let forbiddenSnippets = [
+            "queueAttemptCount: Int?",
+            "queueUpdatedAt: Date?",
+            "queueNeedsAttention: Bool?"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+        let presentForbidden = forbiddenSnippets.filter { source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "Active V48 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            presentForbidden.isEmpty,
+            "Active V48 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
         )
     }
 

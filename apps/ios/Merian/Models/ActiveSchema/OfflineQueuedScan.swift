@@ -43,7 +43,7 @@ public final class OfflineQueuedScan {
 
     /// Durable retry and diagnostics fields. These replace the older process-local retry counter
     /// so app relaunches keep the queue's real state.
-    @Attribute public var queueAttemptCount: Int?
+    @Attribute public var queueAttemptCount: Int = 0
     @Attribute public var queueLastAttemptAt: Date?
     @Attribute public var queueNextRetryAt: Date?
     @Attribute public var queueLastErrorCode: String?
@@ -52,8 +52,8 @@ public final class OfflineQueuedScan {
     @Attribute public var queueLastServerStatus: String?
     @Attribute public var queueLastServerStage: String?
     @Attribute public var queueLastServerRetryAfter: Date?
-    @Attribute public var queueUpdatedAt: Date?
-    @Attribute public var queueNeedsAttention: Bool?
+    @Attribute public var queueUpdatedAt: Date = Date()
+    @Attribute public var queueNeedsAttention: Bool = false
 
     // MARK: - Typed accessor
 
@@ -97,8 +97,8 @@ public final class OfflineQueuedScan {
         queueLastServerStatus: String? = nil,
         queueLastServerStage: String? = nil,
         queueLastServerRetryAfter: Date? = nil,
-        queueUpdatedAt: Date? = Date(),
-        queueNeedsAttention: Bool? = false
+        queueUpdatedAt: Date = Date(),
+        queueNeedsAttention: Bool = false
     ) {
         self.id = id
         self.timestamp = timestamp
