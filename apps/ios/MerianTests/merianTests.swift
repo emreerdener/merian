@@ -1009,6 +1009,19 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
         XCTAssertTrue(state.showsPlaybackControl)
     }
 
+    func testInterruptionAfterControlFadeRestoresVisiblePlayControl() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: true)
+        state.reduce(.controlFadeCompleted)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertFalse(state.showsPlaybackControl)
+
+        state.reduce(.playbackPaused)
+
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+    }
+
     func testControlFadeOnlyHidesWhilePlaybackIsStillMarkedPlaying() {
         var pausedState = ExploreVideoPlaybackOverlayState(isPlaying: false, showsPlaybackControl: true)
         pausedState.reduce(.controlFadeCompleted)

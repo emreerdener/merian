@@ -115,11 +115,15 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added Field Trips to Explore: regional checklist quests can auto-start from
+  new scans, unlock levels sequentially, show active checklist progress on
+  public profiles, and publish Field Trip pages with species snapshots, likes,
+  and comments without creating Explore feed posts or map points.
 - Added public video Explore posts: shared video scans can now appear in Explore
   and Ask the Community with muted playback in feed/detail and thumbnail play
   indicators on compact surfaces.
-- Fixed Explore videos so opening and closing an author's profile sheet no
-  longer leaves feed or post-detail playback stuck without usable controls.
+- Fixed Explore videos so playback interruptions no longer leave feed or
+  post-detail videos stuck without usable controls.
 - Fixed Explore video playback so shared video posts autoplay when opened, fill
   their square preview, and use a centered play/pause control that fades during
   playback instead of a static marker; muting or unmuting one Explore video now

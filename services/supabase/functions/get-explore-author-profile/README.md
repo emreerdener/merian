@@ -43,7 +43,11 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
         "last_interaction_at": "2026-05-03T12:00:00.000Z"
       }
     ],
-    "preview_posts": []
+    "preview_posts": [],
+    "field_trips": {
+      "active": [],
+      "published": []
+    }
   }
 }
 ```
@@ -58,7 +62,7 @@ stable handle stored without `@`; iOS renders it beneath the display name as
 
 ## Privacy Rules
 
-The endpoint returns `404` unless the target author has at least one Explore post currently visible to the requester. This prevents arbitrary user UUID lookups from surfacing profile state.
+The endpoint returns `404` unless the target author has at least one Explore post currently visible to the requester or at least one visible Field Trip profile surface. This prevents arbitrary user UUID lookups from surfacing profile state while allowing active or published Field Trips to make an author discoverable.
 
 Profile aggregates use all non-tombstoned scans owned by the target author:
 
@@ -76,6 +80,14 @@ Preview posts use stricter Explore visibility rules:
 - shadowbanned authors excluded
 - both directions of user blocking excluded
 
+Field Trip summaries use separate storage from Explore posts:
+
+- active Field Trips show template title, level number, and checklist progress only
+- active summaries never return scan IDs, media URLs, field notes, or location details
+- published Field Trips return publication IDs and snapshot media from `field_trip_publication_items`
+- publishing a Field Trip does not create Explore feed posts, map points, or Explore notifications
+- shadowbanned authors and mutual blocks are excluded
+
 Post `location_sharing` controls public location fields; it does not hide
 published posts from profile eligibility.
 
@@ -84,7 +96,7 @@ Follow state:
 - Counts are computed from `public.user_follows`.
 - Shadowbanned counterpart users are ignored in counts.
 - No follower or following identities are returned.
-- The profile remains undiscoverable unless the author has at least one visible Explore post for the requester.
+- The profile remains undiscoverable unless the author has at least one visible Explore post or visible Field Trip surface for the requester.
 
 Achievement progress returns only `type`, `current_count`, and `last_interaction_at`. It must never return qualifying scan IDs or contribution details.
 

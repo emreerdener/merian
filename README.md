@@ -53,9 +53,14 @@ Merian is a field-ready biological identification app built around zero-friction
 - Share/unshare scans to Explore with optional public hashtags and a selectable
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
+- Field Trips add regional, season, habitat, and difficulty-tagged checklist
+  quests beside Explore. Active progress can appear on public profiles as
+  checklist status only; scan media, field notes, and location details stay
+  private until the user publishes a Field Trip page.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support public image/video media snapshots; feed and detail can play muted playback videos while maps, widgets, and compact profile previews stay thumbnail-first.
-- Author profile sheets expose privacy-scoped public stats and non-opening public achievements.
+- Author profile sheets expose privacy-scoped public stats, non-opening public
+  achievements, and active/published Field Trip previews.
 - Home Screen widget caches thumbnail-first Explore snapshots through the shared App Group, including play indicators for video posts.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
 
@@ -83,7 +88,7 @@ Merian is a field-ready biological identification app built around zero-friction
 
 ### Thermal & Memory Management
 - `HardwareOrchestrator` monitors `ProcessInfo.thermalState` and `isLowPowerModeEnabled`, dynamically capping framerates (60fps → 24fps) and dropping glassmorphism shaders under thermal pressure.
-- Expedition Mode allows users to force the 24fps/low-fidelity pipeline manually for off-grid battery conservation.
+- Expedition Mode allows users to force the 24fps/low-fidelity pipeline manually for off-grid battery conservation. This is separate from Explore Field Trips.
 - `ViewfinderIntelligence` throttles frame analysis to 3fps via `NSLock` before any `@MainActor` context switch, preventing GPU thermal spikes from the luma evaluation loop.
 
 ### Offline-First Data Pipeline

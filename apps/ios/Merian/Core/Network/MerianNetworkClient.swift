@@ -2016,6 +2016,126 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreAuthorPostsResponse.self, from: data).data
     }
 
+    func getFieldTrips(userRegion: String? = nil, limit: Int = 40) async throws -> [FieldTripTemplate] {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "catalog",
+            "limit": limit
+        ]
+        if let userRegion = userRegion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["user_region"] = userRegion
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripsCatalogResponse.self, from: data).data
+    }
+
+    func applyFieldTripProgress(scanId: String) async throws -> [FieldTripProgressUpdate] {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "apply_scan_progress",
+            "scan_id": scanId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 15.0)
+        return try makeExploreDecoder().decode(FieldTripProgressUpdatesResponse.self, from: data).data
+    }
+
+    func getFieldTripProfileSummaries(authorUserId: String, limit: Int = 6) async throws -> FieldTripProfileSummaries {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "profile_summaries",
+            "author_user_id": authorUserId,
+            "limit": limit
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripProfileSummariesResponse.self, from: data).data
+    }
+
+    func publishFieldTrip(
+        userFieldTripId: String,
+        title: String? = nil,
+        description: String? = nil,
+        aiSummary: String? = nil
+    ) async throws -> FieldTripPublicationDetail {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "publish",
+            "user_field_trip_id": userFieldTripId
+        ]
+        payload["title"] = title ?? NSNull()
+        payload["description"] = description ?? NSNull()
+        payload["ai_summary"] = aiSummary ?? NSNull()
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripPublicationDetailResponse.self, from: data).data
+    }
+
+    func getFieldTripPublication(publicationId: String) async throws -> FieldTripPublicationDetail {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "detail",
+            "publication_id": publicationId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripPublicationDetailResponse.self, from: data).data
+    }
+
+    func setFieldTripLike(publicationId: String, liked: Bool) async throws -> FieldTripLikeResponse {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "set_like",
+            "publication_id": publicationId,
+            "liked": liked
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripLikeResponse.self, from: data)
+    }
+
+    func getFieldTripComments(
+        publicationId: String,
+        limit: Int = 100,
+        afterCreatedAt: String? = nil,
+        afterCommentId: String? = nil
+    ) async throws -> [ExploreComment] {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "comments",
+            "publication_id": publicationId,
+            "limit": limit
+        ]
+
+        if let afterCreatedAt, let afterCommentId {
+            payload["after_created_at"] = afterCreatedAt
+            payload["after_comment_id"] = afterCommentId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripCommentsResponse.self, from: data).data
+    }
+
+    func createFieldTripComment(
+        publicationId: String,
+        body: String,
+        parentCommentId: String? = nil
+    ) async throws -> FieldTripCreateCommentResponse {
+        let functionUrl = try endpointURL("field-trips")
+        var payload: [String: Any] = [
+            "action": "create_comment",
+            "publication_id": publicationId,
+            "body": body
+        ]
+        if let parentCommentId {
+            payload["parent_comment_id"] = parentCommentId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripCreateCommentResponse.self, from: data)
+    }
+
     func getExploreHashtagPosts(
         hashtag: String,
         limit: Int = 30,

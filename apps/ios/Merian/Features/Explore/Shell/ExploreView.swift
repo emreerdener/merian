@@ -5,6 +5,7 @@ import UIKit
 enum ExploreTab: Hashable {
     case feed
     case community
+    case fieldTrips
     case dictionary
 }
 
@@ -102,6 +103,14 @@ struct ExploreView: View {
                     Label("Identify", systemImage: "person.crop.badge.magnifyingglass.fill")
                 }
 
+                FieldTripsView(userRegion: dictionaryUserRegionIdentifier) { publicationId in
+                    navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                }
+                .tag(ExploreTab.fieldTrips)
+                .tabItem {
+                    Label("Field Trips", systemImage: "map")
+                }
+
                 dictionaryTabContent
                 .background(Color(uiColor: .systemGroupedBackground))
                 .tag(ExploreTab.dictionary)
@@ -184,6 +193,10 @@ struct ExploreView: View {
             }
             .navigationDestination(for: ExploreCommunityRequestRoute.self) { route in
                 ExploreCommunityIdentificationDetailView(requestId: route.requestId)
+                    .toolbar(.hidden, for: .tabBar)
+            }
+            .navigationDestination(for: FieldTripPublicationRoute.self) { route in
+                FieldTripPublicationDetailView(publicationId: route.publicationId)
                     .toolbar(.hidden, for: .tabBar)
             }
             .toolbar { exploreToolbar }
@@ -287,6 +300,13 @@ struct ExploreView: View {
                 Task { await viewModel.refreshPost(postId: postId) }
             case .openCommunityIdentificationRequest(let requestId):
                 openCommunityIdentificationRequest(requestId)
+            case .fieldTripProgressUpdated(let updates):
+                if let update = updates.first,
+                   let item = update.newlyCompletedItems.first {
+                    let label = item.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                        ?? item.prompt
+                    viewModel.toastMessage = "\(update.title): \(label)"
+                }
             case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
                 selectedAuthorProfileRoute = selectedAuthorProfileRoute.flatMap { route in
                     authorIdentityChangeAffects(route.authorUserId, previousUserId: previousUserId, currentUserId: currentUserId)
@@ -989,6 +1009,12 @@ private struct ExploreRootModePicker: View {
                     Text(mode.title).tag(mode)
                 }
             }
+        case .fieldTrips:
+            Text("Field Trips")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
         case .dictionary:
             Picker("Dictionary view", selection: $activeDictionaryMode) {
                 Text("Catalog").tag(ExploreDictionaryMode.dictionary)
@@ -1001,6 +1027,8 @@ private struct ExploreRootModePicker: View {
         switch activeTab {
         case .community:
             240
+        case .fieldTrips:
+            170
         case .feed, .dictionary:
             220
         }
@@ -1036,6 +1064,16 @@ struct ExploreNotificationReplyThreadTarget: Hashable {
     let parentCommentId: String?
     let targetReplyId: String
     let fallbackReply: ExploreNotificationReplyFallback
+}
+
+struct FieldTripPublicationRoute: Hashable {
+    let publicationId: String
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
 }
 
 struct ExploreHashtagRoute: Hashable {

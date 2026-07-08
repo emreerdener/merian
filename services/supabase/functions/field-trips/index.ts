@@ -1,0 +1,329 @@
+import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
+import {
+  fetchPublicAuthorIdentity,
+  hasMutualBlock,
+  normalizeCursorTimestamp,
+  normalizeLimit,
+  requireUuid,
+  syncPublicAuthorIdentity,
+} from "../_shared/explore.ts";
+import {
+  applyFieldTripScanProgress,
+  assertCanViewFieldTripPublication,
+  fetchFieldTripCatalog,
+  fetchFieldTripCommentParent,
+  fetchFieldTripComments,
+  fetchFieldTripProfileSummaries,
+  fetchFieldTripPublicationCounts,
+  fetchFieldTripPublicationDetail,
+  insertFieldTripComment,
+  publishFieldTrip,
+  setFieldTripLike,
+} from "./db.ts";
+
+type FieldTripAction =
+  | "catalog"
+  | "apply_scan_progress"
+  | "profile_summaries"
+  | "publish"
+  | "detail"
+  | "set_like"
+  | "comments"
+  | "create_comment";
+
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
+  const error = new Error(message) as Error & { status: number };
+  error.status = status;
+  return error;
+}
+
+function normalizeAction(rawAction: unknown): FieldTripAction {
+  if (typeof rawAction !== "string") {
+    throw makeHttpError(400, "action must be a string.");
+  }
+
+  switch (rawAction) {
+    case "catalog":
+    case "apply_scan_progress":
+    case "profile_summaries":
+    case "publish":
+    case "detail":
+    case "set_like":
+    case "comments":
+    case "create_comment":
+      return rawAction;
+    default:
+      throw makeHttpError(400, "Unsupported Field Trip action.");
+  }
+}
+
+function nullableTrimmedString(
+  rawValue: unknown,
+  maxLength: number,
+): string | null {
+  if (rawValue == null) return null;
+  if (typeof rawValue !== "string") {
+    throw makeHttpError(400, "Expected a string value.");
+  }
+
+  const trimmed = rawValue.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > maxLength) {
+    throw makeHttpError(
+      400,
+      `String value must be ${maxLength} characters or fewer.`,
+    );
+  }
+  return trimmed;
+}
+
+Deno.serve((req: Request) =>
+  withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const parsedBody = await parseJsonBody(req);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody;
+
+    const paramErr = requireParams(body, ["action"]);
+    if (paramErr) return paramErr;
+
+    const action = normalizeAction(body.action);
+
+    switch (action) {
+      case "catalog": {
+        const limit = normalizeLimit(body.limit, 40, 80);
+        const userRegion = nullableTrimmedString(body.user_region, 80);
+        const data = await fetchFieldTripCatalog(
+          user.id,
+          userRegion,
+          limit,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "apply_scan_progress": {
+        const actionErr = requireParams(body, ["scan_id"]);
+        if (actionErr) return actionErr;
+        const scanId = requireUuid(body.scan_id, "scan_id");
+        const data = await applyFieldTripScanProgress(
+          user.id,
+          scanId,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "profile_summaries": {
+        const actionErr = requireParams(body, ["author_user_id"]);
+        if (actionErr) return actionErr;
+        const authorUserId = requireUuid(body.author_user_id, "author_user_id");
+        const limit = normalizeLimit(body.limit, 6, 12);
+        const data = await fetchFieldTripProfileSummaries(
+          user.id,
+          authorUserId,
+          limit,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "publish": {
+        const actionErr = requireParams(body, ["user_field_trip_id"]);
+        if (actionErr) return actionErr;
+        const userFieldTripId = requireUuid(
+          body.user_field_trip_id,
+          "user_field_trip_id",
+        );
+        const title = nullableTrimmedString(body.title, 90);
+        const description = nullableTrimmedString(body.description, 1200);
+        const aiSummary = nullableTrimmedString(body.ai_summary, 1200);
+        const data = await publishFieldTrip(
+          user.id,
+          userFieldTripId,
+          title,
+          description,
+          aiSummary,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "detail": {
+        const actionErr = requireParams(body, ["publication_id"]);
+        if (actionErr) return actionErr;
+        const publicationId = requireUuid(
+          body.publication_id,
+          "publication_id",
+        );
+        const data = await fetchFieldTripPublicationDetail(
+          user.id,
+          publicationId,
+          supabaseAdmin,
+        );
+        if (!data) {
+          return jsonResponse(
+            { error: "Field Trip publication not found" },
+            404,
+          );
+        }
+        return jsonResponse({ data });
+      }
+
+      case "set_like": {
+        const actionErr = requireParams(body, ["publication_id", "liked"]);
+        if (actionErr) return actionErr;
+        const publicationId = requireUuid(
+          body.publication_id,
+          "publication_id",
+        );
+        if (typeof body.liked !== "boolean") {
+          return jsonResponse({ error: "liked must be a boolean." }, 400);
+        }
+        await assertCanViewFieldTripPublication(
+          user.id,
+          publicationId,
+          supabaseAdmin,
+        );
+        await setFieldTripLike(
+          publicationId,
+          user.id,
+          body.liked,
+          supabaseAdmin,
+        );
+        const counts = await fetchFieldTripPublicationCounts(
+          publicationId,
+          supabaseAdmin,
+        );
+        return jsonResponse({
+          success: true,
+          publication_id: publicationId,
+          viewer_has_liked: body.liked,
+          like_count: counts.likeCount,
+          comment_count: counts.commentCount,
+        });
+      }
+
+      case "comments": {
+        const actionErr = requireParams(body, ["publication_id"]);
+        if (actionErr) return actionErr;
+        const publicationId = requireUuid(
+          body.publication_id,
+          "publication_id",
+        );
+        const limit = normalizeLimit(body.limit, 50, 100);
+        const afterCreatedAt = normalizeCursorTimestamp(
+          body.after_created_at,
+          "after_created_at",
+        );
+        const afterCommentId = body.after_comment_id == null
+          ? null
+          : requireUuid(body.after_comment_id, "after_comment_id");
+
+        if ((afterCreatedAt == null) != (afterCommentId == null)) {
+          throw makeHttpError(
+            400,
+            "after_created_at and after_comment_id must be provided together.",
+          );
+        }
+
+        const data = await fetchFieldTripComments(
+          user.id,
+          publicationId,
+          limit,
+          { afterCreatedAt, afterCommentId },
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "create_comment": {
+        const actionErr = requireParams(body, ["publication_id", "body"]);
+        if (actionErr) return actionErr;
+        const publicationId = requireUuid(
+          body.publication_id,
+          "publication_id",
+        );
+        const parentCommentId = body.parent_comment_id == null
+          ? null
+          : requireUuid(body.parent_comment_id, "parent_comment_id");
+        const rawBody = typeof body.body === "string" ? body.body.trim() : "";
+        if (rawBody.length === 0) {
+          return jsonResponse(
+            { error: "body must be a non-empty string." },
+            400,
+          );
+        }
+        if (rawBody.length > 500) {
+          return jsonResponse(
+            { error: "body must be 500 characters or fewer." },
+            400,
+          );
+        }
+
+        await assertCanViewFieldTripPublication(
+          user.id,
+          publicationId,
+          supabaseAdmin,
+        );
+        if (parentCommentId != null) {
+          const parent = await fetchFieldTripCommentParent(
+            parentCommentId,
+            publicationId,
+            supabaseAdmin,
+          );
+          if (
+            parent.user_id !== user.id &&
+            await hasMutualBlock(user.id, parent.user_id, supabaseAdmin)
+          ) {
+            return jsonResponse({
+              error: "You cannot reply to this Field Trip comment.",
+            }, 403);
+          }
+        }
+
+        await syncPublicAuthorIdentity(user.id, supabaseAdmin);
+        const inserted = await insertFieldTripComment(
+          publicationId,
+          user.id,
+          rawBody,
+          parentCommentId,
+          supabaseAdmin,
+        );
+        const authorIdentity = await fetchPublicAuthorIdentity(
+          user.id,
+          supabaseAdmin,
+        );
+        const counts = await fetchFieldTripPublicationCounts(
+          publicationId,
+          supabaseAdmin,
+        );
+
+        return jsonResponse({
+          success: true,
+          comment: {
+            comment_id: inserted.id,
+            post_id: inserted.publication_id,
+            parent_comment_id: inserted.parent_comment_id ?? null,
+            author_user_id: user.id,
+            author_name: authorIdentity.authorName,
+            author_username: authorIdentity.authorUsername,
+            author_avatar_url: authorIdentity.authorAvatarUrl,
+            body: rawBody,
+            created_at: inserted.created_at,
+            viewer_can_delete: true,
+            viewer_can_moderate: false,
+            viewer_can_report: false,
+            reply_count: 0,
+            reactions: [],
+            mentions: [],
+          },
+          comment_count: counts.commentCount,
+        });
+      }
+    }
+  })
+);

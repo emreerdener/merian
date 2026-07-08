@@ -114,6 +114,9 @@ struct ExploreAuthorProfileSheet: View {
                     showsCloseButton: false
                 )
             }
+            .navigationDestination(for: FieldTripPublicationRoute.self) { route in
+                FieldTripPublicationDetailView(publicationId: route.publicationId)
+            }
         }
         .presentationBackground(Color(uiColor: .systemGroupedBackground))
         .task(id: route.authorUserId) {
@@ -230,6 +233,12 @@ struct ExploreAuthorProfileSheet: View {
                 )
 
                 ScansHeatmap(heatmapData: profile.profileHeatmapData)
+
+                if let fieldTrips = profile.fieldTrips, !fieldTrips.isEmpty {
+                    FieldTripProfilePreview(summaries: fieldTrips) { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    }
+                }
 
                 publishedPreview(profile)
 

@@ -19,6 +19,7 @@ struct ProfileTabView: View {
     @State private var awards: [AwardPayload] = []
     @State private var exploreViewModel = ExploreFeedViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var selectedFieldTripPublicationRoute: FieldTripPublicationRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var profileRefreshToken = UUID()
     
@@ -42,6 +43,11 @@ struct ProfileTabView: View {
                     viewModel: exploreViewModel,
                     onOpenPost: openPublicScanPreview
                 )
+
+                // MARK: - Field Trips
+                CurrentUserFieldTripProfilePreview { publicationId in
+                    selectedFieldTripPublicationRoute = FieldTripPublicationRoute(publicationId: publicationId)
+                }
 
                 // MARK: - Paywall & Subscriptions
                 if !revenueCatManager.isProActive {
@@ -101,6 +107,16 @@ struct ProfileTabView: View {
                         allowsInsightPresentation: false,
                         onOpenOwnedPostInsight: openInsight
                     )
+                }
+            }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedFieldTripPublicationRoute != nil },
+                    set: { if !$0 { selectedFieldTripPublicationRoute = nil } }
+                )
+            ) {
+                if let selectedFieldTripPublicationRoute {
+                    FieldTripPublicationDetailView(publicationId: selectedFieldTripPublicationRoute.publicationId)
                 }
             }
             .sheet(item: $selectedInsightRoute) { route in

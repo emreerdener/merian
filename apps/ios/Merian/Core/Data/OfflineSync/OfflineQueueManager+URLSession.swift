@@ -691,6 +691,17 @@ extension OfflineQueueManager {
                     let updatedAwards = await profileActor.calculateAwards()
                     GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
                 }
+                Task {
+                    do {
+                        let updates = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: dbScanId)
+                        guard !updates.isEmpty else { return }
+                        await MainActor.run {
+                            AppEventPublisher.shared.send(.fieldTripProgressUpdated(updates))
+                        }
+                    } catch {
+                        MerianLog.data.debug("Field Trip progress update failed: \(error, privacy: .private)")
+                    }
+                }
 
                 // If the background path completed the same scan the live InferenceEngine is
                 // currently processing, hydrate the engine directly. This fixes the case where

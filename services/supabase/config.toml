@@ -556,6 +556,9 @@ verify_jwt = false
 [functions.get-explore-author-profile]
 verify_jwt = false
 
+[functions.field-trips]
+verify_jwt = false
+
 [functions.get-explore-author-posts]
 verify_jwt = false
 

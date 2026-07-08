@@ -394,6 +394,18 @@ private struct GBIFMedia: Decodable {
         GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
     }
 
+    private func applyFieldTripProgressIfPossible(scanId: String?) async {
+        guard let scanId else { return }
+
+        do {
+            let updates = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: scanId)
+            guard !updates.isEmpty else { return }
+            AppEventPublisher.shared.send(.fieldTripProgressUpdated(updates))
+        } catch {
+            MerianLog.general.debug("Field Trip progress update failed: \(error, privacy: .private)")
+        }
+    }
+
     private func transferReplacementMetadataIfNeeded(
         from oldScanId: String?,
         to newScanId: String?,
@@ -769,6 +781,7 @@ private struct GBIFMedia: Decodable {
                 if var mappedData = finalMappedData {
                     applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
                     await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
+                    await applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
                     transferReplacementMetadataIfNeeded(
                         from: targetEradicationScanId,
                         to: mappedData.scanId,
@@ -946,6 +959,7 @@ private struct GBIFMedia: Decodable {
                 if var mappedData = finalMappedData {
                     applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
                     await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
+                    await applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
                     transferReplacementMetadataIfNeeded(
                         from: targetEradicationScanId,
                         to: mappedData.scanId,
@@ -1776,6 +1790,7 @@ private struct GBIFMedia: Decodable {
             if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
                 AppEventPublisher.shared.send(.explorePostNeedsRefresh(postId: postId))
             }
+            await applyFieldTripProgressIfPossible(scanId: scanId)
         } catch {
             MerianLog.general.debug("syncIdentificationReviewToCloud failed: \(error, privacy: .private)")
         }

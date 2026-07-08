@@ -185,6 +185,9 @@ networking, and hardware orchestration logic.
   — Explore root navigation, Observations Feed/Map toggle, Community
   identification queue, Dictionary catalog, and Tree of Life canvas routing/data
   boundaries.
+- **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
+  — Field Trips catalog, progress matching, publication snapshots, profile
+  visibility, access gating, and deferred leaderboard/prize scope.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

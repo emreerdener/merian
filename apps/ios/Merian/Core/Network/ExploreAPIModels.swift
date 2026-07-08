@@ -817,6 +817,7 @@ struct ExploreAuthorProfile: Decodable, Equatable {
     var followingCount: Int
     var viewerIsFollowing: Bool
     let previewPosts: [ExplorePost]
+    let fieldTrips: FieldTripProfileSummaries?
 
     var authorAvatarURL: URL? {
         guard let authorAvatarUrl else { return nil }

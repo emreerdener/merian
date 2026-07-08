@@ -1,4 +1,5 @@
 import AVKit
+import Combine
 import SwiftUI
 import UIKit
 
@@ -563,9 +564,11 @@ struct ExplorePublicMediaView: View {
     @State private var playerId = UUID().uuidString
     @State private var configuredVideoURL: String?
     @State private var playbackObservers: [NSObjectProtocol] = []
+    @State private var playbackStatusObserver: AnyCancellable?
     @State private var playbackOverlayState = ExploreVideoPlaybackOverlayState()
     @State private var playbackControlFadeTask: Task<Void, Never>?
-    @State private var shouldResumeAfterCoordinatorPause = false
+    @State private var shouldResumeAfterOverlayPause = false
+    @State private var shouldResumeAfterSystemInterruption = false
     @AppStorage("MerianExplorePublicVideoMuted") private var isMuted = true
 
     init(
@@ -628,17 +631,26 @@ struct ExplorePublicMediaView: View {
             reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
         }
         .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.overlayWillPresent)) { _ in
-            shouldResumeAfterCoordinatorPause = playbackOverlayState.isPlaying || player?.timeControlStatus == .playing
+            shouldResumeAfterOverlayPause = playbackOverlayState.isPlaying || player?.timeControlStatus == .playing
             player?.pause()
             reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
         }
         .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.resumeAutoplayRequested)) { _ in
-            guard shouldResumeAfterCoordinatorPause else {
-                reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+            guard shouldResumeAfterOverlayPause else {
+                reconcilePlaybackStateWithPlayer()
                 return
             }
-            shouldResumeAfterCoordinatorPause = false
+            shouldResumeAfterOverlayPause = false
             resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            pauseForInterruption(shouldResume: playbackOverlayState.isPlaying || player?.timeControlStatus == .playing)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            resumeAfterInterruptionIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
+            handleAudioSessionInterruption(notification)
         }
     }
 
@@ -682,9 +694,20 @@ struct ExplorePublicMediaView: View {
                 onDoubleTap?()
             },
             TapGesture().onEnded {
+                if shouldRepairHiddenPlaybackControl {
+                    reconcilePlaybackStateWithPlayer()
+                    return
+                }
                 onSingleTap?()
             }
         )
+    }
+
+    private var shouldRepairHiddenPlaybackControl: Bool {
+        mediaItem.kind == .video &&
+            showsVideoControls &&
+            !playbackOverlayState.showsPlaybackControl &&
+            player?.timeControlStatus != .playing
     }
 
     @ViewBuilder
@@ -779,8 +802,20 @@ struct ExplorePublicMediaView: View {
                 queue: .main
             ) { _ in
                 reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+            },
+            NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemFailedToPlayToEndTime,
+                object: player.currentItem,
+                queue: .main
+            ) { _ in
+                reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
             }
         ]
+        playbackStatusObserver = player.publisher(for: \.timeControlStatus, options: [.new])
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                handlePlaybackStatusChange(status)
+            }
         configuredVideoURL = mediaItem.url
         self.player = player
         reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
@@ -789,9 +824,12 @@ struct ExplorePublicMediaView: View {
 
     private func cleanupPlayer() {
         player?.pause()
-        shouldResumeAfterCoordinatorPause = false
+        shouldResumeAfterOverlayPause = false
+        shouldResumeAfterSystemInterruption = false
         playbackControlFadeTask?.cancel()
         playbackControlFadeTask = nil
+        playbackStatusObserver?.cancel()
+        playbackStatusObserver = nil
         for observer in playbackObservers {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -803,10 +841,29 @@ struct ExplorePublicMediaView: View {
 
     private func pauseForUserInteraction() {
         player?.pause()
-        shouldResumeAfterCoordinatorPause = false
+        shouldResumeAfterOverlayPause = false
+        shouldResumeAfterSystemInterruption = false
         reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
         playbackControlFadeTask?.cancel()
         playbackControlFadeTask = nil
+    }
+
+    private func pauseForInterruption(shouldResume: Bool) {
+        shouldResumeAfterSystemInterruption = shouldResume
+        player?.pause()
+        playbackControlFadeTask?.cancel()
+        playbackControlFadeTask = nil
+        reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+    }
+
+    private func resumeAfterInterruptionIfNeeded() {
+        guard shouldResumeAfterSystemInterruption else {
+            reconcilePlaybackStateWithPlayer()
+            return
+        }
+
+        shouldResumeAfterSystemInterruption = false
+        resumeAutoplayIfEligible(ignoreLowPowerMode: allowsAutoplayInLowPowerMode)
     }
 
     private func reducePlaybackOverlay(
@@ -837,16 +894,20 @@ struct ExplorePublicMediaView: View {
     }
 
     private func resumeAutoplayIfEligible(force: Bool = false, ignoreLowPowerMode: Bool = false) {
-        guard mediaItem.kind == .video,
-              autoplay || force,
-              force || ignoreLowPowerMode || !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        guard mediaItem.kind == .video else { return }
+        guard autoplay || force,
+              force || ignoreLowPowerMode || !ProcessInfo.processInfo.isLowPowerModeEnabled else {
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+            return
+        }
         guard let player = configurePlayerIfNeeded() else {
             reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
             return
         }
         ExploreVideoAutoplayCoordinator.activate(playerId)
         player.play()
-        shouldResumeAfterCoordinatorPause = false
+        shouldResumeAfterOverlayPause = false
+        shouldResumeAfterSystemInterruption = false
         reducePlaybackOverlay(.playbackStarted, animation: .easeInOut(duration: 0.18))
         showPlaybackControlTemporarily()
     }
@@ -863,8 +924,53 @@ struct ExplorePublicMediaView: View {
             try? await Task.sleep(nanoseconds: 1_400_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
+                guard player?.timeControlStatus == .playing else {
+                    reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+                    return
+                }
                 reducePlaybackOverlay(.controlFadeCompleted, animation: .easeInOut(duration: 0.26))
             }
+        }
+    }
+
+    private func handlePlaybackStatusChange(_ status: AVPlayer.TimeControlStatus) {
+        switch status {
+        case .playing:
+            reducePlaybackOverlay(.playbackStarted)
+            showPlaybackControlTemporarily()
+        case .paused, .waitingToPlayAtSpecifiedRate:
+            playbackControlFadeTask?.cancel()
+            playbackControlFadeTask = nil
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        @unknown default:
+            playbackControlFadeTask?.cancel()
+            playbackControlFadeTask = nil
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        }
+    }
+
+    private func reconcilePlaybackStateWithPlayer() {
+        if player?.timeControlStatus == .playing {
+            reducePlaybackOverlay(.playbackStarted)
+            showPlaybackControlTemporarily()
+        } else {
+            playbackControlFadeTask?.cancel()
+            playbackControlFadeTask = nil
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        }
+    }
+
+    private func handleAudioSessionInterruption(_ notification: Notification) {
+        guard let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
+
+        switch type {
+        case .began:
+            pauseForInterruption(shouldResume: playbackOverlayState.isPlaying || player?.timeControlStatus == .playing)
+        case .ended:
+            resumeAfterInterruptionIfNeeded()
+        @unknown default:
+            reconcilePlaybackStateWithPlayer()
         }
     }
 }

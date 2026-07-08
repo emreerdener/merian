@@ -15,6 +15,7 @@ export interface ExploreAuthorProfileRow {
   following_count: number;
   viewer_is_following: boolean;
   preview_posts: unknown[];
+  field_trips?: unknown;
 }
 
 export async function fetchExploreAuthorProfile(

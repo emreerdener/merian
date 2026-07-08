@@ -1,8 +1,8 @@
 # Explore Root Pager
 
 The Explore sheet uses root-only bottom navigation as its primary section
-navigation. The menu uses native tab-bar chrome for Observations, Identify, and
-Dictionary.
+navigation. The menu uses native tab-bar chrome for Observations, Identify,
+Field Trips, and Dictionary.
 
 ## Sections
 
@@ -15,6 +15,10 @@ Dictionary.
   organism filters for Plants, Birds, Insects, Fungi, Mammals, and Herps. Cards
   show the request image and submitted-ID count without exposing the AI-derived
   name in the grid.
+- **Field Trips** shows curated regional checklist quests backed by the
+  `/field-trips` Edge Function. Active Field Trip progress can appear on public
+  profiles as checklist status only; published Field Trips open
+  `FieldTripPublicationDetailView` and remain separate from Explore posts.
 - **Map** lives inside Observations and shows open-location public discoveries.
   It includes a horizontal species-type filter row below the Explore heading;
   the filter button opens a sheet with the region's available categories, and
@@ -39,7 +43,7 @@ Dictionary.
 
 `ExploreView` owns the root section state through `ExploreTab`. Bottom-menu
 taps set the active section in the production order Observations, Identify, then
-Dictionary. Observations owns a Feed/Map header toggle, and Dictionary keeps
+Field Trips, then Dictionary. Observations owns a Feed/Map header toggle, and Dictionary keeps
 Tree inside its Catalog/Tree header toggle rather than exposing either Map or
 Tree as a separate root bottom-menu item.
 
@@ -58,6 +62,9 @@ for the surface they are changing:
 - `apps/ios/Merian/Features/Explore/Identify/` owns Community ID requests,
   activity, request detail, taxonomy search, disagreement handling, and
   community feedback entry points.
+- `apps/ios/Merian/Features/Explore/FieldTrips/` owns the Field Trips catalog,
+  progress cards, publication detail pages, profile modules, and Field Trip
+  comment presentation.
 - `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
   rows, sheet UI, and notification fetch/read state.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author

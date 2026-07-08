@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-08-field-trips",
+      "date": "2026-07-08",
+      "title": "Field Trips",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Explore now includes Field Trips: regional checklist quests that can auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
+            "Published Field Trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-08-explore-video-profile-resume",
       "date": "2026-07-08",
       "title": "Explore video recovery",
@@ -9,7 +23,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Explore videos now recover after opening and closing an author's profile sheet, keeping feed and post-detail playback usable."
+            "Explore videos now recover after playback interruptions, keeping feed and post-detail controls usable."
           ]
         }
       ]

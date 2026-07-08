@@ -7,6 +7,7 @@ import {
   withExploreAuthorProfileProBadge,
   withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
+import { fetchFieldTripProfileSummaries } from "../field-trips/db.ts";
 import { fetchExploreAuthorProfile } from "./db.ts";
 
 Deno.serve((req: Request) =>
@@ -54,10 +55,17 @@ Deno.serve((req: Request) =>
         supabaseAdmin,
       )
       : profileWithProBadge.preview_posts;
+    const fieldTrips = await fetchFieldTripProfileSummaries(
+      user.id,
+      authorUserId,
+      6,
+      supabaseAdmin,
+    );
     const data = {
       ...profileWithProBadge,
       author_username: authorWithUsername.author_username,
       preview_posts: previewPosts,
+      field_trips: fieldTrips,
     };
 
     return jsonResponse({ data }, 200);
