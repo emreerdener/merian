@@ -2,7 +2,7 @@
 set -euo pipefail
 
 fail() {
-  echo "Release archive blocked: $*" >&2
+  echo "error: Release archive blocked: $*" >&2
   echo "Run from the repo root: make prepare-ios-release VERSION=x.y.z" >&2
   echo "Emergency fallback: BUILD=N make prepare-ios-release VERSION=x.y.z" >&2
   exit 1

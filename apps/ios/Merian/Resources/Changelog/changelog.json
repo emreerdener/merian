@@ -40,7 +40,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Explore videos now rebuild interrupted feed and post-detail playback before resuming, and leave a visible play control if autoplay cannot restart."
+            "Explore videos now rebuild interrupted feed and post-detail playback before resuming, leave a visible play control if autoplay cannot restart, and avoid stuck or flashing pause controls during healthy autoplay."
           ]
         }
       ]

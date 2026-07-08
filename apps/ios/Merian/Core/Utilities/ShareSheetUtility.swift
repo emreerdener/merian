@@ -2,12 +2,18 @@ import UIKit
 
 public struct ShareSheetUtility {
     @MainActor
-    public static func present(items: [Any]) {
+    public static func present(items: [Any], onDismiss: (() -> Void)? = nil) {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first,
-              let rootVC = window.rootViewController else { return }
+              let rootVC = window.rootViewController else {
+            onDismiss?()
+            return
+        }
         
         let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        activityVC.completionWithItemsHandler = { _, _, _, _ in
+            onDismiss?()
+        }
         
         // Traverse safely up the stack to avoid overlapping presentation bounds
         var topController = rootVC

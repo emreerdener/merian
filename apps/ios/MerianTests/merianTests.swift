@@ -1032,10 +1032,125 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
         XCTAssertFalse(state.needsPlayerRebuildForRecovery)
     }
 
+    func testAutoplayStartsWithoutShowingPlaybackControl() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: false, showsPlaybackControl: true)
+
+        state.reduce(.autoplayStarted)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertFalse(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+        XCTAssertTrue(state.isAutoplayControlSuppressed)
+    }
+
+    func testPlayerBecamePlayingPreservesHiddenControlsForLoopingPlayback() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+
+        state.reduce(.playerBecamePlaying)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertFalse(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+    }
+
+    func testPlayerBecamePlayingHidesStaleVisibleControlDuringHiddenAutoplay() {
+        var state = ExploreVideoPlaybackOverlayState(
+            isPlaying: true,
+            showsPlaybackControl: true,
+            isAutoplayControlSuppressed: true
+        )
+
+        state.reduce(.playerBecamePlaying)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertFalse(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+        XCTAssertTrue(state.isAutoplayControlSuppressed)
+    }
+
+    func testRevealControlsClearsHiddenAutoplaySuppression() {
+        var state = ExploreVideoPlaybackOverlayState(
+            isPlaying: true,
+            showsPlaybackControl: false,
+            isAutoplayControlSuppressed: true
+        )
+
+        state.reduce(.revealControls)
+        state.reduce(.playerBecamePlaying)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertFalse(state.isAutoplayControlSuppressed)
+    }
+
+    func testPlaybackWaitingDuringVisiblePlaybackStillAllowsFade() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: true)
+
+        state.reduce(.playbackWaiting)
+        state.reduce(.controlFadeCompleted)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertFalse(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+    }
+
+    func testPlaybackWaitingBeforePlaybackKeepsPlayControlVisible() {
+        var state = ExploreVideoPlaybackOverlayState(
+            isPlaying: false,
+            showsPlaybackControl: false,
+            isAutoplayControlSuppressed: true
+        )
+
+        state.reduce(.playbackWaiting)
+
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertFalse(state.isAutoplayControlSuppressed)
+    }
+
+    func testTemporaryPlayerPauseDuringHiddenAutoplayDoesNotRevealControl() {
+        var state = ExploreVideoPlaybackOverlayState(
+            isPlaying: true,
+            showsPlaybackControl: false,
+            isAutoplayControlSuppressed: true
+        )
+
+        state.reduce(.playbackTemporarilyPaused)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertFalse(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+        XCTAssertTrue(state.isAutoplayControlSuppressed)
+    }
+
+    func testRecoveryRebuildCanResumeAutoplayWithoutVisibleControl() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+        state.reduce(.playbackInterrupted)
+        state.reduce(.recoveryRebuildCompleted)
+
+        state.reduce(.autoplayStarted)
+
+        XCTAssertTrue(state.isPlaying)
+        XCTAssertFalse(state.showsPlaybackControl)
+        XCTAssertFalse(state.needsPlayerRebuildForRecovery)
+        XCTAssertTrue(state.isAutoplayControlSuppressed)
+    }
+
     func testInterruptionMarksPlaybackRecoverableWithVisiblePlayControl() {
         var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
 
         state.reduce(.playbackInterrupted)
+
+        XCTAssertFalse(state.isPlaying)
+        XCTAssertTrue(state.showsPlaybackControl)
+        XCTAssertTrue(state.needsPlayerRebuildForRecovery)
+    }
+
+    func testPauseAfterInterruptionKeepsRecoveryRebuildRequired() {
+        var state = ExploreVideoPlaybackOverlayState(isPlaying: true, showsPlaybackControl: false)
+        state.reduce(.playbackInterrupted)
+
+        state.reduce(.playbackPaused)
 
         XCTAssertFalse(state.isPlaying)
         XCTAssertTrue(state.showsPlaybackControl)
@@ -1083,6 +1198,39 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
         XCTAssertTrue(state.isPlaying)
         XCTAssertTrue(state.showsPlaybackControl)
         XCTAssertTrue(state.needsPlayerRebuildForRecovery)
+    }
+}
+
+final class ExploreVideoPlaybackResumeIntentStateTests: XCTestCase {
+    func testOverlayResumeIntentSurvivesRepeatedPresentationWhileAlreadyPaused() {
+        var state = ExploreVideoPlaybackResumeIntentState()
+
+        state.markOverlayPresentation(shouldResume: true)
+        state.markOverlayPresentation(shouldResume: false)
+
+        XCTAssertTrue(state.consumeOverlayResumeIntent())
+        XCTAssertFalse(state.consumeOverlayResumeIntent())
+    }
+
+    func testSystemResumeIntentSurvivesRepeatedInterruptionWhileAlreadyPaused() {
+        var state = ExploreVideoPlaybackResumeIntentState()
+
+        state.markSystemInterruption(shouldResume: true)
+        state.markSystemInterruption(shouldResume: false)
+
+        XCTAssertTrue(state.consumeSystemResumeIntent())
+        XCTAssertFalse(state.consumeSystemResumeIntent())
+    }
+
+    func testClearingResumeIntentsCancelsOverlayAndSystemResume() {
+        var state = ExploreVideoPlaybackResumeIntentState()
+        state.markOverlayPresentation(shouldResume: true)
+        state.markSystemInterruption(shouldResume: true)
+
+        state.clear()
+
+        XCTAssertFalse(state.consumeOverlayResumeIntent())
+        XCTAssertFalse(state.consumeSystemResumeIntent())
     }
 }
 

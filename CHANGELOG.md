@@ -137,7 +137,7 @@ TestFlight, App Store, support, and QA.
   as clean still thumbnails there.
 - Fixed Explore videos so interrupted feed and post-detail playback rebuilds
   before resuming, with a visible play control left behind if autoplay cannot
-  restart.
+  restart and no stuck or flashing pause control during healthy autoplay.
 - Fixed Explore video playback so shared video posts autoplay when opened, fill
   their square preview, and use a centered play/pause control that fades during
   playback instead of a static marker; muting or unmuting one Explore video now

@@ -71,5 +71,38 @@ check is quiet for normal Debug builds and non-archive Release builds. During an
 archive, it blocks if the prep marker is missing or if the marker version/build
 does not match `project.yml`.
 
+If Xcode only shows `Command PhaseScriptExecution failed with a nonzero exit
+code`, expand the `Release Versioning Preflight` log. A missing marker means the
+archive was started before release prep; run `make prepare-ios-release
+VERSION=x.y.z` with the intended next semantic version, or use
+`BUILD=N make prepare-ios-release VERSION=x.y.z` for the documented manual
+fallback.
+
+## Archive Export
+
+If Xcode Organizer times out while fetching apps for team `TA8S64ST9W`, the
+archive can still be checked without that screen:
+
+```bash
+make export-ios-release
+```
+
+The export step validates that the newest archive matches the prepared
+version/build and then runs App Store Connect export signing. By default it uses
+the Apple account state in Xcode. If Xcode reports `No Accounts`, an invalid
+keychain credential, or a missing `iOS Distribution` certificate, fix Xcode >
+Settings > Accounts for the team or provide App Store Connect API key
+authentication:
+
+```bash
+export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
+export ASC_KEY_ID=ABC123DEFG
+export ASC_PRIVATE_KEY_PATH=/path/to/AuthKey_ABC123DEFG.p8
+make export-ios-release
+```
+
+The exported `.ipa`, `exportOptions.plist`, and Xcode export log are written to
+`build/ios-export/`.
+
 After uploading, confirm App Store Connect places the processed build under the
 expected semantic version and build number.

@@ -104,7 +104,10 @@ extension ExploreFeedViewModel {
 
         shareText += "\nhttps://merian.earth/explore/post/\(post.id)"
 
-        ShareSheetUtility.present(items: [shareText])
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
+        ShareSheetUtility.present(items: [shareText]) {
+            ExploreVideoAutoplayCoordinator.requestResume()
+        }
         HapticManager.shared.triggerSelectionPulse()
     }
 

@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-supabase-migrations db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-supabase-migrations db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -6,6 +6,7 @@ help:
 	@printf "Available targets:\n"
 	@printf "  make xcodegen                         Regenerate Merian.xcodeproj from project.yml\n"
 	@printf "  make prepare-ios-release VERSION=x.y.z Prepare a TestFlight release version/build\n"
+	@printf "  make export-ios-release               Export the latest prepared archive for App Store Connect\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
@@ -19,6 +20,9 @@ xcodegen:
 
 prepare-ios-release:
 	bash scripts/prepare-ios-release.sh
+
+export-ios-release:
+	bash scripts/export-ios-release.sh
 
 validate-ios-project:
 	bash scripts/check-ios-project-resources.sh

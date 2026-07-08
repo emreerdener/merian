@@ -720,7 +720,10 @@ private struct ExploreFeedTabContent: View {
         } message: {
             Text("Nearby uses your current location to show discoveries shared within \(ExploreFeedFilter.nearbyRadiusMiles) miles.")
         }
-        .sheet(item: $editingPost, onDismiss: clearPostEditor) { post in
+        .sheet(item: $editingPost, onDismiss: {
+            ExploreVideoAutoplayCoordinator.requestResume()
+            clearPostEditor()
+        }) { post in
             ExplorePostComposerView(
                 mode: .edit,
                 speciesName: postSnapshotCommonName(for: post),
@@ -912,6 +915,7 @@ private struct ExploreFeedTabContent: View {
         }
 
         HapticManager.shared.triggerSelectionPulse()
+        ExploreVideoAutoplayCoordinator.prepareForOverlayPresentation()
         editingPost = post
     }
 

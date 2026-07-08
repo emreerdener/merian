@@ -51,6 +51,23 @@ assert_fails() {
   fi
 }
 
+assert_fails_with() {
+  local expected="$1"
+  shift
+  local output
+  if output="$("$@" 2>&1)"; then
+    fail "Expected command to fail: $*"
+  fi
+  if ! grep -q -- "$expected" <<<"$output"; then
+    fail "Expected failing command output to contain: $expected"
+  fi
+}
+
+bash -n "$repo_root/scripts/prepare-ios-release.sh"
+bash -n "$repo_root/scripts/check-ios-release-prep.sh"
+bash -n "$repo_root/scripts/validate-ios-versioning.sh"
+bash -n "$repo_root/scripts/export-ios-release.sh"
+
 write_project_yml "1.0.0" "39"
 VERSION=1.2.3 LATEST_ASC_BUILD=41 run_prepare >/dev/null
 assert_contains "MARKETING_VERSION: 1.2.3" "$tmp_dir/project.yml"
@@ -76,5 +93,9 @@ VERSION=1.2.5 LATEST_ASC_BUILD=41 run_prepare >/dev/null
 MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh" >/dev/null
 write_project_yml "1.2.5" "43"
 assert_fails env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
+
+rm -f "$tmp_dir/build/ios-release-prep.json"
+assert_fails_with "error: Release archive blocked: missing release prep marker" \
+  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
 
 echo "iOS versioning script tests passed."
