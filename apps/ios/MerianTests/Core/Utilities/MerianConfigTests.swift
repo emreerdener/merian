@@ -143,4 +143,59 @@ struct MerianEnvironmentTests {
         #expect(configuration.hasSupabaseConfiguration)
         #expect(configuration.issues.isEmpty)
     }
+
+    @Test func debugSimulatorBlocksProductionSupabaseByDefault() {
+        let configuration = MerianEnvironment.load(
+            infoDictionary: [
+                "SUPABASE_URL": "https://\(MerianEnvironment.productionSupabaseHost)",
+                "SUPABASE_ANON_KEY": "anon-key",
+                "REVENUECAT_API_KEY": "revenuecat-key",
+                "POSTHOG_API_KEY": "posthog-key"
+            ],
+            environment: [:],
+            runtime: MerianEnvironment.RuntimeContext(isDebug: true, isSimulator: true)
+        )
+
+        #expect(configuration.supabaseUrl == MerianEnvironment.fallbackSupabaseURL)
+        #expect(configuration.hasSupabaseConfiguration == false)
+        #expect(configuration.issues.contains(
+            .productionSupabaseInDebugSimulator(MerianEnvironment.productionSupabaseHost)
+        ))
+    }
+
+    @Test func debugSimulatorAllowsExplicitProductionSmokeOverride() {
+        let configuration = MerianEnvironment.load(
+            infoDictionary: [
+                "SUPABASE_URL": "https://\(MerianEnvironment.productionSupabaseHost)",
+                "SUPABASE_ANON_KEY": "anon-key",
+                "REVENUECAT_API_KEY": "revenuecat-key",
+                "POSTHOG_API_KEY": "posthog-key"
+            ],
+            environment: [
+                "MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR": "1"
+            ],
+            runtime: MerianEnvironment.RuntimeContext(isDebug: true, isSimulator: true)
+        )
+
+        #expect(configuration.supabaseUrl == "https://\(MerianEnvironment.productionSupabaseHost)")
+        #expect(configuration.hasSupabaseConfiguration)
+        #expect(configuration.issues.isEmpty)
+    }
+
+    @Test func debugSimulatorAllowsNonProductionSupabaseProjects() {
+        let configuration = MerianEnvironment.load(
+            infoDictionary: [
+                "SUPABASE_URL": "https://merian-staging.supabase.co",
+                "SUPABASE_ANON_KEY": "anon-key",
+                "REVENUECAT_API_KEY": "revenuecat-key",
+                "POSTHOG_API_KEY": "posthog-key"
+            ],
+            environment: [:],
+            runtime: MerianEnvironment.RuntimeContext(isDebug: true, isSimulator: true)
+        )
+
+        #expect(configuration.supabaseUrl == "https://merian-staging.supabase.co")
+        #expect(configuration.hasSupabaseConfiguration)
+        #expect(configuration.issues.isEmpty)
+    }
 }

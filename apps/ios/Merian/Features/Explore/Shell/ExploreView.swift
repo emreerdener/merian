@@ -370,7 +370,7 @@ struct ExploreView: View {
                         ?? item.prompt
                     viewModel.toastMessage = "\(update.title): \(label)"
                 }
-            case .publicAuthorIdentityChanged(_, _):
+            case .publicAuthorIdentityChanged:
                 Task {
                     await viewModel.refreshFeed()
                     mapViewModel.syncPosts(from: viewModel.store.allPosts)

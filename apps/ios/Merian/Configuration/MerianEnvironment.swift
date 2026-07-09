@@ -5,6 +5,7 @@ enum MerianEnvironment {
         case missingInfoDictionary
         case missingValue(String)
         case invalidSupabaseURL(String)
+        case productionSupabaseInDebugSimulator(String)
 
         var description: String {
             switch self {
@@ -14,7 +15,30 @@ enum MerianEnvironment {
                 return "\(key) is missing or empty."
             case .invalidSupabaseURL(let value):
                 return "SUPABASE_URL is invalid: \(value)"
+            case .productionSupabaseInDebugSimulator(let host):
+                return "Debug simulator builds cannot use production Supabase by default: \(host)."
             }
+        }
+    }
+
+    struct RuntimeContext: Sendable, Equatable {
+        let isDebug: Bool
+        let isSimulator: Bool
+
+        static var current: RuntimeContext {
+            #if DEBUG
+            let isDebug = true
+            #else
+            let isDebug = false
+            #endif
+
+            #if targetEnvironment(simulator)
+            let isSimulator = true
+            #else
+            let isSimulator = false
+            #endif
+
+            return RuntimeContext(isDebug: isDebug, isSimulator: isSimulator)
         }
     }
 
@@ -30,6 +54,7 @@ enum MerianEnvironment {
             !issues.contains(.missingValue(Keys.supabaseAnonKey)) &&
             issues.allSatisfy {
                 if case .invalidSupabaseURL = $0 { return false }
+                if case .productionSupabaseInDebugSimulator = $0 { return false }
                 return true
             }
         }
@@ -42,8 +67,11 @@ enum MerianEnvironment {
         static let postHogApiKey = "POSTHOG_API_KEY"
     }
 
+    static let productionSupabaseHost = "qlarqavoqhkuwzmevrmf.supabase.co"
     static let fallbackSupabaseURL = "https://missing-supabase-config.supabase.co"
     private static let fallbackSupabaseAnonKey = "missing-supabase-anon-key"
+    private static let allowProductionSupabaseInDebugSimulatorEnvKey =
+        "MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR"
 
     static let configuration = load()
 
@@ -61,10 +89,22 @@ enum MerianEnvironment {
     static var postHogApiKey: String { configuration.postHogApiKey }
 
     static func load(bundle: Bundle = .main) -> Configuration {
-        load(infoDictionary: bundle.infoDictionary)
+        load(
+            infoDictionary: bundle.infoDictionary,
+            environment: ProcessInfo.processInfo.environment,
+            runtime: .current
+        )
     }
 
     static func load(infoDictionary: [String: Any]?) -> Configuration {
+        load(infoDictionary: infoDictionary, environment: [:], runtime: .current)
+    }
+
+    static func load(
+        infoDictionary: [String: Any]?,
+        environment: [String: String],
+        runtime: RuntimeContext
+    ) -> Configuration {
         guard let infoDictionary else {
             return Configuration(
                 supabaseUrl: fallbackSupabaseURL,
@@ -88,13 +128,23 @@ enum MerianEnvironment {
         let revenueCatApiKey = value(for: Keys.revenueCatApiKey, in: infoDictionary, issues: &issues) ?? ""
         let postHogApiKey = value(for: Keys.postHogApiKey, in: infoDictionary, issues: &issues) ?? ""
 
-        if URL(string: supabaseUrl)?.scheme == nil || URL(string: supabaseUrl)?.host == nil {
+        let supabaseURL = URL(string: supabaseUrl)
+        if supabaseURL?.scheme == nil || supabaseURL?.host == nil {
             issues.append(.invalidSupabaseURL(supabaseUrl))
+        }
+
+        if shouldBlockProductionSupabase(
+            url: supabaseURL,
+            environment: environment,
+            runtime: runtime
+        ) {
+            issues.append(.productionSupabaseInDebugSimulator(productionSupabaseHost))
         }
 
         return Configuration(
             supabaseUrl: issues.contains(where: {
                 if case .invalidSupabaseURL = $0 { return true }
+                if case .productionSupabaseInDebugSimulator = $0 { return true }
                 return false
             }) ? fallbackSupabaseURL : supabaseUrl,
             supabaseAnonKey: supabaseAnonKey,
@@ -121,5 +171,25 @@ enum MerianEnvironment {
         }
 
         return trimmed
+    }
+
+    private static func shouldBlockProductionSupabase(
+        url: URL?,
+        environment: [String: String],
+        runtime: RuntimeContext
+    ) -> Bool {
+        guard runtime.isDebug, runtime.isSimulator else { return false }
+        guard url?.host?.lowercased() == productionSupabaseHost else { return false }
+        return !isTruthy(environment[allowProductionSupabaseInDebugSimulatorEnvKey])
+    }
+
+    private static func isTruthy(_ value: String?) -> Bool {
+        guard let value else { return false }
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes":
+            return true
+        default:
+            return false
+        }
     }
 }

@@ -40,7 +40,6 @@ final class AppLifecycleManager {
         container.hardwareOrchestrator.evaluateConstraints()
 
         Task {
-            await container.supabaseManager.initializeGhostSession()
             await AppIconBadgeCoordinator.refreshExploreUnreadNotificationCount()
             await container.pushNotificationManager.syncRemotePushRegistrationIfPossible(reason: "app_active")
             container.offlineQueueManager.purgeSoftDeletedRecords()

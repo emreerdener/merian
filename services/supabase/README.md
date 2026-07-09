@@ -67,6 +67,38 @@ supabase --workdir services start
 supabase --workdir services functions serve <function_name>
 ```
 
+### Ghost User Audit
+
+Use the read-only audit before considering any anonymous-user cleanup. It reads
+Auth Admin users plus public activity tables, classifies likely empty ghost
+profiles, and writes reviewable JSON/CSV/Markdown snapshots. It does not delete
+or mutate data.
+
+```bash
+SUPABASE_URL="https://<project>.supabase.co" \
+SUPABASE_SECRET_KEY="<sb_secret_...>" \
+make audit-ghost-users ARGS="--snapshot-json /tmp/ghost-users.json --snapshot-csv /tmp/ghost-users.csv --summary-md /tmp/ghost-users.md"
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` is still accepted for older projects, but new
+Supabase projects should use a secret key from Settings > API Keys.
+
+Review cleanup candidates with the guarded cleanup dry-run. This reads the audit
+JSON and does not delete unless `--execute` and the confirmation flag are both
+present.
+
+```bash
+make cleanup-ghost-users ARGS="--snapshot-json /tmp/ghost-users.json --limit 10 --output-json /tmp/ghost-cleanup-dry-run.json"
+```
+
+After manually reviewing a dry-run batch, execute only a tiny batch:
+
+```bash
+SUPABASE_URL="https://<project>.supabase.co" \
+SUPABASE_SECRET_KEY="<sb_secret_...>" \
+make cleanup-ghost-users ARGS="--snapshot-json /tmp/ghost-users.json --limit 10 --execute --confirm-delete-likely-empty-ghosts --output-json /tmp/ghost-cleanup-result.json"
+```
+
 ## Deployment
 
 ### Database Migrations

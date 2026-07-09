@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-supabase-migrations db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-supabase-migrations audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -12,6 +12,8 @@ help:
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
+	@printf "  make audit-ghost-users ARGS='...'     Run read-only Supabase ghost-user audit\n"
+	@printf "  make cleanup-ghost-users ARGS='...'   Dry-run or execute guarded ghost-user cleanup\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
 
@@ -40,6 +42,14 @@ validate-supabase-migrations:
 	deno test --config services/supabase/functions/deno.json \
 		--allow-read=services/supabase/migrations \
 		services/supabase/functions/_tests/migrationMediaContract.test.ts
+
+audit-ghost-users:
+	deno run --allow-net --allow-env --allow-read --allow-write \
+		services/supabase/scripts/audit_ghost_users.ts $(ARGS)
+
+cleanup-ghost-users:
+	deno run --allow-net --allow-env --allow-read --allow-write \
+		services/supabase/scripts/cleanup_ghost_users.ts $(ARGS)
 
 db-push:
 	@db_url="$$(bash scripts/supabase-db-url.sh)"; \

@@ -10,3 +10,13 @@
 // such as appl_... are blocked when supplied as a release override.
 //
 // REVENUECAT_API_KEY = appl_replace_with_revenuecat_ios_public_sdk_key
+
+// Debug simulator builds should normally point at a non-production Supabase
+// project to avoid creating production ghost users during local testing.
+//
+// SUPABASE_URL = https:/$()/your-staging-project.supabase.co
+// SUPABASE_ANON_KEY = sb_publishable_replace_with_staging_key
+//
+// If you intentionally need a production smoke test from the simulator, keep
+// the production URL and add this launch environment variable in the scheme:
+// MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1

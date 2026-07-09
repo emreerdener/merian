@@ -80,4 +80,19 @@ struct AppLifecycleManagerTests {
         // handleBackgroundPhase no longer performs any rescue or cancellation.
         #expect(engine.isProcessing == true, "handleBackgroundPhase must not cancel or modify an in-flight inference — the offline queue already holds the scan")
     }
+
+    @Test("handleActivePhase does not eagerly create anonymous Supabase sessions")
+    func testHandleActivePhaseDoesNotEagerlyInitializeGhostSession() throws {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let sourcePath = testFileURL.path.replacingOccurrences(
+            of: "/MerianTests/Core/Utilities/AppLifecycleManagerTests.swift",
+            with: "/Merian/Core/Utilities/AppLifecycleManager.swift"
+        )
+        let source = try String(contentsOfFile: sourcePath, encoding: .utf8)
+
+        #expect(
+            !source.contains("initializeGhostSession"),
+            "Foreground lifecycle should not create ghost users by itself; authenticated cloud calls can initialize a session on demand."
+        )
+    }
 }
