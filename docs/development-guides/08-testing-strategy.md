@@ -146,7 +146,7 @@ MerianTests/
     `testFullMigrationV39ToV40BackfillsMediaJSON()`,
     `testFullMigrationV40ToV41BackfillsCapturedMediaEntries()`, typed
     `StoredMediaReference` round-trips, and
-    `testCapturedMediaSnapshotBuildsSharedDerivedViews()`. V47→V48 coverage also
+    `testCapturedMediaSnapshotBuildsSharedDerivedViews()`. V47→V49 coverage also
     keeps disk-based queued-scan fixtures for image, video, audio,
     description-only, and mixed-media submissions, with display video media,
     inference-only frame paths, durable retry defaults, and a

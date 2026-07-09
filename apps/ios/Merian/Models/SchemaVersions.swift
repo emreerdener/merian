@@ -31,6 +31,12 @@ final class MigrationScratchpad<V: Sendable>: @unchecked Sendable {
         return Array(namespaced.values)
     }
 
+    func allValues() -> [V] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage.values.flatMap { Array($0.values) }
+    }
+
     func removeAll(namespace: String) {
         lock.lock()
         storage.removeValue(forKey: namespace)
@@ -2727,59 +2733,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     }
 
-    private struct V47QueuedScanMigrationSnapshot: Sendable {
-        let id: String
-        let timestamp: Date
-        let capturedMediaJSON: String?
-        let coverImagePath: String?
-        let gpsLatitude: Double?
-        let gpsLongitude: Double?
-        let gpsElevation: Double?
-        let weatherCondition: String?
-        let weatherTemperatureF: Double?
-        let blurScore: Double?
-        let subjectDistanceInMeters: Float?
-        let locationName: String?
-        let isFlashFired: Bool?
-        let cameraPitchDegrees: Double?
-        let compassHeading: Double?
-        let relativeHumidity: Double?
-        let uvIndex: Int?
-        let zoomFactor: Double?
-        let scanStateRaw: Int
-        let stagedR2Keys: [String]?
-        let inferenceImagePaths: [String]?
-        let visualMediaItemsJSON: String?
-        let fieldNotes: String?
-
-        init(_ scan: MerianSchemaV47.OfflineQueuedScan) {
-            id = scan.id
-            timestamp = scan.timestamp
-            capturedMediaJSON = scan.capturedMediaJSON
-            coverImagePath = scan.coverImagePath
-            gpsLatitude = scan.gpsLatitude
-            gpsLongitude = scan.gpsLongitude
-            gpsElevation = scan.gpsElevation
-            weatherCondition = scan.weatherCondition
-            weatherTemperatureF = scan.weatherTemperatureF
-            blurScore = scan.blurScore
-            subjectDistanceInMeters = scan.subjectDistanceInMeters
-            locationName = scan.locationName
-            isFlashFired = scan.isFlashFired
-            cameraPitchDegrees = scan.cameraPitchDegrees
-            compassHeading = scan.compassHeading
-            relativeHumidity = scan.relativeHumidity
-            uvIndex = scan.uvIndex
-            zoomFactor = scan.zoomFactor
-            scanStateRaw = scan.scanStateRaw
-            stagedR2Keys = scan.stagedR2Keys
-            inferenceImagePaths = scan.inferenceImagePaths
-            visualMediaItemsJSON = scan.visualMediaItemsJSON
-            fieldNotes = scan.fieldNotes
-        }
-    }
-
-    private struct V48QueuedScanMigrationSnapshot: Sendable {
+    private struct V49QueuedScanMigrationSnapshot: Sendable {
         let id: String
         let timestamp: Date
         let capturedMediaJSON: String?
@@ -2814,6 +2768,80 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         let queueLastServerRetryAfter: Date?
         let queueUpdatedAt: Date?
         let queueNeedsAttention: Bool?
+
+        init(_ scan: MerianSchemaV42.OfflineQueuedScan) {
+            id = scan.id
+            timestamp = scan.timestamp
+            capturedMediaJSON = scan.capturedMediaJSON
+            coverImagePath = scan.coverImagePath
+            gpsLatitude = scan.gpsLatitude
+            gpsLongitude = scan.gpsLongitude
+            gpsElevation = scan.gpsElevation
+            weatherCondition = scan.weatherCondition
+            weatherTemperatureF = scan.weatherTemperatureF
+            blurScore = scan.blurScore
+            subjectDistanceInMeters = scan.subjectDistanceInMeters
+            locationName = scan.locationName
+            isFlashFired = scan.isFlashFired
+            cameraPitchDegrees = scan.cameraPitchDegrees
+            compassHeading = scan.compassHeading
+            relativeHumidity = scan.relativeHumidity
+            uvIndex = scan.uvIndex
+            zoomFactor = scan.zoomFactor
+            scanStateRaw = scan.scanStateRaw
+            stagedR2Keys = scan.stagedR2Keys
+            inferenceImagePaths = nil
+            visualMediaItemsJSON = nil
+            fieldNotes = scan.fieldNotes
+            queueAttemptCount = nil
+            queueLastAttemptAt = nil
+            queueNextRetryAt = nil
+            queueLastErrorCode = nil
+            queueLastErrorMessage = nil
+            queueLastHTTPStatus = nil
+            queueLastServerStatus = nil
+            queueLastServerStage = nil
+            queueLastServerRetryAfter = nil
+            queueUpdatedAt = nil
+            queueNeedsAttention = nil
+        }
+
+        init(_ scan: MerianSchemaV47.OfflineQueuedScan) {
+            id = scan.id
+            timestamp = scan.timestamp
+            capturedMediaJSON = scan.capturedMediaJSON
+            coverImagePath = scan.coverImagePath
+            gpsLatitude = scan.gpsLatitude
+            gpsLongitude = scan.gpsLongitude
+            gpsElevation = scan.gpsElevation
+            weatherCondition = scan.weatherCondition
+            weatherTemperatureF = scan.weatherTemperatureF
+            blurScore = scan.blurScore
+            subjectDistanceInMeters = scan.subjectDistanceInMeters
+            locationName = scan.locationName
+            isFlashFired = scan.isFlashFired
+            cameraPitchDegrees = scan.cameraPitchDegrees
+            compassHeading = scan.compassHeading
+            relativeHumidity = scan.relativeHumidity
+            uvIndex = scan.uvIndex
+            zoomFactor = scan.zoomFactor
+            scanStateRaw = scan.scanStateRaw
+            stagedR2Keys = scan.stagedR2Keys
+            inferenceImagePaths = scan.inferenceImagePaths
+            visualMediaItemsJSON = scan.visualMediaItemsJSON
+            fieldNotes = scan.fieldNotes
+            queueAttemptCount = nil
+            queueLastAttemptAt = nil
+            queueNextRetryAt = nil
+            queueLastErrorCode = nil
+            queueLastErrorMessage = nil
+            queueLastHTTPStatus = nil
+            queueLastServerStatus = nil
+            queueLastServerStage = nil
+            queueLastServerRetryAfter = nil
+            queueUpdatedAt = nil
+            queueNeedsAttention = nil
+        }
 
         init(_ scan: MerianSchemaV48.OfflineQueuedScan) {
             id = scan.id
@@ -2890,8 +2918,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     }
 
-    private static let _v47QueuedScanBackfill = MigrationScratchpad<V47QueuedScanMigrationSnapshot>()
-    private static let _v48OptionalQueuedScanBackfill = MigrationScratchpad<V48QueuedScanMigrationSnapshot>()
+    private static let _v49QueuedScanBackfill = MigrationScratchpad<V49QueuedScanMigrationSnapshot>()
 
     private static func migrationFirstImagePath(in items: [SerializedMediaItem]) -> String? {
         CapturedMediaSnapshot(items: items).primaryImagePath
@@ -3024,138 +3051,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV40toV41,
             migrateV41toV42,
             migrateV42toV43,
-            migrateV43toV48,
+            migrateV43toV49,
             migrateV48toV49
         ]
-    }
-
-    private static func initializeV48OfflineQueueRecords(
-        in context: ModelContext,
-        stage: String
-    ) throws {
-        let now = Date()
-        let namespace = migrationNamespace(for: context)
-        let snapshots = _v47QueuedScanBackfill.values(namespace: namespace)
-        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
-        let snapshotIds = Set(snapshots.map(\.id))
-        var existingScansById = Dictionary(uniqueKeysWithValues: queuedScans.map { ($0.id, $0) })
-
-        let existingJobs = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineJobRecord>())
-        var existingJobIds = Set(existingJobs.map(\.id))
-
-        func insertSchedulerRows(scanId: String, createdAt: Date) {
-            let jobId = "scan-ingestion:\(scanId)"
-            if !existingJobIds.contains(jobId) {
-                let job = MerianSchemaV48.OfflineJobRecord(
-                    id: jobId,
-                    kind: .scanIngestion,
-                    subjectId: scanId,
-                    priority: 100,
-                    status: .pending,
-                    createdAt: createdAt,
-                    updatedAt: now
-                )
-                context.insert(job)
-                existingJobIds.insert(jobId)
-            }
-
-            context.insert(MerianSchemaV48.OfflineQueueEvent(
-                jobId: jobId,
-                scanId: scanId,
-                kind: .queued,
-                createdAt: now,
-                message: "Queued scan migrated into durable offline scheduler."
-            ))
-        }
-
-        func initializeQueueMetadata(on scan: MerianSchemaV48.OfflineQueuedScan) {
-            scan.queueAttemptCount = 0
-            scan.queueLastAttemptAt = nil
-            scan.queueNextRetryAt = nil
-            scan.queueLastErrorCode = nil
-            scan.queueLastErrorMessage = nil
-            scan.queueLastHTTPStatus = nil
-            scan.queueLastServerStatus = nil
-            scan.queueLastServerStage = nil
-            scan.queueLastServerRetryAfter = nil
-            scan.queueUpdatedAt = now
-            scan.queueNeedsAttention = false
-        }
-
-        func replaceQueuedCapturedMedia(
-            on scan: MerianSchemaV48.OfflineQueuedScan,
-            capturedMediaJSON: String?
-        ) {
-            for existingEntry in scan.capturedMediaEntries ?? [] {
-                context.delete(existingEntry)
-            }
-
-            guard let jsonString = capturedMediaJSON,
-                  let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
-                scan.capturedMediaEntries = []
-                return
-            }
-
-            let entries = CapturedMediaEntry.makeEntries(from: items)
-            entries.forEach { context.insert($0) }
-            scan.capturedMediaEntries = entries
-        }
-
-        func apply(
-            snapshot: V47QueuedScanMigrationSnapshot,
-            to scan: MerianSchemaV48.OfflineQueuedScan
-        ) {
-            scan.timestamp = snapshot.timestamp
-            scan.capturedMediaJSON = snapshot.capturedMediaJSON
-            scan.coverImagePath = snapshot.coverImagePath
-            scan.gpsLatitude = snapshot.gpsLatitude
-            scan.gpsLongitude = snapshot.gpsLongitude
-            scan.gpsElevation = snapshot.gpsElevation
-            scan.weatherCondition = snapshot.weatherCondition
-            scan.weatherTemperatureF = snapshot.weatherTemperatureF
-            scan.blurScore = snapshot.blurScore
-            scan.subjectDistanceInMeters = snapshot.subjectDistanceInMeters
-            scan.locationName = snapshot.locationName
-            scan.isFlashFired = snapshot.isFlashFired
-            scan.cameraPitchDegrees = snapshot.cameraPitchDegrees
-            scan.compassHeading = snapshot.compassHeading
-            scan.relativeHumidity = snapshot.relativeHumidity
-            scan.uvIndex = snapshot.uvIndex
-            scan.zoomFactor = snapshot.zoomFactor
-            scan.scanStateRaw = snapshot.scanStateRaw
-            scan.stagedR2Keys = snapshot.stagedR2Keys
-            scan.inferenceImagePaths = snapshot.inferenceImagePaths
-            scan.visualMediaItemsJSON = snapshot.visualMediaItemsJSON
-            scan.fieldNotes = snapshot.fieldNotes
-            initializeQueueMetadata(on: scan)
-            replaceQueuedCapturedMedia(on: scan, capturedMediaJSON: snapshot.capturedMediaJSON)
-        }
-
-        func upsertQueuedScan(from snapshot: V47QueuedScanMigrationSnapshot) {
-            let scan: MerianSchemaV48.OfflineQueuedScan
-            if let existingScan = existingScansById[snapshot.id] {
-                scan = existingScan
-            } else {
-                scan = MerianSchemaV48.OfflineQueuedScan(id: snapshot.id)
-                context.insert(scan)
-                existingScansById[snapshot.id] = scan
-            }
-
-            apply(snapshot: snapshot, to: scan)
-            insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)
-        }
-
-        for scan in queuedScans where !snapshotIds.contains(scan.id) {
-            initializeQueueMetadata(on: scan)
-            insertSchedulerRows(scanId: scan.id, createdAt: scan.timestamp)
-        }
-
-        for snapshot in snapshots {
-            upsertQueuedScan(from: snapshot)
-        }
-
-        try saveMigrationContext(context, stage: stage)
-        _v47QueuedScanBackfill.removeAll(namespace: namespace)
     }
 
     private static func initializeV49OfflineQueueRecords(
@@ -3164,7 +3062,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     ) throws {
         let now = Date()
         let namespace = migrationNamespace(for: context)
-        let snapshots = _v48OptionalQueuedScanBackfill.values(namespace: namespace)
+        let namespacedSnapshots = _v49QueuedScanBackfill.values(namespace: namespace)
+        let snapshots = namespacedSnapshots.isEmpty ? _v49QueuedScanBackfill.allValues() : namespacedSnapshots
         let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV49.OfflineQueuedScan>())
         let snapshotIds = Set(snapshots.map(\.id))
         var existingScansById = Dictionary(uniqueKeysWithValues: queuedScans.map { ($0.id, $0) })
@@ -3221,7 +3120,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
 
         func apply(
-            snapshot: V48QueuedScanMigrationSnapshot,
+            snapshot: V49QueuedScanMigrationSnapshot,
             to scan: MerianSchemaV49.OfflineQueuedScan
         ) {
             scan.timestamp = snapshot.timestamp
@@ -3261,7 +3160,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             replaceQueuedCapturedMedia(on: scan, capturedMediaJSON: snapshot.capturedMediaJSON)
         }
 
-        func upsertQueuedScan(from snapshot: V48QueuedScanMigrationSnapshot) {
+        func upsertQueuedScan(from snapshot: V49QueuedScanMigrationSnapshot) {
             let scan: MerianSchemaV49.OfflineQueuedScan
             if let existingScan = existingScansById[snapshot.id] {
                 scan = existingScan
@@ -3285,70 +3184,138 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
 
         try saveMigrationContext(context, stage: stage)
-        _v48OptionalQueuedScanBackfill.removeAll(namespace: namespace)
+        if namespacedSnapshots.isEmpty {
+            _v49QueuedScanBackfill.removeAll()
+        } else {
+            _v49QueuedScanBackfill.removeAll(namespace: namespace)
+        }
     }
 
-    static let migrateV47toV48 = MigrationStage.custom(
-        fromVersion: MerianSchemaV47.self,
-        toVersion: MerianSchemaV48.self,
+    private static func snapshotLegacyQueuedScansForV49(
+        in context: ModelContext,
+        stage: String
+    ) throws {
+        let namespace = migrationNamespace(for: context)
+        _v49QueuedScanBackfill.removeAll(namespace: namespace)
+        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV42.OfflineQueuedScan>())
+        for scan in queuedScans {
+            _v49QueuedScanBackfill[namespace: namespace, key: scan.id] = V49QueuedScanMigrationSnapshot(scan)
+            context.delete(scan)
+        }
+
+        if !queuedScans.isEmpty {
+            try saveMigrationContext(context, stage: "\(stage) willMigrate")
+        }
+    }
+
+    private static func snapshotV47QueuedScansForV49(
+        in context: ModelContext,
+        stage: String
+    ) throws {
+        let namespace = migrationNamespace(for: context)
+        _v49QueuedScanBackfill.removeAll(namespace: namespace)
+        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>())
+        for scan in queuedScans {
+            _v49QueuedScanBackfill[namespace: namespace, key: scan.id] = V49QueuedScanMigrationSnapshot(scan)
+            context.delete(scan)
+        }
+
+        if !queuedScans.isEmpty {
+            try saveMigrationContext(context, stage: "\(stage) willMigrate")
+        }
+    }
+
+    private static func snapshotV48QueuedScansForV49(in context: ModelContext) throws {
+        let namespace = migrationNamespace(for: context)
+        _v49QueuedScanBackfill.removeAll(namespace: namespace)
+        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
+        for scan in queuedScans {
+            _v49QueuedScanBackfill[namespace: namespace, key: scan.id] = V49QueuedScanMigrationSnapshot(scan)
+            context.delete(scan)
+        }
+
+        if !queuedScans.isEmpty {
+            try saveMigrationContext(context, stage: "V48->V49 willMigrate")
+        }
+    }
+
+    private static func snapshotOptionalQueueV48QueuedScansForV49(in context: ModelContext) throws {
+        let namespace = migrationNamespace(for: context)
+        _v49QueuedScanBackfill.removeAll(namespace: namespace)
+        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48OptionalQueue.OfflineQueuedScan>())
+        for scan in queuedScans {
+            _v49QueuedScanBackfill[namespace: namespace, key: scan.id] = V49QueuedScanMigrationSnapshot(scan)
+            context.delete(scan)
+        }
+
+        if !queuedScans.isEmpty {
+            try saveMigrationContext(context, stage: "V48 optional queue->V49 willMigrate")
+        }
+    }
+
+    // Recent stores jump directly to V49 so iOS 26 never validates a direct-to-V48
+    // custom stage whose Core Data model reference can collapse to its source.
+    static let migrateV43toV49 = MigrationStage.custom(
+        fromVersion: MerianSchemaV43.self,
+        toVersion: MerianSchemaV49.self,
         willMigrate: { context in
-            let namespace = migrationNamespace(for: context)
-            _v47QueuedScanBackfill.removeAll(namespace: namespace)
-            let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>())
-            for scan in queuedScans {
-                _v47QueuedScanBackfill[namespace: namespace, key: scan.id] = V47QueuedScanMigrationSnapshot(scan)
-                context.delete(scan)
-            }
+            try snapshotLegacyQueuedScansForV49(in: context, stage: "V43->V49")
         },
         didMigrate: { context in
-            try initializeV48OfflineQueueRecords(in: context, stage: "V47->V48 didMigrate")
+            try initializeV49OfflineQueueRecords(in: context, stage: "V43->V49 didMigrate")
         }
     )
 
-    // V43/V44/V45/V46-checksum stores skip V47 so their historical queued-scan
-    // rows are opened as the V48 target model rather than being fetched through a
-    // transient V47 source type. The V47->V48 stage is reserved for stores already
-    // stamped as V47.
-    static let migrateV43toV48 = MigrationStage.custom(
-        fromVersion: MerianSchemaV43.self,
-        toVersion: MerianSchemaV48.self,
-        willMigrate: nil,
-        didMigrate: { context in
-            try initializeV48OfflineQueueRecords(in: context, stage: "V43->V48 didMigrate")
-        }
-    )
-
-    static let migrateV44toV48 = MigrationStage.custom(
+    static let migrateV44toV49 = MigrationStage.custom(
         fromVersion: MerianSchemaV44.self,
-        toVersion: MerianSchemaV48.self,
-        willMigrate: nil,
+        toVersion: MerianSchemaV49.self,
+        willMigrate: { context in
+            try snapshotLegacyQueuedScansForV49(in: context, stage: "V44->V49")
+        },
         didMigrate: { context in
-            try initializeV48OfflineQueueRecords(in: context, stage: "V44->V48 didMigrate")
+            try initializeV49OfflineQueueRecords(in: context, stage: "V44->V49 didMigrate")
         }
     )
 
-    static let migrateV45toV48 = MigrationStage.custom(
+    static let migrateV45toV49 = MigrationStage.custom(
         fromVersion: MerianSchemaV45.self,
-        toVersion: MerianSchemaV48.self,
-        willMigrate: nil,
+        toVersion: MerianSchemaV49.self,
+        willMigrate: { context in
+            try snapshotLegacyQueuedScansForV49(in: context, stage: "V45->V49")
+        },
         didMigrate: { context in
-            try initializeV48OfflineQueueRecords(in: context, stage: "V45->V48 didMigrate")
+            try initializeV49OfflineQueueRecords(in: context, stage: "V45->V49 didMigrate")
         }
     )
 
-    static let migrateV46toV48 = MigrationStage.custom(
+    static let migrateV46toV49 = MigrationStage.custom(
         fromVersion: MerianSchemaV46.self,
-        toVersion: MerianSchemaV48.self,
-        willMigrate: nil,
+        toVersion: MerianSchemaV49.self,
+        willMigrate: { context in
+            try snapshotLegacyQueuedScansForV49(in: context, stage: "V46->V49")
+        },
         didMigrate: { context in
-            try initializeV48OfflineQueueRecords(in: context, stage: "V46->V48 didMigrate")
+            try initializeV49OfflineQueueRecords(in: context, stage: "V46->V49 didMigrate")
+        }
+    )
+
+    static let migrateV47toV49 = MigrationStage.custom(
+        fromVersion: MerianSchemaV47.self,
+        toVersion: MerianSchemaV49.self,
+        willMigrate: { context in
+            try snapshotV47QueuedScansForV49(in: context, stage: "V47->V49")
+        },
+        didMigrate: { context in
+            try initializeV49OfflineQueueRecords(in: context, stage: "V47->V49 didMigrate")
         }
     )
 
     static let migrateV48toV49 = MigrationStage.custom(
         fromVersion: MerianSchemaV48.self,
         toVersion: MerianSchemaV49.self,
-        willMigrate: nil,
+        willMigrate: { context in
+            try snapshotV48QueuedScansForV49(in: context)
+        },
         didMigrate: { context in
             try initializeV49OfflineQueueRecords(in: context, stage: "V48->V49 didMigrate")
         }
@@ -3358,13 +3325,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         fromVersion: MerianSchemaV48OptionalQueue.self,
         toVersion: MerianSchemaV49.self,
         willMigrate: { context in
-            let namespace = migrationNamespace(for: context)
-            _v48OptionalQueuedScanBackfill.removeAll(namespace: namespace)
-            let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48OptionalQueue.OfflineQueuedScan>())
-            for scan in queuedScans {
-                _v48OptionalQueuedScanBackfill[namespace: namespace, key: scan.id] = V48QueuedScanMigrationSnapshot(scan)
-                context.delete(scan)
-            }
+            try snapshotOptionalQueueV48QueuedScansForV49(in: context)
         },
         didMigrate: { context in
             try initializeV49OfflineQueueRecords(in: context, stage: "V48 optional queue->V49 didMigrate")
@@ -3902,19 +3863,18 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     )
 }
 
-/// Short recovery plan for V44 stores when the full historical chain trips
-/// SwiftData's duplicate-checksum validator before reaching the actual source.
+/// Short recovery plans for recent stores when the full historical chain trips
+/// SwiftData's duplicate-checksum or model-reference validators before reaching the actual source.
 ///
 /// V44, V45, and V46 are close enough that pairing them in a retry plan can
 /// still trigger duplicate-checksum validation. Each short plan therefore keeps
 /// exactly one possible source representative and jumps directly to the next
-/// model with real queue/media changes.
+/// V49 repair target.
 enum MerianRecentV42MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV42.self,
             MerianSchemaV43.self,
-            MerianSchemaV48.self,
             MerianSchemaV49.self
         ]
     }
@@ -3922,8 +3882,7 @@ enum MerianRecentV42MigrationPlan: SchemaMigrationPlan {
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV42toV43,
-            MerianMigrationPlan.migrateV43toV48,
-            MerianMigrationPlan.migrateV48toV49
+            MerianMigrationPlan.migrateV43toV49
         ]
     }
 }
@@ -3935,15 +3894,13 @@ enum MerianRecentV43MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV43.self,
-            MerianSchemaV48.self,
             MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV43toV48,
-            MerianMigrationPlan.migrateV48toV49
+            MerianMigrationPlan.migrateV43toV49
         ]
     }
 }
@@ -3952,15 +3909,13 @@ enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV44.self,
-            MerianSchemaV48.self,
             MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV44toV48,
-            MerianMigrationPlan.migrateV48toV49
+            MerianMigrationPlan.migrateV44toV49
         ]
     }
 }
@@ -3970,15 +3925,13 @@ enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV45.self,
-            MerianSchemaV48.self,
             MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV45toV48,
-            MerianMigrationPlan.migrateV48toV49
+            MerianMigrationPlan.migrateV45toV49
         ]
     }
 }
@@ -3990,15 +3943,13 @@ enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV46.self,
-            MerianSchemaV48.self,
             MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV46toV48,
-            MerianMigrationPlan.migrateV48toV49
+            MerianMigrationPlan.migrateV46toV49
         ]
     }
 }
@@ -4008,15 +3959,13 @@ enum MerianRecentV47MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV47.self,
-            MerianSchemaV48.self,
             MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV47toV48,
-            MerianMigrationPlan.migrateV48toV49
+            MerianMigrationPlan.migrateV47toV49
         ]
     }
 }

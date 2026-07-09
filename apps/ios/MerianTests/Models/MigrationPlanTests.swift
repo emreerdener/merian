@@ -73,8 +73,8 @@ struct MigrationPlanTests {
         }
         let remainder = source[stagesStart...]
         let firstStageStart = remainder.range(
-            of: "\n    private static func initializeV48OfflineQueueRecords"
-        )?.lowerBound ?? remainder.range(of: "\n    static let migrateV47toV48")?.lowerBound
+            of: "\n    private static func initializeV49OfflineQueueRecords"
+        )?.lowerBound ?? remainder.range(of: "\n    private static func snapshotLegacyQueuedScansForV49")?.lowerBound
         guard let firstStageStart else {
             Issue.record("MerianMigrationPlan stages must precede stage declarations")
             return String(remainder)
@@ -784,22 +784,27 @@ struct MigrationPlanTests {
     @Test func latestQueueMetadataMigrationStaysDurable() throws {
         let source = try migrationPlanSource()
         let v47StageSource: String
-        if let stageStart = source.range(of: "static let migrateV47toV48")?.lowerBound {
+        if let stageStart = source.range(of: "static let migrateV47toV49")?.lowerBound {
             let stageRemainder = source[stageStart...]
-            let stageEnd = stageRemainder.range(of: "\n    // V45/V46")?.lowerBound ?? stageRemainder.endIndex
+            let stageEnd = stageRemainder.range(of: "\n    static let migrateV48toV49")?.lowerBound ?? stageRemainder.endIndex
             v47StageSource = String(stageRemainder[..<stageEnd])
         } else {
             v47StageSource = source
         }
         let requiredSnippets = [
-            "private static func initializeV48OfflineQueueRecords",
-            "private struct V47QueuedScanMigrationSnapshot",
-            "_v47QueuedScanBackfill",
-            "static let migrateV47toV48 = MigrationStage.custom",
-            "static let migrateV45toV48 = MigrationStage.custom",
-            "static let migrateV46toV48 = MigrationStage.custom",
+            "private static func initializeV49OfflineQueueRecords",
+            "private static func snapshotV48QueuedScansForV49(in context: ModelContext) throws",
+            "private static func snapshotOptionalQueueV48QueuedScansForV49(in context: ModelContext) throws",
+            "private struct V49QueuedScanMigrationSnapshot",
+            "_v49QueuedScanBackfill",
+            "let namespacedSnapshots = _v49QueuedScanBackfill.values(namespace: namespace)",
+            "let snapshots = namespacedSnapshots.isEmpty ? _v49QueuedScanBackfill.allValues() : namespacedSnapshots",
+            "static let migrateV47toV49 = MigrationStage.custom",
+            "static let migrateV45toV49 = MigrationStage.custom",
+            "static let migrateV46toV49 = MigrationStage.custom",
             "FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>",
             "FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>",
+            "FetchDescriptor<MerianSchemaV49.OfflineQueuedScan>",
             "let snapshotIds = Set(snapshots.map(\\.id))",
             "var existingScansById = Dictionary(uniqueKeysWithValues: queuedScans.map { ($0.id, $0) })",
             "let capturedMediaJSON: String?",
@@ -807,8 +812,8 @@ struct MigrationPlanTests {
             "let inferenceImagePaths: [String]?",
             "let visualMediaItemsJSON: String?",
             "let fieldNotes: String?",
-            "func initializeQueueMetadata(on scan: MerianSchemaV48.OfflineQueuedScan)",
-            "func upsertQueuedScan(from snapshot: V47QueuedScanMigrationSnapshot)",
+            "func normalizeQueueMetadata(on scan: MerianSchemaV49.OfflineQueuedScan)",
+            "func upsertQueuedScan(from snapshot: V49QueuedScanMigrationSnapshot)",
             "if let existingScan = existingScansById[snapshot.id]",
             "apply(snapshot: snapshot, to: scan)",
             "upsertQueuedScan(from: snapshot)",
@@ -817,39 +822,42 @@ struct MigrationPlanTests {
             "context.insert(scan)",
             "context.delete(scan)",
             "insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)",
-            "scan.queueAttemptCount = 0",
-            "scan.queueLastAttemptAt = nil",
-            "scan.queueNextRetryAt = nil",
-            "scan.queueLastErrorCode = nil",
-            "scan.queueLastErrorMessage = nil",
-            "scan.queueLastHTTPStatus = nil",
-            "scan.queueLastServerStatus = nil",
-            "scan.queueLastServerStage = nil",
-            "scan.queueLastServerRetryAfter = nil",
-            "scan.queueUpdatedAt = now",
-            "scan.queueNeedsAttention = false",
+            "scan.queueAttemptCount = snapshot.queueAttemptCount ?? 0",
+            "scan.queueLastAttemptAt = snapshot.queueLastAttemptAt",
+            "scan.queueNextRetryAt = snapshot.queueNextRetryAt",
+            "scan.queueLastErrorCode = snapshot.queueLastErrorCode",
+            "scan.queueLastErrorMessage = snapshot.queueLastErrorMessage",
+            "scan.queueLastHTTPStatus = snapshot.queueLastHTTPStatus",
+            "scan.queueLastServerStatus = snapshot.queueLastServerStatus",
+            "scan.queueLastServerStage = snapshot.queueLastServerStage",
+            "scan.queueLastServerRetryAfter = snapshot.queueLastServerRetryAfter",
+            "scan.queueUpdatedAt = snapshot.queueUpdatedAt ?? now",
+            "scan.queueNeedsAttention = snapshot.queueNeedsAttention ?? false",
+            "scan.queueSchemaRepairGeneration = 1",
             #"let jobId = "scan-ingestion:\(scanId)""#,
-            "MerianSchemaV48.OfflineJobRecord",
-            "MerianSchemaV48.OfflineQueueEvent",
-            #"try initializeV48OfflineQueueRecords(in: context, stage: "V47->V48 didMigrate")"#,
-            #"try initializeV48OfflineQueueRecords(in: context, stage: "V45->V48 didMigrate")"#,
-            #"try initializeV48OfflineQueueRecords(in: context, stage: "V46->V48 didMigrate")"#,
-            "_v47QueuedScanBackfill.removeAll(namespace: namespace)",
+            "MerianSchemaV49.OfflineJobRecord",
+            "MerianSchemaV49.OfflineQueueEvent",
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V47->V49 didMigrate")"#,
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V45->V49 didMigrate")"#,
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V46->V49 didMigrate")"#,
+            "try snapshotV48QueuedScansForV49(in: context)",
+            "try snapshotOptionalQueueV48QueuedScansForV49(in: context)",
+            "_v49QueuedScanBackfill.removeAll(namespace: namespace)",
             #"try saveMigrationContext(context, stage: stage)"#
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
         #expect(
             missing.isEmpty,
-            "V45/V46/V47->V48 must remain custom durable queue migrations. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "V45/V46/V47->V49 must remain custom durable queue migrations. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
-            !source.contains("static let migrateV47toV48 = MigrationStage.lightweight"),
-            "V47->V48 cannot be lightweight because existing queued scans need retry metadata and scheduler rows."
+            !source.contains("static let migrateV47toV49 = MigrationStage.lightweight"),
+            "V47->V49 cannot be lightweight because existing queued scans need retry metadata and scheduler rows."
         )
         #expect(
             source.contains("apply(snapshot: snapshot, to: scan)"),
-            "V47 snapshots must repair just-migrated V48 rows before save so required queue metadata cannot remain nil."
+            "V47 snapshots must repair just-migrated V49 rows before save so required queue metadata cannot remain nil."
         )
         #expect(
             v47StageSource.contains("context.delete(scan)"),
@@ -893,17 +901,17 @@ struct MigrationPlanTests {
         let schemasSource = try migrationPlanSchemasListSource()
         let stagesSource = try migrationPlanStagesListSource()
         let requiredSnippets = [
-            "static let migrateV43toV48 = MigrationStage.custom",
+            "static let migrateV43toV49 = MigrationStage.custom",
             "fromVersion: MerianSchemaV43.self",
-            "toVersion: MerianSchemaV48.self",
-            #"try initializeV48OfflineQueueRecords(in: context, stage: "V43->V48 didMigrate")"#,
-            "static let migrateV44toV48 = MigrationStage.custom",
+            "toVersion: MerianSchemaV49.self",
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V43->V49 didMigrate")"#,
+            "static let migrateV44toV49 = MigrationStage.custom",
             "fromVersion: MerianSchemaV44.self",
-            #"try initializeV48OfflineQueueRecords(in: context, stage: "V44->V48 didMigrate")"#,
-            "static let migrateV45toV48 = MigrationStage.custom",
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V44->V49 didMigrate")"#,
+            "static let migrateV45toV49 = MigrationStage.custom",
             "fromVersion: MerianSchemaV45.self",
-            "toVersion: MerianSchemaV48.self",
-            "static let migrateV46toV48 = MigrationStage.custom",
+            "toVersion: MerianSchemaV49.self",
+            "static let migrateV46toV49 = MigrationStage.custom",
             "fromVersion: MerianSchemaV46.self",
             "static let migrateV48toV49 = MigrationStage.custom",
             "fromVersion: MerianSchemaV48.self",
@@ -932,9 +940,9 @@ struct MigrationPlanTests {
                 !stagesSource.contains("migrateV45toV48") &&
                 !stagesSource.contains("migrateV46toV48") &&
                 !stagesSource.contains("migrateV47toV48") &&
-                stagesSource.contains("migrateV43toV48") &&
+                stagesSource.contains("migrateV43toV49") &&
                 stagesSource.contains("migrateV48toV49"),
-            "The full historical stage list must jump V43->V48, advance V48->V49, and avoid V44/V45/V46/V47 source-isolated recent hops."
+            "The full historical stage list must jump V43->V49, keep the V48->V49 repair source, and avoid V44/V45/V46/V47 source-isolated recent hops."
         )
         #expect(
             !source.contains("migrateV45toV46") &&
@@ -988,7 +996,7 @@ struct MigrationPlanTests {
             .first ?? ""
         #expect(
             !v47QueuedScanSource.contains("capturedMediaEntries"),
-            "V47 queued scans must stay scalar-only and let V48 rebuild CapturedMediaEntry rows from capturedMediaJSON; a V47 relationship can trap while SwiftData casts the queued scan model."
+            "V47 queued scans must stay scalar-only and let V49 rebuild CapturedMediaEntry rows from capturedMediaJSON; a V47 relationship can trap while SwiftData casts the queued scan model."
         )
     }
 
@@ -998,17 +1006,15 @@ struct MigrationPlanTests {
             "enum MerianRecentV42MigrationPlan",
             "MerianSchemaV42.self",
             "MerianSchemaV43.self",
-            "MerianSchemaV48.self",
             "MerianSchemaV49.self",
             "MerianMigrationPlan.migrateV42toV43",
-            "MerianMigrationPlan.migrateV43toV48",
-            "MerianMigrationPlan.migrateV48toV49"
+            "MerianMigrationPlan.migrateV43toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
         #expect(
             missing.isEmpty,
-            "The V42 recovery plan must bypass older full historical custom stages and migrate directly through V43->V48->V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "The V42 recovery plan must bypass older full historical custom stages and migrate directly through V43->V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
             !source.contains("MerianSchemaV44.self") &&
@@ -1022,16 +1028,14 @@ struct MigrationPlanTests {
         let requiredSnippets = [
             "enum MerianRecentV43MigrationPlan",
             "MerianSchemaV43.self",
-            "MerianSchemaV48.self",
             "MerianSchemaV49.self",
-            "MerianMigrationPlan.migrateV43toV48",
-            "MerianMigrationPlan.migrateV48toV49"
+            "MerianMigrationPlan.migrateV43toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
         #expect(
             missing.isEmpty,
-            "The V43 recovery plan must bypass older full historical custom stages and migrate directly through V48->V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "The V43 recovery plan must bypass older full historical custom stages and migrate directly to V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
             !source.contains("MerianSchemaV44.self") &&
@@ -1045,10 +1049,8 @@ struct MigrationPlanTests {
         let requiredSnippets = [
             "enum MerianRecentV44MigrationPlan",
             "MerianSchemaV44.self",
-            "MerianSchemaV48.self",
             "MerianSchemaV49.self",
-            "MerianMigrationPlan.migrateV44toV48",
-            "MerianMigrationPlan.migrateV48toV49"
+            "MerianMigrationPlan.migrateV44toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -1062,7 +1064,7 @@ struct MigrationPlanTests {
                 !source.contains("MerianSchemaV46.self") &&
                 !source.contains("MerianSchemaV47.self") &&
                 !source.contains("migrateV44toV47") &&
-                !source.contains("migrateV47toV48"),
+                !source.contains("migrateV47toV49"),
             "The recent V44 recovery plan must include only one V44/V45/V46-family representative."
         )
     }
@@ -1072,10 +1074,8 @@ struct MigrationPlanTests {
         let requiredSnippets = [
             "enum MerianRecentV45MigrationPlan",
             "MerianSchemaV45.self",
-            "MerianSchemaV48.self",
             "MerianSchemaV49.self",
-            "MerianMigrationPlan.migrateV45toV48",
-            "MerianMigrationPlan.migrateV48toV49"
+            "MerianMigrationPlan.migrateV45toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -1089,8 +1089,8 @@ struct MigrationPlanTests {
                 !source.contains("MerianSchemaV46.self") &&
                 !source.contains("MerianSchemaV47.self") &&
                 !source.contains("migrateV45toV47") &&
-                !source.contains("migrateV47toV48"),
-            "The recent V45 recovery plan must include only the V45 checksum representative before the V48->V49 repair target."
+                !source.contains("migrateV47toV49"),
+            "The recent V45 recovery plan must include only the V45 checksum representative before the V49 repair target."
         )
     }
 
@@ -1099,10 +1099,8 @@ struct MigrationPlanTests {
         let requiredSnippets = [
             "enum MerianRecentV46MigrationPlan",
             "MerianSchemaV46.self",
-            "MerianSchemaV48.self",
             "MerianSchemaV49.self",
-            "MerianMigrationPlan.migrateV46toV48",
-            "MerianMigrationPlan.migrateV48toV49"
+            "MerianMigrationPlan.migrateV46toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -1118,8 +1116,8 @@ struct MigrationPlanTests {
                 !source.contains("migrateV46toV47") &&
                 !source.contains("migrateV45toV47") &&
                 !source.contains("migrateV45toV48") &&
-                !source.contains("migrateV47toV48"),
-            "The recent V46 recovery plan must use only the V46 source representative before the V48->V49 repair target."
+                !source.contains("migrateV47toV49"),
+            "The recent V46 recovery plan must use only the V46 source representative before the V49 repair target."
         )
     }
 
@@ -1128,10 +1126,8 @@ struct MigrationPlanTests {
         let requiredSnippets = [
             "enum MerianRecentV47MigrationPlan",
             "MerianSchemaV47.self",
-            "MerianSchemaV48.self",
             "MerianSchemaV49.self",
-            "MerianMigrationPlan.migrateV47toV48",
-            "MerianMigrationPlan.migrateV48toV49"
+            "MerianMigrationPlan.migrateV47toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 

@@ -89,15 +89,15 @@ Recent schema milestones:
   reaches the actual source.
 - V43 introduced AI-derived sex observation metadata on completed local scans.
   V43 stores also use a source-isolated startup recovery plan before the
-  V43→V48→V49 repair path.
+  V43→V49 repair path.
 - V44 added optional dog/cat pet-identification display metadata on completed
   local scans.
 - V45 added optional invasive-status context to completed local scans. V46 was a
   shipped no-op checksum twin of V45; runtime migration keeps the
   duplicate-prone V44/V45/V46 recent cluster out of the full historical plan,
-  jumps older stores V43→V48, and uses source-isolated recent plans for stores
+  jumps older stores V43→V49, and uses source-isolated recent plans for stores
   already stamped V42, V43, V44, V45, or V46. V44, V45, and V46 stores jump through
-  separate direct V44→V48, V45→V48, and V46→V48 plans.
+  separate direct V44→V49, V45→V49, and V46→V49 plans.
 - V47 added offline video inference replay fields so sampled frames can be
   queued separately from the user-visible playback video timeline. Its frozen
   schema keeps local-scan, captured-media, and collection models self-contained
@@ -105,11 +105,11 @@ Recent schema milestones:
 - V48 added durable queue retry metadata on `OfflineQueuedScan`, plus
   `OfflineJobRecord` and bounded `OfflineQueueEvent` rows for scan ingestion,
   cloud deletion, collection sync, diagnostics, and future offline work. The
-  V47→V48 migration is custom, not lightweight: every existing queued scan must
+  V47→V49 migration is custom, not lightweight: every existing queued scan must
   leave migration with retry fields initialized and a `scan-ingestion:{id}` job
   row so startup does not fall back to safe mode on stores with queued media.
   V47 job/event rows and replacement queued-scan rows are seeded from migration
-  snapshots so stale SwiftData model-identity traps cannot survive into V48.
+  snapshots so stale SwiftData model-identity traps cannot survive into V49.
 - V49 is a startup store-repair schema. It keeps the V48 queue scheduler model,
   adds `OfflineQueuedScan.queueSchemaRepairGeneration`, and provides separate
   V48→V49 plans for the known-good V48 checksum and the accidental

@@ -174,21 +174,21 @@ Only use `typealias` for models that are **unchanged AND not referenced by any r
 `apps/ios/MerianTests/Models/MigrationPlanTests.swift` must pass on an iOS 26
 simulator on every schema bump. It covers fresh-store initialization, historical
 disk-store migrations, V42/V43/V44/V45/V46/V47 source-isolated recent plans,
-direct V43/V44/V45/V46→V48 queue migrations, V47→V48, and source scans for migration safety invariants:
+direct V43/V44/V45/V46/V47→V49 queue migrations, and source scans for migration safety invariants:
 no silent custom-stage saves, no active/global fetch descriptors or active model
 convenience helpers in `MerianMigrationPlan`, and no bare active
 `CapturedMediaEntry` relationship targets in retired schemas. The full
 historical plan must skip the duplicate-prone V44/V45/V46/V47 recent cluster by
-jumping V43→V48; V42/V43 use source-isolated startup plans to avoid validating
+jumping V43→V49; V42/V43 use source-isolated startup plans to avoid validating
 older full-historical custom stages before the real source is reached, and the
-source-isolated V44/V45/V46 recent plans also jump directly to V48. Because V46 is a no-op checksum twin of V45, the V45 and V46 recent
+source-isolated V44/V45/V46 recent plans also jump directly to V49. Because V46 is a no-op checksum twin of V45, the V45 and V46 recent
 plans must keep those sources isolated from each other and never route through
 V47. V47 must not alias its
 local-scan, captured-media, or collection representatives back through active
 models or the V45/V42 chain, because that can pull stale queued-scan metadata
 into V47 stores. Keep those models frozen inside V47. V47 queued scans
 intentionally keep queued media scalar-only: do not add a
-`capturedMediaEntries` relationship there. V48 rebuilds those relationship rows
+`capturedMediaEntries` relationship there. V49 rebuilds those relationship rows
 from `capturedMediaJSON` after snapshotting and replacing the V47 queued rows.
 
 **Custom migration save rule**: Never use `try? context.save()` inside `MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call the shared migration save helper, rollback on failure, and rethrow so SwiftData aborts the migration rather than opening a store with missing backfilled fields. Scratchpad namespaces are cleared only after the save succeeds, and migration fetch failures must propagate instead of being logged and ignored. Migration-stage fetches must use the concrete source/target schema type for that stage, never `CurrentSchema`, active global model classes, or active-only convenience helpers, because SwiftData can trap while casting historical migration objects. Any relationship model introduced in a retired schema must be frozen in that schema too, even if the active model has the same fields. When a source schema uses the same entity name with a distinct Swift type, follow the V47 queued-scan pattern: snapshot every source field needed to recreate the row, keep relationship mirrors out of the source model when scalar mirrors already preserve the same data, delete the source row inside `willMigrate`, then insert a clean target-schema row from that snapshot in `didMigrate` instead of fetching the just-migrated row as the target type. Custom migrations that create relationship rows must insert those rows into the migration `ModelContext` before assigning the relationship; relying on relationship assignment alone can crash during SwiftData store migration.
@@ -199,7 +199,7 @@ from `capturedMediaJSON` after snapshotting and replacing the V47 queued rows.
 `ModelStoreRecoveryCoordinator` for a store-aware migration hint so fresh/current
 stores open without a migration plan and known recent stores use a
 source-isolated V48/V47/V46/V45/V44/V43/V42 plan; the V45 and V46 plans use one matching
-source representative each with a direct V48 target internally. Quarantine remains corruption-gated: only
+source representative each with a direct V49 target internally. Quarantine remains corruption-gated: only
 verified SQLite/Core Data corruption signatures may move `default.store`
 artifacts, each quarantine writes a sanitized `recovery-manifest.json`, and
 recovery must not clear Keychain, Supabase auth state, or device identity.

@@ -9,7 +9,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Startup recovery now repairs devices carrying the accidental optional-queue V48 store by migrating forward to V49, routes V42/V43 stores through source-isolated plans, and TestFlight/debug safe-mode cards include redacted copy/share diagnostics."
+            "Startup recovery now repairs devices carrying the accidental optional-queue V48 store by migrating forward to V49, routes V42-V47 stores through source-isolated V49 repair plans, and TestFlight/debug safe-mode cards include redacted copy/share diagnostics."
           ]
         }
       ]

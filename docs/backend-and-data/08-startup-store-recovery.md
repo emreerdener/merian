@@ -27,8 +27,8 @@ quarantined local store files, telemetry, and verification.
    source-isolated ladder: current-store open, then V48, V47, V46, V45, V44,
    V43, and V42.
    The V45/V46 retry plans keep those source representatives isolated from each
-   other and use direct V48 targets because V46 was a shipped no-op schema; V47
-   uses its own source-isolated V47→V48 plan with self-contained V47 model
+   other and use direct V49 targets because V46 was a shipped no-op schema; V47
+   uses its own source-isolated V47→V49 plan with self-contained V47 model
    classes and scalar queued-scan snapshots. V48 has two isolated V48→V49 lanes:
    the known-good V48 source and the accidental optional-queue V48 TestFlight
    source. V42/V43 use short plans to avoid validating older full-historical
@@ -118,9 +118,9 @@ account state to this event or diagnostic payload.
 
 `make validate-ios-migration-guardrails` checks the SwiftData migration source
 contract before Xcode compiles anything. It keeps the full runtime migration
-path on V43->V48->V49, keeps duplicate-prone V44/V45/V46/V47 representatives out
-of that full path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans pass
-through V48 and target V49, verifies the known-good and optional-queue V48
+path on V43->V49, keeps duplicate-prone V44/V45/V46/V47 representatives out
+of that full path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans target
+V49 directly, verifies the known-good and optional-queue V48
 recovery plans, and guards the disk-backed migration tests from unlinking SQLite
 files during the test process.
 

@@ -474,13 +474,13 @@ before user workflows begin. The launch path must therefore avoid unnecessary
 deep migration validation. Startup reads the store metadata first: fresh/current
 stores open without a migration plan, known recent stores use the narrow
 source-isolated V48/V47/V46/V45/V44/V43/V42 plans, and unknown older stores use
-the full historical migration plan. The full plan jumps V43→V48 so older-store
+the full historical migration plan. The full plan jumps V43→V49 so older-store
 migration does not validate the duplicate-prone V44/V45/V46 recent cluster.
 V42/V43 use short plans to avoid validating older full-historical custom stages
 that can raise SwiftData's equal-model-reference exception. The V46 plan keeps
 V46 as the only duplicate-cluster source representative and jumps directly to
-V48 because V46 was a shipped no-op schema, while true V47 stores use a
-source-isolated V47→V48 plan with a self-contained scalar queued-scan snapshot.
+V49 because V46 was a shipped no-op schema, while true V47 stores use a
+source-isolated V47→V49 plan with a self-contained scalar queued-scan snapshot.
 Duplicate-checksum failures retry through the same
 recent-plan ladder before safe mode. This keeps the synchronous launch boundary
 bounded for normal upgrades while preserving a

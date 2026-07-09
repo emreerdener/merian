@@ -1996,11 +1996,11 @@ The current active schema is `MerianSchemaV49`. Recent milestones:
   V44/V45/V46 remain available as historical types and source-specific recovery
   inputs, but they must not appear in the full historical
   `MerianMigrationPlan.schemas` or `MerianMigrationPlan.stages`; that plan jumps
-  V43→V48 so unknown older stores do not force SwiftData to validate the
+  V43→V49 so unknown older stores do not force SwiftData to validate the
   duplicate-prone recent representatives. V47 keeps local-scan, captured-media,
   and collection entities frozen inside V47, and keeps its queued scan model
-  scalar-only. V44, V45, and V46 stores skip V47 and jump directly to V48 from
-  source-isolated V44→V48, V45→V48, and V46→V48 plans so SwiftData never
+  scalar-only. V44, V45, and V46 stores skip V47 and jump directly to V49 from
+  source-isolated V44→V49, V45→V49, and V46→V49 plans so SwiftData never
   migrates unchanged entities across duplicate-prone recent representatives.
   App startup reads store metadata before creating `ModelContainer`: fresh/current
   stores open without a migration plan, known recent stores use the source-isolated
@@ -2008,7 +2008,7 @@ The current active schema is `MerianSchemaV49`. Recent milestones:
   historical plan. The V42 and V43 recent plans avoid validating older
   full-historical custom stages that can raise SwiftData's
   equal-model-reference exception, while V45 and V46 deliberately use one
-  matching source representative each before the V48→V49 repair target.
+  matching source representative each before the V49 repair target.
   Stores that still hit SwiftData's duplicate-checksum validator during plan
   construction retry with the same source-isolated recent plans before safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
@@ -2207,7 +2207,7 @@ mirror for migration safety and compatibility.
   passed through the startup repair schema. Defaults to `1`; used as a checksum
   differentiator and a simple support signal when diagnosing V48 store repair.)
 
-The V47→V48 migration is custom. It initializes the new retry/status fields for
+The V47→V49 migration is custom. It initializes the retry/status fields for
 every existing queued scan and creates a `scan-ingestion:{scanId}`
 `OfflineJobRecord` so stores that already contain queued image, video, audio, or
 description scans reopen persistently instead of falling back to safe mode after
@@ -2217,10 +2217,10 @@ backfill. V47 source stores snapshot every queued-scan field needed to recreate
 the row in `willMigrate`, delete the scalar V47 source rows, then use those
 snapshots to repair or recreate current-schema queued scans and seed
 `OfflineJobRecord` / `OfflineQueueEvent` rows. That avoids SwiftData carrying a
-stale V47 model identity into V48 while preserving all queued media kinds.
+stale V47 model identity into V49 while preserving all queued media kinds.
 
-The V48→V49 migrations keep the same scheduler rows and normalize queued-scan
-retry metadata. Known-good V48 stores migrate directly to V49. The accidental
+The V48→V49 migrations snapshot queued scans before recreating V49 rows and normalize
+queued-scan retry metadata. Known-good V48 stores migrate directly to V49. The accidental
 optional-queue V48 TestFlight source has its own `MerianSchemaV48OptionalQueue`
 and recovery plan; it snapshots optional queue fields in `willMigrate`, deletes
 the source rows, and recreates V49 queued scans with non-optional defaults
