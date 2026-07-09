@@ -35,6 +35,8 @@ struct ExplorePostDetailCommentsSection: View {
     let onDismissComposer: () -> Void
     let isComposerSticky: Bool
     var hideInlineComposer: Bool = false
+    var allowsAuthorProfilePresentation = true
+    var onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)?
 
     @State private var reactingCommentId: String?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
@@ -478,13 +480,24 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     private func openAuthorProfile(for comment: ExploreComment) {
+        guard allowsAuthorProfilePresentation else { return }
         HapticManager.shared.triggerSelectionPulse()
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(comment: comment)
+        openAuthorProfile(ExploreAuthorProfileRoute(comment: comment))
     }
 
     private func openMentionProfile(_ mention: ExploreCommentMention) {
+        guard allowsAuthorProfilePresentation else { return }
         HapticManager.shared.triggerSelectionPulse()
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(mention: mention)
+        openAuthorProfile(ExploreAuthorProfileRoute(mention: mention))
+    }
+
+    private func openAuthorProfile(_ route: ExploreAuthorProfileRoute) {
+        guard allowsAuthorProfilePresentation else { return }
+        if let onOpenAuthorProfile {
+            onOpenAuthorProfile(route)
+        } else {
+            selectedAuthorProfileRoute = route
+        }
     }
 
     private func createdAtText(for comment: ExploreComment) -> String? {

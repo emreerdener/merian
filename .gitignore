@@ -96,6 +96,7 @@ node_modules/
 # Environment configuration files
 *.xcconfig
 !Config.xcconfig
+!Config.local.example.xcconfig
 !Signing.xcconfig
 !Signing.local.example.xcconfig
 Signing.local.xcconfig

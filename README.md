@@ -60,8 +60,10 @@ Merian is a field-ready biological identification app built around zero-friction
   or challenge entries that stay separate from Explore feeds and maps.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support public image/video media snapshots; feed and detail can play muted playback videos while maps, widgets, and compact profile previews stay thumbnail-first.
-- Author profile sheets expose privacy-scoped public stats, non-opening public
-  achievements, and active/published Field Trip previews.
+- Author profiles open inside the Explore navigation stack, expose
+  privacy-scoped public stats, non-opening public achievements, and
+  active/published Field Trip previews, and cap profile-to-scan nesting after
+  one profile hop.
 - Home Screen widget caches thumbnail-first Explore snapshots through the shared App Group, with video posts rendered as clean still thumbnails.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
 
@@ -156,6 +158,7 @@ Merian is a field-ready biological identification app built around zero-friction
 git clone https://github.com/your-org/merian.git
 cd merian
 cp Signing.local.example.xcconfig Signing.local.xcconfig
+cp Config.local.example.xcconfig Config.local.xcconfig
 xcodegen generate
 open Merian.xcodeproj
 ```
@@ -164,7 +167,13 @@ Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple Develope
 
 `Merian.xcodeproj` is committed for convenience, but `project.yml` remains the source of truth. Regenerate the project after target, package, build setting, entitlement, or source-group changes.
 
-Configure the required app-facing client config in `Config.xcconfig`. Public client values like `SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true backend secrets like `GEMINI_API_KEY` must stay server-side only.
+Configure the required app-facing client config in `Config.xcconfig` or ignored
+local overrides in `Config.local.xcconfig`. Public client values like
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true
+backend secrets like `GEMINI_API_KEY` must stay server-side only. Release
+archives can still use the development RevenueCat `test_` key, but TestFlight
+or App Store exports should override `REVENUECAT_API_KEY` with the production
+iOS SDK key that begins with `appl_`.
 
 ### Common Shortcuts
 
@@ -177,8 +186,12 @@ make db-push
 make functions-deploy
 ```
 
-Run `make prepare-ios-release VERSION=x.y.z` only when preparing a TestFlight
-archive. Normal local builds should not change the app version or build number.
+Run release prep only when preparing a TestFlight archive. Normal local builds
+should not change the app version or build number.
+If you are ready to use production RevenueCat, pass the real production key as
+`REVENUECAT_API_KEY=appl_...`; release prep writes that public client key into
+ignored `Config.local.xcconfig` so the following archive/export uses it.
+Placeholder values such as the literal `appl_...` are blocked.
 
 ### Release Notes & Changelog
 

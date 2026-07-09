@@ -7,7 +7,7 @@ Explore Following is an asymmetric public-profile relationship. It is intentiona
 Following does three user-visible things:
 
 - Adds a `Following` feed filter between `Recent` and `Trending`.
-- Adds public follower/following counts and a `Follow` / `Following` button to visible Explore author profile sheets.
+- Adds public follower/following counts and a `Follow` / `Following` button to visible Explore author profile routes.
 - Adds an informational in-app "followed you" notification row.
 
 Following does not affect `Recent`, `Trending`, `Nearby`, map results, the

@@ -67,7 +67,7 @@ only a camera/performance setting.
 9. Published Field Trips appear on public profiles and in Field Trips
    `Community` only. They open `FieldTripPublicationDetailView` with item cards,
    likes, comments, and author identity. Author taps open the existing Explore
-   author profile sheet.
+   author-profile route.
 
 ## Challenge Flow
 

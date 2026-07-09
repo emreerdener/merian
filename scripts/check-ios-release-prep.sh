@@ -8,21 +8,83 @@ fail() {
   exit 1
 }
 
+is_placeholder_revenuecat_key() {
+  case "$1" in
+    "appl_..." | appl_replace* | appl_your* | appl_live_key)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+read_xcconfig_key() {
+  local key="$1"
+  local file="$2"
+
+  [[ -f "$file" ]] || return 1
+  awk -v key="$key" '
+    /^[[:space:]]*\/\// { next }
+    /^[[:space:]]*#/ { next }
+    {
+      line = $0
+      sub(/[[:space:]]*\/\/.*/, "", line)
+      if (line ~ "^[[:space:]]*" key "[[:space:]]*=") {
+        sub("^[[:space:]]*" key "[[:space:]]*=[[:space:]]*", "", line)
+        sub(/[[:space:]]+$/, "", line)
+        print line
+      }
+    }
+  ' "$file" | tail -n 1
+}
+
+print_revenuecat_local_state() {
+  local root="${MERIAN_PROJECT_ROOT:-${SRCROOT:-$(pwd)}}"
+  local local_config="$root/Config.local.xcconfig"
+  local local_key
+
+  if [[ ! -f "$local_config" ]]; then
+    echo "Current state: $local_config does not exist, so Xcode is falling back to the tracked development key in Config.xcconfig." >&2
+    return
+  fi
+
+  local_key="$(read_xcconfig_key REVENUECAT_API_KEY "$local_config" || true)"
+  if [[ -z "$local_key" ]]; then
+    echo "Current state: $local_config exists but has no active REVENUECAT_API_KEY line." >&2
+  elif [[ "$local_key" == test_* ]]; then
+    echo "Current state: $local_config still contains a RevenueCat Test Store key." >&2
+  elif is_placeholder_revenuecat_key "$local_key"; then
+    echo "Current state: $local_config contains a placeholder RevenueCat key, not the real production iOS SDK key." >&2
+  else
+    echo "Current state: $local_config has an active RevenueCat key; if Xcode still resolves test_, reopen the project or clean build settings." >&2
+  fi
+}
+
+report_revenuecat_issue() {
+  local message="$1"
+
+  if [[ "${MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY:-0}" == "1" ]]; then
+    echo "error: Release archive blocked: $message" >&2
+  else
+    echo "warning: Release archive is using non-production RevenueCat config: $message" >&2
+  fi
+  print_revenuecat_local_state
+  echo "Production/TestFlight builds should use the RevenueCat iOS production SDK key:" >&2
+  echo "  cp Config.local.example.xcconfig Config.local.xcconfig" >&2
+  echo "  # edit Config.local.xcconfig: REVENUECAT_API_KEY = appl_..." >&2
+  echo "Or let release prep write the ignored override:" >&2
+  echo "  REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=x.y.z" >&2
+
+  if [[ "${MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY:-0}" == "1" ]]; then
+    exit 1
+  fi
+}
+
 extract_project_setting() {
   local key="$1"
   local file="$2"
-  awk -v key="$key" '
-    $1 == key ":" {
-      print $2
-      found = 1
-      exit
-    }
-    END {
-      if (!found) {
-        exit 1
-      }
-    }
-  ' "$file"
+  awk -v key="$key" '$1 == key ":" { print $2; found = 1; exit } END { if (!found) exit 1 }' "$file"
 }
 
 should_enforce="false"
@@ -71,6 +133,27 @@ if [[ -n "${MARKETING_VERSION:-}" && "$MARKETING_VERSION" != "$project_version" 
 fi
 if [[ -n "${CURRENT_PROJECT_VERSION:-}" && "$CURRENT_PROJECT_VERSION" != "$project_build" ]]; then
   fail "Xcode resolved CURRENT_PROJECT_VERSION=$CURRENT_PROJECT_VERSION but project.yml says $project_build."
+fi
+
+if [[ "${CONFIGURATION:-}" == "Release" ]]; then
+  revenuecat_key="${REVENUECAT_API_KEY:-}"
+  if [[ -z "$revenuecat_key" ]]; then
+    report_revenuecat_issue "REVENUECAT_API_KEY is missing."
+  else
+    case "$revenuecat_key" in
+      test_*)
+        report_revenuecat_issue "REVENUECAT_API_KEY is a RevenueCat Test Store key."
+        ;;
+      appl_*)
+        if is_placeholder_revenuecat_key "$revenuecat_key"; then
+          report_revenuecat_issue "REVENUECAT_API_KEY is still a placeholder, not the real RevenueCat production iOS SDK key."
+        fi
+        ;;
+      *)
+        report_revenuecat_issue "REVENUECAT_API_KEY should be a RevenueCat iOS production key beginning with appl_."
+        ;;
+    esac
+  fi
 fi
 
 echo "Release prep marker verified for Merian ${project_version} (${project_build})."

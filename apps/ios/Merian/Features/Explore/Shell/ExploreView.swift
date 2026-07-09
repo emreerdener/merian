@@ -28,7 +28,6 @@ struct ExploreView: View {
     @State private var viewModel = ExploreFeedViewModel()
     @State private var mapViewModel = ExploreMapViewModel()
     @State private var navigationPath = NavigationPath()
-    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
     @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
@@ -53,8 +52,7 @@ struct ExploreView: View {
     private var hasPresentedRootOverlay: Bool {
         viewModel.isCommentsSheetPresented ||
             viewModel.isNotificationsSheetPresented ||
-            selectedInsightRoute != nil ||
-            selectedAuthorProfileRoute != nil
+            selectedInsightRoute != nil
     }
 
     private var activeTabBinding: Binding<ExploreTab> {
@@ -146,7 +144,29 @@ struct ExploreView: View {
                     notificationReplyThreadTarget: route.notificationReplyThreadTarget,
                     allowsInsightPresentation: allowsInsightPresentation,
                     onOpenOwnedPostInsight: ownedPostInsightHandler,
+                    allowsAuthorProfilePresentation: ExploreAuthorProfileNavigationPolicy.canOpenProfile(
+                        from: route.authorProfileDepth
+                    ),
+                    authorProfileDepth: route.authorProfileDepth,
+                    onOpenAuthorProfile: { authorRoute in
+                        appendAuthorProfileRoute(authorRoute, fromDepth: route.authorProfileDepth)
+                    },
                     onOpenCommunityIdentificationRequest: openCommunityIdentificationRequest
+                )
+                .toolbar(.hidden, for: .tabBar)
+            }
+            .navigationDestination(for: ExploreAuthorProfileRoute.self) { route in
+                ExploreAuthorProfileContent(
+                    viewModel: viewModel,
+                    route: route,
+                    presentation: .stack,
+                    onClose: popExploreNavigation,
+                    onOpenPostRoute: { route in
+                        navigationPath.append(route)
+                    },
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    }
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
@@ -200,7 +220,11 @@ struct ExploreView: View {
                     viewModel: viewModel,
                     route: route,
                     allowsInsightPresentation: allowsInsightPresentation,
-                    onOpenOwnedPostInsight: ownedPostInsightHandler
+                    onOpenOwnedPostInsight: ownedPostInsightHandler,
+                    authorProfileDepth: 0,
+                    onOpenAuthorProfile: { route in
+                        appendAuthorProfileRoute(route, fromDepth: 0)
+                    }
                 )
                 .toolbar(.hidden, for: .tabBar)
                 .toolbar {}
@@ -330,9 +354,6 @@ struct ExploreView: View {
                 }
             )
         }
-        .sheet(item: $selectedAuthorProfileRoute) { route in
-            ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
-        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task { await viewModel.refreshUnreadNotificationCount() }
         }
@@ -349,12 +370,7 @@ struct ExploreView: View {
                         ?? item.prompt
                     viewModel.toastMessage = "\(update.title): \(label)"
                 }
-            case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
-                selectedAuthorProfileRoute = selectedAuthorProfileRoute.flatMap { route in
-                    authorIdentityChangeAffects(route.authorUserId, previousUserId: previousUserId, currentUserId: currentUserId)
-                        ? nil
-                        : route
-                }
+            case .publicAuthorIdentityChanged(_, _):
                 Task {
                     await viewModel.refreshFeed()
                     mapViewModel.syncPosts(from: viewModel.store.allPosts)
@@ -463,27 +479,45 @@ struct ExploreView: View {
     private func openAuthorProfile(for post: ExplorePost) {
         HapticManager.shared.triggerSelectionPulse()
         viewModel.upsertPost(post)
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
+        appendAuthorProfileRoute(ExploreAuthorProfileRoute(post: post), fromDepth: 0)
     }
 
     private func openAuthorProfile(for publication: FieldTripRecentPublication) {
         HapticManager.shared.triggerSelectionPulse()
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
+        appendAuthorProfileRoute(ExploreAuthorProfileRoute(
             authorUserId: publication.authorUserId,
             authorName: publication.authorName,
             authorUsername: publication.authorUsername,
             authorAvatarUrl: publication.authorAvatarUrl
-        )
+        ), fromDepth: 0)
     }
 
     private func openAuthorProfile(for entry: FieldTripChallengeEntry) {
         HapticManager.shared.triggerSelectionPulse()
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
+        appendAuthorProfileRoute(ExploreAuthorProfileRoute(
             authorUserId: entry.authorUserId,
             authorName: entry.authorName,
             authorUsername: entry.authorUsername,
             authorAvatarUrl: entry.authorAvatarUrl
+        ), fromDepth: 0)
+    }
+
+    private func appendAuthorProfileRoute(_ route: ExploreAuthorProfileRoute, fromDepth currentDepth: Int) {
+        guard ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: currentDepth) else {
+            HapticManager.shared.triggerLightImpact(intensity: 0.35)
+            return
+        }
+
+        navigationPath.append(
+            route.withNavigationDepth(
+                ExploreAuthorProfileNavigationPolicy.nextProfileDepth(from: currentDepth)
+            )
         )
+    }
+
+    private func popExploreNavigation() {
+        guard !navigationPath.isEmpty else { return }
+        navigationPath.removeLast()
     }
 
     private func openHashtag(_ hashtag: String) {
@@ -1122,6 +1156,7 @@ struct ExplorePostRoute: Hashable {
     let targetCommentId: String?
     let targetReplyParentCommentId: String?
     let notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget?
+    let authorProfileDepth: Int
 
     init(
         postId: String,
@@ -1129,7 +1164,8 @@ struct ExplorePostRoute: Hashable {
         shouldOpenInsight: Bool,
         targetCommentId: String?,
         targetReplyParentCommentId: String?,
-        notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil
+        notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil,
+        authorProfileDepth: Int = 0
     ) {
         self.postId = postId
         self.shouldFocusCommentComposer = shouldFocusCommentComposer
@@ -1137,6 +1173,7 @@ struct ExplorePostRoute: Hashable {
         self.targetCommentId = targetCommentId
         self.targetReplyParentCommentId = targetReplyParentCommentId
         self.notificationReplyThreadTarget = notificationReplyThreadTarget
+        self.authorProfileDepth = authorProfileDepth
     }
 }
 
@@ -1178,6 +1215,8 @@ struct ExploreHashtagPostsView: View {
     let allowsInsightPresentation: Bool
     let onOpenOwnedPostInsight: ((String) -> Bool)?
     var allowsAuthorProfilePresentation = true
+    var authorProfileDepth = 0
+    var onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)?
 
     @Environment(\.modelContext) private var modelContext
 
@@ -1222,7 +1261,10 @@ struct ExploreHashtagPostsView: View {
                     targetReplyParentCommentId: selectedPostRoute.targetReplyParentCommentId,
                     allowsInsightPresentation: allowsInsightPresentation,
                     onOpenOwnedPostInsight: onOpenOwnedPostInsight,
-                    allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
+                    allowsAuthorProfilePresentation: allowsAuthorProfilePresentation &&
+                        ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: selectedPostRoute.authorProfileDepth),
+                    authorProfileDepth: selectedPostRoute.authorProfileDepth,
+                    onOpenAuthorProfile: onOpenAuthorProfile
                 )
             }
         }
@@ -1379,7 +1421,8 @@ struct ExploreHashtagPostsView: View {
             shouldFocusCommentComposer: false,
             shouldOpenInsight: false,
             targetCommentId: nil,
-            targetReplyParentCommentId: nil
+            targetReplyParentCommentId: nil,
+            authorProfileDepth: authorProfileDepth
         )
     }
 }

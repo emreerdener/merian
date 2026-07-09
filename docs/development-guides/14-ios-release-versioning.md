@@ -35,6 +35,18 @@ fresh build number from the repo root:
 make prepare-ios-release VERSION=1.0.1
 ```
 
+The RevenueCat key is a public iOS SDK key, not a backend-only secret. If you
+are ready to use production RevenueCat, pass the real production key to release
+prep to write or update the ignored `Config.local.xcconfig` override:
+
+```bash
+REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=1.0.1
+```
+
+Placeholder values such as the literal `appl_...` are blocked. If no production
+key is configured yet, release prep and Xcode Archive warn but continue; app
+export/upload should use the production key.
+
 With App Store Connect credentials present, the script looks up the latest
 uploaded build and writes the next higher number:
 
@@ -60,7 +72,8 @@ checks against App Store Connect when credentials are present:
 BUILD=422 make prepare-ios-release VERSION=1.0.1
 ```
 
-The command updates `project.yml`, regenerates `Merian.xcodeproj`, and writes
+The command warns when the resolved RevenueCat key is still development-only,
+then updates `project.yml`, regenerates `Merian.xcodeproj`, and writes
 `build/ios-release-prep.json`. The marker is intentionally ignored by git and
 exists only to prove that the local archive was deliberately prepared.
 
@@ -69,14 +82,35 @@ exists only to prove that the local archive was deliberately prepared.
 Xcode calls `scripts/check-ios-release-prep.sh` during Release archives. The
 check is quiet for normal Debug builds and non-archive Release builds. During an
 archive, it blocks if the prep marker is missing or if the marker version/build
-does not match `project.yml`.
+does not match `project.yml`. It warns, but does not block, if the resolved
+`REVENUECAT_API_KEY` is missing, still begins with RevenueCat's `test_` Test
+Store prefix, or does not look like an iOS production SDK key beginning with
+`appl_`. Set `MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1` for export/release
+checks that should fail on non-production RevenueCat config.
 
 If Xcode only shows `Command PhaseScriptExecution failed with a nonzero exit
 code`, expand the `Release Versioning Preflight` log. A missing marker means the
-archive was started before release prep; run `make prepare-ios-release
-VERSION=x.y.z` with the intended next semantic version, or use
-`BUILD=N make prepare-ios-release VERSION=x.y.z` for the documented manual
+archive was started before release prep; run `REVENUECAT_API_KEY=appl_...
+make prepare-ios-release VERSION=x.y.z` with the intended next semantic version
+when you also want to install the production RevenueCat key, or use `BUILD=N
+make prepare-ios-release VERSION=x.y.z` for the documented manual build-number
 fallback.
+
+If the expanded log warns that the RevenueCat key is invalid, either copy
+`Config.local.example.xcconfig` to `Config.local.xcconfig` and set:
+
+```xcconfig
+REVENUECAT_API_KEY = appl_...
+```
+
+`Config.local.xcconfig` is ignored by git and is included after the tracked
+development defaults, so it can safely override the local archive key without
+committing environment-specific config. You can also let release prep write the
+override for you by substituting the real key:
+
+```bash
+REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=x.y.z
+```
 
 ## Archive Export
 

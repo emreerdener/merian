@@ -1963,7 +1963,7 @@ each new row into the migration `ModelContext` before assigning the relationship
 relationship assignment alone is not a durable insert path while SwiftData is
 inside staged store migration.
 
-The current active schema is `MerianSchemaV48`. Recent milestones:
+The current active schema is `MerianSchemaV49`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -2004,9 +2004,11 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
   migrates unchanged entities across duplicate-prone recent representatives.
   App startup reads store metadata before creating `ModelContainer`: fresh/current
   stores open without a migration plan, known recent stores use the source-isolated
-  V47/V46/V45/V44 plans, and only unknown older stores use the full historical
-  plan. The V45 and V46 recent plans deliberately use one matching source
-  representative each and a direct V48 target.
+  V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older stores use the full
+  historical plan. The V42 and V43 recent plans avoid validating older
+  full-historical custom stages that can raise SwiftData's
+  equal-model-reference exception, while V45 and V46 deliberately use one
+  matching source representative each before the V48→V49 repair target.
   Stores that still hit SwiftData's duplicate-checksum validator during plan
   construction retry with the same source-isolated recent plans before safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
@@ -2015,6 +2017,13 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
 - V48 added persisted queue retry metadata on `OfflineQueuedScan`, plus
   `OfflineJobRecord` and bounded `OfflineQueueEvent` models for scan ingestion,
   cloud deletion, collection sync, diagnostics, and future offline work.
+- V49 is a startup store-repair schema. It preserves the V48 scheduler model,
+  adds `OfflineQueuedScan.queueSchemaRepairGeneration`, and migrates both the
+  known-good V48 source and the accidental optional-queue V48 TestFlight source
+  forward through source-specific V48→V49 plans. Startup diagnostics now record
+  redacted store metadata, model-version fingerprints, attempted plan names, and
+  error-domain/code fingerprints so failing devices can share evidence without
+  exposing local paths, account IDs, scan text, or media URLs.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
@@ -2194,6 +2203,9 @@ mirror for migration safety and compatibility.
 - `queueUpdatedAt`: Date (Added in V48. Last durable queue metadata mutation.)
 - `queueNeedsAttention`: Bool (Added in V48. Terminal user-actionable local
   problems stay visible instead of being purged as disposable tombstones.)
+- `queueSchemaRepairGeneration`: Int (Added in V49. Marks queued scans that have
+  passed through the startup repair schema. Defaults to `1`; used as a checksum
+  differentiator and a simple support signal when diagnosing V48 store repair.)
 
 The V47→V48 migration is custom. It initializes the new retry/status fields for
 every existing queued scan and creates a `scan-ingestion:{scanId}`
@@ -2207,9 +2219,18 @@ snapshots to repair or recreate current-schema queued scans and seed
 `OfflineJobRecord` / `OfflineQueueEvent` rows. That avoids SwiftData carrying a
 stale V47 model identity into V48 while preserving all queued media kinds.
 
+The V48→V49 migrations keep the same scheduler rows and normalize queued-scan
+retry metadata. Known-good V48 stores migrate directly to V49. The accidental
+optional-queue V48 TestFlight source has its own `MerianSchemaV48OptionalQueue`
+and recovery plan; it snapshots optional queue fields in `willMigrate`, deletes
+the source rows, and recreates V49 queued scans with non-optional defaults
+(`queueAttemptCount = 0`, `queueUpdatedAt = now`, `queueNeedsAttention = false`)
+when the optional source stored `nil`.
+
 ### `OfflineJobRecord`
 
-Added in `MerianSchemaV48`. Scheduler/control-plane row for media-agnostic
+Added in `MerianSchemaV48` and carried forward unchanged in V49.
+Scheduler/control-plane row for media-agnostic
 offline work. Current `kindRaw` values are `scanIngestion`, `cloudDeletion`,
 `collectionSync`, `speciesPreferenceSync`, and `future`; current `statusRaw`
 values are `pending`, `running`, `waiting`, `needsAttention`, `complete`, and

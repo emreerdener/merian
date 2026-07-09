@@ -54,6 +54,7 @@ public final class OfflineQueuedScan {
     @Attribute public var queueLastServerRetryAfter: Date?
     @Attribute public var queueUpdatedAt: Date = Date()
     @Attribute public var queueNeedsAttention: Bool = false
+    @Attribute public var queueSchemaRepairGeneration: Int = 1
 
     // MARK: - Typed accessor
 
@@ -98,7 +99,8 @@ public final class OfflineQueuedScan {
         queueLastServerStage: String? = nil,
         queueLastServerRetryAfter: Date? = nil,
         queueUpdatedAt: Date = Date(),
-        queueNeedsAttention: Bool = false
+        queueNeedsAttention: Bool = false,
+        queueSchemaRepairGeneration: Int = 1
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -134,5 +136,6 @@ public final class OfflineQueuedScan {
         self.queueLastServerRetryAfter = queueLastServerRetryAfter
         self.queueUpdatedAt = queueUpdatedAt
         self.queueNeedsAttention = queueNeedsAttention
+        self.queueSchemaRepairGeneration = queueSchemaRepairGeneration
     }
 }

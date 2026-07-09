@@ -45,7 +45,7 @@ struct MigrationPlanTests {
             return ""
         }
         let remainder = source[migrationStart...]
-        if let alternateStart = remainder.range(of: "\nenum MerianRecentV44MigrationPlan")?.lowerBound {
+        if let alternateStart = remainder.range(of: "\nenum MerianRecentV42MigrationPlan")?.lowerBound {
             return String(remainder[..<alternateStart])
         }
         return String(remainder)
@@ -80,6 +80,32 @@ struct MigrationPlanTests {
             return String(remainder)
         }
         return String(remainder[..<firstStageStart])
+    }
+
+    private func recentV42MigrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianRecentV42MigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianRecentV42MigrationPlan")
+            return ""
+        }
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianRecentV43MigrationPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
+    }
+
+    private func recentV43MigrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianRecentV43MigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianRecentV43MigrationPlan")
+            return ""
+        }
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianRecentV44MigrationPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
     }
 
     private func recentV44MigrationPlanSource() throws -> String {
@@ -125,6 +151,32 @@ struct MigrationPlanTests {
         let source = try schemaVersionsSource()
         guard let migrationStart = source.range(of: "enum MerianRecentV47MigrationPlan")?.lowerBound else {
             Issue.record("SchemaVersions.swift must declare MerianRecentV47MigrationPlan")
+            return ""
+        }
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianRecentV48MigrationPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
+    }
+
+    private func recentV48MigrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianRecentV48MigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianRecentV48MigrationPlan")
+            return ""
+        }
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianOptionalQueueV48RecoveryPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
+    }
+
+    private func optionalQueueV48RecoveryPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianOptionalQueueV48RecoveryPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianOptionalQueueV48RecoveryPlan")
             return ""
         }
         return String(source[migrationStart...])
@@ -248,6 +300,7 @@ struct MigrationPlanTests {
         #expect(scan.queueLastServerRetryAfter == nil)
         #expect(scan.queueUpdatedAt.timeIntervalSinceReferenceDate > 0)
         #expect(scan.queueNeedsAttention == false)
+        #expect(scan.queueSchemaRepairGeneration == 1)
     }
 
     @Test func migrationPlanCustomStagesDoNotUseSilentSaves() throws {
@@ -572,10 +625,10 @@ struct MigrationPlanTests {
         keepSQLiteStoreForProcessLifetime(at: url)
     }
 
-    /// Simulates the last stable pre-cluster source path.
-    /// V44/V45/V46 are recent duplicate-prone representatives, so the full
-    /// historical plan jumps V43 directly to V48 and leaves V44/V45/V46 to
-    /// source-isolated recent plans.
+    /// Simulates the last stable pre-cluster source path. Startup opens V43
+    /// stores with a source-isolated plan so older full historical custom stages
+    /// cannot trip SwiftData's equal-model-reference validator before reaching
+    /// the actual source.
     @Test func migrationFromV43ToCurrentSchemaDoesNotSafeMode() throws {
         let url = migrationStoreURL(named: "v43migration_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
@@ -609,7 +662,7 @@ struct MigrationPlanTests {
             let config44 = ModelConfiguration(schema: schema44, url: url)
             let container44 = try makeModelContainer(
                 for: schema44,
-                migrationPlan: MerianMigrationPlan.self,
+                migrationPlan: MerianRecentV43MigrationPlan.self,
                 configurations: [config44]
             )
             let context44 = ModelContext(container44)
@@ -621,6 +674,74 @@ struct MigrationPlanTests {
             #expect(migratedRecord.scientificName == "Canis lupus familiaris")
             #expect(migratedRecord.sex == "cannot_determine")
             #expect(migratedRecord.petIdentificationData == nil)
+        }
+    }
+
+    /// Regression coverage for a real TestFlight diagnostic that reported a
+    /// V42 store selecting the full historical plan and hitting
+    /// "The current model reference and the next model reference cannot be equal."
+    @Test func migrationFromV42ToCurrentSchemaUsesSourceIsolatedPlan() throws {
+        let url = migrationStoreURL(named: "v42migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let scanId = "v42-current-migration-scan"
+        let queuedId = "v42-current-migration-queued"
+
+        do {
+            let schema42 = Schema(versionedSchema: MerianSchemaV42.self)
+            let config42 = ModelConfiguration(schema: schema42, url: url)
+            let container42 = try makeModelContainer(for: schema42, configurations: [config42])
+            let context42 = ModelContext(container42)
+            let record = MerianSchemaV42.LocalScanRecord(
+                id: scanId,
+                speciesId: "v42-species",
+                scientificName: "Anax junius",
+                commonName: "Common Green Darner",
+                capturedMediaJSON: try encodedMediaJSON([.image(.documents("v42-local.webp"))]),
+                coverImagePath: "v42-local.webp",
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "wild",
+                fieldNotes: "field notes before sex metadata"
+            )
+            let queuedScan = MerianSchemaV42.OfflineQueuedScan(
+                id: queuedId,
+                capturedMediaJSON: try encodedMediaJSON([.image(.documents("v42-queued.webp"))]),
+                coverImagePath: "v42-queued.webp",
+                stagedR2Keys: ["queued/v42/image.webp"],
+                fieldNotes: "queued before sex metadata"
+            )
+            context42.insert(record)
+            context42.insert(queuedScan)
+            try context42.save()
+        }
+
+        do {
+            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+            let currentContainer = try makeModelContainer(
+                for: currentSchema,
+                migrationPlan: MerianRecentV42MigrationPlan.self,
+                configurations: [currentConfig]
+            )
+            let currentContext = ModelContext(currentContainer)
+
+            var scanDescriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            scanDescriptor.fetchLimit = 1
+            let migratedRecord = try #require(currentContext.fetch(scanDescriptor).first)
+            #expect(migratedRecord.scientificName == "Anax junius")
+            #expect(migratedRecord.fieldNotes == "field notes before sex metadata")
+            #expect(migratedRecord.sex == nil)
+
+            let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: currentContext)
+            #expect(migratedQueuedScan.coverImagePath == "v42-queued.webp")
+            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v42/image.webp"])
+            #expect(migratedQueuedScan.fieldNotes == "queued before sex metadata")
+            assertCurrentQueuedScanHasFreshRetryState(migratedQueuedScan)
+            try assertCurrentScanIngestionJob(scanId: queuedId, context: currentContext)
         }
     }
 
@@ -742,25 +863,28 @@ struct MigrationPlanTests {
             "@Attribute public var queueAttemptCount: Int = 0",
             "@Attribute public var queueUpdatedAt: Date = Date()",
             "@Attribute public var queueNeedsAttention: Bool = false",
+            "@Attribute public var queueSchemaRepairGeneration: Int = 1",
             "queueAttemptCount: Int = 0,",
             "queueUpdatedAt: Date = Date(),",
-            "queueNeedsAttention: Bool = false"
+            "queueNeedsAttention: Bool = false",
+            "queueSchemaRepairGeneration: Int = 1"
         ]
         let forbiddenSnippets = [
             "queueAttemptCount: Int?",
             "queueUpdatedAt: Date?",
-            "queueNeedsAttention: Bool?"
+            "queueNeedsAttention: Bool?",
+            "queueSchemaRepairGeneration: Int?"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
         let presentForbidden = forbiddenSnippets.filter { source.contains($0) }
 
         #expect(
             missing.isEmpty,
-            "Active V48 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "Active V49 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
             presentForbidden.isEmpty,
-            "Active V48 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
+            "Active V49 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
         )
     }
 
@@ -781,6 +905,10 @@ struct MigrationPlanTests {
             "toVersion: MerianSchemaV48.self",
             "static let migrateV46toV48 = MigrationStage.custom",
             "fromVersion: MerianSchemaV46.self",
+            "static let migrateV48toV49 = MigrationStage.custom",
+            "fromVersion: MerianSchemaV48.self",
+            "toVersion: MerianSchemaV49.self",
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V48->V49 didMigrate")"#,
             "duplicate-checksum validator"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
@@ -804,8 +932,9 @@ struct MigrationPlanTests {
                 !stagesSource.contains("migrateV45toV48") &&
                 !stagesSource.contains("migrateV46toV48") &&
                 !stagesSource.contains("migrateV47toV48") &&
-                stagesSource.contains("migrateV43toV48"),
-            "The full historical stage list must jump V43->V48 and avoid V44/V45/V46/V47 source-isolated recent hops."
+                stagesSource.contains("migrateV43toV48") &&
+                stagesSource.contains("migrateV48toV49"),
+            "The full historical stage list must jump V43->V48, advance V48->V49, and avoid V44/V45/V46/V47 source-isolated recent hops."
         )
         #expect(
             !source.contains("migrateV45toV46") &&
@@ -863,13 +992,63 @@ struct MigrationPlanTests {
         )
     }
 
+    @Test func recentV42MigrationPlanAvoidsFullHistoricalEqualReferenceValidation() throws {
+        let source = try recentV42MigrationPlanSource()
+        let requiredSnippets = [
+            "enum MerianRecentV42MigrationPlan",
+            "MerianSchemaV42.self",
+            "MerianSchemaV43.self",
+            "MerianSchemaV48.self",
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateV42toV43",
+            "MerianMigrationPlan.migrateV43toV48",
+            "MerianMigrationPlan.migrateV48toV49"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The V42 recovery plan must bypass older full historical custom stages and migrate directly through V43->V48->V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV44.self") &&
+                !source.contains("MerianSchemaV47.self"),
+            "The V42 recovery plan must not include duplicate-prone recent representatives."
+        )
+    }
+
+    @Test func recentV43MigrationPlanAvoidsFullHistoricalEqualReferenceValidation() throws {
+        let source = try recentV43MigrationPlanSource()
+        let requiredSnippets = [
+            "enum MerianRecentV43MigrationPlan",
+            "MerianSchemaV43.self",
+            "MerianSchemaV48.self",
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateV43toV48",
+            "MerianMigrationPlan.migrateV48toV49"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The V43 recovery plan must bypass older full historical custom stages and migrate directly through V48->V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV44.self") &&
+                !source.contains("MerianSchemaV47.self"),
+            "The V43 recovery plan must not include duplicate-prone recent representatives."
+        )
+    }
+
     @Test func recentV44MigrationPlanAvoidsAdjacentDuplicateRepresentatives() throws {
         let source = try recentV44MigrationPlanSource()
         let requiredSnippets = [
             "enum MerianRecentV44MigrationPlan",
             "MerianSchemaV44.self",
             "MerianSchemaV48.self",
-            "MerianMigrationPlan.migrateV44toV48"
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateV44toV48",
+            "MerianMigrationPlan.migrateV48toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -894,7 +1073,9 @@ struct MigrationPlanTests {
             "enum MerianRecentV45MigrationPlan",
             "MerianSchemaV45.self",
             "MerianSchemaV48.self",
-            "MerianMigrationPlan.migrateV45toV48"
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateV45toV48",
+            "MerianMigrationPlan.migrateV48toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -909,7 +1090,7 @@ struct MigrationPlanTests {
                 !source.contains("MerianSchemaV47.self") &&
                 !source.contains("migrateV45toV47") &&
                 !source.contains("migrateV47toV48"),
-            "The recent V45 recovery plan must include only the V45 checksum representative and direct V48 target."
+            "The recent V45 recovery plan must include only the V45 checksum representative before the V48->V49 repair target."
         )
     }
 
@@ -919,7 +1100,9 @@ struct MigrationPlanTests {
             "enum MerianRecentV46MigrationPlan",
             "MerianSchemaV46.self",
             "MerianSchemaV48.self",
-            "MerianMigrationPlan.migrateV46toV48"
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateV46toV48",
+            "MerianMigrationPlan.migrateV48toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -936,7 +1119,7 @@ struct MigrationPlanTests {
                 !source.contains("migrateV45toV47") &&
                 !source.contains("migrateV45toV48") &&
                 !source.contains("migrateV47toV48"),
-            "The recent V46 recovery plan must use only the V46 source representative and direct V48 target."
+            "The recent V46 recovery plan must use only the V46 source representative before the V48->V49 repair target."
         )
     }
 
@@ -946,7 +1129,9 @@ struct MigrationPlanTests {
             "enum MerianRecentV47MigrationPlan",
             "MerianSchemaV47.self",
             "MerianSchemaV48.self",
-            "MerianMigrationPlan.migrateV47toV48"
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateV47toV48",
+            "MerianMigrationPlan.migrateV48toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -959,6 +1144,48 @@ struct MigrationPlanTests {
                 !source.contains("MerianSchemaV45.self") &&
                 !source.contains("MerianSchemaV46.self"),
             "The recent V47 recovery plan must not include duplicate-prone earlier representatives."
+        )
+    }
+
+    @Test func recentV48MigrationPlanSupportsKnownGoodV48Stores() throws {
+        let source = try recentV48MigrationPlanSource()
+        let requiredSnippets = [
+            "enum MerianRecentV48MigrationPlan",
+            "MerianSchemaV48.self",
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateV48toV49"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The known-good V48 recovery plan must migrate directly to V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV47.self") &&
+                !source.contains("MerianSchemaV48OptionalQueue.self"),
+            "The known-good V48 plan must stay isolated from V47 and the optional-queue V48 source."
+        )
+    }
+
+    @Test func optionalQueueV48RecoveryPlanIsSourceIsolated() throws {
+        let source = try optionalQueueV48RecoveryPlanSource()
+        let requiredSnippets = [
+            "enum MerianOptionalQueueV48RecoveryPlan",
+            "MerianSchemaV48OptionalQueue.self",
+            "MerianSchemaV49.self",
+            "MerianMigrationPlan.migrateOptionalQueueV48toV49"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The accidental optional-queue V48 source must have its own direct V49 recovery plan. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV48.self") &&
+                !source.contains("MerianSchemaV47.self"),
+            "The optional-queue V48 recovery plan must not mix source schemas with the same major version."
         )
     }
 
@@ -1281,6 +1508,115 @@ struct MigrationPlanTests {
             #expect(migratedQueuedScan.fieldNotes == "fixture \(fixture.id)")
             assertCurrentQueuedScanHasFreshRetryState(migratedQueuedScan)
             try assertCurrentScanIngestionJob(scanId: fixture.id, context: store.context)
+        }
+    }
+
+    @Test func migrationFromKnownGoodV48ToCurrentSchemaDoesNotSafeMode() throws {
+        let url = migrationStoreURL(named: "v48_known_good_migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let queuedId = "v48-known-good-queued"
+        let queueUpdatedAt = Date(timeIntervalSinceReferenceDate: 123_456)
+        let items: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(
+                .documents("known-good-v48-video.mp4"),
+                thumbnail: .documents("known-good-v48-thumbnail.webp")
+            ))
+        ]
+
+        do {
+            let schema48 = Schema(versionedSchema: MerianSchemaV48.self)
+            let config48 = ModelConfiguration(schema: schema48, url: url)
+            let container48 = try makeModelContainer(for: schema48, configurations: [config48])
+            let context48 = ModelContext(container48)
+            let queuedScan = MerianSchemaV48.OfflineQueuedScan(
+                id: queuedId,
+                capturedMediaJSON: try encodedMediaJSON(items),
+                coverImagePath: "known-good-v48-thumbnail.webp",
+                stagedR2Keys: ["queued/v48/video.mp4"],
+                inferenceImagePaths: ["known-good-v48-frame.webp"],
+                visualMediaItemsJSON: #"[{"kind":"video_frame","path":"known-good-v48-frame.webp"}]"#,
+                fieldNotes: "known good V48 queue row",
+                queueAttemptCount: 2,
+                queueUpdatedAt: queueUpdatedAt,
+                queueNeedsAttention: true
+            )
+            context48.insert(queuedScan)
+            try context48.save()
+        }
+
+        do {
+            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+            let currentContainer = try makeModelContainer(
+                for: currentSchema,
+                migrationPlan: MerianRecentV48MigrationPlan.self,
+                configurations: [currentConfig]
+            )
+            let currentContext = ModelContext(currentContainer)
+            let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: currentContext)
+            #expect(migratedQueuedScan.serializedCapturedMediaItems == items)
+            #expect(migratedQueuedScan.coverImagePath == "known-good-v48-thumbnail.webp")
+            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v48/video.mp4"])
+            #expect(migratedQueuedScan.inferenceImagePaths == ["known-good-v48-frame.webp"])
+            #expect(migratedQueuedScan.fieldNotes == "known good V48 queue row")
+            #expect(migratedQueuedScan.queueAttemptCount == 2)
+            #expect(migratedQueuedScan.queueUpdatedAt == queueUpdatedAt)
+            #expect(migratedQueuedScan.queueNeedsAttention == true)
+            #expect(migratedQueuedScan.queueSchemaRepairGeneration == 1)
+            try assertCurrentScanIngestionJob(scanId: queuedId, context: currentContext)
+        }
+    }
+
+    @Test func migrationFromOptionalQueueV48ToCurrentSchemaRecoversRetryFields() throws {
+        let url = migrationStoreURL(named: "v48_optional_queue_migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let queuedId = "v48-optional-queue-queued"
+        let items: [SerializedMediaItem] = [
+            .image(.documents("optional-v48-image.webp")),
+            .description(ObservationContext(freeText: "optional V48 fixture"))
+        ]
+
+        do {
+            let schema48 = Schema(versionedSchema: MerianSchemaV48OptionalQueue.self)
+            let config48 = ModelConfiguration(schema: schema48, url: url)
+            let container48 = try makeModelContainer(for: schema48, configurations: [config48])
+            let context48 = ModelContext(container48)
+            let queuedScan = MerianSchemaV48OptionalQueue.OfflineQueuedScan(
+                id: queuedId,
+                capturedMediaJSON: try encodedMediaJSON(items),
+                coverImagePath: "optional-v48-image.webp",
+                stagedR2Keys: ["queued/v48/optional.webp"],
+                inferenceImagePaths: ["optional-v48-inference.webp"],
+                visualMediaItemsJSON: #"[{"kind":"image","path":"optional-v48-image.webp"}]"#,
+                fieldNotes: "optional queue V48 row",
+                queueAttemptCount: nil,
+                queueUpdatedAt: nil,
+                queueNeedsAttention: nil
+            )
+            context48.insert(queuedScan)
+            try context48.save()
+        }
+
+        do {
+            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+            let currentContainer = try makeModelContainer(
+                for: currentSchema,
+                migrationPlan: MerianOptionalQueueV48RecoveryPlan.self,
+                configurations: [currentConfig]
+            )
+            let currentContext = ModelContext(currentContainer)
+            let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: currentContext)
+            #expect(migratedQueuedScan.serializedCapturedMediaItems == items)
+            #expect(migratedQueuedScan.coverImagePath == "optional-v48-image.webp")
+            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v48/optional.webp"])
+            #expect(migratedQueuedScan.inferenceImagePaths == ["optional-v48-inference.webp"])
+            #expect(migratedQueuedScan.visualMediaItemsJSON == #"[{"kind":"image","path":"optional-v48-image.webp"}]"#)
+            #expect(migratedQueuedScan.fieldNotes == "optional queue V48 row")
+            assertCurrentQueuedScanHasFreshRetryState(migratedQueuedScan)
+            try assertCurrentScanIngestionJob(scanId: queuedId, context: currentContext)
         }
     }
 

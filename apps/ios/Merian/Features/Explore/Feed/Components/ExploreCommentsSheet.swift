@@ -7,14 +7,14 @@ struct ExploreCommentsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isComposerFocused: Bool
     @State private var reactingCommentId: String?
-    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
+    @State private var navigationPath = NavigationPath()
     @State private var localReplyStateVersion: UInt64 = 0
     private let replyThreadLineColor = Color(uiColor: .systemGray4)
     private let replyThreadParentExtension: CGFloat = 36
     private let replyThreadRowSpacing: CGFloat = 10
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             Group {
                 if viewModel.isCommentsLoading && viewModel.comments.isEmpty {
                     loadingState
@@ -59,6 +59,49 @@ struct ExploreCommentsSheet: View {
                             .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: -4)
                     )
             }
+            .navigationDestination(for: ExploreAuthorProfileRoute.self) { route in
+                ExploreAuthorProfileContent(
+                    viewModel: viewModel,
+                    route: route,
+                    presentation: .stack,
+                    onClose: popNavigation,
+                    onOpenPostRoute: { route in
+                        navigationPath.append(route)
+                    },
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    }
+                )
+            }
+            .navigationDestination(for: ExplorePostRoute.self) { route in
+                ExplorePostDetailView(
+                    viewModel: viewModel,
+                    postId: route.postId,
+                    shouldFocusCommentComposer: route.shouldFocusCommentComposer,
+                    shouldOpenInsight: route.shouldOpenInsight,
+                    targetCommentId: route.targetCommentId,
+                    targetReplyParentCommentId: route.targetReplyParentCommentId,
+                    allowsInsightPresentation: false,
+                    allowsAuthorProfilePresentation: ExploreAuthorProfileNavigationPolicy.canOpenProfile(
+                        from: route.authorProfileDepth
+                    ),
+                    authorProfileDepth: route.authorProfileDepth,
+                    onOpenAuthorProfile: { authorRoute in
+                        appendAuthorProfileRoute(authorRoute, fromDepth: route.authorProfileDepth)
+                    }
+                )
+            }
+            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                SpeciesDictionaryPageContentView(
+                    scientificName: route.scientificName,
+                    speciesId: route.speciesId,
+                    entryPoint: route.entryPoint,
+                    showsCloseButton: false
+                )
+            }
+            .navigationDestination(for: FieldTripPublicationRoute.self) { route in
+                FieldTripPublicationDetailView(publicationId: route.publicationId)
+            }
         }
         .presentationDetents([.fraction(0.6), .large])
         .presentationDragIndicator(.visible)
@@ -73,13 +116,6 @@ struct ExploreCommentsSheet: View {
         }
         .onChange(of: viewModel.replyStateVersion) { _, newValue in
             localReplyStateVersion = newValue
-        }
-        .exploreVideoOverlayLifecycle(
-            isPresented: selectedAuthorProfileRoute != nil,
-            reason: "explore-comments-author-profile"
-        )
-        .sheet(item: $selectedAuthorProfileRoute) { route in
-            ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
     }
 
@@ -431,12 +467,27 @@ struct ExploreCommentsSheet: View {
 
     private func openAuthorProfile(for comment: ExploreComment) {
         HapticManager.shared.triggerSelectionPulse()
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(comment: comment)
+        appendAuthorProfileRoute(ExploreAuthorProfileRoute(comment: comment), fromDepth: 0)
     }
 
     private func openMentionProfile(_ mention: ExploreCommentMention) {
         HapticManager.shared.triggerSelectionPulse()
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(mention: mention)
+        appendAuthorProfileRoute(ExploreAuthorProfileRoute(mention: mention), fromDepth: 0)
+    }
+
+    private func appendAuthorProfileRoute(_ route: ExploreAuthorProfileRoute, fromDepth currentDepth: Int) {
+        guard ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: currentDepth) else { return }
+
+        navigationPath.append(
+            route.withNavigationDepth(
+                ExploreAuthorProfileNavigationPolicy.nextProfileDepth(from: currentDepth)
+            )
+        )
+    }
+
+    private func popNavigation() {
+        guard !navigationPath.isEmpty else { return }
+        navigationPath.removeLast()
     }
 
     private func createdAtText(for comment: ExploreComment) -> String? {

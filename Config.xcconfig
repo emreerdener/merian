@@ -10,3 +10,7 @@ REVENUECAT_API_KEY = test_KDYnJNpPWfrsUvmYhfNUTSIufuT
 POSTHOG_API_KEY = phc_7HHe4JA1LnDczaaedBDgylxCYQAYVJXyhM8my3HUoQY
 GIDClientID = 837988435097-6kclt4r7lhrf1jg2gn4djm65bkh6839u.apps.googleusercontent.com
 REVERSED_CLIENT_ID = com.googleusercontent.apps.837988435097-6kclt4r7lhrf1jg2gn4djm65bkh6839u
+
+// Optional local overrides. Use this for release-only public client values,
+// including the RevenueCat production iOS key required before App Store archive.
+#include? "Config.local.xcconfig"

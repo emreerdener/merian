@@ -17,10 +17,12 @@ networking, and hardware orchestration logic.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is
   committed for convenience and should be regenerated after project-structure
   changes.
-- **Active SwiftData schema**: `MerianSchemaV48` via
-  `typealias CurrentSchema = MerianSchemaV48` in
-  `apps/ios/Merian/Models/Aliases.swift`. V48 adds the durable offline
-  job/control-plane rows and persisted queue retry metadata.
+- **Active SwiftData schema**: `MerianSchemaV49` via
+  `typealias CurrentSchema = MerianSchemaV49` in
+  `apps/ios/Merian/Models/Aliases.swift`. V49 preserves V48 durable offline
+  job/control-plane rows, adds a startup repair marker on queued scans, and
+  includes source-specific recovery for the accidental optional-queue V48
+  TestFlight shape.
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio,
   describe, and mixed-media submissions. It owns staged media durability through
   `scan_ingestion_jobs`, sanitized `scan_ingestion_intents`, scheduled
@@ -89,9 +91,10 @@ networking, and hardware orchestration logic.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)**
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
-  inference fields, V48 offline job records/events, private Insight chat tables,
-  scan media assets, and Explore Community Identification versioned taxonomy,
-  consensus jobs, projections, and request tables.
+  inference fields, V48 offline job records/events, V49 startup store repair,
+  private Insight chat tables, scan media assets, and Explore Community
+  Identification versioned taxonomy, consensus jobs, projections, and request
+  tables.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/update-public-avatar`,
@@ -148,8 +151,9 @@ networking, and hardware orchestration logic.
   — Explore Home Screen widget: image-only WidgetKit extension, App Group cache
   contract, timeline carousel behavior, and deep-link routing.
 - **[`/features-and-hardware/14-explore-author-profiles.md`](./features-and-hardware/14-explore-author-profiles.md)**
-  — Public Explore author profile sheets, privacy-scoped profile stats,
-  non-opening public achievements, and the paginated published-scan library.
+  — Public Explore author profile navigation, privacy-scoped profile stats,
+  non-opening public achievements, capped profile-to-scan nesting, and the
+  paginated published-scan library.
 - **[`/features-and-hardware/15-explore-following.md`](./features-and-hardware/15-explore-following.md)**
   — Explore Follow relationships: Following feed filter, public profile counts,
   follow notifications, block cleanup, and ghost-merge repair.
@@ -184,8 +188,8 @@ networking, and hardware orchestration logic.
   notification behavior, iOS composer/link rendering, and verification.
 - **[`/features-and-hardware/24-explore-bottom-menu.md`](./features-and-hardware/24-explore-bottom-menu.md)**
   — Explore root navigation, Observations Feed/Map toggle, Community
-  identification queue, Dictionary catalog, and Tree of Life canvas routing/data
-  boundaries.
+  identification queue, author-profile stack routing, Dictionary catalog, and
+  Tree of Life canvas routing/data boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Field Trips Available/Community segments, guided template detail, progress
   matching, seasonal challenges, challenge badges, publication snapshots,

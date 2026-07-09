@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-08-startup-store-v49-recovery",
+      "date": "2026-07-08",
+      "title": "Startup store recovery",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Startup recovery now repairs devices carrying the accidental optional-queue V48 store by migrating forward to V49, routes V42/V43 stores through source-isolated plans, and TestFlight/debug safe-mode cards include redacted copy/share diagnostics."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-08-field-trips",
       "date": "2026-07-08",
       "title": "Field Trips",
@@ -40,7 +53,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Explore videos now pause through a scoped sheet lifecycle, rebuild feed and post-detail playback only after the final Explore overlay closes, and leave a visible play control if autoplay cannot restart."
+            "Opening an author profile from Explore feed, post detail, or comments now stays inside the Explore navigation stack instead of layering a profile sheet over the active video surface, with profile-to-scan navigation capped so users cannot build an endlessly nested stack."
           ]
         }
       ]

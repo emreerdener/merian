@@ -1,11 +1,24 @@
 import SwiftData
 import SwiftUI
 
-struct ExploreAuthorProfileRoute: Identifiable, Equatable {
+enum ExploreAuthorProfileNavigationPolicy {
+    static let maxProfileDepth = 1
+
+    static func canOpenProfile(from currentDepth: Int) -> Bool {
+        currentDepth < maxProfileDepth
+    }
+
+    static func nextProfileDepth(from currentDepth: Int) -> Int {
+        min(currentDepth + 1, maxProfileDepth)
+    }
+}
+
+struct ExploreAuthorProfileRoute: Identifiable, Equatable, Hashable {
     let authorUserId: String
     let authorName: String
     let authorUsername: String?
     let authorAvatarUrl: String?
+    let navigationDepth: Int
 
     var id: String { authorUserId }
 
@@ -13,99 +26,76 @@ struct ExploreAuthorProfileRoute: Identifiable, Equatable {
         ExplorePost.publicAuthorDisplayName(from: authorName, username: authorUsername)
     }
 
-    init(post: ExplorePost) {
+    init(post: ExplorePost, navigationDepth: Int = 0) {
         self.authorUserId = post.authorUserId
         self.authorName = post.authorName
         self.authorUsername = post.authorUsername
         self.authorAvatarUrl = post.authorAvatarUrl
+        self.navigationDepth = navigationDepth
     }
 
-    init(comment: ExploreComment) {
+    init(comment: ExploreComment, navigationDepth: Int = 0) {
         self.authorUserId = comment.authorUserId
         self.authorName = comment.authorName
         self.authorUsername = comment.authorUsername
         self.authorAvatarUrl = comment.authorAvatarUrl
+        self.navigationDepth = navigationDepth
     }
 
-    init(mention: ExploreCommentMention) {
+    init(mention: ExploreCommentMention, navigationDepth: Int = 0) {
         self.authorUserId = mention.userId
         self.authorName = mention.displayName
         self.authorUsername = mention.username
         self.authorAvatarUrl = mention.avatarUrl
+        self.navigationDepth = navigationDepth
     }
 
     init(
         authorUserId: String,
         authorName: String,
         authorUsername: String?,
-        authorAvatarUrl: String?
+        authorAvatarUrl: String?,
+        navigationDepth: Int = 0
     ) {
         self.authorUserId = authorUserId
         self.authorName = authorName
         self.authorUsername = authorUsername
         self.authorAvatarUrl = authorAvatarUrl
+        self.navigationDepth = navigationDepth
+    }
+
+    func withNavigationDepth(_ depth: Int) -> ExploreAuthorProfileRoute {
+        ExploreAuthorProfileRoute(
+            authorUserId: authorUserId,
+            authorName: authorName,
+            authorUsername: authorUsername,
+            authorAvatarUrl: authorAvatarUrl,
+            navigationDepth: depth
+        )
     }
 }
 
 struct ExploreAuthorProfileSheet: View {
-    enum Mode: Equatable {
-        case profile
-        case library
-    }
-
     @Bindable var viewModel: ExploreFeedViewModel
     let route: ExploreAuthorProfileRoute
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-
-    @State private var profile: ExploreAuthorProfile?
-    @State private var isLoadingProfile = true
-    @State private var profileErrorMessage: String?
-    @State private var mode: Mode = .profile
-    @State private var libraryPosts: [ExplorePost] = []
-    @State private var libraryCursor = ExploreAuthorPostCursor.empty
-    @State private var isLoadingLibrary = false
-    @State private var hasReachedEndOfLibrary = false
     @State private var navigationPath = NavigationPath()
-    @State private var isUpdatingFollow = false
-
-    private let previewLimit = 9
-    private let libraryPageSize = 30
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ZStack {
-                switch profileState {
-                case .loading:
-                    loadingState
-                        .transition(.opacity)
-                case .error(let message):
-                    errorState(message: message)
-                        .transition(.opacity)
-                case .loaded(let loadedProfile):
-                    ZStack {
-                        if mode == .profile {
-                            profileContent(loadedProfile)
-                                .transition(.asymmetric(
-                                    insertion: .move(edge: .leading).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                ))
-                        } else {
-                            libraryContent(loadedProfile)
-                                .transition(.asymmetric(
-                                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .trailing).combined(with: .opacity)
-                                ))
-                        }
-                    }
-                    .animation(.spring(response: 0.34, dampingFraction: 0.86), value: mode)
+            ExploreAuthorProfileContent(
+                viewModel: viewModel,
+                route: route,
+                presentation: .sheet,
+                onClose: { dismiss() },
+                onOpenPostRoute: { route in
+                    navigationPath.append(route)
+                },
+                onOpenPublication: { publicationId in
+                    navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
                 }
-            }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationTitle(navigationTitle)
-            .toolbar { toolbarContent }
+            )
             .navigationDestination(for: ExplorePostRoute.self) { route in
                 ExplorePostDetailView(
                     viewModel: viewModel,
@@ -131,6 +121,74 @@ struct ExploreAuthorProfileSheet: View {
             }
         }
         .presentationBackground(Color(uiColor: .systemGroupedBackground))
+    }
+}
+
+struct ExploreAuthorProfileContent: View {
+    enum Presentation: Equatable {
+        case sheet
+        case stack
+    }
+
+    enum Mode: Equatable {
+        case profile
+        case library
+    }
+
+    @Bindable var viewModel: ExploreFeedViewModel
+    let route: ExploreAuthorProfileRoute
+    let presentation: Presentation
+    let onClose: () -> Void
+    let onOpenPostRoute: (ExplorePostRoute) -> Void
+    let onOpenPublication: (String) -> Void
+
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var profile: ExploreAuthorProfile?
+    @State private var isLoadingProfile = true
+    @State private var profileErrorMessage: String?
+    @State private var mode: Mode = .profile
+    @State private var libraryPosts: [ExplorePost] = []
+    @State private var libraryCursor = ExploreAuthorPostCursor.empty
+    @State private var isLoadingLibrary = false
+    @State private var hasReachedEndOfLibrary = false
+    @State private var isUpdatingFollow = false
+
+    private let previewLimit = 9
+    private let libraryPageSize = 30
+
+    var body: some View {
+        ZStack {
+            switch profileState {
+            case .loading:
+                loadingState
+                    .transition(.opacity)
+            case .error(let message):
+                errorState(message: message)
+                    .transition(.opacity)
+            case .loaded(let loadedProfile):
+                ZStack {
+                    if mode == .profile {
+                        profileContent(loadedProfile)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .leading).combined(with: .opacity),
+                                removal: .move(edge: .leading).combined(with: .opacity)
+                            ))
+                    } else {
+                        libraryContent(loadedProfile)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .move(edge: .trailing).combined(with: .opacity)
+                            ))
+                    }
+                }
+                .animation(.spring(response: 0.34, dampingFraction: 0.86), value: mode)
+            }
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(navigationTitle)
+        .toolbar { toolbarContent }
         .task(id: route.authorUserId) {
             await loadProfile()
         }
@@ -144,7 +202,7 @@ struct ExploreAuthorProfileSheet: View {
 
             if previousUserId == route.authorUserId.lowercased(),
                currentUserId != route.authorUserId.lowercased() {
-                dismiss()
+                onClose()
             } else {
                 Task { await loadProfile(force: true) }
             }
@@ -195,12 +253,14 @@ struct ExploreAuthorProfileSheet: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button(action: leadingToolbarAction) {
-                Image(systemName: mode == .library ? "chevron.left" : "xmark")
-                    .font(.system(size: 16, weight: .bold))
+        if mode == .library || presentation == .sheet {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: leadingToolbarAction) {
+                    Image(systemName: mode == .library ? "chevron.left" : "xmark")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .accessibilityLabel(mode == .library ? "Back to profile" : "Close")
             }
-            .accessibilityLabel(mode == .library ? "Back to profile" : "Close")
         }
     }
 
@@ -248,7 +308,7 @@ struct ExploreAuthorProfileSheet: View {
 
                 if let fieldTrips = profile.fieldTrips, !fieldTrips.isEmpty {
                     FieldTripProfilePreview(summaries: fieldTrips, onOpenPublication: { publicationId in
-                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                        onOpenPublication(publicationId)
                     })
                 }
 
@@ -565,7 +625,7 @@ struct ExploreAuthorProfileSheet: View {
     private func leadingToolbarAction() {
         switch mode {
         case .profile:
-            dismiss()
+            onClose()
         case .library:
             withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
                 mode = .profile
@@ -752,12 +812,13 @@ struct ExploreAuthorProfileSheet: View {
     private func openPost(_ post: ExplorePost) {
         viewModel.upsertPost(post)
         viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
-        navigationPath.append(ExplorePostRoute(
+        onOpenPostRoute(ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: false,
             shouldOpenInsight: false,
             targetCommentId: nil,
-            targetReplyParentCommentId: nil
+            targetReplyParentCommentId: nil,
+            authorProfileDepth: route.navigationDepth
         ))
     }
 }

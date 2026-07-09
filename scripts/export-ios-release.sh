@@ -122,7 +122,7 @@ project_yml="${PROJECT_YML:-project.yml}"
 [[ -f "$project_yml" ]] || fail "Missing project.yml at $repo_root/$project_yml"
 
 if [[ "${IOS_EXPORT_SKIP_PREP_CHECK:-0}" != "1" ]]; then
-  MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$repo_root" "$script_dir/check-ios-release-prep.sh"
+  CONFIGURATION=Release MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$repo_root" "$script_dir/check-ios-release-prep.sh"
 fi
 
 archive_path="${ARCHIVE_PATH:-}"

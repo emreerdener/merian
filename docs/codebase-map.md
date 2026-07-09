@@ -54,13 +54,13 @@ Web runtime config:
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV48
+typealias CurrentSchema = MerianSchemaV49
 ```
 
-`MerianSchemaV48` is declared in `apps/ios/Merian/Models/SchemaVersions.swift`
+`MerianSchemaV49` is declared in `apps/ios/Merian/Models/SchemaVersions.swift`
 and points at the global active model classes in
-`apps/ios/Merian/Models/ActiveSchema/`. V47 remains frozen in
-`SchemaVersions.swift` for the outgoing offline-video schema.
+`apps/ios/Merian/Models/ActiveSchema/`. V47 and V48 remain frozen in
+`SchemaVersions.swift` for source-specific startup recovery.
 
 Active persistent models:
 
@@ -84,15 +84,19 @@ Recent schema milestones:
   truth.
 - V42 added first-class `fieldNotes` columns to `LocalScanRecord` and
   `OfflineQueuedScan`, while preserving the legacy UserDefaults bridge through
-  `FieldNotesRepository`.
+  `FieldNotesRepository`. V42 stores now use a source-isolated startup recovery
+  plan to avoid validating older full-historical custom stages before migration
+  reaches the actual source.
 - V43 introduced AI-derived sex observation metadata on completed local scans.
+  V43 stores also use a source-isolated startup recovery plan before the
+  V43→V48→V49 repair path.
 - V44 added optional dog/cat pet-identification display metadata on completed
   local scans.
 - V45 added optional invasive-status context to completed local scans. V46 was a
   shipped no-op checksum twin of V45; runtime migration keeps the
   duplicate-prone V44/V45/V46 recent cluster out of the full historical plan,
   jumps older stores V43→V48, and uses source-isolated recent plans for stores
-  already stamped V44, V45, or V46. V44, V45, and V46 stores jump through
+  already stamped V42, V43, V44, V45, or V46. V44, V45, and V46 stores jump through
   separate direct V44→V48, V45→V48, and V46→V48 plans.
 - V47 added offline video inference replay fields so sampled frames can be
   queued separately from the user-visible playback video timeline. Its frozen
@@ -106,6 +110,12 @@ Recent schema milestones:
   row so startup does not fall back to safe mode on stores with queued media.
   V47 job/event rows and replacement queued-scan rows are seeded from migration
   snapshots so stale SwiftData model-identity traps cannot survive into V48.
+- V49 is a startup store-repair schema. It keeps the V48 queue scheduler model,
+  adds `OfflineQueuedScan.queueSchemaRepairGeneration`, and provides separate
+  V48→V49 plans for the known-good V48 checksum and the accidental
+  optional-queue V48 TestFlight checksum. Startup diagnostics record redacted
+  store metadata and attempted plan names so failing devices can share evidence
+  without exposing paths, account data, scan text, or media URLs.
   `MigrationPlanTests` carries the disk-store fixture matrix for image, video,
   audio, description-only, and mixed queued media, and
   `.github/workflows/ios-startup-safety.yml` runs that suite beside store
@@ -125,7 +135,7 @@ alongside the migration plan.
 | Describe           | `apps/ios/Merian/Features/Capture/Describe/`                                                                                           | Typed observation input, guided question funnels, subject keyword matching, and `SpeechManager` dictation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Insights           | `apps/ios/Merian/Features/Insights/`                                                                                                   | Product-area-first insight result feature. `Shell/` owns the root sheet, presentation routes, embedded navigation, and root view model; `Content/` owns biological/non-biological/queued/analyzing result bodies; `Media/` owns carousel/gallery/export work; `IdentificationReview/` owns candidates and confidence UX; `FieldNotes/`, `Chat/`, `Sharing/`, `Reporting/`, `Toolbars/`, and `SpeciesReference/` own their named insight subareas; `Toolbars/TopToolbar/` owns the collection-membership overflow menu; `Shared/` holds reusable insight chrome.                                                                                              |
 | Scans              | `apps/ios/Merian/Features/Scans/`                                                                                                      | Product-area-first private scan library. `Shell/` owns the root sheet, pager, toolbar, and search chrome; `Library/` owns individual scans, `ScansManager`, the search index, and queued-scan snapshots; `Collections/` owns collection grids, detail routes, smart collections, and scan selection flows; `NonBiological/` owns the non-biological isolation surface; `Shared/` holds scan grid, thumbnail, empty-state, and deletion UI reused across Scans product areas.                                                                                                                                                                                 |
-| Explore            | `apps/ios/Merian/Features/Explore/`                                                                                                    | Product-area-first public discovery feature. `Shell/` owns the root sheet/router and scoped video playback coordinator, `Feed/` owns observations feed, post detail, comments, hashtags, feed interaction state, and the shared feed/detail video media host, `Map/` owns the map surface, `Identify/` owns Community ID requests/activity, `FieldTrips/` owns Field Trip Available/Community segments, Seasonal Challenges, guided template detail, progress, publication/challenge-entry detail, badges, and profile modules, `Notifications/` owns Explore activity notifications, `AuthorProfile/` owns public author sheets, `Shared/` holds only cross-area Explore UI helpers, and `Widgets/` writes the image-only Explore widget cache. |
+| Explore            | `apps/ios/Merian/Features/Explore/`                                                                                                    | Product-area-first public discovery feature. `Shell/` owns the root sheet/router, stack-based author-profile routing, the profile-to-scan nesting cap, and scoped video playback coordinator; `Feed/` owns observations feed, post detail, comments, hashtags, feed interaction state, and the shared feed/detail video media host; `Map/` owns the map surface; `Identify/` owns Community ID requests/activity; `FieldTrips/` owns Field Trip Available/Community segments, Seasonal Challenges, guided template detail, progress, publication/challenge-entry detail, badges, and profile modules; `Notifications/` owns Explore activity notifications; `AuthorProfile/` owns public author profile content/routes; `Shared/` holds only cross-area Explore UI helpers; and `Widgets/` writes the image-only Explore widget cache. |
 | Messages sharing   | `apps/ios/messages/ScanSharing/`, `apps/ios/messages/MerianMessagesExtension/`                                                         | Shipped iMessage sharing surface. `MerianMessagesExtension/` owns the extension UI, `ScanSharing/Shared/` owns the App Group cache model read by both targets, and `ScanSharing/AppSupport/` owns the containing-app cache writer.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Profile            | `apps/ios/Merian/Features/Profile/`                                                                                                    | Product-area-first account feature. `Shell/` owns the profile/settings pager and close chrome; `UserProfile/` owns the public profile card, published scans preview, Field Trip profile modules, achievements, persona, terrarium, heatmap, and profile stats actor; `Settings/` owns preferences, geoprivacy, export, resources, and danger-zone account actions; `Settings/Plan/` owns RevenueCat plan management, profile plan cards, and paywall UI; `Settings/Notifications/` owns push-notification preferences; `Settings/Changelog/` owns bundled release notes; `Settings/Feedback/` owns the beta survey; `Shared/` holds cross-area profile state such as `ProfileViewModel`. |
 | Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/`                                                                                          | Product-area-first species reference feature. `Detail/` owns the public species page and reference gallery, `Catalog/` owns the Explore Index catalog/overview/regions surfaces, and `Tree/` owns the taxonomy canvas and graph model.                                                                                                                                                                                                                                                                                                                                                                                                                       |

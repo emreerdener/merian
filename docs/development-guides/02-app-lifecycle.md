@@ -138,12 +138,15 @@ The full operating contract lives in `docs/backend-and-data/08-startup-store-rec
 - SwiftData/Core Data can raise Objective-C `NSException`s during `ModelContainer` initialization, which Swift `do/catch` cannot catch directly. `MerianApp` wraps container creation with a tiny Objective-C bridge so those launch-time exceptions become Swift errors and can enter the existing recovery path.
 - Startup reads SwiftData store metadata before creating the persistent
   container. Fresh/current stores open without a migration plan, known recent
-  stores use source-isolated V47/V46/V45/V44 plans, and unknown older stores use
-  the full historical plan. That full plan jumps V43→V48 so SwiftData does not
-  validate the duplicate-prone V44/V45/V46 recent cluster during older-store
-  migrations. V46 is a no-op checksum twin of V45, so its recent plan keeps V46
-  as the only duplicate-cluster source representative and jumps directly to V48.
-  V47 has its own source-isolated plan for stores already stamped V47.
+  stores use source-isolated V48/V47/V46/V45/V44/V43/V42 plans, and unknown
+  older stores use the full historical plan. That full plan jumps V43→V48 so
+  SwiftData does not validate the duplicate-prone V44/V45/V46 recent cluster
+  during older-store migrations. V42/V43 use short plans to avoid validating
+  older full-historical custom stages that can raise SwiftData's
+  equal-model-reference exception. V46 is a no-op checksum twin of V45, so its
+  recent plan keeps V46 as the only duplicate-cluster source representative and
+  jumps directly to V48. V47 has its own source-isolated plan for stores already
+  stamped V47.
   Duplicate-checksum failures retry through the same recent-plan ladder before
   safe mode.
 - Store quarantine is intentionally narrow and owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: Merian only moves `default.store`, `default.store-shm`, and `default.store-wal` when the failure matches a verified SQLite/Core Data corruption signature and those store artifacts exist. Generic container failures must boot safe mode without moving user data.

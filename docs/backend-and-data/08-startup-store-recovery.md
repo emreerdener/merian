@@ -20,15 +20,19 @@ quarantined local store files, telemetry, and verification.
    `ModelContainer`.
 2. Choose the narrowest safe startup strategy:
    - no store artifacts or current-schema store → open without a migration plan
-   - known recent source store (V44, V45, V46, or V47) → open with the matching
+   - known recent source store (V42, V43, V44, V45, V46, V47, or V48) → open with the matching
      source-isolated recent migration plan
    - unknown older store → open with the full historical `MerianMigrationPlan`
 3. If SwiftData reports duplicate version checksums, retry through the
-   source-isolated ladder: current-store open, then V47, V46, V45, and V44.
+   source-isolated ladder: current-store open, then V48, V47, V46, V45, V44,
+   V43, and V42.
    The V45/V46 retry plans keep those source representatives isolated from each
    other and use direct V48 targets because V46 was a shipped no-op schema; V47
    uses its own source-isolated V47→V48 plan with self-contained V47 model
-   classes and scalar queued-scan snapshots.
+   classes and scalar queued-scan snapshots. V48 has two isolated V48→V49 lanes:
+   the known-good V48 source and the accidental optional-queue V48 TestFlight
+   source. V42/V43 use short plans to avoid validating older full-historical
+   custom stages that can raise SwiftData's equal-model-reference exception.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption
@@ -37,8 +41,7 @@ quarantined local store files, telemetry, and verification.
    - `default.store`
    - `default.store-shm`
    - `default.store-wal`
-7. Retry the persistent `ModelContainer` exactly once using the same store-aware
-   strategy selection.
+7. Retry the persistent `ModelContainer` exactly once after quarantine.
 8. If recovery still fails, boot an in-memory safe-mode container and show a
    startup notice.
 9. If even the in-memory container fails, show the startup-blocked fallback UI.
@@ -84,15 +87,25 @@ attached to the cloud user even when local SwiftData needs repair.
 ## Telemetry
 
 `MerianApp` emits `StartupStoreRecovery` after `AppTelemetry.initialize()` with
-only coarse string properties:
+only redacted string properties:
 
-| Property  | Examples                                                                                                                                 |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `outcome` | `recovered`, `safe_mode`, `blocked`                                                                                                      |
-| `reason`  | `corruption_quarantined`, `persistent_store_migration_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
+| Property                    | Examples                                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `outcome`                   | `recovered`, `safe_mode`, `blocked`                                                                                                      |
+| `reason`                    | `corruption_quarantined`, `persistent_store_migration_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
+| `selected_strategy`         | `current-store`, `recent-source-v48`, `full-historical`                                                                                  |
+| `current_schema_major`      | `49`                                                                                                                                     |
+| `stored_schema_major`       | `48`, `none`                                                                                                                             |
+| `attempts`                  | `recent-v48-known-good:failure,recent-v48-optional-queue:success`                                                                        |
+| `metadata_fingerprints`     | Core Data model/version metadata keys with SHA-256 value fingerprints                                                                    |
+| `first_error`               | error domain, code, and fingerprints of description/failure/debug text                                                                   |
+| `quarantine_attempted`      | `true`, `false`                                                                                                                          |
+| `quarantine_performed`      | `true`, `false`                                                                                                                          |
 
-Do not attach exception text, local paths, user IDs, scan IDs, or account state
-to this event.
+The latest startup diagnostic is also persisted locally and shown as a
+TestFlight/debug share action on the safe-mode/recovery card. Do not attach raw
+exception text, local paths, user IDs, scan IDs, scan text, media URLs, or
+account state to this event or diagnostic payload.
 
 ## Project Guardrails
 
@@ -105,10 +118,11 @@ to this event.
 
 `make validate-ios-migration-guardrails` checks the SwiftData migration source
 contract before Xcode compiles anything. It keeps the full runtime migration
-path on V43->V48, keeps duplicate-prone V44/V45/V46/V47 representatives out of
-that full path, verifies V44/V45/V46 source-isolated plans target V48 directly,
-and guards the disk-backed migration tests from unlinking SQLite files during
-the test process.
+path on V43->V48->V49, keeps duplicate-prone V44/V45/V46/V47 representatives out
+of that full path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans pass
+through V48 and target V49, verifies the known-good and optional-queue V48
+recovery plans, and guards the disk-backed migration tests from unlinking SQLite
+files during the test process.
 
 Run both after XcodeGen changes.
 

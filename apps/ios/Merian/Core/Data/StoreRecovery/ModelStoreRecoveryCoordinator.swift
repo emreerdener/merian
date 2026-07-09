@@ -1,4 +1,5 @@
 import CoreData
+import CryptoKit
 import Foundation
 
 /// Handles launch-time SwiftData store recovery without touching account identity.
@@ -33,6 +34,7 @@ enum ModelStoreRecoveryCoordinator {
     private static let sqliteCorruptionCodes: Set<Int> = [11, 26] // SQLITE_CORRUPT, SQLITE_NOTADB
     private static let unknownModelVersionErrorCode = 134_504
     private static let manifestFilename = "recovery-manifest.json"
+    private static let latestStartupDiagnosticKey = "app.merian.startup-store-diagnostic.latest"
     private static let storeModelVersionIdentifiersKey = "NSStoreModelVersionIdentifiers"
     private static let corruptionPhrases = [
         "database disk image is malformed",
@@ -52,6 +54,10 @@ enum ModelStoreRecoveryCoordinator {
         "incompatible version hash",
         "missing mapping model",
         "model version",
+        "model reference",
+        "current model reference",
+        "next model reference",
+        "the current model reference and the next model reference cannot be equal",
         "staged migration",
         "duplicate version checksums",
         "version checksum"
@@ -59,6 +65,58 @@ enum ModelStoreRecoveryCoordinator {
 
     static func defaultStoreURL() -> URL {
         URL.applicationSupportDirectory.appending(path: "default.store")
+    }
+
+    static func makeStartupDiagnostic(
+        storeURL: URL = defaultStoreURL(),
+        currentSchemaMajor: Int,
+        migrationSchemas: String,
+        migrationStages: String,
+        decision: StoreMigrationDecision,
+        fileManager: FileManager = .default,
+        now: Date = Date()
+    ) -> StartupStoreDiagnostic {
+        StartupStoreDiagnostic(
+            timestamp: ISO8601DateFormatter().string(from: now),
+            appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
+            buildNumber: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
+            osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+            currentSchemaMajor: currentSchemaMajor,
+            migrationSchemas: migrationSchemas,
+            migrationStages: migrationStages,
+            selectedStrategy: decision.hint.description,
+            store: storeDiagnosticSnapshot(at: storeURL, fileManager: fileManager)
+        )
+    }
+
+    static func recordLatestStartupDiagnostic(_ diagnostic: StartupStoreDiagnostic) {
+        guard let data = try? JSONEncoder.prettySorted.encode(diagnostic),
+              let text = String(data: data, encoding: .utf8) else {
+            return
+        }
+        UserDefaults.standard.set(text, forKey: latestStartupDiagnosticKey)
+    }
+
+    static func latestStartupDiagnosticText() -> String? {
+        UserDefaults.standard.string(forKey: latestStartupDiagnosticKey)
+    }
+
+    static func startupDiagnosticText(_ diagnostic: StartupStoreDiagnostic) -> String? {
+        guard let data = try? JSONEncoder.prettySorted.encode(diagnostic) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func diagnosticErrorSummaries(for error: Error) -> [StartupStoreDiagnosticError] {
+        errorChain(from: error).map { candidate in
+            let nsError = candidate as NSError
+            return StartupStoreDiagnosticError(
+                domain: nsError.domain,
+                code: nsError.code,
+                descriptionFingerprint: fingerprint(nsError.localizedDescription),
+                failureReasonFingerprint: fingerprint(nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String),
+                debugDescriptionFingerprint: fingerprint(nsError.userInfo[NSDebugDescriptionErrorKey] as? String)
+            )
+        }
     }
 
     static func migrationDecision(
@@ -94,7 +152,7 @@ enum ModelStoreRecoveryCoordinator {
             return .currentStore
         }
 
-        if (44...47).contains(storedSchemaMajorVersion) {
+        if (42...48).contains(storedSchemaMajorVersion) {
             return .recentSource(storedSchemaMajorVersion)
         }
 
@@ -124,6 +182,46 @@ enum ModelStoreRecoveryCoordinator {
 
     static func storedSchemaMajorVersion(from metadata: [String: Any]) -> Int? {
         schemaMajorVersions(from: metadata[storeModelVersionIdentifiersKey]).max()
+    }
+
+    private static func storeDiagnosticSnapshot(
+        at storeURL: URL,
+        fileManager: FileManager
+    ) -> StartupStoreDiagnosticStore {
+        let artifacts = storeArtifacts(for: storeURL, fileManager: fileManager)
+        let artifactSummaries = artifacts.map { artifact in
+            let attributes = try? fileManager.attributesOfItem(atPath: artifact.path)
+            let size = attributes?[.size] as? NSNumber
+            return StartupStoreDiagnosticArtifact(
+                name: artifact.lastPathComponent,
+                sizeBytes: size?.int64Value
+            )
+        }
+
+        do {
+            let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(
+                ofType: NSSQLiteStoreType,
+                at: storeURL,
+                options: nil
+            )
+            return StartupStoreDiagnosticStore(
+                hasArtifacts: !artifactSummaries.isEmpty,
+                artifacts: artifactSummaries,
+                storedSchemaMajorVersion: storedSchemaMajorVersion(from: metadata),
+                modelVersionIdentifiers: diagnosticStrings(from: metadata[storeModelVersionIdentifiersKey]),
+                metadataFingerprints: diagnosticMetadataFingerprints(from: metadata),
+                metadataReadError: nil
+            )
+        } catch {
+            return StartupStoreDiagnosticStore(
+                hasArtifacts: !artifactSummaries.isEmpty,
+                artifacts: artifactSummaries,
+                storedSchemaMajorVersion: nil,
+                modelVersionIdentifiers: [],
+                metadataFingerprints: [:],
+                metadataReadError: diagnosticErrorSummaries(for: error).first
+            )
+        }
     }
 
     static func shouldAttemptRecovery(for error: Error) -> Bool {
@@ -185,7 +283,9 @@ enum ModelStoreRecoveryCoordinator {
             .joined(separator: "\n")
 
             return normalizedText.contains("duplicate version checksums") ||
-                normalizedText.contains("version checksum")
+                normalizedText.contains("version checksum") ||
+                normalizedText.contains("the current model reference and the next model reference cannot be equal") ||
+                normalizedText.contains("current model reference")
         }
     }
 
@@ -315,6 +415,91 @@ enum ModelStoreRecoveryCoordinator {
         return nil
     }
 
+    private static func diagnosticStrings(from value: Any?) -> [String] {
+        guard let value else { return [] }
+
+        switch value {
+        case let string as String:
+            return [diagnosticString(from: string)]
+        case let number as NSNumber:
+            return [number.stringValue]
+        case let strings as [String]:
+            return strings.map(diagnosticString(from:))
+        case let values as [Any]:
+            return values.flatMap(diagnosticStrings(from:))
+        case let set as Set<String>:
+            return set.map(diagnosticString(from:)).sorted()
+        case let set as NSSet:
+            return set.allObjects.flatMap(diagnosticStrings(from:)).sorted()
+        default:
+            return [fingerprint(String(describing: value)).map { "sha256:\($0)" } ?? "unavailable"]
+        }
+    }
+
+    private static func diagnosticString(from string: String) -> String {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "empty" }
+
+        let privacySensitiveCharacters = CharacterSet(charactersIn: "/\\@")
+        if trimmed.rangeOfCharacter(from: privacySensitiveCharacters) != nil || trimmed.count > 160 {
+            return fingerprint(trimmed).map { "sha256:\($0)" } ?? "redacted"
+        }
+
+        return trimmed
+    }
+
+    private static func diagnosticMetadataFingerprints(from metadata: [String: Any]) -> [String: String] {
+        metadata.reduce(into: [String: String]()) { result, element in
+            let normalizedKey = element.key.lowercased()
+            let shouldCapture = normalizedKey.contains("version") ||
+                normalizedKey.contains("hash") ||
+                normalizedKey.contains("checksum") ||
+                normalizedKey.contains("model")
+            guard shouldCapture else { return }
+
+            let key = diagnosticString(from: element.key)
+            let value = diagnosticStableDescription(from: element.value)
+            result[key] = fingerprint(value).map { "sha256:\($0)" } ?? "unavailable"
+        }
+    }
+
+    private static func diagnosticStableDescription(from value: Any?) -> String {
+        guard let value else { return "nil" }
+
+        switch value {
+        case let string as String:
+            return string
+        case let number as NSNumber:
+            return number.stringValue
+        case let data as Data:
+            return "data:\(fingerprint(data))"
+        case let date as Date:
+            return ISO8601DateFormatter().string(from: date)
+        case let values as [Any]:
+            return "[" + values.map(diagnosticStableDescription(from:)).joined(separator: ",") + "]"
+        case let strings as [String]:
+            return "[" + strings.sorted().joined(separator: ",") + "]"
+        case let set as NSSet:
+            return "[" + set.allObjects.map(diagnosticStableDescription(from:)).sorted().joined(separator: ",") + "]"
+        case let dictionary as [String: Any]:
+            return dictionary.keys.sorted().map { key in
+                "\(key)=\(diagnosticStableDescription(from: dictionary[key]))"
+            }.joined(separator: ";")
+        default:
+            return String(describing: value)
+        }
+    }
+
+    private static func fingerprint(_ text: String?) -> String? {
+        guard let text, !text.isEmpty else { return nil }
+        return fingerprint(Data(text.utf8))
+    }
+
+    private static func fingerprint(_ data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.prefix(12).map { String(format: "%02x", $0) }.joined()
+    }
+
     private static func errorChain(from rootError: Error) -> [Error] {
         var collected: [Error] = []
         var stack: [Error] = [rootError]
@@ -358,6 +543,179 @@ enum ModelStoreRecoveryCoordinator {
 struct ModelStoreSafeModeFallback: Equatable {
     let message: String
     let telemetryReason: String
+}
+
+struct StartupStoreDiagnostic: Codable, Equatable {
+    let schemaVersion: Int
+    let timestamp: String
+    let appVersion: String
+    let buildNumber: String
+    let osVersion: String
+    let currentSchemaMajor: Int
+    let migrationSchemas: String
+    let migrationStages: String
+    let selectedStrategy: String
+    let store: StartupStoreDiagnosticStore
+    private(set) var attempts: [StartupStoreDiagnosticAttempt]
+    private(set) var finalOutcome: String?
+    private(set) var finalReason: String?
+    private(set) var quarantineAttempted: Bool
+    private(set) var quarantinePerformed: Bool
+
+    init(
+        schemaVersion: Int = 1,
+        timestamp: String,
+        appVersion: String,
+        buildNumber: String,
+        osVersion: String,
+        currentSchemaMajor: Int,
+        migrationSchemas: String,
+        migrationStages: String,
+        selectedStrategy: String,
+        store: StartupStoreDiagnosticStore,
+        attempts: [StartupStoreDiagnosticAttempt] = [],
+        finalOutcome: String? = nil,
+        finalReason: String? = nil,
+        quarantineAttempted: Bool = false,
+        quarantinePerformed: Bool = false
+    ) {
+        self.schemaVersion = schemaVersion
+        self.timestamp = timestamp
+        self.appVersion = appVersion
+        self.buildNumber = buildNumber
+        self.osVersion = osVersion
+        self.currentSchemaMajor = currentSchemaMajor
+        self.migrationSchemas = migrationSchemas
+        self.migrationStages = migrationStages
+        self.selectedStrategy = selectedStrategy
+        self.store = store
+        self.attempts = attempts
+        self.finalOutcome = finalOutcome
+        self.finalReason = finalReason
+        self.quarantineAttempted = quarantineAttempted
+        self.quarantinePerformed = quarantinePerformed
+    }
+
+    mutating func recordAttempt(name: String, outcome: String, error: Error? = nil) {
+        attempts.append(
+            StartupStoreDiagnosticAttempt(
+                name: name,
+                outcome: outcome,
+                errorSummaries: error.map(ModelStoreRecoveryCoordinator.diagnosticErrorSummaries(for:)) ?? []
+            )
+        )
+    }
+
+    mutating func recordFinalOutcome(
+        _ outcome: String,
+        reason: String?,
+        quarantineAttempted: Bool? = nil,
+        quarantinePerformed: Bool? = nil
+    ) {
+        finalOutcome = outcome
+        finalReason = reason
+        if let quarantineAttempted {
+            self.quarantineAttempted = quarantineAttempted
+        }
+        if let quarantinePerformed {
+            self.quarantinePerformed = quarantinePerformed
+        }
+    }
+
+    var telemetryProperties: [String: String] {
+        var properties: [String: String] = [
+            "diagnostic_schema": String(schemaVersion),
+            "app_version": appVersion,
+            "build_number": buildNumber,
+            "current_schema_major": String(currentSchemaMajor),
+            "migration_schemas": migrationSchemas,
+            "migration_stages": migrationStages,
+            "selected_strategy": selectedStrategy,
+            "store_has_artifacts": String(store.hasArtifacts),
+            "store_artifact_count": String(store.artifacts.count),
+            "stored_schema_major": store.storedSchemaMajorVersion.map(String.init) ?? "none",
+            "model_version_identifiers": limited(store.modelVersionIdentifiers.joined(separator: ",")),
+            "attempt_count": String(attempts.count),
+            "attempts": limited(attempts.map { "\($0.name):\($0.outcome)" }.joined(separator: ",")),
+            "final_outcome": finalOutcome ?? "unknown",
+            "final_reason": finalReason ?? "none",
+            "quarantine_attempted": String(quarantineAttempted),
+            "quarantine_performed": String(quarantinePerformed)
+        ]
+
+        if !store.artifacts.isEmpty {
+            properties["store_artifacts"] = limited(
+                store.artifacts
+                    .map { "\($0.name):\($0.sizeBytes.map(String.init) ?? "unknown")" }
+                    .joined(separator: ",")
+            )
+        }
+
+        if !store.metadataFingerprints.isEmpty {
+            properties["metadata_fingerprints"] = limited(
+                store.metadataFingerprints
+                    .keys
+                    .sorted()
+                    .map { "\($0)=\(store.metadataFingerprints[$0] ?? "")" }
+                    .joined(separator: ",")
+            )
+        }
+
+        if let metadataReadError = store.metadataReadError {
+            properties["metadata_error"] = metadataReadError.telemetrySummary
+        }
+
+        if let firstError = attempts.lazy.flatMap(\.errorSummaries).first {
+            properties["first_error"] = firstError.telemetrySummary
+        }
+
+        return properties
+    }
+
+    private func limited(_ value: String, maxLength: Int = 512) -> String {
+        guard value.count > maxLength else { return value }
+        return String(value.prefix(maxLength))
+    }
+}
+
+struct StartupStoreDiagnosticAttempt: Codable, Equatable {
+    let name: String
+    let outcome: String
+    let errorSummaries: [StartupStoreDiagnosticError]
+}
+
+struct StartupStoreDiagnosticStore: Codable, Equatable {
+    let hasArtifacts: Bool
+    let artifacts: [StartupStoreDiagnosticArtifact]
+    let storedSchemaMajorVersion: Int?
+    let modelVersionIdentifiers: [String]
+    let metadataFingerprints: [String: String]
+    let metadataReadError: StartupStoreDiagnosticError?
+}
+
+struct StartupStoreDiagnosticArtifact: Codable, Equatable {
+    let name: String
+    let sizeBytes: Int64?
+}
+
+struct StartupStoreDiagnosticError: Codable, Equatable {
+    let domain: String
+    let code: Int
+    let descriptionFingerprint: String?
+    let failureReasonFingerprint: String?
+    let debugDescriptionFingerprint: String?
+
+    var telemetrySummary: String {
+        [
+            domain,
+            String(code),
+            descriptionFingerprint.map { "d:\($0)" },
+            failureReasonFingerprint.map { "f:\($0)" },
+            debugDescriptionFingerprint.map { "x:\($0)" }
+        ]
+        .compactMap { $0 }
+        .joined(separator: "|")
+    }
 }
 
 struct ModelStoreRecoveryManifest: Codable, Equatable {

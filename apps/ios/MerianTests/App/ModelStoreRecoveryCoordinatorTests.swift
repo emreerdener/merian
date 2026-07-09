@@ -89,6 +89,23 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         XCTAssertTrue(ModelStoreRecoveryCoordinator.isDuplicateVersionChecksumFailure(duplicateChecksumError))
     }
 
+    func testDetectsEqualModelReferenceFailuresForTargetedRetry() {
+        let equalModelReferenceError = NSError(
+            domain: "app.merian.objc-exception",
+            code: 1,
+            userInfo: [
+                NSLocalizedDescriptionKey: "The current model reference and the next model reference cannot be equal.",
+                NSLocalizedFailureReasonErrorKey: "NSInvalidArgumentException"
+            ]
+        )
+
+        XCTAssertTrue(ModelStoreRecoveryCoordinator.isDuplicateVersionChecksumFailure(equalModelReferenceError))
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.safeModeFallback(for: equalModelReferenceError).telemetryReason,
+            "persistent_store_migration_failed"
+        )
+    }
+
     func testReadsSchemaMajorVersionFromStoreMetadataIdentifiers() {
         let metadata: [String: Any] = [
             "NSStoreModelVersionIdentifiers": ["MerianSchemaV48"]
@@ -126,7 +143,7 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         let hint = ModelStoreRecoveryCoordinator.migrationHint(
             storedSchemaMajorVersion: nil,
             hasStoreArtifacts: false,
-            currentSchemaMajor: 48
+            currentSchemaMajor: 49
         )
 
         XCTAssertEqual(hint, .currentStore)
@@ -134,9 +151,9 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
 
     func testStoreMigrationHintOpensAlreadyCurrentStoresWithoutMigrationPlan() {
         let hint = ModelStoreRecoveryCoordinator.migrationHint(
-            storedSchemaMajorVersion: 48,
+            storedSchemaMajorVersion: 49,
             hasStoreArtifacts: true,
-            currentSchemaMajor: 48
+            currentSchemaMajor: 49
         )
 
         XCTAssertEqual(hint, .currentStore)
@@ -145,9 +162,25 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
     func testStoreMigrationHintUsesRecentPlansForRecentSourceStores() {
         XCTAssertEqual(
             ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 42,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 49
+            ),
+            .recentSource(42)
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 43,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 49
+            ),
+            .recentSource(43)
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
                 storedSchemaMajorVersion: 44,
                 hasStoreArtifacts: true,
-                currentSchemaMajor: 48
+                currentSchemaMajor: 49
             ),
             .recentSource(44)
         )
@@ -155,7 +188,7 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
             ModelStoreRecoveryCoordinator.migrationHint(
                 storedSchemaMajorVersion: 45,
                 hasStoreArtifacts: true,
-                currentSchemaMajor: 48
+                currentSchemaMajor: 49
             ),
             .recentSource(45)
         )
@@ -163,7 +196,7 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
             ModelStoreRecoveryCoordinator.migrationHint(
                 storedSchemaMajorVersion: 46,
                 hasStoreArtifacts: true,
-                currentSchemaMajor: 48
+                currentSchemaMajor: 49
             ),
             .recentSource(46)
         )
@@ -171,9 +204,17 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
             ModelStoreRecoveryCoordinator.migrationHint(
                 storedSchemaMajorVersion: 47,
                 hasStoreArtifacts: true,
-                currentSchemaMajor: 48
+                currentSchemaMajor: 49
             ),
             .recentSource(47)
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 48,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 49
+            ),
+            .recentSource(48)
         )
     }
 
@@ -182,7 +223,7 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
             ModelStoreRecoveryCoordinator.migrationHint(
                 storedSchemaMajorVersion: nil,
                 hasStoreArtifacts: true,
-                currentSchemaMajor: 48
+                currentSchemaMajor: 49
             ),
             .fullHistorical
         )
@@ -190,10 +231,66 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
             ModelStoreRecoveryCoordinator.migrationHint(
                 storedSchemaMajorVersion: 43,
                 hasStoreArtifacts: true,
-                currentSchemaMajor: 48
+                currentSchemaMajor: 49
+            ),
+            .recentSource(43)
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 41,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 49
             ),
             .fullHistorical
         )
+    }
+
+    func testStartupDiagnosticCapturesAttemptsAndRedactsPrivateText() throws {
+        let tempDirectory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let storeURL = tempDirectory.appendingPathComponent("default.store")
+        try writeStoreArtifact(at: storeURL, contents: "store")
+
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: true,
+            storedSchemaMajorVersion: 48,
+            hint: .recentSource(48)
+        )
+        var diagnostic = ModelStoreRecoveryCoordinator.makeStartupDiagnostic(
+            storeURL: storeURL,
+            currentSchemaMajor: 49,
+            migrationSchemas: "43,47,48,49",
+            migrationStages: "43>48:C,48>49:C",
+            decision: decision,
+            now: Date(timeIntervalSince1970: 1_788_271_200)
+        )
+        let error = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSPersistentStoreIncompatibleVersionHashError,
+            userInfo: [
+                NSLocalizedDescriptionKey: "/private/var/mobile/default.store could not open",
+                NSLocalizedFailureReasonErrorKey: "emre@example.com failed migration",
+                NSDebugDescriptionErrorKey: "scan note text should stay private"
+            ]
+        )
+
+        diagnostic.recordAttempt(name: "recent-v48-known-good", outcome: "failure", error: error)
+        diagnostic.recordFinalOutcome("safe_mode", reason: "persistent_store_migration_failed")
+
+        let text = try XCTUnwrap(ModelStoreRecoveryCoordinator.startupDiagnosticText(diagnostic))
+        XCTAssertTrue(text.contains(#""currentSchemaMajor" : 49"#))
+        XCTAssertTrue(text.contains(#""selectedStrategy" : "recent-source-v48""#))
+        XCTAssertTrue(text.contains(#""descriptionFingerprint""#))
+        XCTAssertTrue(text.contains(#""failureReasonFingerprint""#))
+        XCTAssertTrue(text.contains(#""debugDescriptionFingerprint""#))
+        XCTAssertFalse(text.contains("/private/var/mobile"))
+        XCTAssertFalse(text.contains(tempDirectory.path))
+        XCTAssertFalse(text.contains("emre@example.com"))
+        XCTAssertFalse(text.contains("scan note text should stay private"))
+        XCTAssertEqual(diagnostic.telemetryProperties["selected_strategy"], "recent-source-v48")
+        XCTAssertEqual(diagnostic.telemetryProperties["attempts"], "recent-v48-known-good:failure")
+        XCTAssertEqual(diagnostic.telemetryProperties["final_outcome"], "safe_mode")
     }
 
     func testGenericFailureUsesPersistentUnavailableSafeModeDiagnostics() {

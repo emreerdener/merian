@@ -186,11 +186,17 @@ enum AppTelemetry {
     }
 
     /// Records launch-time local store recovery without including paths, user IDs, or exception text.
-    static func trackStartupStoreRecovery(outcome: String, reason: String) {
-        send("StartupStoreRecovery", with: [
+    static func trackStartupStoreRecovery(
+        outcome: String,
+        reason: String,
+        properties: [String: String] = [:]
+    ) {
+        var params = properties
+        params.merge([
             "outcome": outcome,
             "reason": reason
-        ])
+        ]) { _, latest in latest }
+        send("StartupStoreRecovery", with: params)
     }
 
     // MARK: - Private

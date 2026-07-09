@@ -5,6 +5,8 @@ PROJECT_YML="${PROJECT_YML:-project.yml}"
 PROJECT_FILE="${PROJECT_FILE:-Merian.xcodeproj/project.pbxproj}"
 MARKER_FILE="${IOS_RELEASE_PREP_MARKER:-build/ios-release-prep.json}"
 RUN_XCODEGEN="${RUN_XCODEGEN:-1}"
+CONFIG_XCCONFIG="${CONFIG_XCCONFIG:-Config.xcconfig}"
+LOCAL_CONFIG_FILE="${LOCAL_CONFIG_FILE:-Config.local.xcconfig}"
 
 fail() {
   echo "error: $*" >&2
@@ -13,6 +15,36 @@ fail() {
 
 note() {
   echo "$*" >&2
+}
+
+print_revenuecat_release_help() {
+  echo "Production/TestFlight builds should use the ignored local release config:" >&2
+  echo "  cp Config.local.example.xcconfig Config.local.xcconfig" >&2
+  echo "  # edit Config.local.xcconfig: REVENUECAT_API_KEY = appl_..." >&2
+  echo "Or let release prep write the ignored override:" >&2
+  echo "  REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=x.y.z" >&2
+}
+
+fail_revenuecat() {
+  echo "error: $*" >&2
+  print_revenuecat_release_help
+  exit 1
+}
+
+warn_revenuecat() {
+  echo "warning: $*" >&2
+  print_revenuecat_release_help
+}
+
+is_placeholder_revenuecat_key() {
+  case "$1" in
+    "appl_..." | appl_replace* | appl_your* | appl_live_key)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 extract_project_setting() {
@@ -200,6 +232,142 @@ write_release_marker() {
   } > "$marker"
 }
 
+read_xcconfig_key() {
+  local key="$1"
+  local file="$2"
+
+  [[ -f "$file" ]] || return 1
+  awk -v key="$key" '
+    /^[[:space:]]*\/\// { next }
+    /^[[:space:]]*#/ { next }
+    {
+      line = $0
+      sub(/[[:space:]]*\/\/.*/, "", line)
+      if (line ~ "^[[:space:]]*" key "[[:space:]]*=") {
+        sub("^[[:space:]]*" key "[[:space:]]*=[[:space:]]*", "", line)
+        sub(/[[:space:]]+$/, "", line)
+        print line
+      }
+    }
+  ' "$file" | tail -n 1
+}
+
+validate_release_revenuecat_key() {
+  local key="$1"
+  local source="$2"
+
+  [[ -n "$key" ]] || fail_revenuecat "Release REVENUECAT_API_KEY is missing from ${source}."
+  case "$key" in
+    test_*)
+      fail_revenuecat "Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key from ${source}."
+      ;;
+    appl_*)
+      if is_placeholder_revenuecat_key "$key"; then
+        fail_revenuecat "Release REVENUECAT_API_KEY from ${source} is still a placeholder. Use the real RevenueCat production iOS SDK key."
+      fi
+      ;;
+    *)
+      fail_revenuecat "Release REVENUECAT_API_KEY from ${source} must be a RevenueCat iOS production key beginning with appl_."
+      ;;
+  esac
+}
+
+release_revenuecat_key_warning() {
+  local key="$1"
+  local source="$2"
+
+  if [[ -z "$key" ]]; then
+    echo "Release REVENUECAT_API_KEY is missing from ${source}."
+    return
+  fi
+
+  case "$key" in
+    test_*)
+      echo "Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key from ${source}."
+      ;;
+    appl_*)
+      if is_placeholder_revenuecat_key "$key"; then
+        echo "Release REVENUECAT_API_KEY from ${source} is still a placeholder. Use the real RevenueCat production iOS SDK key."
+      fi
+      ;;
+    *)
+      echo "Release REVENUECAT_API_KEY from ${source} should be a RevenueCat iOS production key beginning with appl_."
+      ;;
+  esac
+}
+
+write_local_revenuecat_key() {
+  local key="$1"
+  local file="$2"
+  local tmp_file
+
+  mkdir -p "$(dirname "$file")"
+  if [[ ! -f "$file" ]]; then
+    if [[ "$file" == "Config.local.xcconfig" && -f "Config.local.example.xcconfig" ]]; then
+      cp "Config.local.example.xcconfig" "$file"
+    else
+      {
+        printf '// Machine-local client config overrides. Ignored by git.\n'
+        printf '// Public client values in this file are embedded in local app builds.\n'
+      } > "$file"
+    fi
+  fi
+
+  tmp_file="${file}.tmp.$$"
+  if grep -qE '^[[:space:]]*REVENUECAT_API_KEY[[:space:]]*=' "$file"; then
+    awk -v key="$key" '
+      /^[[:space:]]*REVENUECAT_API_KEY[[:space:]]*=/ {
+        if (!wrote) {
+          print "REVENUECAT_API_KEY = " key
+          wrote = 1
+        }
+        next
+      }
+      { print }
+    ' "$file" > "$tmp_file"
+  else
+    {
+      cat "$file"
+      printf '\nREVENUECAT_API_KEY = %s\n' "$key"
+    } > "$tmp_file"
+  fi
+  mv "$tmp_file" "$file"
+}
+
+prepare_release_revenuecat_key() {
+  local key
+  local source
+  local warning
+
+  if [[ -n "${REVENUECAT_API_KEY:-}" ]]; then
+    validate_release_revenuecat_key "$REVENUECAT_API_KEY" "REVENUECAT_API_KEY"
+    write_local_revenuecat_key "$REVENUECAT_API_KEY" "$LOCAL_CONFIG_FILE"
+    note "Wrote RevenueCat release key override to ${LOCAL_CONFIG_FILE}."
+    return
+  fi
+
+  key="$(read_xcconfig_key REVENUECAT_API_KEY "$LOCAL_CONFIG_FILE" || true)"
+  source="$LOCAL_CONFIG_FILE"
+  if [[ -n "$key" ]]; then
+    if [[ "${MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY:-0}" == "1" ]]; then
+      validate_release_revenuecat_key "$key" "$source"
+    else
+      warning="$(release_revenuecat_key_warning "$key" "$source")"
+      [[ -z "$warning" ]] || warn_revenuecat "$warning"
+    fi
+    return
+  fi
+
+  key="$(read_xcconfig_key REVENUECAT_API_KEY "$CONFIG_XCCONFIG" || true)"
+  source="$CONFIG_XCCONFIG"
+  if [[ "${MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY:-0}" == "1" ]]; then
+    validate_release_revenuecat_key "$key" "$source"
+  else
+    warning="$(release_revenuecat_key_warning "$key" "$source")"
+    [[ -z "$warning" ]] || warn_revenuecat "$warning"
+  fi
+}
+
 [[ -f "$PROJECT_YML" ]] || fail "Missing project.yml at $PROJECT_YML"
 
 target_version="${VERSION:-}"
@@ -251,6 +419,8 @@ fi
 if [[ -n "$anchor_build" && "$anchor_build" != "0" ]] && (( target_build <= anchor_build )); then
   fail "Selected build $target_build must be higher than App Store Connect anchor build $anchor_build"
 fi
+
+prepare_release_revenuecat_key
 
 write_project_versions "$target_version" "$target_build" "$PROJECT_YML"
 

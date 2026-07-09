@@ -54,7 +54,10 @@ final class ExplorePostStore {
     }
 
     func setFeedPosts(_ posts: [ExplorePost]) {
-        feedPosts = posts
+        let existingPostsById = Dictionary(uniqueKeysWithValues: allPosts.map { ($0.id, $0) })
+        feedPosts = posts.map { post in
+            post.mergingExistingMedia(from: existingPostsById[post.id])
+        }
         for post in posts {
             supplementalPostsById.removeValue(forKey: post.id)
         }
@@ -69,7 +72,9 @@ final class ExplorePostStore {
         let uniquePosts = posts.filter { existingIds.contains($0.id) == false }
         guard !uniquePosts.isEmpty else { return }
 
-        feedPosts.append(contentsOf: uniquePosts)
+        feedPosts.append(contentsOf: uniquePosts.map { post in
+            post.mergingExistingMedia(from: supplementalPostsById[post.id])
+        })
         for post in uniquePosts {
             supplementalPostsById.removeValue(forKey: post.id)
         }
@@ -78,13 +83,14 @@ final class ExplorePostStore {
 
     func upsert(_ post: ExplorePost, includeInFeed: Bool = false) {
         if let index = feedPosts.firstIndex(where: { $0.id == post.id }) {
-            feedPosts[index] = post
+            feedPosts[index] = post.mergingExistingMedia(from: feedPosts[index])
             supplementalPostsById.removeValue(forKey: post.id)
         } else if includeInFeed {
-            feedPosts.append(post)
+            let existingPost = supplementalPostsById[post.id]
+            feedPosts.append(post.mergingExistingMedia(from: existingPost))
             supplementalPostsById.removeValue(forKey: post.id)
         } else {
-            supplementalPostsById[post.id] = post
+            supplementalPostsById[post.id] = post.mergingExistingMedia(from: supplementalPostsById[post.id])
         }
 
         changeVersion &+= 1
@@ -154,6 +160,20 @@ final class ExplorePostStore {
         transform(&post)
         supplementalPostsById[postId] = post
         changeVersion &+= 1
+    }
+}
+
+private extension ExplorePost {
+    func mergingExistingMedia(from existingPost: ExplorePost?) -> ExplorePost {
+        guard mediaItems?.isEmpty != false,
+              let existingMediaItems = existingPost?.mediaItems,
+              !existingMediaItems.isEmpty else {
+            return self
+        }
+
+        var mergedPost = self
+        mergedPost.mediaItems = existingMediaItems
+        return mergedPost
     }
 }
 

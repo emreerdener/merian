@@ -1,20 +1,22 @@
 # Explore Author Profiles
 
-Explore author profiles are public, privacy-preserving profile sheets opened
-from visible Explore social surfaces. They let a viewer understand an author's
-public activity and overall Merian progress without exposing private scan IDs
-or opening private achievement evidence.
+Explore author profiles are public, privacy-preserving profile routes opened
+from visible Explore social surfaces. They live inside the current Explore
+navigation stack instead of presenting a second sheet over the feed or post
+detail, so active video surfaces underneath are not hidden by a separate modal
+layer. They let a viewer understand an author's public activity and overall
+Merian progress without exposing private scan IDs or opening private
+achievement evidence.
 
 ## User Experience
 
-- Tapping an author row in the Explore feed opens `ExploreAuthorProfileSheet`.
-- Tapping an author row in `ExplorePostDetailView` opens the same sheet unless that detail view is already being presented from a public profile library.
+- Tapping an author row in the Explore feed, comments, mentions, or `ExplorePostDetailView` pushes `ExploreAuthorProfileSheet` as an author-profile route inside the active Explore stack.
 - Tapping the post media still opens `ExplorePostDetailView`; author-profile navigation is intentionally scoped to the header.
 - The user's own Profile tab shows an `Explore scans` preview for their currently visible Explore publications. It seeds from locally cached share state when available, then reconciles with the author-post endpoint.
 - The user's own Profile tab also shows active and published Field Trip modules
   when the Field Trips endpoint returns visible summaries, plus lightweight
   Field Trip challenge badges when awarded.
-- The profile sheet shows:
+- The profile route shows:
   - public avatar and centered serif author display name
   - `@public_username` underneath when available
   - persona derived from species discovered
@@ -29,8 +31,9 @@ or opening private achievement evidence.
   - up to 3 pinned published Field Trips before the general Field Trip modules
   - Field Trip challenge completion badges, when visible
   - achievements rendered as informational cards only
-- The "View all published scans" button side-transitions the sheet into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
-- Library tiles open `ExplorePostDetailView` inside the sheet navigation stack. That nested detail disables insight presentation and author-profile presentation to avoid exposing private local state or recursively opening another profile sheet, but public similar-species cards can still open the species dictionary page.
+- The "View all published scans" button side-transitions the profile route into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
+- Library tiles open `ExplorePostDetailView` inside the same Explore navigation stack. The post detail carries the originating author-profile depth, disables insight presentation, and blocks one more author-profile hop after `profile -> scan` so users cannot recursively build `profile -> scan -> profile -> scan` stacks. Public similar-species cards can still open the species dictionary page.
+- `ExploreAuthorProfileNavigationPolicy.maxProfileDepth` is intentionally `1`: root/feed/detail/comment surfaces can open an author profile, and scans opened from that profile can still be viewed, but those nested scan details do not open another author profile.
 - Preview grids render image-only thumbnails. Species names remain available in Explore detail, but they are not overlaid on profile preview thumbnails.
 - Follow counts are display-only in v1. They do not open follower/following lists.
 - The follow button is asymmetric and does not create friend requests, mutual-only states, DMs, or access to private scans.
@@ -190,6 +193,8 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostDetailCommentsSection.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/ProfilePublicScansPreview.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripProfileModules.swift`
@@ -209,6 +214,7 @@ Important model types:
 - `ExploreAuthorProfileHeatmapDay`
 - `ExploreAuthorPostCursor`
 - `ExploreAuthorProfileRoute`
+- `ExploreAuthorProfileNavigationPolicy`
 - `PublicUsernameUpdateResponse`
 - `FieldTripProfileSummaries`
 - `FieldTripProfileActiveSummary`
@@ -225,9 +231,14 @@ Conversion rules:
 - Remote author rows decode `authorAvatarUrl` from the public identity
   projection; the Profile tab updates that projection when a user uploads a
   custom avatar.
-- Remote author rows decode optional `fieldTrips`. The public profile sheet and
+- Remote author rows decode optional `fieldTrips`. The public profile route and
   the local Profile tab render active status-only progress and published cards
   through `FieldTripProfilePreview` / `CurrentUserFieldTripProfilePreview`.
+- `ExploreAuthorProfileRoute.navigationDepth` and
+  `ExplorePostRoute.authorProfileDepth` carry profile nesting depth through the
+  Explore stack. `ExploreAuthorProfileNavigationPolicy` gates profile opens at
+  the root Explore router, post detail, comments sheet, and inline detail
+  comments so blocked taps never create another profile surface.
 - Preferred species names are refreshed for preview/library posts after profile and page loads.
 - The local Profile tab preview reads the current Supabase user from the view environment, displays any locally cached published scans immediately, calls `getExploreAuthorPosts(authorUserId:limit:)`, shows a lightweight loading grid while fetching, and renders an empty state when no visible Explore publications are returned.
 - Share and unshare flows publish `exploreShareStateChanged` so an already-open Profile tab can refresh its local preview state.

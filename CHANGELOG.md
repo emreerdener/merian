@@ -13,6 +13,15 @@ TestFlight, App Store, support, and QA.
   for scan completion, queueing, thermal throttling, errors, and species
   dictionary page loads.
 
+### Startup
+
+- Fixed startup recovery for devices carrying the accidental optional-queue V48
+  SwiftData store by migrating them forward to V49, and added redacted
+  copy/share diagnostics when TestFlight/debug builds enter safe mode.
+- Fixed startup recovery for devices with V42/V43 SwiftData stores by routing
+  them through source-isolated migration plans instead of the full historical
+  chain that can trigger SwiftData's equal-model-reference validator.
+
 ### Species Dictionary
 
 - Added durable species dictionary enrichment queueing so new and existing
@@ -135,9 +144,10 @@ TestFlight, App Store, support, and QA.
   play indicators on compact surfaces.
 - Removed the play badge from Explore Home Screen widgets so video posts appear
   as clean still thumbnails there.
-- Fixed Explore videos so feed and post-detail playback now pauses through a
-  scoped sheet lifecycle, rebuilds only after the final Explore overlay closes,
-  and leaves a visible play control if autoplay cannot restart.
+- Fixed Explore videos so opening an author profile from feed, post detail, or
+  comments now stays inside the Explore navigation stack instead of layering a
+  profile sheet over the active video surface, with profile-to-scan navigation
+  capped so users cannot build an endlessly nested stack.
 - Fixed Explore video playback so shared video posts autoplay when opened, fill
   their square preview, and use a centered play/pause control that fades during
   playback instead of a static marker; muting or unmuting one Explore video now

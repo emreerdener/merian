@@ -67,19 +67,17 @@ enum SevenDayPassAccessPolicy {
 
         #if !DEBUG
         if apiKey.hasPrefix("test_") {
-            // RevenueCat throws a fatalError if a "test_" key is used in Release builds.
-            // uiPreviewMode prevents the crash in TestFlight but simulates mock products.
-            // A real "appl_" key is required for live App Store transactions.
-            #warning("TEMPORARY OVERRIDE: Using RevenueCat 'test_' apiKey with uiPreviewMode in Release. Remove before App Store launch!")
-            let builder = Configuration.Builder(withAPIKey: apiKey)
-                .with(dangerousSettings: DangerousSettings(uiPreviewMode: true))
-            Purchases.configure(with: builder.build())
-        } else {
-            Purchases.configure(withAPIKey: apiKey)
+            MerianLog.general.error("RevenueCat configuration skipped because Release builds require an appl_ production iOS key, not a Test Store key.")
+            isProActive = false
+            isSubscribed = false
+            trialDaysRemaining = nil
+            currentOfferings = nil
+            isFetchingOfferings = false
+            return
         }
-        #else
-        Purchases.configure(withAPIKey: apiKey)
         #endif
+
+        Purchases.configure(withAPIKey: apiKey)
 
         Task {
             await refreshCustomerInfo()

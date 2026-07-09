@@ -51,11 +51,18 @@ Field Trips, and Dictionary.
 
 ## Navigation
 
-`ExploreView` owns the root section state through `ExploreTab`. Bottom-menu
-taps set the active section in the production order Observations, Identify, then
-Field Trips, then Dictionary. Observations owns a Feed/Map header toggle, and Dictionary keeps
-Tree inside its Catalog/Tree header toggle rather than exposing either Map or
-Tree as a separate root bottom-menu item.
+`ExploreView` owns the root section state through `ExploreTab` and owns pushed
+route state for post detail, hashtag collections, author profiles, and
+dictionary destinations. Bottom-menu taps set the active section in the
+production order Observations, Identify, then Field Trips, then Dictionary.
+Observations owns a Feed/Map header toggle, and Dictionary keeps Tree inside
+its Catalog/Tree header toggle rather than exposing either Map or Tree as a
+separate root bottom-menu item. Author profiles opened from feed, detail,
+comments, notifications, Field Trips, or profile libraries push into this
+same Explore navigation stack rather than presenting a second sheet over the
+active surface. Profile-library scans carry an author-profile depth so the app
+allows `profile -> scan` but blocks another author-profile hop from that nested
+detail.
 
 ## iOS File Ownership
 
@@ -63,7 +70,8 @@ Explore is organized by product area first so a contributor can open the folder
 for the surface they are changing:
 
 - `apps/ios/Merian/Features/Explore/Shell/` owns the root Explore sheet,
-  toolbar, root mode picker, navigation routes, and cross-area presentation.
+  toolbar, root mode picker, navigation routes, stack-based author-profile
+  presentation, the profile-to-scan nesting cap, and cross-area presentation.
 - `apps/ios/Merian/Features/Explore/Feed/` owns the Observations feed, post
   cards, post detail, comments, hashtags, feed formatting, and feed
   view-model extensions.
@@ -80,7 +88,7 @@ for the surface they are changing:
 - `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
   rows, sheet UI, and notification fetch/read state.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author
-  profile presentation.
+  profile content, route metadata, and published-scan library presentation.
 - `apps/ios/Merian/Features/Explore/Shared/` is reserved for Explore helpers
   that are used by more than one product area.
 - `apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore Index
@@ -89,7 +97,7 @@ for the surface they are changing:
 
 The bottom menu is intentionally root-scoped. It is hidden on pushed post
 details, Identify request details, catalog detail pages, hashtag lists, author
-profile sheets, comments, notification sheets, and the Insight sheet.
+profile routes, comments, notification sheets, and the Insight sheet.
 Dictionary rows and Tree species preview actions still push
 `SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
 

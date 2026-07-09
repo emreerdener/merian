@@ -15,7 +15,7 @@ Merian.
 | Extension cache                     | App Group `group.app.merian.shared`                  | Non-secret coordination data shared by the app, Messages extension, and Explore widget |
 | RevenueCat customer ID              | RevenueCat SDK (internal)                            | Managed automatically by the SDK                                                       |
 | `SUPABASE_ANON_KEY`                 | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
-| `REVENUECAT_API_KEY`                | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
+| `REVENUECAT_API_KEY`                | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret; production export should use an iOS `appl_` key     |
 | `POSTHOG_API_KEY`                   | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
 | `GEMINI_API_KEY`                    | Supabase Edge secret only                            | Never in iOS bundle                                                                    |
 | `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret or server-side web env only     | Never in iOS bundle or browser-exposed web config                                      |
@@ -60,8 +60,14 @@ environment variable.**
 - `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is
   injected via `Config.xcconfig` into `MerianEnvironment.swift`.
 - `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `GIDClientID`, and
-  `REVERSED_CLIENT_ID` are also public client config values
-  used by the app at runtime.
+  `REVERSED_CLIENT_ID` are also public client config values used by the app at
+  runtime. `Config.xcconfig` may carry development defaults, while
+  `Config.local.xcconfig` can override local app-facing values without being
+  committed. Release archives warn if `REVENUECAT_API_KEY` is still a RevenueCat
+  Test Store key, but can continue for local archive workflows. TestFlight/App
+  Store export should resolve to a RevenueCat production iOS SDK key beginning
+  with `appl_`; placeholder values such as the literal `appl_...` are blocked
+  when supplied as a release override.
 
 That means committed client config is acceptable for values in the second group,
 while the first group must stay server-side only.

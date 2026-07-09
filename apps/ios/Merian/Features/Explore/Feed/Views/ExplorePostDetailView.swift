@@ -12,6 +12,8 @@ struct ExplorePostDetailView: View {
     let allowsInsightPresentation: Bool
     let onOpenOwnedPostInsight: ((String) -> Bool)?
     let allowsAuthorProfilePresentation: Bool
+    let authorProfileDepth: Int
+    let onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)?
     let onOpenCommunityIdentificationRequest: ((String) -> Void)?
 
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -57,6 +59,11 @@ struct ExplorePostDetailView: View {
             showPostComposer
     }
 
+    private var canOpenAuthorProfileRoutes: Bool {
+        allowsAuthorProfilePresentation &&
+            ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: authorProfileDepth)
+    }
+
     private let commentsSectionId = "explore-comments-section"
     private let commentsComposerId = "explore-comments-composer"
 
@@ -71,6 +78,8 @@ struct ExplorePostDetailView: View {
         allowsInsightPresentation: Bool,
         onOpenOwnedPostInsight: ((String) -> Bool)? = nil,
         allowsAuthorProfilePresentation: Bool = true,
+        authorProfileDepth: Int = 0,
+        onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)? = nil,
         onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil
     ) {
         self.viewModel = viewModel
@@ -83,6 +92,8 @@ struct ExplorePostDetailView: View {
         self.allowsInsightPresentation = allowsInsightPresentation
         self.onOpenOwnedPostInsight = onOpenOwnedPostInsight
         self.allowsAuthorProfilePresentation = allowsAuthorProfilePresentation
+        self.authorProfileDepth = authorProfileDepth
+        self.onOpenAuthorProfile = onOpenAuthorProfile
         self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
     }
 
@@ -108,9 +119,9 @@ struct ExplorePostDetailView: View {
                                 post: post,
                                 avatarUrl: resolvedAuthorAvatarUrl(for: post),
                                 locationText: locationText(for: post),
-                                opensAuthorProfile: allowsAuthorProfilePresentation,
+                                opensAuthorProfile: canOpenAuthorProfileRoutes,
                                 onOpenAuthorProfile: {
-                                    selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
+                                    openAuthorProfile(ExploreAuthorProfileRoute(post: post))
                                 }
                             )
                                 .padding(.horizontal, 12)
@@ -183,7 +194,9 @@ struct ExplorePostDetailView: View {
                                 isComposerFocused: $isComposerFocused,
                                 onDismissComposer: dismissCommentComposer,
                                 isComposerSticky: false,
-                                hideInlineComposer: presentedComposerIsSticky
+                                hideInlineComposer: presentedComposerIsSticky,
+                                allowsAuthorProfilePresentation: canOpenAuthorProfileRoutes,
+                                onOpenAuthorProfile: onOpenAuthorProfile
                             )
                                 .padding(.horizontal, 16)
                                 .padding(.top, 20)
@@ -213,7 +226,9 @@ struct ExplorePostDetailView: View {
                                 targetReplyParentCommentId: targetReplyParentCommentId,
                                 isComposerFocused: $isComposerFocused,
                                 onDismissComposer: dismissCommentComposer,
-                                isComposerSticky: true
+                                isComposerSticky: true,
+                                allowsAuthorProfilePresentation: canOpenAuthorProfileRoutes,
+                                onOpenAuthorProfile: onOpenAuthorProfile
                             )
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
@@ -493,7 +508,9 @@ struct ExplorePostDetailView: View {
                             route: ExploreHashtagRoute(hashtag: hashtag),
                             allowsInsightPresentation: allowsInsightPresentation,
                             onOpenOwnedPostInsight: onOpenOwnedPostInsight,
-                            allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
+                            allowsAuthorProfilePresentation: canOpenAuthorProfileRoutes,
+                            authorProfileDepth: authorProfileDepth,
+                            onOpenAuthorProfile: onOpenAuthorProfile
                         )
                     } label: {
                         ExploreHashtagPill(hashtag: hashtag)
@@ -503,6 +520,16 @@ struct ExplorePostDetailView: View {
             }
             .padding(.top, -8)
             .padding(.bottom, 2)
+        }
+    }
+
+    private func openAuthorProfile(_ route: ExploreAuthorProfileRoute) {
+        guard canOpenAuthorProfileRoutes else { return }
+        HapticManager.shared.triggerSelectionPulse()
+        if let onOpenAuthorProfile {
+            onOpenAuthorProfile(route)
+        } else {
+            selectedAuthorProfileRoute = route
         }
     }
 
@@ -1077,4 +1104,5 @@ extension ExplorePostDetailView {
             return base.opacity(isGlowing ? 0.86 : 0.66)
         }
     }
+
 }

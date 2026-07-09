@@ -76,6 +76,25 @@ final class AppTelemetryTests: XCTestCase {
         XCTAssertTrue(AppTelemetry.isInitialized, "setUp() must call initialize() so track methods are not silently no-oped")
     }
 
+    func testStartupStoreRecoveryIncludesDiagnosticProperties() {
+        AppTelemetry.trackStartupStoreRecovery(
+            outcome: "safe_mode",
+            reason: "unit_test",
+            properties: [
+                "selected_strategy": "recent-source-v48",
+                "attempts": "recent-v48-known-good:failure"
+            ]
+        )
+
+        let event = capturedEvents.first
+        XCTAssertEqual(event?.name, "StartupStoreRecovery")
+        XCTAssertEqual(event?.properties["outcome"] as? String, "safe_mode")
+        XCTAssertEqual(event?.properties["reason"] as? String, "unit_test")
+        XCTAssertEqual(event?.properties["selected_strategy"] as? String, "recent-source-v48")
+        XCTAssertEqual(event?.properties["attempts"] as? String, "recent-v48-known-good:failure")
+        XCTAssertEqual(event?.properties["event_source"] as? String, "ios_client")
+    }
+
     func testScanTelemetryParametersDistinguishPaidTrialAndFree() {
         XCTAssertEqual(
             AppTelemetry.scanTelemetryParameters(isPro: true, isSubscribed: true, inferenceTier: "pro"),

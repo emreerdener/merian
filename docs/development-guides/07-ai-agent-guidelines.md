@@ -20,7 +20,7 @@ The `docs/` folder contains the master reference for the application:
 - **ALWAYS** update `project.yml` when adding new packages, frameworks, scopes, or entitlements.
 - Run `xcodegen generate` before attempting to build.
 - Do not hardcode a real Apple Developer Team ID in `project.yml` or shared tracked config. Signing must flow through `Signing.xcconfig` -> optional `Signing.local.xcconfig`, with the local file ignored by git.
-- **Build Versioning**: `project.yml` owns `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`; `Info.plist` files must strictly inherit `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`. Use `make prepare-ios-release VERSION=x.y.z` before TestFlight archives, and use `agvtool` only as an optional read-only sanity check because XcodeGen overwrites generated-project-only changes. *Never downgrade `MARKETING_VERSION` or reuse a TestFlight build number.*
+- **Build Versioning**: `project.yml` owns `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`; `Info.plist` files must strictly inherit `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`. Use `make prepare-ios-release VERSION=x.y.z` before TestFlight archives. If production RevenueCat is ready, pass `REVENUECAT_API_KEY=appl_...` or set the same iOS SDK key in ignored `Config.local.xcconfig`; otherwise archive preflight should warn, not block. Use `agvtool` only as an optional read-only sanity check because XcodeGen overwrites generated-project-only changes. *Never downgrade `MARKETING_VERSION` or reuse a TestFlight build number.*
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`. NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
 
 ## 2. Directory Structure
@@ -173,14 +173,15 @@ Only use `typealias` for models that are **unchanged AND not referenced by any r
 **Migration regression tests**:
 `apps/ios/MerianTests/Models/MigrationPlanTests.swift` must pass on an iOS 26
 simulator on every schema bump. It covers fresh-store initialization, historical
-disk-store migrations, V44/V45/V46/V47 source-isolated recent plans, direct
-V43/V44/V45/V46→V48 queue migrations, V47→V48, and source scans for migration safety invariants:
+disk-store migrations, V42/V43/V44/V45/V46/V47 source-isolated recent plans,
+direct V43/V44/V45/V46→V48 queue migrations, V47→V48, and source scans for migration safety invariants:
 no silent custom-stage saves, no active/global fetch descriptors or active model
 convenience helpers in `MerianMigrationPlan`, and no bare active
 `CapturedMediaEntry` relationship targets in retired schemas. The full
 historical plan must skip the duplicate-prone V44/V45/V46/V47 recent cluster by
-jumping V43→V48; the source-isolated V44/V45/V46 recent plans also jump directly
-to V48. Because V46 is a no-op checksum twin of V45, the V45 and V46 recent
+jumping V43→V48; V42/V43 use source-isolated startup plans to avoid validating
+older full-historical custom stages before the real source is reached, and the
+source-isolated V44/V45/V46 recent plans also jump directly to V48. Because V46 is a no-op checksum twin of V45, the V45 and V46 recent
 plans must keep those sources isolated from each other and never route through
 V47. V47 must not alias its
 local-scan, captured-media, or collection representatives back through active
@@ -197,7 +198,7 @@ from `capturedMediaJSON` after snapshotting and replacing the V47 queued rows.
 `MerianObjCExceptionBridge`, but startup first asks
 `ModelStoreRecoveryCoordinator` for a store-aware migration hint so fresh/current
 stores open without a migration plan and known recent stores use a
-source-isolated V47/V46/V45/V44 plan; the V45 and V46 plans use one matching
+source-isolated V48/V47/V46/V45/V44/V43/V42 plan; the V45 and V46 plans use one matching
 source representative each with a direct V48 target internally. Quarantine remains corruption-gated: only
 verified SQLite/Core Data corruption signatures may move `default.store`
 artifacts, each quarantine writes a sanitized `recovery-manifest.json`, and

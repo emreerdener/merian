@@ -276,11 +276,25 @@ enum TestExecutionCoordinator {
 struct StartupRecoveryNotice {
     let title: String
     let message: String
+    let diagnosticText: String?
+
+    init(title: String, message: String, diagnosticText: String? = nil) {
+        self.title = title
+        self.message = message
+        self.diagnosticText = diagnosticText
+    }
 }
 
 struct StartupRecoveryTelemetryEvent {
     let outcome: String
     let reason: String
+    let properties: [String: String]
+
+    init(outcome: String, reason: String, properties: [String: String] = [:]) {
+        self.outcome = outcome
+        self.reason = reason
+        self.properties = properties
+    }
 }
 
 struct ModelContainerBootstrapOutcome {
@@ -300,6 +314,14 @@ struct StartupRecoveryNoticeView: View {
             Text(notice.message)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            if let diagnosticText = notice.diagnosticText,
+               Self.shouldShowDiagnostics {
+                ShareLink(item: diagnosticText) {
+                    Label("Share Diagnostics", systemImage: "square.and.arrow.up")
+                        .font(.footnote.weight(.semibold))
+                }
+                .padding(.top, 4)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -310,6 +332,14 @@ struct StartupRecoveryNoticeView: View {
                 .stroke(Color.orange.opacity(0.25), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+    }
+
+    private static var shouldShowDiagnostics: Bool {
+        #if DEBUG
+        return true
+        #else
+        return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+        #endif
     }
 }
 
@@ -361,7 +391,8 @@ struct MerianApp: App {
             if let telemetryEvent = bootstrapOutcome.telemetryEvent {
                 AppTelemetry.trackStartupStoreRecovery(
                     outcome: telemetryEvent.outcome,
-                    reason: telemetryEvent.reason
+                    reason: telemetryEvent.reason,
+                    properties: telemetryEvent.properties
                 )
             }
         }
@@ -449,16 +480,43 @@ struct MerianApp: App {
         }
     }
 
-    private static func makePersistentContainerRetryingChecksumRepresentative() throws -> ModelContainer {
+    private static func recordPersistentContainerAttempt(
+        named name: String,
+        diagnostic: inout StartupStoreDiagnostic,
+        _ buildContainer: () throws -> ModelContainer
+    ) throws -> ModelContainer {
         do {
-            return try makePersistentContainer(migrationPlan: MerianMigrationPlan.self)
+            let container = try buildContainer()
+            diagnostic.recordAttempt(name: name, outcome: "success")
+            return container
         } catch {
-            return try makePersistentContainerRetryingChecksumRepresentative(after: error)
+            diagnostic.recordAttempt(name: name, outcome: "failure", error: error)
+            throw error
+        }
+    }
+
+    private static func makePersistentContainer<MigrationPlan: SchemaMigrationPlan>(
+        migrationPlan: MigrationPlan.Type,
+        named name: String,
+        diagnostic: inout StartupStoreDiagnostic
+    ) throws -> ModelContainer {
+        try recordPersistentContainerAttempt(named: name, diagnostic: &diagnostic) {
+            try makePersistentContainer(migrationPlan: migrationPlan)
+        }
+    }
+
+    private static func makePersistentContainerWithoutMigrationPlan(
+        named name: String,
+        diagnostic: inout StartupStoreDiagnostic
+    ) throws -> ModelContainer {
+        try recordPersistentContainerAttempt(named: name, diagnostic: &diagnostic) {
+            try makePersistentContainerWithoutMigrationPlan()
         }
     }
 
     private static func makePersistentContainerRetryingChecksumRepresentative(
-        after error: Error
+        after error: Error,
+        diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         guard ModelStoreRecoveryCoordinator.isDuplicateVersionChecksumFailure(error) else {
             throw error
@@ -469,7 +527,10 @@ struct MerianApp: App {
         )
 
         do {
-            let recovered = try makePersistentContainerWithoutMigrationPlan()
+            let recovered = try makePersistentContainerWithoutMigrationPlan(
+                named: "checksum-current-store",
+                diagnostic: &diagnostic
+            )
             MerianLog.general.error(
                 "ModelContainer opened without a migration plan; store was already current."
             )
@@ -481,7 +542,23 @@ struct MerianApp: App {
         }
 
         do {
-            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV47MigrationPlan.self)
+            let recovered = try makePersistentContainerForV48Source(diagnostic: &diagnostic)
+            MerianLog.general.error(
+                "ModelContainer opened with a recent V48 startup recovery plan."
+            )
+            return recovered
+        } catch let recentV48Error {
+            MerianLog.general.error(
+                "ModelContainer recent V48 startup recovery retry failed: \(recentV48Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV47MigrationPlan.self,
+                named: "checksum-recent-v47",
+                diagnostic: &diagnostic
+            )
             MerianLog.general.error(
                 "ModelContainer opened with the recent V47 checksum-safe migration plan."
             )
@@ -493,7 +570,11 @@ struct MerianApp: App {
         }
 
         do {
-            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV46MigrationPlan.self)
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV46MigrationPlan.self,
+                named: "checksum-recent-v46",
+                diagnostic: &diagnostic
+            )
             MerianLog.general.error(
                 "ModelContainer opened with the recent V46 checksum-safe migration plan."
             )
@@ -505,7 +586,11 @@ struct MerianApp: App {
         }
 
         do {
-            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV45MigrationPlan.self)
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV45MigrationPlan.self,
+                named: "checksum-recent-v45",
+                diagnostic: &diagnostic
+            )
             MerianLog.general.error(
                 "ModelContainer opened with the recent V45 checksum-safe migration plan."
             )
@@ -517,45 +602,144 @@ struct MerianApp: App {
         }
 
         do {
-            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV44MigrationPlan.self)
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV44MigrationPlan.self,
+                named: "checksum-recent-v44",
+                diagnostic: &diagnostic
+            )
             MerianLog.general.error(
                 "ModelContainer opened with the recent V44 checksum-safe migration plan."
             )
             return recovered
         } catch let recentV44Error {
             MerianLog.general.error(
-                "ModelContainer recent V44 checksum-safe retry failed. Primary error: \(error.localizedDescription, privacy: .private) | Retry error: \(recentV44Error.localizedDescription, privacy: .private)"
+                "ModelContainer recent V44 checksum-safe retry failed: \(recentV44Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV43MigrationPlan.self,
+                named: "checksum-recent-v43",
+                diagnostic: &diagnostic
+            )
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V43 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV43Error {
+            MerianLog.general.error(
+                "ModelContainer recent V43 checksum-safe retry failed: \(recentV43Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV42MigrationPlan.self,
+                named: "checksum-recent-v42",
+                diagnostic: &diagnostic
+            )
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V42 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV42Error {
+            MerianLog.general.error(
+                "ModelContainer recent V42 checksum-safe retry failed. Primary error: \(error.localizedDescription, privacy: .private) | Retry error: \(recentV42Error.localizedDescription, privacy: .private)"
             )
             throw error
         }
     }
 
+    private static func makePersistentContainerForV48Source(
+        diagnostic: inout StartupStoreDiagnostic
+    ) throws -> ModelContainer {
+        do {
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV48MigrationPlan.self,
+                named: "recent-v48-known-good",
+                diagnostic: &diagnostic
+            )
+        } catch let knownGoodV48Error {
+            MerianLog.general.error(
+                "ModelContainer known-good V48 startup recovery failed: \(knownGoodV48Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        return try makePersistentContainer(
+            migrationPlan: MerianOptionalQueueV48RecoveryPlan.self,
+            named: "recent-v48-optional-queue",
+            diagnostic: &diagnostic
+        )
+    }
+
     private static func makePersistentContainer(
-        forStoreMigrationHint hint: ModelStoreRecoveryCoordinator.StoreMigrationHint
+        forStoreMigrationHint hint: ModelStoreRecoveryCoordinator.StoreMigrationHint,
+        diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch hint {
         case .currentStore:
-            return try makePersistentContainerWithoutMigrationPlan()
+            return try makePersistentContainerWithoutMigrationPlan(
+                named: "current-store",
+                diagnostic: &diagnostic
+            )
+        case .recentSource(48):
+            return try makePersistentContainerForV48Source(diagnostic: &diagnostic)
         case .recentSource(47):
-            return try makePersistentContainer(migrationPlan: MerianRecentV47MigrationPlan.self)
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV47MigrationPlan.self,
+                named: "recent-v47",
+                diagnostic: &diagnostic
+            )
         case .recentSource(46):
-            return try makePersistentContainer(migrationPlan: MerianRecentV46MigrationPlan.self)
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV46MigrationPlan.self,
+                named: "recent-v46",
+                diagnostic: &diagnostic
+            )
         case .recentSource(45):
-            return try makePersistentContainer(migrationPlan: MerianRecentV45MigrationPlan.self)
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV45MigrationPlan.self,
+                named: "recent-v45",
+                diagnostic: &diagnostic
+            )
         case .recentSource(44):
-            return try makePersistentContainer(migrationPlan: MerianRecentV44MigrationPlan.self)
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV44MigrationPlan.self,
+                named: "recent-v44",
+                diagnostic: &diagnostic
+            )
+        case .recentSource(43):
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV43MigrationPlan.self,
+                named: "recent-v43",
+                diagnostic: &diagnostic
+            )
+        case .recentSource(42):
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV42MigrationPlan.self,
+                named: "recent-v42",
+                diagnostic: &diagnostic
+            )
         case .recentSource:
-            return try makePersistentContainer(migrationPlan: MerianMigrationPlan.self)
+            return try makePersistentContainer(
+                migrationPlan: MerianMigrationPlan.self,
+                named: "recent-fallback-full",
+                diagnostic: &diagnostic
+            )
         case .fullHistorical:
-            return try makePersistentContainer(migrationPlan: MerianMigrationPlan.self)
+            return try makePersistentContainer(
+                migrationPlan: MerianMigrationPlan.self,
+                named: "full-historical",
+                diagnostic: &diagnostic
+            )
         }
     }
 
-    private static func makePersistentContainerUsingStoreAwarePlan() throws -> ModelContainer {
-        let decision = ModelStoreRecoveryCoordinator.migrationDecision(
-            at: ModelStoreRecoveryCoordinator.defaultStoreURL(),
-            currentSchemaMajor: CurrentSchema.versionIdentifier.major
-        )
+    private static func makePersistentContainerUsingStoreAwarePlan(
+        decision: ModelStoreRecoveryCoordinator.StoreMigrationDecision,
+        diagnostic: inout StartupStoreDiagnostic
+    ) throws -> ModelContainer {
         let detectedSchema = decision.storedSchemaMajorVersion.map { "V\($0)" } ?? "unavailable"
 
         MerianLog.general.notice(
@@ -563,9 +747,9 @@ struct MerianApp: App {
         )
 
         do {
-            return try makePersistentContainer(forStoreMigrationHint: decision.hint)
+            return try makePersistentContainer(forStoreMigrationHint: decision.hint, diagnostic: &diagnostic)
         } catch {
-            return try makePersistentContainerRetryingChecksumRepresentative(after: error)
+            return try makePersistentContainerRetryingChecksumRepresentative(after: error, diagnostic: &diagnostic)
         }
     }
 
@@ -610,10 +794,28 @@ struct MerianApp: App {
 
     private static func bootstrapModelContainer() -> ModelContainerBootstrapOutcome {
         logModelContainerBootstrapDiagnostics()
+        let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(
+            at: storeURL,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major
+        )
+        var diagnostic = ModelStoreRecoveryCoordinator.makeStartupDiagnostic(
+            storeURL: storeURL,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major,
+            migrationSchemas: migrationSchemaVersionSummary(),
+            migrationStages: migrationStageVersionSummary(),
+            decision: decision
+        )
 
         do {
+            let container = try makePersistentContainerUsingStoreAwarePlan(
+                decision: decision,
+                diagnostic: &diagnostic
+            )
+            diagnostic.recordFinalOutcome("normal", reason: nil)
+            ModelStoreRecoveryCoordinator.recordLatestStartupDiagnostic(diagnostic)
             return ModelContainerBootstrapOutcome(
-                container: try makePersistentContainerUsingStoreAwarePlan(),
+                container: container,
                 startupStoreState: .normal,
                 startupNotice: nil,
                 telemetryEvent: nil
@@ -621,14 +823,23 @@ struct MerianApp: App {
         } catch {
             MerianLog.general.error("CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)")
 
-            let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()
             if ModelStoreRecoveryCoordinator.shouldQuarantineStore(for: error, storeURL: storeURL) {
                 do {
                     let quarantineDirectory = try ModelStoreRecoveryCoordinator.quarantineStoreArtifacts(
                         at: storeURL,
                         for: error
                     )
-                    let recoveredContainer = try makePersistentContainerUsingStoreAwarePlan()
+                    let recoveredContainer = try makePersistentContainerWithoutMigrationPlan(
+                        named: "post-quarantine-current-store",
+                        diagnostic: &diagnostic
+                    )
+                    diagnostic.recordFinalOutcome(
+                        "recovered",
+                        reason: "corruption_quarantined",
+                        quarantineAttempted: true,
+                        quarantinePerformed: true
+                    )
+                    ModelStoreRecoveryCoordinator.recordLatestStartupDiagnostic(diagnostic)
                     MerianLog.general.error(
                         "RECOVERY: Quarantined suspected-corrupt store artifacts to \(quarantineDirectory.lastPathComponent, privacy: .public) and recreated a fresh ModelContainer."
                     )
@@ -637,19 +848,24 @@ struct MerianApp: App {
                         startupStoreState: .recovered,
                         startupNotice: StartupRecoveryNotice(
                             title: "Library Repaired",
-                            message: "Merian recovered from a corrupted local store and rebuilt the library safely."
+                            message: "Merian recovered from a corrupted local store and rebuilt the library safely.",
+                            diagnosticText: ModelStoreRecoveryCoordinator.startupDiagnosticText(diagnostic)
                         ),
                         telemetryEvent: StartupRecoveryTelemetryEvent(
                             outcome: "recovered",
-                            reason: "corruption_quarantined"
+                            reason: "corruption_quarantined",
+                            properties: diagnostic.telemetryProperties
                         )
                     )
                 } catch let recoveryError {
                     MerianLog.general.fault(
                         "ModelContainer recovery failed after quarantine. Initial error: \(error.localizedDescription, privacy: .private) | Recovery error: \(recoveryError.localizedDescription, privacy: .private)"
                     )
+                    diagnostic.recordAttempt(name: "post-quarantine-recovery", outcome: "failure", error: recoveryError)
                     return fallbackInMemoryBootstrap(
-                        reason: "Merian started in safe mode because the local library could not be recovered. New work in this session is temporary until the app restarts with a healthy store."
+                        reason: "Merian started in safe mode because the local library could not be recovered. New work in this session is temporary until the app restarts with a healthy store.",
+                        telemetryReason: "persistent_store_recovery_failed",
+                        startupDiagnostic: diagnostic
                     )
                 }
             }
@@ -658,7 +874,8 @@ struct MerianApp: App {
             let safeModeFallback = ModelStoreRecoveryCoordinator.safeModeFallback(for: error)
             return fallbackInMemoryBootstrap(
                 reason: safeModeFallback.message,
-                telemetryReason: safeModeFallback.telemetryReason
+                telemetryReason: safeModeFallback.telemetryReason,
+                startupDiagnostic: diagnostic
             )
         }
     }
@@ -666,33 +883,53 @@ struct MerianApp: App {
     static func fallbackInMemoryBootstrap(
         reason: String,
         telemetryReason: String = "persistent_store_unavailable",
+        startupDiagnostic: StartupStoreDiagnostic? = nil,
         makeInMemoryContainer: () throws -> ModelContainer = makeInMemoryContainer
     ) -> ModelContainerBootstrapOutcome {
+        var diagnostic = startupDiagnostic
         do {
+            let container = try makeInMemoryContainer()
+            diagnostic?.recordAttempt(name: "safe-mode-in-memory", outcome: "success")
+            diagnostic?.recordFinalOutcome("safe_mode", reason: telemetryReason)
+            if let diagnostic {
+                ModelStoreRecoveryCoordinator.recordLatestStartupDiagnostic(diagnostic)
+            }
             return ModelContainerBootstrapOutcome(
-                container: try makeInMemoryContainer(),
+                container: container,
                 startupStoreState: .safeMode,
                 startupNotice: StartupRecoveryNotice(
                     title: "Safe Mode Enabled",
-                    message: reason
+                    message: reason,
+                    diagnosticText: diagnostic.flatMap(ModelStoreRecoveryCoordinator.startupDiagnosticText)
                 ),
                 telemetryEvent: StartupRecoveryTelemetryEvent(
                     outcome: "safe_mode",
-                    reason: telemetryReason
+                    reason: telemetryReason,
+                    properties: diagnostic?.telemetryProperties ?? [:]
                 )
             )
         } catch {
             MerianLog.general.fault("In-memory ModelContainer bootstrap failed: \(error.localizedDescription, privacy: .private)")
+            diagnostic?.recordAttempt(name: "safe-mode-in-memory", outcome: "failure", error: error)
+            diagnostic?.recordFinalOutcome(
+                "blocked",
+                reason: "persistent_and_memory_store_unavailable"
+            )
+            if let diagnostic {
+                ModelStoreRecoveryCoordinator.recordLatestStartupDiagnostic(diagnostic)
+            }
             return ModelContainerBootstrapOutcome(
                 container: nil,
                 startupStoreState: .safeMode,
                 startupNotice: StartupRecoveryNotice(
                     title: "Startup Blocked",
-                    message: "Merian could not open either the persistent library or the safe-mode in-memory store. Restart the app after freeing storage or reinstalling if the issue persists."
+                    message: "Merian could not open either the persistent library or the safe-mode in-memory store. Restart the app after freeing storage or reinstalling if the issue persists.",
+                    diagnosticText: diagnostic.flatMap(ModelStoreRecoveryCoordinator.startupDiagnosticText)
                 ),
                 telemetryEvent: StartupRecoveryTelemetryEvent(
                     outcome: "blocked",
-                    reason: "persistent_and_memory_store_unavailable"
+                    reason: "persistent_and_memory_store_unavailable",
+                    properties: diagnostic?.telemetryProperties ?? [:]
                 )
             )
         }
@@ -712,7 +949,8 @@ struct MerianApp: App {
 
         return StartupRecoveryNotice(
             title: storeNotice.title,
-            message: "\(storeNotice.message)\n\n\(configurationMessage)"
+            message: "\(storeNotice.message)\n\n\(configurationMessage)",
+            diagnosticText: storeNotice.diagnosticText
         )
     }
 

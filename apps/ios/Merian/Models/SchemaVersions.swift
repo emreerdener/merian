@@ -1130,20 +1130,271 @@ enum MerianSchemaV48: VersionedSchema {
     static var versionIdentifier = Schema.Version(48, 0, 0)
 
     static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, MerianSchemaV48.OfflineQueuedScan.self, CapturedMediaEntry.self,
+         ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self]
+    }
+}
+
+enum MerianSchemaV48OptionalQueue: VersionedSchema {
+    static var versionIdentifier = Schema.Version(48, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, MerianSchemaV48OptionalQueue.OfflineQueuedScan.self, CapturedMediaEntry.self,
+         ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self]
+    }
+}
+
+enum MerianSchemaV49: VersionedSchema {
+    static var versionIdentifier = Schema.Version(49, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
         [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
          ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self]
     }
 }
 
-private typealias MerianSchemaV48OfflineQueuedScan = OfflineQueuedScan
-private typealias MerianSchemaV48OfflineJobRecord = OfflineJobRecord
-private typealias MerianSchemaV48OfflineQueueEvent = OfflineQueueEvent
+private typealias MerianSchemaV49OfflineQueuedScan = OfflineQueuedScan
+private typealias MerianSchemaV49OfflineJobRecord = OfflineJobRecord
+private typealias MerianSchemaV49OfflineQueueEvent = OfflineQueueEvent
 
 extension MerianSchemaV48 {
-    fileprivate typealias OfflineQueuedScan = MerianSchemaV48OfflineQueuedScan
-    fileprivate typealias OfflineJobRecord = MerianSchemaV48OfflineJobRecord
-    fileprivate typealias OfflineQueueEvent = MerianSchemaV48OfflineQueueEvent
+    fileprivate typealias OfflineJobRecord = MerianSchemaV49OfflineJobRecord
+    fileprivate typealias OfflineQueueEvent = MerianSchemaV49OfflineQueueEvent
+
+    @Model
+    final class OfflineQueuedScan {
+        @Attribute(.unique) var id: String
+        var timestamp: Date
+        var capturedMediaJSON: String?
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [CapturedMediaEntry]? = []
+
+        var gpsLatitude: Double?
+        var gpsLongitude: Double?
+        var gpsElevation: Double?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+        var blurScore: Double?
+        var subjectDistanceInMeters: Float?
+        var locationName: String?
+        var isFlashFired: Bool?
+        var cameraPitchDegrees: Double?
+        var compassHeading: Double?
+        var relativeHumidity: Double?
+        var uvIndex: Int?
+        @Attribute var zoomFactor: Double?
+        var scanStateRaw: Int = ScanQueueState.pending.rawValue
+        var stagedR2Keys: [String]?
+        @Attribute var inferenceImagePaths: [String]?
+        @Attribute var visualMediaItemsJSON: String?
+        @Attribute var fieldNotes: String?
+        @Attribute var queueAttemptCount: Int = 0
+        @Attribute var queueLastAttemptAt: Date?
+        @Attribute var queueNextRetryAt: Date?
+        @Attribute var queueLastErrorCode: String?
+        @Attribute var queueLastErrorMessage: String?
+        @Attribute var queueLastHTTPStatus: Int?
+        @Attribute var queueLastServerStatus: String?
+        @Attribute var queueLastServerStage: String?
+        @Attribute var queueLastServerRetryAfter: Date?
+        @Attribute var queueUpdatedAt: Date = Date()
+        @Attribute var queueNeedsAttention: Bool = false
+        @Attribute var coverImagePath: String?
+
+        init(
+            id: String = UUID().uuidString,
+            timestamp: Date = Date(),
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            blurScore: Double? = nil,
+            subjectDistanceInMeters: Float? = nil,
+            locationName: String? = nil,
+            isFlashFired: Bool? = nil,
+            cameraPitchDegrees: Double? = nil,
+            compassHeading: Double? = nil,
+            relativeHumidity: Double? = nil,
+            uvIndex: Int? = nil,
+            zoomFactor: Double? = nil,
+            scanState: ScanQueueState = .pending,
+            stagedR2Keys: [String]? = nil,
+            inferenceImagePaths: [String]? = nil,
+            visualMediaItemsJSON: String? = nil,
+            fieldNotes: String? = nil,
+            queueAttemptCount: Int = 0,
+            queueLastAttemptAt: Date? = nil,
+            queueNextRetryAt: Date? = nil,
+            queueLastErrorCode: String? = nil,
+            queueLastErrorMessage: String? = nil,
+            queueLastHTTPStatus: Int? = nil,
+            queueLastServerStatus: String? = nil,
+            queueLastServerStage: String? = nil,
+            queueLastServerRetryAfter: Date? = nil,
+            queueUpdatedAt: Date = Date(),
+            queueNeedsAttention: Bool = false
+        ) {
+            self.id = id
+            self.timestamp = timestamp
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.blurScore = blurScore
+            self.subjectDistanceInMeters = subjectDistanceInMeters
+            self.locationName = locationName
+            self.isFlashFired = isFlashFired
+            self.cameraPitchDegrees = cameraPitchDegrees
+            self.compassHeading = compassHeading
+            self.relativeHumidity = relativeHumidity
+            self.uvIndex = uvIndex
+            self.zoomFactor = zoomFactor
+            self.scanStateRaw = scanState.rawValue
+            self.stagedR2Keys = stagedR2Keys
+            self.inferenceImagePaths = inferenceImagePaths
+            self.visualMediaItemsJSON = visualMediaItemsJSON
+            self.fieldNotes = fieldNotes
+            self.queueAttemptCount = queueAttemptCount
+            self.queueLastAttemptAt = queueLastAttemptAt
+            self.queueNextRetryAt = queueNextRetryAt
+            self.queueLastErrorCode = queueLastErrorCode
+            self.queueLastErrorMessage = queueLastErrorMessage
+            self.queueLastHTTPStatus = queueLastHTTPStatus
+            self.queueLastServerStatus = queueLastServerStatus
+            self.queueLastServerStage = queueLastServerStage
+            self.queueLastServerRetryAfter = queueLastServerRetryAfter
+            self.queueUpdatedAt = queueUpdatedAt
+            self.queueNeedsAttention = queueNeedsAttention
+        }
+    }
+}
+
+extension MerianSchemaV48OptionalQueue {
+    @Model
+    final class OfflineQueuedScan {
+        @Attribute(.unique) var id: String
+        var timestamp: Date
+        var capturedMediaJSON: String?
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [CapturedMediaEntry]? = []
+
+        var gpsLatitude: Double?
+        var gpsLongitude: Double?
+        var gpsElevation: Double?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+        var blurScore: Double?
+        var subjectDistanceInMeters: Float?
+        var locationName: String?
+        var isFlashFired: Bool?
+        var cameraPitchDegrees: Double?
+        var compassHeading: Double?
+        var relativeHumidity: Double?
+        var uvIndex: Int?
+        @Attribute var zoomFactor: Double?
+        var scanStateRaw: Int = ScanQueueState.pending.rawValue
+        var stagedR2Keys: [String]?
+        @Attribute var inferenceImagePaths: [String]?
+        @Attribute var visualMediaItemsJSON: String?
+        @Attribute var fieldNotes: String?
+        @Attribute var queueAttemptCount: Int?
+        @Attribute var queueLastAttemptAt: Date?
+        @Attribute var queueNextRetryAt: Date?
+        @Attribute var queueLastErrorCode: String?
+        @Attribute var queueLastErrorMessage: String?
+        @Attribute var queueLastHTTPStatus: Int?
+        @Attribute var queueLastServerStatus: String?
+        @Attribute var queueLastServerStage: String?
+        @Attribute var queueLastServerRetryAfter: Date?
+        @Attribute var queueUpdatedAt: Date?
+        @Attribute var queueNeedsAttention: Bool?
+        @Attribute var coverImagePath: String?
+
+        init(
+            id: String = UUID().uuidString,
+            timestamp: Date = Date(),
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            blurScore: Double? = nil,
+            subjectDistanceInMeters: Float? = nil,
+            locationName: String? = nil,
+            isFlashFired: Bool? = nil,
+            cameraPitchDegrees: Double? = nil,
+            compassHeading: Double? = nil,
+            relativeHumidity: Double? = nil,
+            uvIndex: Int? = nil,
+            zoomFactor: Double? = nil,
+            scanState: ScanQueueState = .pending,
+            stagedR2Keys: [String]? = nil,
+            inferenceImagePaths: [String]? = nil,
+            visualMediaItemsJSON: String? = nil,
+            fieldNotes: String? = nil,
+            queueAttemptCount: Int? = nil,
+            queueLastAttemptAt: Date? = nil,
+            queueNextRetryAt: Date? = nil,
+            queueLastErrorCode: String? = nil,
+            queueLastErrorMessage: String? = nil,
+            queueLastHTTPStatus: Int? = nil,
+            queueLastServerStatus: String? = nil,
+            queueLastServerStage: String? = nil,
+            queueLastServerRetryAfter: Date? = nil,
+            queueUpdatedAt: Date? = nil,
+            queueNeedsAttention: Bool? = nil
+        ) {
+            self.id = id
+            self.timestamp = timestamp
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.blurScore = blurScore
+            self.subjectDistanceInMeters = subjectDistanceInMeters
+            self.locationName = locationName
+            self.isFlashFired = isFlashFired
+            self.cameraPitchDegrees = cameraPitchDegrees
+            self.compassHeading = compassHeading
+            self.relativeHumidity = relativeHumidity
+            self.uvIndex = uvIndex
+            self.zoomFactor = zoomFactor
+            self.scanStateRaw = scanState.rawValue
+            self.stagedR2Keys = stagedR2Keys
+            self.inferenceImagePaths = inferenceImagePaths
+            self.visualMediaItemsJSON = visualMediaItemsJSON
+            self.fieldNotes = fieldNotes
+            self.queueAttemptCount = queueAttemptCount
+            self.queueLastAttemptAt = queueLastAttemptAt
+            self.queueNextRetryAt = queueNextRetryAt
+            self.queueLastErrorCode = queueLastErrorCode
+            self.queueLastErrorMessage = queueLastErrorMessage
+            self.queueLastHTTPStatus = queueLastHTTPStatus
+            self.queueLastServerStatus = queueLastServerStatus
+            self.queueLastServerStage = queueLastServerStage
+            self.queueLastServerRetryAfter = queueLastServerRetryAfter
+            self.queueUpdatedAt = queueUpdatedAt
+            self.queueNeedsAttention = queueNeedsAttention
+        }
+    }
+}
+
+extension MerianSchemaV49 {
+    fileprivate typealias OfflineQueuedScan = MerianSchemaV49OfflineQueuedScan
+    fileprivate typealias OfflineJobRecord = MerianSchemaV49OfflineJobRecord
+    fileprivate typealias OfflineQueueEvent = MerianSchemaV49OfflineQueueEvent
 }
 
 extension MerianSchemaV47 {
@@ -2528,7 +2779,119 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     }
 
+    private struct V48QueuedScanMigrationSnapshot: Sendable {
+        let id: String
+        let timestamp: Date
+        let capturedMediaJSON: String?
+        let coverImagePath: String?
+        let gpsLatitude: Double?
+        let gpsLongitude: Double?
+        let gpsElevation: Double?
+        let weatherCondition: String?
+        let weatherTemperatureF: Double?
+        let blurScore: Double?
+        let subjectDistanceInMeters: Float?
+        let locationName: String?
+        let isFlashFired: Bool?
+        let cameraPitchDegrees: Double?
+        let compassHeading: Double?
+        let relativeHumidity: Double?
+        let uvIndex: Int?
+        let zoomFactor: Double?
+        let scanStateRaw: Int
+        let stagedR2Keys: [String]?
+        let inferenceImagePaths: [String]?
+        let visualMediaItemsJSON: String?
+        let fieldNotes: String?
+        let queueAttemptCount: Int?
+        let queueLastAttemptAt: Date?
+        let queueNextRetryAt: Date?
+        let queueLastErrorCode: String?
+        let queueLastErrorMessage: String?
+        let queueLastHTTPStatus: Int?
+        let queueLastServerStatus: String?
+        let queueLastServerStage: String?
+        let queueLastServerRetryAfter: Date?
+        let queueUpdatedAt: Date?
+        let queueNeedsAttention: Bool?
+
+        init(_ scan: MerianSchemaV48.OfflineQueuedScan) {
+            id = scan.id
+            timestamp = scan.timestamp
+            capturedMediaJSON = scan.capturedMediaJSON
+            coverImagePath = scan.coverImagePath
+            gpsLatitude = scan.gpsLatitude
+            gpsLongitude = scan.gpsLongitude
+            gpsElevation = scan.gpsElevation
+            weatherCondition = scan.weatherCondition
+            weatherTemperatureF = scan.weatherTemperatureF
+            blurScore = scan.blurScore
+            subjectDistanceInMeters = scan.subjectDistanceInMeters
+            locationName = scan.locationName
+            isFlashFired = scan.isFlashFired
+            cameraPitchDegrees = scan.cameraPitchDegrees
+            compassHeading = scan.compassHeading
+            relativeHumidity = scan.relativeHumidity
+            uvIndex = scan.uvIndex
+            zoomFactor = scan.zoomFactor
+            scanStateRaw = scan.scanStateRaw
+            stagedR2Keys = scan.stagedR2Keys
+            inferenceImagePaths = scan.inferenceImagePaths
+            visualMediaItemsJSON = scan.visualMediaItemsJSON
+            fieldNotes = scan.fieldNotes
+            queueAttemptCount = scan.queueAttemptCount
+            queueLastAttemptAt = scan.queueLastAttemptAt
+            queueNextRetryAt = scan.queueNextRetryAt
+            queueLastErrorCode = scan.queueLastErrorCode
+            queueLastErrorMessage = scan.queueLastErrorMessage
+            queueLastHTTPStatus = scan.queueLastHTTPStatus
+            queueLastServerStatus = scan.queueLastServerStatus
+            queueLastServerStage = scan.queueLastServerStage
+            queueLastServerRetryAfter = scan.queueLastServerRetryAfter
+            queueUpdatedAt = scan.queueUpdatedAt
+            queueNeedsAttention = scan.queueNeedsAttention
+        }
+
+        init(_ scan: MerianSchemaV48OptionalQueue.OfflineQueuedScan) {
+            id = scan.id
+            timestamp = scan.timestamp
+            capturedMediaJSON = scan.capturedMediaJSON
+            coverImagePath = scan.coverImagePath
+            gpsLatitude = scan.gpsLatitude
+            gpsLongitude = scan.gpsLongitude
+            gpsElevation = scan.gpsElevation
+            weatherCondition = scan.weatherCondition
+            weatherTemperatureF = scan.weatherTemperatureF
+            blurScore = scan.blurScore
+            subjectDistanceInMeters = scan.subjectDistanceInMeters
+            locationName = scan.locationName
+            isFlashFired = scan.isFlashFired
+            cameraPitchDegrees = scan.cameraPitchDegrees
+            compassHeading = scan.compassHeading
+            relativeHumidity = scan.relativeHumidity
+            uvIndex = scan.uvIndex
+            zoomFactor = scan.zoomFactor
+            scanStateRaw = scan.scanStateRaw
+            stagedR2Keys = scan.stagedR2Keys
+            inferenceImagePaths = scan.inferenceImagePaths
+            visualMediaItemsJSON = scan.visualMediaItemsJSON
+            fieldNotes = scan.fieldNotes
+            queueAttemptCount = scan.queueAttemptCount
+            queueLastAttemptAt = scan.queueLastAttemptAt
+            queueNextRetryAt = scan.queueNextRetryAt
+            queueLastErrorCode = scan.queueLastErrorCode
+            queueLastErrorMessage = scan.queueLastErrorMessage
+            queueLastHTTPStatus = scan.queueLastHTTPStatus
+            queueLastServerStatus = scan.queueLastServerStatus
+            queueLastServerStage = scan.queueLastServerStage
+            queueLastServerRetryAfter = scan.queueLastServerRetryAfter
+            queueUpdatedAt = scan.queueUpdatedAt
+            queueNeedsAttention = scan.queueNeedsAttention
+        }
+    }
+
     private static let _v47QueuedScanBackfill = MigrationScratchpad<V47QueuedScanMigrationSnapshot>()
+    private static let _v48OptionalQueuedScanBackfill = MigrationScratchpad<V48QueuedScanMigrationSnapshot>()
 
     private static func migrationFirstImagePath(in items: [SerializedMediaItem]) -> String? {
         CapturedMediaSnapshot(items: items).primaryImagePath
@@ -2612,7 +2975,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV42.self,
             MerianSchemaV43.self,
             MerianSchemaV47.self,
-            MerianSchemaV48.self
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
         ]
     }
 
@@ -2660,7 +3024,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV40toV41,
             migrateV41toV42,
             migrateV42toV43,
-            migrateV43toV48
+            migrateV43toV48,
+            migrateV48toV49
         ]
     }
 
@@ -2793,6 +3158,136 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         _v47QueuedScanBackfill.removeAll(namespace: namespace)
     }
 
+    private static func initializeV49OfflineQueueRecords(
+        in context: ModelContext,
+        stage: String
+    ) throws {
+        let now = Date()
+        let namespace = migrationNamespace(for: context)
+        let snapshots = _v48OptionalQueuedScanBackfill.values(namespace: namespace)
+        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV49.OfflineQueuedScan>())
+        let snapshotIds = Set(snapshots.map(\.id))
+        var existingScansById = Dictionary(uniqueKeysWithValues: queuedScans.map { ($0.id, $0) })
+
+        let existingJobs = try context.fetch(FetchDescriptor<MerianSchemaV49.OfflineJobRecord>())
+        var existingJobIds = Set(existingJobs.map(\.id))
+
+        func insertSchedulerRows(scanId: String, createdAt: Date) {
+            let jobId = "scan-ingestion:\(scanId)"
+            if !existingJobIds.contains(jobId) {
+                let job = MerianSchemaV49.OfflineJobRecord(
+                    id: jobId,
+                    kind: .scanIngestion,
+                    subjectId: scanId,
+                    priority: 100,
+                    status: .pending,
+                    createdAt: createdAt,
+                    updatedAt: now
+                )
+                context.insert(job)
+                existingJobIds.insert(jobId)
+            }
+
+            context.insert(MerianSchemaV49.OfflineQueueEvent(
+                jobId: jobId,
+                scanId: scanId,
+                kind: .queued,
+                createdAt: now,
+                message: "Queued scan migrated through startup recovery schema repair."
+            ))
+        }
+
+        func replaceQueuedCapturedMedia(
+            on scan: MerianSchemaV49.OfflineQueuedScan,
+            capturedMediaJSON: String?
+        ) {
+            for existingEntry in scan.capturedMediaEntries ?? [] {
+                context.delete(existingEntry)
+            }
+
+            guard let jsonString = capturedMediaJSON,
+                  let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
+                scan.capturedMediaEntries = []
+                return
+            }
+
+            let entries = CapturedMediaEntry.makeEntries(from: items)
+            entries.forEach { context.insert($0) }
+            scan.capturedMediaEntries = entries
+        }
+
+        func normalizeQueueMetadata(on scan: MerianSchemaV49.OfflineQueuedScan) {
+            scan.queueSchemaRepairGeneration = 1
+        }
+
+        func apply(
+            snapshot: V48QueuedScanMigrationSnapshot,
+            to scan: MerianSchemaV49.OfflineQueuedScan
+        ) {
+            scan.timestamp = snapshot.timestamp
+            scan.capturedMediaJSON = snapshot.capturedMediaJSON
+            scan.coverImagePath = snapshot.coverImagePath
+            scan.gpsLatitude = snapshot.gpsLatitude
+            scan.gpsLongitude = snapshot.gpsLongitude
+            scan.gpsElevation = snapshot.gpsElevation
+            scan.weatherCondition = snapshot.weatherCondition
+            scan.weatherTemperatureF = snapshot.weatherTemperatureF
+            scan.blurScore = snapshot.blurScore
+            scan.subjectDistanceInMeters = snapshot.subjectDistanceInMeters
+            scan.locationName = snapshot.locationName
+            scan.isFlashFired = snapshot.isFlashFired
+            scan.cameraPitchDegrees = snapshot.cameraPitchDegrees
+            scan.compassHeading = snapshot.compassHeading
+            scan.relativeHumidity = snapshot.relativeHumidity
+            scan.uvIndex = snapshot.uvIndex
+            scan.zoomFactor = snapshot.zoomFactor
+            scan.scanStateRaw = snapshot.scanStateRaw
+            scan.stagedR2Keys = snapshot.stagedR2Keys
+            scan.inferenceImagePaths = snapshot.inferenceImagePaths
+            scan.visualMediaItemsJSON = snapshot.visualMediaItemsJSON
+            scan.fieldNotes = snapshot.fieldNotes
+            scan.queueAttemptCount = snapshot.queueAttemptCount ?? 0
+            scan.queueLastAttemptAt = snapshot.queueLastAttemptAt
+            scan.queueNextRetryAt = snapshot.queueNextRetryAt
+            scan.queueLastErrorCode = snapshot.queueLastErrorCode
+            scan.queueLastErrorMessage = snapshot.queueLastErrorMessage
+            scan.queueLastHTTPStatus = snapshot.queueLastHTTPStatus
+            scan.queueLastServerStatus = snapshot.queueLastServerStatus
+            scan.queueLastServerStage = snapshot.queueLastServerStage
+            scan.queueLastServerRetryAfter = snapshot.queueLastServerRetryAfter
+            scan.queueUpdatedAt = snapshot.queueUpdatedAt ?? now
+            scan.queueNeedsAttention = snapshot.queueNeedsAttention ?? false
+            scan.queueSchemaRepairGeneration = 1
+            replaceQueuedCapturedMedia(on: scan, capturedMediaJSON: snapshot.capturedMediaJSON)
+        }
+
+        func upsertQueuedScan(from snapshot: V48QueuedScanMigrationSnapshot) {
+            let scan: MerianSchemaV49.OfflineQueuedScan
+            if let existingScan = existingScansById[snapshot.id] {
+                scan = existingScan
+            } else {
+                scan = MerianSchemaV49.OfflineQueuedScan(id: snapshot.id)
+                context.insert(scan)
+                existingScansById[snapshot.id] = scan
+            }
+
+            apply(snapshot: snapshot, to: scan)
+            insertSchedulerRows(scanId: snapshot.id, createdAt: snapshot.timestamp)
+        }
+
+        for scan in queuedScans where !snapshotIds.contains(scan.id) {
+            normalizeQueueMetadata(on: scan)
+            insertSchedulerRows(scanId: scan.id, createdAt: scan.timestamp)
+        }
+
+        for snapshot in snapshots {
+            upsertQueuedScan(from: snapshot)
+        }
+
+        try saveMigrationContext(context, stage: stage)
+        _v48OptionalQueuedScanBackfill.removeAll(namespace: namespace)
+    }
+
     static let migrateV47toV48 = MigrationStage.custom(
         fromVersion: MerianSchemaV47.self,
         toVersion: MerianSchemaV48.self,
@@ -2847,6 +3342,32 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         willMigrate: nil,
         didMigrate: { context in
             try initializeV48OfflineQueueRecords(in: context, stage: "V46->V48 didMigrate")
+        }
+    )
+
+    static let migrateV48toV49 = MigrationStage.custom(
+        fromVersion: MerianSchemaV48.self,
+        toVersion: MerianSchemaV49.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            try initializeV49OfflineQueueRecords(in: context, stage: "V48->V49 didMigrate")
+        }
+    )
+
+    static let migrateOptionalQueueV48toV49 = MigrationStage.custom(
+        fromVersion: MerianSchemaV48OptionalQueue.self,
+        toVersion: MerianSchemaV49.self,
+        willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
+            _v48OptionalQueuedScanBackfill.removeAll(namespace: namespace)
+            let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48OptionalQueue.OfflineQueuedScan>())
+            for scan in queuedScans {
+                _v48OptionalQueuedScanBackfill[namespace: namespace, key: scan.id] = V48QueuedScanMigrationSnapshot(scan)
+                context.delete(scan)
+            }
+        },
+        didMigrate: { context in
+            try initializeV49OfflineQueueRecords(in: context, stage: "V48 optional queue->V49 didMigrate")
         }
     )
 
@@ -3388,17 +3909,58 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
 /// still trigger duplicate-checksum validation. Each short plan therefore keeps
 /// exactly one possible source representative and jumps directly to the next
 /// model with real queue/media changes.
-enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
+enum MerianRecentV42MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
-            MerianSchemaV44.self,
-            MerianSchemaV48.self
+            MerianSchemaV42.self,
+            MerianSchemaV43.self,
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV44toV48
+            MerianMigrationPlan.migrateV42toV43,
+            MerianMigrationPlan.migrateV43toV48,
+            MerianMigrationPlan.migrateV48toV49
+        ]
+    }
+}
+
+/// Short recovery plan for stores already stamped V43. This avoids validating
+/// the older full historical custom stages on devices that can jump straight to
+/// the current repair path.
+enum MerianRecentV43MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV43.self,
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateV43toV48,
+            MerianMigrationPlan.migrateV48toV49
+        ]
+    }
+}
+
+enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV44.self,
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateV44toV48,
+            MerianMigrationPlan.migrateV48toV49
         ]
     }
 }
@@ -3408,13 +3970,15 @@ enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV45.self,
-            MerianSchemaV48.self
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV45toV48
+            MerianMigrationPlan.migrateV45toV48,
+            MerianMigrationPlan.migrateV48toV49
         ]
     }
 }
@@ -3426,13 +3990,15 @@ enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV46.self,
-            MerianSchemaV48.self
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV46toV48
+            MerianMigrationPlan.migrateV46toV48,
+            MerianMigrationPlan.migrateV48toV49
         ]
     }
 }
@@ -3442,13 +4008,47 @@ enum MerianRecentV47MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV47.self,
-            MerianSchemaV48.self
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV47toV48
+            MerianMigrationPlan.migrateV47toV48,
+            MerianMigrationPlan.migrateV48toV49
+        ]
+    }
+}
+
+/// Short recovery plan for stores already on the known-good V48 source.
+enum MerianRecentV48MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV48.self,
+            MerianSchemaV49.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateV48toV49
+        ]
+    }
+}
+
+/// Recovery plan for the accidental optional-queue V48 TestFlight schema.
+enum MerianOptionalQueueV48RecoveryPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV48OptionalQueue.self,
+            MerianSchemaV49.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateOptionalQueueV48toV49
         ]
     }
 }
