@@ -5,8 +5,7 @@ the RevenueCat dashboard. When Apple processes a subscription renewal,
 cancellation, upgrade, or verified non-renewing purchase, RevenueCat fires an
 authenticated POST to this function. It maps standard subscription entitlement
 changes to `users.subscription_tier`, and maps the detached
-`merian_7_day_pass` product to a timed Pro grant via
-`users.subscription_expires_at`.
+`pro_week` product to a timed Pro grant via `users.subscription_expires_at`.
 
 The dynamic 7-day Pro trial is not stored as `users.subscription_tier = "pro"`.
 Trial access is derived by `_shared/tierCache.ts` from the user
@@ -25,8 +24,8 @@ while handling massive backend data moves, the module is strictly decoupled:
   database bounds, and deferring the heavy payload replication into the Deno
   background queue.
 
-- **`events.ts`** The deterministic event classifier. Exact
-  `merian_7_day_pass` `NON_RENEWING_PURCHASE` events become timed Pro grants
+- **`events.ts`** The deterministic event classifier. Exact `pro_week`
+  `NON_RENEWING_PURCHASE` events become timed Pro grants
   using `purchased_at_ms + 7 days`; unrelated non-renewing purchases are
   ignored. Standard auto-renewing events clear `subscription_expires_at`, and
   pass refund/cancellation-style events downgrade immediately.
@@ -42,7 +41,7 @@ while handling massive backend data moves, the module is strictly decoupled:
 
 ## 7-Day Pass Contract
 
-- Product ID: `merian_7_day_pass` (exact match only).
+- Product ID: `pro_week` (exact match only).
 - Purchase source: RevenueCat `NON_RENEWING_PURCHASE`.
 - Expiry source: `event.purchased_at_ms + 7 days`, stored in
   `users.subscription_expires_at`.

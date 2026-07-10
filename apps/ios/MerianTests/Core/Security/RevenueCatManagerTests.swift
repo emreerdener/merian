@@ -35,10 +35,61 @@ final class RevenueCatManagerTests: XCTestCase {
             userId: testId,
             email: email,
             displayName: name,
-            avatarUrl: avatar
+            avatarUrl: avatar,
+            publicUsername: "riverwren",
+            publicAuthorName: "River Wren",
+            publicIdentitySource: "display_name",
+            accountKind: "authenticated"
         )
         
         XCTAssertTrue(true, "Attribution Signature compiled properly!")
+    }
+
+    func testRevenueCatIdentityContextAddsDashboardLookupAttributes() {
+        let context = RevenueCatIdentityContext(
+            userId: "user-123",
+            email: " test@example.com ",
+            displayName: " Test Explorer ",
+            avatarUrl: " https://example.com/avatar.jpg ",
+            publicUsername: "riverwren",
+            publicAuthorName: "River Wren",
+            publicIdentitySource: "display_name",
+            accountKind: "authenticated"
+        )
+
+        XCTAssertEqual(context.normalizedEmail, "test@example.com")
+        XCTAssertEqual(context.normalizedDisplayName, "Test Explorer")
+        XCTAssertEqual(context.subscriberAttributes["supabase_user_id"], "user-123")
+        XCTAssertEqual(context.subscriberAttributes["auth_email"], "test@example.com")
+        XCTAssertEqual(context.subscriberAttributes["display_name"], "Test Explorer")
+        XCTAssertEqual(context.subscriberAttributes["avatar_url"], "https://example.com/avatar.jpg")
+        XCTAssertEqual(context.subscriberAttributes["public_username"], "riverwren")
+        XCTAssertEqual(context.subscriberAttributes["public_author_name"], "River Wren")
+        XCTAssertEqual(context.subscriberAttributes["public_identity_source"], "display_name")
+        XCTAssertEqual(context.subscriberAttributes["account_kind"], "authenticated")
+    }
+
+    func testRevenueCatIdentityContextFallsBackToPublicUsernameAndOmitsBlankValues() {
+        let context = RevenueCatIdentityContext(
+            userId: "anonymous-123",
+            email: "  ",
+            displayName: nil,
+            avatarUrl: nil,
+            publicUsername: "trailmoss",
+            publicAuthorName: nil,
+            publicIdentitySource: "alias",
+            accountKind: "anonymous"
+        )
+
+        XCTAssertNil(context.normalizedEmail)
+        XCTAssertEqual(context.normalizedDisplayName, "@trailmoss")
+        XCTAssertEqual(context.subscriberAttributes["supabase_user_id"], "anonymous-123")
+        XCTAssertNil(context.subscriberAttributes["auth_email"])
+        XCTAssertNil(context.subscriberAttributes["avatar_url"])
+        XCTAssertEqual(context.subscriberAttributes["display_name"], "@trailmoss")
+        XCTAssertEqual(context.subscriberAttributes["public_username"], "trailmoss")
+        XCTAssertEqual(context.subscriberAttributes["public_identity_source"], "alias")
+        XCTAssertEqual(context.subscriberAttributes["account_kind"], "anonymous")
     }
 
     func testHandleSupabaseSignOutClearsEntitlementsInTests() async {

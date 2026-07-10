@@ -6,6 +6,13 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Account & Billing
+
+- Fixed logout so signing out on one simulator or device clears only that local
+  session instead of revoking the same account everywhere, and linked RevenueCat
+  customers with Supabase/public identity attributes so Test Store support
+  lookups can match Pro status back to Merian accounts.
+
 ### Analytics
 
 - Consolidated product analytics under PostHog so app events, session funnels,

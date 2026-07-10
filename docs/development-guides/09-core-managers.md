@@ -1012,6 +1012,13 @@ and `KeychainManager` migration logic. Do not inline
   The Supabase SDK emits two auth events per session restore (local cache read +
   server validation); this guard skips the second event for the same user ID so
   external identity systems are only notified once per session.
+- **RevenueCat identity attributes**: `linkExternalTelemetry(user:)` performs a
+  best-effort read of the user's `public.users` row before calling
+  `RevenueCatManager.shared.linkWithSupabase(...)`. The RevenueCat customer keeps
+  the Supabase Auth UUID as the App User ID and also receives subscriber
+  attributes such as `supabase_user_id`, `auth_email`, `public_username`,
+  `public_author_name`, `public_identity_source`, and `account_kind` so Test
+  Store customers can be matched back to Merian accounts.
 - **`ghostSessionTask` single-flight**:
   `@ObservationIgnored private var ghostSessionTask: Task<Void, Never>?` —
   serializes anonymous session creation across all callers. This closes the
@@ -1031,6 +1038,9 @@ and `KeychainManager` migration logic. Do not inline
   duplicate `signInAnonymously()` block.
 - Maps Apple and Google OAuth hooks to migrate Ghost User accounts, calling
   `RevenueCatManager.shared.linkWithSupabase()` to align payment state.
+- Normal sign-out uses Supabase `.local` scope, then clears RevenueCat and
+  PostHog state for the current device. Do not use global sign-out for ordinary
+  in-app logout because it revokes the account's other active devices too.
 
 ### `DetachedWork`
 
@@ -1114,7 +1124,7 @@ and `KeychainManager` migration logic. Do not inline
 
 - Manages `isProActive` state.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
-  entitlements, and treats `merian_7_day_pass` as a detached non-subscription
+  entitlements, and treats `pro_week` as a detached non-subscription
   purchase that is active for seven days from its purchase date.
 - Connects authenticated users to RevenueCat; the `revenuecat-webhook` Edge
   function remains the server-side purchase authority and writes timed pass

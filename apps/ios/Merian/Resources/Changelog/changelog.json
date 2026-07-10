@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-10-revenuecat-account-linking",
+      "date": "2026-07-10",
+      "title": "Account and Pro access",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Signing out now clears only the current simulator or device session, and RevenueCat customers carry Supabase/public identity details so support can match Test Store Pro status back to Merian accounts."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-08-startup-store-v49-recovery",
       "date": "2026-07-08",
       "title": "Startup store recovery",

@@ -13,7 +13,7 @@ Merian.
 | Supabase JWT (access token)         | Supabase GoTrue SDK (internal Keychain)              | Managed automatically by the SDK                                                       |
 | Supabase anonymous session          | Supabase GoTrue SDK (internal Keychain)              | Managed automatically by the SDK                                                       |
 | Extension cache                     | App Group `group.app.merian.shared`                  | Non-secret coordination data shared by the app, Messages extension, and Explore widget |
-| RevenueCat customer ID              | RevenueCat SDK (internal)                            | Managed automatically by the SDK                                                       |
+| RevenueCat customer ID              | RevenueCat SDK (internal)                            | Logged in with the Supabase Auth UUID; SDK-managed locally                             |
 | `SUPABASE_ANON_KEY`                 | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
 | `REVENUECAT_API_KEY`                | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret; production export should use an iOS `appl_` key     |
 | `POSTHOG_API_KEY`                   | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
@@ -131,9 +131,11 @@ which means the IDFV survives app reinstall as long as another app from the same
 vendor group is installed. This is intentional: it preserves anonymous user
 identity across reinstalls for Ghost Session continuity.
 
-The IDFV is used as the anonymous user identifier for Ghost Sessions
-(`signInAnonymously`), and is passed to PostHog and RevenueCat for anonymous
-funnel tracking.
+The IDFV seeds the anonymous Ghost Session path (`signInAnonymously`) but is not
+the durable billing identifier. Once Supabase returns a user, the Supabase Auth
+UUID is passed to RevenueCat and PostHog; RevenueCat also receives subscriber
+attributes such as auth email, public username, public display name, and account
+kind for manual support lookup.
 
 ---
 

@@ -5,7 +5,7 @@ Hourly service-role worker that expires Merian-owned timed Pro grants.
 The 7-day Pro pass is a detached RevenueCat non-renewing purchase, not a
 RevenueCat entitlement. The RevenueCat webhook writes
 `users.subscription_tier = 'pro'` plus `users.subscription_expires_at` when it
-receives an exact `merian_7_day_pass` purchase. This worker is the durable
+receives an exact `pro_week` purchase. This worker is the durable
 backend authority that turns those timed grants back into free accounts.
 
 ## Flow

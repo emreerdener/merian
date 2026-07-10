@@ -43,7 +43,10 @@ A structured schema built on native SwiftData migrations:
 
 - `DeviceIdentityManager` reads `identifierForVendor` from the OS.
 - Passed into `SupabaseManager.signInAnonymously()` to generate an "Explorer Tier" Ghost identity.
-- Authenticated Apple/Google OAuth flows merge these `.uuidString` paths onto RevenueCat and PostHog funnels.
+- Authenticated Apple/Google OAuth flows merge Ghost rows into the permanent
+  Supabase Auth UUID. That UUID becomes the RevenueCat App User ID and PostHog
+  distinct ID; RevenueCat subscriber attributes carry auth email and public
+  identity fields for dashboard support lookups.
 
 ## Privacy & Geoprivacy Focus
 

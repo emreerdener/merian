@@ -11,12 +11,14 @@ without guessing.
 Tracks the global state of the anonymous/authenticated user.
 
 - `id` (UUID): Maps to the `auth.users` GoTrue unique identifier, automatically
-  generated via standard Supabase Ghost Sessions with IDFV fallback. Mapped into
-  PostHog/RevenueCat telemetry for ecosystem-wide session continuity.
+  generated via standard Supabase Ghost Sessions with IDFV fallback. This UUID
+  is the RevenueCat App User ID and the PostHog distinct ID; RevenueCat
+  subscriber attributes also mirror auth email and public identity fields for
+  support lookups.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `subscription_expires_at` (TIMESTAMPTZ, nullable): Set only for Merian-owned
-  timed Pro grants such as the detached `merian_7_day_pass` non-renewing
-  purchase. Standard RevenueCat subscriptions leave this null. The hourly
+  timed Pro grants such as the detached `pro_week` non-renewing purchase.
+  Standard RevenueCat subscriptions leave this null. The hourly
   `expire-subscription-passes` worker downgrades expired timed grants and clears
   this value.
 - `default_geoprivacy` (ENUM): `'open'` | `'obscured'` | `'private'`. Dictates

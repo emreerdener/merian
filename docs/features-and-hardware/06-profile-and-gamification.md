@@ -69,7 +69,9 @@ The `Persona` UI component cross-references this enum against the user's live pr
 - `updatePublicAvatar(_:)` — stages a prepared square profile picture in R2,
   calls `/update-public-avatar`, refreshes `publicAvatarUrl`, and publishes
   `.publicAuthorIdentityChanged`
-- `signInWithApple()`, `signInWithGoogle()`, `signOut()` — delegates to `SupabaseManager`
+- `signInWithApple()`, `signInWithGoogle()`, `signOut()` — delegates to
+  `SupabaseManager`; normal logout is local to the current device and also
+  clears the current RevenueCat/PostHog identity cache
 - Auth state computed properties (`isGuestUser`, `userName`, `userEmail`,
   `userAvatarURL`, `publicUsernameDisplayName`)
 

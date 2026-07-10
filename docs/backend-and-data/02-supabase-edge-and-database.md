@@ -929,7 +929,7 @@ in-process isolate cache. Without this, a Pro purchaser would receive
 cache holds the stale `"free"` entry.
 
 Standard subscription purchases (`INITIAL_PURCHASE`, `RENEWAL`,
-`UNCANCELLATION`) clear `subscription_expires_at`; exact `merian_7_day_pass`
+`UNCANCELLATION`) clear `subscription_expires_at`; exact `pro_week`
 `NON_RENEWING_PURCHASE` events set it to `purchased_at_ms + 7 days`. On
 `EXPIRATION` for standard subscriptions, or refund/cancellation-style events for
 the pass, Merian downgrades the account tier and updates the in-process tier
@@ -937,6 +937,13 @@ cache. Existing scan media remains in place because both `public_uploads/free/`
 and `public_uploads/pro/` are durable scan-media prefixes. The scheduled
 `expire-subscription-passes` worker performs the same downgrade when a timed
 pass reaches `subscription_expires_at`.
+
+RevenueCat customer identity is linked by the iOS client before purchase
+evaluation: `SupabaseManager.linkExternalTelemetry(user:)` logs RevenueCat in
+with the Supabase Auth UUID and sets subscriber attributes such as
+`supabase_user_id`, `auth_email`, `public_username`, `public_author_name`,
+`public_identity_source`, and `account_kind`. Manual RevenueCat Test Store
+support work should search by the Supabase UUID first, then by those attributes.
 
 Before saving `image_storage_urls` to PostgreSQL, the function strips AWS
 signature query string parameters from the URL to prevent Cloudflare R2
@@ -1278,9 +1285,11 @@ accumulate and require manual intervention to detect. All functions that call
 `logStructuredError` for operationally critical events must have a corresponding
 alert rule.
 
-On `200 OK`, the iOS client calls `supabase.signOut()`, tears down the local
-SQLite database via `ScanRepository.shared.purgeAllData()`, and clears all
-cached image files from disk.
+On `200 OK`, the iOS client performs local Supabase sign-out for the current
+device, tears down the local SQLite database via
+`ScanRepository.shared.purgeAllData()`, and clears all cached image files from
+disk. Ordinary in-app sign-out also uses local scope so another simulator or
+device session is not revoked.
 
 ## Scan Erasure & The Deletion Pipeline (`delete-scan`)
 

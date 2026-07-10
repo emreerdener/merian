@@ -23,6 +23,62 @@ enum SevenDayPassAccessPolicy {
     }
 }
 
+struct RevenueCatIdentityContext: Equatable {
+    let userId: String
+    let email: String?
+    let displayName: String?
+    let avatarUrl: String?
+    let publicUsername: String?
+    let publicAuthorName: String?
+    let publicIdentitySource: String?
+    let accountKind: String?
+
+    var normalizedEmail: String? {
+        Self.normalized(email)
+    }
+
+    var normalizedDisplayName: String? {
+        if let displayName = Self.firstNonEmpty(displayName, publicAuthorName) {
+            return displayName
+        }
+        guard let publicUsername = Self.normalized(publicUsername) else { return nil }
+        return "@\(publicUsername)"
+    }
+
+    var subscriberAttributes: [String: String] {
+        var attributes: [String: String] = [
+            "supabase_user_id": userId
+        ]
+
+        set("auth_email", email, in: &attributes)
+        set("display_name", normalizedDisplayName, in: &attributes)
+        set("avatar_url", avatarUrl, in: &attributes)
+        set("public_username", publicUsername, in: &attributes)
+        set("public_author_name", publicAuthorName, in: &attributes)
+        set("public_identity_source", publicIdentitySource, in: &attributes)
+        set("account_kind", accountKind, in: &attributes)
+
+        return attributes
+    }
+
+    static func normalized(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func firstNonEmpty(_ values: String?...) -> String? {
+        values.lazy.compactMap(normalized).first
+    }
+
+    private func set(_ key: String, _ value: String?, in attributes: inout [String: String]) {
+        guard let normalized = Self.normalized(value) else { return }
+        attributes[key] = normalized
+    }
+}
+
 @MainActor
 @Observable final class RevenueCatManager {
     static let shared = RevenueCatManager()
@@ -88,27 +144,45 @@ enum SevenDayPassAccessPolicy {
     // MARK: - Identity
 
     /// Logs in to RevenueCat with `userId` and syncs optional profile attributes.
-    func linkWithSupabase(userId: String, email: String? = nil, displayName: String? = nil, avatarUrl: String? = nil) async {
+    func linkWithSupabase(
+        userId: String,
+        email: String? = nil,
+        displayName: String? = nil,
+        avatarUrl: String? = nil,
+        publicUsername: String? = nil,
+        publicAuthorName: String? = nil,
+        publicIdentitySource: String? = nil,
+        accountKind: String? = nil
+    ) async {
         guard !TestExecutionCoordinator.isRunningTests else { return }
         guard Purchases.isConfigured else {
             MerianLog.general.warning("RevenueCatManager.linkWithSupabase() skipped: Purchases is not configured.")
             return
         }
 
+        let identity = RevenueCatIdentityContext(
+            userId: userId,
+            email: email,
+            displayName: displayName,
+            avatarUrl: avatarUrl,
+            publicUsername: publicUsername,
+            publicAuthorName: publicAuthorName,
+            publicIdentitySource: publicIdentitySource,
+            accountKind: accountKind
+        )
+
         do {
             let (customerInfo, _) = try await Purchases.shared.logIn(userId)
             updateEntitlements(with: customerInfo)
 
             // Sync optional profile attributes.
-            if let email = email, !email.isEmpty {
+            if let email = identity.normalizedEmail {
                 Purchases.shared.attribution.setEmail(email)
             }
-            if let displayName = displayName, !displayName.isEmpty {
+            if let displayName = identity.normalizedDisplayName {
                 Purchases.shared.attribution.setDisplayName(displayName)
             }
-            if let avatarUrl = avatarUrl, !avatarUrl.isEmpty {
-                Purchases.shared.attribution.setAttributes(["avatar_url": avatarUrl])
-            }
+            Purchases.shared.attribution.setAttributes(identity.subscriberAttributes)
 
             MerianLog.general.debug("RevenueCat login succeeded for user \(userId, privacy: .private)")
         } catch {

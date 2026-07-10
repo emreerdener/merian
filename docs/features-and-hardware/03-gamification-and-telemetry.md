@@ -193,12 +193,14 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   tracking. `captureScreenViews` and `captureElementInteractions` are disabled —
   the former causes iOS 18 layout constraint warnings by inserting
   `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
-- Uses `identify(userId:)` to link the Supabase Anonymous UUID alongside
-  RevenueCat identifiers.
+- Uses `identify(userId:)` to link the Supabase Auth UUID alongside RevenueCat's
+  App User ID. RevenueCat receives matching subscriber attributes for
+  support-friendly customer lookup.
 - Employs `#if targetEnvironment(simulator)` to alias all development sessions
   as a static `"simulator"` identifier, aggressively decoupling test telemetry
   from live production metrics.
-- Calls `reset()` when `SupabaseManager.shared.signOut()` clears session state.
+- Calls `reset()` when `SupabaseManager.shared.signOut()` clears local session
+  state for the current device.
 
 **Edge Functions (`_shared/posthog.ts`)**:
 

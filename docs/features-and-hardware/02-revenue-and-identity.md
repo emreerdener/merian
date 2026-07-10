@@ -77,20 +77,26 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     users.
   - Once the `session.user` is generated, `SupabaseManager` pipes the raw
     identity payload into `linkExternalTelemetry(user:)`. This extracts GoTrue
-    metadata (`email`, `full_name`, `avatar_url`) and maps it into
+    metadata (`email`, `full_name`, `avatar_url`), performs a best-effort read of
+    the user's `public.users` row, and maps both sources into
     `Purchases.shared.attribution` when calling
-    `RevenueCatManager.shared.linkWithSupabase(userId: email: displayName: avatarUrl:)`.
-    It then calls `PostHogManager.shared.identifyUser(userId: newUserId)`. This
-    sequence aliases the prior IDFV/Ghost tracking into the permanent Cloud
-    Identity and populates RevenueCat dashboards with cross-referenced user
-    details.
+    `RevenueCatManager.shared.linkWithSupabase(...)`. RevenueCat customers
+    receive subscriber attributes such as `supabase_user_id`, `auth_email`,
+    `public_username`, `public_author_name`, `public_identity_source`, and
+    `account_kind` so test-dashboard customers can be matched back to Merian
+    accounts even while the app uses the RevenueCat Test Store key. It then
+    calls `PostHogManager.shared.identifyUser(userId: newUserId)`. This sequence
+    aliases the prior IDFV/Ghost tracking into the permanent Cloud Identity and
+    populates RevenueCat dashboards with cross-referenced user details.
   - **Account Rehydration**: Intercepting the initial payload from
     `SupabaseManager.setupAuthStateListener`, Merian calls
     `ScanRepository.shared.syncHistoricalScansDown`, which fetches the user's
     scan history and loads it into local SwiftData structures.
-  - When executing `signOut()`, `SupabaseManager` calls
-    `Purchases.shared.logOut()` to drop the previous user's cached RevenueCat
-    entitlements from the device, preventing premium account sharing.
+  - When executing `signOut()`, `SupabaseManager` signs out with Supabase
+    `.local` scope so one device or simulator does not revoke every active
+    session for the same account. It then calls `Purchases.shared.logOut()` to
+    drop the previous user's cached RevenueCat entitlements from the current
+    device, preventing premium account sharing.
   - The authenticated-session marker is centralized under
     `KeychainKeys.hasAuthenticatedOAuth`. Do not inline the legacy string key in
     auth or network code.
@@ -100,10 +106,16 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 - Controls Apple ecosystem entitlement bounds governing core app functionality.
 - Initializes via `.configure(withAPIKey:)`, pulling the active iOS
   `ProcessInfo` values mapped to `.xcconfig` secure layers.
-- Uses `logIn(currentAppUserID)` to bind the IDFV tracking string.
+- Development and internal builds can continue using RevenueCat's `test_` Test
+  Store key while purchase flows are being exercised. The store environment does
+  not change Merian's identity contract: the RevenueCat App User ID is the
+  Supabase Auth UUID, and subscriber attributes mirror the user's auth/public
+  identity for manual support lookups. Production App Store export should still
+  resolve to a RevenueCat iOS SDK key beginning with `appl_`.
+- Uses `logIn(currentAppUserID)` to bind the Supabase Auth UUID.
 - Evaluates `isSubscribed` and `trialDaysRemaining` via `.customerInfo()`.
   - `isSubscribed` checks for active entitlements across the standard Pro
-    subscription identifiers and a locally evaluated `merian_7_day_pass`
+    subscription identifiers and a locally evaluated `pro_week`
     non-subscription transaction. The 7-day pass is intentionally not a
     RevenueCat entitlement.
   - `trialDaysRemaining` computes the days since the user's `firstSeen` date in
@@ -137,7 +149,7 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 To keep the Supabase PostgreSQL backend in sync with iOS RevenueCat purchase
 state, a dedicated `revenuecat-webhook` Edge Function listens for global
 subscription events (`INITIAL_PURCHASE`, `RENEWAL`, `EXPIRATION`, and
-`UNCANCELLATION`) plus the exact non-renewing `merian_7_day_pass` product. This
+`UNCANCELLATION`) plus the exact non-renewing `pro_week` product. This
 endpoint requires a `Bearer REVENUECAT_WEBHOOK_SECRET` `Authorization` header,
 mapped to Env Vars, and deflects unauthenticated requests with a 401 at the
 Kong Gateway via `verify_jwt = false`.

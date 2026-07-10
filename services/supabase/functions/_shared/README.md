@@ -79,8 +79,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
   `trial_active`, and `user_exists`. Reads `subscription_expires_at` so active
   detached 7-day passes resolve as paid Pro and stale timed Pro rows resolve as
   free until the scheduled expiry worker clears them.
-- **`subscriptionPass.ts`**: Exact product policy for the detached
-  `merian_7_day_pass`, including the 7-day duration and RevenueCat
+- **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`
+  pass, including the 7-day duration and RevenueCat
   `purchased_at_ms` expiration calculation.
 - **`explore.ts`**: Explore UUID/hashtag validation, public author identity
   sync, feed-card hashtag/pro-badge/username hydration, and shared

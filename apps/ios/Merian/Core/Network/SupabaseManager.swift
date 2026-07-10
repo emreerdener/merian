@@ -6,6 +6,22 @@ import Observation
 import os
 import Supabase
 
+private struct RevenueCatPublicIdentity: Decodable {
+    let email: String?
+    let publicUsername: String?
+    let publicAuthorName: String?
+    let publicIdentitySource: String?
+    let publicAvatarUrl: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case email
+        case publicUsername = "public_username"
+        case publicAuthorName = "public_author_name"
+        case publicIdentitySource = "public_identity_source"
+        case publicAvatarUrl = "public_avatar_url"
+    }
+}
+
 // MARK: - Supabase Manager
 
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
@@ -132,17 +148,55 @@ import Supabase
 
     private func linkExternalTelemetry(user: User) async {
         let userId = user.id.uuidString
-        let email = user.email
-        let fullName = user.userMetadata["full_name"]?.stringValue ?? user.userMetadata["name"]?.stringValue
-        let avatarUrl = user.userMetadata["avatar_url"]?.stringValue ?? user.userMetadata["picture"]?.stringValue
+        let publicIdentity = await fetchRevenueCatPublicIdentity(for: user.id)
+        let email = firstNonEmpty(user.email, publicIdentity?.email)
+        let fullName = firstNonEmpty(
+            user.userMetadata["full_name"]?.stringValue,
+            user.userMetadata["name"]?.stringValue,
+            publicIdentity?.publicAuthorName
+        )
+        let avatarUrl = firstNonEmpty(
+            user.userMetadata["avatar_url"]?.stringValue,
+            user.userMetadata["picture"]?.stringValue,
+            publicIdentity?.publicAvatarUrl
+        )
 
         await RevenueCatManager.shared.linkWithSupabase(
             userId: userId,
             email: email,
             displayName: fullName,
-            avatarUrl: avatarUrl
+            avatarUrl: avatarUrl,
+            publicUsername: publicIdentity?.publicUsername,
+            publicAuthorName: publicIdentity?.publicAuthorName,
+            publicIdentitySource: publicIdentity?.publicIdentitySource,
+            accountKind: user.isAnonymous ? "anonymous" : "authenticated"
         )
         PostHogManager.shared.identifyUser(userId: userId)
+    }
+
+    private func fetchRevenueCatPublicIdentity(for userId: UUID) async -> RevenueCatPublicIdentity? {
+        do {
+            let response: RevenueCatPublicIdentity = try await client.from("users")
+                .select("email,public_username,public_author_name,public_identity_source,public_avatar_url")
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            return response
+        } catch {
+            MerianLog.auth.debug("RevenueCat public identity lookup failed: \(error.localizedDescription, privacy: .private)")
+            return nil
+        }
+    }
+
+    private func firstNonEmpty(_ values: String?...) -> String? {
+        values.lazy.compactMap {
+            guard let trimmed = $0?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty else {
+                return nil
+            }
+            return trimmed
+        }.first
     }
 
     @discardableResult
@@ -222,7 +276,7 @@ import Supabase
         }
 
         do {
-            try await client.auth.signOut()
+            try await client.auth.signOut(scope: .local)
         } catch {
             MerianLog.auth.debug("Supabase sign-out failed; continuing local cleanup: \(error.localizedDescription, privacy: .private)")
         }

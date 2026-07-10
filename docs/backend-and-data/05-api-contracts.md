@@ -4534,9 +4534,11 @@ prevent IDOR vulnerabilities.
    `action_required: "Manually run apply_user_tombstone RPC"`, and the error is
    re-thrown so the response is `500 Internal Server Error` rather than a
    false-success `200 OK`.
-6. Returns `200 OK` only when all steps succeed. The iOS client then calls
-   `signOut()`, drops all local SQLite `ModelContext` state via
-   `ScanRepository.purgeAllData()`, and resets to Guest.
+6. Returns `200 OK` only when all steps succeed. The iOS client then performs
+   local Supabase sign-out for the current device, drops all local SQLite
+   `ModelContext` state via `ScanRepository.purgeAllData()`, and resets to
+   Guest. Ordinary in-app logout also uses local scope so other active devices
+   are not revoked.
 
 ---
 
@@ -5184,12 +5186,19 @@ Receives a raw RevenueCat Webhook structure wrapper targeting an internal JSON
   purchases, which would pass the truthy check but fail UUID constraints in the
   DB layer with a confusing 500. Anonymous-ID events are rejected early with
   `HTTP 400` and a warning log.
+- **Customer identity contract**: iOS logs RevenueCat into the Supabase Auth UUID
+  and writes subscriber attributes (`supabase_user_id`, `auth_email`,
+  `public_username`, `public_author_name`, `public_identity_source`,
+  `account_kind`) before entitlement checks. Manual dashboard adjustments should
+  use the UUID/App User ID first, with subscriber attributes as the human-readable
+  cross-reference. This applies to both RevenueCat Test Store and production
+  keys.
 
 ### Migration Mechanics
 
 - Upgrades (`INITIAL_PURCHASE`, `RENEWAL`, `UNCANCELLATION`) convert
   `subscription_tier` to `pro` and clear `subscription_expires_at`.
-- Exact `merian_7_day_pass` `NON_RENEWING_PURCHASE` events convert
+- Exact `pro_week` `NON_RENEWING_PURCHASE` events convert
   `subscription_tier` to `pro` and set `subscription_expires_at` to
   `purchased_at_ms + 7 days`. Other non-renewing products are ignored.
 - Standard subscription downgrades (`EXPIRATION`) revert the tier to `free`.
