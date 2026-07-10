@@ -2,16 +2,17 @@
 
 Merian must never turn a damaged local SwiftData store into account loss. This
 document defines the startup recovery contract for `ModelContainer` failures,
-quarantined local store files, telemetry, and verification.
+quarantined local store files, legacy-store rescue archives, telemetry, and
+verification.
 
 ## Ownership
 
 | Area                         | File                                                                                                                        | Responsibility                                                                                                                                                                             |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                       | Orchestrates startup, builds the model container, shows safe-mode notices, and emits recovery telemetry after analytics starts.                                                            |
+| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                       | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                   |
 | Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                           | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                       |
-| Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                               | Reads store metadata for migration strategy selection, detects corruption signatures, quarantines local store artifacts, and writes support manifests.                                     |
-| Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift` | Verifies store-aware migration hints, duplicate-checksum detection, corruption gating, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers. |
+| Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                               | Reads store metadata for migration strategy selection, detects corruption signatures, archives unrecoverable legacy stores, quarantines corrupt local store artifacts, and writes support manifests. |
+| Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift` | Verifies store-aware migration hints, duplicate-checksum detection, corruption gating, legacy rescue, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers. |
 | CI guardrails                | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh` | Runs fast source/project checks on Ubuntu and focused startup store-recovery tests on macOS.                                                                                                |
 
 ## Startup Open And Recovery Ladder
@@ -43,22 +44,49 @@ quarantined local store files, telemetry, and verification.
    - `default.store-shm`
    - `default.store-wal`
 7. Retry the persistent `ModelContainer` exactly once after quarantine.
-8. If recovery still fails, boot an in-memory safe-mode container and show a
+8. If the error is not corruption but the selected startup strategy was a
+   legacy migration path (`recent-source-v42`...`recent-source-v48` or
+   `full-historical`), archive the same store artifacts under `store-rescue/`
+   and open a fresh persistent current-schema store. This breaks repeated
+   SwiftData migration failures out of the safe-mode loop while preserving the
+   old files for support or future import work.
+9. If recovery still fails, boot an in-memory safe-mode container and show a
    startup notice.
-9. If even the in-memory container fails, show the startup-blocked fallback UI.
+10. If even the in-memory container fails, show the startup-blocked fallback UI.
 
-Generic startup failures must not move local store files. They skip quarantine
-and go directly to safe mode.
+Generic current-store startup failures must not move local store files. They
+skip quarantine/rescue and go directly to safe mode.
 
-## Quarantine Manifest
+## TestFlight Diagnostic Expectations
 
-Every quarantine directory includes `recovery-manifest.json`. It is
+For a legacy V42/V43/V44/V45/V46/V47/V48 store that cannot migrate but is not
+corrupt, the expected diagnostic shape is:
+
+- `selectedStrategy`: the matching `recent-source-vNN` strategy, or
+  `full-historical` for unknown older stores
+- first failed attempt: the selected migration plan, such as `recent-v42`
+- rescue attempt: `post-migration-rescue-current-store`
+- `finalOutcome`: `recovered`
+- `finalReason`: `legacy_store_rescued`
+- `quarantineAttempted` / `quarantinePerformed`: `false`
+- `rescueAttempted` / `rescuePerformed`: `true`
+
+If the final outcome is still `safe_mode` after a legacy source migration
+failure, treat that as a release-blocking regression unless the diagnostic shows
+`persistent_store_rescue_failed`. Current-schema stores are different: a
+generic current-store open failure should still keep the files in place and use
+safe mode rather than archive user data.
+
+## Archive Manifest
+
+Every quarantine or rescue directory includes `recovery-manifest.json`. It is
 intentionally small and support-oriented:
 
 - schema version
 - timestamp
 - app version and build number
 - OS version
+- archive reason (`corruption_quarantine` or `legacy_migration_rescue`)
 - sanitized error domain/code/description/failure reason
 - moved artifact filenames
 
@@ -68,7 +96,7 @@ The manifest must not include:
 - Keychain values
 - user IDs, usernames, or emails
 - scan IDs or species names
-- full local filesystem paths outside the quarantine directory
+- full local filesystem paths outside the archive directory
 
 ## Identity Boundary
 
@@ -93,7 +121,7 @@ only redacted string properties:
 | Property                    | Examples                                                                                                                                 |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `outcome`                   | `recovered`, `safe_mode`, `blocked`                                                                                                      |
-| `reason`                    | `corruption_quarantined`, `persistent_store_migration_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
+| `reason`                    | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
 | `selected_strategy`         | `current-store`, `recent-source-v48`, `full-historical`                                                                                  |
 | `current_schema_major`      | `49`                                                                                                                                     |
 | `stored_schema_major`       | `48`, `none`                                                                                                                             |
@@ -102,6 +130,8 @@ only redacted string properties:
 | `first_error`               | error domain, code, and fingerprints of description/failure/debug text                                                                   |
 | `quarantine_attempted`      | `true`, `false`                                                                                                                          |
 | `quarantine_performed`      | `true`, `false`                                                                                                                          |
+| `rescue_attempted`          | `true`, `false`                                                                                                                          |
+| `rescue_performed`          | `true`, `false`                                                                                                                          |
 
 The latest startup diagnostic is also persisted locally and shown as a
 TestFlight/debug share action on the safe-mode/recovery card. Do not attach raw
@@ -122,8 +152,8 @@ contract before Xcode compiles anything. It keeps the full runtime migration
 path on V42->V49 and V43->V49, keeps duplicate-prone V44/V45/V46/V47 representatives out
 of that full path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans target
 V49 directly, verifies the known-good and optional-queue V48
-recovery plans, and guards the disk-backed migration tests from unlinking SQLite
-files during the test process.
+recovery plans, guards the legacy migration-rescue escape hatch, and guards the
+disk-backed migration tests from unlinking SQLite files during the test process.
 
 Run both after XcodeGen changes.
 

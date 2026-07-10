@@ -4,6 +4,9 @@ set -euo pipefail
 schema_file="apps/ios/Merian/Models/SchemaVersions.swift"
 active_queue_file="apps/ios/Merian/Models/ActiveSchema/OfflineQueuedScan.swift"
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
+recovery_file="apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift"
+recovery_test_file="apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift"
+app_file="apps/ios/Merian/App/MerianApp.swift"
 
 if [ ! -f "$schema_file" ]; then
   echo "Missing $schema_file" >&2
@@ -17,6 +20,21 @@ fi
 
 if [ ! -f "$test_file" ]; then
   echo "Missing $test_file" >&2
+  exit 1
+fi
+
+if [ ! -f "$recovery_file" ]; then
+  echo "Missing $recovery_file" >&2
+  exit 1
+fi
+
+if [ ! -f "$recovery_test_file" ]; then
+  echo "Missing $recovery_test_file" >&2
+  exit 1
+fi
+
+if [ ! -f "$app_file" ]; then
+  echo "Missing $app_file" >&2
   exit 1
 fi
 
@@ -266,5 +284,21 @@ contains "$test_file" "migrationFromOptionalQueueV48ToCurrentSchemaRecoversRetry
   || fail "MigrationPlanTests must cover the accidental optional-queue V48 recovery fixture."
 contains "$test_file" "migrationFromV42ToCurrentSchemaUsesSourceIsolatedPlan" \
   || fail "MigrationPlanTests must cover the V42 source-isolated recovery fixture from startup diagnostics."
+contains "$recovery_file" "shouldRescueStoreAfterMigrationFailure" \
+  || fail "Store recovery must keep the legacy migration rescue decision."
+contains "$recovery_file" "store-rescue" \
+  || fail "Store recovery must archive unrecoverable legacy stores under store-rescue."
+contains "$recovery_file" "legacy_migration_rescue" \
+  || fail "Store recovery manifests must distinguish legacy migration rescue from corruption quarantine."
+contains "$recovery_file" "schemaVersion: Int = 2" \
+  || fail "Store recovery manifests/diagnostics must use the current schema version."
+contains "$app_file" "legacy_store_rescued" \
+  || fail "MerianApp must recover legacy migration failures with legacy_store_rescued telemetry."
+contains "$app_file" "post-migration-rescue-current-store" \
+  || fail "MerianApp must reopen a fresh persistent store after legacy migration rescue."
+contains "$recovery_test_file" "testRescuesLegacyMigrationFailuresEvenWhenSwiftDataErrorIsGeneric" \
+  || fail "ModelStoreRecoveryCoordinatorTests must cover generic SwiftDataError legacy rescue."
+contains "$recovery_test_file" "testRescueArchivesStoreArtifacts" \
+  || fail "ModelStoreRecoveryCoordinatorTests must cover store-rescue archive manifests."
 
 echo "iOS migration source guardrails passed."

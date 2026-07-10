@@ -152,7 +152,7 @@ Thin enum wrapper around app product events. All sends go through a private
 | `APIDecodingFailure`             | `trackError("APIDecodingFailure")`                         | `domain: "APIDecodingFailure"`                                                              | Gemini response fails schema decoding                                                            |
 | `InferenceNetworkFailure`        | `trackError("InferenceNetworkFailure")`                    | `domain: "InferenceNetworkFailure"`                                                         | Network error on live inference (non-cancellation path)                                          |
 | `ClientErrorCaptured`            | `trackError(_:)`                                           | `domain: <errorDomain>`                                                                     | Available for future client error domains                                                        |
-| `StartupStoreRecovery`           | `trackStartupStoreRecovery(outcome:reason:)`               | `outcome`, `reason`                                                                         | App startup enters local store recovery, safe mode, or startup-blocked fallback                   |
+| `StartupStoreRecovery`           | `trackStartupStoreRecovery(outcome:reason:)`               | See startup recovery telemetry below                                                       | App startup enters local store recovery, legacy rescue, safe mode, or startup-blocked fallback    |
 
 Species dictionary telemetry must remain zero-PII. `entryPoint` may be
 `insight_similar_species`, `explore_detail_similar_species`, `search`,
@@ -161,8 +161,14 @@ IDs, scan IDs, Explore post IDs, user locations, field notes, comments, image
 URLs, or user review state.
 
 Startup recovery telemetry follows the same privacy boundary. `outcome` and
-`reason` are coarse enums only; do not attach exception text, local file paths,
-user IDs, scan IDs, account state, or quarantine manifest contents.
+`reason` are coarse enums, while diagnostic properties are redacted strings used
+to distinguish corruption quarantine, legacy-store rescue, safe mode, and
+startup-blocked outcomes. Do not attach exception text, local file paths, user
+IDs, scan IDs, account state, recovery manifest contents, or raw store metadata.
+Allowed diagnostic keys are `diagnostic_schema`, `selected_strategy`,
+`current_schema_major`, `stored_schema_major`, `attempt_count`, `attempts`,
+`final_outcome`, `final_reason`, `quarantine_attempted`,
+`quarantine_performed`, `rescue_attempted`, and `rescue_performed`.
 
 ### Pro Paywall Feature Copy
 

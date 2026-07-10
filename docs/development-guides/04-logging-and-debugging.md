@@ -53,9 +53,9 @@ When in doubt, use `MerianLog.general`. Do not create new `Logger` instances out
 Startup store recovery is a production support path:
 
 - Log the initial persistent-store failure as `.error`.
-- Log a successful quarantine/retry as `.error` so it survives production log collection.
-- Log a failed quarantine/retry as `.fault` because the app is entering safe mode after a verified corruption attempt.
-- Never log full local store paths, tokens, user IDs, scan IDs, or profile data. The quarantine `recovery-manifest.json` is the support artifact for sanitized context.
+- Log a successful quarantine/rescue retry as `.error` so it survives production log collection.
+- Log a failed quarantine/rescue retry as `.fault` because the app is entering safe mode after a recovery attempt.
+- Never log full local store paths, tokens, user IDs, scan IDs, or profile data. The quarantine/rescue `recovery-manifest.json` is the support artifact for sanitized context.
 
 ---
 

@@ -70,7 +70,7 @@ If you suspect an issue:
 
 ## 2026-05 Hardening Addendum
 
-- Never call `fatalError` from auth, configuration, or persistence bootstrap paths. `MerianEnvironment.load()` returns typed diagnostics, optional SDKs skip missing-key setup, Supabase endpoint construction throws, and `ModelContainer` recovery must log, quarantine, fall back to in-memory safe mode, or show startup-blocked UI.
+- Never call `fatalError` from auth, configuration, or persistence bootstrap paths. `MerianEnvironment.load()` returns typed diagnostics, optional SDKs skip missing-key setup, Supabase endpoint construction throws, and `ModelContainer` recovery must log, quarantine or rescue legacy stores, fall back to in-memory safe mode, or show startup-blocked UI.
 - Camera shutter ImageIO work must run through `DetachedWork.value(category: .imagePreparation)`. `Task {}` inside a `@MainActor` view model is orchestration only; it must not synchronously downsample, crop, or encode 12MP buffers.
 - File-backed still-image imports must enter through `MediaPreparationActor`.
   Gallery staging, refinement staging, and avatar crop previews use bounded

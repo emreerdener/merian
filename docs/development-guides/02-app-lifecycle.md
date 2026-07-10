@@ -123,7 +123,9 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
   recent migration plan, or full historical plan), inspect the error chain for
   SQLite/Core Data corruption signatures if opening fails, quarantine the store
   bundle only when corruption is confirmed, then retry container creation
-  exactly once.
+  exactly once. Non-corrupt legacy migration failures archive the old store
+  bundle under `store-rescue/` and open a fresh persistent store instead of
+  looping in safe mode.
 - `handleActivePhase()` continues to be the right place for replay recovery, but any new lifecycle work must not resurrect stale scan mutations. `InferenceEngine` now invalidates pending background writes whenever a scan is cancelled or a new scan begins.
 
 ## 2026-05 Startup Safety Update
@@ -148,9 +150,9 @@ The full operating contract lives in `docs/backend-and-data/08-startup-store-rec
   jumps directly to V49. V47 has its own source-isolated plan for stores already
   stamped V47.
   Duplicate-checksum failures retry through the same recent-plan ladder before
-  safe mode.
-- Store quarantine is intentionally narrow and owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: Merian only moves `default.store`, `default.store-shm`, and `default.store-wal` when the failure matches a verified SQLite/Core Data corruption signature and those store artifacts exist. Generic container failures must boot safe mode without moving user data.
-- Quarantine directories include `recovery-manifest.json` with app/build/OS metadata, moved artifact names, and a sanitized error reason. This manifest is for support and debugging only; it must not include user IDs, paths outside the quarantine, access tokens, or profile data.
+  legacy rescue or safe mode.
+- Store quarantine remains corruption-only and is owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`. Non-corrupt failures on legacy migration strategies archive `default.store`, `default.store-shm`, and `default.store-wal` under `store-rescue/`, then recreate a fresh persistent current-schema store. Generic current-store failures still boot safe mode without moving user data.
+- Quarantine and rescue directories include `recovery-manifest.json` with app/build/OS metadata, archive reason, moved artifact names, and a sanitized error reason. This manifest is for support and debugging only; it must not include user IDs, paths outside the archive, access tokens, or profile data.
 - Store recovery must never clear Keychain auth, Supabase sessions, device identity, profile state, or cloud ownership. Local SwiftData recovery is isolated from account identity so a damaged local library cannot sign a user out or orphan Explore posts.
 - Recovery emits the coarse `StartupStoreRecovery` telemetry event after analytics initialization with only `outcome` and `reason`.
 - Folder-level `README.md` files are documentation only. `project.yml` excludes markdown from the Merian target, and `make validate-ios-project` fails if generated Xcode resources start bundling markdown docs again.

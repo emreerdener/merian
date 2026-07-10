@@ -23,6 +23,9 @@ TestFlight, App Store, support, and QA.
   chain that can trigger SwiftData's equal-model-reference validator.
 - Updated V42 startup recovery to skip the older V42→V43 bridge and repair
   directly to V49 after TestFlight devices still fell back to safe mode.
+- Added a legacy-store rescue path so known older SwiftData stores that still
+  cannot migrate are archived safely and replaced with a fresh persistent
+  library instead of reopening in safe mode on every launch.
 
 ### Species Dictionary
 
@@ -196,7 +199,8 @@ TestFlight, App Store, support, and QA.
 - Fixed a startup safe-mode loop caused by a no-op historical schema version
   being included as a separate SwiftData migration stage.
 - Fixed local libraries blocked by duplicate schema checksums by retrying
-  startup with short, recent-only migration plans before safe mode.
+  startup with short, recent-only migration plans before legacy rescue or safe
+  mode.
 - Improved launch migration selection so fresh and already-current local
   libraries open without validating the full historical migration plan, while
   recent older libraries use the smallest source-specific plan available.

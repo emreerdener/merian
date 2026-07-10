@@ -11,5 +11,6 @@ This area acts as the source of truth for app data. It encompasses SwiftData con
 
 - `ModelStoreRecoveryCoordinator` decides whether a `ModelContainer` startup failure is a verified SQLite/Core Data corruption case.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`, and `default.store-wal`.
-- Each quarantine directory includes `recovery-manifest.json` with app/build/OS metadata, moved artifact names, and a sanitized error reason for support.
+- Non-corrupt failures on legacy migration strategies may archive those same artifacts under `store-rescue/` before Merian rebuilds a fresh persistent store.
+- Each quarantine or rescue directory includes `recovery-manifest.json` with app/build/OS metadata, archive reason, moved artifact names, and a sanitized error reason for support.
 - Store recovery must never reference `KeychainManager`, `SupabaseManager`, sign-out flows, device identity resets, or profile state.

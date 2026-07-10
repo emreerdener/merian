@@ -1913,8 +1913,10 @@ _Note: The iOS persistence layer is enforced via `ModelContainer` in
 `MerianApp.swift`. If a store open fails during a production app update, the
 application first uses store metadata to choose the narrowest safe migration
 strategy, attempts corruption-specific quarantine and retry only for verified
-store corruption, then falls back to an in-memory safe-mode container, and
-finally shows a startup-blocked recovery surface if no container can be created.
+store corruption, archives non-corrupt legacy migration failures under
+`store-rescue/` before opening a fresh persistent store, then falls back to an
+in-memory safe-mode container if recovery fails, and finally shows a
+startup-blocked recovery surface if no container can be created.
 It must not silently wipe `URL.documentsDirectory`, and it must not hard-crash
 from bootstrap with `fatalError`. To prevent schema failures as the app evolves,
 Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage`
@@ -2010,7 +2012,8 @@ The current active schema is `MerianSchemaV49`. Recent milestones:
   V42→V43 bridge that still failed on real TestFlight stores, while V45 and V46 deliberately use one
   matching source representative each before the V49 repair target.
   Stores that still hit SwiftData's duplicate-checksum validator during plan
-  construction retry with the same source-isolated recent plans before safe mode.
+  construction retry with the same source-isolated recent plans before legacy
+  rescue or safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.

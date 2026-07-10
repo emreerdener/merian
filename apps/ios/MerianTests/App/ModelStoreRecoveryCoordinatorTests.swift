@@ -331,6 +331,79 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: storeURL.path))
     }
 
+    func testRescuesLegacyMigrationFailuresEvenWhenSwiftDataErrorIsGeneric() throws {
+        let tempDirectory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let storeURL = tempDirectory.appendingPathComponent("default.store")
+        try writeStoreArtifact(at: storeURL, contents: "store")
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: true,
+            storedSchemaMajorVersion: 42,
+            hint: .recentSource(42)
+        )
+        let swiftDataError = NSError(
+            domain: "SwiftData.SwiftDataError",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "SwiftData.SwiftDataError error 1."]
+        )
+
+        XCTAssertTrue(
+            ModelStoreRecoveryCoordinator.shouldRescueStoreAfterMigrationFailure(
+                for: swiftDataError,
+                decision: decision,
+                storeURL: storeURL
+            )
+        )
+    }
+
+    func testDoesNotRescueAlreadyCurrentStoreFailures() throws {
+        let tempDirectory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let storeURL = tempDirectory.appendingPathComponent("default.store")
+        try writeStoreArtifact(at: storeURL, contents: "store")
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: true,
+            storedSchemaMajorVersion: 49,
+            hint: .currentStore
+        )
+        let genericError = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileReadNoPermissionError,
+            userInfo: [NSLocalizedDescriptionKey: "The file could not be opened because permission was denied."]
+        )
+
+        XCTAssertFalse(
+            ModelStoreRecoveryCoordinator.shouldRescueStoreAfterMigrationFailure(
+                for: genericError,
+                decision: decision,
+                storeURL: storeURL
+            )
+        )
+    }
+
+    func testDoesNotRescueCorruptionFailuresBeforeQuarantinePath() throws {
+        let tempDirectory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let storeURL = tempDirectory.appendingPathComponent("default.store")
+        try writeStoreArtifact(at: storeURL, contents: "store")
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: true,
+            storedSchemaMajorVersion: 42,
+            hint: .recentSource(42)
+        )
+
+        XCTAssertFalse(
+            ModelStoreRecoveryCoordinator.shouldRescueStoreAfterMigrationFailure(
+                for: sqliteCorruptionError(),
+                decision: decision,
+                storeURL: storeURL
+            )
+        )
+    }
+
     func testQuarantineRequiresStoreArtifacts() throws {
         let tempDirectory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
@@ -395,6 +468,59 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         )
     }
 
+    func testRescueArchivesStoreArtifacts() throws {
+        let tempDirectory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let storeURL = tempDirectory.appendingPathComponent("default.store")
+        let shmURL = URL(fileURLWithPath: storeURL.path + "-shm")
+        let walURL = URL(fileURLWithPath: storeURL.path + "-wal")
+        let swiftDataError = NSError(
+            domain: "SwiftData.SwiftDataError",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "SwiftData.SwiftDataError error 1."]
+        )
+
+        try writeStoreArtifact(at: storeURL, contents: "store")
+        try writeStoreArtifact(at: shmURL, contents: "shm")
+        try writeStoreArtifact(at: walURL, contents: "wal")
+
+        let rescueDirectory = try ModelStoreRecoveryCoordinator.rescueStoreArtifactsAfterMigrationFailure(
+            at: storeURL,
+            for: swiftDataError,
+            now: Date(timeIntervalSince1970: 1_788_271_200)
+        )
+
+        XCTAssertEqual(rescueDirectory.deletingLastPathComponent().lastPathComponent, "store-rescue")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storeURL.path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: rescueDirectory.appendingPathComponent("default.store").path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: rescueDirectory.appendingPathComponent("default.store-shm").path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: rescueDirectory.appendingPathComponent("default.store-wal").path
+            )
+        )
+
+        let manifestURL = rescueDirectory.appendingPathComponent("recovery-manifest.json")
+        let manifest = try JSONDecoder().decode(
+            ModelStoreRecoveryManifest.self,
+            from: Data(contentsOf: manifestURL)
+        )
+        XCTAssertEqual(manifest.schemaVersion, 2)
+        XCTAssertEqual(manifest.archiveReason, "legacy_migration_rescue")
+        XCTAssertEqual(manifest.reasonDomain, "SwiftData.SwiftDataError")
+        XCTAssertEqual(manifest.reasonCode, 1)
+        XCTAssertEqual(manifest.movedArtifacts, ["default.store", "default.store-shm", "default.store-wal"])
+    }
+
     func testQuarantineWritesPIISafeRecoveryManifest() throws {
         let tempDirectory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
@@ -413,7 +539,8 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
             from: Data(contentsOf: manifestURL)
         )
 
-        XCTAssertEqual(manifest.schemaVersion, 1)
+        XCTAssertEqual(manifest.schemaVersion, 2)
+        XCTAssertEqual(manifest.archiveReason, "corruption_quarantine")
         XCTAssertEqual(manifest.reasonDomain, NSSQLiteErrorDomain)
         XCTAssertEqual(manifest.reasonCode, 11)
         XCTAssertEqual(manifest.movedArtifacts, ["default.store"])
@@ -422,6 +549,42 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         XCTAssertFalse(manifestText.contains("Keychain"))
         XCTAssertFalse(manifestText.contains("Supabase"))
         XCTAssertFalse(manifestText.contains("currentUser"))
+    }
+
+    func testStartupDiagnosticCapturesMigrationRescueState() throws {
+        let tempDirectory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let storeURL = tempDirectory.appendingPathComponent("default.store")
+        try writeStoreArtifact(at: storeURL, contents: "store")
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: true,
+            storedSchemaMajorVersion: 42,
+            hint: .recentSource(42)
+        )
+        var diagnostic = ModelStoreRecoveryCoordinator.makeStartupDiagnostic(
+            storeURL: storeURL,
+            currentSchemaMajor: 49,
+            migrationSchemas: "42,49",
+            migrationStages: "42>49:C",
+            decision: decision,
+            now: Date(timeIntervalSince1970: 1_788_271_200)
+        )
+
+        diagnostic.recordFinalOutcome(
+            "recovered",
+            reason: "legacy_store_rescued",
+            rescueAttempted: true,
+            rescuePerformed: true
+        )
+
+        XCTAssertEqual(diagnostic.telemetryProperties["diagnostic_schema"], "2")
+        XCTAssertEqual(diagnostic.telemetryProperties["final_reason"], "legacy_store_rescued")
+        XCTAssertEqual(diagnostic.telemetryProperties["rescue_attempted"], "true")
+        XCTAssertEqual(diagnostic.telemetryProperties["rescue_performed"], "true")
+        let text = try XCTUnwrap(ModelStoreRecoveryCoordinator.startupDiagnosticText(diagnostic))
+        XCTAssertTrue(text.contains(#""rescueAttempted" : true"#))
+        XCTAssertTrue(text.contains(#""rescuePerformed" : true"#))
     }
 
     func testRecoveryCoordinatorDoesNotReferenceAuthOrSessionManagers() throws {

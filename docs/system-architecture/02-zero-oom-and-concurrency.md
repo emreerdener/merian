@@ -210,7 +210,8 @@ network endpoint construction with `MerianError.invalidURL`; optional
 analytics/payment SDKs skip setup when their keys are absent. `MerianApp` uses
 store-aware SwiftData startup selection (current-store open, recent
 source-isolated plan, or full historical migration), then corruption quarantine
-and retry, in-memory safe mode, and finally a startup-blocked UI if no
+and retry, legacy migration rescue with a fresh persistent store, in-memory
+safe mode, and finally a startup-blocked UI if no
 `ModelContainer` can be created. No auth/config/store bootstrap path may
 hard-crash before user-visible recovery UI.
 
@@ -483,8 +484,8 @@ V46 as the only duplicate-cluster source representative and jumps directly to
 V49 because V46 was a shipped no-op schema, while true V47 stores use a
 source-isolated V47→V49 plan with a self-contained scalar queued-scan snapshot.
 Duplicate-checksum failures retry through the same
-recent-plan ladder before safe mode. This keeps the synchronous launch boundary
-bounded for normal upgrades while preserving a
+recent-plan ladder before legacy rescue or safe mode. This keeps the
+synchronous launch boundary bounded for normal upgrades while preserving a
 deterministic recovery surface if SwiftData cannot open the store.
 
 ### App Boot SDK Stutter (`MerianApp`)
@@ -956,8 +957,9 @@ This ensures:
   store-aware migration strategy before opening, routes SwiftData/Core Data
   Objective-C exceptions through the bridge, retries duplicate-checksum sources
   with source-isolated recent plans, quarantines the store only when corruption
-  signatures match, and falls back to an in-memory safe mode with a user-facing
-  notice instead of crashing.
+  signatures match, archives non-corrupt legacy migration failures under
+  `store-rescue/` before rebuilding a fresh persistent store, and falls back to
+  an in-memory safe mode with a user-facing notice only if recovery fails.
 - **Collection membership is scan-driven**: hot UI paths (`CollectionCard`, `CollectionsView`, `SelectMultipleScansView`, `CollectionDetailView`) and historical reconciliation no longer rely on `collection.scans` traversal. Membership snapshots are derived from `LocalScanRecord.collections` so SwiftData faults stay bounded.
 - **Offline file work is actor-owned**: queued-scan cleanup and media writes/adoption flow through `FileIOActor.deleteFiles(at:)` / `writeTemporaryImages(imageDatas:)`.
 - **File-backed restore uploads**: explore restore now re-uploads images and videos with `upload(for:fromFile:)` and a small task-group concurrency window, eliminating duplicate in-memory media buffers during restores.

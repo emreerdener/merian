@@ -4,9 +4,9 @@ import Foundation
 
 /// Handles launch-time SwiftData store recovery without touching account identity.
 ///
-/// Store recovery is intentionally narrow. It may quarantine damaged local SwiftData
-/// files, but it must never clear Keychain, Supabase auth sessions, device identity,
-/// or cloud ownership state.
+/// Store recovery is intentionally narrow. It may quarantine or archive local
+/// SwiftData files, but it must never clear Keychain, Supabase auth sessions,
+/// device identity, or cloud ownership state.
 enum ModelStoreRecoveryCoordinator {
     enum StoreMigrationHint: Equatable, CustomStringConvertible {
         case currentStore
@@ -34,6 +34,8 @@ enum ModelStoreRecoveryCoordinator {
     private static let sqliteCorruptionCodes: Set<Int> = [11, 26] // SQLITE_CORRUPT, SQLITE_NOTADB
     private static let unknownModelVersionErrorCode = 134_504
     private static let manifestFilename = "recovery-manifest.json"
+    private static let quarantineRootName = "store-quarantine"
+    private static let migrationRescueRootName = "store-rescue"
     private static let latestStartupDiagnosticKey = "app.merian.startup-store-diagnostic.latest"
     private static let storeModelVersionIdentifiersKey = "NSStoreModelVersionIdentifiers"
     private static let corruptionPhrases = [
@@ -257,6 +259,26 @@ enum ModelStoreRecoveryCoordinator {
         shouldAttemptRecovery(for: error) && hasStoreArtifacts(at: storeURL, fileManager: fileManager)
     }
 
+    static func shouldRescueStoreAfterMigrationFailure(
+        for error: Error,
+        decision: StoreMigrationDecision,
+        storeURL: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard decision.hasStoreArtifacts,
+              hasStoreArtifacts(at: storeURL, fileManager: fileManager),
+              !shouldAttemptRecovery(for: error) else {
+            return false
+        }
+
+        switch decision.hint {
+        case .currentStore:
+            return false
+        case .recentSource, .fullHistorical:
+            return true
+        }
+    }
+
     static func safeModeFallback(for error: Error) -> ModelStoreSafeModeFallback {
         if isLikelyMigrationFailure(error) {
             return ModelStoreSafeModeFallback(
@@ -300,20 +322,55 @@ enum ModelStoreRecoveryCoordinator {
         fileManager: FileManager = .default,
         now: Date = Date()
     ) throws -> URL {
+        try archiveStoreArtifacts(
+            at: storeURL,
+            rootName: quarantineRootName,
+            archiveReason: "corruption_quarantine",
+            error: error,
+            fileManager: fileManager,
+            now: now
+        )
+    }
+
+    @discardableResult
+    static func rescueStoreArtifactsAfterMigrationFailure(
+        at storeURL: URL,
+        for error: Error? = nil,
+        fileManager: FileManager = .default,
+        now: Date = Date()
+    ) throws -> URL {
+        try archiveStoreArtifacts(
+            at: storeURL,
+            rootName: migrationRescueRootName,
+            archiveReason: "legacy_migration_rescue",
+            error: error,
+            fileManager: fileManager,
+            now: now
+        )
+    }
+
+    private static func archiveStoreArtifacts(
+        at storeURL: URL,
+        rootName: String,
+        archiveReason: String,
+        error: Error?,
+        fileManager: FileManager,
+        now: Date
+    ) throws -> URL {
         let artifacts = storeArtifacts(for: storeURL, fileManager: fileManager)
         guard !artifacts.isEmpty else {
             throw CocoaError(.fileNoSuchFile)
         }
 
-        let quarantineRoot = storeURL.deletingLastPathComponent().appending(path: "store-quarantine", directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: quarantineRoot, withIntermediateDirectories: true)
+        let archiveRoot = storeURL.deletingLastPathComponent().appending(path: rootName, directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: archiveRoot, withIntermediateDirectories: true)
 
         let timestamp = ISO8601DateFormatter().string(from: now).replacingOccurrences(of: ":", with: "-")
-        let quarantineDirectory = quarantineRoot.appending(path: "\(timestamp)-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: quarantineDirectory, withIntermediateDirectories: false)
+        let archiveDirectory = archiveRoot.appending(path: "\(timestamp)-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: archiveDirectory, withIntermediateDirectories: false)
 
         for artifact in artifacts {
-            let destination = quarantineDirectory.appending(path: artifact.lastPathComponent)
+            let destination = archiveDirectory.appending(path: artifact.lastPathComponent)
             if fileManager.fileExists(atPath: destination.path) {
                 try fileManager.removeItem(at: destination)
             }
@@ -321,18 +378,20 @@ enum ModelStoreRecoveryCoordinator {
         }
 
         writeManifest(
-            to: quarantineDirectory,
+            to: archiveDirectory,
+            archiveReason: archiveReason,
             movedArtifacts: artifacts.map(\.lastPathComponent),
             error: error,
             now: now,
             fileManager: fileManager
         )
 
-        return quarantineDirectory
+        return archiveDirectory
     }
 
     private static func writeManifest(
-        to quarantineDirectory: URL,
+        to archiveDirectory: URL,
+        archiveReason: String,
         movedArtifacts: [String],
         error: Error?,
         now: Date,
@@ -344,6 +403,7 @@ enum ModelStoreRecoveryCoordinator {
             appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             buildNumber: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+            archiveReason: archiveReason,
             reasonDomain: nsError?.domain,
             reasonCode: nsError?.code,
             reasonDescription: nsError?.localizedDescription,
@@ -353,7 +413,7 @@ enum ModelStoreRecoveryCoordinator {
 
         do {
             let data = try JSONEncoder.prettySorted.encode(manifest)
-            let url = quarantineDirectory.appending(path: manifestFilename)
+            let url = archiveDirectory.appending(path: manifestFilename)
             fileManager.createFile(atPath: url.path, contents: data)
         } catch {
             MerianLog.general.error("Failed to write store recovery manifest: \(error.localizedDescription, privacy: .private)")
@@ -561,9 +621,11 @@ struct StartupStoreDiagnostic: Codable, Equatable {
     private(set) var finalReason: String?
     private(set) var quarantineAttempted: Bool
     private(set) var quarantinePerformed: Bool
+    private(set) var rescueAttempted: Bool
+    private(set) var rescuePerformed: Bool
 
     init(
-        schemaVersion: Int = 1,
+        schemaVersion: Int = 2,
         timestamp: String,
         appVersion: String,
         buildNumber: String,
@@ -577,7 +639,9 @@ struct StartupStoreDiagnostic: Codable, Equatable {
         finalOutcome: String? = nil,
         finalReason: String? = nil,
         quarantineAttempted: Bool = false,
-        quarantinePerformed: Bool = false
+        quarantinePerformed: Bool = false,
+        rescueAttempted: Bool = false,
+        rescuePerformed: Bool = false
     ) {
         self.schemaVersion = schemaVersion
         self.timestamp = timestamp
@@ -594,6 +658,8 @@ struct StartupStoreDiagnostic: Codable, Equatable {
         self.finalReason = finalReason
         self.quarantineAttempted = quarantineAttempted
         self.quarantinePerformed = quarantinePerformed
+        self.rescueAttempted = rescueAttempted
+        self.rescuePerformed = rescuePerformed
     }
 
     mutating func recordAttempt(name: String, outcome: String, error: Error? = nil) {
@@ -610,7 +676,9 @@ struct StartupStoreDiagnostic: Codable, Equatable {
         _ outcome: String,
         reason: String?,
         quarantineAttempted: Bool? = nil,
-        quarantinePerformed: Bool? = nil
+        quarantinePerformed: Bool? = nil,
+        rescueAttempted: Bool? = nil,
+        rescuePerformed: Bool? = nil
     ) {
         finalOutcome = outcome
         finalReason = reason
@@ -619,6 +687,12 @@ struct StartupStoreDiagnostic: Codable, Equatable {
         }
         if let quarantinePerformed {
             self.quarantinePerformed = quarantinePerformed
+        }
+        if let rescueAttempted {
+            self.rescueAttempted = rescueAttempted
+        }
+        if let rescuePerformed {
+            self.rescuePerformed = rescuePerformed
         }
     }
 
@@ -640,7 +714,9 @@ struct StartupStoreDiagnostic: Codable, Equatable {
             "final_outcome": finalOutcome ?? "unknown",
             "final_reason": finalReason ?? "none",
             "quarantine_attempted": String(quarantineAttempted),
-            "quarantine_performed": String(quarantinePerformed)
+            "quarantine_performed": String(quarantinePerformed),
+            "rescue_attempted": String(rescueAttempted),
+            "rescue_performed": String(rescuePerformed)
         ]
 
         if !store.artifacts.isEmpty {
@@ -724,6 +800,7 @@ struct ModelStoreRecoveryManifest: Codable, Equatable {
     let appVersion: String
     let buildNumber: String
     let osVersion: String
+    let archiveReason: String
     let reasonDomain: String?
     let reasonCode: Int?
     let reasonDescription: String?
@@ -731,11 +808,12 @@ struct ModelStoreRecoveryManifest: Codable, Equatable {
     let movedArtifacts: [String]
 
     init(
-        schemaVersion: Int = 1,
+        schemaVersion: Int = 2,
         timestamp: String,
         appVersion: String,
         buildNumber: String,
         osVersion: String,
+        archiveReason: String,
         reasonDomain: String?,
         reasonCode: Int?,
         reasonDescription: String?,
@@ -747,6 +825,7 @@ struct ModelStoreRecoveryManifest: Codable, Equatable {
         self.appVersion = appVersion
         self.buildNumber = buildNumber
         self.osVersion = osVersion
+        self.archiveReason = archiveReason
         self.reasonDomain = reasonDomain
         self.reasonCode = reasonCode
         self.reasonDescription = reasonDescription

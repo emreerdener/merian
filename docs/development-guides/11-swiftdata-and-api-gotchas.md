@@ -27,7 +27,8 @@ open without a migration plan; known recent sources open with the matching
 source-isolated plan (V47, V46, V45, or V44); only unknown or older existing
 stores use the full historical plan.
 If SwiftData still throws `Duplicate version checksums across stages detected`,
-startup falls back through the same source-isolated plans before safe mode.
+startup falls back through the same source-isolated plans before legacy rescue
+or safe mode.
 These plans avoid forcing SwiftData to validate unrelated older retired schemas
 or adjacent checksum-equivalent representatives while a recent store only needs
 to advance to the current version.
@@ -362,7 +363,7 @@ Login/bootstrap failures happen on real devices: no key window yet, a cleared Ap
 
 - Apple Sign-In should log and cancel if a presentation anchor or nonce is unavailable.
 - `MerianEnvironment.load()` should return typed diagnostics, not hard-crash on missing plist keys. Optional SDKs can skip setup, and Supabase endpoint construction should throw `MerianError.invalidURL` until config is valid.
-- `ModelContainer` creation should attempt corruption-specific quarantine once and then fall back to an in-memory safe mode if recovery still fails.
+- `ModelContainer` creation should attempt corruption-specific quarantine once, archive non-corrupt legacy migration failures under `store-rescue/`, and then fall back to an in-memory safe mode if recovery still fails.
 - If in-memory safe mode also fails, render a startup-blocked recovery surface without attaching `.modelContainer`; do not use `try!`.
 - User-facing startup banners are acceptable; crash loops are not.
 
@@ -759,7 +760,7 @@ LazyVStack {
 
 ## 2026-04 Hardening Updates
 
-- Treat `ModelContainer` startup failures as data-loss-sensitive. Only corruption-class failures may trigger store recovery, and any recovery flow must quarantine `default.store`, `default.store-wal`, and `default.store-shm` before attempting recreation.
+- Treat `ModelContainer` startup failures as data-loss-sensitive. Corruption-class failures may quarantine `default.store`, `default.store-wal`, and `default.store-shm`; non-corrupt failures on legacy migration strategies may archive those artifacts under `store-rescue/` before attempting recreation.
 - Never delete local media before the corresponding SwiftData delete/save succeeds. Broken ordering leaves detached records pointing at missing files and is now explicitly forbidden.
 - Background actor delete paths must use `rollback()` on save failure rather than `try? save()`. Silent save failure is architecture drift, not acceptable resilience.
 - `MerianMigrationPlan` custom stages must use the shared migration save helper rather than `try? context.save()` or bare `try context.save()`. If a backfill cannot be committed, rollback and throw; opening the upgraded store without the backfilled fields is worse than surfacing a migration failure. Stage fetches must also use the concrete source/target schema type, never active global models or `CurrentSchema`, to avoid SwiftData casting traps during historical migrations. Relationship targets created during a custom migration must be schema-scoped snapshots too; active relationship models can still carry active-owner metadata. Insert newly created relationship rows into the migration `ModelContext` before assigning them to a relationship; relationship assignment alone is not a safe insert path during staged migration.

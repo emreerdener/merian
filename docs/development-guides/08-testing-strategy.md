@@ -157,12 +157,14 @@ MerianTests/
     place for schema-version
     migration fixtures and SwiftData checksum regressions.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
-  damaged local stores. It verifies corruption-only quarantine, no quarantine
-  for generic startup failures, duplicate-checksum detection, store-metadata
-  version parsing, store-aware migration selection, sanitized
-  `recovery-manifest.json` output, and a source-scan boundary that prevents
-  store recovery from referencing `KeychainManager`, `SupabaseManager`, sign-out
-  flows, or current-user state. The focused CI lane is
+  damaged and legacy-unmigratable local stores. It verifies corruption-only
+  quarantine, legacy migration rescue for generic SwiftData migration failures,
+  no rescue for current-store or corruption failures, duplicate-checksum
+  detection, store-metadata version parsing, store-aware migration selection,
+  sanitized `recovery-manifest.json` output, startup diagnostic rescue flags,
+  and a source-scan boundary that prevents store recovery from referencing
+  `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
+  The focused CI lane is
   `.github/workflows/ios-startup-safety.yml`; it runs both
   `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup safe
   mode and schema-upgrade failures are caught together. The cheap
@@ -191,7 +193,7 @@ MerianTests/
     whole test runner. V47 must reuse the V45 checksum representative for
     unchanged local-scan, captured-media, and collection models, while V45 and
     V46 recent plans must keep those sources isolated from each other and route
-    directly to V48. Disk-backed SwiftData migration tests should use unique
+    directly to V49. Disk-backed SwiftData migration tests should use unique
     temporary store URLs and must not unlink the `.sqlite`, `.sqlite-shm`, or
     `.sqlite-wal` files during the test process. Core Data may keep those file
     descriptors alive after the visible `ModelContainer` scope ends; deleting

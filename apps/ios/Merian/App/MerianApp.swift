@@ -870,6 +870,67 @@ struct MerianApp: App {
                 }
             }
 
+            if ModelStoreRecoveryCoordinator.shouldRescueStoreAfterMigrationFailure(
+                for: error,
+                decision: decision,
+                storeURL: storeURL
+            ) {
+                var rescuePerformed = false
+                do {
+                    let rescueDirectory = try ModelStoreRecoveryCoordinator.rescueStoreArtifactsAfterMigrationFailure(
+                        at: storeURL,
+                        for: error
+                    )
+                    rescuePerformed = true
+                    let recoveredContainer = try makePersistentContainerWithoutMigrationPlan(
+                        named: "post-migration-rescue-current-store",
+                        diagnostic: &diagnostic
+                    )
+                    diagnostic.recordFinalOutcome(
+                        "recovered",
+                        reason: "legacy_store_rescued",
+                        rescueAttempted: true,
+                        rescuePerformed: true
+                    )
+                    ModelStoreRecoveryCoordinator.recordLatestStartupDiagnostic(diagnostic)
+                    MerianLog.general.error(
+                        "RECOVERY: Archived a legacy store that could not migrate to \(rescueDirectory.lastPathComponent, privacy: .public) and recreated a fresh ModelContainer."
+                    )
+                    return ModelContainerBootstrapOutcome(
+                        container: recoveredContainer,
+                        startupStoreState: .recovered,
+                        startupNotice: StartupRecoveryNotice(
+                            title: "Library Rebuilt",
+                            message: "Merian archived an older local library that could not be upgraded and started with a fresh library. Cloud sync can restore saved scans where available.",
+                            diagnosticText: ModelStoreRecoveryCoordinator.startupDiagnosticText(diagnostic)
+                        ),
+                        telemetryEvent: StartupRecoveryTelemetryEvent(
+                            outcome: "recovered",
+                            reason: "legacy_store_rescued",
+                            properties: diagnostic.telemetryProperties
+                        )
+                    )
+                } catch let rescueError {
+                    MerianLog.general.fault(
+                        "ModelContainer recovery failed after legacy migration rescue. Initial error: \(error.localizedDescription, privacy: .private) | Rescue error: \(rescueError.localizedDescription, privacy: .private)"
+                    )
+                    if !rescuePerformed {
+                        diagnostic.recordAttempt(name: "migration-rescue-archive", outcome: "failure", error: rescueError)
+                    }
+                    diagnostic.recordFinalOutcome(
+                        "safe_mode",
+                        reason: "persistent_store_rescue_failed",
+                        rescueAttempted: true,
+                        rescuePerformed: rescuePerformed
+                    )
+                    return fallbackInMemoryBootstrap(
+                        reason: "Merian started in safe mode because an older local library could not be archived and rebuilt. New work in this session is temporary until the app restarts with a healthy store.",
+                        telemetryReason: "persistent_store_rescue_failed",
+                        startupDiagnostic: diagnostic
+                    )
+                }
+            }
+
             MerianLog.general.error("ModelContainer recovery skipped because the failure did not match a verified corruption signature.")
             let safeModeFallback = ModelStoreRecoveryCoordinator.safeModeFallback(for: error)
             return fallbackInMemoryBootstrap(

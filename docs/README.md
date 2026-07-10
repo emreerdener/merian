@@ -110,7 +110,8 @@ networking, and hardware orchestration logic.
 - **[`/backend-and-data/08-startup-store-recovery.md`](./backend-and-data/08-startup-store-recovery.md)**
   — Launch-time SwiftData store recovery contract: exception bridge, store-aware
   migration selection, duplicate-checksum fallbacks, corruption-gated
-  quarantine, safe mode, auth isolation, manifest, telemetry, and verification.
+  quarantine, legacy-store rescue, safe mode, auth isolation, manifest,
+  telemetry, and verification.
 
 ### Features & Hardware
 

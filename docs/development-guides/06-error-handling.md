@@ -120,7 +120,7 @@ memory.
 | R2 upload transient failure                               | Queued scan remains saved locally with persisted next retry time                                                                                                                                              |
 | SwiftData save failure during deletion                    | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted)                                                                                        |
 | SwiftData store corruption at startup                     | Store artifacts are quarantined, a support manifest is written, store-aware persistent open is retried once, and the user sees "Library Repaired" if recovery succeeds                                        |
-| SwiftData schema migration failure at startup             | Store artifacts are not moved; current/recent stores first try source-isolated migration strategies, then app boots in safe mode with upgrade-specific copy and `persistent_store_migration_failed` telemetry |
+| SwiftData schema migration failure at startup             | Legacy store artifacts are archived under `store-rescue/`, a fresh persistent current-schema store opens, and the user sees "Library Rebuilt" with `legacy_store_rescued` telemetry; safe mode is only used if rescue fails |
 | Non-corruption `ModelContainer` startup failure           | Local store files are not moved; app boots in in-memory safe mode with a startup notice                                                                                                                       |
 | JWT expiry (authenticated OAuth user)                     | `MerianError.invalidResponse` thrown; callers surface a re-auth prompt                                                                                                                                        |
 
@@ -179,7 +179,7 @@ separate missing-media terminal failures from retryable server failures.
 - `ModelContainer` bootstrap failures now follow a recovery ladder: store-aware
   migration strategy selection → Objective-C exception bridge → duplicate
   checksum retry ladder → corruption detection → quarantine + store-aware retry
-  → in-memory safe mode with startup notice.
+  → legacy migration rescue → in-memory safe mode with startup notice.
 - Store recovery is local persistence repair only. It must not clear Keychain,
   Supabase sessions, device identity, profile state, or public Explore
   ownership. See `docs/backend-and-data/08-startup-store-recovery.md`.

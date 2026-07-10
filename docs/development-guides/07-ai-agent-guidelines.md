@@ -201,8 +201,10 @@ stores open without a migration plan and known recent stores use a
 source-isolated V48/V47/V46/V45/V44/V43/V42 plan; V42 and V43 jump directly to
 V49, and the V45 and V46 plans use one matching source representative each with
 a direct V49 target internally. Quarantine remains corruption-gated: only
-verified SQLite/Core Data corruption signatures may move `default.store`
-artifacts, each quarantine writes a sanitized `recovery-manifest.json`, and
-recovery must not clear Keychain, Supabase auth state, or device identity.
+verified SQLite/Core Data corruption signatures may quarantine `default.store`
+artifacts. Non-corrupt failures on legacy migration strategies may archive those
+artifacts under `store-rescue/` before rebuilding a fresh persistent store. Each
+quarantine or rescue writes a sanitized `recovery-manifest.json`, and recovery
+must not clear Keychain, Supabase auth state, or device identity.
 `ModelStoreRecoveryCoordinatorTests` source-scan this isolation rule and cover
 the metadata parser.
