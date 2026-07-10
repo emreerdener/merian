@@ -14,6 +14,29 @@ struct ExploreCommentCursor {
     let commentId: String
 }
 
+enum ExploreFeedItem: Identifiable {
+    case observation(ExplorePost)
+    case fieldTrip(FieldTripRecentPublication)
+
+    var id: String {
+        switch self {
+        case .observation(let post):
+            "observation:\(post.id)"
+        case .fieldTrip(let publication):
+            "field-trip:\(publication.publicationId)"
+        }
+    }
+
+    var publishedAt: String {
+        switch self {
+        case .observation(let post):
+            post.sharedAt
+        case .fieldTrip(let publication):
+            publication.publishedAt
+        }
+    }
+}
+
 struct ExploreReplyThreadRenderState: Equatable {
     var replies: [ExploreComment] = []
     var isExpanded = false
@@ -194,6 +217,7 @@ final class ExploreFeedViewModel {
     var toastMessage: String?
     var unreadNotificationCount = 0
     var preferredSpeciesNamesByScientificName: [String: String] = [:]
+    var fieldTripPublications: [FieldTripRecentPublication] = []
 
     var isCommentsSheetPresented = false
     var isNotificationsSheetPresented = false
@@ -220,6 +244,12 @@ final class ExploreFeedViewModel {
 
     var posts: [ExplorePost] {
         store.feedPosts
+    }
+
+    var feedItems: [ExploreFeedItem] {
+        let observations = posts.map(ExploreFeedItem.observation)
+        let fieldTrips = fieldTripPublications.map(ExploreFeedItem.fieldTrip)
+        return (observations + fieldTrips).sorted { $0.publishedAt > $1.publishedAt }
     }
 
     var mediaReloadGeneration: UInt64 {

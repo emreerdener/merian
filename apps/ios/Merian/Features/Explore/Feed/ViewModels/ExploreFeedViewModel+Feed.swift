@@ -87,10 +87,12 @@ extension ExploreFeedViewModel {
                 longitude: request.longitude,
                 cursor: request.cursor
             )
+            let freshFieldTripPublications = await loadFieldTripPublicationsForActiveFilter()
 
             guard activeFeedRequestId == requestId else { return }
 
             store.setFeedPosts(freshPosts)
+            fieldTripPublications = freshFieldTripPublications
             hasLoadedFeedOnce = true
             hasReachedEndOfFeed = freshPosts.count < feedPageSize
             updateFeedCursor(using: freshPosts)
@@ -207,6 +209,7 @@ extension ExploreFeedViewModel {
         hasReachedEndOfFeed = false
         nextFeedCursor = .empty
         store.setFeedPosts([])
+        fieldTripPublications = []
         dismissComments()
         reconcileActiveCommentsPost()
     }
@@ -241,5 +244,22 @@ extension ExploreFeedViewModel {
             longitude: request.longitude,
             cursor: nextFeedCursor
         )
+    }
+
+    private func loadFieldTripPublicationsForActiveFilter() async -> [FieldTripRecentPublication] {
+        let mode: FieldTripCommunityMode
+        switch activeFilter {
+        case .recent:
+            mode = .recent
+        case .following:
+            mode = .following
+        case .trending, .nearby:
+            return []
+        }
+
+        return (try? await MerianNetworkClient.shared.getFieldTripCommunityPublications(
+            mode: mode,
+            limit: feedPageSize
+        )) ?? []
     }
 }

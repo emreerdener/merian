@@ -33,7 +33,7 @@ struct ExploreView: View {
     @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
     @State private var activeDictionaryMode: ExploreDictionaryMode = .dictionary
     @State private var activeCommunityMode: CommunityIdentificationMode = .requests
-    @State private var activeFieldTripsSection: FieldTripsSection = .available
+    @State private var activeFieldTripsSection: FieldTripsSection = .fieldTrips
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
     @State private var playbackCoordinator = ExploreVideoPlaybackCoordinator()
 
@@ -102,14 +102,6 @@ struct ExploreView: View {
                     Label("Observations", systemImage: "photo.stack")
                 }
 
-                ExploreCommunityIdentificationView(activeMode: $activeCommunityMode) { route in
-                    navigationPath.append(route)
-                }
-                .tag(ExploreTab.community)
-                .tabItem {
-                    Label("Identify", systemImage: "person.crop.badge.magnifyingglass.fill")
-                }
-
                 FieldTripsView(
                     userRegion: dictionaryUserRegionIdentifier,
                     selectedSection: $activeFieldTripsSection,
@@ -121,6 +113,14 @@ struct ExploreView: View {
                 .tag(ExploreTab.fieldTrips)
                 .tabItem {
                     Label("Field Trips", systemImage: "map")
+                }
+
+                ExploreCommunityIdentificationView(activeMode: $activeCommunityMode) { route in
+                    navigationPath.append(route)
+                }
+                .tag(ExploreTab.community)
+                .tabItem {
+                    Label("Identify", systemImage: "person.crop.badge.magnifyingglass.fill")
                 }
 
                 dictionaryTabContent
@@ -424,7 +424,9 @@ struct ExploreView: View {
             ExploreFeedTabContent(
                 viewModel: viewModel,
                 onOpenPostDetail: { openPostDetail(for: $0) },
+                onOpenFieldTrip: { navigationPath.append(FieldTripPublicationRoute(publicationId: $0.publicationId)) },
                 onOpenAuthorProfile: { openAuthorProfile(for: $0) },
+                onOpenFieldTripAuthorProfile: openAuthorProfile,
                 onOpenHashtag: openHashtag,
                 onOpenInsight: canOpenOwnedPostInsight ? { openInsight(for: $0) } : nil
             )
@@ -724,7 +726,9 @@ private struct ExploreFeedTabContent: View {
     @State private var editingPostLocalFieldNotes: String?
     @State private var isSavingEditedPost = false
     let onOpenPostDetail: (ExplorePost) -> Void
+    let onOpenFieldTrip: (FieldTripRecentPublication) -> Void
     let onOpenAuthorProfile: (ExplorePost) -> Void
+    let onOpenFieldTripAuthorProfile: (FieldTripRecentPublication) -> Void
     let onOpenHashtag: (String) -> Void
     let onOpenInsight: ((ExplorePost) -> Void)?
 
@@ -734,11 +738,11 @@ private struct ExploreFeedTabContent: View {
                 .ignoresSafeArea()
 
             Group {
-                if viewModel.isLoadingInitialFeed && viewModel.posts.isEmpty {
+                if viewModel.isLoadingInitialFeed && viewModel.feedItems.isEmpty {
                     loadingState
-                } else if let errorMessage = viewModel.errorMessage, viewModel.posts.isEmpty {
+                } else if let errorMessage = viewModel.errorMessage, viewModel.feedItems.isEmpty {
                     errorState(message: errorMessage)
-                } else if viewModel.posts.isEmpty {
+                } else if viewModel.feedItems.isEmpty {
                     emptyState
                 } else {
                     feedScrollView
@@ -791,29 +795,39 @@ private struct ExploreFeedTabContent: View {
                 filterBar
                 
                 LazyVStack(spacing: 16) {
-                    ForEach(viewModel.posts) { post in
-                        ExplorePostCard(
-                            post: post,
-                            speciesDisplayName: viewModel.resolvedSpeciesCommonName(for: post),
-                            mediaReloadGeneration: viewModel.mediaReloadGeneration,
-                            onLike: { Task { await viewModel.toggleLike(for: post) } },
-                            onComments: {
-                                Task { await viewModel.openCommentsSheet(for: post) }
-                            },
-                            onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
-                            onOpenDetail: { onOpenPostDetail(post) },
-                            onOpenAuthorProfile: { onOpenAuthorProfile(post) },
-                            onOpenHashtag: onOpenHashtag,
-                            onOpenInsight: onOpenInsight.map { callback in
-                                { callback(post) }
-                            },
-                            onEditPost: { Task { await openPostEditor(for: post) } },
-                            onUnshare: { Task { await viewModel.unshare(post) } },
-                            onBlock: { Task { await viewModel.blockAuthor(of: post) } },
-                            onReport: { Task { await viewModel.report(post) } }
-                        )
-                        .onAppear {
-                            Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
+                    ForEach(viewModel.feedItems) { item in
+                        switch item {
+                        case .observation(let post):
+                            ExplorePostCard(
+                                post: post,
+                                speciesDisplayName: viewModel.resolvedSpeciesCommonName(for: post),
+                                mediaReloadGeneration: viewModel.mediaReloadGeneration,
+                                onLike: { Task { await viewModel.toggleLike(for: post) } },
+                                onComments: {
+                                    Task { await viewModel.openCommentsSheet(for: post) }
+                                },
+                                onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
+                                onOpenDetail: { onOpenPostDetail(post) },
+                                onOpenAuthorProfile: { onOpenAuthorProfile(post) },
+                                onOpenHashtag: onOpenHashtag,
+                                onOpenInsight: onOpenInsight.map { callback in
+                                    { callback(post) }
+                                },
+                                onEditPost: { Task { await openPostEditor(for: post) } },
+                                onUnshare: { Task { await viewModel.unshare(post) } },
+                                onBlock: { Task { await viewModel.blockAuthor(of: post) } },
+                                onReport: { Task { await viewModel.report(post) } }
+                            )
+                            .onAppear {
+                                Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
+                            }
+                        case .fieldTrip(let publication):
+                            FieldTripCommunityPublicationCard(
+                                publication: publication,
+                                onOpenPublication: { _ in onOpenFieldTrip(publication) },
+                                onOpenAuthorProfile: onOpenFieldTripAuthorProfile
+                            )
+                            .padding(.horizontal, 16)
                         }
                     }
 

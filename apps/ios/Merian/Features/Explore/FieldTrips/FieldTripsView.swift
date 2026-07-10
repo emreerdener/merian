@@ -7,28 +7,19 @@ struct FieldTripsView: View {
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
     @State private var viewModel = FieldTripsViewModel()
-    @State private var selectedCommunityMode: FieldTripCommunityMode = .smart
 
     var body: some View {
         VStack(spacing: 0) {
             switch selectedSection {
-            case .available:
-                availableTripsContent
-            case .community:
-                communityTripsContent
+            case .fieldTrips:
+                fieldTripsContent
+            case .seasonal:
+                seasonalTripsContent
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .task {
             await viewModel.load(userRegion: userRegion)
-        }
-        .task(id: selectedSection) {
-            guard selectedSection == .community else { return }
-            await viewModel.loadCommunity(mode: selectedCommunityMode, userRegion: userRegion)
-        }
-        .task(id: selectedCommunityMode) {
-            guard selectedSection == .community else { return }
-            await viewModel.loadCommunity(mode: selectedCommunityMode, userRegion: userRegion)
         }
         .onChange(of: selectedSection) { _, _ in
             HapticManager.shared.triggerSelectionPulse()
@@ -54,11 +45,9 @@ struct FieldTripsView: View {
         )
     }
 
-    private var availableTripsContent: some View {
+    private var fieldTripsContent: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 12) {
-                seasonalChallengesSection
-
                 if viewModel.isLoading && viewModel.templates.isEmpty {
                     ForEach(0..<4, id: \.self) { _ in
                         FieldTripTemplateSkeletonCard()
@@ -89,8 +78,7 @@ struct FieldTripsView: View {
         }
     }
 
-    @ViewBuilder
-    private var seasonalChallengesSection: some View {
+    private var seasonalTripsContent: some View {
         let visibleChallenges = viewModel.challenges
             .filter { $0.isLive || $0.isUpcoming }
             .sorted { lhs, rhs in
@@ -100,25 +88,18 @@ struct FieldTripsView: View {
                 return lhs.startsAt < rhs.startsAt
             }
 
-        if !visibleChallenges.isEmpty || (viewModel.isLoading && viewModel.challenges.isEmpty) || viewModel.challengeErrorMessage != nil {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Seasonal Challenges")
-                        .font(.headline.weight(.bold))
-                    Spacer()
-                    if !visibleChallenges.isEmpty {
-                        Text("\(visibleChallenges.count)")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
+        return ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 12) {
                 if viewModel.isLoading && viewModel.challenges.isEmpty {
-                    ForEach(0..<2, id: \.self) { _ in
+                    ForEach(0..<4, id: \.self) { _ in
                         FieldTripRecentSkeletonCard()
                     }
                 } else if let challengeErrorMessage = viewModel.challengeErrorMessage, visibleChallenges.isEmpty {
                     FieldTripUnavailableCard(message: challengeErrorMessage) {
+                        Task { await viewModel.refresh(userRegion: userRegion) }
+                    }
+                } else if visibleChallenges.isEmpty {
+                    FieldTripUnavailableCard(message: "Seasonal Field Trips are not available right now.") {
                         Task { await viewModel.refresh(userRegion: userRegion) }
                     }
                 } else {
@@ -130,81 +111,12 @@ struct FieldTripsView: View {
                     }
                 }
             }
-            .padding(.bottom, 6)
-        }
-    }
-
-    private var communityTripsContent: some View {
-        ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 12) {
-                FieldTripCommunityModeChips(selectedMode: $selectedCommunityMode)
-                    .padding(.bottom, 2)
-
-                if viewModel.isLoadingCommunity && viewModel.communityPublications.isEmpty {
-                    ForEach(0..<4, id: \.self) { _ in
-                        FieldTripRecentSkeletonCard()
-                    }
-                } else if let errorMessage = viewModel.communityErrorMessage, viewModel.communityPublications.isEmpty {
-                    FieldTripUnavailableCard(message: errorMessage) {
-                        Task { await viewModel.refreshCommunity(mode: selectedCommunityMode, userRegion: userRegion) }
-                    }
-                } else if viewModel.communityPublications.isEmpty {
-                    FieldTripUnavailableCard(message: communityEmptyMessage) {
-                        Task { await viewModel.refreshCommunity(mode: selectedCommunityMode, userRegion: userRegion) }
-                    }
-                } else {
-                    ForEach(viewModel.communityPublications) { publication in
-                        FieldTripCommunityPublicationCard(
-                            publication: publication,
-                            onOpenPublication: onOpenPublication,
-                            onOpenAuthorProfile: onOpenAuthorProfile
-                        )
-                    }
-
-                    if viewModel.hasMoreCommunityPublications {
-                        Button {
-                            Task {
-                                await viewModel.loadMoreCommunity(
-                                    mode: selectedCommunityMode,
-                                    userRegion: userRegion
-                                )
-                            }
-                        } label: {
-                            HStack(spacing: 8) {
-                                if viewModel.isLoadingMoreCommunity {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "arrow.down.circle")
-                                }
-                                Text("Load more")
-                            }
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(viewModel.isLoadingMoreCommunity)
-                    }
-                }
-            }
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
         .refreshable {
-            await viewModel.refreshCommunity(mode: selectedCommunityMode, userRegion: userRegion)
-        }
-    }
-
-    private var communityEmptyMessage: String {
-        switch selectedCommunityMode {
-        case .smart:
-            "No community Field Trips are visible right now."
-        case .following:
-            "Follow explorers to see their published Field Trips here."
-        case .recent:
-            "No recent published Field Trips are visible right now."
+            await viewModel.refresh(userRegion: userRegion)
         }
     }
 }
@@ -222,6 +134,7 @@ struct FieldTripTemplateDetailView: View {
     @State private var errorMessage: String?
     @State private var publishingTemplate: FieldTripTemplate?
     @State private var toastMessage: String?
+    @State private var selectedDetailSection: FieldTripDetailSection = .objectives
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -300,14 +213,35 @@ struct FieldTripTemplateDetailView: View {
 
             actionButton(template)
 
-            if let description = template.description {
-                Text(description)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
+            Picker("Field Trip details", selection: $selectedDetailSection) {
+                ForEach(FieldTripDetailSection.allCases) { section in
+                    Text(section.title).tag(section)
+                }
             }
+            .pickerStyle(.segmented)
 
-            FieldTripGuideSections(template: template)
+            switch selectedDetailSection {
+            case .objectives:
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(template.levels) { level in
+                        FieldTripLevelSection(
+                            level: level,
+                            currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1
+                        )
+                    }
+                }
+            case .tips:
+                VStack(alignment: .leading, spacing: 16) {
+                    if let description = template.description {
+                        Text(description)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    FieldTripGuideSections(template: template)
+                }
+            }
 
             FieldTripCommunityPreviewSection(
                 publications: communityPreview,
@@ -315,18 +249,6 @@ struct FieldTripTemplateDetailView: View {
                 onOpenPublication: onOpenPublication,
                 onOpenAuthorProfile: onOpenAuthorProfile
             )
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Levels")
-                    .font(.headline.weight(.bold))
-
-                ForEach(template.levels) { level in
-                    FieldTripLevelSection(
-                        level: level,
-                        currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1
-                    )
-                }
-            }
         }
     }
 
@@ -451,6 +373,7 @@ struct FieldTripChallengeDetailView: View {
 
     @State private var viewModel: FieldTripChallengeDetailViewModel
     @State private var publishingChallenge: FieldTripChallenge?
+    @State private var selectedDetailSection: FieldTripDetailSection = .objectives
 
     init(
         challengeId: String,
@@ -549,19 +472,32 @@ struct FieldTripChallengeDetailView: View {
 
             actionButton(challenge)
 
-            if let description = challenge.description {
-                Text(description)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
             if let template = challenge.template {
-                FieldTripGuideSections(template: template)
-                FieldTripChallengeLevelsSection(
-                    template: template,
-                    currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1
-                )
+                Picker("Challenge details", selection: $selectedDetailSection) {
+                    ForEach(FieldTripDetailSection.allCases) { section in
+                        Text(section.title).tag(section)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                switch selectedDetailSection {
+                case .objectives:
+                    FieldTripChallengeLevelsSection(
+                        template: template,
+                        currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1
+                    )
+                case .tips:
+                    VStack(alignment: .leading, spacing: 16) {
+                        if let description = challenge.description {
+                            Text(description)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        FieldTripGuideSections(template: template)
+                    }
+                }
             }
 
             FieldTripChallengeEntriesSection(
@@ -658,18 +594,34 @@ struct FieldTripChallengeDetailView: View {
     }
 }
 
-enum FieldTripsSection: String, CaseIterable, Identifiable {
-    case available
-    case community
+private enum FieldTripDetailSection: String, CaseIterable, Identifiable {
+    case objectives
+    case tips
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .available:
-            "Available"
-        case .community:
-            "Community"
+        case .objectives:
+            "Objectives"
+        case .tips:
+            "Tips"
+        }
+    }
+}
+
+enum FieldTripsSection: String, CaseIterable, Identifiable {
+    case fieldTrips
+    case seasonal
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .fieldTrips:
+            "Field Trips"
+        case .seasonal:
+            "Seasonal"
         }
     }
 }
@@ -877,9 +829,6 @@ private struct FieldTripChallengeLevelsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Levels")
-                .font(.headline.weight(.bold))
-
             ForEach(template.levels) { level in
                 FieldTripChallengeLevelSection(
                     level: level,
@@ -1043,6 +992,10 @@ private struct FieldTripChallengeEntryCard: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 5) {
+                Label("Field Trip", systemImage: "map")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+
                 Button {
                     onOpenEntry(entry.entryId)
                 } label: {
@@ -1110,40 +1063,7 @@ private struct FieldTripChallengeEntryCard: View {
     }
 }
 
-private struct FieldTripCommunityModeChips: View {
-    @Binding var selectedMode: FieldTripCommunityMode
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(FieldTripCommunityMode.allCases) { mode in
-                Button {
-                    selectedMode = mode
-                } label: {
-                    Text(mode.title)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(selectedMode == mode ? Color(uiColor: .systemBackground) : .primary)
-                        .lineLimit(1)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(selectedMode == mode ? Color.primary : Color(uiColor: .secondarySystemGroupedBackground))
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.primary.opacity(selectedMode == mode ? 0 : 0.08), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct FieldTripCommunityPublicationCard: View {
+struct FieldTripCommunityPublicationCard: View {
     let publication: FieldTripRecentPublication
     let onOpenPublication: (String) -> Void
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void

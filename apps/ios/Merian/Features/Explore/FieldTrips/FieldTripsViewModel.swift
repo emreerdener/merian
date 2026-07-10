@@ -6,19 +6,12 @@ import Observation
 final class FieldTripsViewModel {
     var templates: [FieldTripTemplate] = []
     var challenges: [FieldTripChallenge] = []
-    var communityPublications: [FieldTripRecentPublication] = []
     var isLoading = false
-    var isLoadingCommunity = false
-    var isLoadingMoreCommunity = false
     var errorMessage: String?
     var challengeErrorMessage: String?
-    var communityErrorMessage: String?
     var toastMessage: String?
-    var hasMoreCommunityPublications = true
 
     private var didLoad = false
-    private var loadedCommunityMode: FieldTripCommunityMode?
-    private let communityPageSize = 20
 
     func load(userRegion: String? = nil, force: Bool = false) async {
         guard force || !didLoad else { return }
@@ -45,70 +38,6 @@ final class FieldTripsViewModel {
 
     func refresh(userRegion: String? = nil) async {
         await load(userRegion: userRegion, force: true)
-    }
-
-    func loadCommunity(
-        mode: FieldTripCommunityMode = .smart,
-        userRegion: String? = nil,
-        force: Bool = false
-    ) async {
-        guard force || loadedCommunityMode != mode else { return }
-        if loadedCommunityMode != mode {
-            communityPublications = []
-            hasMoreCommunityPublications = true
-        }
-        isLoadingCommunity = true
-        communityErrorMessage = nil
-        if force {
-            hasMoreCommunityPublications = true
-        }
-        defer {
-            isLoadingCommunity = false
-            loadedCommunityMode = mode
-        }
-
-        do {
-            communityPublications = try await MerianNetworkClient.shared.getFieldTripCommunityPublications(
-                mode: mode,
-                userRegion: userRegion,
-                limit: communityPageSize
-            )
-            hasMoreCommunityPublications = communityPublications.count >= communityPageSize
-        } catch {
-            communityErrorMessage = ExploreErrorFormatter.message(for: error)
-        }
-    }
-
-    func refreshCommunity(mode: FieldTripCommunityMode = .smart, userRegion: String? = nil) async {
-        await loadCommunity(mode: mode, userRegion: userRegion, force: true)
-    }
-
-    func loadMoreCommunity(mode: FieldTripCommunityMode = .smart, userRegion: String? = nil) async {
-        guard hasMoreCommunityPublications,
-              !isLoadingCommunity,
-              !isLoadingMoreCommunity,
-              let cursor = communityPublications.last else {
-            return
-        }
-
-        isLoadingMoreCommunity = true
-        communityErrorMessage = nil
-        defer { isLoadingMoreCommunity = false }
-
-        do {
-            let page = try await MerianNetworkClient.shared.getFieldTripCommunityPublications(
-                mode: mode,
-                userRegion: userRegion,
-                limit: communityPageSize,
-                beforeRankBucket: cursor.rankBucket ?? 0,
-                beforePublishedAt: cursor.publishedAt,
-                beforePublicationId: cursor.publicationId
-            )
-            communityPublications.append(contentsOf: page)
-            hasMoreCommunityPublications = page.count >= communityPageSize
-        } catch {
-            communityErrorMessage = ExploreErrorFormatter.message(for: error)
-        }
     }
 
     func template(withId templateId: String) -> FieldTripTemplate? {

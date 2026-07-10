@@ -8,17 +8,15 @@ only a camera/performance setting.
 ## V4 Scope
 
 - Field Trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
-- The Field Trips surface has two page-header segments: `Available` first by
-  default and `Community` second for Field Trips-native discovery.
-- `Available` can show a `Seasonal Challenges` section above the template
-  catalog. Challenges are curated/admin-created only, live inside Field Trips,
+- The Field Trips surface has two page-header segments: `Field Trips` first by
+  default for the base template catalog and `Seasonal` second for live and
+  upcoming curated challenges.
+- Seasonal challenges are curated/admin-created only, live inside Field Trips,
   and require an explicit Join.
 - Challenges link to existing Field Trip templates but keep separate
   participation, item-completion, badge, entry, like, and comment storage so a
   seasonal challenge can repeat without corrupting normal Field Trip progress or
   publications.
-- `Community` has filter chips for `For You`, `Following`, and `Recent`.
-  `For You` is deterministic bucketed ranking, not ML.
 - Templates are curated in Supabase with region, season, habitat, difficulty,
   rotating-free, Pro access tags, cover images, estimated duration, and curated
   guide sections.
@@ -38,16 +36,15 @@ only a camera/performance setting.
   likes, even though the iOS UI reuses the compact Explore comment presentation.
 - V4 supports profile showcase, up to 3 pinned published Field Trips, completion
   badges for challenges, published Field Trip pages, challenge entry pages,
-  template-detail Community previews, and a Field Trips-native Community feed.
+  template-detail Community previews, and Field Trips-native publication APIs.
   It does not create Explore feed posts, map points, public web share pages,
   APNs, widgets, leaderboards, prizes, rankings, contest windows, or
   sponsored-trip eligibility.
 
 ## Product Flow
 
-1. A signed-in or ghost user opens Explore -> Field Trips. The `Available` tab
-   loads first, with live/upcoming `Seasonal Challenges` above regular Field
-   Trip templates when challenge inventory exists.
+1. A signed-in or ghost user opens Explore -> Field Trips. The base `Field Trips`
+   tab loads first; `Seasonal` separately lists live and upcoming challenges.
 2. `/field-trips` with `action: "catalog"` returns accessible and locked
    templates, their levels, checklist items, and any existing progress.
 3. Opening a catalog card loads `action: "template_detail"` and shows guide
@@ -64,8 +61,8 @@ only a camera/performance setting.
    the next load.
 8. Once all levels are complete, the user may publish a Field Trip snapshot
    with an editable title and optional description or AI summary.
-9. Published Field Trips appear on public profiles and in Field Trips
-   `Community` only. They open `FieldTripPublicationDetailView` with item cards,
+9. Published Field Trips appear on public profiles and template Community
+   previews. They open `FieldTripPublicationDetailView` with item cards,
    likes, comments, and author identity. Author taps open the existing Explore
    author-profile route.
 
@@ -418,8 +415,20 @@ make xcodegen
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
-Also verify that publishing a Field Trip appears only on profiles and Field
-Trips `Community`, and does not create `explore_posts`, Explore feed cards,
-Explore map points, normal Explore post notifications, APNs, widgets, or public
-web share pages. Comment/reply/followed-publication activity may appear in the
-Explore activity sheet and unread count.
+Also verify that publishing a Field Trip appears on profiles, Field Trip-native
+preview/detail surfaces, and typed Observations Recent/Following cards without
+creating an `explore_posts` row. It must not create Explore map points, normal
+Explore post notifications, APNs, widgets, or public web share pages.
+Comment/reply/followed-publication activity may appear in the Explore activity
+sheet and unread count.
+
+## Explore Feed Presentation
+
+Published base Field Trips are mixed into the Observations feed as typed Field
+Trip cards for `Recent` and `Following`. They keep their Field Trip publication
+identity and open `FieldTripPublicationDetailView`, so likes, comments, author
+identity, and deletion semantics are not duplicated into `explore_posts`.
+Field Trips are intentionally absent from `Trending` and `Nearby` until those
+ranking and geoprivacy contracts are designed. Seasonal entry aggregation,
+cross-type cursor pagination, widget/APNs, and public-web presentation remain
+future work.
