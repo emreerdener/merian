@@ -4,7 +4,7 @@ Running checklist for Merian's bounded GBIF-backed Community Taxonomy Index
 imports. Update this file whenever we run another import batch, change the
 worker, or promote coverage information into product surfaces.
 
-Last updated: 2026-07-06
+Last updated: 2026-07-10
 
 ## Current Policy
 
@@ -31,13 +31,13 @@ Last updated: 2026-07-06
 
 ## Production Status
 
-Last verified remote status: 2026-07-06 after Birds offset 2650.
+Last verified remote status: 2026-07-10 after Birds offset 4650.
 Coverage values below still reflect the last captured status snapshot; refresh
 `community-taxonomy-status` coverage view before exposing any progress claim.
 
 | Target         | GBIF Root | Imported Offsets | Imported Rows | Next Offset | Indexed Species | Dictionary Species |   Coverage |
 | -------------- | --------- | ---------------- | ------------: | ----------: | --------------: | -----------------: | ---------: |
-| Birds (`Aves`) | `212`     | `0`, `50`, `100`, `150`, `350`, `450`, `550`, `650`, `750`, `850`, `950`, `1050`, `1150`, `1250`, `1350`, `1450`, `1550`, `1650`, `1750`, `1850`, `1950`, `2050`, `2150`, `2250`, `2350`, `2450`, `2550`, `2650`, `2750`, `2850`, `2950`, `3050`, `3150`, `3250`, `3350`, `3450`, `3550`, `3650`, `3750`, `3850`, `3950`, `4050`, `4150`, `4250`, `4350`, `4450`, `4550` |         `4550` |       `4650` |           `4690` |               `69` | `0.014712` |
+| Birds (`Aves`) | `212`     | `0`, `50`, `100`, `150`, `350`, `450`, `550`, `650`, `750`, `850`, `950`, `1050`, `1150`, `1250`, `1350`, `1450`, `1550`, `1650`, `1750`, `1850`, `1950`, `2050`, `2150`, `2250`, `2350`, `2450`, `2550`, `2650`, `2750`, `2850`, `2950`, `3050`, `3150`, `3250`, `3350`, `3450`, `3550`, `3650`, `3750`, `3850`, `3950`, `4050`, `4150`, `4250`, `4350`, `4450`, `4550`, `4650` |         `4650` |       `4750` |           `4790` |               `69` | `0.014405` |
 
 GBIF reported `14,641` accepted bird species under Aves during the first import
 run. This is the expected rough denominator for completing the Birds target over
@@ -102,11 +102,13 @@ cursor used when the import worker is called without an explicit `offset`.
 | 2026-07-06 | Birds  |  `4450` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 | 2026-07-06 | Birds  |  `4550` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 
+| 2026-07-10 | Birds  |  `4650` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+
 ## Next Import Batches
 
-- [ ] Birds offset `4650`, limit `100`.
 - [ ] Birds offset `4750`, limit `100`.
 - [ ] Birds offset `4850`, limit `100`.
+- [ ] Birds offset `4950`, limit `100`.
 - [ ] Recheck `community-taxonomy-status` coverage view after every 1-3 batches.
 - [ ] Stop and investigate if any import row has `status != completed` or
       `error_count > 0`.
