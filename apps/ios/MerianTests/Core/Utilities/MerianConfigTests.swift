@@ -144,7 +144,7 @@ struct MerianEnvironmentTests {
         #expect(configuration.issues.isEmpty)
     }
 
-    @Test func debugSimulatorBlocksProductionSupabaseByDefault() {
+    @Test func debugSimulatorWarnsAboutProductionSupabaseByDefault() {
         let configuration = MerianEnvironment.load(
             infoDictionary: [
                 "SUPABASE_URL": "https://\(MerianEnvironment.productionSupabaseHost)",
@@ -156,8 +156,8 @@ struct MerianEnvironmentTests {
             runtime: MerianEnvironment.RuntimeContext(isDebug: true, isSimulator: true)
         )
 
-        #expect(configuration.supabaseUrl == MerianEnvironment.fallbackSupabaseURL)
-        #expect(configuration.hasSupabaseConfiguration == false)
+        #expect(configuration.supabaseUrl == "https://\(MerianEnvironment.productionSupabaseHost)")
+        #expect(configuration.hasSupabaseConfiguration)
         #expect(configuration.issues.contains(
             .productionSupabaseInDebugSimulator(MerianEnvironment.productionSupabaseHost)
         ))

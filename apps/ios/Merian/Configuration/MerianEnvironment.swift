@@ -16,7 +16,8 @@ enum MerianEnvironment {
             case .invalidSupabaseURL(let value):
                 return "SUPABASE_URL is invalid: \(value)"
             case .productionSupabaseInDebugSimulator(let host):
-                return "Debug simulator builds cannot use production Supabase by default: \(host)."
+                return "Debug simulator is using production Supabase; avoid fresh installs or " +
+                "cleared sessions unless you intend to create a test ghost user: \(host)."
             }
         }
     }
@@ -54,7 +55,6 @@ enum MerianEnvironment {
             !issues.contains(.missingValue(Keys.supabaseAnonKey)) &&
             issues.allSatisfy {
                 if case .invalidSupabaseURL = $0 { return false }
-                if case .productionSupabaseInDebugSimulator = $0 { return false }
                 return true
             }
         }
@@ -133,7 +133,7 @@ enum MerianEnvironment {
             issues.append(.invalidSupabaseURL(supabaseUrl))
         }
 
-        if shouldBlockProductionSupabase(
+        if shouldWarnProductionSupabase(
             url: supabaseURL,
             environment: environment,
             runtime: runtime
@@ -144,7 +144,6 @@ enum MerianEnvironment {
         return Configuration(
             supabaseUrl: issues.contains(where: {
                 if case .invalidSupabaseURL = $0 { return true }
-                if case .productionSupabaseInDebugSimulator = $0 { return true }
                 return false
             }) ? fallbackSupabaseURL : supabaseUrl,
             supabaseAnonKey: supabaseAnonKey,
@@ -173,7 +172,7 @@ enum MerianEnvironment {
         return trimmed
     }
 
-    private static func shouldBlockProductionSupabase(
+    private static func shouldWarnProductionSupabase(
         url: URL?,
         environment: [String: String],
         runtime: RuntimeContext

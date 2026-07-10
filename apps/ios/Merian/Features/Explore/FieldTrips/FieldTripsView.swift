@@ -341,7 +341,7 @@ struct FieldTripTemplateDetailView: View {
                     .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary))
+                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
             .buttonStyle(.plain)
         } else if template.activeProgress == nil {
@@ -362,7 +362,7 @@ struct FieldTripTemplateDetailView: View {
                 .foregroundStyle(Color(uiColor: .systemBackground))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary))
+                .background(Capsule(style: .continuous).fill(Color.primary))
             }
             .buttonStyle(.plain)
             .disabled(isStarting)
@@ -375,7 +375,7 @@ struct FieldTripTemplateDetailView: View {
                     .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary))
+                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
             .buttonStyle(.plain)
         } else {
@@ -388,11 +388,11 @@ struct FieldTripTemplateDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        Capsule(style: .continuous)
                             .fill(Color(uiColor: .secondarySystemGroupedBackground))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        Capsule(style: .continuous)
                             .stroke(Color.primary.opacity(0.1), lineWidth: 1)
                     )
             }
@@ -588,7 +588,7 @@ struct FieldTripChallengeDetailView: View {
                     .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary))
+                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
             .buttonStyle(.plain)
         } else if challenge.isUpcoming {
@@ -598,7 +598,7 @@ struct FieldTripChallengeDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    Capsule(style: .continuous)
                         .fill(Color(uiColor: .secondarySystemGroupedBackground))
                 )
         } else if challenge.viewerParticipation == nil {
@@ -619,7 +619,7 @@ struct FieldTripChallengeDetailView: View {
                 .foregroundStyle(Color(uiColor: .systemBackground))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(challenge.isEnded ? Color.secondary : Color.primary))
+                .background(Capsule(style: .continuous).fill(challenge.isEnded ? Color.secondary : Color.primary))
             }
             .buttonStyle(.plain)
             .disabled(viewModel.isJoining || challenge.isEnded)
@@ -632,7 +632,7 @@ struct FieldTripChallengeDetailView: View {
                     .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary))
+                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
             .buttonStyle(.plain)
         } else {
@@ -645,11 +645,11 @@ struct FieldTripChallengeDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        Capsule(style: .continuous)
                             .fill(Color(uiColor: .secondarySystemGroupedBackground))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        Capsule(style: .continuous)
                             .stroke(Color.primary.opacity(0.1), lineWidth: 1)
                     )
             }
@@ -1277,6 +1277,7 @@ private struct FieldTripGuideSections: View {
                 FieldTripGuideRow(title: "Safety", systemImage: "hand.raised", bodyText: safety)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1302,8 +1303,10 @@ private struct FieldTripGuideRow: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))

@@ -11,12 +11,14 @@
 //
 // REVENUECAT_API_KEY = appl_replace_with_revenuecat_ios_public_sdk_key
 
-// Debug simulator builds should normally point at a non-production Supabase
-// project to avoid creating production ghost users during local testing.
+// Debug simulator builds can point at production for manual smoke tests, but
+// staging is preferred for fresh installs, session-clearing, and write-heavy
+// testing so local work does not create production ghost users.
 //
 // SUPABASE_URL = https:/$()/your-staging-project.supabase.co
 // SUPABASE_ANON_KEY = sb_publishable_replace_with_staging_key
 //
-// If you intentionally need a production smoke test from the simulator, keep
-// the production URL and add this launch environment variable in the scheme:
+// If you want to hide the production-Supabase simulator warning for an
+// intentional smoke test, keep the production URL and add this launch
+// environment variable in the scheme:
 // MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1
