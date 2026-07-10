@@ -129,19 +129,25 @@ MerianTests/
     (in-memory store, no migration). Catches init-time stage validation failures
     on iOS 26.
   - `migrationFromV30ToV33DoesNotCrash`: creates a real V30 disk store then
-    reopens with the full migration plan targeting V33 (the current schema). On
-    iOS 26+, even a lightweight migration triggers validation of ALL custom
-    stages in `MerianMigrationPlan.stages` via
-    `NSCustomMigrationStage.init(migratingFrom:to:)`. Two bugs cause equal-model
-    crashes: (1) extension-declared `@Model` classes whose metadata resolves to
-    the global type; (2) `ScanCollection` typealias carrying a relationship to a
-    prior schema's `LocalScanRecord` by Swift type identity. The disk-based test
-    covers this execution path that the in-memory test misses. The test
-    validates the V31 (`isFlagged`) lightweight addition, the V32 (`isUploaded`)
+    reopens with a short source-isolated V30→V33 test plan. On iOS 26+ this
+    keeps the historical lightweight/custom hop covered without forcing the
+    fixture through unrelated recent-stage validation. The separate
+    `fullHistoricalEqualReferenceFailureIsLegacyRescueEligible` test covers the
+    production startup contract for full-historical equal-reference failures:
+    classify them as non-corrupt legacy migration failures that are eligible for
+    `store-rescue/`.
+    The V30→V33 test validates the V31 (`isFlagged`) lightweight addition, the V32 (`isUploaded`)
     lightweight addition, and the V33 custom `migrateV32toV33` stage
     (backfilling `scanStateRaw` from the old booleans) in a single migration
     pass. Update the "from" version and description when a new schema is added.
     Run both tests on an iOS 26 simulator on every schema bump.
+  - `knownGoodV48RequiredValueFailureUsesLegacyRescue` and
+    `optionalQueueV48RequiredValueFailureUsesLegacyRescue`: synthesize the
+    required-value validation errors seen in TestFlight and assert that
+    recent-source V48 failures are archived under `store-rescue/` instead of
+    returning to safe mode. The V48 migration source contract remains covered by
+    source guardrails because current SwiftData can reject malformed historical
+    rows before a repair migration gets a save boundary.
   - Media-schema coverage now includes reusable disk-store fixture helpers,
     `testFullMigrationV39ToV40BackfillsMediaJSON()`,
     `testFullMigrationV40ToV41BackfillsCapturedMediaEntries()`, typed

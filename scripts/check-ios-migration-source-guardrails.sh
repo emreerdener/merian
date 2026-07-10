@@ -164,6 +164,16 @@ contains "$schema_file" "try snapshotOptionalQueueV48QueuedScansForV49(in: conte
   || fail "Optional-queue V48 recovery migration must call its queued-scan snapshot helper."
 contains "$schema_file" "let snapshots = namespacedSnapshots.isEmpty ? _v49QueuedScanBackfill.allValues() : namespacedSnapshots" \
   || fail "V49 queued-scan repair must tolerate SwiftData will/did namespace drift."
+contains "$schema_file" "scan.queueAttemptCount = 0" \
+  || fail "V49 queued-scan repair must normalize missing retry count defaults on just-migrated rows."
+contains "$schema_file" "scan.queueUpdatedAt = now" \
+  || fail "V49 queued-scan repair must normalize missing retry timestamp defaults on just-migrated rows."
+contains "$schema_file" "scan.queueNeedsAttention = false" \
+  || fail "V49 queued-scan repair must normalize missing needs-attention defaults on just-migrated rows."
+contains "$schema_file" "Do not save here. V48 stores can materialize target rows" \
+  || fail "Known-good V48 willMigrate must not save before V49 retry fields are repaired."
+contains "$schema_file" "Do not save here. Optional-queue V48 rows intentionally have nil" \
+  || fail "Optional-queue V48 willMigrate must not save before V49 retry fields are repaired."
 contains "$schema_file" "enum MerianRecentV42MigrationPlan" \
   || fail "Missing source-isolated V42 recovery plan."
 contains "$schema_file" "enum MerianRecentV43MigrationPlan" \
@@ -280,8 +290,10 @@ contains "$test_file" "keepSQLiteStoreForProcessLifetime" \
   || fail "MigrationPlanTests must keep disk-backed migration stores alive for the process lifetime."
 contains "$test_file" "activeOfflineQueuedScanKeepsDurableRetryFieldsNonOptional" \
   || fail "MigrationPlanTests must guard active V49 queue retry fields against optionality changes."
-contains "$test_file" "migrationFromOptionalQueueV48ToCurrentSchemaRecoversRetryFields" \
-  || fail "MigrationPlanTests must cover the accidental optional-queue V48 recovery fixture."
+contains "$test_file" "knownGoodV48RequiredValueFailureUsesLegacyRescue" \
+  || fail "MigrationPlanTests must cover the known-good V48 legacy rescue fixture."
+contains "$test_file" "optionalQueueV48RequiredValueFailureUsesLegacyRescue" \
+  || fail "MigrationPlanTests must cover the accidental optional-queue V48 legacy rescue fixture."
 contains "$test_file" "migrationFromV42ToCurrentSchemaUsesSourceIsolatedPlan" \
   || fail "MigrationPlanTests must cover the V42 source-isolated recovery fixture from startup diagnostics."
 contains "$recovery_file" "shouldRescueStoreAfterMigrationFailure" \

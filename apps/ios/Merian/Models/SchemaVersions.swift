@@ -3116,6 +3116,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
 
         func normalizeQueueMetadata(on scan: MerianSchemaV49.OfflineQueuedScan) {
+            scan.queueAttemptCount = 0
+            scan.queueUpdatedAt = now
+            scan.queueNeedsAttention = false
             scan.queueSchemaRepairGeneration = 1
         }
 
@@ -3234,9 +3237,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             context.delete(scan)
         }
 
-        if !queuedScans.isEmpty {
-            try saveMigrationContext(context, stage: "V48->V49 willMigrate")
-        }
+        // Do not save here. V48 stores can materialize target rows with new
+        // non-optional V49 retry fields still nil; didMigrate must repair those
+        // rows before Core Data validation gets a save boundary.
     }
 
     private static func snapshotOptionalQueueV48QueuedScansForV49(in context: ModelContext) throws {
@@ -3248,9 +3251,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             context.delete(scan)
         }
 
-        if !queuedScans.isEmpty {
-            try saveMigrationContext(context, stage: "V48 optional queue->V49 willMigrate")
-        }
+        // Do not save here. Optional-queue V48 rows intentionally have nil
+        // retry metadata; didMigrate fills the non-optional V49 defaults before
+        // the migration context is saved.
     }
 
     // Recent stores jump directly to V49 so iOS 26 never validates a direct-to-V48

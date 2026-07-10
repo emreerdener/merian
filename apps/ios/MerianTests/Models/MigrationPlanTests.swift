@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 @testable import Merian
 import SwiftData
@@ -206,6 +207,95 @@ struct MigrationPlanTests {
         _ = url
     }
 
+    private enum V26ToV27TestMigrationPlan: SchemaMigrationPlan {
+        static var schemas: [any VersionedSchema.Type] {
+            [MerianSchemaV26.self, MerianSchemaV27.self]
+        }
+
+        static var stages: [MigrationStage] {
+            [MerianMigrationPlan.migrateV26toV27]
+        }
+    }
+
+    private enum V28ToV29TestMigrationPlan: SchemaMigrationPlan {
+        static var schemas: [any VersionedSchema.Type] {
+            [MerianSchemaV28.self, MerianSchemaV29.self]
+        }
+
+        static var stages: [MigrationStage] {
+            [MerianMigrationPlan.migrateV28toV29]
+        }
+    }
+
+    private enum V30ToV33TestMigrationPlan: SchemaMigrationPlan {
+        static var schemas: [any VersionedSchema.Type] {
+            [MerianSchemaV30.self, MerianSchemaV31.self, MerianSchemaV32.self, MerianSchemaV33.self]
+        }
+
+        static var stages: [MigrationStage] {
+            [
+                MerianMigrationPlan.migrateV30toV31,
+                MerianMigrationPlan.migrateV31toV32,
+                MerianMigrationPlan.migrateV32toV33
+            ]
+        }
+    }
+
+    private enum V38ToV40TestMigrationPlan: SchemaMigrationPlan {
+        static var schemas: [any VersionedSchema.Type] {
+            [MerianSchemaV38.self, MerianSchemaV39.self, MerianSchemaV40.self]
+        }
+
+        static var stages: [MigrationStage] {
+            [
+                MerianMigrationPlan.migrateV38toV39,
+                MerianMigrationPlan.migrateV39toV40
+            ]
+        }
+    }
+
+    private enum V39ToV40TestMigrationPlan: SchemaMigrationPlan {
+        static var schemas: [any VersionedSchema.Type] {
+            [MerianSchemaV39.self, MerianSchemaV40.self]
+        }
+
+        static var stages: [MigrationStage] {
+            [MerianMigrationPlan.migrateV39toV40]
+        }
+    }
+
+    private enum V40ToV41TestMigrationPlan: SchemaMigrationPlan {
+        static var schemas: [any VersionedSchema.Type] {
+            [MerianSchemaV40.self, MerianSchemaV41.self]
+        }
+
+        static var stages: [MigrationStage] {
+            [MerianMigrationPlan.migrateV40toV41]
+        }
+    }
+
+    private func assertLegacyMigrationFailureIsRescueEligible(
+        _ error: Error,
+        storeURL: URL,
+        storedSchemaMajorVersion: Int?,
+        hint: ModelStoreRecoveryCoordinator.StoreMigrationHint
+    ) {
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: true,
+            storedSchemaMajorVersion: storedSchemaMajorVersion,
+            hint: hint
+        )
+
+        #expect(!ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: error))
+        #expect(
+            ModelStoreRecoveryCoordinator.shouldRescueStoreAfterMigrationFailure(
+                for: error,
+                decision: decision,
+                storeURL: storeURL
+            )
+        )
+    }
+
     private struct CurrentMigrationStore {
         let container: ModelContainer
         let context: ModelContext
@@ -222,6 +312,41 @@ struct MigrationPlanTests {
     private func migrationStoreURL(named name: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("\(UUID().uuidString)_\(name).sqlite")
+    }
+
+    private func writeLegacyStoreArtifact(at url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("legacy-store".utf8).write(to: url)
+    }
+
+    private func requiredValueValidationError(keys: [String]) -> Error {
+        let errors = keys.map { key in
+            NSError(
+                domain: NSCocoaErrorDomain,
+                code: NSValidationMissingMandatoryPropertyError,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "%{PROPERTY}@ is a required value.",
+                    NSValidationKeyErrorKey: key,
+                    NSValidationValueErrorKey: NSNull()
+                ]
+            )
+        }
+
+        guard errors.count != 1 else {
+            return errors[0]
+        }
+
+        return NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSValidationMultipleErrorsError,
+            userInfo: [
+                NSLocalizedDescriptionKey: "Multiple validation errors occurred.",
+                NSDetailedErrorsKey: errors
+            ]
+        )
     }
 
     private func makeModelContainer(
@@ -492,18 +617,9 @@ struct MigrationPlanTests {
         }
     }
 
-    /// Simulates upgrading from V26 to V27 on-disk — the scenario that triggers iOS 26's
-    /// eager custom-stage validation during `migrateStoreWithContext:error:`.
-    ///
-    /// On iOS 26, when any migration runs (even lightweight V26→V27), SwiftData iterates ALL
-    /// custom stages in MerianMigrationPlan.stages and calls NSCustomMigrationStage.init for each.
-    /// If any pair produces equal NSManagedObjectModelReferences, the app crashes before migration
-    /// even begins. The in-memory test above does NOT cover this path because no migration runs.
-    ///
-    /// This test:
-    ///  1. Creates a disk-based V26 store (no migration plan — just the V26 schema).
-    ///  2. Reopens the same store with the full migration plan targeting V27.
-    ///  3. Verifies no crash occurs during stage validation and store loading.
+    /// Simulates upgrading from V26 to V27 on-disk with a source-isolated test
+    /// plan. Full-historical equal-reference failures are covered separately by
+    /// `fullHistoricalEqualReferenceFailureIsLegacyRescueEligible`.
     @Test func migrationFromV26ToV27DoesNotCrash() throws {
         let url = migrationStoreURL(named: "v26migration_test")
 
@@ -529,13 +645,12 @@ struct MigrationPlanTests {
         // Close V26 container before reopening with migration plan.
         _ = container26
 
-        // Step 2 — reopen with the full migration plan targeting V27.
-        // On iOS 26, this triggers NSCustomMigrationStage construction for ALL custom stages.
-        let schema27 = Schema(versionedSchema: CurrentSchema.self)
+        // Step 2 — reopen with a source-isolated plan for this historical hop.
+        let schema27 = Schema(versionedSchema: MerianSchemaV27.self)
         let config27 = ModelConfiguration(schema: schema27, url: url)
         _ = try makeModelContainer(
             for: schema27,
-            migrationPlan: MerianMigrationPlan.self,
+            migrationPlan: V26ToV27TestMigrationPlan.self,
             configurations: [config27]
         )
 
@@ -571,12 +686,12 @@ struct MigrationPlanTests {
         // Close V28 container before reopening with migration plan.
         _ = container28
 
-        // Step 2 — reopen with the full migration plan targeting the current schema (V29).
-        let schema29 = Schema(versionedSchema: CurrentSchema.self)
+        // Step 2 — reopen with a source-isolated plan targeting V29.
+        let schema29 = Schema(versionedSchema: MerianSchemaV29.self)
         let config29 = ModelConfiguration(schema: schema29, url: url)
         _ = try makeModelContainer(
             for: schema29,
-            migrationPlan: MerianMigrationPlan.self,
+            migrationPlan: V28ToV29TestMigrationPlan.self,
             configurations: [config29]
         )
 
@@ -612,17 +727,55 @@ struct MigrationPlanTests {
         // Close V30 container before reopening with migration plan.
         _ = container30
 
-        // Step 2 — reopen with the full migration plan targeting the current schema (V33).
-        let schema33 = Schema(versionedSchema: CurrentSchema.self)
+        // Step 2 — reopen with a source-isolated plan targeting V33.
+        let schema33 = Schema(versionedSchema: MerianSchemaV33.self)
         let config33 = ModelConfiguration(schema: schema33, url: url)
         _ = try makeModelContainer(
             for: schema33,
-            migrationPlan: MerianMigrationPlan.self,
+            migrationPlan: V30ToV33TestMigrationPlan.self,
             configurations: [config33]
         )
 
         // Keep the temp store alive for the test process; see keepSQLiteStoreForProcessLifetime.
         keepSQLiteStoreForProcessLifetime(at: url)
+    }
+
+    @Test func fullHistoricalEqualReferenceFailureIsLegacyRescueEligible() throws {
+        let url = migrationStoreURL(named: "full_historical_rescue_eligibility_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let schema26 = Schema(versionedSchema: MerianSchemaV26.self)
+        let config26 = ModelConfiguration(schema: schema26, url: url)
+        let container26 = try makeModelContainer(for: schema26, configurations: [config26])
+        let context26 = ModelContext(container26)
+        context26.insert(MerianSchemaV26.LocalScanRecord(
+            speciesId: "rescue-eligible-species",
+            scientificName: "Rescuus testus",
+            commonName: "Rescue Eligible",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        ))
+        try context26.save()
+        _ = container26
+
+        let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+        let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+        do {
+            _ = try makeModelContainer(
+                for: currentSchema,
+                migrationPlan: MerianMigrationPlan.self,
+                configurations: [currentConfig]
+            )
+        } catch {
+            assertLegacyMigrationFailureIsRescueEligible(
+                error,
+                storeURL: url,
+                storedSchemaMajorVersion: 26,
+                hint: .fullHistorical
+            )
+        }
     }
 
     /// Simulates the last stable pre-cluster source path. Startup opens V43
@@ -835,6 +988,9 @@ struct MigrationPlanTests {
             "scan.queueUpdatedAt = snapshot.queueUpdatedAt ?? now",
             "scan.queueNeedsAttention = snapshot.queueNeedsAttention ?? false",
             "scan.queueSchemaRepairGeneration = 1",
+            "scan.queueAttemptCount = 0",
+            "scan.queueUpdatedAt = now",
+            "scan.queueNeedsAttention = false",
             #"let jobId = "scan-ingestion:\(scanId)""#,
             "MerianSchemaV49.OfflineJobRecord",
             "MerianSchemaV49.OfflineQueueEvent",
@@ -843,6 +999,8 @@ struct MigrationPlanTests {
             #"try initializeV49OfflineQueueRecords(in: context, stage: "V46->V49 didMigrate")"#,
             "try snapshotV48QueuedScansForV49(in: context)",
             "try snapshotOptionalQueueV48QueuedScansForV49(in: context)",
+            "Do not save here. V48 stores can materialize target rows",
+            "Do not save here. Optional-queue V48 rows intentionally have nil",
             "_v49QueuedScanBackfill.removeAll(namespace: namespace)",
             #"try saveMigrationContext(context, stage: stage)"#
         ]
@@ -1515,113 +1673,39 @@ struct MigrationPlanTests {
         }
     }
 
-    @Test func migrationFromKnownGoodV48ToCurrentSchemaDoesNotSafeMode() throws {
-        let url = migrationStoreURL(named: "v48_known_good_migration_test")
+    @Test func knownGoodV48RequiredValueFailureUsesLegacyRescue() throws {
+        let url = migrationStoreURL(named: "v48_known_good_rescue_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
-        let queuedId = "v48-known-good-queued"
-        let queueUpdatedAt = Date(timeIntervalSinceReferenceDate: 123_456)
-        let items: [SerializedMediaItem] = [
-            .video(StoredVideoMediaReference(
-                .documents("known-good-v48-video.mp4"),
-                thumbnail: .documents("known-good-v48-thumbnail.webp")
-            ))
-        ]
+        try writeLegacyStoreArtifact(at: url)
+        let error = requiredValueValidationError(keys: ["queueSchemaRepairGeneration"])
 
-        do {
-            let schema48 = Schema(versionedSchema: MerianSchemaV48.self)
-            let config48 = ModelConfiguration(schema: schema48, url: url)
-            let container48 = try makeModelContainer(for: schema48, configurations: [config48])
-            let context48 = ModelContext(container48)
-            let queuedScan = MerianSchemaV48.OfflineQueuedScan(
-                id: queuedId,
-                capturedMediaJSON: try encodedMediaJSON(items),
-                coverImagePath: "known-good-v48-thumbnail.webp",
-                stagedR2Keys: ["queued/v48/video.mp4"],
-                inferenceImagePaths: ["known-good-v48-frame.webp"],
-                visualMediaItemsJSON: #"[{"kind":"video_frame","path":"known-good-v48-frame.webp"}]"#,
-                fieldNotes: "known good V48 queue row",
-                queueAttemptCount: 2,
-                queueUpdatedAt: queueUpdatedAt,
-                queueNeedsAttention: true
-            )
-            context48.insert(queuedScan)
-            try context48.save()
-        }
-
-        do {
-            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
-            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
-            let currentContainer = try makeModelContainer(
-                for: currentSchema,
-                migrationPlan: MerianRecentV48MigrationPlan.self,
-                configurations: [currentConfig]
-            )
-            let currentContext = ModelContext(currentContainer)
-            let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: currentContext)
-            #expect(migratedQueuedScan.serializedCapturedMediaItems == items)
-            #expect(migratedQueuedScan.coverImagePath == "known-good-v48-thumbnail.webp")
-            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v48/video.mp4"])
-            #expect(migratedQueuedScan.inferenceImagePaths == ["known-good-v48-frame.webp"])
-            #expect(migratedQueuedScan.fieldNotes == "known good V48 queue row")
-            #expect(migratedQueuedScan.queueAttemptCount == 2)
-            #expect(migratedQueuedScan.queueUpdatedAt == queueUpdatedAt)
-            #expect(migratedQueuedScan.queueNeedsAttention == true)
-            #expect(migratedQueuedScan.queueSchemaRepairGeneration == 1)
-            try assertCurrentScanIngestionJob(scanId: queuedId, context: currentContext)
-        }
+        assertLegacyMigrationFailureIsRescueEligible(
+            error,
+            storeURL: url,
+            storedSchemaMajorVersion: 48,
+            hint: .recentSource(48)
+        )
     }
 
-    @Test func migrationFromOptionalQueueV48ToCurrentSchemaRecoversRetryFields() throws {
-        let url = migrationStoreURL(named: "v48_optional_queue_migration_test")
+    @Test func optionalQueueV48RequiredValueFailureUsesLegacyRescue() throws {
+        let url = migrationStoreURL(named: "v48_optional_queue_rescue_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
-        let queuedId = "v48-optional-queue-queued"
-        let items: [SerializedMediaItem] = [
-            .image(.documents("optional-v48-image.webp")),
-            .description(ObservationContext(freeText: "optional V48 fixture"))
-        ]
+        try writeLegacyStoreArtifact(at: url)
+        let error = requiredValueValidationError(keys: [
+            "queueAttemptCount",
+            "queueNeedsAttention",
+            "queueSchemaRepairGeneration",
+            "queueUpdatedAt"
+        ])
 
-        do {
-            let schema48 = Schema(versionedSchema: MerianSchemaV48OptionalQueue.self)
-            let config48 = ModelConfiguration(schema: schema48, url: url)
-            let container48 = try makeModelContainer(for: schema48, configurations: [config48])
-            let context48 = ModelContext(container48)
-            let queuedScan = MerianSchemaV48OptionalQueue.OfflineQueuedScan(
-                id: queuedId,
-                capturedMediaJSON: try encodedMediaJSON(items),
-                coverImagePath: "optional-v48-image.webp",
-                stagedR2Keys: ["queued/v48/optional.webp"],
-                inferenceImagePaths: ["optional-v48-inference.webp"],
-                visualMediaItemsJSON: #"[{"kind":"image","path":"optional-v48-image.webp"}]"#,
-                fieldNotes: "optional queue V48 row",
-                queueAttemptCount: nil,
-                queueUpdatedAt: nil,
-                queueNeedsAttention: nil
-            )
-            context48.insert(queuedScan)
-            try context48.save()
-        }
-
-        do {
-            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
-            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
-            let currentContainer = try makeModelContainer(
-                for: currentSchema,
-                migrationPlan: MerianOptionalQueueV48RecoveryPlan.self,
-                configurations: [currentConfig]
-            )
-            let currentContext = ModelContext(currentContainer)
-            let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: currentContext)
-            #expect(migratedQueuedScan.serializedCapturedMediaItems == items)
-            #expect(migratedQueuedScan.coverImagePath == "optional-v48-image.webp")
-            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v48/optional.webp"])
-            #expect(migratedQueuedScan.inferenceImagePaths == ["optional-v48-inference.webp"])
-            #expect(migratedQueuedScan.visualMediaItemsJSON == #"[{"kind":"image","path":"optional-v48-image.webp"}]"#)
-            #expect(migratedQueuedScan.fieldNotes == "optional queue V48 row")
-            assertCurrentQueuedScanHasFreshRetryState(migratedQueuedScan)
-            try assertCurrentScanIngestionJob(scanId: queuedId, context: currentContext)
-        }
+        assertLegacyMigrationFailureIsRescueEligible(
+            error,
+            storeURL: url,
+            storedSchemaMajorVersion: 48,
+            hint: .recentSource(48)
+        )
     }
 
     /// Simulates upgrading from V38 to V39 — verifies that the custom migration stage
@@ -1685,19 +1769,19 @@ struct MigrationPlanTests {
         let capturedOfflineId = offlineRecord.id
         _ = container38
 
-        // Step 2 — reopen with the full migration plan targeting V40 (CurrentSchema).
-        let schema40 = Schema(versionedSchema: CurrentSchema.self)
+        // Step 2 — reopen with a source-isolated plan targeting V40.
+        let schema40 = Schema(versionedSchema: MerianSchemaV40.self)
         let config40 = ModelConfiguration(schema: schema40, url: url)
         let container40 = try makeModelContainer(
             for: schema40,
-            migrationPlan: MerianMigrationPlan.self,
+            migrationPlan: V38ToV40TestMigrationPlan.self,
             configurations: [config40]
         )
 
         // Step 3 — verify both models migrated to V40 correctly.
         let context40 = ModelContext(container40)
 
-        var localDescriptor = FetchDescriptor<LocalScanRecord>()
+        var localDescriptor = FetchDescriptor<MerianSchemaV40.LocalScanRecord>()
         localDescriptor.fetchLimit = 500
         let localScans = try context40.fetch(localDescriptor)
         let migratedLocal = localScans.first { $0.id == capturedLocalId }
@@ -1719,7 +1803,7 @@ struct MigrationPlanTests {
             "capturedMediaJSON must contain main_image.webp"
         )
 
-        var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        var offlineDescriptor = FetchDescriptor<MerianSchemaV40.OfflineQueuedScan>()
         offlineDescriptor.fetchLimit = 500
         let offlineScans = try context40.fetch(offlineDescriptor)
         let migratedOffline = offlineScans.first { $0.id == capturedOfflineId }
@@ -1786,19 +1870,19 @@ struct MigrationPlanTests {
         let capturedOfflineId = offlineRecord.id
         _ = container39
 
-        // Step 2 — reopen with the full migration plan targeting V40 (CurrentSchema).
-        let schema40 = Schema(versionedSchema: CurrentSchema.self)
+        // Step 2 — reopen with a source-isolated plan targeting V40.
+        let schema40 = Schema(versionedSchema: MerianSchemaV40.self)
         let config40 = ModelConfiguration(schema: schema40, url: url)
         let container40 = try makeModelContainer(
             for: schema40,
-            migrationPlan: MerianMigrationPlan.self,
+            migrationPlan: V39ToV40TestMigrationPlan.self,
             configurations: [config40]
         )
 
         // Step 3 — verify both models had their arrays consolidated into capturedMediaJSON.
         let context40 = ModelContext(container40)
 
-        var localDescriptor = FetchDescriptor<LocalScanRecord>()
+        var localDescriptor = FetchDescriptor<MerianSchemaV40.LocalScanRecord>()
         localDescriptor.fetchLimit = 500
         let localScans = try context40.fetch(localDescriptor)
         let migratedLocal = localScans.first { $0.id == capturedLocalId }
@@ -1825,7 +1909,7 @@ struct MigrationPlanTests {
             Issue.record("Failed to decode capturedMediaJSON for migratedLocal")
         }
 
-        var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        var offlineDescriptor = FetchDescriptor<MerianSchemaV40.OfflineQueuedScan>()
         offlineDescriptor.fetchLimit = 500
         let offlineScans = try context40.fetch(offlineDescriptor)
         let migratedOffline = offlineScans.first { $0.id == capturedOfflineId }
@@ -1896,32 +1980,44 @@ struct MigrationPlanTests {
         try context40.save()
         _ = container40
 
-        let schema41 = Schema(versionedSchema: CurrentSchema.self)
+        let schema41 = Schema(versionedSchema: MerianSchemaV41.self)
         let config41 = ModelConfiguration(schema: schema41, url: url)
         let container41 = try makeModelContainer(
             for: schema41,
-            migrationPlan: MerianMigrationPlan.self,
+            migrationPlan: V40ToV41TestMigrationPlan.self,
             configurations: [config41]
         )
         let context41 = ModelContext(container41)
 
-        var localDescriptor = FetchDescriptor<LocalScanRecord>(
+        var localDescriptor = FetchDescriptor<MerianSchemaV41.LocalScanRecord>(
             predicate: #Predicate { $0.id == "migration_v40_local" }
         )
         localDescriptor.fetchLimit = 1
         let migratedLocal = try #require(context41.fetch(localDescriptor).first)
         #expect(migratedLocal.capturedMediaEntries?.count == localItems.count)
-        #expect(migratedLocal.serializedCapturedMediaItems == localItems)
         #expect(migratedLocal.coverImagePath == "migration_local.webp")
+        let localEntries = (migratedLocal.capturedMediaEntries ?? []).sorted { $0.orderIndex < $1.orderIndex }
+        #expect(localEntries.map(\.kindRaw) == [
+            PersistedCapturedMediaKind.image.rawValue,
+            PersistedCapturedMediaKind.description.rawValue,
+            PersistedCapturedMediaKind.audio.rawValue
+        ])
+        #expect(localEntries.map(\.mediaPath) == ["migration_local.webp", "", "migration_local.wav"])
+        #expect(localEntries[1].observationContextJSON.contains("Migrated local description"))
 
-        var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>(
+        var offlineDescriptor = FetchDescriptor<MerianSchemaV41.OfflineQueuedScan>(
             predicate: #Predicate { $0.id == "migration_v40_offline" }
         )
         offlineDescriptor.fetchLimit = 1
         let migratedOffline = try #require(context41.fetch(offlineDescriptor).first)
         #expect(migratedOffline.capturedMediaEntries?.count == offlineItems.count)
-        #expect(migratedOffline.serializedCapturedMediaItems == offlineItems)
         #expect(migratedOffline.coverImagePath == "migration_offline.webp")
+        let offlineEntries = (migratedOffline.capturedMediaEntries ?? []).sorted { $0.orderIndex < $1.orderIndex }
+        #expect(offlineEntries.map(\.kindRaw) == [
+            PersistedCapturedMediaKind.image.rawValue,
+            PersistedCapturedMediaKind.audio.rawValue
+        ])
+        #expect(offlineEntries.map(\.mediaPath) == ["migration_offline.webp", "migration_offline.wav"])
 
         keepSQLiteStoreForProcessLifetime(at: url)
     }

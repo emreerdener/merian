@@ -149,11 +149,14 @@ account state to this event or diagnostic payload.
 
 `make validate-ios-migration-guardrails` checks the SwiftData migration source
 contract before Xcode compiles anything. It keeps the full runtime migration
-path on V42->V49 and V43->V49, keeps duplicate-prone V44/V45/V46/V47 representatives out
-of that full path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans target
-V49 directly, verifies the known-good and optional-queue V48
-recovery plans, guards the legacy migration-rescue escape hatch, and guards the
-disk-backed migration tests from unlinking SQLite files during the test process.
+path on V42->V49 and V43->V49, keeps duplicate-prone V44/V45/V46/V47
+representatives out of that full path, verifies V42/V43/V44/V45/V46/V47
+source-isolated plans target V49 directly, verifies the known-good and
+optional-queue V48 recovery plan source, guards the legacy migration-rescue
+escape hatch, and guards the disk-backed migration tests from unlinking SQLite
+files during the test process. Runtime tests separately assert that V48
+required-value validation failures are rescue-eligible because current SwiftData
+may reject malformed historical V48 rows before a repair migration can run.
 
 Run both after XcodeGen changes.
 
