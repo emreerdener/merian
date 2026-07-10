@@ -678,8 +678,8 @@ struct MigrationPlanTests {
     }
 
     /// Regression coverage for a real TestFlight diagnostic that reported a
-    /// V42 store selecting the full historical plan and hitting
-    /// "The current model reference and the next model reference cannot be equal."
+    /// V42 store selecting recent recovery and still falling back to safe mode.
+    /// V42 now jumps directly to V49 instead of relying on the V43 bridge.
     @Test func migrationFromV42ToCurrentSchemaUsesSourceIsolatedPlan() throws {
         let url = migrationStoreURL(named: "v42migration_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
@@ -783,16 +783,17 @@ struct MigrationPlanTests {
 
     @Test func latestQueueMetadataMigrationStaysDurable() throws {
         let source = try migrationPlanSource()
-        let v47StageSource: String
-        if let stageStart = source.range(of: "static let migrateV47toV49")?.lowerBound {
-            let stageRemainder = source[stageStart...]
-            let stageEnd = stageRemainder.range(of: "\n    static let migrateV48toV49")?.lowerBound ?? stageRemainder.endIndex
-            v47StageSource = String(stageRemainder[..<stageEnd])
+        let v47SnapshotSource: String
+        if let helperStart = source.range(of: "private static func snapshotV47QueuedScansForV49")?.lowerBound {
+            let helperRemainder = source[helperStart...]
+            let helperEnd = helperRemainder.range(of: "\n    private static func snapshotV48QueuedScansForV49")?.lowerBound ?? helperRemainder.endIndex
+            v47SnapshotSource = String(helperRemainder[..<helperEnd])
         } else {
-            v47StageSource = source
+            v47SnapshotSource = source
         }
         let requiredSnippets = [
             "private static func initializeV49OfflineQueueRecords",
+            "private static func snapshotV47QueuedScansForV49",
             "private static func snapshotV48QueuedScansForV49(in context: ModelContext) throws",
             "private static func snapshotOptionalQueueV48QueuedScansForV49(in context: ModelContext) throws",
             "private struct V49QueuedScanMigrationSnapshot",
@@ -860,7 +861,8 @@ struct MigrationPlanTests {
             "V47 snapshots must repair just-migrated V49 rows before save so required queue metadata cannot remain nil."
         )
         #expect(
-            v47StageSource.contains("context.delete(scan)"),
+            v47SnapshotSource.contains("FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>") &&
+                v47SnapshotSource.contains("context.delete(scan)"),
             "V47 queued scans must be deleted after snapshotting so SwiftData cannot reopen them as stale V47-backed current models."
         )
     }
@@ -901,6 +903,9 @@ struct MigrationPlanTests {
         let schemasSource = try migrationPlanSchemasListSource()
         let stagesSource = try migrationPlanStagesListSource()
         let requiredSnippets = [
+            "static let migrateV42toV49 = MigrationStage.custom",
+            "fromVersion: MerianSchemaV42.self",
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V42->V49 didMigrate")"#,
             "static let migrateV43toV49 = MigrationStage.custom",
             "fromVersion: MerianSchemaV43.self",
             "toVersion: MerianSchemaV49.self",
@@ -916,8 +921,7 @@ struct MigrationPlanTests {
             "static let migrateV48toV49 = MigrationStage.custom",
             "fromVersion: MerianSchemaV48.self",
             "toVersion: MerianSchemaV49.self",
-            #"try initializeV49OfflineQueueRecords(in: context, stage: "V48->V49 didMigrate")"#,
-            "duplicate-checksum validator"
+            #"try initializeV49OfflineQueueRecords(in: context, stage: "V48->V49 didMigrate")"#
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -933,6 +937,7 @@ struct MigrationPlanTests {
         )
         #expect(
                 !stagesSource.contains("migrateV43toV44") &&
+                !stagesSource.contains("migrateV42toV43") &&
                 !stagesSource.contains("migrateV44toV45") &&
                 !stagesSource.contains("migrateV43toV47") &&
                 !stagesSource.contains("migrateV45toV47") &&
@@ -940,12 +945,14 @@ struct MigrationPlanTests {
                 !stagesSource.contains("migrateV45toV48") &&
                 !stagesSource.contains("migrateV46toV48") &&
                 !stagesSource.contains("migrateV47toV48") &&
+                stagesSource.contains("migrateV42toV49") &&
                 stagesSource.contains("migrateV43toV49") &&
                 stagesSource.contains("migrateV48toV49"),
-            "The full historical stage list must jump V43->V49, keep the V48->V49 repair source, and avoid V44/V45/V46/V47 source-isolated recent hops."
+            "The full historical stage list must jump V42->V49 and V43->V49, keep the V48->V49 repair source, and avoid duplicate-prone recent hops."
         )
         #expect(
             !source.contains("migrateV45toV46") &&
+                !source.contains("static let migrateV42toV43 = MigrationStage.custom") &&
                 !source.contains("static let migrateV43toV47") &&
                 !source.contains("static let migrateV44toV47") &&
                 !source.contains("migrateV46toV47") &&
@@ -1005,21 +1012,22 @@ struct MigrationPlanTests {
         let requiredSnippets = [
             "enum MerianRecentV42MigrationPlan",
             "MerianSchemaV42.self",
-            "MerianSchemaV43.self",
             "MerianSchemaV49.self",
-            "MerianMigrationPlan.migrateV42toV43",
-            "MerianMigrationPlan.migrateV43toV49"
+            "MerianMigrationPlan.migrateV42toV49"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
         #expect(
             missing.isEmpty,
-            "The V42 recovery plan must bypass older full historical custom stages and migrate directly through V43->V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "The V42 recovery plan must bypass older full historical custom stages and migrate directly to V49. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
-            !source.contains("MerianSchemaV44.self") &&
-                !source.contains("MerianSchemaV47.self"),
-            "The V42 recovery plan must not include duplicate-prone recent representatives."
+            !source.contains("MerianSchemaV43.self") &&
+                !source.contains("MerianSchemaV44.self") &&
+                !source.contains("MerianSchemaV47.self") &&
+                !source.contains("migrateV42toV43") &&
+                !source.contains("migrateV43toV49"),
+            "The V42 recovery plan must not include the V43 hop or duplicate-prone recent representatives."
         )
     }
 

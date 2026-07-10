@@ -85,8 +85,8 @@ Recent schema milestones:
 - V42 added first-class `fieldNotes` columns to `LocalScanRecord` and
   `OfflineQueuedScan`, while preserving the legacy UserDefaults bridge through
   `FieldNotesRepository`. V42 stores now use a source-isolated startup recovery
-  plan to avoid validating older full-historical custom stages before migration
-  reaches the actual source.
+  plan that jumps directly to V49, avoiding the older V42→V43 bridge that still
+  failed on real TestFlight stores.
 - V43 introduced AI-derived sex observation metadata on completed local scans.
   V43 stores also use a source-isolated startup recovery plan before the
   V43→V49 repair path.
@@ -95,7 +95,7 @@ Recent schema milestones:
 - V45 added optional invasive-status context to completed local scans. V46 was a
   shipped no-op checksum twin of V45; runtime migration keeps the
   duplicate-prone V44/V45/V46 recent cluster out of the full historical plan,
-  jumps older stores V43→V49, and uses source-isolated recent plans for stores
+  jumps older stores V42→V49 or V43→V49, and uses source-isolated recent plans for stores
   already stamped V42, V43, V44, V45, or V46. V44, V45, and V46 stores jump through
   separate direct V44→V49, V45→V49, and V46→V49 plans.
 - V47 added offline video inference replay fields so sampled frames can be

@@ -1996,7 +1996,7 @@ The current active schema is `MerianSchemaV49`. Recent milestones:
   V44/V45/V46 remain available as historical types and source-specific recovery
   inputs, but they must not appear in the full historical
   `MerianMigrationPlan.schemas` or `MerianMigrationPlan.stages`; that plan jumps
-  V43→V49 so unknown older stores do not force SwiftData to validate the
+  V42→V49 or V43→V49 so unknown older stores do not force SwiftData to validate the
   duplicate-prone recent representatives. V47 keeps local-scan, captured-media,
   and collection entities frozen inside V47, and keeps its queued scan model
   scalar-only. V44, V45, and V46 stores skip V47 and jump directly to V49 from
@@ -2005,9 +2005,9 @@ The current active schema is `MerianSchemaV49`. Recent milestones:
   App startup reads store metadata before creating `ModelContainer`: fresh/current
   stores open without a migration plan, known recent stores use the source-isolated
   V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older stores use the full
-  historical plan. The V42 and V43 recent plans avoid validating older
-  full-historical custom stages that can raise SwiftData's
-  equal-model-reference exception, while V45 and V46 deliberately use one
+  historical plan. The V42 and V43 recent plans jump directly to V49 to avoid
+  validating older full-historical custom stages and to keep V42 off the older
+  V42→V43 bridge that still failed on real TestFlight stores, while V45 and V46 deliberately use one
   matching source representative each before the V49 repair target.
   Stores that still hit SwiftData's duplicate-checksum validator during plan
   construction retry with the same source-isolated recent plans before safe mode.

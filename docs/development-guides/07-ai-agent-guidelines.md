@@ -174,13 +174,13 @@ Only use `typealias` for models that are **unchanged AND not referenced by any r
 `apps/ios/MerianTests/Models/MigrationPlanTests.swift` must pass on an iOS 26
 simulator on every schema bump. It covers fresh-store initialization, historical
 disk-store migrations, V42/V43/V44/V45/V46/V47 source-isolated recent plans,
-direct V43/V44/V45/V46/V47→V49 queue migrations, and source scans for migration safety invariants:
+direct V42/V43/V44/V45/V46/V47→V49 queue migrations, and source scans for migration safety invariants:
 no silent custom-stage saves, no active/global fetch descriptors or active model
 convenience helpers in `MerianMigrationPlan`, and no bare active
 `CapturedMediaEntry` relationship targets in retired schemas. The full
 historical plan must skip the duplicate-prone V44/V45/V46/V47 recent cluster by
-jumping V43→V49; V42/V43 use source-isolated startup plans to avoid validating
-older full-historical custom stages before the real source is reached, and the
+jumping V42→V49 or V43→V49; V42/V43 use source-isolated startup plans to avoid
+validating older full-historical custom stages before the real source is reached, and the
 source-isolated V44/V45/V46 recent plans also jump directly to V49. Because V46 is a no-op checksum twin of V45, the V45 and V46 recent
 plans must keep those sources isolated from each other and never route through
 V47. V47 must not alias its
@@ -198,8 +198,9 @@ from `capturedMediaJSON` after snapshotting and replacing the V47 queued rows.
 `MerianObjCExceptionBridge`, but startup first asks
 `ModelStoreRecoveryCoordinator` for a store-aware migration hint so fresh/current
 stores open without a migration plan and known recent stores use a
-source-isolated V48/V47/V46/V45/V44/V43/V42 plan; the V45 and V46 plans use one matching
-source representative each with a direct V49 target internally. Quarantine remains corruption-gated: only
+source-isolated V48/V47/V46/V45/V44/V43/V42 plan; V42 and V43 jump directly to
+V49, and the V45 and V46 plans use one matching source representative each with
+a direct V49 target internally. Quarantine remains corruption-gated: only
 verified SQLite/Core Data corruption signatures may move `default.store`
 artifacts, each quarantine writes a sanitized `recovery-manifest.json`, and
 recovery must not clear Keychain, Supabase auth state, or device identity.

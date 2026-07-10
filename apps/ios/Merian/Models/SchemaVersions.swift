@@ -3050,7 +3050,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV39toV40,
             migrateV40toV41,
             migrateV41toV42,
-            migrateV42toV43,
+            migrateV42toV49,
             migrateV43toV49,
             migrateV48toV49
         ]
@@ -3255,6 +3255,17 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
 
     // Recent stores jump directly to V49 so iOS 26 never validates a direct-to-V48
     // custom stage whose Core Data model reference can collapse to its source.
+    static let migrateV42toV49 = MigrationStage.custom(
+        fromVersion: MerianSchemaV42.self,
+        toVersion: MerianSchemaV49.self,
+        willMigrate: { context in
+            try snapshotLegacyQueuedScansForV49(in: context, stage: "V42->V49")
+        },
+        didMigrate: { context in
+            try initializeV49OfflineQueueRecords(in: context, stage: "V42->V49 didMigrate")
+        }
+    )
+
     static let migrateV43toV49 = MigrationStage.custom(
         fromVersion: MerianSchemaV43.self,
         toVersion: MerianSchemaV49.self,
@@ -3335,11 +3346,6 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     static let migrateV41toV42 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV41.self,
         toVersion: MerianSchemaV42.self
-    )
-
-    static let migrateV42toV43 = MigrationStage.lightweight(
-        fromVersion: MerianSchemaV42.self,
-        toVersion: MerianSchemaV43.self
     )
 
     // Lightweight: adds alternativeCommonNames column to LocalScanRecord and the
@@ -3874,15 +3880,13 @@ enum MerianRecentV42MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV42.self,
-            MerianSchemaV43.self,
             MerianSchemaV49.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV42toV43,
-            MerianMigrationPlan.migrateV43toV49
+            MerianMigrationPlan.migrateV42toV49
         ]
     }
 }

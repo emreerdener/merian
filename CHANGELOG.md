@@ -21,6 +21,8 @@ TestFlight, App Store, support, and QA.
 - Fixed startup recovery for devices with V42/V43 SwiftData stores by routing
   them through source-isolated migration plans instead of the full historical
   chain that can trigger SwiftData's equal-model-reference validator.
+- Updated V42 startup recovery to skip the older V42→V43 bridge and repair
+  directly to V49 after TestFlight devices still fell back to safe mode.
 
 ### Species Dictionary
 
