@@ -76,6 +76,8 @@ jobs:
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
+            supabase/functions/identify-multimodal/index.ts \
+            supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/insight-chat \
             supabase/functions/scan-media-health
 
@@ -98,6 +100,8 @@ jobs:
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
+            supabase/functions/identify-multimodal/index.ts \
+            supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/insight-chat \
             supabase/functions/scan-media-health
 
@@ -120,6 +124,8 @@ jobs:
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
+            supabase/functions/identify-multimodal/index.ts \
+            supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/insight-chat/index.ts \
             supabase/functions/scan-media-health/index.ts
 
@@ -132,6 +138,7 @@ jobs:
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/insight-chat/guards_test.ts \

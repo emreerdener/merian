@@ -185,6 +185,8 @@ TestFlight, App Store, support, and QA.
   reporting, and CI contracts for moderation and lifecycle behavior.
 - Consolidated public-audio moderation on Gemini 2.5 Flash with structured
   speech and non-speech classification, removing the separate OpenAI dependency.
+- Hardened Gemini audio moderation against media prompt injection, preserved MP4
+  typing for audible videos, and added transport plus ingestion-owner CI checks.
 - Added Explore post management actions to the Insight top menu so published
   scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts

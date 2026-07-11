@@ -28,6 +28,10 @@ failure return an error and leave the prior Explore state unchanged; nothing is
 shared. Transcripts and non-speech descriptions are not persisted or logged.
 This path reuses the existing `GEMINI_API_KEY` Edge secret. Manual reports
 remain necessary because model moderation cannot guarantee complete detection.
+The immutable publication policy is a Gemini system instruction so speech or
+lyrics inside untrusted media cannot replace it. Standalone audio preserves its
+supported audio MIME type; audio-bearing MP4 uses `video/mp4` so Gemini evaluates
+the actual container instead of relabeling video bytes as WAV.
 Public web post pages include a report action containing the immutable post id.
 Structured moderation telemetry logs only outcome, model, latency, and sanitized
 errors; transcripts and media URLs must never be logged.

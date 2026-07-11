@@ -116,6 +116,9 @@ created, reactivated, or made public.
   videos without a thumbnail are rejected.
 - Audio moderation reuses the `GEMINI_API_KEY` Edge secret. Gemini transcripts
   and non-speech descriptions are not persisted, logged, or returned to clients.
+- The policy is supplied as an immutable system instruction. Standalone audio
+  keeps a supported audio MIME type and audible playback video keeps
+  `video/mp4`; unsupported or ambiguous media types fail closed.
 - Audio moderation runs before `explore_posts`, `explore_post_media`, hashtags,
   or resolved-community publication state is mutated. Approval is therefore a
   strict prerequisite for the share, not a post-publication status.

@@ -450,15 +450,16 @@ function buildCapturedMediaManifest(
     }
   }
 
-  const standaloneAudioUrls = audioMediaItems.length === sanitizedAudioUrls.length
-    ? audioMediaItems.flatMap((descriptor, index) =>
-      descriptor.kind === "audio" && sanitizedAudioUrls[index]
-        ? [sanitizedAudioUrls[index]]
-        : []
-    )
-    : sanitizedVideoUrls.length === 0
-    ? sanitizedAudioUrls
-    : [];
+  const standaloneAudioUrls =
+    audioMediaItems.length === sanitizedAudioUrls.length
+      ? audioMediaItems.flatMap((descriptor, index) =>
+        descriptor.kind === "audio" && sanitizedAudioUrls[index]
+          ? [sanitizedAudioUrls[index]]
+          : []
+      )
+      : sanitizedVideoUrls.length === 0
+      ? sanitizedAudioUrls
+      : [];
 
   for (const audioUrl of standaloneAudioUrls) {
     items.push({ audio: { _0: remoteMediaReference(audioUrl) } });
@@ -487,7 +488,9 @@ function buildCapturedMediaManifest(
     });
   }
 
-  const imageItems: SerializedMediaItemDTO[] = sanitizedImageUrls.map((imageUrl) => ({
+  const imageItems: SerializedMediaItemDTO[] = sanitizedImageUrls.map((
+    imageUrl,
+  ) => ({
     image: { _0: remoteMediaReference(imageUrl) },
   }));
   return [
@@ -1529,12 +1532,14 @@ export async function handleIdentifyMultimodalRequest(
         );
         if (companionAudioUrls.length > 0) {
           const r2Config = getR2Config();
-          await Promise.allSettled(companionAudioUrls.map((url) =>
-            deleteR2Object(
-              url.replace("https://media.merian.app/", ""),
-              r2Config,
-            )
-          ));
+          await Promise.allSettled(
+            companionAudioUrls.map((url) =>
+              deleteR2Object(
+                url.replace("https://media.merian.app/", ""),
+                r2Config,
+              )
+            ),
+          );
         }
       }
 
