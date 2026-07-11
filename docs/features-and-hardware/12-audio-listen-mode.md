@@ -641,6 +641,13 @@ normalized position, and VoiceOver adjusts playback in five-second steps.
 Explore feed cards remain non-seekable to preserve their playback, like, and
 navigation gesture contract.
 
+Audio playback feedback is action-bound rather than state-bound. Play uses a
+medium pulse; pause and mode-off actions use a light impact; discrete seek taps
+use selection feedback; and dragging emits only at scrub begin and commit.
+Automatic playback, playback progress, completion, saved boost restoration, and
+remote preference synchronization remain silent. All events route through
+`HapticManager`, so the user's haptics and expedition-mode settings are honored.
+
 The user-facing terminology is deliberately specific: the action remains
 **Boost audio**, preparation reads **Boosting audio…**, and successful playback
 shows **Boosted audio**. Merian does not call this “enhancement” because the

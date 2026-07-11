@@ -141,10 +141,22 @@ struct AudioRecordingView: View {
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
+                                    if !isScrubbing {
+                                        HapticManager.shared.triggerLightImpact(
+                                            intensity: 0.35,
+                                            source: "media.capture.audio.seek.begin"
+                                        )
+                                    }
                                     isScrubbing = true
                                     audioCaptureManager.seekPlayback(to: Double(value.location.x / geo.size.width))
                                 }
-                                .onEnded { _ in isScrubbing = false }
+                                .onEnded { _ in
+                                    guard isScrubbing else { return }
+                                    isScrubbing = false
+                                    HapticManager.shared.triggerSelectionPulse(
+                                        source: "media.capture.audio.seek.commit"
+                                    )
+                                }
                         )
 
                     // Playhead — visible while playing/scrubbing, or when parked away from start

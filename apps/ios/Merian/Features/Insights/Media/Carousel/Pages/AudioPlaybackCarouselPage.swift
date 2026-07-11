@@ -119,7 +119,7 @@ struct AudioPlaybackCarouselPage: View {
                             .contentShape(Rectangle())
                             .gesture(
                                 SpatialTapGesture().onEnded { value in
-                                    seekAudio(
+                                    seekAudioFromTap(
                                         to: AudioSpectrogramSeekingPolicy.normalizedProgress(
                                             locationX: value.location.x,
                                             width: proxy.size.width
@@ -322,6 +322,10 @@ struct AudioPlaybackCarouselPage: View {
         if player.isPlaying {
             player.pause()
             isPlaying = false
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.55,
+                source: "media.insight.audio.pause"
+            )
         } else {
             // Guarantee audio session is hot before play
             do {
@@ -329,7 +333,9 @@ struct AudioPlaybackCarouselPage: View {
             player.play()
             isPlaying = true
             trackBoostedPlaybackStartedIfNeeded()
+            HapticManager.shared.triggerMediumPulse(source: "media.insight.audio.play")
             } catch {
+                HapticManager.shared.triggerErrorThump(source: "media.insight.audio.play.failed")
                 MerianLog.general.debug("AudioPlaybackCarouselPage: session activation failed: \(error, privacy: .private)")
             }
         }
@@ -345,12 +351,22 @@ struct AudioPlaybackCarouselPage: View {
         playbackProgress = clampedProgress
     }
 
+    private func seekAudioFromTap(to progress: Double) {
+        guard player?.duration ?? 0 > 0 else { return }
+        seekAudio(to: progress)
+        HapticManager.shared.triggerSelectionPulse(source: "media.insight.audio.seek.tap")
+    }
+
     private func updateAudioSeek(translationX: CGFloat, width: CGFloat) {
         guard let player, player.duration > 0, width > 0 else { return }
         if !isAudioSeeking {
             isAudioSeeking = true
             audioSeekWasPlaying = player.isPlaying
             audioSeekStartProgress = playbackProgress
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.35,
+                source: "media.insight.audio.seek.begin"
+            )
             player.pause()
             isPlaying = false
         }
@@ -363,6 +379,7 @@ struct AudioPlaybackCarouselPage: View {
         let shouldResume = audioSeekWasPlaying
         isAudioSeeking = false
         audioSeekWasPlaying = false
+        HapticManager.shared.triggerSelectionPulse(source: "media.insight.audio.seek.commit")
         if shouldResume {
             player.play()
             isPlaying = true
@@ -378,6 +395,7 @@ struct AudioPlaybackCarouselPage: View {
             duration: player.duration
         )
         seekAudio(to: progress)
+        HapticManager.shared.triggerSelectionPulse(source: "media.insight.audio.seek.accessibility")
         UIAccessibility.post(
             notification: .announcement,
             argument: Self.formattedTime(player.currentTime)
@@ -471,9 +489,15 @@ struct AudioPlaybackCarouselPage: View {
             } catch {
                 guard !Task.isCancelled else { return }
                 isBoostedAudioReady = false
-                audioBoostPreparationFailed = ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                let shouldPresentFailure = ExploreAudioBoostFeedbackPolicy.shouldPresent(
                     actionToken: actionToken
                 )
+                audioBoostPreparationFailed = shouldPresentFailure
+                if shouldPresentFailure {
+                    HapticManager.shared.triggerErrorThump(
+                        source: "media.insight.audioBoost.failed"
+                    )
+                }
                 AppTelemetry.trackInsightAudioBoost(event: "preparation_failed")
             }
         } else {

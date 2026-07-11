@@ -230,6 +230,14 @@ struct TopToolbar: ToolbarContent {
                     onAudioBoostEnableRequested?()
                 }
                 audioBoostEnabled.wrappedValue.toggle()
+                if audioBoostEnabled.wrappedValue {
+                    HapticManager.shared.triggerMediumPulse(source: "media.insight.audioBoost.enabled")
+                } else {
+                    HapticManager.shared.triggerLightImpact(
+                        intensity: 0.5,
+                        source: "media.insight.audioBoost.disabled"
+                    )
+                }
             } label: {
                 Label(
                     audioBoostEnabled.wrappedValue ? "Turn off audio boost" : "Boost audio",

@@ -61,6 +61,13 @@ control remains independently tappable and VoiceOver can adjust position in
 five-second steps. Feed spectrograms intentionally do not seek because their
 center and outer regions retain playback, like, and detail-navigation gestures.
 
+User-initiated playback uses Merian's shared `HapticManager`: play and enabling
+audio boost receive a medium confirmation, pause and mute changes receive light
+feedback, and seeking produces one subtle begin pulse plus one commit selection.
+Autoplay, playhead ticks, saved-setting restoration, and cross-surface state
+updates never emit haptics. Explicit audio-boost failures use the standard error
+feedback and respect the global haptics and expedition-mode preferences.
+
 Feed cards with standalone primary audio expose a compact, filled **Boost audio**
 pill at the bottom-left of the spectrogram, while feed-card and post-detail
 ellipsis menus retain the same action. The feed pill owns its hit-test region,

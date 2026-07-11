@@ -19,6 +19,16 @@ struct ExplorePostDetailMenuButton: View {
                         onAudioBoostEnableRequested()
                     }
                     audioBoostEnabled.wrappedValue.toggle()
+                    if audioBoostEnabled.wrappedValue {
+                        HapticManager.shared.triggerMediumPulse(
+                            source: "media.explore.detail.audioBoost.enabled"
+                        )
+                    } else {
+                        HapticManager.shared.triggerLightImpact(
+                            intensity: 0.5,
+                            source: "media.explore.detail.audioBoost.disabled"
+                        )
+                    }
                 } label: {
                     Label(
                         audioBoostEnabled.wrappedValue ? "Turn off audio boost" : "Boost audio",

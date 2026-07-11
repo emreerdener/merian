@@ -587,10 +587,14 @@ private struct AudioReviewPlayButton: View {
 
     var body: some View {
         Button(action: {
-            HapticManager.shared.triggerMediumPulse(source: CaptureButtonHapticSource.audioConfirm.rawValue)
             if audioCaptureManager.isPlaying {
+                HapticManager.shared.triggerLightImpact(
+                    intensity: 0.55,
+                    source: "media.capture.audio.pause"
+                )
                 audioCaptureManager.stopPlayback()
             } else {
+                HapticManager.shared.triggerMediumPulse(source: "media.capture.audio.play")
                 audioCaptureManager.playPendingRecording()
             }
         }) {

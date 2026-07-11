@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added tactile feedback to user-controlled audio and video playback, mute,
+  seeking, and audio-boost actions while keeping autoplay and restored settings
+  silent.
 - Added tap-to-seek and drag-to-scrub playback directly on audio spectrograms
   in Explore post detail. Feed cards remain playback-only so their navigation
   gestures stay predictable.
@@ -21,6 +24,8 @@ TestFlight, App Store, support, and QA.
 
 ### Insights
 
+- Added consistent playback, seeking, mute, and audio-boost haptics to Insight
+  media while avoiding repeated feedback from timers or playhead updates.
 - Added tap-to-seek and playmarker dragging to completed scan audio pages.
   Dragging the rest of an Insight media page continues to move between carousel
   items.

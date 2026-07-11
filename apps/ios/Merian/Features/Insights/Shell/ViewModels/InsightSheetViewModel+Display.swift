@@ -116,6 +116,14 @@ extension InsightSheetViewModel {
             state.audioBoostActionToken = UUID()
         }
         state.isAudioBoostEnabled.toggle()
+        if state.isAudioBoostEnabled {
+            HapticManager.shared.triggerMediumPulse(source: "media.insight.audioBoost.enabled")
+        } else {
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.5,
+                source: "media.insight.audioBoost.disabled"
+            )
+        }
     }
 
     var observationContext: ObservationContext? {

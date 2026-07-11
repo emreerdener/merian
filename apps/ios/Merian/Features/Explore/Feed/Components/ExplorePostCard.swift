@@ -374,6 +374,14 @@ struct ExplorePostCard: View {
             audioBoostActionToken = UUID()
         }
         isAudioBoostEnabled.toggle()
+        if isAudioBoostEnabled {
+            HapticManager.shared.triggerMediumPulse(source: "media.explore.feed.audioBoost.enabled")
+        } else {
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.5,
+                source: "media.explore.feed.audioBoost.disabled"
+            )
+        }
     }
 
     private var hasStandalonePrimaryAudio: Bool {
@@ -1269,6 +1277,9 @@ struct ExplorePublicMediaView: View {
 
                         Button {
                             isMuted.toggle()
+                            HapticManager.shared.triggerSelectionPulse(
+                                source: "media.explore.\(surface.rawValue).mute.\(isMuted ? "on" : "off")"
+                            )
                             player?.isMuted = isMuted
                             if playbackOverlayState.needsPlayerRebuildForRecovery || player?.timeControlStatus != .playing {
                                 resumeAutoplayIfEligible(force: true, revealsPlaybackControl: true)
@@ -1329,6 +1340,10 @@ struct ExplorePublicMediaView: View {
         if !isAudioSeeking {
             isAudioSeeking = true
             audioSeekWasPlaying = player.timeControlStatus == .playing || playbackOverlayState.isPlaying
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.35,
+                source: "media.explore.detail.seek.begin"
+            )
             player.pause()
             reducePlaybackOverlay(.playbackTemporarilyPaused)
         }
@@ -1341,6 +1356,7 @@ struct ExplorePublicMediaView: View {
         let shouldResume = audioSeekWasPlaying
         isAudioSeeking = false
         audioSeekWasPlaying = false
+        HapticManager.shared.triggerSelectionPulse(source: "media.explore.detail.seek.commit")
         if shouldResume {
             playbackCoordinator?.activate(playerID: playerId, surface: surface)
             player.play()
@@ -1371,6 +1387,7 @@ struct ExplorePublicMediaView: View {
             duration: resolvedAudioDuration
         )
         applyAudioSeek(progress: progress, player: player)
+        HapticManager.shared.triggerSelectionPulse(source: "media.explore.detail.seek.accessibility")
         UIAccessibility.post(
             notification: .announcement,
             argument: formattedAudioTime(audioElapsedSeconds)
@@ -1393,6 +1410,7 @@ struct ExplorePublicMediaView: View {
     private func seekAudioWithoutChangingPlayback(progress: Double) {
         guard resolvedAudioDuration > 0, let player else { return }
         applyAudioSeek(progress: progress, player: player)
+        HapticManager.shared.triggerSelectionPulse(source: "media.explore.detail.seek.tap")
     }
 
     @discardableResult
@@ -1554,9 +1572,15 @@ struct ExplorePublicMediaView: View {
             } catch {
                 guard !Task.isCancelled else { return }
                 boostedAudioURL = nil
-                audioBoostPreparationFailed = ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                let shouldPresentFailure = ExploreAudioBoostFeedbackPolicy.shouldPresent(
                     actionToken: actionToken
                 )
+                audioBoostPreparationFailed = shouldPresentFailure
+                if shouldPresentFailure {
+                    HapticManager.shared.triggerErrorThump(
+                        source: "media.explore.\(surface.rawValue).audioBoost.failed"
+                    )
+                }
                 AppTelemetry.trackExploreAudioBoost(event: "preparation_failed", surface: surface.rawValue)
             }
         } else {
@@ -1850,6 +1874,9 @@ struct ExplorePublicMediaView: View {
 
     private func togglePlayback() {
         if playbackOverlayState.needsPlayerRebuildForRecovery || player == nil {
+            HapticManager.shared.triggerMediumPulse(
+                source: "media.explore.\(surface.rawValue).play"
+            )
             resumeAutoplayIfEligible(
                 force: true,
                 revealsPlaybackControl: true,
@@ -1866,8 +1893,15 @@ struct ExplorePublicMediaView: View {
         }
 
         if player.timeControlStatus == .playing {
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.55,
+                source: "media.explore.\(surface.rawValue).pause"
+            )
             pauseForUserInteraction()
         } else {
+            HapticManager.shared.triggerMediumPulse(
+                source: "media.explore.\(surface.rawValue).play"
+            )
             resumeAutoplayIfEligible(force: true, revealsPlaybackControl: true)
         }
     }

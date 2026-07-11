@@ -27,6 +27,7 @@
             "Standalone audio posts now offer an optional Boost audio setting in feed and detail menus for quiet recordings.",
             "Completed scan-library Insights with audio now offer a separate per-scan Boost audio setting that applies to every audio clip in that scan.",
             "Audio spectrograms can now seek by tap or drag in Explore post detail and completed scan Insights, while Explore feed gestures remain unchanged.",
+            "Playback, mute, audio boost, and seeking controls now provide consistent tactile feedback without vibrating during autoplay or continuous progress updates.",
             "Each post remembers its own boost setting on this device, while the original shared recording remains unchanged.",
             "Boosted playback preserves the playhead, restores saved settings quietly, shows a small Boosted audio badge on the spectrogram, and falls back to the original audio if boosting is unavailable."
           ]
