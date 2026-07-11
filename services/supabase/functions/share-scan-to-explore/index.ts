@@ -18,6 +18,7 @@ import {
 } from "./db.ts";
 import type { SelectedExplorePostMediaItem } from "./db.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
+import { exploreShareFailureReason } from "../_shared/exploreAudioTelemetry.ts";
 
 function makeHttpError(
   status: number,
@@ -312,19 +313,9 @@ Deno.serve((req: Request) =>
     } catch (error) {
       runBackground(trackPostHogEvent(user.id, "ExplorePostShareFailed", {
         event_source: "supabase_edge",
-        reason: shareFailureReason(error),
+        reason: exploreShareFailureReason(error),
       }));
       throw error;
     }
   })
 );
-
-function shareFailureReason(error: unknown): string {
-  const status = error && typeof error === "object" && "status" in error
-    ? Number(error.status)
-    : 500;
-  if (status === 422) return "moderation_rejected";
-  if (status === 503) return "dependency_unavailable";
-  if (status >= 400 && status < 500) return "request_rejected";
-  return "publication_failed";
-}

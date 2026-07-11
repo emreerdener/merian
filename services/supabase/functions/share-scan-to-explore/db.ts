@@ -7,6 +7,9 @@ import { getTierForUser } from "../_shared/tierCache.ts";
 import { moderateExploreAudioUrl } from "../_shared/audioModeration.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { runBackground } from "../_shared/edgeHandler.ts";
+import { moderationLatencyBucket } from "../_shared/exploreAudioTelemetry.ts";
+
+type TrackEvent = typeof trackPostHogEvent;
 
 export interface ShareEligibleScanRow {
   id: string;
@@ -362,6 +365,7 @@ export async function requireApprovedAudioMedia(
   rows: ReturnType<typeof buildExplorePostMediaRows>,
   moderate: typeof moderateExploreAudioUrl = moderateExploreAudioUrl,
   telemetryUserId?: string,
+  trackEvent: TrackEvent = trackPostHogEvent,
 ): Promise<void> {
   const audibleRows = rows.filter((row) =>
     row.kind === "audio" || (row.kind === "video" && row.has_audio)
@@ -372,7 +376,7 @@ export async function requireApprovedAudioMedia(
       const startedAt = performance.now();
       const decision = await moderate(row.url);
       if (telemetryUserId) {
-        runBackground(trackPostHogEvent(
+        runBackground(trackEvent(
           telemetryUserId,
           "ExploreAudioModerationCompleted",
           {
@@ -398,7 +402,7 @@ export async function requireApprovedAudioMedia(
       telemetryUserId &&
       !(error && typeof error === "object" && "status" in error)
     ) {
-      runBackground(trackPostHogEvent(
+      runBackground(trackEvent(
         telemetryUserId,
         "ExploreAudioModerationCompleted",
         {
@@ -413,13 +417,6 @@ export async function requireApprovedAudioMedia(
       "Audio moderation is temporarily unavailable. Nothing was shared.",
     );
   }
-}
-
-function moderationLatencyBucket(elapsedMs: number): string {
-  if (elapsedMs < 1_000) return "under_1s";
-  if (elapsedMs < 3_000) return "1_to_3s";
-  if (elapsedMs < 10_000) return "3_to_10s";
-  return "over_10s";
 }
 
 async function replaceExplorePostMediaRows(

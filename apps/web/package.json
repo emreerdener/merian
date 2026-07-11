@@ -2,11 +2,13 @@
   "name": "@merian/web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types lib/*.test.ts"
   },
   "dependencies": {
     "@mantine/carousel": "^9.2.1",

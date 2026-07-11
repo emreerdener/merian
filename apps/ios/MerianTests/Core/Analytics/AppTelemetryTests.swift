@@ -126,4 +126,20 @@ final class AppTelemetryTests: XCTestCase {
         XCTAssertEqual(event?.properties["inferenceTier"] as? String, "pro")
         XCTAssertEqual(event?.properties["event_source"] as? String, "ios_client")
     }
+
+    func testExploreAudioPlaybackEventsContainOnlySurfaceAndClientSource() {
+        AppTelemetry.trackExploreAudioPlaybackStarted(surface: "feed")
+        AppTelemetry.trackExploreAudioPlaybackCompleted(surface: "detail")
+        AppTelemetry.trackExploreAudioPlaybackFailed(surface: "detail")
+
+        XCTAssertEqual(capturedEvents.map(\.name), [
+            "ExploreAudioPlaybackStarted",
+            "ExploreAudioPlaybackCompleted",
+            "ExploreAudioPlaybackFailed"
+        ])
+        for event in capturedEvents {
+            XCTAssertEqual(Set(event.properties.keys), ["surface", "event_source"])
+            XCTAssertEqual(event.properties["event_source"] as? String, "ios_client")
+        }
+    }
 }

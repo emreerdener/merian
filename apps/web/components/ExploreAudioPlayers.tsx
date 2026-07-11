@@ -4,6 +4,7 @@ import { Card, Stack, Text, ThemeIcon } from "@mantine/core";
 import { IconVolume } from "@tabler/icons-react";
 import { useRef } from "react";
 import type { ExplorePostMediaItem } from "@/lib/explore";
+import { captureAudioTelemetry, markAudioPlaybackStarted } from "@/lib/audioTelemetry";
 
 type ExploreAudioPlayersProps = {
   items: ExplorePostMediaItem[];
@@ -38,12 +39,11 @@ export function ExploreAudioPlayers({ items, prominent = false }: ExploreAudioPl
               aria-labelledby={`audio-clip-${item.orderIndex}`}
               style={{ width: "100%" }}
               onPlay={() => {
-                if (startedItems.current.has(item.url)) return;
-                startedItems.current.add(item.url);
-                captureAudioEvent("ExploreAudioPlaybackStarted", prominent);
+                if (!markAudioPlaybackStarted(startedItems.current, item.url)) return;
+                captureAudioTelemetry("ExploreAudioPlaybackStarted", audioSurface(prominent));
               }}
-              onEnded={() => captureAudioEvent("ExploreAudioPlaybackCompleted", prominent)}
-              onError={() => captureAudioEvent("ExploreAudioPlaybackFailed", prominent)}
+              onEnded={() => captureAudioTelemetry("ExploreAudioPlaybackCompleted", audioSurface(prominent))}
+              onError={() => captureAudioTelemetry("ExploreAudioPlaybackFailed", audioSurface(prominent))}
             >
               Your browser does not support audio playback.
             </audio>
@@ -54,31 +54,6 @@ export function ExploreAudioPlayers({ items, prominent = false }: ExploreAudioPl
   );
 }
 
-function captureAudioEvent(event: string, prominent: boolean) {
-  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_API_KEY;
-  if (!apiKey || typeof window === "undefined") return;
-
-  const storageKey = "merian_posthog_distinct_id";
-  let distinctId: string;
-  try {
-    distinctId = window.localStorage.getItem(storageKey) ?? window.crypto.randomUUID();
-    window.localStorage.setItem(storageKey, distinctId);
-  } catch {
-    distinctId = window.crypto.randomUUID();
-  }
-
-  void fetch("https://us.i.posthog.com/capture/", {
-    method: "POST",
-    keepalive: true,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: apiKey,
-      event,
-      distinct_id: distinctId,
-      properties: {
-        event_source: "public_web",
-        surface: prominent ? "detail_audio_header" : "detail_mixed_media",
-      },
-    }),
-  });
+function audioSurface(prominent: boolean) {
+  return prominent ? "detail_audio_header" : "detail_mixed_media";
 }

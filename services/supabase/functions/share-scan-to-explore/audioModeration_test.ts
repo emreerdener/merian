@@ -3,6 +3,10 @@ import {
   assertRejects,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { requireApprovedAudioMedia } from "./db.ts";
+import {
+  exploreShareFailureReason,
+  moderationLatencyBucket,
+} from "../_shared/exploreAudioTelemetry.ts";
 
 const audioRow = {
   kind: "audio" as const,
@@ -47,4 +51,88 @@ Deno.test("moderation failure rejects the share as unavailable", async () => {
     "Nothing was shared",
   ) as Error & { status?: number };
   assertEquals(error.status, 503);
+});
+
+Deno.test("audio moderation emits an approved privacy-safe event", async () => {
+  const events: Array<{ event: string; properties: Record<string, unknown> }> =
+    [];
+  await requireApprovedAudioMedia(
+    [audioRow],
+    () => Promise.resolve({ approved: true, model: "test-model" }),
+    "telemetry-user",
+    (_user, event, properties = {}) => {
+      events.push({ event, properties });
+      return Promise.resolve();
+    },
+  );
+  await Promise.resolve();
+
+  assertEquals(events.length, 1);
+  assertEquals(events[0].event, "ExploreAudioModerationCompleted");
+  assertEquals(events[0].properties.outcome, "approved");
+  assertEquals(events[0].properties.media_kind, "audio");
+  assertEquals(events[0].properties.model, "test-model");
+  const serialized = JSON.stringify(events[0]);
+  for (
+    const forbidden of [
+      "url",
+      "transcript",
+      "filename",
+      "post_id",
+      "species",
+      "location",
+    ]
+  ) {
+    assertEquals(serialized.includes(forbidden), false);
+  }
+});
+
+Deno.test("audio moderation emits rejected and provider-error outcomes", async () => {
+  const outcomes: unknown[] = [];
+  const track = (
+    _user: unknown,
+    _event: string,
+    properties: Record<string, unknown> = {},
+  ) => {
+    outcomes.push(properties.outcome);
+    return Promise.resolve();
+  };
+  await assertRejects(() =>
+    requireApprovedAudioMedia(
+      [audioRow],
+      () => Promise.resolve({ approved: false, model: "test" }),
+      "telemetry-user",
+      track,
+    )
+  );
+  await assertRejects(() =>
+    requireApprovedAudioMedia(
+      [audioRow],
+      () => Promise.reject(new Error("provider unavailable")),
+      "telemetry-user",
+      track,
+    )
+  );
+  await Promise.resolve();
+  assertEquals(outcomes, ["rejected", "error"]);
+});
+
+Deno.test("telemetry bucketing and share failure reasons stay bounded", () => {
+  assertEquals(moderationLatencyBucket(999), "under_1s");
+  assertEquals(moderationLatencyBucket(1_000), "1_to_3s");
+  assertEquals(moderationLatencyBucket(3_000), "3_to_10s");
+  assertEquals(moderationLatencyBucket(10_000), "over_10s");
+  assertEquals(
+    exploreShareFailureReason({ status: 422 }),
+    "moderation_rejected",
+  );
+  assertEquals(
+    exploreShareFailureReason({ status: 503 }),
+    "dependency_unavailable",
+  );
+  assertEquals(exploreShareFailureReason({ status: 400 }), "request_rejected");
+  assertEquals(
+    exploreShareFailureReason(new Error("database")),
+    "publication_failed",
+  );
 });
