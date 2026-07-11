@@ -60,6 +60,7 @@ enum ScanLocationFilter: String, CaseIterable, Identifiable, Hashable {
 enum ScanMediaFilter: String, CaseIterable, Identifiable, Hashable {
     case image = "Image"
     case video = "Video"
+    case audio = "Audio"
     var id: String { rawValue }
 }
 
@@ -607,6 +608,8 @@ struct ScanLibraryFilters: Equatable {
                 return hasImage && !mediaSummary.hasVideo
             case .video:
                 return mediaSummary.hasVideo
+            case .audio:
+                return mediaSummary.hasAudio
             }
         }
     }

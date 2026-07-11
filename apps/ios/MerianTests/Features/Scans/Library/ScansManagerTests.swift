@@ -584,7 +584,7 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertEqual(searchManager.activeFilterCount, 1)
     }
 
-    func testMediaFiltersSeparateStillImagesFromVideos() async throws {
+    func testMediaFiltersSeparateImagesVideosAndAudio() async throws {
         let imageScan = try createTestScan(
             commonName: "Still Finch",
             scientificName: "Haemorhous mexicanus",
@@ -611,9 +611,17 @@ final class ScansManagerTests: XCTestCase {
             .video(StoredVideoMediaReference(.documents("video-clip.mp4")))
         ])
         videoScan.timestamp = Date(timeIntervalSince1970: 200)
+
+        let audioScan = try createTestScan(
+            commonName: "Audio Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        audioScan.replaceCapturedMedia(with: [.audio(.documents("field-recording.m4a"))])
+        audioScan.timestamp = Date(timeIntervalSince1970: 250)
         try context.save()
 
-        searchManager.allScans = [imageScan, legacyImageScan, videoScan]
+        searchManager.allScans = [imageScan, legacyImageScan, videoScan, audioScan]
 
         await waitForFilterCompletion {
             $0.mediaFilters = [.image]
@@ -630,11 +638,21 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertEqual(searchManager.activeFilterCount, 1)
 
         await waitForFilterCompletion {
-            $0.mediaFilters = [.image, .video]
+            $0.mediaFilters = [.audio]
         }
 
-        XCTAssertEqual(searchManager.filteredScans.map(\.id), [videoScan.id, legacyImageScan.id, imageScan.id])
-        XCTAssertEqual(searchManager.activeFilterCount, 2)
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [audioScan.id])
+        XCTAssertEqual(searchManager.activeFilterCount, 1)
+
+        await waitForFilterCompletion {
+            $0.mediaFilters = [.image, .video, .audio]
+        }
+
+        XCTAssertEqual(
+            searchManager.filteredScans.map(\.id),
+            [audioScan.id, videoScan.id, legacyImageScan.id, imageScan.id]
+        )
+        XCTAssertEqual(searchManager.activeFilterCount, 3)
     }
 
     func testExpandedFilterOptionsAndClearFilters() async throws {

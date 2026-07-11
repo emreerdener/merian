@@ -6,8 +6,17 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Media & Performance
+
+- Removed a priority-inversion hang risk from local and remote image decoding.
+  Decode concurrency remains capped for memory safety, but excess work now
+  suspends asynchronously instead of blocking user-initiated threads.
+
 ### Explore
 
+- Fixed standalone-audio thumbnails in profile and compact Explore grids so
+  they keep the species reference photo after remote post data loads, with a
+  waveform badge identifying the recording.
 - Added tactile feedback to user-controlled audio and video playback, mute,
   seeking, and audio-boost actions while keeping autoplay and restored settings
   silent.
@@ -36,6 +45,12 @@ TestFlight, App Store, support, and QA.
   session instead of revoking the same account everywhere, and linked RevenueCat
   customers with Supabase/public identity attributes so Test Store support
   lookups can match Pro status back to Merian accounts.
+
+### Scans
+
+- Updated standalone-audio tiles in the Scans library to use the species
+  reference photo with a waveform badge. Opening the scan still presents the
+  recording spectrogram and playback controls.
 
 ### Analytics
 

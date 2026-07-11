@@ -1,10 +1,59 @@
 import Foundation
+@testable import Merian
 import Testing
 import UIKit
-import Foundation
-@testable import Merian
 
 struct LocalImageLoaderTests {
+    private actor ConcurrencyProbe {
+        private(set) var active = 0
+        private(set) var maximum = 0
+
+        func enter() {
+            active += 1
+            maximum = max(maximum, active)
+        }
+
+        func leave() {
+            active -= 1
+        }
+    }
+
+    @Test func asyncPermitPoolBoundsWorkWithoutBlockingWaits() async {
+        let pool = AsyncPermitPool(limit: 2)
+        let probe = ConcurrencyProbe()
+
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<8 {
+                group.addTask {
+                    guard await pool.acquire() else { return }
+                    await probe.enter()
+                    try? await Task.sleep(for: .milliseconds(10))
+                    await probe.leave()
+                    await pool.release()
+                }
+            }
+        }
+
+        let maximum = await probe.maximum
+        #expect(maximum == 2)
+    }
+
+    @Test func cancelledPermitWaiterDoesNotConsumeReleasedSlot() async {
+        let pool = AsyncPermitPool(limit: 1)
+        let initialPermit = await pool.acquire()
+        #expect(initialPermit)
+
+        let waiter = Task { await pool.acquire() }
+        await Task.yield()
+        waiter.cancel()
+        let cancelledWaiterAcquired = await waiter.value
+        #expect(!cancelledWaiterAcquired)
+
+        await pool.release()
+        let replacementPermit = await pool.acquire()
+        #expect(replacementPermit)
+        await pool.release()
+    }
     
     @Test func testLocalImageLoader_ConcurrentDeduplication() async throws {
         let loader = LocalImageLoader.shared

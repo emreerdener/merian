@@ -2248,6 +2248,19 @@ struct ExploreMediaPlayIndicator: View {
     }
 }
 
+struct ExploreMediaTypeIndicator: View {
+    let kind: ExploreMediaKind
+
+    var body: some View {
+        Image(systemName: kind == .video ? "play.fill" : "waveform")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 32, height: 32)
+            .background(.black.opacity(0.42), in: Circle())
+            .accessibilityLabel(kind == .video ? "Video" : "Audio recording")
+    }
+}
+
 struct ExploreHeroImageView: View {
     let imageUrl: String
     let reloadGeneration: UInt64

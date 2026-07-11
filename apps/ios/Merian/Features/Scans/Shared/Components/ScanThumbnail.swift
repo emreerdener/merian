@@ -12,6 +12,7 @@ struct ScanThumbnailPresentation: Sendable, Equatable {
     let fallbackImageUrl: String?
     let audioPath: String?
     let hasVideo: Bool
+    let hasAudio: Bool
     let placeholderStyle: ScanThumbnailPlaceholderStyle
 }
 
@@ -43,6 +44,7 @@ extension LocalScanRecord {
                 fallbackImageUrl: fallbackUrl,
                 audioPath: nil,
                 hasVideo: capturedMediaSummary.hasVideo,
+                hasAudio: capturedMediaSummary.hasAudio,
                 placeholderStyle: .archived
             )
         }
@@ -53,6 +55,7 @@ extension LocalScanRecord {
                 fallbackImageUrl: fallbackUrl,
                 audioPath: audioPath,
                 hasVideo: false,
+                hasAudio: true,
                 placeholderStyle: nonVisualPlaceholderStyle(fallbackUrl: fallbackUrl)
             )
         }
@@ -64,6 +67,7 @@ extension LocalScanRecord {
                 fallbackImageUrl: fallbackUrl,
                 audioPath: nil,
                 hasVideo: capturedMediaSummary.hasVideo,
+                hasAudio: capturedMediaSummary.hasAudio,
                 placeholderStyle: .pendingReference(mediaKind)
             )
         }
@@ -74,6 +78,7 @@ extension LocalScanRecord {
                 fallbackImageUrl: nil,
                 audioPath: nil,
                 hasVideo: capturedMediaSummary.hasVideo,
+                hasAudio: capturedMediaSummary.hasAudio,
                 placeholderStyle: .pendingReference(mediaKind)
             )
         }
@@ -84,6 +89,7 @@ extension LocalScanRecord {
                 fallbackImageUrl: nil,
                 audioPath: nil,
                 hasVideo: capturedMediaSummary.hasVideo,
+                hasAudio: capturedMediaSummary.hasAudio,
                 placeholderStyle: .unavailableReference(mediaKind)
             )
         }
@@ -93,6 +99,7 @@ extension LocalScanRecord {
             fallbackImageUrl: fallbackUrl,
             audioPath: nil,
             hasVideo: capturedMediaSummary.hasVideo,
+            hasAudio: capturedMediaSummary.hasAudio,
             placeholderStyle: .archived
         )
     }
@@ -157,6 +164,9 @@ struct ScanThumbnail: View {
     let fallbackImageUrl: String?
     let audioPath: String?
     let hasVideo: Bool
+    let hasAudio: Bool
+    let prefersReferenceForAudio: Bool
+    let showsAudioBadge: Bool
     let maxDimension: Int
     let placeholderStyle: ScanThumbnailPlaceholderStyle
 
@@ -169,6 +179,9 @@ struct ScanThumbnail: View {
         fallbackImageUrl: String? = nil,
         audioPath: String? = nil,
         hasVideo: Bool = false,
+        hasAudio: Bool = false,
+        prefersReferenceForAudio: Bool = false,
+        showsAudioBadge: Bool = false,
         maxDimension: Int = 600,
         placeholderStyle: ScanThumbnailPlaceholderStyle = .archived
     ) {
@@ -176,17 +189,28 @@ struct ScanThumbnail: View {
         self.fallbackImageUrl = fallbackImageUrl
         self.audioPath = audioPath
         self.hasVideo = hasVideo
+        self.hasAudio = hasAudio
+        self.prefersReferenceForAudio = prefersReferenceForAudio
+        self.showsAudioBadge = showsAudioBadge
         self.maxDimension = maxDimension
         self.placeholderStyle = placeholderStyle
     }
 
-    init(record: LocalScanRecord, maxDimension: Int = 600) {
+    init(
+        record: LocalScanRecord,
+        maxDimension: Int = 600,
+        prefersReferenceForAudio: Bool = false,
+        showsAudioBadge: Bool = false
+    ) {
         let presentation = record.scanThumbnailPresentation
         self.init(
             imagePath: presentation.imagePath,
             fallbackImageUrl: presentation.fallbackImageUrl,
             audioPath: presentation.audioPath,
             hasVideo: presentation.hasVideo,
+            hasAudio: presentation.hasAudio,
+            prefersReferenceForAudio: prefersReferenceForAudio,
+            showsAudioBadge: showsAudioBadge,
             maxDimension: maxDimension,
             placeholderStyle: presentation.placeholderStyle
         )
@@ -211,14 +235,15 @@ struct ScanThumbnail: View {
             )
             .clipped()
             .overlay(alignment: .bottomTrailing) {
-                if hasVideo, thumbnail != nil {
-                    Image(systemName: "play.fill")
+                if hasVideo || (hasAudio && showsAudioBadge), thumbnail != nil {
+                    Image(systemName: hasVideo ? "play.fill" : "waveform")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 24, height: 24)
                         .background(Color.black.opacity(0.62))
                         .clipShape(Circle())
                         .padding(8)
+                        .accessibilityLabel(hasVideo ? "Video" : "Audio recording")
                 }
             }
         .task(id: loadTaskID) {
@@ -280,7 +305,7 @@ struct ScanThumbnail: View {
     }
 
     private func loadThumbnail() async {
-        if let audioPath {
+        if let audioPath, !prefersReferenceForAudio {
             let spectrogramImage = await AudioSpectrogramThumbnailLoader.shared.loadImage(
                 fromPath: audioPath,
                 maxDimension: maxDimension

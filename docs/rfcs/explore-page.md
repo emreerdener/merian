@@ -135,7 +135,7 @@ The profile and library have deliberately different privacy scopes:
 - Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
 - The `Follow` button is hidden for the viewer's own public profile. It follows asymmetrically; there are no friend requests, mutual-only states, DMs, or access changes to private scans.
 
-The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field Trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without image media, posts without a species key, and non-visible Field Trips are all filtered using the same visibility posture as the rest of Explore.
+The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field Trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without public post-owned media, posts without a species key, and non-visible Field Trips are all filtered using the same visibility posture as the rest of Explore.
 
 The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
 
@@ -319,7 +319,10 @@ Imported historical photos and in-app captured photos should both be eligible.
 
 > Superseded: current Explore media is post-owned through
 > `explore_post_media`, with `hero_image_url` retained as the thumbnail
-> fallback and videos allowed for public posts/Community ID requests. See
+> fallback and videos/audio allowed for public posts/Community ID requests.
+> Author-post projections additionally return `reference_thumbnail_url` so
+> compact audio tiles can show species imagery without treating the recording
+> URL as an image. See
 > `docs/backend-and-data/04-database-schema.md#explore_post_media` for the
 > current contract.
 

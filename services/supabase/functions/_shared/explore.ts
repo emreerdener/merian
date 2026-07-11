@@ -19,7 +19,7 @@ interface ExplorePostLookupRow {
   author?: NestedRelation<{ is_shadowbanned?: boolean | null }>;
 }
 
-export type ExplorePostMediaKind = "image" | "video";
+export type ExplorePostMediaKind = "image" | "video" | "audio";
 
 export interface ExplorePostMediaItem {
   kind: ExplorePostMediaKind;

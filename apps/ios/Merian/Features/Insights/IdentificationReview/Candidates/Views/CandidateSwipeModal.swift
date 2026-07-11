@@ -274,20 +274,19 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 32)
             
             VStack(spacing: 12) {
-                SlideToConfirm(label: confirmButtonTitle, onConfirm: {
-                    isDismissing = true
-                    onConfirmOriginal()
-                    isPresented = false
-                })
-
                 if let onRefineScan = onRefineScan {
                     SlideToConfirm(
                         label: RevenueCatManager.shared.isProActive ? "Reanalyze species" : "Reanalyze species (Pro)",
                         onConfirm: {
                             if RevenueCatManager.shared.isProActive {
                                 isDismissing = true
-                                onRefineScan()
                                 isPresented = false
+                                Task {
+                                    // Let the candidate sheet finish dismissing before the
+                                    // refinement event closes the insight and changes capture mode.
+                                    try? await Task.sleep(nanoseconds: 300_000_000)
+                                    await MainActor.run { onRefineScan() }
+                                }
                             } else {
                                 showPaywall = true
                             }
@@ -306,6 +305,12 @@ extension CandidateSwipeModal {
                         }
                     }, color: .blue)
                 }
+
+                SlideToConfirm(label: confirmButtonTitle, onConfirm: {
+                    isDismissing = true
+                    onConfirmOriginal()
+                    isPresented = false
+                })
             }
             .padding(.horizontal, 24)
         }

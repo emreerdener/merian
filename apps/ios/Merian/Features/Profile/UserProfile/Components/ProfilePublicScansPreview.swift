@@ -113,6 +113,7 @@ struct ProfilePublicScansPreview: View {
 
         for post in remotePosts {
             guard items.count < previewLimit else { break }
+            let localScan = localScans.first { $0.id == post.scanId }
             seenPostIds.insert(post.id)
             seenScanIds.insert(post.scanId)
             items.append(
@@ -121,7 +122,10 @@ struct ProfilePublicScansPreview: View {
                     scanId: post.scanId,
                     postId: post.id,
                     imagePath: nil,
-                    fallbackUrl: post.heroImageUrl,
+                    fallbackUrl: post.gridThumbnailUrl(
+                        localReferenceUrl: localScan?.referenceImageUrl
+                    ),
+                    localHasAudioMedia: false,
                     post: post
                 )
             )
@@ -141,6 +145,7 @@ struct ProfilePublicScansPreview: View {
                     postId: postId,
                     imagePath: localImagePath(for: scan),
                     fallbackUrl: scan.referenceImageUrl?.trimmedProfilePreviewValue,
+                    localHasAudioMedia: scan.capturedMediaSnapshot.summary.hasAudio,
                     post: nil
                 )
             )
@@ -162,9 +167,9 @@ struct ProfilePublicScansPreview: View {
                     )
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
-                    .overlay(alignment: .topLeading) {
-                        if item.hasVideoMedia {
-                            ExploreMediaPlayIndicator()
+                    .overlay(alignment: .topTrailing) {
+                        if item.hasVideoMedia || item.hasAudioMedia {
+                            ExploreMediaTypeIndicator(kind: item.hasVideoMedia ? .video : .audio)
                                 .padding(6)
                         }
                     }
@@ -341,6 +346,7 @@ private struct ProfilePublishedScansLibraryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(ProfileViewModel.self) private var profileViewModel
+    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
 
     @State private var posts: [ExplorePost] = []
     @State private var cursor = ExploreAuthorPostCursor.empty
@@ -519,19 +525,22 @@ private struct ProfilePublishedScansLibraryView: View {
     private var libraryGrid: some View {
         LazyVGrid(columns: columns, spacing: 2) {
             ForEach(Array(posts.enumerated()), id: \.element.id) { _, post in
+                let localReferenceUrl = localScans.first { $0.id == post.scanId }?.referenceImageUrl
                 Button {
                     openPost(post)
                 } label: {
                     ProfilePublicScanImageView(
                         imagePath: nil,
-                        fallbackUrl: post.heroImageUrl,
+                        fallbackUrl: post.gridThumbnailUrl(
+                            localReferenceUrl: localReferenceUrl
+                        ),
                         reloadGeneration: viewModel.mediaReloadGeneration
                     )
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
-                    .overlay(alignment: .topLeading) {
-                        if post.hasVideoMedia {
-                            ExploreMediaPlayIndicator()
+                    .overlay(alignment: .topTrailing) {
+                        if post.hasVideoMedia || post.hasAudioMedia {
+                            ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
                                 .padding(6)
                         }
                     }
@@ -668,10 +677,15 @@ private struct ProfilePublicScanPreviewItem: Identifiable, Equatable {
     let postId: String?
     let imagePath: String?
     let fallbackUrl: String?
+    let localHasAudioMedia: Bool
     let post: ExplorePost?
 
     var hasVideoMedia: Bool {
         post?.hasVideoMedia == true
+    }
+
+    var hasAudioMedia: Bool {
+        localHasAudioMedia || post?.hasAudioMedia == true
     }
 }
 

@@ -6,6 +6,7 @@ export interface ExploreAuthorPostRow {
   post_id: string;
   scan_id: string;
   hero_image_url: string;
+  reference_thumbnail_url?: string | null;
   shared_at: string;
   author_user_id: string;
   author_name: string;

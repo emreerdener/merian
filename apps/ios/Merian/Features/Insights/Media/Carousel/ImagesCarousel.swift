@@ -1,4 +1,5 @@
 import AVKit
+import Combine
 import SwiftUI
 
 struct CarouselPageBuilder {
@@ -219,6 +220,11 @@ private struct VideoPlaybackCarouselPage: View {
             if let player {
                 CoverVideoPlayer(player: player)
                     .ignoresSafeArea()
+                    .onReceive(player.publisher(for: \.isMuted).removeDuplicates()) { playerIsMuted in
+                        if isMuted != playerIsMuted {
+                            isMuted = playerIsMuted
+                        }
+                    }
             } else {
                 ProgressView()
                     .tint(.white)

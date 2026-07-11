@@ -884,21 +884,22 @@ and `KeychainManager` migration logic. Do not inline
   thundering-herd cache coalescing.
 - Prevents redundant remote fetches using tracked `Task` closures off the
   `@MainActor`.
-- **Detached Task Bounds**: Wraps core OS disk and network execution through a
-  strictly limited `DispatchSemaphore(value: 4)` pipeline constraint. This
-  ensures excessive detached closures do not cause ImageIO over-subscription
-  JetSam panics during high-speed multi-item view grid scrolls.
+- **Async Decode Bounds**: A cancellation-aware four-permit pool suspends excess
+  callers without blocking threads. Admitted synchronous ImageIO work runs on
+  an explicitly QoS-tagged concurrent queue, preventing both decode
+  over-subscription JetSam panics and priority-inversion hang warnings.
 - **Isolated media session**: `mediaSession` uses
   `httpMaximumConnectionsPerHost = 4`, `httpShouldSetCookies = false`,
   `requestCachePolicy = .reloadIgnoringLocalCacheData`, and `urlCache = nil`.
   This prevents remote thumbnail fetches from bloating the shared URL cache or
-  starving the decode semaphore with a wider connection fan-out than the
+  starving the decode pool with a wider connection fan-out than the
   downsampler can sustain.
 - Supports fallback fetching: loops natively through comma-separated URLs via
   Zero-OOM `ImageDownsampler` bounds.
 - I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents
   `Task.detached` from re-entering the actor executor mid-operation and keeps
-  all file/network work on the background thread pool.
+  network orchestration off the actor executor; synchronous decode work is
+  isolated on the dedicated decode queue.
 
 ### `SimilarSpeciesImageFetcher`
 

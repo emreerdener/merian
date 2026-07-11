@@ -1304,15 +1304,15 @@ struct ExploreHashtagPostsView: View {
                         openPost(post)
                     } label: {
                         ExploreHeroImageView(
-                            imageUrl: post.heroImageUrl,
+                            imageUrl: post.gridThumbnailUrl,
                             reloadGeneration: viewModel.mediaReloadGeneration,
                             maxDimension: 360
                         )
                         .aspectRatio(1, contentMode: .fill)
                         .clipped()
-                        .overlay(alignment: .topLeading) {
-                            if post.hasVideoMedia {
-                                ExploreMediaPlayIndicator()
+                        .overlay(alignment: .topTrailing) {
+                            if post.hasVideoMedia || post.hasAudioMedia {
+                                ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
                                     .padding(6)
                             }
                         }

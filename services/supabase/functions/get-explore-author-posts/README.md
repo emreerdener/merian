@@ -43,6 +43,7 @@ The response is the same card-shaped Explore post projection used by the feed:
       "post_id": "uuid",
       "scan_id": "uuid",
       "hero_image_url": "https://...",
+      "reference_thumbnail_url": "https://.../species-reference.jpg",
       "shared_at": "2026-05-03T12:00:00.000Z",
       "author_user_id": "uuid",
       "author_name": "River W.",
@@ -62,7 +63,17 @@ The response is the same card-shaped Explore post projection used by the feed:
       "comment_count": 1,
       "viewer_has_liked": false,
       "is_owned_by_viewer": false,
-      "ranking_value": null
+      "ranking_value": null,
+      "media_items": [
+        {
+          "kind": "audio",
+          "url": "https://.../recording.wav",
+          "thumbnail_url": null,
+          "order_index": 0,
+          "duration_seconds": 15.0,
+          "has_audio": true
+        }
+      ]
     }
   ]
 }
@@ -70,8 +81,9 @@ The response is the same card-shaped Explore post projection used by the feed:
 
 The backing RPC is
 `public.get_explore_author_posts(self_id, target_author_user_id, max_limit, before_shared_at, before_post_id)`.
-The Edge function then batches `public.explore_post_hashtags` by the returned
-post IDs so library cards keep the same `hashtags` array as feed cards.
+The Edge function then batches `public.explore_post_hashtags` and
+`public.explore_post_media` by the returned post IDs so library cards keep the
+same hashtag and ordered-media contracts as feed cards.
 
 `author_name` remains the display label. `author_username` is the stable handle
 stored without `@` and should render as `@river_w` only where a handle is
@@ -103,13 +115,31 @@ The endpoint returns only posts currently visible to the requester:
 
 - unshared posts excluded
 - tombstoned scans excluded
-- scans without image media excluded
+- scans without public post-owned media excluded
 - scans without a species key excluded
 - shadowbanned authors excluded
 - both directions of user blocking excluded
 
 Post `location_sharing` controls public location fields; it does not hide
 published posts from the author's grid.
+
+## Thumbnail Contract
+
+Each author-post row includes both `hero_image_url` and optional
+`reference_thumbnail_url`. The latter resolves through
+`public_species_first_reference_image_url(scan.species_id,
+species_dictionary.reference_image_url)`, preferring normalized
+`species_reference_images` and retaining the legacy dictionary URL fallback.
+The Edge function adds ordered `media_items` separately, so clients can detect
+audio without losing the durable recording URL.
+
+Compact clients should prefer `reference_thumbnail_url` when `media_items`
+contains audio, add an audio indicator, and use `hero_image_url` otherwise.
+Feed/detail playback remains media-item-driven and is not replaced by the
+reference image. A missing reference URL is valid and should fall through to
+the client's normal unavailable/pending thumbnail state. The current user's
+iOS Profile grids may use the matching local scan's `referenceImageUrl` as a
+compatibility fallback while older deployed RPC payloads remain in circulation.
 
 ## Local Verification
 

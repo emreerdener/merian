@@ -147,6 +147,12 @@ LocalImageLoader.shared.loadImage(
 | 4 | `imagePath` is a local filename | Resolve to `documentsDirectory`, downsample, cache |
 | 5 | Local file missing | Try `fallbackUrl` (supports comma-separated list) |
 
+Both local and downloaded files enter the same decode boundary. `AsyncPermitPool`
+admits at most four images, suspends additional tasks without tying up an OS
+thread, removes cancelled waiters safely, and dispatches admitted synchronous
+ImageIO work to `app.merian.image-decode` at explicit user-initiated QoS. The
+permit is released only after decoding and RAM-cache insertion complete.
+
 **Dynamic GBIF Hydration**
 When a species is scanned for the first time globally (Cache Miss), the Edge function returns immediately to maintain low latency, leaving `reference_image_url` empty. The iOS client (`InferenceEngine`) makes a direct follow-up call to the `api.gbif.org/v1/occurrence/search` API the moment it receives the `gbif_taxon_key` from the secondary `enrich-scan` endpoint. This hydrates the legacy comma-separated `fallbackUrl` with 3-4 high-quality field observations from networks like iNaturalist, and the shared dictionary upsert path also normalizes those URLs into `species_reference_images`. Public species dictionary and Explore detail readers prefer normalized rows and fall back to the legacy cache. On Cache Hits, these URLs are already stored in the DB and returned instantly.
 
@@ -158,8 +164,16 @@ Audio-only, describe-only, and other non-image biological scans now use a dedica
 
 `ScansSheetView` now runs a bounded `ScanThumbnailBackfillActor` pass over biological scans that lack both local image media and `referenceImageUrl`. The actor still checks the legacy `species_dictionary.reference_image_url` cache directly for compatibility, then falls back to Wikipedia / GBIF public APIs, persists any recovered URL back to `LocalScanRecord.referenceImageUrl`, and prewarms `LocalImageLoader` so the grid tile flips from placeholder to image without requiring a full sheet reopen.
 
+The shared `ScanThumbnail` keeps spectrogram rendering as its default for
+non-library consumers. `ScansGrid` opts into `prefersReferenceForAudio` and
+`showsAudioBadge`, so only the primary Scans library replaces an audio-only
+spectrogram tile with the hydrated reference photo and bottom-trailing waveform
+badge. The persisted audio path is unchanged and the Insight media carousel
+continues to open on the spectrogram/playback surface. Collections,
+Achievements, and other `ScanThumbnail` callers retain their existing policy.
+
 - **Thundering herd prevention**: The `activeTasks: [String: Task<UIImage?, Never>]` dictionary ensures that 50 cells requesting the same image key in a single scroll frame all await one download, not 50 parallel downloads. The inner fetch task is explicitly spawned using `Task.detached(priority: .userInitiated) { ... }` rather than a standard `Task`. This severs the concurrency context and prevents **Task Cancellation Poisoning**: if the SwiftUI view that originally initiated the fetch scrolls off-screen and its `.task` modifier cancels, the detached background load continues uninterrupted. This guarantees the image successfully enters the RAM cache and subsequent coalesced callers receive the image rather than a poisoned `nil` result.
-- **Bounded remote session**: `LocalImageLoader.mediaSession` uses `httpMaximumConnectionsPerHost = 4`, `httpShouldSetCookies = false`, `requestCachePolicy = .reloadIgnoringLocalCacheData`, and `urlCache = nil`. This keeps remote thumbnail fetch pressure aligned with the 4-slot decode semaphore and avoids filling the shared URL cache with one-off media responses.
+- **Bounded remote session**: `LocalImageLoader.mediaSession` uses `httpMaximumConnectionsPerHost = 4`, `httpShouldSetCookies = false`, `requestCachePolicy = .reloadIgnoringLocalCacheData`, and `urlCache = nil`. This keeps remote thumbnail fetch pressure aligned with the four-slot asynchronous decode pool and avoids filling the shared URL cache with one-off media responses. Permit waiters suspend rather than blocking an OS thread, while admitted ImageIO work uses an explicitly QoS-tagged decode queue.
 - **OOM risk during scroll**: Loading full-resolution images for every visible grid cell would exhaust RAM on large libraries.
 - **Adaptive `maxDimension`**: `ScansGrid` computes the actual cell pixel size from screen width, column count, and display scale — `Int((screenWidth - spacing) / columns * scale)` — and passes it to `ScanThumbnail` as `maxDimension`. On a 3-column iPhone 15 at 3× scale this is roughly 390px, versus the previous hardcoded 1024px. `LocalImageLoader` threads `maxDimension` through to both local and remote load paths. Remote fallback downloads previously capped at a hardcoded 500px now use the same caller-provided value.
 - **Retry-safe remote fallback**: `ScanThumbnail` now performs a short bounded retry loop for remote-only fallback loads, so a transient Wikipedia / GBIF / CDN miss no longer strands the tile permanently in the archived state while the sheet remains open.

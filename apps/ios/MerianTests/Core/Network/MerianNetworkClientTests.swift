@@ -499,6 +499,7 @@ struct MerianNetworkClientTests {
                 "post_id": "post-audio-123",
                 "scan_id": "scan-audio-123",
                 "hero_image_url": null,
+                "reference_thumbnail_url": "https://images.merian.app/cardinal.jpg",
                 "shared_at": "2026-07-11T12:00:00.000Z",
                 "author_user_id": "author-audio-123",
                 "author_name": "Audio Author",
@@ -537,6 +538,20 @@ struct MerianNetworkClientTests {
         let audioOnlyResponse = try decoder.decode(ExplorePostResponse.self, from: audioOnlyData)
 
         #expect(audioOnlyResponse.data.heroImageUrl.isEmpty)
+        #expect(audioOnlyResponse.data.hasAudioMedia)
+        #expect(audioOnlyResponse.data.gridThumbnailUrl == "https://images.merian.app/cardinal.jpg")
+        #expect(
+            audioOnlyResponse.data.gridThumbnailUrl(localReferenceUrl: "https://local.merian.app/cardinal.jpg")
+                == "https://images.merian.app/cardinal.jpg",
+            "The server-projected reference should take precedence when available"
+        )
+        var legacyAudioPost = audioOnlyResponse.data
+        legacyAudioPost.referenceThumbnailUrl = nil
+        #expect(
+            legacyAudioPost.gridThumbnailUrl(localReferenceUrl: "https://local.merian.app/cardinal.jpg")
+                == "https://local.merian.app/cardinal.jpg",
+            "Current-user profile grids should retain the local reference when the deployed payload predates the reference-thumbnail field"
+        )
         #expect(audioOnlyResponse.data.resolvedMediaItems.count == 1)
         #expect(audioOnlyResponse.data.resolvedMediaItems[0].kind == .audio)
         #expect(audioOnlyResponse.data.resolvedMediaItems[0].posterImageUrl(fallback: "") == nil)

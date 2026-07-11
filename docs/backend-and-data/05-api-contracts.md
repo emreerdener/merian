@@ -2821,8 +2821,9 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   public Explore snapshot.
 - Sharing snapshots image, video, and standalone-audio URLs into
   `explore_post_media`, ordered for
-  the public carousel. `hero_image_url` remains the required thumbnail and
-  backward-compatible image field; video media without an image thumbnail is
+  the public carousel. `hero_image_url` remains the backward-compatible image
+  field; author-post reads also return `reference_thumbnail_url` for compact
+  audio tiles. Video media without an image thumbnail is
   rejected with `Video thumbnail unavailable.`
 - New clients may pass ordered `media_items` using owner-scoped
   `source_media_id` values from `/get-explore-composer-media`; legacy
@@ -3535,6 +3536,8 @@ rendering:
 - `species_scientific_name`
 - `pet_identification`
 - `hero_image_url`
+- `reference_thumbnail_url` (author-post grids; nullable species reference
+  image used for audio-backed compact thumbnails)
 - `hashtags`
 - `like_count`
 - `comment_count`

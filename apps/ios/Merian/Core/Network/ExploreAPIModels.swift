@@ -111,6 +111,8 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let postId: String
     let scanId: String
     @ExploreEmptyStringIfMissing var heroImageUrl: String
+    // swiftlint:disable:next implicit_optional_initialization
+    var referenceThumbnailUrl: String? = nil
     let sharedAt: String
     let authorUserId: String
     let authorName: String
@@ -146,6 +148,34 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
 
     var hasVideoMedia: Bool {
         resolvedMediaItems.contains { $0.kind == .video }
+    }
+
+    var hasAudioMedia: Bool {
+        resolvedMediaItems.contains { $0.kind == .audio }
+    }
+
+    var gridThumbnailUrl: String {
+        gridThumbnailUrl(localReferenceUrl: nil)
+    }
+
+    func gridThumbnailUrl(localReferenceUrl: String?) -> String {
+        let serverReferenceUrl = referenceThumbnailUrl?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let localReferenceUrl = localReferenceUrl?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedReferenceUrl: String? = if let serverReferenceUrl, !serverReferenceUrl.isEmpty {
+            serverReferenceUrl
+        } else if let localReferenceUrl, !localReferenceUrl.isEmpty {
+            localReferenceUrl
+        } else {
+            nil
+        }
+
+        if hasAudioMedia,
+           let resolvedReferenceUrl {
+            return resolvedReferenceUrl
+        }
+        return heroImageUrl
     }
 
     var publicDisplayLocationLabel: String? {

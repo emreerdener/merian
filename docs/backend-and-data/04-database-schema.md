@@ -1314,10 +1314,12 @@ migration `20260703130000_add_explore_post_media.sql`.
 
 `public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
 detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
-grid, and compact surfaces should keep using `hero_image_url` thumbnails.
-In-app compact previews may add a play indicator when any returned media item is
-video, but Home Screen widgets intentionally show clean still thumbnails without
-a video badge. Scan media source
+grid, and compact surfaces normally use `hero_image_url`. The author-post RPC
+also projects `reference_thumbnail_url` from normalized/legacy species imagery;
+iOS profile and other compact Explore grids prefer it for audio-backed posts and
+add a waveform badge. Feed/detail playback remains media-item-driven. In-app
+compact previews add a play indicator for video, while Home Screen widgets
+intentionally show clean still thumbnails without a video badge. Scan media source
 resolution prefers ready display/playback/audio `scan_media_assets` rows, then
 `captured_media`, and finally legacy URL arrays so playback video URLs and
 poster thumbnails remain paired. Audio approval is checked before the
@@ -1675,7 +1677,9 @@ coordinates to the client contract.
   Returns the author's currently visible published Explore posts for the full
   profile library. Rows share the same card projection as the feed, use the same
   visibility filters as `get_explore_author_profile.preview_posts`, and page
-  stably on `(shared_at DESC, post_id DESC)`.
+  stably on `(shared_at DESC, post_id DESC)`. Each row additionally includes
+  nullable `reference_thumbnail_url`, resolved through
+  `public_species_first_reference_image_url`, for nonvisual-media thumbnails.
 - `public.field_trip_templates`:
   Curated Field Trip definitions with slug, title, region/season/habitat tags,
   difficulty, Pro/rotating-free access flags, active state, optional cover

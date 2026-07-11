@@ -2,6 +2,34 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-11-audio-reference-thumbnails",
+      "date": "2026-07-11",
+      "title": "Clearer audio scan thumbnails",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Audio posts in profile and compact Explore grids now keep the species reference photo and show a waveform badge instead of reverting to a generic image placeholder.",
+            "Audio scans in the Scans library now use the species reference photo with a waveform badge; opening the scan still shows the spectrogram and playback controls."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-11-image-decode-priority-inversion",
+      "date": "2026-07-11",
+      "title": "Smoother image loading",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Image loading no longer blocks user-initiated threads while waiting for decode capacity, reducing hang risk during fast scrolling and media-heavy screens.",
+            "Decode concurrency remains bounded to protect memory on large libraries and high-resolution media."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-11-explore-video-mute-transitions",
       "date": "2026-07-11",
       "title": "Quieter Explore video browsing",
@@ -183,7 +211,7 @@
         {
           "title": "Improved",
           "items": [
-            "Audio recordings now show denser, smoother spectrograms while recording, reviewing, playing back Insight audio, and browsing scan thumbnails."
+            "Audio recordings now show denser, smoother spectrograms while recording, reviewing staged audio, and playing back Insight audio."
           ]
         }
       ]

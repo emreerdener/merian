@@ -61,6 +61,9 @@ Merian is a field-ready biological identification app built around zero-friction
   or challenge entries that stay separate from Explore feeds and maps.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support image, short-video, and standalone-audio media snapshots.
+- Compact Explore/profile grids render standalone-audio posts with the species
+  reference photo and a waveform badge; full post media remains the playable
+  spectrogram.
 - Explore feed videos autoplay muted whenever the feed is entered or resumed;
   post detail inherits the feed's current choice, then returning to the feed
   resets playback to muted.
@@ -72,6 +75,9 @@ Merian is a field-ready biological identification app built around zero-friction
 - Completed scan-library Insights with standalone audio offer the same local
   listening boost, remembered separately per private scan and applied to every
   audio clip in that scan without changing stored media.
+- The Scans library represents standalone-audio scans with their species
+  reference photo and a waveform badge, while opening the scan retains the
+  spectrogram-first playback experience.
   Audio shares are fail-closed: the server evaluates speech and non-speech
   sounds before creating or reactivating the Explore post, so only an approved
   share becomes public. Content-addressed attestations safely avoid repeat
@@ -129,6 +135,10 @@ Merian is a field-ready biological identification app built around zero-friction
 ### Zero-OOM Design
 - All heavy database work runs through `@ModelActor` isolation: `BackgroundDatabaseActor` (live saves), `HistoricalDatabaseActor` (cloud sync), `SearchDatabaseActor` (search index builds), `FileIOActor` (image I/O).
 - 48MP ProRAW library imports route through `ImageIO` with explicit bounds, blocking RAM cache inflation that causes JetSam kills.
+- Local and remote thumbnail decoding uses a cancellation-aware four-permit
+  pool plus an explicitly QoS-tagged ImageIO queue. Excess work suspends without
+  blocking user-initiated threads, preventing priority-inversion hangs while
+  preserving the decode concurrency ceiling.
 - Image pipeline produces a 1024px JPEG for inference and a 2048px JPEG for display in a single pass.
 - Search index uses O(1) delta updates — only added/removed scans are reprocessed, never the full library.
 - Edge media handlers use capped stream readers for request JSON and R2

@@ -2,6 +2,56 @@ import CoreImage
 import Foundation
 import SwiftUI
 
+actor AsyncPermitPool {
+    private var availablePermits: Int
+    private var waiterOrder: [UUID] = []
+    private var waiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
+
+    init(limit: Int) {
+        availablePermits = max(1, limit)
+    }
+
+    func acquire() async -> Bool {
+        guard !Task.isCancelled else { return false }
+        if availablePermits > 0 {
+            availablePermits -= 1
+            return true
+        }
+
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                waiterOrder.append(id)
+                waiters[id] = continuation
+            }
+        } onCancel: {
+            Task {
+                await self.cancelWaiter(id)
+            }
+        }
+    }
+
+    func release() {
+        while let id = waiterOrder.first {
+            waiterOrder.removeFirst()
+            guard let continuation = waiters.removeValue(forKey: id) else { continue }
+            continuation.resume(returning: true)
+            return
+        }
+        availablePermits += 1
+    }
+
+    private func cancelWaiter(_ id: UUID) {
+        guard let continuation = waiters.removeValue(forKey: id) else { return }
+        waiterOrder.removeAll { $0 == id }
+        continuation.resume(returning: false)
+    }
+}
+
 // MARK: - Core Image Processing Engine
 /// Unifies APFS file rendering, sandbox extractions, and Cloudflare R2 loading autonomously handling physical cache networks natively.
 actor LocalImageLoader {
@@ -11,8 +61,15 @@ actor LocalImageLoader {
     // MARK: - Thread-Safe Task Queues
     private var activeTasks: [String: Task<UIImage?, Never>] = [:]
 
-    // Limits concurrent ImageIO decodes to prevent JetSam OOM on large grid layouts.
-    private static let decodeSemaphore = DispatchSemaphore(value: 4)
+    // Suspends excess decode tasks without blocking an OS thread. ImageIO still runs on
+    // an explicit QoS queue so synchronous Core Graphics work never occupies a Swift
+    // cooperative-executor thread.
+    private static let decodePermits = AsyncPermitPool(limit: 4)
+    private static let decodeQueue = DispatchQueue(
+        label: "app.merian.image-decode",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
 
     // Isolated session for media downloads (R2, Wikipedia thumbnails, GBIF images).
     // Separate from URLSession.shared to avoid inheriting the system-wide pool and to
@@ -55,7 +112,11 @@ actor LocalImageLoader {
             }
             // 4. Local File Extraction directly off Main Thread
             else if let safePath = imagePath, !safePath.isEmpty, !safePath.starts(with: "http") {
-                if let image = LocalImageLoader.loadLocal(path: safePath, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
+                if let image = await LocalImageLoader.loadLocal(
+                    path: safePath,
+                    cacheKey: cacheKey,
+                    maxSize: CGFloat(maxDimension)
+                ) {
                     return image
                 }
             }
@@ -130,7 +191,11 @@ actor LocalImageLoader {
     // only the final ImageCache.shared.set call crosses into the cache (which is @unchecked Sendable).
 
     /// Decodes a local APFS file path into a UIImage without touching the actor's executor.
-    private static nonisolated func loadLocal(path: String, cacheKey: String, maxSize: CGFloat) -> UIImage? {
+    private static nonisolated func loadLocal(
+        path: String,
+        cacheKey: String,
+        maxSize: CGFloat
+    ) async -> UIImage? {
         let url: URL
         if path.hasPrefix("/") {
             url = URL(fileURLWithPath: path)
@@ -141,13 +206,7 @@ actor LocalImageLoader {
             url = URL.documentsDirectory.appendingPathComponent(filename)
         }
         
-        LocalImageLoader.decodeSemaphore.wait()
-        defer { LocalImageLoader.decodeSemaphore.signal() }
-        
-        guard let cgImage = ImageDownsampler.downsample(url: url, maxSize: maxSize) else { return nil }
-        let image = UIImage(cgImage: cgImage)
-        ImageCache.shared.set(image, forKey: cacheKey)
-        return image
+        return await decodeImage(url: url, cacheKey: cacheKey, maxSize: maxSize)
     }
 
     /// Downloads a remote URL, downsamples, and caches — entirely off the actor executor.
@@ -159,23 +218,35 @@ actor LocalImageLoader {
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
             if Task.isCancelled { return nil }
             
-            let thumbnail: UIImage? = await withCheckedContinuation { continuation in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    LocalImageLoader.decodeSemaphore.wait()
-                    defer { LocalImageLoader.decodeSemaphore.signal() }
-                    
-                    if let cgImage = ImageDownsampler.downsample(url: tempURL, maxSize: maxSize) {
-                        let result = UIImage(cgImage: cgImage)
-                        ImageCache.shared.set(result, forKey: cacheKey)
-                        continuation.resume(returning: result)
-                    } else {
-                        continuation.resume(returning: nil)
-                    }
-                }
-            }
-            return thumbnail
+            return await decodeImage(url: tempURL, cacheKey: cacheKey, maxSize: maxSize)
         } catch {
             return nil
         }
+    }
+
+    private static nonisolated func decodeImage(
+        url: URL,
+        cacheKey: String,
+        maxSize: CGFloat
+    ) async -> UIImage? {
+        guard await decodePermits.acquire() else { return nil }
+        if Task.isCancelled {
+            await decodePermits.release()
+            return nil
+        }
+
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            decodeQueue.async {
+                guard let cgImage = ImageDownsampler.downsample(url: url, maxSize: maxSize) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let result = UIImage(cgImage: cgImage)
+                ImageCache.shared.set(result, forKey: cacheKey)
+                continuation.resume(returning: result)
+            }
+        }
+        await decodePermits.release()
+        return image
     }
 }

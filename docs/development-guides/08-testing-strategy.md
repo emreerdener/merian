@@ -328,7 +328,8 @@ MerianTests/
 - **`LocalImageLoaderTests.swift`**: Explicitly locks concurrent network payload
   boundaries using overarching `TaskGroup`s. Asserts `fetchNetworkFallback`
   deduplicates asynchronous URL fetches seamlessly to prevent multi-grid render
-  flooding.
+  flooding. The async decode permit tests also prove concurrency remains bounded
+  and a cancelled waiter cannot consume the next released slot.
 - **`OfflineQueueManagerTests.swift`**: Mocks queue payload insertions.
   - **In-Memory Isolation**: Spins up a `@MainActor ModelContext` with
     `.isStoredInMemoryOnly = true` to isolate test data from the user's real

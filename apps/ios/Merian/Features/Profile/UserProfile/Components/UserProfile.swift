@@ -10,6 +10,7 @@ struct UserProfile: View {
     @State private var isShowingDisplayNameEditor = false
     @State private var avatarImageToCrop: IdentifiableImage?
     @State private var selectedAvatarItem: PhotosPickerItem?
+    @State private var isShowingAvatarPicker = false
     @State private var isShowingAvatarError = false
     var totalScans: Int = 0
     var completedAchievements: Int = 0
@@ -57,6 +58,12 @@ struct UserProfile: View {
         .onChange(of: selectedAvatarItem) { _, newItem in
             handleAvatarSelection(newItem)
         }
+        .photosPicker(
+            isPresented: $isShowingAvatarPicker,
+            selection: $selectedAvatarItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
         .alert("Profile picture update failed", isPresented: $isShowingAvatarError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -103,12 +110,10 @@ struct UserProfile: View {
 
     private var profileMenu: some View {
         Menu {
-            PhotosPicker(
-                selection: $selectedAvatarItem,
-                matching: .images,
-                photoLibrary: .shared()
-            ) {
-                Label("Edit profile picture", systemImage: "person.crop.circle")
+            Button {
+                isShowingAvatarPicker = true
+            } label: {
+                Label("Replace profile pic", systemImage: "person.crop.circle")
             }
             .disabled(profileViewModel.isUpdatingAvatar)
 

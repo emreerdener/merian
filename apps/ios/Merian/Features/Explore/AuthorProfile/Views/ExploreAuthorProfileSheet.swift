@@ -554,30 +554,30 @@ struct ExploreAuthorProfileContent: View {
                  } label: {
                      if applyCornerRounding {
                          ExploreHeroImageView(
-                             imageUrl: post.heroImageUrl,
+                             imageUrl: post.gridThumbnailUrl,
                              reloadGeneration: viewModel.mediaReloadGeneration,
                              maxDimension: 360
                          )
                          .aspectRatio(1, contentMode: .fill)
                          .clipped()
-                         .overlay(alignment: .topLeading) {
-                             if post.hasVideoMedia {
-                                 ExploreMediaPlayIndicator()
+                         .overlay(alignment: .topTrailing) {
+                             if post.hasVideoMedia || post.hasAudioMedia {
+                                 ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
                                      .padding(6)
                              }
                          }
                          .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
                      } else {
                          ExploreHeroImageView(
-                             imageUrl: post.heroImageUrl,
+                             imageUrl: post.gridThumbnailUrl,
                              reloadGeneration: viewModel.mediaReloadGeneration,
                              maxDimension: 360
                          )
                          .aspectRatio(1, contentMode: .fill)
                          .clipped()
-                         .overlay(alignment: .topLeading) {
-                             if post.hasVideoMedia {
-                                 ExploreMediaPlayIndicator()
+                         .overlay(alignment: .topTrailing) {
+                             if post.hasVideoMedia || post.hasAudioMedia {
+                                 ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
                                      .padding(6)
                              }
                          }
