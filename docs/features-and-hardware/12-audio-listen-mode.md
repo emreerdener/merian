@@ -629,6 +629,18 @@ playhead, elapsed/total timestamp, audio-session handling, interruption
 recovery, and one-active-player coordination remain shared with original
 playback.
 
+### Published and Insight Spectrogram Seeking
+
+Standalone audio supports session-local seeking on focused listening surfaces.
+Explore post detail accepts tap-to-jump and full-spectrogram horizontal
+scrubbing. Insight audio pages accept tap-to-jump, but horizontal scrubbing must
+begin within the playmarker's 44-point target so the surrounding native carousel
+can still page normally. Both players pause during a drag and resume only when
+they were playing before it began. Original and boosted sources use the same
+normalized position, and VoiceOver adjusts playback in five-second steps.
+Explore feed cards remain non-seekable to preserve their playback, like, and
+navigation gesture contract.
+
 The user-facing terminology is deliberately specific: the action remains
 **Boost audio**, preparation reads **Boosting audio…**, and successful playback
 shows **Boosted audio**. Merian does not call this “enhancement” because the

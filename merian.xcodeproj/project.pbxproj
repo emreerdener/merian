@@ -137,6 +137,7 @@
 		43A85328718119E9BE89E04E /* CandidatesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F80F96AACDFF20B78DDF8B /* CandidatesCard.swift */; };
 		448656F1135935AE41FD651A /* SpeciesData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C776ECF75438F0BFF28C60D /* SpeciesData.swift */; };
 		44EDF1B3DF952B0FF930746A /* SchemaV29.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858C07DDB3180571D9B60945 /* SchemaV29.swift */; };
+		4574DCC90BDF68A603D630D8 /* AudioSpectrogramSeekingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF554CAA4EC6D371319985A /* AudioSpectrogramSeekingPolicy.swift */; };
 		459EEAFC6D1B3035A7F6C4C4 /* CandidateAlternativesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6242749D44BA7770F21974B /* CandidateAlternativesView.swift */; };
 		45EEFF67372E19625F6A6091 /* FieldTripsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E604F51CCE28A846B4BB72AD /* FieldTripsViewModel.swift */; };
 		46334DEC936DF61F454A456B /* InsightSheetViewModel+NamePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B019F2BE2C24E2FA9C286F4 /* InsightSheetViewModel+NamePreferences.swift */; };
@@ -811,6 +812,7 @@
 		7B1FFBB19657EBD5342A7158 /* ExplorePostDetailActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePostDetailActions.swift; sourceTree = "<group>"; };
 		7B43669DE64C6C9CE86BA20D /* CircuitBreakerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManager.swift; sourceTree = "<group>"; };
 		7B4383AF53352621AB9247AF /* NativePageCarousel+Coordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NativePageCarousel+Coordinator.swift"; sourceTree = "<group>"; };
+		7BF554CAA4EC6D371319985A /* AudioSpectrogramSeekingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSpectrogramSeekingPolicy.swift; sourceTree = "<group>"; };
 		7C2EEF20EBCB9603FD443564 /* LiveCapturePageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCapturePageView.swift; sourceTree = "<group>"; };
 		7D22FAD4B1F64631D1A66029 /* PostHogManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManagerTests.swift; sourceTree = "<group>"; };
 		7D31231359BDF562D3C5CFA0 /* ExploreLoadingInsightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreLoadingInsightCard.swift; sourceTree = "<group>"; };
@@ -2259,6 +2261,7 @@
 			isa = PBXGroup;
 			children = (
 				C7C4FD09F155A7038223292D /* AudioBoostProcessor.swift */,
+				7BF554CAA4EC6D371319985A /* AudioSpectrogramSeekingPolicy.swift */,
 			);
 			path = Media;
 			sourceTree = "<group>";
@@ -3999,6 +4002,7 @@
 				07AACE1A9FF454B506216DC8 /* AudioCaptureManager.swift in Sources */,
 				368C94CCCDDACB0E88F1C2FC /* AudioPlaybackCarouselPage.swift in Sources */,
 				8DA51036C973AF4D7023BCF4 /* AudioRecordingView.swift in Sources */,
+				4574DCC90BDF68A603D630D8 /* AudioSpectrogramSeekingPolicy.swift in Sources */,
 				1D86A1C91ECD0958BF77DDE9 /* BackgroundDatabaseActor.swift in Sources */,
 				BA5F42E28A2CCE151E666D42 /* BackgroundTaskWrapper.swift in Sources */,
 				786969D26364815EE24D4792 /* BiologicalView.swift in Sources */,

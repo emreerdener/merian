@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added tap-to-seek and drag-to-scrub playback directly on audio spectrograms
+  in Explore post detail. Feed cards remain playback-only so their navigation
+  gestures stay predictable.
 - Added a compact **Boost audio** control directly to standalone-audio feed
   posts. It transitions to the existing **Boosted audio** treatment when ready,
   toggles back to original audio when tapped again, and does not open post
@@ -15,6 +18,12 @@ TestFlight, App Store, support, and QA.
 - Updated Explore sharing to lead with the discovery itself: image and video
   posts now say “Check out this {species},” while audio posts say “Listen to
   this {species},” followed by the public post link.
+
+### Insights
+
+- Added tap-to-seek and playmarker dragging to completed scan audio pages.
+  Dragging the rest of an Insight media page continues to move between carousel
+  items.
 
 ### Account & Billing
 

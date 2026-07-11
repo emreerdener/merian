@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import UIKit
 
 final class PlayerDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
     var onFinish: () -> Void = {}
@@ -55,6 +56,9 @@ struct AudioPlaybackCarouselPage: View {
     @State private var isBoostedAudioReady = false
     @State private var hasTrackedBoostedPlaybackStart = false
     @State private var originalAudioLease: AudioSourceLease?
+    @State private var isAudioSeeking = false
+    @State private var audioSeekWasPlaying = false
+    @State private var audioSeekStartProgress = 0.0
     
     @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
@@ -105,18 +109,78 @@ struct AudioPlaybackCarouselPage: View {
                 .foregroundStyle(.white.opacity(0.6))
             } else {
                 GeometryReader { proxy in
-                    SpectrogramView(columns: columns, layout: .fitToData)
-                        .equatable()
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                        .allowsHitTesting(false)
-                        .overlay(alignment: .leading) {
-                            if isPlaying || playbackProgress > 0 {
-                                Rectangle()
-                                    .fill(Color.white)
-                                    .frame(width: 2)
-                                    .offset(x: proxy.size.width * playbackProgress)
-                            }
+                    ZStack(alignment: .leading) {
+                        SpectrogramView(columns: columns, layout: .fitToData)
+                            .equatable()
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .allowsHitTesting(false)
+
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .gesture(
+                                SpatialTapGesture().onEnded { value in
+                                    seekAudio(
+                                        to: AudioSpectrogramSeekingPolicy.normalizedProgress(
+                                            locationX: value.location.x,
+                                            width: proxy.size.width
+                                        )
+                                    )
+                                }
+                            )
+
+                        if isPlaying || isAudioSeeking || playbackProgress > 0 {
+                            Rectangle()
+                                .fill(Color.white)
+                                .frame(width: 2)
+                                .offset(x: AudioSpectrogramSeekingPolicy.playmarkerCenterX(
+                                    progress: playbackProgress,
+                                    width: proxy.size.width
+                                ))
+                                .allowsHitTesting(false)
                         }
+
+                        Color.clear
+                            .frame(
+                                width: AudioSpectrogramSeekingPolicy.playmarkerHitWidth,
+                                height: proxy.size.height
+                            )
+                            .contentShape(Rectangle())
+                            .position(
+                                x: min(
+                                    proxy.size.width - AudioSpectrogramSeekingPolicy.playmarkerHitWidth / 2,
+                                    max(
+                                        AudioSpectrogramSeekingPolicy.playmarkerHitWidth / 2,
+                                        AudioSpectrogramSeekingPolicy.playmarkerCenterX(
+                                            progress: playbackProgress,
+                                            width: proxy.size.width
+                                        )
+                                    )
+                                ),
+                                y: proxy.size.height / 2
+                            )
+                            .highPriorityGesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        updateAudioSeek(
+                                            translationX: value.translation.width,
+                                            width: proxy.size.width
+                                        )
+                                    }
+                                    .onEnded { value in
+                                        finishAudioSeek(
+                                            translationX: value.translation.width,
+                                            width: proxy.size.width
+                                        )
+                                    }
+                            )
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Audio position")
+                    .accessibilityValue(accessibilityPlaybackValue)
+                    .accessibilityAdjustableAction { direction in
+                        let adjustment: AudioSeekAdjustment = direction == .increment ? .forward : .backward
+                        seekAudioForAccessibility(adjustment)
+                    }
                 }
 
                 Button(action: togglePlayback) {
@@ -244,6 +308,11 @@ struct AudioPlaybackCarouselPage: View {
         let totalSeconds = Int(seconds.rounded(.down))
         return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
+
+    private var accessibilityPlaybackValue: String {
+        guard let player, player.duration > 0 else { return "Unavailable" }
+        return "\(Self.formattedTime(player.currentTime)) of \(Self.formattedTime(player.duration))"
+    }
     
     // MARK: - Handlers
 
@@ -264,6 +333,55 @@ struct AudioPlaybackCarouselPage: View {
                 MerianLog.general.debug("AudioPlaybackCarouselPage: session activation failed: \(error, privacy: .private)")
             }
         }
+    }
+
+    private func seekAudio(to progress: Double) {
+        guard let player, player.duration > 0 else { return }
+        let clampedProgress = min(1, max(0, progress))
+        player.currentTime = AudioSpectrogramSeekingPolicy.seconds(
+            progress: clampedProgress,
+            duration: player.duration
+        )
+        playbackProgress = clampedProgress
+    }
+
+    private func updateAudioSeek(translationX: CGFloat, width: CGFloat) {
+        guard let player, player.duration > 0, width > 0 else { return }
+        if !isAudioSeeking {
+            isAudioSeeking = true
+            audioSeekWasPlaying = player.isPlaying
+            audioSeekStartProgress = playbackProgress
+            player.pause()
+            isPlaying = false
+        }
+        seekAudio(to: audioSeekStartProgress + Double(translationX / width))
+    }
+
+    private func finishAudioSeek(translationX: CGFloat, width: CGFloat) {
+        guard isAudioSeeking, let player else { return }
+        seekAudio(to: audioSeekStartProgress + Double(translationX / width))
+        let shouldResume = audioSeekWasPlaying
+        isAudioSeeking = false
+        audioSeekWasPlaying = false
+        if shouldResume {
+            player.play()
+            isPlaying = true
+            trackBoostedPlaybackStartedIfNeeded()
+        }
+    }
+
+    private func seekAudioForAccessibility(_ adjustment: AudioSeekAdjustment) {
+        guard let player, player.duration > 0 else { return }
+        let progress = AudioSpectrogramSeekingPolicy.progress(
+            after: adjustment,
+            currentProgress: playbackProgress,
+            duration: player.duration
+        )
+        seekAudio(to: progress)
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: Self.formattedTime(player.currentTime)
+        )
     }
     
     // MARK: - Hardware Lifecycle

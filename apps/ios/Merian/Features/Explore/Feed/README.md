@@ -54,6 +54,13 @@ saved spectrogram with a moving playhead and elapsed/total timestamp, and it
 participates in the same one-active-player and audio-session lifecycle as other
 Explore media.
 
+Explore post detail makes the spectrogram seekable: tapping jumps to a time and
+dragging pauses temporarily while the playmarker follows the gesture, then
+resumes only when playback was active before the drag. The center playback
+control remains independently tappable and VoiceOver can adjust position in
+five-second steps. Feed spectrograms intentionally do not seek because their
+center and outer regions retain playback, like, and detail-navigation gestures.
+
 Feed cards with standalone primary audio expose a compact, filled **Boost audio**
 pill at the bottom-left of the spectrogram, while feed-card and post-detail
 ellipsis menus retain the same action. The feed pill owns its hit-test region,

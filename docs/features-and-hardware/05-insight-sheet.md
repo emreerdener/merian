@@ -282,6 +282,13 @@ standalone audio page in a mixed-media carousel, and remains independent from
 any public Explore-post preference. Restoration is silent; explicit activation
 shows progress, and successful playback displays **Boosted audio** without
 modifying the original recording.
+
+Insight audio spectrograms support focused seeking. A tap jumps playback to the
+selected time. The thin playmarker has a 44-point invisible drag target; a drag
+that starts there pauses playback while moving and resumes only if the clip was
+previously playing. Horizontal drags elsewhere continue paging through mixed
+media. VoiceOver adjusts the position in five-second steps. Seek position is
+session-local and works identically for original and boosted playback.
 3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF occurrence hydration. **Suppressed for human subjects**: `viewModel.refUrls` returns `[]` when `speciesData.isHumanSubject` is true, preventing third-party photos of people from appearing in the carousel regardless of what the server populates.
 
 **Seamless user-media handoff**: On a live scan, the saved on-disk media is rebuilt into `ActiveScanMedia` before `speciesData` is assigned and before the transient live image is cleared. On queued scans, `InsightSheetViewModel` seeds `cachedActiveMedia` directly from `queuedContext.capturedMediaSnapshot.activeScanMedia`. On completed records, `fetchLocalRecord` hydrates the same structure from `record.capturedMediaSnapshot.activeScanMedia`. That shared read path is what keeps the playback video clip, standalone audio clip, or mixed-media order intact while the sheet transitions from queued/analyzing state to results. Pending video paths may move from temporary capture storage into Documents during queue persistence, so the resolver falls back by filename before declaring video unavailable.

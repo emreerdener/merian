@@ -170,6 +170,38 @@ struct ExploreAudioBoostTests {
         #expect(AudioPlaybackCarouselPage.formattedTime(.nan) == "0:00")
     }
 
+    @Test func audioSeekingNormalizesAndClampsSpectrogramPositions() {
+        #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: -20, width: 200) == 0)
+        #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: 50, width: 200) == 0.25)
+        #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: 240, width: 200) == 1)
+        #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: 20, width: 0) == 0)
+        #expect(AudioSpectrogramSeekingPolicy.seconds(progress: 0.5, duration: 15) == 7.5)
+        #expect(AudioSpectrogramSeekingPolicy.seconds(progress: 2, duration: 15) == 15)
+    }
+
+    @Test func audioSeekingAccessibilityMovesInFiveSecondSteps() {
+        #expect(AudioSpectrogramSeekingPolicy.progress(
+            after: .forward,
+            currentProgress: 0.25,
+            duration: 20
+        ) == 0.5)
+        #expect(AudioSpectrogramSeekingPolicy.progress(
+            after: .backward,
+            currentProgress: 0.1,
+            duration: 20
+        ) == 0)
+        #expect(AudioSpectrogramSeekingPolicy.progress(
+            after: .forward,
+            currentProgress: 0.9,
+            duration: 20
+        ) == 1)
+    }
+
+    @Test func insightPlaymarkerUsesMinimumFortyFourPointTarget() {
+        #expect(AudioSpectrogramSeekingPolicy.playmarkerHitWidth == 44)
+        #expect(AudioSpectrogramSeekingPolicy.playmarkerCenterX(progress: 0.5, width: 300) == 150)
+    }
+
     @Test func returningToExploreFeedResetsVideoMutePreference() throws {
         let suite = "ExploreVideoMutePreferenceTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

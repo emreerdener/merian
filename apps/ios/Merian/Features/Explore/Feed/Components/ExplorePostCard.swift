@@ -780,6 +780,8 @@ struct ExplorePublicMediaView: View {
     @State private var isPreparingAudioBoost = false
     @State private var audioBoostPreparationFailed = false
     @State private var showsAudioBoostPreparationStatus = false
+    @State private var isAudioSeeking = false
+    @State private var audioSeekWasPlaying = false
     @AppStorage(ExploreVideoMutePreference.key) private var isMuted = true
 
     init(
@@ -886,8 +888,13 @@ struct ExplorePublicMediaView: View {
                     .zIndex(4)
             }
 
-            mediaTapLayer
-                .zIndex(2)
+            if audioSeekingMode == .fullSpectrogram {
+                audioSeekLayer
+                    .zIndex(2)
+            } else {
+                mediaTapLayer
+                    .zIndex(2)
+            }
 
             if isVideoPlaybackHost {
                 videoOverlay
@@ -1087,6 +1094,57 @@ struct ExplorePublicMediaView: View {
         onSingleTap != nil || onDoubleTap != nil
     }
 
+    private var audioSeekingMode: AudioSpectrogramSeekingMode {
+        mediaItem.kind == .audio && surface == .detail ? .fullSpectrogram : .disabled
+    }
+
+    private var audioSeekLayer: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(
+                    SpatialTapGesture().onEnded { value in
+                        seekAudioWithoutChangingPlayback(
+                            progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
+                                locationX: value.location.x,
+                                width: proxy.size.width
+                            )
+                        )
+                    }
+                )
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 8)
+                        .onChanged { value in
+                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                            updateAudioSeek(
+                                progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
+                                    locationX: value.location.x,
+                                    width: proxy.size.width
+                                )
+                            )
+                        }
+                        .onEnded { value in
+                            guard isAudioSeeking else { return }
+                            finishAudioSeek(
+                                progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
+                                    locationX: value.location.x,
+                                    width: proxy.size.width
+                                )
+                            )
+                        }
+                )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Audio position")
+                .accessibilityValue(
+                    "\(formattedAudioTime(audioElapsedSeconds)) of \(formattedAudioTime(audioDurationSeconds))"
+                )
+                .accessibilityAdjustableAction { direction in
+                    let adjustment: AudioSeekAdjustment = direction == .increment ? .forward : .backward
+                    seekAudioForAccessibility(adjustment)
+                }
+        }
+    }
+
     private var hasLocalVideoPlaybackState: Bool {
         mediaItem.kind == .video || mediaItem.kind == .audio ||
             player != nil ||
@@ -1171,6 +1229,8 @@ struct ExplorePublicMediaView: View {
             if showsVideoControls {
                 if usesFeedCenterPlaybackZone {
                     feedCenterPlaybackControl
+                } else if audioSeekingMode == .fullSpectrogram {
+                    detailAudioCenterPlaybackControl
                 } else if shouldDisplayPlaybackControl {
                     Button(action: togglePlayback) {
                         Image(systemName: playbackControlShowsPlayingIcon ? "pause.fill" : "play.fill")
@@ -1234,6 +1294,105 @@ struct ExplorePublicMediaView: View {
     private var playbackControlAccessibilityLabel: String {
         let medium = mediaItem.kind == .audio ? "audio" : "video"
         return playbackControlShowsPlayingIcon ? "Pause \(medium)" : "Play \(medium)"
+    }
+
+    private var detailAudioCenterPlaybackControl: some View {
+        ZStack {
+            if shouldDisplayPlaybackControl {
+                Image(systemName: playbackControlShowsPlayingIcon ? "pause.fill" : "play.fill")
+                    .font(.system(size: 21, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 58, height: 58)
+                    .background(.black.opacity(playbackControlShowsPlayingIcon ? 0.32 : 0.46), in: Circle())
+                    .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .frame(
+            width: ExploreFeedMediaInteractionPolicy.centerPlaybackHitSize,
+            height: ExploreFeedMediaInteractionPolicy.centerPlaybackHitSize
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: togglePlayback)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(playbackControlAccessibilityLabel)
+        .accessibilityAction {
+            togglePlayback()
+        }
+        .animation(.easeInOut(duration: 0.22), value: shouldDisplayPlaybackControl)
+    }
+
+    private func updateAudioSeek(progress: Double) {
+        guard resolvedAudioDuration > 0, let player else { return }
+        if !isAudioSeeking {
+            isAudioSeeking = true
+            audioSeekWasPlaying = player.timeControlStatus == .playing || playbackOverlayState.isPlaying
+            player.pause()
+            reducePlaybackOverlay(.playbackTemporarilyPaused)
+        }
+        applyAudioSeek(progress: progress, player: player)
+    }
+
+    private func finishAudioSeek(progress: Double) {
+        guard isAudioSeeking, let player else { return }
+        applyAudioSeek(progress: progress, player: player)
+        let shouldResume = audioSeekWasPlaying
+        isAudioSeeking = false
+        audioSeekWasPlaying = false
+        if shouldResume {
+            playbackCoordinator?.activate(playerID: playerId, surface: surface)
+            player.play()
+        } else {
+            reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+        }
+    }
+
+    private func applyAudioSeek(progress: Double, player: AVPlayer) {
+        let seconds = AudioSpectrogramSeekingPolicy.seconds(
+            progress: progress,
+            duration: resolvedAudioDuration
+        )
+        audioPlaybackProgress = progress
+        audioElapsedSeconds = seconds
+        player.seek(
+            to: CMTime(seconds: seconds, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        )
+    }
+
+    private func seekAudioForAccessibility(_ adjustment: AudioSeekAdjustment) {
+        guard resolvedAudioDuration > 0, let player else { return }
+        let progress = AudioSpectrogramSeekingPolicy.progress(
+            after: adjustment,
+            currentProgress: audioPlaybackProgress,
+            duration: resolvedAudioDuration
+        )
+        applyAudioSeek(progress: progress, player: player)
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: formattedAudioTime(audioElapsedSeconds)
+        )
+    }
+
+    private var resolvedAudioDuration: TimeInterval {
+        if audioDurationSeconds.isFinite, audioDurationSeconds > 0 {
+            return audioDurationSeconds
+        }
+        guard let duration = player?.currentItem?.duration,
+              duration.isNumeric,
+              duration.seconds.isFinite,
+              duration.seconds > 0 else {
+            return 0
+        }
+        return duration.seconds
+    }
+
+    private func seekAudioWithoutChangingPlayback(progress: Double) {
+        guard resolvedAudioDuration > 0, let player else { return }
+        applyAudioSeek(progress: progress, player: player)
     }
 
     @discardableResult
@@ -1307,6 +1466,14 @@ struct ExplorePublicMediaView: View {
             .receive(on: DispatchQueue.main)
             .sink { status in
                 isPlayerItemReady = status == .readyToPlay
+                if mediaItem.kind == .audio,
+                   status == .readyToPlay,
+                   let duration = player.currentItem?.duration,
+                   duration.isNumeric,
+                   duration.seconds.isFinite,
+                   duration.seconds > 0 {
+                    audioDurationSeconds = duration.seconds
+                }
                 if status == .failed {
                     reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
                     if mediaItem.kind == .audio {
@@ -1886,6 +2053,10 @@ struct ExplorePublicMediaView: View {
                 showPlaybackControlTemporarily()
             }
         case .paused:
+            if isAudioSeeking {
+                reducePlaybackOverlay(.playbackTemporarilyPaused)
+                return
+            }
             if playbackOverlayState.isPlaying {
                 reducePlaybackOverlay(.playbackTemporarilyPaused)
                 scheduleUnexpectedPauseRecoveryIfNeeded(for: player)
