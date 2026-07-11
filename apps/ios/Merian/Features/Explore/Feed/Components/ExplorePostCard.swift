@@ -616,6 +616,10 @@ struct ExplorePublicMediaView: View {
     @State private var videoSurfaceGeneration = 0
     @State private var pendingRecoverySeekTime: CMTime?
     @State private var playbackObservers: [NSObjectProtocol] = []
+    @State private var playbackTimeObserver: Any?
+    @State private var audioPlaybackProgress = 0.0
+    @State private var audioElapsedSeconds = 0.0
+    @State private var audioDurationSeconds = 0.0
     @State private var playbackStatusObserver: AnyCancellable?
     @State private var playerItemStatusObserver: AnyCancellable?
     @State private var isPlayerItemReady = false
@@ -665,8 +669,41 @@ struct ExplorePublicMediaView: View {
                     .opacity(isPlayerItemReady ? 0.96 : 0)
             }
 
-            mediaTapLayer
+            if mediaItem.kind == .audio,
+               audioPlaybackProgress > 0 || playbackOverlayState.isPlaying {
+                GeometryReader { proxy in
+                    Rectangle()
+                        .fill(.white.opacity(0.92))
+                        .frame(width: 2)
+                        .shadow(color: .black.opacity(0.45), radius: 2)
+                        .offset(x: max(0, min(proxy.size.width - 2, proxy.size.width * audioPlaybackProgress)))
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
                 .zIndex(1)
+            }
+
+            if mediaItem.kind == .audio, audioDurationSeconds > 0 {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Text("\(formattedAudioTime(audioElapsedSeconds)) / \(formattedAudioTime(audioDurationSeconds))")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.58), in: Capsule())
+                    }
+                }
+                .padding(12)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .zIndex(3)
+            }
+
+            mediaTapLayer
+                .zIndex(2)
 
             if isVideoPlaybackHost {
                 videoOverlay
@@ -755,9 +792,8 @@ struct ExplorePublicMediaView: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 54, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                    GlowPulsingSkeletonView(cornerRadius: 0)
+                        .accessibilityHidden(true)
                 }
             }
             .clipped()
@@ -954,6 +990,8 @@ struct ExplorePublicMediaView: View {
                 guard let player else { return }
                 logPlayback("item-ended")
                 if mediaItem.kind == .audio {
+                    audioPlaybackProgress = 0
+                    audioElapsedSeconds = 0
                     AppTelemetry.trackExploreAudioPlaybackCompleted(surface: surface.rawValue)
                 }
                 player.seek(to: .zero)
@@ -999,6 +1037,19 @@ struct ExplorePublicMediaView: View {
                     }
                 }
             }
+        playbackTimeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.1, preferredTimescale: 600),
+            queue: .main
+        ) { time in
+            guard mediaItem.kind == .audio,
+                  let duration = player.currentItem?.duration,
+                  duration.isNumeric,
+                  duration.seconds.isFinite,
+                  duration.seconds > 0 else { return }
+            audioPlaybackProgress = max(0, min(1, time.seconds / duration.seconds))
+            audioElapsedSeconds = max(0, time.seconds)
+            audioDurationSeconds = duration.seconds
+        }
         configuredVideoURL = videoURLString
         self.player = player
         if let recoverySeekTime {
@@ -1083,6 +1134,13 @@ struct ExplorePublicMediaView: View {
         playerItemStatusObserver?.cancel()
         playerItemStatusObserver = nil
         isPlayerItemReady = false
+        if let playbackTimeObserver {
+            player?.removeTimeObserver(playbackTimeObserver)
+            self.playbackTimeObserver = nil
+        }
+        audioPlaybackProgress = 0
+        audioElapsedSeconds = 0
+        audioDurationSeconds = 0
         for observer in playbackObservers {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -1109,6 +1167,11 @@ struct ExplorePublicMediaView: View {
         }
 
         return currentTime
+    }
+
+    private func formattedAudioTime(_ seconds: Double) -> String {
+        let totalSeconds = max(0, Int(seconds.rounded(.down)))
+        return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
     private func pauseForUserInteraction() {
