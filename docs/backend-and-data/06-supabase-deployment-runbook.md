@@ -93,6 +93,14 @@ composer/share/edit function bundles must deploy together so
 `scan_media_assets` and `explore_post_media` only set `has_audio` when
 `captured_media` proves an audio companion exists.
 
+Audio moderation-attestation releases are migration-first. Apply
+`20260711055524_add_explore_audio_moderation_attestations.sql` before deploying
+the updated `_shared/audioModeration.ts`, `share-scan-to-explore`, and
+`update-explore-field-notes` bundles. Functions safely fall back to live Gemini
+when the table is temporarily unavailable, but deploying the migration first
+avoids unnecessary provider calls and cache-error logs. Never deploy a function
+that treats a cache error as approval.
+
 Field Trips releases are migration-plus-function releases too. Deploy
 `20260708021110_field_trips_v1.sql` before
 `20260708033451_field_trips_v2.sql` before
@@ -461,7 +469,7 @@ After deployment:
   video signing to work.
 - Confirm `auto-purge-nonbio` and `delete-scan` were deployed after any
   `_shared/aws.ts` change.
-- For public Explore audio, confirm the audio migration is applied,
+- For public Explore audio, confirm both audio migrations are applied,
   `GEMINI_API_KEY` exists as an Edge secret, and `identify-multimodal`,
   `share-scan-to-explore`, `delete-scan`, `auto-purge-nonbio`, and
   `scan-media-health` were deployed together.
@@ -484,6 +492,11 @@ After deployment:
 - Share approved and policy-violating staging audio. Confirm only approved audio
   creates/reactivates a post, web and iOS playback requires user interaction,
   widgets omit audio-only posts, and moderation logs contain no transcript or URL.
+- Re-share the unchanged approved clip and confirm
+  `explore_audio_moderation_cache_hit` appears without a second Gemini
+  classification. Replace the bytes and confirm a new decision is created.
+  Query the attestation table as service role and verify it contains only
+  checksum, policy/model, decision, MIME type, byte size, and timestamp.
 - Delete one disposable audio scan and purge one expired non-biological audio
   scan; confirm their R2 objects disappear before their database rows do.
 - Submit or replay a short video scan and verify Edge logs do not show

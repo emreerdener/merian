@@ -235,6 +235,24 @@ Deno.test("Explore audio migration enables durable audio and public snapshots", 
   ) assertStringIncludes(sql, fragment);
 });
 
+Deno.test("Explore audio moderation attestations are content-addressed and service-only", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260711055524_add_explore_audio_moderation_attestations.sql",
+    ),
+  );
+  for (
+    const fragment of [
+      "CREATE TABLE IF NOT EXISTS public.explore_audio_moderation_attestations",
+      "PRIMARY KEY (checksum_sha256, policy_version, model)",
+      "ALTER TABLE public.explore_audio_moderation_attestations ENABLE ROW LEVEL SECURITY",
+      "REVOKE ALL ON TABLE public.explore_audio_moderation_attestations FROM PUBLIC, anon, authenticated",
+      "GRANT SELECT, INSERT ON TABLE public.explore_audio_moderation_attestations TO service_role",
+      "Stores no transcript, URL, user identity, or media bytes",
+    ]
+  ) assertStringIncludes(sql, fragment);
+});
+
 Deno.test("scan media reconciliation migration keeps the scheduled worker idempotent and service-role-only", async () => {
   const sql = normalized(
     await migrationSql(

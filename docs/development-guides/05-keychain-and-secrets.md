@@ -49,7 +49,9 @@ environment variable.**
   `/identify-describe`, and `/audio-spec` remain server-side compatibility
   routes only. The same key powers `/share-scan-to-explore`'s dedicated
   `gemini-2.5-flash` public-audio classifier; transcripts and non-speech
-  descriptions are never stored or logged.
+  descriptions are never stored or logged. A matching service-only moderation
+  attestation can approve unchanged bytes without calling Gemini; a cache miss
+  still fails closed when this key is unavailable.
 - `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side
   web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`,
   and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as

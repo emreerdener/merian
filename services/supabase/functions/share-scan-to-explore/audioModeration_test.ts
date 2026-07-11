@@ -19,9 +19,15 @@ const audioRow = {
 
 Deno.test("audio approval is a strict prerequisite for sharing", async () => {
   let calls = 0;
-  await requireApprovedAudioMedia([audioRow], () => {
-    calls += 1;
-    return Promise.resolve({ approved: true, model: "test" });
+  await requireApprovedAudioMedia([audioRow], {
+    moderate: () => {
+      calls += 1;
+      return Promise.resolve({
+        approved: true,
+        model: "test",
+        policyVersion: "test-policy",
+      });
+    },
   });
   assertEquals(calls, 1);
 });
@@ -29,11 +35,14 @@ Deno.test("audio approval is a strict prerequisite for sharing", async () => {
 Deno.test("flagged audio rejects the share before persistence", async () => {
   const error = await assertRejects(
     () =>
-      requireApprovedAudioMedia([audioRow], () =>
-        Promise.resolve({
-          approved: false,
-          model: "test",
-        })),
+      requireApprovedAudioMedia([audioRow], {
+        moderate: () =>
+          Promise.resolve({
+            approved: false,
+            model: "test",
+            policyVersion: "test-policy",
+          }),
+      }),
     Error,
     "did not pass moderation",
   ) as Error & { status?: number };
@@ -43,10 +52,9 @@ Deno.test("flagged audio rejects the share before persistence", async () => {
 Deno.test("moderation failure rejects the share as unavailable", async () => {
   const error = await assertRejects(
     () =>
-      requireApprovedAudioMedia(
-        [audioRow],
-        () => Promise.reject(new Error("provider unavailable")),
-      ),
+      requireApprovedAudioMedia([audioRow], {
+        moderate: () => Promise.reject(new Error("provider unavailable")),
+      }),
     Error,
     "Nothing was shared",
   ) as Error & { status?: number };
@@ -56,15 +64,19 @@ Deno.test("moderation failure rejects the share as unavailable", async () => {
 Deno.test("audio moderation emits an approved privacy-safe event", async () => {
   const events: Array<{ event: string; properties: Record<string, unknown> }> =
     [];
-  await requireApprovedAudioMedia(
-    [audioRow],
-    () => Promise.resolve({ approved: true, model: "test-model" }),
-    "telemetry-user",
-    (_user, event, properties = {}) => {
+  await requireApprovedAudioMedia([audioRow], {
+    moderate: () =>
+      Promise.resolve({
+        approved: true,
+        model: "test-model",
+        policyVersion: "test-policy",
+      }),
+    telemetryUserId: "telemetry-user",
+    trackEvent: (_user, event, properties = {}) => {
       events.push({ event, properties });
       return Promise.resolve();
     },
-  );
+  });
   await Promise.resolve();
 
   assertEquals(events.length, 1);
@@ -98,20 +110,23 @@ Deno.test("audio moderation emits rejected and provider-error outcomes", async (
     return Promise.resolve();
   };
   await assertRejects(() =>
-    requireApprovedAudioMedia(
-      [audioRow],
-      () => Promise.resolve({ approved: false, model: "test" }),
-      "telemetry-user",
-      track,
-    )
+    requireApprovedAudioMedia([audioRow], {
+      moderate: () =>
+        Promise.resolve({
+          approved: false,
+          model: "test",
+          policyVersion: "test-policy",
+        }),
+      telemetryUserId: "telemetry-user",
+      trackEvent: track,
+    })
   );
   await assertRejects(() =>
-    requireApprovedAudioMedia(
-      [audioRow],
-      () => Promise.reject(new Error("provider unavailable")),
-      "telemetry-user",
-      track,
-    )
+    requireApprovedAudioMedia([audioRow], {
+      moderate: () => Promise.reject(new Error("provider unavailable")),
+      telemetryUserId: "telemetry-user",
+      trackEvent: track,
+    })
   );
   await Promise.resolve();
   assertEquals(outcomes, ["rejected", "error"]);

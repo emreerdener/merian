@@ -4,12 +4,23 @@ import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
-import { moderateExploreAudioUrl } from "../_shared/audioModeration.ts";
+import {
+  AudioModerationCache,
+  moderateExploreAudioUrl,
+} from "../_shared/audioModeration.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { runBackground } from "../_shared/edgeHandler.ts";
 import { moderationLatencyBucket } from "../_shared/exploreAudioTelemetry.ts";
 
 type TrackEvent = typeof trackPostHogEvent;
+type ModerateAudio = typeof moderateExploreAudioUrl;
+
+export interface ApprovedAudioMediaOptions {
+  moderate?: ModerateAudio;
+  telemetryUserId?: string;
+  trackEvent?: TrackEvent;
+  cache?: AudioModerationCache;
+}
 
 export interface ShareEligibleScanRow {
   id: string;
@@ -315,7 +326,13 @@ export async function upsertExplorePost(
   audible_media_count: number;
 }> {
   const mediaRows = buildExplorePostMediaRows(scan, mediaItems);
-  await requireApprovedAudioMedia(mediaRows, moderateExploreAudioUrl, userId);
+  await requireApprovedAudioMedia(
+    mediaRows,
+    {
+      telemetryUserId: userId,
+      cache: exploreAudioModerationCache(supabaseAdmin),
+    },
+  );
   const sharedAt = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
@@ -363,10 +380,11 @@ export async function upsertExplorePost(
 
 export async function requireApprovedAudioMedia(
   rows: ReturnType<typeof buildExplorePostMediaRows>,
-  moderate: typeof moderateExploreAudioUrl = moderateExploreAudioUrl,
-  telemetryUserId?: string,
-  trackEvent: TrackEvent = trackPostHogEvent,
+  options: ApprovedAudioMediaOptions = {},
 ): Promise<void> {
+  const moderate = options.moderate ?? moderateExploreAudioUrl;
+  const trackEvent = options.trackEvent ?? trackPostHogEvent;
+  const { telemetryUserId, cache } = options;
   const audibleRows = rows.filter((row) =>
     row.kind === "audio" || (row.kind === "video" && row.has_audio)
   );
@@ -374,7 +392,7 @@ export async function requireApprovedAudioMedia(
   try {
     for (const row of audibleRows) {
       const startedAt = performance.now();
-      const decision = await moderate(row.url);
+      const decision = await moderate(row.url, cache);
       if (telemetryUserId) {
         runBackground(trackEvent(
           telemetryUserId,
@@ -384,6 +402,8 @@ export async function requireApprovedAudioMedia(
             outcome: decision.approved ? "approved" : "rejected",
             media_kind: row.kind,
             model: decision.model,
+            policy_version: decision.policyVersion,
+            cache_hit: decision.cacheHit ?? false,
             latency_bucket: moderationLatencyBucket(
               performance.now() - startedAt,
             ),
@@ -417,6 +437,53 @@ export async function requireApprovedAudioMedia(
       "Audio moderation is temporarily unavailable. Nothing was shared.",
     );
   }
+}
+
+export function exploreAudioModerationCache(
+  supabaseAdmin: SupabaseClient,
+): AudioModerationCache {
+  return {
+    async lookup(checksumSha256, policyVersion, model) {
+      const { data, error } = await supabaseAdmin
+        .from("explore_audio_moderation_attestations")
+        .select("approved")
+        .eq("checksum_sha256", checksumSha256)
+        .eq("policy_version", policyVersion)
+        .eq("model", model)
+        .maybeSingle();
+      if (error) {
+        throw new Error(
+          `Audio moderation cache lookup failed: ${error.message}`,
+        );
+      }
+      if (!data) return null;
+      return {
+        approved: Boolean((data as { approved: boolean }).approved),
+        model,
+        policyVersion,
+      };
+    },
+    async store(input) {
+      const { error } = await supabaseAdmin
+        .from("explore_audio_moderation_attestations")
+        .upsert({
+          checksum_sha256: input.checksumSha256,
+          policy_version: input.policyVersion,
+          model: input.model,
+          approved: input.approved,
+          media_type: input.mediaType,
+          byte_size: input.byteSize,
+        }, {
+          onConflict: "checksum_sha256,policy_version,model",
+          ignoreDuplicates: true,
+        });
+      if (error) {
+        throw new Error(
+          `Audio moderation cache store failed: ${error.message}`,
+        );
+      }
+    },
+  };
 }
 
 async function replaceExplorePostMediaRows(

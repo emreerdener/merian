@@ -1185,6 +1185,12 @@ derivation so generated media rows and Explore snapshots only mark audio when a
 captured-media video audio reference exists. Migration
 `20260710120000_add_explore_audio_moderation.sql` adds durable standalone-audio
 URLs and permits approved audio snapshots in Explore post media.
+Migration `20260711055524_add_explore_audio_moderation_attestations.sql` adds
+the service-only `explore_audio_moderation_attestations` cache. Its composite
+key is `(checksum_sha256, policy_version, model)`, so unchanged bytes can reuse
+a decision while policy/model upgrades automatically require re-moderation. It
+stores no transcript, URL, filename, user identity, or media bytes; RLS is
+enabled and client roles have no table grants.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until

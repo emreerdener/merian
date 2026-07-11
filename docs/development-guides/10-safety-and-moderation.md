@@ -16,11 +16,16 @@ When selected media contains standalone audio or an audio-bearing playback
 video, `/share-scan-to-explore` treats moderation as a precondition. Before any
 Explore post or public-media snapshot is created or reactivated, the function:
 
-1. downloads the selected media with a 12 MB hard cap;
-2. sends the bounded bytes inline to a dedicated `gemini-2.5-flash` classifier;
-3. evaluates speech, non-speech sounds, policy categories, confidence, and
+1. downloads the selected media with a 12 MB hard cap and computes SHA-256;
+2. reuses a matching content-addressed attestation only when checksum, model,
+   and publication-policy version all match;
+3. on a cache miss, sends the bounded bytes inline to a dedicated
+   `gemini-2.5-flash` classifier;
+4. evaluates speech, non-speech sounds, policy categories, confidence, and
    review state through strict structured output;
-4. continues into the normal atomic share write only when every audible
+5. persists only the checksum, decision, model, policy version, MIME type, and
+   byte size—never transcript, URL, user identity, filename, or media bytes;
+6. continues into the normal atomic share write only when every audible
    selected item is approved.
 
 Rejected classifications and any fetch, provider, configuration, or response-shape
@@ -34,7 +39,10 @@ supported audio MIME type; audio-bearing MP4 uses `video/mp4` so Gemini evaluate
 the actual container instead of relabeling video bytes as WAV.
 Public web post pages include a report action containing the immutable post id.
 Structured moderation telemetry logs only outcome, model, latency, and sanitized
-errors; transcripts and media URLs must never be logged.
+errors; transcripts and media URLs must never be logged. A policy-version or
+model change is an automatic cache miss, so changed safety rules always force a
+new Gemini decision. Cache read/write failures degrade to live moderation and
+never bypass the publication gate.
 
 ## Architecture Overview
 

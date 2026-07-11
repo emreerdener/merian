@@ -210,9 +210,11 @@ claim window and marked `failed_terminal` with
 forever on a permanently broken replay payload.
 
 This worker is deliberately a dispatcher, not a second inference pipeline.
-`identify-multimodal` remains the only owner of Gemini calls, moderation,
-playback-video promotion, scan insertion, `captured_media`, and asset
-finalization. Existing complete scan rows are marked complete without replay;
+`identify-multimodal` remains the only owner of scan-identification Gemini
+calls, scan-ingestion moderation, playback-video promotion, scan insertion,
+`captured_media`, and asset finalization. Explore publication moderation is a
+separate fail-closed classifier owned by `share-scan-to-explore`. Existing
+complete scan rows are marked complete without replay;
 existing incomplete video rows are left retryable for media reconciliation or
 local-video repair.
 
@@ -1162,6 +1164,13 @@ fetches a bounded batch of expired local non-biological records, deletes rows,
 queues `PendingCloudDeletionTask` tombstones, commits SwiftData first, and only
 then returns local media paths for `FileIOActor` cleanup.
 
+Explore audio moderation attestations are database metadata, not R2 media.
+Deleting a scan or its audio removes the media object and public references but
+does not currently delete the global checksum decision, because the row has no
+user, URL, post, or scan identity and may protect against repeated submission
+of identical bytes. Operators may prune obsolete model/policy generations; old
+generations are never reused after the derived policy hash or model changes.
+
 ## Token Cost Analytics (`services/supabase/analytics/`)
 
 `services/supabase/analytics/` contains version-controlled SQL queries for LLM
@@ -1476,10 +1485,11 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
-- **`GEMINI_API_KEY`**: Also authenticates the dedicated
+- The same **`GEMINI_API_KEY`** also authenticates the dedicated
   `gemini-2.5-flash` speech/non-speech classifier used by the fail-closed Explore
-  audio publication gate.
-  Audio posts remain hidden or rejected when this secret is absent.
+  audio publication gate. A valid content-addressed attestation can be reused
+  while Gemini is unavailable; cache misses remain rejected when this secret is
+  absent.
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
 - **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants
   backend write access to the R2 Storage bucket.

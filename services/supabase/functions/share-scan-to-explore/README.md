@@ -86,10 +86,11 @@ Legacy `hidden` input is accepted as `private`.
 
 All successful shares return `200` with `publication_status = "published"`.
 For standalone audio or an audio-bearing video,
-`_shared/audioModeration.ts` must transcribe and approve every audible selected
-item before the post/media upsert runs. Flagged speech or non-speech content returns `422`;
-provider or configuration failures return `503`. In both cases nothing is
-created, reactivated, or made public.
+`_shared/audioModeration.ts` must resolve an approved attestation for every
+audible selected item before the post/media upsert runs. A matching attestation
+can be reused; otherwise Gemini evaluates speech and non-speech content live.
+Flagged content returns `422`; provider or configuration failures on a cache
+miss return `503`. In both cases nothing is created, reactivated, or made public.
 
 The function emits privacy-safe PostHog funnel events for each audible media
 moderation outcome and for successful publication. Properties are limited to
@@ -97,6 +98,13 @@ coarse outcome, media composition, model, latency bucket, and location-sharing
 mode. They never include transcripts, media URLs, filenames, post IDs, species
 identity, or coordinates. Telemetry uses the Edge background execution lock so
 PostHog latency cannot delay publication.
+
+Moderation decisions are cached by SHA-256, policy version, and model in
+`explore_audio_moderation_attestations`. The cache is shared across identical
+bytes without storing a URL or user identity. Cache hits avoid a second Gemini
+call; changed bytes, policy versions, or models force live moderation. Cache
+failures fall back to live Gemini classification and never approve content by
+default.
 
 ## Rules
 
@@ -123,7 +131,9 @@ PostHog latency cannot delay publication.
   videos without a thumbnail are rejected.
 - Audio moderation reuses the `GEMINI_API_KEY` Edge secret. Gemini transcripts
   and non-speech descriptions are not persisted, logged, or returned to clients.
-- The policy is supplied as an immutable system instruction. Standalone audio
+- The policy is supplied as an immutable system instruction and its effective
+  cache version is derived from the prompt, categories, confidence threshold,
+  and structured-output contract. Standalone audio
   keeps a supported audio MIME type and audible playback video keeps
   `video/mp4`; unsupported or ambiguous media types fail closed.
 - Audio moderation runs before `explore_posts`, `explore_post_media`, hashtags,

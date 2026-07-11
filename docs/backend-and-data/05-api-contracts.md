@@ -2845,12 +2845,17 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   the `captured_media` video audio reference. Legacy URL-array video sources
   default false because they do not prove that an audio companion exists.
 - If any selected item is standalone audio or an audio-bearing video,
-  the dedicated `gemini-2.5-flash` structured audio classifier must approve
-  every audible item before the Explore post/media upsert runs. A rejected clip
+  every audible item must have a matching content-addressed attestation or pass
+  the dedicated `gemini-2.5-flash` structured audio classifier before the
+  Explore post/media upsert runs. Attestations match SHA-256, model, and the
+  automatically derived policy-contract hash; changed bytes or rules force a
+  new decision. A rejected clip
   returns `422`; provider/configuration failures return `503`. Neither failure
   creates, reactivates, or changes a public post. Successful shares return
   `200` with `publication_status = published`. The transcript and non-speech
   description are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`.
+  Cache lookup/store failures degrade to live classification rather than
+  approving by default.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved
@@ -2942,6 +2947,10 @@ Rules:
   metadata follows the selected source's actual audio evidence instead of the
   media kind. Legacy URL-based reorders are accepted only for rows already
   present on the post.
+- An edit that includes audible media uses the same fail-closed attestation gate
+  as initial sharing. Unchanged bytes normally reuse the checksum/model/policy
+  decision; replaced bytes or a changed moderation contract call Gemini again.
+  Editing text or location without `media_items` does not re-moderate media.
 - Changing `location_sharing` reprojects only the post-owned public location
   fields. It does not mutate `scans.geoprivacy` or the user's global default.
 - The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and

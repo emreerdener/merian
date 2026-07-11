@@ -560,19 +560,24 @@ separate from biological identification:
 
 1. `/share-scan-to-explore` resolves the selected audio without writing or
    reactivating an Explore post.
-2. `_shared/audioModeration.ts` fetches the bounded clip and sends it inline to
-   a dedicated `gemini-2.5-flash` structured classifier that evaluates speech,
-   non-speech sounds, policy categories, confidence, and review state.
-3. An approved result allows the normal atomic post/media share write to run.
+2. `_shared/audioModeration.ts` fetches the bounded clip, computes SHA-256, and
+   checks for an attestation with the same checksum, model, and derived policy
+   contract.
+3. On a cache miss, it sends the clip inline to a dedicated
+   `gemini-2.5-flash` structured classifier that evaluates speech, non-speech
+   sounds, policy categories, confidence, and review state.
+4. An approved result allows the normal atomic post/media share write to run.
    A flagged result or provider/configuration failure returns an error and
    leaves the prior Explore state unchanged; failures never publish a post.
-4. The Edge deployment reuses `GEMINI_API_KEY`. Transcripts and non-speech
+5. The Edge deployment reuses `GEMINI_API_KEY`. Transcripts and non-speech
    descriptions remain in function memory and are not written to Postgres,
    logs, or client payloads.
 
-This v1 primarily protects against harmful speech. It does not claim complete
-classification of non-speech sounds; user reporting remains the
-post-publication safety layer.
+The classifier covers both speech and meaningful non-speech sounds, but no
+model can guarantee complete detection; user reporting remains the
+post-publication safety layer. The attestation row stores only checksum,
+decision, policy/model identity, MIME type, byte size, and timestamp. It stores
+no audio, transcript, URL, filename, or user identity.
 
 Approved audio is available in the iOS Explore feed and public Next.js share
 pages. Web playback uses native browser controls, requires user interaction, and
@@ -583,10 +588,12 @@ before applying its 12-item cap.
 
 ### Error Status Semantics
 
-Mirrors the other inference endpoints: Gemini API failures → 503 (transient, iOS
-offline queue retries with persisted `queueNextRetryAt`); malformed JSON → 422
-(permanent validation failure marked as needs attention); malformed audio
-payloads → 400.
+A cache hit returns the prior decision without requiring Gemini. On a cache
+miss, Gemini API failures produce 503; malformed or policy-rejected decisions
+produce the endpoint's bounded validation/rejection response; malformed media
+payloads produce 400-class errors. Cache read/write failures never approve by
+default: reads fall back to live moderation and write failures leave the live
+decision valid for that request.
 
 ---
 
@@ -602,7 +609,7 @@ payloads → 400.
 | Two-phase R2 audio upload                        | **Complete for queued replay** — foreground live audio remains inline by design                                                   |
 | `deleteQueuedScan` / purge audio cleanup         | **Complete** — cleans Documents WAV on delete/purge                                                                               |
 | Durable standalone audio media                   | **Complete** — promoted into `audio_storage_urls`, `captured_media`, and ready normalized asset rows                              |
-| Explore audio publication moderation             | **Complete** — Gemini speech/non-speech classifier is a synchronous share precondition                                           |
+| Explore audio publication moderation             | **Complete** — a content-addressed attestation or fresh Gemini speech/non-speech decision is a synchronous share precondition     |
 
 ## 2026-04 Hardening Updates
 

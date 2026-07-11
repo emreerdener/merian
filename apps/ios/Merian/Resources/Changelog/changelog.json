@@ -10,7 +10,8 @@
           "title": "New",
           "items": [
             "Standalone audio scans can now be selected and played in Explore posts.",
-            "Speech is checked for harmful content before an audio share succeeds, so rejected or unavailable checks create no public post.",
+            "Speech and non-speech sounds are checked for harmful content before an audio share succeeds, so rejected or unavailable checks create no public post.",
+            "Previously approved recordings can reuse a privacy-safe content decision when the recording and safety policy are unchanged.",
             "Approved audio posts can play in Explore and on public web share pages; audio-only posts remain excluded from Home Screen widgets.",
             "Deleting or automatically expiring a scan now removes its standalone audio from cloud storage."
           ]

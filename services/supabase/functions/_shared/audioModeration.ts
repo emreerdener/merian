@@ -1,7 +1,7 @@
 import { encodeBase64 } from "@std/encoding-base64";
 import { readResponseArrayBufferWithinBudget } from "./mediaBudgets.ts";
 
-const AUDIO_MODERATION_MODEL = "gemini-2.5-flash";
+export const AUDIO_MODERATION_MODEL = "gemini-2.5-flash";
 const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
 const MIN_APPROVAL_CONFIDENCE = 0.85;
 const AUDIO_PUBLICATION_POLICY =
@@ -29,6 +29,13 @@ const POLICY_CATEGORIES = [
   "personal_data",
   "other_harmful_content",
 ] as const;
+const AUDIO_MODERATION_CONTRACT_VERSION = "structured-output-v1";
+const policyVersionPromise = sha256Text([
+  AUDIO_PUBLICATION_POLICY,
+  POLICY_CATEGORIES.join(","),
+  String(MIN_APPROVAL_CONFIDENCE),
+  AUDIO_MODERATION_CONTRACT_VERSION,
+].join("\n"));
 
 type PolicyCategory = typeof POLICY_CATEGORIES[number];
 
@@ -44,6 +51,25 @@ type GeminiAudioClassification = {
 export interface AudioModerationDecision {
   approved: boolean;
   model: string;
+  policyVersion: string;
+  checksumSha256?: string;
+  cacheHit?: boolean;
+}
+
+export interface AudioModerationCache {
+  lookup(
+    checksumSha256: string,
+    policyVersion: string,
+    model: string,
+  ): Promise<AudioModerationDecision | null>;
+  store(input: {
+    checksumSha256: string;
+    policyVersion: string;
+    model: string;
+    approved: boolean;
+    mediaType: string;
+    byteSize: number;
+  }): Promise<void>;
 }
 
 type GeminiGenerate = (
@@ -211,26 +237,80 @@ export async function classifyExploreAudio(
       classification.policy_categories.length === 0 &&
       classification.confidence >= MIN_APPROVAL_CONFIDENCE,
     model: AUDIO_MODERATION_MODEL,
+    policyVersion: await policyVersionPromise,
   };
 }
 
 export async function moderateExploreAudioUrl(
   url: string,
+  cache?: AudioModerationCache,
+  fetcher: typeof fetch = fetch,
+  generate: GeminiGenerate = generateGeminiClassification,
 ): Promise<AudioModerationDecision> {
   const startedAt = performance.now();
   try {
-    if (!Deno.env.get("GEMINI_API_KEY")?.trim()) {
+    const audio = await fetchBoundedModerationMedia(url, fetcher);
+    const checksumSha256 = await sha256Hex(audio.bytes);
+    const policyVersion = await policyVersionPromise;
+    if (cache) {
+      try {
+        const cached = await cache.lookup(
+          checksumSha256,
+          policyVersion,
+          AUDIO_MODERATION_MODEL,
+        );
+        if (cached) {
+          console.log(JSON.stringify({
+            event: "explore_audio_moderation_cache_hit",
+            approved: cached.approved,
+            elapsed_ms: Math.round(performance.now() - startedAt),
+            model: cached.model,
+            policy_version: cached.policyVersion,
+          }));
+          return { ...cached, checksumSha256, cacheHit: true };
+        }
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "explore_audio_moderation_cache_lookup_failed",
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      }
+    }
+    if (
+      generate === generateGeminiClassification &&
+      !Deno.env.get("GEMINI_API_KEY")?.trim()
+    ) {
       throw new Error("GEMINI_API_KEY is not configured.");
     }
-    const audio = await fetchBoundedModerationMedia(url);
-    const decision = await classifyExploreAudio(audio.bytes, audio.mimeType);
+    const decision = await classifyExploreAudio(
+      audio.bytes,
+      audio.mimeType,
+      generate,
+    );
+    if (cache) {
+      try {
+        await cache.store({
+          checksumSha256,
+          policyVersion: decision.policyVersion,
+          model: decision.model,
+          approved: decision.approved,
+          mediaType: audio.mimeType,
+          byteSize: audio.bytes.byteLength,
+        });
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "explore_audio_moderation_cache_store_failed",
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      }
+    }
     console.log(JSON.stringify({
       event: "explore_audio_moderation_complete",
       approved: decision.approved,
       elapsed_ms: Math.round(performance.now() - startedAt),
       model: decision.model,
     }));
-    return decision;
+    return { ...decision, checksumSha256, cacheHit: false };
   } catch (error) {
     console.error(JSON.stringify({
       event: "explore_audio_moderation_failed",
@@ -239,4 +319,15 @@ export async function moderateExploreAudioUrl(
     }));
     throw error;
   }
+}
+
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
+}
+
+async function sha256Text(value: string): Promise<string> {
+  return await sha256Hex(new TextEncoder().encode(value).buffer);
 }

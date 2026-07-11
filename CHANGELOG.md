@@ -187,6 +187,9 @@ TestFlight, App Store, support, and QA.
   speech and non-speech classification, removing the separate OpenAI dependency.
 - Hardened Gemini audio moderation against media prompt injection, preserved MP4
   typing for audible videos, and added transport plus ingestion-owner CI checks.
+- Added privacy-safe, content-addressed audio moderation attestations so
+  unchanged clips reuse decisions while changed media, models, or policy rules
+  automatically require a fresh Gemini check.
 - Added Explore post management actions to the Insight top menu so published
   scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts

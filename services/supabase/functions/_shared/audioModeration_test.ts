@@ -6,9 +6,11 @@ import {
 import {
   classifyExploreAudio,
   fetchBoundedModerationMedia,
+  moderateExploreAudioUrl,
   parseGeminiAudioClassification,
   resolveGeminiMediaType,
 } from "./audioModeration.ts";
+import type { AudioModerationCache } from "./audioModeration.ts";
 
 function response(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -28,7 +30,12 @@ Deno.test("Gemini audio classifier approves only a consistent high-confidence re
     "audio/wav",
     () => Promise.resolve(response()),
   );
-  assertEquals(decision, { approved: true, model: "gemini-2.5-flash" });
+  assertEquals(decision, {
+    approved: true,
+    model: "gemini-2.5-flash",
+    policyVersion: decision.policyVersion,
+  });
+  assertEquals(decision.policyVersion.length, 64);
 });
 
 Deno.test("Gemini audio classifier routes low-confidence decisions away from publication", async () => {
@@ -140,4 +147,64 @@ Deno.test("moderation media fetch rejects empty and oversized responses", async 
     Error,
     "empty or exceeds",
   );
+});
+
+Deno.test("content-addressed moderation reuses decisions without storing sensitive data", async () => {
+  const decisions = new Map<string, boolean>();
+  const stores: Array<Record<string, unknown>> = [];
+  const cache: AudioModerationCache = {
+    lookup(checksum, policyVersion, model) {
+      const approved = decisions.get(checksum);
+      return Promise.resolve(
+        approved === undefined ? null : {
+          approved,
+          model,
+          policyVersion,
+        },
+      );
+    },
+    store(input) {
+      stores.push(input);
+      decisions.set(input.checksumSha256, input.approved);
+      return Promise.resolve();
+    },
+  };
+  let generations = 0;
+  const fetcher = () =>
+    Promise.resolve(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: { "content-type": "audio/wav" },
+      }),
+    );
+  const generate = () => {
+    generations += 1;
+    return Promise.resolve(response());
+  };
+
+  const first = await moderateExploreAudioUrl(
+    "https://media.merian.app/public_uploads/pro/clip.wav",
+    cache,
+    fetcher,
+    generate,
+  );
+  const second = await moderateExploreAudioUrl(
+    "https://media.merian.app/public_uploads/pro/renamed.wav",
+    cache,
+    fetcher,
+    generate,
+  );
+
+  assertEquals(first.cacheHit, false);
+  assertEquals(second.cacheHit, true);
+  assertEquals(generations, 1);
+  assertEquals(stores.length, 1);
+  assertEquals(Object.keys(stores[0]).sort(), [
+    "approved",
+    "byteSize",
+    "checksumSha256",
+    "mediaType",
+    "model",
+    "policyVersion",
+  ]);
+  assertEquals((stores[0].checksumSha256 as string).length, 64);
 });

@@ -60,9 +60,11 @@ Merian is a field-ready biological identification app built around zero-friction
   or challenge entries that stay separate from Explore feeds and maps.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support image, short-video, and standalone-audio media snapshots.
-  Audio shares are fail-closed: the server transcribes and moderates the clip
-  before creating or reactivating the Explore post, so only an approved share
-  becomes public. Feed and detail reuse the shared AVPlayer host for video/audio, while
+  Audio shares are fail-closed: the server evaluates speech and non-speech
+  sounds before creating or reactivating the Explore post, so only an approved
+  share becomes public. Content-addressed attestations safely avoid repeat
+  Gemini calls when the bytes, model, and policy contract are unchanged. Feed
+  and detail reuse the shared AVPlayer host for video/audio, while
   maps, widgets, and compact profile previews stay thumbnail-first.
 - Author profiles open inside the Explore navigation stack, expose
   privacy-scoped public stats, non-opening public achievements, and

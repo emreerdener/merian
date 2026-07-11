@@ -8,9 +8,11 @@ posture for both authenticated and ghost users.
 ## Locked Product Decisions
 
 - Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.
-- Audio sharing is manual and fail-closed. Transcript moderation must approve
-  the selected media before the Explore post is created or reactivated;
-  flagged or failed checks do not change public state.
+- Audio sharing is manual and fail-closed. Speech and non-speech moderation must
+  approve the selected media before the Explore post is created or reactivated;
+  flagged or failed checks do not change public state. An unchanged clip may
+  reuse a content-addressed attestation only when its SHA-256, model, and
+  derived policy-contract hash all match.
 - Post descriptions/captions are out of scope in V1.
 - Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications and Field Trip activity are in-app only.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.

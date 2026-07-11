@@ -1,6 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
-import { requireApprovedAudioMedia } from "../share-scan-to-explore/db.ts";
+import {
+  exploreAudioModerationCache,
+  requireApprovedAudioMedia,
+} from "../share-scan-to-explore/db.ts";
 
 export interface ExistingExplorePostMediaSelection {
   kind: "image" | "video" | "audio";
@@ -130,14 +133,20 @@ async function replaceExplorePostMedia(
     )
     : await mediaRowsFromExistingPost(postId, mediaItems, supabaseAdmin);
 
-  await requireApprovedAudioMedia(rows as Array<{
-    kind: "image" | "video" | "audio";
-    url: string;
-    thumbnail_url: string;
-    order_index: number;
-    duration_seconds: number | null;
-    has_audio: boolean;
-  }>);
+  await requireApprovedAudioMedia(
+    rows as Array<{
+      kind: "image" | "video" | "audio";
+      url: string;
+      thumbnail_url: string;
+      order_index: number;
+      duration_seconds: number | null;
+      has_audio: boolean;
+    }>,
+    {
+      telemetryUserId: userId,
+      cache: exploreAudioModerationCache(supabaseAdmin),
+    },
+  );
 
   const { error: deleteError } = await supabaseAdmin
     .from("explore_post_media")
