@@ -15,11 +15,13 @@ Service-role health endpoint for scan media durability.
   `scan_ingestion_intents` rows or whose intents are non-resumable because
   inline media bytes were intentionally redacted.
 - Reports stale `scan_media_assets` capture-upload rows, failed media assets,
-  and recent video scans whose durable media surfaces disagree.
+  and recent video/audio scans whose durable media surfaces disagree.
 - Detects recent video-specific drift such as `video_storage_urls` without a
   video item in `captured_media`, missing ready playback `scan_media_assets`, or
   frame-only video-smell rows.
 - Reports Explore video media rows that are missing poster thumbnails.
+- Reports durable audio missing its captured-media manifest or ready normalized
+  asset, plus public Explore audio rows without playable URLs.
 - Includes the latest reconciliation run status so operators can tell whether
   the repair worker is healthy.
 

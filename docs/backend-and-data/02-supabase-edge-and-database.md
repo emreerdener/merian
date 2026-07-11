@@ -1476,8 +1476,9 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
-- **`OPENAI_API_KEY`**: Authenticates `gpt-4o-mini-transcribe` and
-  `omni-moderation-latest` for the fail-closed Explore audio publication gate.
+- **`GEMINI_API_KEY`**: Also authenticates the dedicated
+  `gemini-2.5-flash` speech/non-speech classifier used by the fail-closed Explore
+  audio publication gate.
   Audio posts remain hidden or rejected when this secret is absent.
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
 - **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants

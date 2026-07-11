@@ -15,19 +15,21 @@ const audioRow = {
 
 Deno.test("audio approval is a strict prerequisite for sharing", async () => {
   let calls = 0;
-  await requireApprovedAudioMedia([audioRow], async () => {
+  await requireApprovedAudioMedia([audioRow], () => {
     calls += 1;
-    return { approved: true, model: "test" };
+    return Promise.resolve({ approved: true, model: "test" });
   });
   assertEquals(calls, 1);
 });
 
 Deno.test("flagged audio rejects the share before persistence", async () => {
   const error = await assertRejects(
-    () => requireApprovedAudioMedia([audioRow], async () => ({
-      approved: false,
-      model: "test",
-    })),
+    () =>
+      requireApprovedAudioMedia([audioRow], () =>
+        Promise.resolve({
+          approved: false,
+          model: "test",
+        })),
     Error,
     "did not pass moderation",
   ) as Error & { status?: number };
@@ -36,9 +38,11 @@ Deno.test("flagged audio rejects the share before persistence", async () => {
 
 Deno.test("moderation failure rejects the share as unavailable", async () => {
   const error = await assertRejects(
-    () => requireApprovedAudioMedia([audioRow], async () => {
-      throw new Error("provider unavailable");
-    }),
+    () =>
+      requireApprovedAudioMedia(
+        [audioRow],
+        () => Promise.reject(new Error("provider unavailable")),
+      ),
     Error,
     "Nothing was shared",
   ) as Error & { status?: number };

@@ -560,14 +560,15 @@ separate from biological identification:
 
 1. `/share-scan-to-explore` resolves the selected audio without writing or
    reactivating an Explore post.
-2. `_shared/audioModeration.ts` fetches the bounded clip, transcribes it with
-   `gpt-4o-mini-transcribe`, and sends only the transcript to
-   `omni-moderation-latest`.
+2. `_shared/audioModeration.ts` fetches the bounded clip and sends it inline to
+   a dedicated `gemini-2.5-flash` structured classifier that evaluates speech,
+   non-speech sounds, policy categories, confidence, and review state.
 3. An approved result allows the normal atomic post/media share write to run.
    A flagged result or provider/configuration failure returns an error and
    leaves the prior Explore state unchanged; failures never publish a post.
-4. The Edge deployment requires `OPENAI_API_KEY`. The transcript is held only
-   in function memory and is not written to Postgres, logs, or client payloads.
+4. The Edge deployment reuses `GEMINI_API_KEY`. Transcripts and non-speech
+   descriptions remain in function memory and are not written to Postgres,
+   logs, or client payloads.
 
 This v1 primarily protects against harmful speech. It does not claim complete
 classification of non-speech sounds; user reporting remains the
@@ -601,7 +602,7 @@ payloads → 400.
 | Two-phase R2 audio upload                        | **Complete for queued replay** — foreground live audio remains inline by design                                                   |
 | `deleteQueuedScan` / purge audio cleanup         | **Complete** — cleans Documents WAV on delete/purge                                                                               |
 | Durable standalone audio media                   | **Complete** — promoted into `audio_storage_urls`, `captured_media`, and ready normalized asset rows                              |
-| Explore transcript moderation                    | **Complete** — synchronous share precondition; only approved audio can create/reactivate a public post                            |
+| Explore audio publication moderation             | **Complete** — Gemini speech/non-speech classifier is a synchronous share precondition                                           |
 
 ## 2026-04 Hardening Updates
 

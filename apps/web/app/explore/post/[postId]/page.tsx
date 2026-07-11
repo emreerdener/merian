@@ -24,6 +24,7 @@ import {
   type ExplorePost,
 } from "@/lib/explore";
 import { compactSpeciesTitle, postTitle } from "@/lib/formatting";
+import { supportMailto } from "@/lib/site";
 import {
   IconAlertTriangle,
   IconArrowLeft,
@@ -31,6 +32,7 @@ import {
   IconCloud,
   IconBinoculars,
   IconMapPin,
+  IconFlag,
   IconUser,
 } from "@tabler/icons-react";
 import { ImageCarousel } from "@/components/ImageCarousel";
@@ -269,6 +271,19 @@ export default async function ExplorePostPage({
                 ))}
               </Group>
             ) : null}
+
+            <Group justify="center">
+              <Button
+                component="a"
+                href={supportMailto(`Report Explore post ${post.postId}`)}
+                variant="subtle"
+                color="gray"
+                size="compact-sm"
+                leftSection={<IconFlag size={15} />}
+              >
+                Report this post
+              </Button>
+            </Group>
 
             {hazardType !== "none" ? (
               <Card

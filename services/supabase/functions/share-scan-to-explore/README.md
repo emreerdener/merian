@@ -114,8 +114,8 @@ created, reactivated, or made public.
   image URL or video thumbnail becomes the computed `hero_image_url`.
 - Empty media selections, unsupported media kinds, invalid source indexes, and
   videos without a thumbnail are rejected.
-- Audio moderation requires the `OPENAI_API_KEY` Edge secret. Transcripts are
-  not persisted or returned to clients.
+- Audio moderation reuses the `GEMINI_API_KEY` Edge secret. Gemini transcripts
+  and non-speech descriptions are not persisted, logged, or returned to clients.
 - Audio moderation runs before `explore_posts`, `explore_post_media`, hashtags,
   or resolved-community publication state is mutated. Approval is therefore a
   strict prerequisite for the share, not a post-publication status.

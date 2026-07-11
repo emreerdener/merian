@@ -181,6 +181,10 @@ TestFlight, App Store, support, and QA.
   excluded from Home Screen widgets.
 - Fixed standalone-audio R2 cleanup so user scan deletion, the 30-day
   non-biological purge, and failed-ingestion rollback do not orphan recordings.
+- Added public-audio health checks, privacy-safe moderation telemetry, web
+  reporting, and CI contracts for moderation and lifecycle behavior.
+- Consolidated public-audio moderation on Gemini 2.5 Flash with structured
+  speech and non-speech classification, removing the separate OpenAI dependency.
 - Added Explore post management actions to the Insight top menu so published
   scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts

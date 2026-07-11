@@ -10,23 +10,27 @@ and public-audio safety are intentionally different decisions: a clip may be
 valid biological evidence while its background speech is unsuitable for a
 public feed.
 
-## Explore Audio Transcript Moderation
+## Explore Audio Publication Moderation
 
 When selected media contains standalone audio or an audio-bearing playback
 video, `/share-scan-to-explore` treats moderation as a precondition. Before any
 Explore post or public-media snapshot is created or reactivated, the function:
 
 1. downloads the selected media with a 12 MB hard cap;
-2. transcribes it using `gpt-4o-mini-transcribe`;
-3. checks the transcript with `omni-moderation-latest`;
+2. sends the bounded bytes inline to a dedicated `gemini-2.5-flash` classifier;
+3. evaluates speech, non-speech sounds, policy categories, confidence, and
+   review state through strict structured output;
 4. continues into the normal atomic share write only when every audible
    selected item is approved.
 
-Flagged transcripts and any fetch, provider, configuration, or response-shape
+Rejected classifications and any fetch, provider, configuration, or response-shape
 failure return an error and leave the prior Explore state unchanged; nothing is
-shared. The transcript is not persisted. `OPENAI_API_KEY` is a required Edge
-secret for this path. This is a
-speech-focused v1; manual reports remain necessary for harmful non-speech audio.
+shared. Transcripts and non-speech descriptions are not persisted or logged.
+This path reuses the existing `GEMINI_API_KEY` Edge secret. Manual reports
+remain necessary because model moderation cannot guarantee complete detection.
+Public web post pages include a report action containing the immutable post id.
+Structured moderation telemetry logs only outcome, model, latency, and sanitized
+errors; transcripts and media URLs must never be logged.
 
 ## Architecture Overview
 

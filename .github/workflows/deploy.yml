@@ -67,6 +67,11 @@ jobs:
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanMediaDeletion.ts \
+            supabase/functions/_shared/scanMediaDeletion_test.ts \
+            supabase/functions/_shared/audioModeration.ts \
+            supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
@@ -83,6 +88,11 @@ jobs:
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanMediaDeletion.ts \
+            supabase/functions/_shared/scanMediaDeletion_test.ts \
+            supabase/functions/_shared/audioModeration.ts \
+            supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
@@ -100,6 +110,11 @@ jobs:
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanMediaDeletion.ts \
+            supabase/functions/_shared/scanMediaDeletion_test.ts \
+            supabase/functions/_shared/audioModeration.ts \
+            supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/share-scan-to-explore/index.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
@@ -114,6 +129,9 @@ jobs:
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanMediaDeletion_test.ts \
+            supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/insight-chat/guards_test.ts \

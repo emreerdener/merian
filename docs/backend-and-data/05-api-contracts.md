@@ -2845,12 +2845,12 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   the `captured_media` video audio reference. Legacy URL-array video sources
   default false because they do not prove that an audio companion exists.
 - If any selected item is standalone audio or an audio-bearing video,
-  `gpt-4o-mini-transcribe` plus `omni-moderation-latest` must approve every
-  audible item before the Explore post/media upsert runs. A flagged transcript
+  the dedicated `gemini-2.5-flash` structured audio classifier must approve
+  every audible item before the Explore post/media upsert runs. A rejected clip
   returns `422`; provider/configuration failures return `503`. Neither failure
   creates, reactivates, or changes a public post. Successful shares return
-  `200` with `publication_status = published`. The transcript is not persisted,
-  and the Edge runtime requires `OPENAI_API_KEY`.
+  `200` with `publication_status = published`. The transcript and non-speech
+  description are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved

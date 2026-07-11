@@ -111,9 +111,10 @@ Deno.test("deleteR2Objects rejects when Cloudflare does not confirm deletion", a
   console.error = () => {};
   try {
     await assertRejects(
-      () => deleteR2Objects([
-        "https://media.merian.app/public_uploads/free/audio.wav",
-      ], config),
+      () =>
+        deleteR2Objects([
+          "https://media.merian.app/public_uploads/free/audio.wav",
+        ], config),
       AggregateError,
       "Failed to delete 1/1 R2 object(s)",
     );

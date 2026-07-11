@@ -265,6 +265,34 @@ Deno.test("buildScanMediaHealthReport groups stale and failed assets by media ki
   ]);
 });
 
+Deno.test("buildScanMediaHealthReport detects durable and public audio drift", () => {
+  const report = buildScanMediaHealthReport(baseInput({
+    scans: [{
+      id: "scan-audio",
+      user_id: "user-1",
+      image_storage_urls: [],
+      video_storage_urls: [],
+      audio_storage_urls: [
+        "https://media.merian.app/public_uploads/free/a.wav",
+      ],
+      captured_media: [],
+    }],
+    readyAudioAssets: [],
+    exploreAudioMedia: [{
+      id: "media-audio",
+      post_id: "post-audio",
+      url: null,
+    }],
+  }));
+
+  assertEquals(report.status, "critical");
+  assertEquals(report.issues.map((issue) => issue.code), [
+    "audio_scan_missing_captured_media_audio",
+    "audio_scan_missing_ready_audio_asset",
+    "explore_audio_missing_url",
+  ]);
+});
+
 function baseInput(
   overrides: Partial<BuildScanMediaHealthReportInput> = {},
 ): BuildScanMediaHealthReportInput {
@@ -278,6 +306,8 @@ function baseInput(
     scans: [],
     readyVideoAssets: [],
     exploreVideoMedia: [],
+    readyAudioAssets: [],
+    exploreAudioMedia: [],
     reconciliationRuns: [],
     ...overrides,
   };

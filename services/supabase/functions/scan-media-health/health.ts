@@ -70,7 +70,22 @@ export interface ScanMediaHealthScanRow {
   timestamp?: string | null;
   image_storage_urls: unknown;
   video_storage_urls: unknown;
+  audio_storage_urls?: unknown;
   captured_media: unknown;
+}
+
+export interface ReadyAudioAssetHealthRow {
+  id: string;
+  scan_id: string | null;
+  url: string | null;
+}
+
+export interface ExploreAudioMediaHealthRow {
+  id: string;
+  post_id: string;
+  url: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ReadyVideoAssetHealthRow {
@@ -125,6 +140,8 @@ export interface ScanMediaHealthReport {
     recent_scans_checked: number;
     ready_video_assets_checked: number;
     explore_video_rows_checked: number;
+    ready_audio_assets_checked: number;
+    explore_audio_rows_checked: number;
     reconciliation_runs_checked: number;
     ingestion_intents_checked: number;
     issues: number;
@@ -150,6 +167,8 @@ export interface BuildScanMediaHealthReportInput {
   scans: ScanMediaHealthScanRow[];
   readyVideoAssets: ReadyVideoAssetHealthRow[];
   exploreVideoMedia: ExploreVideoMediaHealthRow[];
+  readyAudioAssets: ReadyAudioAssetHealthRow[];
+  exploreAudioMedia: ExploreAudioMediaHealthRow[];
   reconciliationRuns: ReconciliationRunHealthRow[];
 }
 
@@ -328,6 +347,57 @@ export function buildScanMediaHealthReport(
     );
   }
 
+  const readyAudioCounts = new Map<string, number>();
+  for (const asset of input.readyAudioAssets) {
+    if (!asset.scan_id || !cleanString(asset.url)) continue;
+    readyAudioCounts.set(
+      asset.scan_id,
+      (readyAudioCounts.get(asset.scan_id) ?? 0) + 1,
+    );
+  }
+
+  const audioScansMissingManifest = input.scans.filter((scan) =>
+    cleanStringArray(scan.audio_storage_urls).length > 0 &&
+    !hasCapturedAudio(scan.captured_media)
+  );
+  addIssue(issues, {
+    code: "audio_scan_missing_captured_media_audio",
+    severity: "critical",
+    message:
+      "Scans have durable audio URLs but no audio item in captured_media.",
+    rows: audioScansMissingManifest,
+    sample: sampleScan,
+    limit: input.request.limit,
+  });
+
+  const audioScansMissingReadyAssets = input.scans.filter((scan) => {
+    const audioCount = cleanStringArray(scan.audio_storage_urls).length;
+    return audioCount > 0 && (readyAudioCounts.get(scan.id) ?? 0) < audioCount;
+  });
+  addIssue(issues, {
+    code: "audio_scan_missing_ready_audio_asset",
+    severity: "critical",
+    message: "Scans have durable audio URLs but fewer ready audio assets.",
+    rows: audioScansMissingReadyAssets,
+    sample: (row) => ({
+      ...sampleScan(row),
+      ready_audio_asset_count: readyAudioCounts.get(row.id) ?? 0,
+    }),
+    limit: input.request.limit,
+  });
+
+  const exploreAudioMissingUrls = input.exploreAudioMedia.filter((row) =>
+    !cleanString(row.url)
+  );
+  addIssue(issues, {
+    code: "explore_audio_missing_url",
+    severity: "critical",
+    message: "Public Explore audio rows are missing playable URLs.",
+    rows: exploreAudioMissingUrls,
+    sample: (row) => ({ id: row.id, post_id: row.post_id, url: row.url }),
+    limit: input.request.limit,
+  });
+
   const videoScansMissingManifest = input.scans.filter((scan) => {
     const videoCount = cleanStringArray(scan.video_storage_urls).length;
     return videoCount > 0 && !hasCapturedVideo(scan.captured_media);
@@ -439,6 +509,8 @@ export function buildScanMediaHealthReport(
       recent_scans_checked: input.scans.length,
       ready_video_assets_checked: input.readyVideoAssets.length,
       explore_video_rows_checked: input.exploreVideoMedia.length,
+      ready_audio_assets_checked: input.readyAudioAssets.length,
+      explore_audio_rows_checked: input.exploreAudioMedia.length,
       reconciliation_runs_checked: input.reconciliationRuns.length,
       ingestion_intents_checked: input.ingestionIntents.length,
       issues: issues.length,
@@ -530,6 +602,13 @@ function hasCapturedVideo(value: unknown): boolean {
     );
 }
 
+function hasCapturedAudio(value: unknown): boolean {
+  return Array.isArray(value) &&
+    value.some((item) =>
+      item !== null && typeof item === "object" && "audio" in item
+    );
+}
+
 function capturedImageCount(value: unknown): number {
   if (!Array.isArray(value)) return 0;
   return value.filter((item) =>
@@ -606,8 +685,10 @@ function sampleScan(row: ScanMediaHealthScanRow): Record<string, unknown> {
   return {
     scan_id: row.id,
     video_storage_url_count: cleanStringArray(row.video_storage_urls).length,
+    audio_storage_url_count: cleanStringArray(row.audio_storage_urls).length,
     image_storage_url_count: cleanStringArray(row.image_storage_urls).length,
     captured_media_has_video: hasCapturedVideo(row.captured_media),
+    captured_media_has_audio: hasCapturedAudio(row.captured_media),
     captured_media_image_count: capturedImageCount(row.captured_media),
     timestamp: row.timestamp ?? null,
   };

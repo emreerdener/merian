@@ -461,6 +461,10 @@ After deployment:
   video signing to work.
 - Confirm `auto-purge-nonbio` and `delete-scan` were deployed after any
   `_shared/aws.ts` change.
+- For public Explore audio, confirm the audio migration is applied,
+  `GEMINI_API_KEY` exists as an Edge secret, and `identify-multimodal`,
+  `share-scan-to-explore`, `delete-scan`, `auto-purge-nonbio`, and
+  `scan-media-health` were deployed together.
 - Confirm `/generate-upload-urls` was deployed after any
   `_shared/mediaBudgets.ts` or media-staging contract change.
 - Confirm `update-public-avatar` was deployed after
@@ -477,6 +481,11 @@ After deployment:
   `view = coverage` and returns the Birds coverage target quickly.
 - Confirm `scan-media-health` accepts a service-role request and returns
   `success = true` with a status of `ok`, `warning`, or `critical`.
+- Share approved and policy-violating staging audio. Confirm only approved audio
+  creates/reactivates a post, web and iOS playback requires user interaction,
+  widgets omit audio-only posts, and moderation logs contain no transcript or URL.
+- Delete one disposable audio scan and purge one expired non-biological audio
+  scan; confirm their R2 objects disappear before their database rows do.
 - Submit or replay a short video scan and verify Edge logs do not show
   `Payload Too Large` for the normal six-file manifest or
   `scan_media_assets` nullability errors during staged row creation.

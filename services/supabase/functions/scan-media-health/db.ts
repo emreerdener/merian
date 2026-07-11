@@ -2,7 +2,9 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 import {
   buildScanMediaHealthReport,
+  type ExploreAudioMediaHealthRow,
   type ExploreVideoMediaHealthRow,
+  type ReadyAudioAssetHealthRow,
   type ReadyVideoAssetHealthRow,
   type ReconciliationRunHealthRow,
   type ScanIngestionHealthRow,
@@ -28,6 +30,7 @@ export async function fetchScanMediaHealth(
     failedAssets,
     scans,
     exploreVideoMedia,
+    exploreAudioMedia,
     reconciliationRuns,
   ] = await Promise.all([
     fetchIngestionJobs(request.limit, supabaseAdmin),
@@ -39,10 +42,15 @@ export async function fetchScanMediaHealth(
     fetchFailedAssets(request.limit, supabaseAdmin),
     fetchRecentScans(request.recentScanLimit, supabaseAdmin),
     fetchExploreVideoMedia(request.limit, supabaseAdmin),
+    fetchExploreAudioMedia(request.limit, supabaseAdmin),
     fetchLatestReconciliationRuns(request.limit, supabaseAdmin),
   ]);
 
   const readyVideoAssets = await fetchReadyVideoAssets(
+    scans.map((scan) => scan.id),
+    supabaseAdmin,
+  );
+  const readyAudioAssets = await fetchReadyAudioAssets(
     scans.map((scan) => scan.id),
     supabaseAdmin,
   );
@@ -61,6 +69,8 @@ export async function fetchScanMediaHealth(
     scans,
     readyVideoAssets,
     exploreVideoMedia,
+    readyAudioAssets,
+    exploreAudioMedia,
     reconciliationRuns,
   });
 }
@@ -214,7 +224,7 @@ async function fetchRecentScans(
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
-      "id,user_id,timestamp,image_storage_urls,video_storage_urls,captured_media",
+      "id,user_id,timestamp,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media",
     )
     .eq("is_tombstoned", false)
     .order("timestamp", { ascending: false, nullsFirst: false })
@@ -225,6 +235,30 @@ async function fetchRecentScans(
   }
 
   return (data ?? []) as unknown as ScanMediaHealthScanRow[];
+}
+
+async function fetchReadyAudioAssets(
+  scanIds: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<ReadyAudioAssetHealthRow[]> {
+  const ids = [...new Set(scanIds.filter((id) => id.trim()))];
+  if (!ids.length) return [];
+  const { data, error } = await supabaseAdmin.from("scan_media_assets")
+    .select("id,scan_id,url").in("scan_id", ids).eq("kind", "audio")
+    .eq("role", "audio").eq("status", "ready");
+  if (error) throw new Error(`fetchReadyAudioAssets: ${error.message}`);
+  return (data ?? []) as unknown as ReadyAudioAssetHealthRow[];
+}
+
+async function fetchExploreAudioMedia(
+  limit: number,
+  supabaseAdmin: SupabaseClient,
+): Promise<ExploreAudioMediaHealthRow[]> {
+  const { data, error } = await supabaseAdmin.from("explore_post_media")
+    .select("id,post_id,url,created_at,updated_at").eq("kind", "audio")
+    .order("updated_at", { ascending: false, nullsFirst: false }).limit(limit);
+  if (error) throw new Error(`fetchExploreAudioMedia: ${error.message}`);
+  return (data ?? []) as unknown as ExploreAudioMediaHealthRow[];
 }
 
 async function fetchReadyVideoAssets(

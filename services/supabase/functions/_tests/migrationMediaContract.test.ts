@@ -222,6 +222,19 @@ Deno.test("scan media refresh derives video audio metadata from captured media",
   );
 });
 
+Deno.test("Explore audio migration enables durable audio and public snapshots", async () => {
+  const sql = normalized(
+    await migrationSql("20260710120000_add_explore_audio_moderation.sql"),
+  );
+  for (
+    const fragment of [
+      "ADD COLUMN IF NOT EXISTS audio_storage_urls TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]",
+      "ADD CONSTRAINT explore_post_media_kind_check CHECK (kind IN ('image', 'video', 'audio'))",
+      "Durable standalone scan audio",
+    ]
+  ) assertStringIncludes(sql, fragment);
+});
+
 Deno.test("scan media reconciliation migration keeps the scheduled worker idempotent and service-role-only", async () => {
   const sql = normalized(
     await migrationSql(
