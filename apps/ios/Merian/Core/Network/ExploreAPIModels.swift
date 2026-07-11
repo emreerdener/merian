@@ -2,6 +2,29 @@ import CoreLocation
 import Foundation
 import UIKit
 
+@propertyWrapper
+struct ExploreEmptyStringIfMissing: Decodable, Equatable {
+    var wrappedValue: String
+
+    init(wrappedValue: String) {
+        self.wrappedValue = wrappedValue
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        wrappedValue = container.decodeNil() ? "" : try container.decode(String.self)
+    }
+}
+
+extension KeyedDecodingContainer {
+    func decode(
+        _ type: ExploreEmptyStringIfMissing.Type,
+        forKey key: Key
+    ) throws -> ExploreEmptyStringIfMissing {
+        try decodeIfPresent(type, forKey: key) ?? ExploreEmptyStringIfMissing(wrappedValue: "")
+    }
+}
+
 struct ExploreFeedResponse: Decodable {
     let data: [ExplorePost]
 }
@@ -44,6 +67,14 @@ struct ExploreMediaItem: Decodable, Equatable {
     let durationSeconds: Double?
     let hasAudio: Bool
 
+    func posterImageUrl(fallback: String) -> String? {
+        let thumbnail = thumbnailUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let thumbnail, !thumbnail.isEmpty { return thumbnail }
+
+        let fallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        return fallback.isEmpty ? nil : fallback
+    }
+
     static func legacyImage(url: String) -> Self {
         ExploreMediaItem(
             kind: .image,
@@ -79,7 +110,7 @@ struct ExploreFollowState: Decodable, Equatable {
 struct ExplorePost: Decodable, Identifiable, Equatable {
     let postId: String
     let scanId: String
-    let heroImageUrl: String
+    @ExploreEmptyStringIfMissing var heroImageUrl: String
     let sharedAt: String
     let authorUserId: String
     let authorName: String

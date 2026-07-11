@@ -617,12 +617,15 @@ struct ExplorePublicMediaView: View {
     @State private var pendingRecoverySeekTime: CMTime?
     @State private var playbackObservers: [NSObjectProtocol] = []
     @State private var playbackStatusObserver: AnyCancellable?
+    @State private var playerItemStatusObserver: AnyCancellable?
+    @State private var isPlayerItemReady = false
     @State private var playbackOverlayState = ExploreVideoPlaybackOverlayState()
     @State private var playbackControlFadeTask: Task<Void, Never>?
     @State private var playbackRecoveryWatchdogTask: Task<Void, Never>?
     @State private var unexpectedPauseRecoveryTask: Task<Void, Never>?
     @State private var playbackResumeIntentState = ExploreVideoPlaybackResumeIntentState()
     @State private var hasTrackedAudioPlaybackStart = false
+    @State private var hasActivatedAudioPlaybackSession = false
     @AppStorage("MerianExplorePublicVideoMuted") private var isMuted = true
 
     init(
@@ -653,13 +656,13 @@ struct ExplorePublicMediaView: View {
         ZStack {
             posterImage
 
-            if isVideoPlaybackHost, let player {
+            if mediaItem.kind == .video, let player {
                 ExploreCoverVideoPlayer(player: player, playerId: playerId, surface: surface)
                     .id("\(configuredVideoURL ?? mediaItem.url)|\(videoSurfaceGeneration)")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .allowsHitTesting(false)
-                    .opacity(0.96)
+                    .opacity(isPlayerItemReady ? 0.96 : 0)
             }
 
             mediaTapLayer
@@ -685,6 +688,7 @@ struct ExplorePublicMediaView: View {
             )
         }
         .onChange(of: isMuted) { _, newValue in
+            guard mediaItem.kind == .video else { return }
             player?.isMuted = newValue
             logPlayback("mute-changed", extra: "muted=\(newValue)")
         }
@@ -719,19 +723,51 @@ struct ExplorePublicMediaView: View {
 
     @ViewBuilder
     private var posterImage: some View {
-        if mediaItem.kind == .audio {
-            ZStack {
-                Color(uiColor: .secondarySystemBackground)
-                Image(systemName: "waveform")
-                    .font(.system(size: 54, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-        } else {
+        if let posterImageUrl = mediaItem.posterImageUrl(fallback: fallbackImageUrl) {
             ExploreHeroImageView(
-                imageUrl: mediaItem.thumbnailUrl ?? fallbackImageUrl,
+                imageUrl: posterImageUrl,
                 reloadGeneration: reloadGeneration,
                 preloadedImage: preloadedImage
             )
+        } else if mediaItem.kind == .audio {
+            ExploreAudioSpectrogramPoster(audioUrl: mediaItem.url)
+        } else {
+            ZStack {
+                Color(uiColor: .secondarySystemBackground)
+                Image(systemName: "photo")
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private struct ExploreAudioSpectrogramPoster: View {
+        let audioUrl: String
+
+        @State private var spectrogram: UIImage?
+
+        var body: some View {
+            ZStack {
+                Color(uiColor: .secondarySystemBackground)
+
+                if let spectrogram {
+                    Image(uiImage: spectrogram)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 54, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .clipped()
+            .task(id: audioUrl) {
+                spectrogram = await AudioSpectrogramThumbnailLoader.shared.loadImage(
+                    fromPath: audioUrl,
+                    maxDimension: Int(MerianConfig.displayImageMaxSize)
+                )
+            }
+            .accessibilityLabel("Audio spectrogram")
         }
     }
 
@@ -832,7 +868,7 @@ struct ExplorePublicMediaView: View {
                             .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(playbackControlShowsPlayingIcon ? "Pause video" : "Play video")
+                        .accessibilityLabel(playbackControlAccessibilityLabel)
                     .onAppear {
                         logPlayback(
                             "control-appeared",
@@ -853,7 +889,7 @@ struct ExplorePublicMediaView: View {
                 .padding(12)
             }
 
-            if showsVideoControls {
+            if showsVideoControls && mediaItem.kind == .video {
                 VStack {
                     HStack {
                         Spacer()
@@ -882,6 +918,11 @@ struct ExplorePublicMediaView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var playbackControlAccessibilityLabel: String {
+        let medium = mediaItem.kind == .audio ? "audio" : "video"
+        return playbackControlShowsPlayingIcon ? "Pause \(medium)" : "Play \(medium)"
+    }
+
     @discardableResult
     private func configurePlayerIfNeeded(forceRebuildForRecovery: Bool = false) -> AVPlayer? {
         guard let videoURLString = videoURLStringForPlayerConfiguration(forceRebuildForRecovery: forceRebuildForRecovery),
@@ -902,7 +943,7 @@ struct ExplorePublicMediaView: View {
             extra: "generation=\(videoSurfaceGeneration)"
         )
         let player = AVPlayer(url: url)
-        player.isMuted = isMuted
+        player.isMuted = mediaItem.kind == .video ? isMuted : false
         player.actionAtItemEnd = .none
         playbackObservers = [
             NotificationCenter.default.addObserver(
@@ -946,6 +987,17 @@ struct ExplorePublicMediaView: View {
             .receive(on: DispatchQueue.main)
             .sink { status in
                 handlePlaybackStatusChange(status)
+            }
+        playerItemStatusObserver = player.currentItem?.publisher(for: \.status, options: [.initial, .new])
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                isPlayerItemReady = status == .readyToPlay
+                if status == .failed {
+                    reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
+                    if mediaItem.kind == .audio {
+                        AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
+                    }
+                }
             }
         configuredVideoURL = videoURLString
         self.player = player
@@ -1028,12 +1080,16 @@ struct ExplorePublicMediaView: View {
         playbackControlFadeTask = nil
         playbackStatusObserver?.cancel()
         playbackStatusObserver = nil
+        playerItemStatusObserver?.cancel()
+        playerItemStatusObserver = nil
+        isPlayerItemReady = false
         for observer in playbackObservers {
             NotificationCenter.default.removeObserver(observer)
         }
         playbackObservers = []
         configuredVideoURL = nil
         player = nil
+        deactivateAudioPlaybackSessionIfNeeded()
     }
 
     private func currentRecoverySeekTime() -> CMTime? {
@@ -1267,6 +1323,11 @@ struct ExplorePublicMediaView: View {
             reducePlaybackOverlay(.autoplayStarted, animation: .easeInOut(duration: 0.18))
         }
         if mediaItem.kind == .audio {
+            guard activateAudioPlaybackSession() else {
+                reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
+                AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
+                return
+            }
             player.isMuted = false
             if !hasTrackedAudioPlaybackStart {
                 hasTrackedAudioPlaybackStart = true
@@ -1278,6 +1339,28 @@ struct ExplorePublicMediaView: View {
             startPlaybackRecoveryWatchdog(for: player)
         }
         playbackResumeIntentState.clear()
+    }
+
+    private func activateAudioPlaybackSession() -> Bool {
+        guard mediaItem.kind == .audio else { return true }
+        guard !hasActivatedAudioPlaybackSession else { return true }
+
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: .duckOthers)
+            try session.setActive(true)
+            hasActivatedAudioPlaybackSession = true
+            return true
+        } catch {
+            logPlayback("audio-session-activation-failed", extra: "error=\(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func deactivateAudioPlaybackSessionIfNeeded() {
+        guard hasActivatedAudioPlaybackSession else { return }
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        hasActivatedAudioPlaybackSession = false
     }
 
     private func startPlaybackRecoveryWatchdog(for watchedPlayer: AVPlayer) {

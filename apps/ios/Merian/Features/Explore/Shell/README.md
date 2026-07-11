@@ -5,6 +5,11 @@ The `Shell` directory acts as the root container and routing hub for the Explore
 ## Purpose
 This area orchestrates the top-level navigation, layout chrome, and state coordination for the Explore feature. It manages the transitions between Observations, Identify, Field Trips, Dictionary, pushed detail routes, notifications, and search interfaces while keeping the sub-components focused on their own domain logic.
 
+Field Trips is currently release-gated by `FieldTripsAvailability`: only the
+allowlisted tester email and simulator builds may expose its tab or supporting
+surfaces. New Field Trips entry points must use the same shared rule rather than
+adding local debug checks.
+
 ## Explore Video Coordination
 
 `ExploreView` owns the scoped `ExploreVideoPlaybackCoordinator` for the entire

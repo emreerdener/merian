@@ -87,7 +87,9 @@ extension ExploreFeedViewModel {
                 longitude: request.longitude,
                 cursor: request.cursor
             )
-            let freshFieldTripPublications = await loadFieldTripPublicationsForActiveFilter()
+            let freshFieldTripPublications = FieldTripsAvailability.isEnabled
+                ? await loadFieldTripPublicationsForActiveFilter()
+                : []
 
             guard activeFeedRequestId == requestId else { return }
 
@@ -247,6 +249,8 @@ extension ExploreFeedViewModel {
     }
 
     private func loadFieldTripPublicationsForActiveFilter() async -> [FieldTripRecentPublication] {
+        guard FieldTripsAvailability.isEnabled else { return [] }
+
         let mode: FieldTripCommunityMode
         switch activeFilter {
         case .recent:

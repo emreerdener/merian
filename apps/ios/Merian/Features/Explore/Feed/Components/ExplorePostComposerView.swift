@@ -22,6 +22,15 @@ enum ExplorePostComposerMode {
             return "Save"
         }
     }
+
+    var savingTitle: String {
+        switch self {
+        case .create:
+            return "Checking and sharing…"
+        case .edit:
+            return "Saving…"
+        }
+    }
 }
 
 enum ExplorePostLocationSharing: String, CaseIterable, Identifiable, Decodable, Equatable {
@@ -751,7 +760,7 @@ struct ExplorePostComposerView: View {
                             .controlSize(.small)
                             .tint(.white)
                     }
-                    Text(mode.actionTitle)
+                    Text(isSaving ? mode.savingTitle : mode.actionTitle)
                         .font(.headline)
                 }
                 .frame(maxWidth: .infinity)

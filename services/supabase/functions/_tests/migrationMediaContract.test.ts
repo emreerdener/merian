@@ -32,6 +32,27 @@ function assertBefore(
   );
 }
 
+Deno.test("Explore post detail permits audio-only scans and retains AI reasoning", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260711155949_allow_audio_only_explore_post_detail.sql",
+    ),
+  );
+
+  assertStringIncludes(
+    sql,
+    "NULLIF(BTRIM(COALESCE(s.ai_reasoning, '')), '') IS NOT NULL",
+  );
+  assertStringIncludes(
+    sql,
+    "COALESCE(s.confirmed_species_id, s.species_id) IS NOT NULL",
+  );
+  assert(
+    !sql.includes("ARRAY_LENGTH(s.image_storage_urls"),
+    "Audio-only Explore detail must not require visual media.",
+  );
+});
+
 Deno.test("scan_media_assets migration declares the durable media lifecycle contract", async () => {
   const sql = normalized(
     await migrationSql("20260705100000_add_scan_media_assets.sql"),

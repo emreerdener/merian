@@ -31,7 +31,7 @@ final class ExploreNotificationsViewModel {
 
         do {
             let loadedNotifications = try await MerianNetworkClient.shared.getExploreNotifications(limit: pageSize)
-            notifications = loadedNotifications
+            notifications = visibleNotifications(loadedNotifications)
             hasLoadedOnce = true
             hasReachedEnd = loadedNotifications.count < pageSize
             updateCursor(using: loadedNotifications)
@@ -84,7 +84,7 @@ final class ExploreNotificationsViewModel {
                 beforeUpdatedAt: nextCursorUpdatedAt,
                 beforeNotificationId: nextCursorNotificationId
             )
-            appendUniqueNotifications(nextPage)
+            appendUniqueNotifications(visibleNotifications(nextPage))
             hasReachedEnd = nextPage.count < pageSize
             updateCursor(using: nextPage)
         } catch is CancellationError {
@@ -109,6 +109,11 @@ final class ExploreNotificationsViewModel {
 
         let existingIds = Set(notifications.map(\.id))
         notifications.append(contentsOf: page.filter { existingIds.contains($0.id) == false })
+    }
+
+    private func visibleNotifications(_ page: [ExploreNotification]) -> [ExploreNotification] {
+        guard !FieldTripsAvailability.isEnabled else { return page }
+        return page.filter { !$0.type.isFieldTripNotification }
     }
 
     func markAllAsRead() async {

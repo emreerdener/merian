@@ -5,6 +5,14 @@ post-owned image, short-video, and standalone-audio media. Users can browse
 posts, like them, and leave comments while Merian preserves its privacy-first
 posture for both authenticated and ghost users.
 
+Field Trips remains an internal preview. All iOS discovery surfaces use the
+shared `FieldTripsAvailability` rule: enabled only for
+`erdener.emre@gmail.com` (case/whitespace normalized) or simulator builds. The
+gate covers the tab, blended feed publications, profile modules, notification
+rows/routes, and the bundled Field Trips changelog entry. It is a release gate,
+not an authorization boundary; backend Field Trips infrastructure remains
+deployed for development and must not be treated as public launch status.
+
 ## Locked Product Decisions
 
 - Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.

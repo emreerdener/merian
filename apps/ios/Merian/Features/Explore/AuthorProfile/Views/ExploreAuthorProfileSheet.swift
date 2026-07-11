@@ -306,7 +306,9 @@ struct ExploreAuthorProfileContent: View {
 
                 ScansHeatmap(heatmapData: profile.profileHeatmapData)
 
-                if let fieldTrips = profile.fieldTrips, !fieldTrips.isEmpty {
+                if FieldTripsAvailability.isEnabled,
+                   let fieldTrips = profile.fieldTrips,
+                   !fieldTrips.isEmpty {
                     FieldTripProfilePreview(summaries: fieldTrips, onOpenPublication: { publicationId in
                         onOpenPublication(publicationId)
                     })

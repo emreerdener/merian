@@ -102,17 +102,19 @@ struct ExploreView: View {
                     Label("Observations", systemImage: "photo.stack")
                 }
 
-                FieldTripsView(
-                    userRegion: dictionaryUserRegionIdentifier,
-                    selectedSection: $activeFieldTripsSection,
-                    onOpenPublication: { publicationId in
-                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
-                    },
-                    onOpenAuthorProfile: openAuthorProfile
-                )
-                .tag(ExploreTab.fieldTrips)
-                .tabItem {
-                    Label("Field Trips", systemImage: "map")
+                if FieldTripsAvailability.isEnabled {
+                    FieldTripsView(
+                        userRegion: dictionaryUserRegionIdentifier,
+                        selectedSection: $activeFieldTripsSection,
+                        onOpenPublication: { publicationId in
+                            navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                        },
+                        onOpenAuthorProfile: openAuthorProfile
+                    )
+                    .tag(ExploreTab.fieldTrips)
+                    .tabItem {
+                        Label("Field Trips", systemImage: "map")
+                    }
                 }
 
                 ExploreCommunityIdentificationView(activeMode: $activeCommunityMode) { route in
@@ -641,6 +643,7 @@ struct ExploreView: View {
 
         if notification.type.isFieldTripNotification,
            let publicationId = notification.fieldTripPublicationId {
+            guard FieldTripsAvailability.isEnabled else { return }
             viewModel.dismissNotifications()
             activeTab = .fieldTrips
             navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))

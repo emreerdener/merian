@@ -41,6 +41,7 @@ struct InsightShareButton: View {
     @State var showingOptions = false
     @State var showingExploreComposer = false
     @State var showingExplorePublishConfirmation = false
+    @State private var isAwaitingExploreShareResult = false
     @State var pendingAction: PendingAction?
     @State var composerMediaItems: [ExplorePostComposerMediaDraft]?
     @State var challengeEventHashtags: [String] = []
@@ -193,13 +194,20 @@ struct InsightShareButton: View {
                 isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
                 onSubmit: { draft in
                     if sharedExplorePostId == nil {
+                        isAwaitingExploreShareResult = true
                         onShareToExplore?(draft)
                     } else {
                         onEditExplorePost?(draft)
+                        showingExploreComposer = false
                     }
-                    showingExploreComposer = false
                 }
             )
+            .interactiveDismissDisabled(isSharingToExplore)
+        }
+        .onChange(of: isSharingToExplore) { wasSharing, isSharing in
+            guard isAwaitingExploreShareResult, wasSharing, !isSharing else { return }
+            isAwaitingExploreShareResult = false
+            showingExploreComposer = false
         }
         .task(id: scanId) {
             await loadChallengeEventHashtags()

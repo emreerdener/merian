@@ -136,7 +136,7 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
-- Added Field Trips to Explore: regional checklist quests can auto-start from
+- Added an allowlisted Field Trips preview to Explore: regional checklist quests can auto-start from
   new scans, unlock levels sequentially, show active checklist progress on
   public profiles, and publish Field Trip pages with species snapshots, likes,
   and comments without creating Explore feed posts or map points.

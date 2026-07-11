@@ -493,6 +493,75 @@ struct MerianNetworkClientTests {
         #expect(videoResponse.data.resolvedMediaItems[0].thumbnailUrl == "https://example.com/thumb.jpg")
         #expect(videoResponse.data.resolvedMediaItems[0].hasAudio)
 
+        let audioOnlyData = """
+        {
+            "data": {
+                "post_id": "post-audio-123",
+                "scan_id": "scan-audio-123",
+                "hero_image_url": null,
+                "shared_at": "2026-07-11T12:00:00.000Z",
+                "author_user_id": "author-audio-123",
+                "author_name": "Audio Author",
+                "author_username": "audio_author",
+                "author_avatar_url": null,
+                "author_is_pro": false,
+                "hashtags": [],
+                "species_common_name": "Northern Cardinal",
+                "species_scientific_name": "Cardinalis cardinalis",
+                "pet_identification": null,
+                "public_location_label": null,
+                "location_sharing": "obscured",
+                "time_of_day": "morning",
+                "current_month": 7,
+                "weather_condition": null,
+                "weather_temperature_f": null,
+                "like_count": 0,
+                "comment_count": 0,
+                "viewer_has_liked": false,
+                "is_owned_by_viewer": true,
+                "ranking_value": null,
+                "media_items": [
+                    {
+                        "kind": "audio",
+                        "url": "https://media.merian.app/audio.wav",
+                        "thumbnail_url": null,
+                        "order_index": 0,
+                        "duration_seconds": 8.2,
+                        "has_audio": true
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+
+        let audioOnlyResponse = try decoder.decode(ExplorePostResponse.self, from: audioOnlyData)
+
+        #expect(audioOnlyResponse.data.heroImageUrl.isEmpty)
+        #expect(audioOnlyResponse.data.resolvedMediaItems.count == 1)
+        #expect(audioOnlyResponse.data.resolvedMediaItems[0].kind == .audio)
+        #expect(audioOnlyResponse.data.resolvedMediaItems[0].posterImageUrl(fallback: "") == nil)
+
+        let spectrogramAudio = ExploreMediaItem(
+            kind: .audio,
+            url: "https://media.merian.app/audio.wav",
+            thumbnailUrl: "https://media.merian.app/spectrogram.webp",
+            orderIndex: 0,
+            durationSeconds: 8.2,
+            hasAudio: true
+        )
+        #expect(spectrogramAudio.posterImageUrl(fallback: "") == "https://media.merian.app/spectrogram.webp")
+
+        let videoWithoutThumbnail = ExploreMediaItem(
+            kind: .video,
+            url: "https://media.merian.app/video.mp4",
+            thumbnailUrl: nil,
+            orderIndex: 0,
+            durationSeconds: 4.2,
+            hasAudio: true
+        )
+        #expect(videoWithoutThumbnail.posterImageUrl(fallback: "https://media.merian.app/fallback.webp") ==
+            "https://media.merian.app/fallback.webp")
+
         let legacyData = """
         {
             "data": {

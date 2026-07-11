@@ -45,8 +45,10 @@ struct ProfileTabView: View {
                 )
 
                 // MARK: - Field Trips
-                CurrentUserFieldTripProfilePreview { publicationId in
-                    selectedFieldTripPublicationRoute = FieldTripPublicationRoute(publicationId: publicationId)
+                if FieldTripsAvailability.isEnabled {
+                    CurrentUserFieldTripProfilePreview { publicationId in
+                        selectedFieldTripPublicationRoute = FieldTripPublicationRoute(publicationId: publicationId)
+                    }
                 }
 
                 // MARK: - Paywall & Subscriptions

@@ -98,6 +98,8 @@ final class ChangelogStore {
             return []
         }
 
-        return catalog.newestEntriesFirst
+        return catalog.newestEntriesFirst.filter { entry in
+            entry.id != "2026-07-08-field-trips" || FieldTripsAvailability.isEnabled
+        }
     }
 }

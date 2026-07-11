@@ -53,7 +53,8 @@ Merian is a field-ready biological identification app built around zero-friction
 - Share/unshare scans to Explore with optional public hashtags and a selectable
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
-- Field Trips add guided regional checklist quests beside Explore, with
+- Field Trips are currently an internal preview visible only to
+  `erdener.emre@gmail.com` and simulator builds. The preview adds guided regional checklist quests beside Explore, with
   Available and Community segments, explicit start, curated tips, profile pins,
   following-weighted Community discovery, seasonal non-competitive challenges,
   completion badges, optional challenge hashtag suggestions, and published pages

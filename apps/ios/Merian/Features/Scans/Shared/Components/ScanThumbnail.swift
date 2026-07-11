@@ -349,11 +349,16 @@ actor AudioSpectrogramThumbnailLoader {
         }
 
         let fetchTask = Task.detached(priority: .userInitiated) { () -> UIImage? in
-            guard let resolvedURL = Self.resolveAudioURL(from: audioPath) else {
+            guard let resolvedAudio = await Self.resolveAudioURL(from: audioPath) else {
                 return nil
             }
+            defer {
+                if resolvedAudio.shouldDeleteAfterRendering {
+                    try? FileManager.default.removeItem(at: resolvedAudio.url)
+                }
+            }
 
-            let columns = await AudioSpectrogramDecoder.decodeColumns(fromFilePath: resolvedURL.path)
+            let columns = await AudioSpectrogramDecoder.decodeColumns(fromFilePath: resolvedAudio.url.path)
             guard !columns.isEmpty,
                   let image = Self.renderThumbnail(columns: columns, maxDimension: maxDimension) else {
                 return nil
@@ -395,21 +400,57 @@ actor AudioSpectrogramThumbnailLoader {
         }
     }
 
-    private static nonisolated func resolveAudioURL(from audioPath: String) -> URL? {
+    private struct ResolvedAudioURL: Sendable {
+        let url: URL
+        let shouldDeleteAfterRendering: Bool
+    }
+
+    private static nonisolated func resolveAudioURL(from audioPath: String) async -> ResolvedAudioURL? {
+        if let remoteURL = URL(string: audioPath),
+           remoteURL.scheme == "https" {
+            var request = URLRequest(url: remoteURL)
+            request.timeoutInterval = 30
+
+            do {
+                let (temporaryURL, response) = try await URLSession.shared.download(for: request)
+                guard let response = response as? HTTPURLResponse,
+                      (200..<300).contains(response.statusCode),
+                      response.expectedContentLength <= Int64(MerianConfig.audioPayloadMaxBytes) else {
+                    return nil
+                }
+
+                let byteSize = try temporaryURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                guard byteSize <= MerianConfig.audioPayloadMaxBytes else { return nil }
+
+                let renderURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("explore-spectrogram-\(UUID().uuidString).wav")
+                try FileManager.default.moveItem(at: temporaryURL, to: renderURL)
+                return ResolvedAudioURL(url: renderURL, shouldDeleteAfterRendering: true)
+            } catch {
+                return nil
+            }
+        }
+
         if audioPath.starts(with: "file://"), let url = URL(string: audioPath) {
-            return url
+            return ResolvedAudioURL(url: url, shouldDeleteAfterRendering: false)
         }
 
         if audioPath.starts(with: "/") {
-            return URL(fileURLWithPath: audioPath)
+            return ResolvedAudioURL(
+                url: URL(fileURLWithPath: audioPath),
+                shouldDeleteAfterRendering: false
+            )
         }
 
         let documentsURL = URL.documentsDirectory.appendingPathComponent(audioPath)
         if FileManager.default.fileExists(atPath: documentsURL.path) {
-            return documentsURL
+            return ResolvedAudioURL(url: documentsURL, shouldDeleteAfterRendering: false)
         }
 
-        return FileManager.default.temporaryDirectory.appendingPathComponent(audioPath)
+        return ResolvedAudioURL(
+            url: FileManager.default.temporaryDirectory.appendingPathComponent(audioPath),
+            shouldDeleteAfterRendering: false
+        )
     }
 
     private static nonisolated func renderThumbnail(
