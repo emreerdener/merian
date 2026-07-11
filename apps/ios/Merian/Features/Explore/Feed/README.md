@@ -91,6 +91,9 @@ Once the enhanced file is ready and active, the feed pill transitions to
 audio. Post detail retains its passive **Boosted audio** badge. The boosted
 state is withheld during preparation and after fallback to original playback,
 so it always describes the audio source the player can actually use.
+Direct controls read **Boosting…** while preparing the enhanced source and
+**Reverting…** while restoring the original; both transition states disable the
+control until the source swap completes.
 
 Saved preferences and cross-surface notifications prepare silently. The
 **Boosting audio…** and fallback messages are reserved for a one-shot action

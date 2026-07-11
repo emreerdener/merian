@@ -691,6 +691,8 @@ to **Boosted audio**, which can be tapped again to restore original playback. A 
 audio is playing, while restoration failure falls back silently. Insight
 telemetry uses `InsightAudioBoostChanged` with action, `surface = insight`, and
 an optional coarse gain band only—never scan IDs, paths, URLs, or audio content.
+The direct control uses **Boosting…** and **Reverting…** disabled transition
+states while the enhanced or original player source is being prepared.
 
 PostHog records `ExploreAudioBoostChanged` for enabled, disabled, restored,
 preparation-failed, and boosted-playback-started transitions. Properties are

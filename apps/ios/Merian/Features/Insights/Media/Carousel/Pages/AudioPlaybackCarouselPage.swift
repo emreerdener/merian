@@ -11,20 +11,28 @@ final class PlayerDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable
 
 enum InsightAudioBoostPillState: Equatable {
     case boost
+    case boosting
+    case reverting
     case boosted
 
     static func resolve(
         isBoostEnabled: Bool,
+        isPreparingBoost: Bool = false,
+        isRevertingBoost: Bool = false,
         isBoostedAudioReady: Bool,
         hasToggleAction: Bool
     ) -> Self? {
         guard hasToggleAction else { return nil }
+        if isBoostEnabled && isPreparingBoost { return .boosting }
+        if !isBoostEnabled && isRevertingBoost { return .reverting }
         return isBoostEnabled && isBoostedAudioReady ? .boosted : .boost
     }
 
     var title: String {
         switch self {
         case .boost: "Boost audio"
+        case .boosting: "Boosting…"
+        case .reverting: "Reverting…"
         case .boosted: "Boosted audio"
         }
     }
@@ -34,7 +42,12 @@ enum InsightAudioBoostPillState: Equatable {
     }
 
     var accessibilityLabel: String {
-        self == .boost ? "Boost audio" : "Turn off audio boost"
+        switch self {
+        case .boost: "Boost audio"
+        case .boosting: "Boosting audio"
+        case .reverting: "Reverting audio boost"
+        case .boosted: "Turn off audio boost"
+        }
     }
 }
 
@@ -51,6 +64,7 @@ struct AudioPlaybackCarouselPage: View {
     @State private var playbackProgress: Double = 0.0
     @State private var isDecoding: Bool = true
     @State private var isPreparingAudioBoost = false
+    @State private var isRevertingAudioBoost = false
     @State private var showsAudioBoostPreparationStatus = false
     @State private var audioBoostPreparationFailed = false
     @State private var isBoostedAudioReady = false
@@ -195,7 +209,9 @@ struct AudioPlaybackCarouselPage: View {
 
                 playbackBadges
 
-                if isPreparingAudioBoost && showsAudioBoostPreparationStatus {
+                if isPreparingAudioBoost &&
+                    showsAudioBoostPreparationStatus &&
+                    onAudioBoostToggleRequested == nil {
                     Text("Boosting audio…")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white)
@@ -265,6 +281,8 @@ struct AudioPlaybackCarouselPage: View {
             HStack(alignment: .center) {
                 if let pillState = InsightAudioBoostPillState.resolve(
                     isBoostEnabled: isAudioBoostEnabled,
+                    isPreparingBoost: isPreparingAudioBoost,
+                    isRevertingBoost: isRevertingAudioBoost,
                     isBoostedAudioReady: isBoostedAudioReady && !audioBoostPreparationFailed,
                     hasToggleAction: onAudioBoostToggleRequested != nil
                 ) {
@@ -282,6 +300,7 @@ struct AudioPlaybackCarouselPage: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .disabled(pillState == .boosting || pillState == .reverting)
                     .accessibilityLabel(pillState.accessibilityLabel)
                 }
 
@@ -455,6 +474,11 @@ struct AudioPlaybackCarouselPage: View {
     private func updateAudioBoostMode() async {
         let wasPlaying = player?.isPlaying == true
         let resumeTime = player?.currentTime ?? 0
+        let shouldShowReverting = !isAudioBoostEnabled && isBoostedAudioReady
+        isRevertingAudioBoost = shouldShowReverting
+        defer {
+            if shouldShowReverting { isRevertingAudioBoost = false }
+        }
 
         if isAudioBoostEnabled {
             let actionToken = audioBoostActionToken

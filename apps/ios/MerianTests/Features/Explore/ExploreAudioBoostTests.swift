@@ -100,10 +100,30 @@ struct ExploreAudioBoostTests {
             isBoostedAudioReady: true,
             hasToggleAction: true
         )
+        let boosting = ExploreFeedAudioBoostPillState.resolve(
+            surface: .feed,
+            mediaKind: .audio,
+            isBoostEnabled: true,
+            isPreparingBoost: true,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        )
+        let reverting = ExploreFeedAudioBoostPillState.resolve(
+            surface: .feed,
+            mediaKind: .audio,
+            isBoostEnabled: false,
+            isRevertingBoost: true,
+            isBoostedAudioReady: true,
+            hasToggleAction: true
+        )
 
         #expect(unboosted == .boost)
         #expect(preparing == .boost)
         #expect(boosted == .boosted)
+        #expect(boosting == .boosting)
+        #expect(boosting?.title == "Boosting…")
+        #expect(reverting == .reverting)
+        #expect(reverting?.title == "Reverting…")
         #expect(unboosted?.title == "Boost audio")
         #expect(unboosted?.systemImage == "chevron.right")
         #expect(boosted?.title == "Boosted audio")
@@ -151,10 +171,26 @@ struct ExploreAudioBoostTests {
             isBoostedAudioReady: true,
             hasToggleAction: true
         )
+        let boosting = InsightAudioBoostPillState.resolve(
+            isBoostEnabled: true,
+            isPreparingBoost: true,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        )
+        let reverting = InsightAudioBoostPillState.resolve(
+            isBoostEnabled: false,
+            isRevertingBoost: true,
+            isBoostedAudioReady: true,
+            hasToggleAction: true
+        )
 
         #expect(unboosted == .boost)
         #expect(preparing == .boost)
         #expect(boosted == .boosted)
+        #expect(boosting == .boosting)
+        #expect(boosting?.title == "Boosting…")
+        #expect(reverting == .reverting)
+        #expect(reverting?.title == "Reverting…")
         #expect(unboosted?.systemImage == "chevron.right")
         #expect(boosted?.systemImage == nil)
         #expect(InsightAudioBoostPillState.resolve(

@@ -695,24 +695,32 @@ enum ExploreFeedMediaInteractionPolicy {
 
 enum ExploreFeedAudioBoostPillState: Equatable {
     case boost
+    case boosting
+    case reverting
     case boosted
 
     static func resolve(
         surface: ExploreVideoPlaybackSurface,
         mediaKind: ExploreMediaKind,
         isBoostEnabled: Bool,
+        isPreparingBoost: Bool = false,
+        isRevertingBoost: Bool = false,
         isBoostedAudioReady: Bool,
         hasToggleAction: Bool
     ) -> Self? {
         guard case .feed = surface,
               mediaKind == .audio,
               hasToggleAction else { return nil }
+        if isBoostEnabled && isPreparingBoost { return .boosting }
+        if !isBoostEnabled && isRevertingBoost { return .reverting }
         return isBoostEnabled && isBoostedAudioReady ? .boosted : .boost
     }
 
     var title: String {
         switch self {
         case .boost: "Boost audio"
+        case .boosting: "Boosting…"
+        case .reverting: "Reverting…"
         case .boosted: "Boosted audio"
         }
     }
@@ -724,6 +732,8 @@ enum ExploreFeedAudioBoostPillState: Equatable {
     var accessibilityLabel: String {
         switch self {
         case .boost: "Boost audio"
+        case .boosting: "Boosting audio"
+        case .reverting: "Reverting audio boost"
         case .boosted: "Turn off audio boost"
         }
     }
@@ -786,6 +796,7 @@ struct ExplorePublicMediaView: View {
     @State private var hasActivatedAudioPlaybackSession = false
     @State private var boostedAudioURL: URL?
     @State private var isPreparingAudioBoost = false
+    @State private var isRevertingAudioBoost = false
     @State private var audioBoostPreparationFailed = false
     @State private var showsAudioBoostPreparationStatus = false
     @State private var isAudioSeeking = false
@@ -874,7 +885,8 @@ struct ExplorePublicMediaView: View {
 
             if mediaItem.kind == .audio &&
                 isPreparingAudioBoost &&
-                showsAudioBoostPreparationStatus {
+                showsAudioBoostPreparationStatus &&
+                onAudioBoostToggleRequested == nil {
                 Text("Boosting audio…")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white)
@@ -976,6 +988,8 @@ struct ExplorePublicMediaView: View {
             surface: surface,
             mediaKind: mediaItem.kind,
             isBoostEnabled: audioBoostEnabled,
+            isPreparingBoost: isPreparingAudioBoost,
+            isRevertingBoost: isRevertingAudioBoost,
             isBoostedAudioReady: boostedAudioURL != nil && !audioBoostPreparationFailed,
             hasToggleAction: onAudioBoostToggleRequested != nil
         ) {
@@ -1000,6 +1014,7 @@ struct ExplorePublicMediaView: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .disabled(pillState == .boosting || pillState == .reverting)
                     .accessibilityLabel(pillState.accessibilityLabel)
                     Spacer()
                 }
@@ -1545,6 +1560,11 @@ struct ExplorePublicMediaView: View {
     private func updateAudioBoostMode() async {
         let wasPlaying = player?.timeControlStatus == .playing
         let resumeTime = player?.currentTime()
+        let shouldShowReverting = !audioBoostEnabled && boostedAudioURL != nil
+        isRevertingAudioBoost = shouldShowReverting
+        defer {
+            if shouldShowReverting { isRevertingAudioBoost = false }
+        }
 
         if audioBoostEnabled {
             let actionToken = audioBoostActionToken

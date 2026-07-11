@@ -156,7 +156,10 @@ struct FeaturedCollectionCard: View {
     private var coverImage: some View {
         if let featuredScan {
             GeometryReader { geo in
-                ScanThumbnail(record: featuredScan)
+                ScanThumbnail(
+                    record: featuredScan,
+                    prefersReferenceForAudio: true
+                )
                     .id(featuredScan.id)
                     .frame(width: geo.size.width, height: geo.size.width)
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
@@ -213,7 +216,10 @@ private struct CollectionCardChrome: View {
     private var coverImage: some View {
         if let coverScan {
             GeometryReader { geo in
-                ScanThumbnail(record: coverScan)
+                ScanThumbnail(
+                    record: coverScan,
+                    prefersReferenceForAudio: true
+                )
                     .frame(width: geo.size.width, height: geo.size.width)
                     .clipped()
             }

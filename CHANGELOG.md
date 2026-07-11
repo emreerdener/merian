@@ -59,6 +59,8 @@ TestFlight, App Store, support, and QA.
   reference photo with a waveform badge. Opening the scan still presents the
   recording spectrogram and playback controls. Reference-photo loading now uses
   the standard media skeleton instead of a technical pending-state message.
+- Updated collection cover cards to use the species reference photo when their
+  selected cover scan contains audio without visual media.
 
 ### Analytics
 
