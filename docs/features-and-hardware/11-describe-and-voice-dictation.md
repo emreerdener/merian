@@ -45,7 +45,11 @@ else is staged:
 `submitDescribeSolo` mirrors the resilience pattern of the other capture paths:
 if online, opens the insight sheet and fires `InferenceEngine.analyzeNonVisual`;
 if offline, enqueues through the durable non-visual queue path with cached GPS
-telemetry and surfaces a toast.
+telemetry and surfaces a toast. Because Describe shares
+`submitNonVisualCapture`, it also consumes an existing environment prefetch or
+resolves the pinned cached location before persistence; a description-only scan
+can therefore produce the same privacy-filtered Explore location label as a
+visual or audio scan.
 
 **Submission rule**: descriptions participate in the same 2-item total capacity
 as images and audio clips. Supported combinations are any one- or two-item

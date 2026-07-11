@@ -360,6 +360,15 @@ accounting, and routes replay through
 `MerianNetworkClient.buildMultiModalRequest(...)` without building a large
 inline audio body.
 
+Standalone audio begins a pinned environment-context lookup when recording
+starts. `submitNonVisualCapture` consumes that prefetched value before inserting
+the durable queue row, or resolves `lastKnownLocation` as a fallback for entry
+paths without a recording-time prefetch. Therefore the queue row, live request,
+and eventual `LocalScanRecord` share the same GPS, `locationName`, weather, and
+capture-time context. This is required for later Explore publication because
+post-level location sharing can sanitize an existing label but cannot derive a
+text label from coordinates by itself.
+
 For video scans, `MerianNetworkClient.uploadStagedVideoFiles` is strict: every
 requested local `.mp4` must resolve from an absolute path, `file://` URL,
 Documents filename, or temporary filename, and every upload must succeed. The

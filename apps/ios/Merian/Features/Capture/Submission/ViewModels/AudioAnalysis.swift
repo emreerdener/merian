@@ -3,6 +3,18 @@ import SwiftUI
 
 extension CaptureWorkspaceViewModel {
 
+    /// Starts location/weather resolution while the user records so confirming the clip can
+    /// still enter the durable queue promptly. A new recording replaces any abandoned lookup.
+    func prepareNonVisualCaptureContext() {
+        preFetchTask?.cancel()
+        let captureLocation = diContainer.environmentContextManager.lastKnownLocation
+        preFetchTask = Task {
+            await diContainer.environmentContextManager.fetchDeferredContext(
+                preLockedLocation: captureLocation
+            )
+        }
+    }
+
     // MARK: - Submit Audio
 
     /// Routes a finished audio recording through the shared non-visual submission path.

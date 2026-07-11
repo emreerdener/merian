@@ -1,3 +1,5 @@
+-- Recreate this RPC in a forward migration because deployed environments do not
+-- re-run edits made to 20260711191336 after it has been recorded as applied.
 DROP FUNCTION IF EXISTS public.get_explore_author_posts(UUID, UUID, INTEGER, TIMESTAMPTZ, UUID);
 
 CREATE FUNCTION public.get_explore_author_posts(

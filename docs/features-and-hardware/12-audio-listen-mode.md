@@ -222,6 +222,17 @@ explicit confirmation is required, the confirmed clip is appended to
 images, videos, and descriptions. Otherwise the audio-only path calls
 `submitAudio(...)` immediately.
 
+When recording begins, `CaptureWorkspaceView` calls
+`prepareNonVisualCaptureContext()`. This starts the same pinned environment
+lookup used by camera captures while the user is still recording, hiding the
+reverse-geocoding and WeatherKit latency behind the recording/review flow. Each
+new recording replaces an abandoned lookup. Submission consumes that task; if
+no prefetch exists (for example, a programmatic or legacy entry path), it
+resolves `lastKnownLocation` before constructing queue telemetry. This prevents
+audio scans with valid GPS from losing `locationName`, which would otherwise
+leave an Explore post unable to display a location label after switching the
+post to Open.
+
 ### File Format
 
 Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as
@@ -248,7 +259,8 @@ audio-only analyzer.
 debounce check (1.5 s, CFAbsoluteTimeGetCurrent)
     ↓
 cameraManager.resetZoom()
-    ↓ Task { await preFetchTask?.value }   ← resolves GPS + WeatherKit from pre-warm
+    ↓ await recording-time preFetchTask
+      (fallback: resolve pinned lastKnownLocation if no prefetch exists)
     ↓
 submitNonVisualCapture(
     audioFileNames: [audioFileName],

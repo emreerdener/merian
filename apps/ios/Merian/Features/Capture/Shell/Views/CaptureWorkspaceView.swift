@@ -491,6 +491,10 @@ struct CaptureWorkspaceView: View {
             )
             viewModel.refinementInitialDescriptionDraft = nil
         }
+        .onChange(of: audioCaptureManager.isRecording) { _, isRecording in
+            guard isRecording, !viewModel.stagedCapture.hasVisualMedia else { return }
+            viewModel.prepareNonVisualCaptureContext()
+        }
         .onChange(of: audioCaptureManager.audioFilePath) { _, fileName in
             guard let fileName else { return }
             
