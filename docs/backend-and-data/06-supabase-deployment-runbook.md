@@ -497,6 +497,11 @@ After deployment:
   classification. Replace the bytes and confirm a new decision is created.
   Query the attestation table as service role and verify it contains only
   checksum, policy/model, decision, MIME type, byte size, and timestamp.
+- On a disposable legacy audio scan with a surviving local file, share once and
+  confirm staging promotion populates `audio_storage_urls`, replaces the local
+  `captured_media` audio reference, creates a ready normalized audio asset, and
+  moderates before publication. Repeat with the local file unavailable and
+  confirm no empty or phantom public post is created.
 - Delete one disposable audio scan and purge one expired non-biological audio
   scan; confirm their R2 objects disappear before their database rows do.
 - Submit or replay a short video scan and verify Edge logs do not show

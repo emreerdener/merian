@@ -66,6 +66,9 @@ Merian is a field-ready biological identification app built around zero-friction
   Gemini calls when the bytes, model, and policy contract are unchanged. Feed
   and detail reuse the shared AVPlayer host for video/audio, while
   maps, widgets, and compact profile previews stay thumbnail-first.
+- Legacy audio scans can be shared when their original local recording still
+  exists: the app repairs durable R2/scan media first, then runs the same
+  fail-closed publication gate. Deleted legacy recordings remain unrecoverable.
 - Author profiles open inside the Explore navigation stack, expose
   privacy-scoped public stats, non-opening public achievements, and
   active/published Field Trip previews, and cap profile-to-scan nesting after

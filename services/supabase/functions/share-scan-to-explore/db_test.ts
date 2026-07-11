@@ -3,7 +3,10 @@ import {
   assertThrows,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
-import { buildRestoredVideoCapturedMedia } from "./db.ts";
+import {
+  buildRestoredAudioCapturedMedia,
+  buildRestoredVideoCapturedMedia,
+} from "./db.ts";
 import type {
   SelectedExplorePostMediaItem,
   ShareEligibleScanRow,
@@ -162,6 +165,83 @@ Deno.test("buildRestoredVideoCapturedMedia collapses frame-only video rows into 
           },
         },
       },
+    ],
+  );
+});
+
+Deno.test("buildRestoredAudioCapturedMedia replaces local legacy audio with durable references", () => {
+  const scan = makeVideoScan([
+    { audio: { _0: { storage: "localFile", path: "legacy.wav" } } },
+    {
+      image: {
+        _0: {
+          storage: "remoteURL",
+          path: "https://media.merian.app/image.webp",
+        },
+      },
+    },
+  ]);
+  assertEquals(
+    buildRestoredAudioCapturedMedia(scan, [
+      "https://media.merian.app/restored.wav",
+    ]),
+    [
+      {
+        image: {
+          _0: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/image.webp",
+          },
+        },
+      },
+      {
+        audio: {
+          _0: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/restored.wav",
+          },
+        },
+      },
+    ],
+  );
+});
+
+Deno.test("video restoration preserves already-restored standalone audio", () => {
+  const imageUrls = [0, 1, 2, 3, 4].map((index) =>
+    `https://media.merian.app/frame-${index}.webp`
+  );
+  const audioItem = {
+    audio: {
+      _0: {
+        storage: "remoteURL",
+        path: "https://media.merian.app/restored.wav",
+      },
+    },
+  };
+  const scan = makeVideoScan([
+    ...imageUrls.map((url) => ({
+      image: { _0: { storage: "remoteURL", path: url } },
+    })),
+    audioItem,
+  ], imageUrls);
+  scan.video_storage_urls = [];
+  assertEquals(
+    buildRestoredVideoCapturedMedia(scan, [
+      "https://media.merian.app/clip.mp4",
+    ]),
+    [
+      {
+        video: {
+          _0: {
+            video: {
+              storage: "remoteURL",
+              path: "https://media.merian.app/clip.mp4",
+            },
+            thumbnail: { storage: "remoteURL", path: imageUrls[0] },
+          },
+        },
+      },
+      audioItem,
     ],
   );
 });

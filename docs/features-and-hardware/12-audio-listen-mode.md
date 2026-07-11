@@ -586,6 +586,15 @@ mixed posts retain their visual hero and expose every approved audio item in
 canonical order. The widget snapshot writer still filters out audio-only posts
 before applying its 12-item cap.
 
+Legacy scans created before durable audio upload use an on-demand repair path.
+When the original local WAV/M4A still exists, iOS obtains an owner-scoped audio
+staging URL, uploads within the normal audio count/byte limits, and retries the
+share with `restored_audio_object_keys`. The backend promotes the object,
+updates `audio_storage_urls` and canonical `captured_media`, refreshes
+`scan_media_assets`, and only then runs publication moderation. Database-write
+failure rolls back the promoted object. A legacy scan with no surviving local
+recording cannot be reconstructed or shared as audio.
+
 ### Error Status Semantics
 
 A cache hit returns the prior decision without requiring Gemini. On a cache

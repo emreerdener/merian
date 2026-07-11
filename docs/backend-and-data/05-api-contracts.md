@@ -2844,6 +2844,13 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 - Video `has_audio` metadata is copied from ready media rows or derived from
   the `captured_media` video audio reference. Legacy URL-array video sources
   default false because they do not prove that an audio companion exists.
+- `restored_audio_object_keys` accepts at most two owner-scoped
+  `staging/{userId}/` WAV/M4A keys for legacy scans that still have local audio
+  but no durable cloud audio. Successful repair promotes the objects, writes
+  `audio_storage_urls`, replaces standalone local references in
+  `captured_media`, refreshes normalized assets, and then enters the normal
+  moderation gate. Promotion or persistence failure publishes nothing and
+  rolls back promoted objects.
 - If any selected item is standalone audio or an audio-bearing video,
   every audible item must have a matching content-addressed attestation or pass
   the dedicated `gemini-2.5-flash` structured audio classifier before the

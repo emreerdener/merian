@@ -190,6 +190,9 @@ TestFlight, App Store, support, and QA.
 - Added privacy-safe, content-addressed audio moderation attestations so
   unchanged clips reuse decisions while changed media, models, or policy rules
   automatically require a fresh Gemini check.
+- Added legacy audio repair during Explore sharing: surviving local recordings
+  upload to staging, become durable scan media, and are moderated before the
+  post can become public; missing local recordings remain unavailable.
 - Added Explore post management actions to the Insight top menu so published
   scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts

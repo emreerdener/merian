@@ -247,6 +247,12 @@ Deno.serve((req: Request) =>
       user.id,
       "restored_video_object_keys",
     );
+    const restoredAudioObjectKeys = normalizeRestoredObjectKeys(
+      body.restored_audio_object_keys,
+      user.id,
+      "restored_audio_object_keys",
+      2,
+    );
     const speciesCommonName = normalizeSpeciesCommonName(
       body.species_common_name,
     );
@@ -270,6 +276,7 @@ Deno.serve((req: Request) =>
         user.id,
         restoredObjectKeys,
         restoredVideoObjectKeys,
+        restoredAudioObjectKeys,
         supabaseAdmin,
       );
       await assertCommunityRequestCanPublishToExplore(

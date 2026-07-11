@@ -14,6 +14,7 @@ separately from the backing scan's `geoprivacy`.
   "hashtags": ["deer", "urbanwildlife"],
   "location_sharing": "obscured",
   "restored_video_object_keys": ["staging/user-id/restored-video.mp4"],
+  "restored_audio_object_keys": ["staging/user-id/restored-audio.wav"],
   "media_items": [
     { "kind": "image", "source_media_id": "scan:uuid:image:0", "order_index": 0 },
     {
@@ -60,6 +61,15 @@ the returned keys here. The function promotes the videos, rebuilds
 `captured_media`, makes a best-effort `scan_media_assets` refresh, and validates
 the selected video media again before publishing. Rows whose original local video
 is gone remain image-only historical rows.
+
+`restored_audio_object_keys` is the equivalent owner-scoped repair input for
+legacy audio scans whose local WAV/M4A still exists but whose cloud scan predates
+durable `audio_storage_urls`. At most two staging keys are accepted. The
+function promotes them, replaces legacy local audio references in
+`captured_media`, updates `audio_storage_urls`, refreshes normalized media
+assets, and then applies the normal fail-closed publication moderation. Failed
+promotion or scan persistence rolls back promoted R2 objects and publishes
+nothing. If the local recording is gone, the audio cannot be recovered.
 
 Valid location values:
 

@@ -44,6 +44,11 @@ model change is an automatic cache miss, so changed safety rules always force a
 new Gemini decision. Cache read/write failures degrade to live moderation and
 never bypass the publication gate.
 
+Legacy audio repair does not bypass this gate. Owner-scoped staging keys are
+promoted and persisted to the scan before selection resolution; the restored
+bytes then require the same checksum attestation or live Gemini decision as new
+audio. Failed scan persistence rolls back the promoted R2 objects.
+
 ## Architecture Overview
 
 ```

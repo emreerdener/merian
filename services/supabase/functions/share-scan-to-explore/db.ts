@@ -69,6 +69,27 @@ function imageManifestItem(url: string): Record<string, unknown> {
   return { image: { _0: remoteMediaReference(url) } };
 }
 
+function audioManifestItem(url: string): Record<string, unknown> {
+  return { audio: { _0: remoteMediaReference(url) } };
+}
+
+function isStandaloneAudioManifestItem(value: unknown): boolean {
+  return value != null && typeof value === "object" && !Array.isArray(value) &&
+    Object.hasOwn(value as Record<string, unknown>, "audio");
+}
+
+export function buildRestoredAudioCapturedMedia(
+  row: ShareEligibleScanRow,
+  audioUrls: string[],
+): unknown[] | null {
+  const sanitizedAudioUrls = cleanMediaUrls(audioUrls);
+  if (sanitizedAudioUrls.length === 0) return row.captured_media ?? null;
+  const existingItems = Array.isArray(row.captured_media)
+    ? row.captured_media.filter((item) => !isStandaloneAudioManifestItem(item))
+    : cleanMediaUrls(row.image_storage_urls).map(imageManifestItem);
+  return [...existingItems, ...sanitizedAudioUrls.map(audioManifestItem)];
+}
+
 function videoManifestItem(
   url: string,
   thumbnailUrl: string | undefined,
@@ -111,6 +132,9 @@ export function buildRestoredVideoCapturedMedia(
       imageUrls[0];
     items.push(videoManifestItem(url, thumbnailUrl));
   });
+  if (Array.isArray(row.captured_media)) {
+    items.push(...row.captured_media.filter(isStandaloneAudioManifestItem));
+  }
 
   return items.length > 0 ? items : null;
 }
@@ -138,6 +162,7 @@ export async function fetchShareEligibleScan(
   userId: string,
   restoredObjectKeys: string[],
   restoredVideoObjectKeys: string[],
+  restoredAudioObjectKeys: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<ShareEligibleScanRow> {
   const { data, error } = await supabaseAdmin
@@ -186,6 +211,56 @@ export async function fetchShareEligibleScan(
     if (updateError || !updatedRow) {
       throw new Error(
         `Failed to restore shareable scan media: ${
+          updateError?.message ?? "Unknown error"
+        }`,
+      );
+    }
+
+    row = updatedRow as ShareEligibleScanRow;
+    await refreshScanMediaAssetsBestEffort(scanId, supabaseAdmin);
+  }
+
+  if (restoredAudioObjectKeys.length > 0) {
+    const userTier = await getTierForUser(userId, supabaseAdmin);
+    const audioPublicUrls = await promoteSafeMedia({
+      userId,
+      r2ObjectKeys: restoredAudioObjectKeys,
+      imageBase64s: undefined,
+      userTier,
+      r2Config: getR2Config(),
+    });
+    if (audioPublicUrls.length !== restoredAudioObjectKeys.length) {
+      await rollbackPromotedUrls(audioPublicUrls);
+      throw makeHttpError(503, "Restored audio media could not be saved.");
+    }
+
+    const combinedAudioUrls = [
+      ...new Set([
+        ...cleanMediaUrls(row.audio_storage_urls),
+        ...audioPublicUrls,
+      ]),
+    ];
+    const capturedMedia = buildRestoredAudioCapturedMedia(
+      row,
+      combinedAudioUrls,
+    );
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
+      .from("scans")
+      .update({
+        audio_storage_urls: combinedAudioUrls,
+        captured_media: capturedMedia,
+      })
+      .eq("id", scanId)
+      .eq("user_id", userId)
+      .select(
+        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
+      )
+      .single();
+
+    if (updateError || !updatedRow) {
+      await rollbackPromotedUrls(audioPublicUrls);
+      throw new Error(
+        `Failed to restore shareable scan audio: ${
           updateError?.message ?? "Unknown error"
         }`,
       );
