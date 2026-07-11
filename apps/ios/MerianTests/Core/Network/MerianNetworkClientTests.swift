@@ -616,6 +616,105 @@ struct MerianNetworkClientTests {
         ])
     }
 
+    @Test func testExploreMapResponseToleratesMediaOnlyPostsWithoutHeroImages() throws {
+        let data = """
+        {
+            "mode": "posts",
+            "visible_count": 2,
+            "category_counts": [{ "category": "birds", "count": 2 }],
+            "clusters": [],
+            "posts": [
+                {
+                    "post_id": "audio-post",
+                    "scan_id": "audio-scan",
+                    "latitude": 30.2672,
+                    "longitude": -97.7431,
+                    "coordinate_visibility": "exact",
+                    "hero_image_url": null,
+                    "reference_thumbnail_url": "https://example.com/cardinal.webp",
+                    "shared_at": "2026-07-11T20:00:00Z",
+                    "author_user_id": "audio-author",
+                    "author_name": "Audio Author",
+                    "author_username": null,
+                    "author_avatar_url": null,
+                    "author_is_pro": false,
+                    "species_common_name": "Northern Cardinal",
+                    "species_scientific_name": "Cardinalis cardinalis",
+                    "pet_identification": null,
+                    "taxonomy_kingdom": "Animalia",
+                    "taxonomy_class": "Aves",
+                    "public_location_label": "Austin, TX",
+                    "location_sharing": "open",
+                    "time_of_day": null,
+                    "current_month": 7,
+                    "weather_condition": null,
+                    "weather_temperature_f": null,
+                    "like_count": 0,
+                    "comment_count": 0,
+                    "viewer_has_liked": false,
+                    "is_owned_by_viewer": false,
+                    "media_items": [{
+                        "kind": "audio",
+                        "url": "https://example.com/cardinal.wav",
+                        "thumbnail_url": null,
+                        "order_index": 0,
+                        "duration_seconds": 8.0,
+                        "has_audio": true
+                    }]
+                },
+                {
+                    "post_id": "video-post",
+                    "scan_id": "video-scan",
+                    "latitude": 30.268,
+                    "longitude": -97.744,
+                    "coordinate_visibility": "obscured",
+                    "shared_at": "2026-07-11T19:00:00Z",
+                    "author_user_id": "video-author",
+                    "author_name": "Video Author",
+                    "author_username": null,
+                    "author_avatar_url": null,
+                    "author_is_pro": true,
+                    "species_common_name": "Monarch Butterfly",
+                    "species_scientific_name": "Danaus plexippus",
+                    "pet_identification": null,
+                    "taxonomy_kingdom": "Animalia",
+                    "taxonomy_class": "Insecta",
+                    "public_location_label": null,
+                    "location_sharing": "obscured",
+                    "time_of_day": null,
+                    "current_month": 7,
+                    "weather_condition": null,
+                    "weather_temperature_f": null,
+                    "like_count": 1,
+                    "comment_count": 2,
+                    "viewer_has_liked": true,
+                    "is_owned_by_viewer": false,
+                    "media_items": [{
+                        "kind": "video",
+                        "url": "https://example.com/monarch.mp4",
+                        "thumbnail_url": "https://example.com/monarch.webp",
+                        "order_index": 0,
+                        "duration_seconds": 4.0,
+                        "has_audio": true
+                    }]
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(ExploreMapPointsResponse.self, from: data)
+
+        #expect(response.posts.count == 2)
+        #expect(response.posts[0].heroImageUrl.isEmpty)
+        #expect(response.posts[0].hasAudioMedia)
+        #expect(response.posts[0].mapThumbnailUrl == "https://example.com/cardinal.webp")
+        #expect(response.posts[1].heroImageUrl.isEmpty)
+        #expect(response.posts[1].hasVideoMedia)
+        #expect(response.posts[1].mapThumbnailUrl == "https://example.com/monarch.webp")
+    }
+
     @Test func testGetExploreFeedTrendingConstructsPayloadAndParsesResponse() async throws {
         let testData = """
         {

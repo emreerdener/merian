@@ -250,6 +250,7 @@ final class ExploreMapViewModel {
                 longitude: mapPost.longitude,
                 coordinateVisibility: mapPost.coordinateVisibility,
                 heroImageUrl: canonical.heroImageUrl,
+                referenceThumbnailUrl: canonical.referenceThumbnailUrl ?? mapPost.referenceThumbnailUrl,
                 sharedAt: canonical.sharedAt,
                 authorUserId: canonical.authorUserId,
                 authorName: canonical.authorName,
@@ -357,6 +358,17 @@ final class ExploreMapViewModel {
                     ? ExploreErrorFormatter.message(for: urlError)
                     : nil
             }
+        } catch let decodingError as DecodingError {
+#if DEBUG
+            MerianLog.network.error(
+                "Explore map response decoding failed: \(String(describing: decodingError), privacy: .public)"
+            )
+#endif
+            isOffline = false
+            hasServiceUnavailableError = false
+            errorMessage = posts.isEmpty && clusters.isEmpty
+                ? "Something went wrong. Please try again."
+                : nil
         } catch {
             isOffline = false
             hasServiceUnavailableError = false

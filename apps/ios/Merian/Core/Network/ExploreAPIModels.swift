@@ -1095,7 +1095,9 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     let latitude: Double
     let longitude: Double
     let coordinateVisibility: ExploreCoordinateVisibility
-    let heroImageUrl: String
+    @ExploreEmptyStringIfMissing var heroImageUrl: String
+    // swiftlint:disable:next implicit_optional_initialization
+    var referenceThumbnailUrl: String? = nil
     let sharedAt: String
     let authorUserId: String
     let authorName: String
@@ -1131,6 +1133,35 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
 
     var hasVideoMedia: Bool {
         resolvedMediaItems.contains { $0.kind == .video }
+    }
+
+    var hasAudioMedia: Bool {
+        resolvedMediaItems.contains { $0.kind == .audio }
+    }
+
+    var mapThumbnailUrl: String {
+        let visualMedia = mediaItems?.first { item in
+            item.kind == .image && item.posterImageUrl(fallback: "") != nil
+        }
+        if let visualUrl = visualMedia?.posterImageUrl(fallback: "") {
+            return visualUrl
+        }
+
+        let videoThumbnail = mediaItems?
+            .first { $0.kind == .video }?
+            .thumbnailUrl?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let videoThumbnail, !videoThumbnail.isEmpty {
+            return videoThumbnail
+        }
+
+        let referenceThumbnail = referenceThumbnailUrl?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let referenceThumbnail, !referenceThumbnail.isEmpty {
+            return referenceThumbnail
+        }
+
+        return heroImageUrl.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var coordinate: CLLocationCoordinate2D {

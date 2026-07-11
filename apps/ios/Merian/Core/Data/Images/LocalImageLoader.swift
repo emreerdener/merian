@@ -80,8 +80,15 @@ actor LocalImageLoader {
         config.timeoutIntervalForResource = 300
         config.httpMaximumConnectionsPerHost = 4
         config.httpShouldSetCookies = false
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.urlCache = nil
+        // Explore/profile thumbnails are immutable, versioned media URLs. Keep their
+        // responses across view reconstruction and app launches instead of forcing R2
+        // to serve the same bytes whenever the in-memory UIImage cache is cold.
+        config.requestCachePolicy = .useProtocolCachePolicy
+        config.urlCache = URLCache(
+            memoryCapacity: 24 * 1024 * 1024,
+            diskCapacity: 256 * 1024 * 1024,
+            diskPath: "MerianMediaCache"
+        )
         return URLSession(configuration: config)
     }()
     

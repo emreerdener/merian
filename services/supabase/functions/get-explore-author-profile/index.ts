@@ -41,26 +41,28 @@ Deno.serve((req: Request) =>
       return jsonResponse({ error: "Explore author profile not found" }, 404);
     }
 
-    const profileWithProBadge = await withExploreAuthorProfileProBadge(
-      profile,
-      supabaseAdmin,
-    );
-    const [authorWithUsername] = await withExploreAuthorUsernames(
-      [{ author_user_id: profileWithProBadge.author_user_id }],
-      supabaseAdmin,
-    );
-    const previewPosts = Array.isArray(profileWithProBadge.preview_posts)
-      ? await withExploreAuthorUsernames(
-        profileWithProBadge.preview_posts as Array<{ author_user_id: string }>,
-        supabaseAdmin,
-      )
-      : profileWithProBadge.preview_posts;
-    const fieldTrips = await fetchFieldTripProfileSummaries(
-      user.id,
-      authorUserId,
-      6,
-      supabaseAdmin,
-    );
+    // These enrichments are independent. Running them together keeps profile latency
+    // bounded by the slowest lookup instead of adding every database round trip.
+    const [profileWithProBadge, [authorWithUsername], previewPosts, fieldTrips] =
+      await Promise.all([
+        withExploreAuthorProfileProBadge(profile, supabaseAdmin),
+        withExploreAuthorUsernames(
+          [{ author_user_id: profile.author_user_id }],
+          supabaseAdmin,
+        ),
+        Array.isArray(profile.preview_posts)
+          ? withExploreAuthorUsernames(
+            profile.preview_posts as Array<{ author_user_id: string }>,
+            supabaseAdmin,
+          )
+          : Promise.resolve(profile.preview_posts),
+        fetchFieldTripProfileSummaries(
+          user.id,
+          authorUserId,
+          6,
+          supabaseAdmin,
+        ),
+      ]);
     const data = {
       ...profileWithProBadge,
       author_username: authorWithUsername.author_username,

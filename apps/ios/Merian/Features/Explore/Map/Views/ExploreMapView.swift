@@ -312,7 +312,7 @@ struct ExploreMapView: View {
                 }
             } label: {
                 ExploreMapWaypoint(
-                    imageUrl: post.heroImageUrl,
+                    imageUrl: post.mapThumbnailUrl,
                     reloadGeneration: feedViewModel.mediaReloadGeneration,
                     isSelected: viewModel.selectedPostId == post.id,
                     isApproximate: post.coordinateVisibility == .obscured,
@@ -997,7 +997,7 @@ private struct ExploreMapPreviewCard: View {
                         onOpen()
                     }) {
                         ExploreHeroImageView(
-                            imageUrl: post.heroImageUrl,
+                            imageUrl: post.gridThumbnailUrl,
                             reloadGeneration: mediaReloadGeneration
                         )
                         .frame(width: 82, height: 82)

@@ -20,7 +20,8 @@ export interface ExploreMapPostRow {
   latitude: number;
   longitude: number;
   coordinate_visibility: ExploreCoordinateVisibility;
-  hero_image_url: string;
+  hero_image_url?: string | null;
+  reference_thumbnail_url?: string | null;
   shared_at: string;
   author_user_id: string;
   author_name: string;

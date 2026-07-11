@@ -55,6 +55,7 @@ Post mode:
       "longitude": -97.743,
       "coordinate_visibility": "obscured",
       "hero_image_url": "https://...",
+      "reference_thumbnail_url": "https://.../species-reference.webp",
       "shared_at": "2026-06-17T19:30:00.000Z",
       "author_user_id": "uuid",
       "author_name": "Nina P.",
@@ -84,7 +85,7 @@ Map rows require:
 
 - active shared post;
 - non-tombstoned backing scan;
-- image media and resolved species;
+- published image, video, or audio media and resolved species;
 - non-shadowbanned author;
 - no viewer/author block in either direction;
 - saved post-level `location_sharing = "open"`;
@@ -99,11 +100,19 @@ rounded the stored public coordinate.
 from the backing scan. Map previews may show its label, but species routing
 continues to use `species_scientific_name`.
 
+## Media Compatibility
+
+`hero_image_url` is always a JSON string for compatibility with deployed
+clients. For media-only posts, the response prefers a visual-media poster and
+then the normalized species `reference_thumbnail_url`; if neither exists it uses
+an empty string so one post cannot invalidate the complete map response. Ordered
+`media_items` remain authoritative for playback and media badges.
+
 ## Local Verification
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-map-points/index.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/get-explore-map-points/cluster.test.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/get-explore-map-points/contract.test.ts services/supabase/functions/get-explore-map-points/cluster.test.ts
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreMapDb.test.ts
 ```
 

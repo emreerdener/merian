@@ -2,12 +2,13 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
-  withExplorePostMediaItems,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
+  withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 import { fetchExploreMapPosts } from "./db.ts";
 import { buildExploreMapPayload } from "./cluster.ts";
+import { normalizeExploreMapRows } from "./contract.ts";
 import { ExploreMapSpeciesCategory } from "./types.ts";
 
 const ALLOWED_SPECIES_CATEGORIES = new Set<ExploreMapSpeciesCategory>([
@@ -125,23 +126,25 @@ Deno.serve((req: Request) =>
       "get-explore-map-points",
     );
 
-    const rows = await withExplorePostMediaItems(
-      await withExploreAuthorUsernames(
-        await withExploreAuthorProBadges(
-          await fetchExploreMapPosts(
-            user.id,
-            northLatitude,
-            southLatitude,
-            eastLongitude,
-            westLongitude,
-            limit,
+    const rows = normalizeExploreMapRows(
+      await withExplorePostMediaItems(
+        await withExploreAuthorUsernames(
+          await withExploreAuthorProBadges(
+            await fetchExploreMapPosts(
+              user.id,
+              northLatitude,
+              southLatitude,
+              eastLongitude,
+              westLongitude,
+              limit,
+              supabaseAdmin,
+            ),
             supabaseAdmin,
           ),
           supabaseAdmin,
         ),
         supabaseAdmin,
       ),
-      supabaseAdmin,
     );
 
     return jsonResponse(

@@ -28,7 +28,10 @@ function buildClusters(
   rows: ExploreMapPostRow[],
   cellSize: number,
 ): ExploreMapCluster[] {
-  const buckets = new Map<string, { count: number; latitudeSum: number; longitudeSum: number }>();
+  const buckets = new Map<
+    string,
+    { count: number; latitudeSum: number; longitudeSum: number }
+  >();
 
   for (const row of rows) {
     const latBucket = Math.floor((row.latitude + 90) / cellSize);
@@ -88,7 +91,9 @@ export function categoryForMapPost(
   }
 }
 
-function buildCategoryCounts(rows: ExploreMapPostRow[]): ExploreMapCategoryCount[] {
+function buildCategoryCounts(
+  rows: ExploreMapPostRow[],
+): ExploreMapCategoryCount[] {
   const counts = new Map<ExploreMapSpeciesCategory, number>();
 
   for (const row of rows) {
@@ -98,7 +103,9 @@ function buildCategoryCounts(rows: ExploreMapPostRow[]): ExploreMapCategoryCount
 
   return Array.from(counts.entries())
     .map(([category, count]) => ({ category, count }))
-    .sort((lhs, rhs) => rhs.count - lhs.count || lhs.category.localeCompare(rhs.category));
+    .sort((lhs, rhs) =>
+      rhs.count - lhs.count || lhs.category.localeCompare(rhs.category)
+    );
 }
 
 function filterRowsByCategory(
@@ -152,7 +159,9 @@ export function buildExploreMapPayload(
   }
 
   const clusters = buildClusters(rows, cellSize);
-  const hasMeaningfulAggregation = clusters.some((cluster) => cluster.post_count > 1);
+  const hasMeaningfulAggregation = clusters.some((cluster) =>
+    cluster.post_count > 1
+  );
 
   if (!hasMeaningfulAggregation && rows.length <= MAX_INDIVIDUAL_POSTS) {
     return {

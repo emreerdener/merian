@@ -53,6 +53,29 @@ Deno.test("Explore post detail permits audio-only scans and retains AI reasoning
   );
 });
 
+Deno.test("Explore map migration keeps media-only rows decodable", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260711204532_harden_explore_map_media_thumbnails.sql",
+    ),
+  );
+
+  assertStringIncludes(sql, "reference_thumbnail_url TEXT");
+  assertStringIncludes(
+    sql,
+    "public.public_species_first_reference_image_url( COALESCE(map_scan.confirmed_species_id, map_scan.species_id), sd.reference_image_url ) AS reference_thumbnail_url",
+  );
+  assertStringIncludes(
+    sql,
+    "COALESCE( NULLIF(BTRIM(cards.hero_image_url), ''), public.public_species_first_reference_image_url",
+  );
+  assertStringIncludes(sql, ", '' ) AS hero_image_url");
+  assert(
+    !sql.includes("ARRAY_LENGTH(map_scan.image_storage_urls"),
+    "Media-only Explore posts must remain eligible for map projection.",
+  );
+});
+
 Deno.test("scan_media_assets migration declares the durable media lifecycle contract", async () => {
   const sql = normalized(
     await migrationSql("20260705100000_add_scan_media_assets.sql"),

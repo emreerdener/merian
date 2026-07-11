@@ -729,6 +729,17 @@ struct ExploreAuthorProfileContent: View {
             )
             guard !Task.isCancelled else { return }
 
+            LocalImageLoader.shared.prefetch(
+                records: loadedProfile.previewPosts.map { post in
+                    (
+                        imagePath: nil,
+                        fallbackUrl: post.gridThumbnailUrl(
+                            localReferenceUrl: localReferenceUrl(for: post)
+                        )
+                    )
+                },
+                maxDimension: 360
+            )
             profile = loadedProfile
             profileErrorMessage = nil
             seedLibrary(from: loadedProfile)
