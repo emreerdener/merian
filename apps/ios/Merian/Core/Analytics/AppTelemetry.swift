@@ -134,6 +134,12 @@ enum AppTelemetry {
         send("ExploreAudioPlaybackFailed", with: ["surface": surface])
     }
 
+    static func trackExploreAudioBoost(event: String, surface: String, gainBand: String? = nil) {
+        var properties = ["surface": surface, "action": event]
+        if let gainBand { properties["gainBand"] = gainBand }
+        send("ExploreAudioBoostChanged", with: properties)
+    }
+
     // MARK: - Achievement Events
 
     /// Records opening an achievement detail sheet.

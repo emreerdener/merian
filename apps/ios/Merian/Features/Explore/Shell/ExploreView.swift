@@ -849,6 +849,9 @@ private struct ExploreFeedTabContent: View {
         .refreshable {
             await refreshFeed()
         }
+        .onAppear {
+            ExploreVideoMutePreference.resetToMuted()
+        }
     }
 
     private var loadingState: some View {

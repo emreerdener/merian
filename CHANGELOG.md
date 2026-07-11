@@ -136,6 +136,21 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Fixed feed audio and video controls so the center Play/Pause region controls
+  playback without opening the post; taps outside it still open detail, and
+  double taps continue to like.
+- Changed Explore video transitions so feed autoplay always resumes muted;
+  opening a post still inherits the feed video's current mute choice, while
+  returning from detail resets the feed to muted.
+- Fixed normalized audio media refresh so scans with durable recordings always
+  receive ready audio asset rows, including a production backfill for audio
+  shared before the database refresh contract supported standalone audio.
+- Added a device-local, per-post “Boost audio” option to standalone Explore
+  audio feed and detail menus, with adaptive gain, gentle rumble reduction,
+  clipping protection, synchronized settings, and position-preserving switching
+  while the original recording remains unchanged; active boosted clips show a
+  small “Boosted audio” badge on the spectrogram, and saved boost settings restore quietly
+  without showing action-progress messaging.
 - Added an allowlisted Field Trips preview to Explore: regional checklist quests can auto-start from
   new scans, unlock levels sequentially, show active checklist progress on
   public profiles, and publish Field Trip pages with species snapshots, likes,

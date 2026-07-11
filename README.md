@@ -61,6 +61,14 @@ Merian is a field-ready biological identification app built around zero-friction
   or challenge entries that stay separate from Explore feeds and maps.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support image, short-video, and standalone-audio media snapshots.
+- Explore feed videos autoplay muted whenever the feed is entered or resumed;
+  post detail inherits the feed's current choice, then returning to the feed
+  resets playback to muted.
+- Feed audio and video use a dedicated center Play/Pause hit zone, while taps
+  elsewhere on the media continue opening post detail and double taps like.
+- Standalone Explore audio posts offer an optional device-local “Boost audio”
+  listening mode from feed and detail menus, remembered independently per post
+  without changing the original recording.
   Audio shares are fail-closed: the server evaluates speech and non-speech
   sounds before creating or reactivating the Explore post, so only an approved
   share becomes public. Content-addressed attestations safely avoid repeat

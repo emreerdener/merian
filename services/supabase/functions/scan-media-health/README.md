@@ -29,6 +29,13 @@ The endpoint is read-only. It does not repair media or replay inference. Repairs
 stay owned by `identify-multimodal`, `replay-scan-ingestion`, the iOS offline
 queue, and `reconcile-scan-media-assets`.
 
+For `audio_scan_missing_ready_audio_asset`, first confirm
+`20260711171512_backfill_missing_ready_audio_assets.sql` is deployed. That
+migration extends the canonical `refresh_scan_media_assets(...)` RPC to rebuild
+standalone audio and backfills scans with durable `audio_storage_urls`. Rerun
+the monitor after deployment. Do not delete or replace the R2 recording to
+repair a missing normalized row.
+
 ## Invocation
 
 `verify_jwt = false` is configured so service-role automation can reach Deno,

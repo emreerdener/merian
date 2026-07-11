@@ -42,6 +42,8 @@ struct ExplorePostDetailView: View {
     @State private var viewportHeight: CGFloat = 0
     @State private var didFocusTargetComment = false
     @State private var focusedComposerIsSticky: Bool?
+    @State private var isAudioBoostEnabled = false
+    @State private var audioBoostActionToken: UUID?
 
     private var isComposerSticky: Bool {
         commentsSectionMinY <= viewportHeight - 150
@@ -109,6 +111,11 @@ struct ExplorePostDetailView: View {
         allowsInsightPresentation || onOpenOwnedPostInsight != nil
     }
 
+    private func finishAudioBoostAction(_ token: UUID) {
+        guard audioBoostActionToken == token else { return }
+        audioBoostActionToken = nil
+    }
+
     var body: some View {
         Group {
             if let post = currentPost {
@@ -131,7 +138,10 @@ struct ExplorePostDetailView: View {
                             ExploreDetailMediaView(
                                 imageUrl: post.heroImageUrl,
                                 mediaItems: post.resolvedMediaItems,
-                                reloadGeneration: viewModel.mediaReloadGeneration
+                                reloadGeneration: viewModel.mediaReloadGeneration,
+                                audioBoostEnabled: $isAudioBoostEnabled,
+                                audioBoostActionToken: audioBoostActionToken,
+                                onAudioBoostActionFinished: finishAudioBoostAction
                             )
 
                             ExplorePostDetailActionRow(
@@ -279,6 +289,12 @@ struct ExplorePostDetailView: View {
                                 },
                                 onReportPost: {
                                     Task { await viewModel.report(post) }
+                                },
+                                audioBoostEnabled: post.resolvedMediaItems.first?.kind == .audio
+                                    ? $isAudioBoostEnabled
+                                    : nil,
+                                onAudioBoostEnableRequested: {
+                                    audioBoostActionToken = UUID()
                                 }
                             )
                         }
@@ -312,6 +328,26 @@ struct ExplorePostDetailView: View {
                     }
                     .onChange(of: post.id, initial: true) { _, _ in
                         isCommonNameScrolledPast = false
+                        isAudioBoostEnabled = ExploreAudioBoostPreferenceStore().isEnabled(for: post.id)
+                        if isAudioBoostEnabled {
+                            AppTelemetry.trackExploreAudioBoost(event: "restored", surface: "detail")
+                        }
+                    }
+                    .onChange(of: isAudioBoostEnabled) { _, enabled in
+                        ExploreAudioBoostPreferenceStore().setEnabled(enabled, for: post.id)
+                    }
+                    .onReceive(
+                        NotificationCenter.default.publisher(
+                            for: ExploreAudioBoostPreferenceStore.didChangeNotification
+                        )
+                    ) { notification in
+                        guard notification.userInfo?[ExploreAudioBoostPreferenceStore.postIdUserInfoKey] as? String == post.id,
+                              let enabled = notification.userInfo?[ExploreAudioBoostPreferenceStore.enabledUserInfoKey] as? Bool,
+                              enabled != isAudioBoostEnabled else { return }
+                        isAudioBoostEnabled = enabled
+                    }
+                    .onDisappear {
+                        ExploreVideoMutePreference.resetToMuted()
                     }
                 }
             } else {

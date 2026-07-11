@@ -38,7 +38,9 @@ networking, and hardware orchestration logic.
 - **Media durability safety net**: Backend deploys run a media-ingestion
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident
-  actions with owner/runbook/sample hints for each issue code.
+  actions with owner/runbook/sample hints for each issue code. Canonical scan
+  media refresh rebuilds standalone audio rows from `captured_media` and
+  `audio_storage_urls`; it never requires replacing the durable R2 recording.
 - **Video media contract**: Pro video remains a short capture surface, not
   arbitrary gallery import. The app submits five sampled frames plus optional
   extracted WAV audio for inference, stages one upload-bounded playback `.mp4`
@@ -235,8 +237,8 @@ networking, and hardware orchestration logic.
   `HardwareOrchestrator`).
 - **[`/development-guides/10-safety-and-moderation.md`](./development-guides/10-safety-and-moderation.md)**
   — Gemini safety rating evaluation, abuse strike system, shadowban logic, and
-  R2 media promotion pipeline, plus fail-closed Explore audio transcript
-  moderation.
+  R2 media promotion pipeline, plus fail-closed Explore speech/non-speech audio
+  moderation and the post-publication local playback-boost boundary.
 - **[`/development-guides/11-swiftdata-and-api-gotchas.md`](./development-guides/11-swiftdata-and-api-gotchas.md)**
   — SwiftData background synchronization drops, relationship fault boundaries,
   and API envelope parsing constraints.

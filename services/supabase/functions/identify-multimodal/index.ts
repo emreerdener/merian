@@ -80,6 +80,7 @@ import {
   markStagedScanMediaAssetsDeleted,
   markStagedScanMediaAssetsFailed,
   markStagedScanMediaAssetsPromoted,
+  refreshScanMediaAssets,
   refreshScanMediaAssetsBestEffort,
 } from "../_shared/scanMediaAssets.ts";
 import {
@@ -1682,32 +1683,10 @@ export async function handleIdentifyMultimodalRequest(
       await markUploadAssetsDeletedBestEffort(companionAudioStorageKeys);
       await refreshScanMediaAssetsBestEffort(generatedScanId, supabaseAdmin);
       if (audioStorageUrls.length > 0) {
-        await supabaseAdmin.from("scan_media_assets").delete()
-          .eq("scan_id", generatedScanId)
-          .eq("source", "manual")
-          .eq("kind", "audio");
-        const { error: audioAssetError } = await supabaseAdmin
-          .from("scan_media_assets")
-          .insert(audioStorageUrls.map((url, index) => ({
-            scan_id: generatedScanId,
-            client_scan_id: generatedScanId,
-            user_id: user.id,
-            kind: "audio",
-            role: "audio",
-            status: "ready",
-            source: "manual",
-            url,
-            order_index: index,
-            has_audio: true,
-            content_type: "audio/wav",
-            ready_at: new Date().toISOString(),
-            metadata: { manifest_source: "identify_multimodal" },
-          })));
-        if (audioAssetError) {
-          throw new Error(
-            `Failed to persist durable audio assets: ${audioAssetError.message}`,
-          );
-        }
+        // Audio is a required durable asset, so unlike the visual compatibility
+        // refresh above, standalone-audio normalization must fail ingestion if
+        // the canonical database refresh cannot create its ready rows.
+        await refreshScanMediaAssets(generatedScanId, supabaseAdmin);
       }
 
       let candidateEnrichmentTask: Promise<void> = Promise.resolve();

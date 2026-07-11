@@ -243,6 +243,29 @@ Deno.test("scan media refresh derives video audio metadata from captured media",
   );
 });
 
+Deno.test("scan media refresh synchronizes and backfills standalone audio", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260711171512_backfill_missing_ready_audio_assets.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "RENAME TO refresh_scan_visual_media_assets",
+      "CREATE OR REPLACE FUNCTION public.refresh_scan_audio_assets(target_scan_id UUID)",
+      "media_item #> '{audio,_0}'",
+      "UNNEST(COALESCE(scan_row.audio_storage_urls, ARRAY[]::TEXT[]))",
+      "PERFORM public.refresh_scan_visual_media_assets(target_scan_id)",
+      "PERFORM public.refresh_scan_audio_assets(target_scan_id)",
+      "GRANT EXECUTE ON FUNCTION public.refresh_scan_media_assets(UUID) TO service_role",
+      "WHERE COALESCE(ARRAY_LENGTH(s.audio_storage_urls, 1), 0) > 0",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("Explore audio migration enables durable audio and public snapshots", async () => {
   const sql = normalized(
     await migrationSql("20260710120000_add_explore_audio_moderation.sql"),

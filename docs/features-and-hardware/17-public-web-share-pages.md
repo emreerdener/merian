@@ -112,6 +112,12 @@ only the public web surface name; they never include media URLs, transcripts,
 filenames, post/species identity, or location. The PostHog project key is a
 public ingestion key and must not be confused with a server-side secret.
 
+The iOS per-post **Boost audio** preference is intentionally not part of the
+public web contract. Web pages always stream the approved canonical recording
+through native browser controls; they do not receive the device-local
+preference or the temporary enhanced WAV. A future web enhancement must remain
+client-side, opt-in, and must preserve the same no-upload/no-mutation rule.
+
 The web page must trust the public post projection as-is. Post-level
 `location_sharing` controls whether `public_location_label` is present; the web
 route must not query scan GPS, scan `semantic_location`, or scan geoprivacy to

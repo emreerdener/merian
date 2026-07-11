@@ -2,6 +2,36 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-11-explore-video-mute-transitions",
+      "date": "2026-07-11",
+      "title": "Quieter Explore video browsing",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Explore feed videos now resume muted so sound does not continue unexpectedly in the background.",
+            "Opening a video post carries your current mute choice into detail, while returning to the feed resets autoplay to muted.",
+            "The center Play or Pause control on feed audio and video now controls playback without opening the post; tapping elsewhere still opens detail."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-11-explore-audio-boost",
+      "date": "2026-07-11",
+      "title": "Audio boost for Explore",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Standalone audio posts now offer an optional Boost audio setting in feed and detail menus for quiet recordings.",
+            "Each post remembers its own boost setting on this device, while the original shared recording remains unchanged.",
+            "Boosted playback preserves the playhead, restores saved settings quietly, shows a small Boosted audio badge on the spectrogram, and falls back to the original audio if boosting is unavailable."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-10-explore-audio-moderation",
       "date": "2026-07-10",
       "title": "Audio sharing in Explore",

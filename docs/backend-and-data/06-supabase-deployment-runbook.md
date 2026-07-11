@@ -294,6 +294,15 @@ service-role endpoint. Start triage from the issue code:
   `image_storage_urls`. If the refresh still leaves `ready_video_asset_count`
   below the durable video count, run
   `reconcile-scan-media-assets` with `dryRun = true` before allowing a repair.
+- `audio_scan_missing_ready_audio_asset`: confirm migrations
+  `20260711143348_repair_scan_media_assets_audio_constraints.sql` and
+  `20260711171512_backfill_missing_ready_audio_assets.sql` reached production.
+  The first permits normalized audio rows; the second makes standalone audio
+  part of `refresh_scan_media_assets(...)` and backfills every scan with a
+  durable `audio_storage_urls` entry. After deploy, rerun the health monitor.
+  If a sample remains, call `refresh_scan_media_assets(sample_scan_id)` and
+  compare the ready audio URLs to `audio_storage_urls` before touching R2; the
+  durable recording must be preserved.
 - `explore_video_missing_thumbnail`: inspect `explore_post_media.thumbnail_url`
   and the source scan's first safe image/poster thumbnail.
 - `latest_reconciliation_run_not_clean`: inspect

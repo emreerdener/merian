@@ -595,6 +595,50 @@ updates `audio_storage_urls` and canonical `captured_media`, refreshes
 failure rolls back the promoted object. A legacy scan with no surviving local
 recording cannot be reconstructed or shared as audio.
 
+### Per-Post Explore Audio Boost
+
+The iOS feed-card and post-detail ellipsis menus offer **Boost audio** when the
+post's primary media item is standalone audio. Both surfaces share the same
+device-local per-post preference and synchronize changes in process. This is a
+listening aid, not a media transform:
+the canonical R2 object, scan media record, public URL, checksum, and moderation
+attestation remain unchanged. Audio playback remains user-initiated on both
+surfaces even when a saved boost preference is restored.
+
+Boost is opt-in and remembered independently for each immutable Explore
+`postId` in device-local `UserDefaults`. New posts default to original audio.
+Entries are touched when read, expire after 180 days, and are capped at the 500
+most recently accessed posts. The preference is not account-synced, sent to
+Supabase, or restored after app deletion.
+
+`ExploreAudioBoostProcessor` performs a size-bounded download, analyzes RMS and
+peak levels, and creates a temporary enhanced WAV. It targets quiet material
+conservatively, caps gain at 18 dB, applies a gentle 35 Hz high-pass filter for
+rumble, and clamps peaks near -1 dBFS. It deliberately avoids denoising because
+broadband biological sounds must not be mistaken for noise. Enhanced files are
+held in a bounded eight-item temporary cache and are never uploaded.
+
+Changing mode preserves the current timestamp and whether playback was playing
+or paused. After the user explicitly enables boost, the media surface shows
+**Boosting audio…** while preparing. Saved-setting restoration and
+notification-driven synchronization prepare silently. If user-initiated
+download, decoding, or enhancement fails, the player continues with the
+original recording and presents a concise fallback message; restoration failure
+falls back without transient UI. Spectrogram,
+playhead, elapsed/total timestamp, audio-session handling, interruption
+recovery, and one-active-player coordination remain shared with original
+playback.
+
+The user-facing terminology is deliberately specific: the action remains
+**Boost audio**, preparation reads **Boosting audio…**, and successful playback
+shows **Boosted audio**. Merian does not call this “enhancement” because the
+local DSP does not perform denoising or AI restoration.
+
+PostHog records `ExploreAudioBoostChanged` for enabled, disabled, restored,
+preparation-failed, and boosted-playback-started transitions. Properties are
+limited to the Explore surface and a coarse gain band; media URLs, filenames,
+audio content, transcripts, and species/post identity are excluded.
+
 ### Error Status Semantics
 
 A cache hit returns the prior decision without requiring Gemini. On a cache
@@ -619,6 +663,7 @@ decision valid for that request.
 | `deleteQueuedScan` / purge audio cleanup         | **Complete** — cleans Documents WAV on delete/purge                                                                               |
 | Durable standalone audio media                   | **Complete** — promoted into `audio_storage_urls`, `captured_media`, and ready normalized asset rows                              |
 | Explore audio publication moderation             | **Complete** — a content-addressed attestation or fresh Gemini speech/non-speech decision is a synchronous share precondition     |
+| Per-post iOS audio boost                         | **Complete** — reversible local DSP with per-post device preference, bounded temporary files, and original-playback fallback      |
 
 ## 2026-04 Hardening Updates
 

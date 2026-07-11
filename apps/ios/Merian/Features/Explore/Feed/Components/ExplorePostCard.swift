@@ -3,6 +3,16 @@ import Combine
 import SwiftUI
 import UIKit
 
+enum ExploreVideoMutePreference {
+    static let key = "MerianExplorePublicVideoMuted"
+    static let didResetNotification = Notification.Name("ExploreVideoMutePreferenceDidReset")
+
+    static func resetToMuted(defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: key)
+        NotificationCenter.default.post(name: didResetNotification, object: nil)
+    }
+}
+
 struct ExploreProBadge: View {
     var body: some View {
         Text("PRO")
@@ -62,6 +72,8 @@ struct ExplorePostCard: View {
     @State private var doubleTapHeartOpacity = 0.0
     @State private var doubleTapHeartTask: Task<Void, Never>?
     @State private var showUnpublishConfirmation = false
+    @State private var isAudioBoostEnabled = false
+    @State private var audioBoostActionToken: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -82,6 +94,28 @@ struct ExplorePostCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .onAppear {
+            guard hasStandalonePrimaryAudio else { return }
+            let restored = ExploreAudioBoostPreferenceStore().isEnabled(for: post.id)
+            isAudioBoostEnabled = restored
+            if restored {
+                AppTelemetry.trackExploreAudioBoost(event: "restored", surface: "feed")
+            }
+        }
+        .onChange(of: isAudioBoostEnabled) { _, enabled in
+            guard hasStandalonePrimaryAudio else { return }
+            ExploreAudioBoostPreferenceStore().setEnabled(enabled, for: post.id)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: ExploreAudioBoostPreferenceStore.didChangeNotification
+            )
+        ) { notification in
+            guard notification.userInfo?[ExploreAudioBoostPreferenceStore.postIdUserInfoKey] as? String == post.id,
+                  let enabled = notification.userInfo?[ExploreAudioBoostPreferenceStore.enabledUserInfoKey] as? Bool,
+                  enabled != isAudioBoostEnabled else { return }
+            isAudioBoostEnabled = enabled
+        }
         .onDisappear {
             doubleTapHeartTask?.cancel()
             doubleTapHeartTask = nil
@@ -99,6 +133,9 @@ struct ExplorePostCard: View {
             imageUrl: post.heroImageUrl,
             mediaItems: post.resolvedMediaItems,
             reloadGeneration: mediaReloadGeneration,
+            audioBoostEnabled: $isAudioBoostEnabled,
+            audioBoostActionToken: audioBoostActionToken,
+            onAudioBoostActionFinished: finishAudioBoostAction,
             onSingleTap: onOpenDetail,
             onDoubleTap: handleDoubleTapLike
         )
@@ -286,6 +323,20 @@ struct ExplorePostCard: View {
 
     private var menuButton: some View {
         Menu {
+            if hasStandalonePrimaryAudio {
+                Button {
+                    if !isAudioBoostEnabled {
+                        audioBoostActionToken = UUID()
+                    }
+                    isAudioBoostEnabled.toggle()
+                } label: {
+                    Label(
+                        isAudioBoostEnabled ? "Turn off audio boost" : "Boost audio",
+                        systemImage: isAudioBoostEnabled ? "speaker.wave.2" : "speaker.wave.3"
+                    )
+                }
+            }
+
             if post.isOwnedByViewer {
                 if let onOpenInsight {
                     Button(action: onOpenInsight) {
@@ -320,6 +371,15 @@ struct ExplorePostCard: View {
         }
         .buttonStyle(.plain)
         .tint(.primary)
+    }
+
+    private var hasStandalonePrimaryAudio: Bool {
+        post.resolvedMediaItems.first?.kind == .audio
+    }
+
+    private func finishAudioBoostAction(_ token: UUID) {
+        guard audioBoostActionToken == token else { return }
+        audioBoostActionToken = nil
     }
 
     private var locationText: String? {
@@ -398,6 +458,9 @@ struct ExploreFeedMediaView: View {
     let mediaItems: [ExploreMediaItem]
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
+    @Binding var audioBoostEnabled: Bool
+    let audioBoostActionToken: UUID?
+    let onAudioBoostActionFinished: ((UUID) -> Void)?
     let onSingleTap: (() -> Void)?
     let onDoubleTap: (() -> Void)?
 
@@ -406,6 +469,9 @@ struct ExploreFeedMediaView: View {
         mediaItems: [ExploreMediaItem]? = nil,
         reloadGeneration: UInt64,
         preloadedImage: UIImage? = nil,
+        audioBoostEnabled: Binding<Bool> = .constant(false),
+        audioBoostActionToken: UUID? = nil,
+        onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
         onSingleTap: (() -> Void)? = nil,
         onDoubleTap: (() -> Void)? = nil
     ) {
@@ -413,6 +479,9 @@ struct ExploreFeedMediaView: View {
         self.mediaItems = mediaItems?.isEmpty == false ? mediaItems! : [.legacyImage(url: imageUrl)]
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
+        self._audioBoostEnabled = audioBoostEnabled
+        self.audioBoostActionToken = audioBoostActionToken
+        self.onAudioBoostActionFinished = onAudioBoostActionFinished
         self.onSingleTap = onSingleTap
         self.onDoubleTap = onDoubleTap
     }
@@ -429,6 +498,9 @@ struct ExploreFeedMediaView: View {
                 surface: .feed,
                 autoplay: true,
                 showsVideoControls: true,
+                audioBoostEnabled: audioBoostEnabled,
+                audioBoostActionToken: audioBoostActionToken,
+                onAudioBoostActionFinished: onAudioBoostActionFinished,
                 onSingleTap: onSingleTap,
                 onDoubleTap: onDoubleTap
             )
@@ -442,19 +514,28 @@ struct ExploreDetailMediaView: View {
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
     let allowsZoom: Bool
+    @Binding var audioBoostEnabled: Bool
+    let audioBoostActionToken: UUID?
+    let onAudioBoostActionFinished: ((UUID) -> Void)?
 
     init(
         imageUrl: String,
         mediaItems: [ExploreMediaItem]? = nil,
         reloadGeneration: UInt64,
         preloadedImage: UIImage? = nil,
-        allowsZoom: Bool = true
+        allowsZoom: Bool = true,
+        audioBoostEnabled: Binding<Bool> = .constant(false),
+        audioBoostActionToken: UUID? = nil,
+        onAudioBoostActionFinished: ((UUID) -> Void)? = nil
     ) {
         self.imageUrl = imageUrl
         self.mediaItems = mediaItems?.isEmpty == false ? mediaItems! : [.legacyImage(url: imageUrl)]
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
         self.allowsZoom = allowsZoom
+        self._audioBoostEnabled = audioBoostEnabled
+        self.audioBoostActionToken = audioBoostActionToken
+        self.onAudioBoostActionFinished = onAudioBoostActionFinished
     }
 
     var body: some View {
@@ -490,7 +571,10 @@ struct ExploreDetailMediaView: View {
             surface: .detail,
             autoplay: true,
             showsVideoControls: true,
-            allowsAutoplayInLowPowerMode: true
+            allowsAutoplayInLowPowerMode: true,
+            audioBoostEnabled: audioBoostEnabled,
+            audioBoostActionToken: audioBoostActionToken,
+            onAudioBoostActionFinished: onAudioBoostActionFinished
         )
     }
 }
@@ -579,6 +663,21 @@ struct ExploreVideoPlaybackOverlayState: Equatable {
     }
 }
 
+enum ExploreFeedMediaInteractionPolicy {
+    static let centerPlaybackHitSize: CGFloat = 96
+
+    static func usesCenterPlaybackZone(
+        surface: ExploreVideoPlaybackSurface,
+        mediaKind: ExploreMediaKind,
+        hasNavigationAction: Bool
+    ) -> Bool {
+        guard hasNavigationAction else { return false }
+        guard mediaKind == .video || mediaKind == .audio else { return false }
+        if case .feed = surface { return true }
+        return false
+    }
+}
+
 struct ExploreVideoPlaybackResumeIntentState: Equatable {
     private(set) var shouldResumeAfterSystemInterruption = false
 
@@ -608,6 +707,9 @@ struct ExplorePublicMediaView: View {
     let allowsAutoplayInLowPowerMode: Bool
     let onSingleTap: (() -> Void)?
     let onDoubleTap: (() -> Void)?
+    let audioBoostEnabled: Bool
+    let audioBoostActionToken: UUID?
+    let onAudioBoostActionFinished: ((UUID) -> Void)?
 
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @State private var player: AVPlayer?
@@ -630,7 +732,11 @@ struct ExplorePublicMediaView: View {
     @State private var playbackResumeIntentState = ExploreVideoPlaybackResumeIntentState()
     @State private var hasTrackedAudioPlaybackStart = false
     @State private var hasActivatedAudioPlaybackSession = false
-    @AppStorage("MerianExplorePublicVideoMuted") private var isMuted = true
+    @State private var boostedAudioURL: URL?
+    @State private var isPreparingAudioBoost = false
+    @State private var audioBoostPreparationFailed = false
+    @State private var showsAudioBoostPreparationStatus = false
+    @AppStorage(ExploreVideoMutePreference.key) private var isMuted = true
 
     init(
         mediaItem: ExploreMediaItem,
@@ -641,6 +747,9 @@ struct ExplorePublicMediaView: View {
         autoplay: Bool,
         showsVideoControls: Bool,
         allowsAutoplayInLowPowerMode: Bool = false,
+        audioBoostEnabled: Bool = false,
+        audioBoostActionToken: UUID? = nil,
+        onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
         onSingleTap: (() -> Void)? = nil,
         onDoubleTap: (() -> Void)? = nil
     ) {
@@ -652,6 +761,9 @@ struct ExplorePublicMediaView: View {
         self.autoplay = autoplay
         self.showsVideoControls = showsVideoControls
         self.allowsAutoplayInLowPowerMode = allowsAutoplayInLowPowerMode
+        self.audioBoostEnabled = audioBoostEnabled
+        self.audioBoostActionToken = audioBoostActionToken
+        self.onAudioBoostActionFinished = onAudioBoostActionFinished
         self.onSingleTap = onSingleTap
         self.onDoubleTap = onDoubleTap
     }
@@ -702,17 +814,68 @@ struct ExplorePublicMediaView: View {
                 .zIndex(3)
             }
 
+            if mediaItem.kind == .audio,
+               audioBoostEnabled,
+               boostedAudioURL != nil,
+               !audioBoostPreparationFailed {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Text("Boosted audio")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.58), in: Capsule())
+                        Spacer()
+                    }
+                }
+                .padding(12)
+                .allowsHitTesting(false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Audio boost is on")
+                .zIndex(3)
+            }
+
+            if mediaItem.kind == .audio &&
+                isPreparingAudioBoost &&
+                showsAudioBoostPreparationStatus {
+                Text("Boosting audio…")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(.black.opacity(0.62), in: Capsule())
+                    .allowsHitTesting(false)
+                    .zIndex(4)
+            }
+
+            if mediaItem.kind == .audio && audioBoostPreparationFailed {
+                Text("Audio boost unavailable. Playing original.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(.black.opacity(0.68), in: Capsule())
+                    .allowsHitTesting(false)
+                    .zIndex(4)
+            }
+
             mediaTapLayer
                 .zIndex(2)
 
             if isVideoPlaybackHost {
                 videoOverlay
-                    .zIndex(2)
+                    .zIndex(4)
             }
         }
         .task(id: "\(mediaItem.url)|\(reloadGeneration)") {
             configurePlayerIfNeeded()
             resumeAutoplayIfUncovered()
+        }
+        .task(id: audioBoostEnabled) {
+            guard mediaItem.kind == .audio else { return }
+            await updateAudioBoostMode()
         }
         .onAppear {
             logPlayback("appear")
@@ -728,6 +891,15 @@ struct ExplorePublicMediaView: View {
             guard mediaItem.kind == .video else { return }
             player?.isMuted = newValue
             logPlayback("mute-changed", extra: "muted=\(newValue)")
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: ExploreVideoMutePreference.didResetNotification
+            )
+        ) { _ in
+            guard mediaItem.kind == .video else { return }
+            isMuted = true
+            player?.isMuted = true
         }
         .onDisappear {
             logPlayback("disappear")
@@ -890,11 +1062,32 @@ struct ExplorePublicMediaView: View {
         )
     }
 
+    private var usesFeedCenterPlaybackZone: Bool {
+        ExploreFeedMediaInteractionPolicy.usesCenterPlaybackZone(
+            surface: surface,
+            mediaKind: mediaItem.kind,
+            hasNavigationAction: onSingleTap != nil
+        )
+    }
+
+    private var centerPlaybackGesture: some Gesture {
+        ExclusiveGesture(
+            TapGesture(count: 2).onEnded {
+                onDoubleTap?()
+            },
+            TapGesture().onEnded {
+                togglePlayback()
+            }
+        )
+    }
+
     @ViewBuilder
     private var videoOverlay: some View {
         ZStack {
             if showsVideoControls {
-                if shouldDisplayPlaybackControl {
+                if usesFeedCenterPlaybackZone {
+                    feedCenterPlaybackControl
+                } else if shouldDisplayPlaybackControl {
                     Button(action: togglePlayback) {
                         Image(systemName: playbackControlShowsPlayingIcon ? "pause.fill" : "play.fill")
                             .font(.system(size: 21, weight: .bold))
@@ -1066,6 +1259,9 @@ struct ExplorePublicMediaView: View {
 
     private func videoURLStringForPlayerConfiguration(forceRebuildForRecovery: Bool) -> String? {
         if mediaItem.kind == .video || mediaItem.kind == .audio {
+            if mediaItem.kind == .audio, audioBoostEnabled, let boostedAudioURL {
+                return boostedAudioURL.absoluteString
+            }
             return mediaItem.url
         }
 
@@ -1074,6 +1270,87 @@ struct ExplorePublicMediaView: View {
             player != nil
 
         return shouldRecoverExistingVideo ? configuredVideoURL : nil
+    }
+
+    @MainActor
+    private func updateAudioBoostMode() async {
+        let wasPlaying = player?.timeControlStatus == .playing
+        let resumeTime = player?.currentTime()
+
+        if audioBoostEnabled {
+            let actionToken = audioBoostActionToken
+            isPreparingAudioBoost = true
+            showsAudioBoostPreparationStatus = ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                actionToken: actionToken
+            )
+            audioBoostPreparationFailed = false
+            defer {
+                isPreparingAudioBoost = false
+                showsAudioBoostPreparationStatus = false
+                if let actionToken {
+                    onAudioBoostActionFinished?(actionToken)
+                }
+            }
+            do {
+                let result = try await ExploreAudioBoostProcessor.shared.prepare(urlString: mediaItem.url)
+                guard !Task.isCancelled else { return }
+                boostedAudioURL = result.url
+                AppTelemetry.trackExploreAudioBoost(
+                    event: "enabled",
+                    surface: surface.rawValue,
+                    gainBand: result.gainBand
+                )
+            } catch {
+                guard !Task.isCancelled else { return }
+                boostedAudioURL = nil
+                audioBoostPreparationFailed = ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                    actionToken: actionToken
+                )
+                AppTelemetry.trackExploreAudioBoost(event: "preparation_failed", surface: surface.rawValue)
+            }
+        } else {
+            showsAudioBoostPreparationStatus = false
+            audioBoostPreparationFailed = false
+            guard boostedAudioURL != nil else { return }
+            AppTelemetry.trackExploreAudioBoost(event: "disabled", surface: surface.rawValue)
+        }
+
+        resetCurrentPlayer()
+        guard let rebuilt = configurePlayerIfNeeded() else { return }
+        if let resumeTime, resumeTime.isNumeric {
+            await rebuilt.seek(to: resumeTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+        if wasPlaying {
+            resumeAutoplayIfEligible(force: true, revealsPlaybackControl: true)
+        }
+    }
+
+    private var feedCenterPlaybackControl: some View {
+        ZStack {
+            if shouldDisplayPlaybackControl {
+                Image(systemName: playbackControlShowsPlayingIcon ? "pause.fill" : "play.fill")
+                    .font(.system(size: 21, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 58, height: 58)
+                    .background(.black.opacity(playbackControlShowsPlayingIcon ? 0.32 : 0.46), in: Circle())
+                    .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .frame(
+            width: ExploreFeedMediaInteractionPolicy.centerPlaybackHitSize,
+            height: ExploreFeedMediaInteractionPolicy.centerPlaybackHitSize
+        )
+        .contentShape(Rectangle())
+        .gesture(centerPlaybackGesture)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(playbackControlAccessibilityLabel)
+        .accessibilityAction {
+            togglePlayback()
+        }
+        .animation(.easeInOut(duration: 0.22), value: shouldDisplayPlaybackControl)
     }
 
     private func cleanupPlayer() {
@@ -1395,6 +1672,12 @@ struct ExplorePublicMediaView: View {
             if !hasTrackedAudioPlaybackStart {
                 hasTrackedAudioPlaybackStart = true
                 AppTelemetry.trackExploreAudioPlaybackStarted(surface: surface.rawValue)
+                if audioBoostEnabled, boostedAudioURL != nil {
+                    AppTelemetry.trackExploreAudioBoost(
+                        event: "boosted_playback_started",
+                        surface: surface.rawValue
+                    )
+                }
             }
         }
         player.play()

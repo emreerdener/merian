@@ -21,6 +21,10 @@ deployed for development and must not be treated as public launch status.
   flagged or failed checks do not change public state. An unchanged clip may
   reuse a content-addressed attestation only when its SHA-256, model, and
   derived policy-contract hash all match.
+- Standalone-audio post details offer an optional per-post **Boost audio**
+  listening mode on iOS. The choice is stored only on that device by immutable
+  post ID, expires after 180 days, and is capped at 500 posts. Enhancement uses
+  bounded temporary local files and never changes the approved R2 recording.
 - Post descriptions/captions are out of scope in V1.
 - Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications and Field Trip activity are in-app only.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
@@ -71,7 +75,8 @@ deployed for development and must not be treated as public launch status.
 
 ## Non-Goals
 
-- Audio posts
+- Destructive or server-side audio enhancement; the shipped boost is a
+  reversible, device-local listening aid.
 - Captions, DMs, private sharing, mutual friend requests, or standalone social profile pages beyond the privacy-scoped author sheet
 - Heavy personalization, editorial curation, or ranking beyond the shipped `Recent` / `Following` / `Trending` / `Nearby` modes
 - Public species pages in this scope

@@ -8,9 +8,25 @@ struct ExplorePostDetailMenuButton: View {
     let onUnpublish: () -> Void
     let onBlockAuthor: () -> Void
     let onReportPost: () -> Void
+    let audioBoostEnabled: Binding<Bool>?
+    let onAudioBoostEnableRequested: () -> Void
 
     var body: some View {
         Menu {
+            if let audioBoostEnabled {
+                Button {
+                    if !audioBoostEnabled.wrappedValue {
+                        onAudioBoostEnableRequested()
+                    }
+                    audioBoostEnabled.wrappedValue.toggle()
+                } label: {
+                    Label(
+                        audioBoostEnabled.wrappedValue ? "Turn off audio boost" : "Boost audio",
+                        systemImage: audioBoostEnabled.wrappedValue ? "speaker.wave.2" : "speaker.wave.3"
+                    )
+                }
+            }
+
             if isOwnedByCurrentUser {
                 ownedPostActions
             } else {

@@ -1241,6 +1241,48 @@ final class ExploreVideoPlaybackOverlayStateTests: XCTestCase {
         XCTAssertTrue(state.showsPlaybackControl)
         XCTAssertTrue(state.needsPlayerRebuildForRecovery)
     }
+
+    func testFeedAudioAndVideoUseDedicatedCenterPlaybackZone() {
+        XCTAssertTrue(
+            ExploreFeedMediaInteractionPolicy.usesCenterPlaybackZone(
+                surface: .feed,
+                mediaKind: .video,
+                hasNavigationAction: true
+            )
+        )
+        XCTAssertTrue(
+            ExploreFeedMediaInteractionPolicy.usesCenterPlaybackZone(
+                surface: .feed,
+                mediaKind: .audio,
+                hasNavigationAction: true
+            )
+        )
+        XCTAssertEqual(ExploreFeedMediaInteractionPolicy.centerPlaybackHitSize, 96)
+    }
+
+    func testCenterPlaybackZoneDoesNotReplaceImageOrDetailInteractions() {
+        XCTAssertFalse(
+            ExploreFeedMediaInteractionPolicy.usesCenterPlaybackZone(
+                surface: .feed,
+                mediaKind: .image,
+                hasNavigationAction: true
+            )
+        )
+        XCTAssertFalse(
+            ExploreFeedMediaInteractionPolicy.usesCenterPlaybackZone(
+                surface: .detail,
+                mediaKind: .video,
+                hasNavigationAction: true
+            )
+        )
+        XCTAssertFalse(
+            ExploreFeedMediaInteractionPolicy.usesCenterPlaybackZone(
+                surface: .feed,
+                mediaKind: .video,
+                hasNavigationAction: false
+            )
+        )
+    }
 }
 
 @MainActor
