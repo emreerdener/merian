@@ -258,7 +258,9 @@ final class ProfileViewModel {
             let response = try await MerianNetworkClient.shared.updatePublicDisplayName(displayName)
             guard currentUserId == userId else { return false }
             publicAuthorName = response.displayName
-            publicIdentitySource = "display_name"
+            publicIdentitySource = displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "alias"
+                : "display_name"
             AppEventPublisher.shared.send(
                 .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
             )

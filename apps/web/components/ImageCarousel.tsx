@@ -4,7 +4,7 @@ import { Carousel } from "@mantine/carousel";
 import { Badge, Box, Group, Image, Text } from "@mantine/core";
 
 type ImageCarouselProps = {
-  heroImageUrl: string;
+  heroImageUrl: string | null;
   referenceImages: Array<{ url: string; source: string }>;
   altText: string;
 };
@@ -16,9 +16,11 @@ export function ImageCarousel({
 }: ImageCarouselProps) {
   // Combine user image and reference images
   const slides = [
-    { url: heroImageUrl, isHero: true, source: "" },
+    ...(heroImageUrl ? [{ url: heroImageUrl, isHero: true, source: "" }] : []),
     ...referenceImages.map((img) => ({ url: img.url, isHero: false, source: img.source })),
   ];
+
+  if (!slides.length) return null;
 
   return (
     <Box style={{ position: "relative", width: "100%", height: 600, overflow: "hidden" }}>

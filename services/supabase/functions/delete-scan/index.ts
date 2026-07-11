@@ -1,6 +1,7 @@
 import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
+import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
 
 import { deleteScanRecord, fetchScanRecord } from "./db.ts";
 
@@ -50,10 +51,7 @@ Deno.serve((req: Request) =>
     }
 
     // 3. Delete scan media from Cloudflare R2 native
-    const mediaUrls = [
-      ...(Array.isArray(scan.image_storage_urls) ? scan.image_storage_urls : []),
-      ...(Array.isArray(scan.video_storage_urls) ? scan.video_storage_urls : []),
-    ];
+    const mediaUrls = collectScanMediaUrls(scan);
     if (mediaUrls.length > 0) {
       const r2Config = getR2Config();
       await deleteScanMediaR2Objects(mediaUrls, r2Config);

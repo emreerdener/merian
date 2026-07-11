@@ -14,6 +14,11 @@ enum ExploreWidgetSnapshotWriter {
     @MainActor
     static func refreshRecentFeedSnapshot(from posts: [ExplorePost]) {
         let sourcePosts = posts
+            .filter { post in
+                post.resolvedMediaItems.contains {
+                    $0.kind == .image || $0.kind == .video
+                }
+            }
             .prefix(ExploreWidgetConstants.maxItemCount)
             .compactMap { post -> ExploreWidgetSourcePost? in
                 guard !post.postId.isEmpty, !post.heroImageUrl.isEmpty else { return nil }

@@ -83,6 +83,7 @@ enum ExplorePostLocationSharing: String, CaseIterable, Identifiable, Decodable, 
 enum ExplorePostComposerMediaKind: String, Equatable {
     case image
     case video
+    case audio
 }
 
 struct ExplorePostMediaSelection: Equatable {
@@ -135,6 +136,10 @@ struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
         kind == .video
     }
 
+    var isAudio: Bool {
+        kind == .audio
+    }
+
     func selection(orderIndex: Int) -> ExplorePostMediaSelection {
         ExplorePostMediaSelection(
             kind: kind,
@@ -151,6 +156,7 @@ struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
         var drafts: [ExplorePostComposerMediaDraft] = []
         var imageIndex = 0
         var videoIndex = 0
+        var audioIndex = 0
         let items = snapshot.items
 
         for index in items.indices {
@@ -209,7 +215,23 @@ struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
                 )
                 videoIndex += 1
 
-            case .audio, .description:
+            case .audio(let reference):
+                drafts.append(
+                    ExplorePostComposerMediaDraft(
+                        id: "audio-\(audioIndex)-\(reference.serializedPath)",
+                        kind: .audio,
+                        previewPath: reference.serializedPath,
+                        sourceMediaId: scanId.map { "scan:\($0):audio:\(audioIndex)" },
+                        sourceIndex: audioIndex,
+                        thumbnailSourceIndex: nil,
+                        url: nil,
+                        thumbnailUrl: nil,
+                        isIncluded: true
+                    )
+                )
+                audioIndex += 1
+
+            case .description:
                 continue
             }
         }
@@ -231,6 +253,8 @@ struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
                     kind = .image
                 case .video:
                     kind = .video
+                case .audio:
+                    kind = .audio
                 }
 
                 let trimmedUrl = item.url.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -265,7 +289,12 @@ struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
                 }
             }
             .map { item in
-                let kind: ExplorePostComposerMediaKind = item.kind == .video ? .video : .image
+                let kind: ExplorePostComposerMediaKind
+                switch item.kind {
+                case .image: kind = .image
+                case .video: kind = .video
+                case .audio: kind = .audio
+                }
                 let previewPath = item.thumbnailUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? item.url
                     : item.thumbnailUrl
@@ -854,7 +883,7 @@ private struct ExplorePostComposerMediaTile: View {
                     } else {
                         Color(uiColor: .tertiarySystemFill)
                             .overlay {
-                                Image(systemName: item.isVideo ? "play.rectangle.fill" : "photo")
+                                Image(systemName: item.isAudio ? "waveform" : item.isVideo ? "play.rectangle.fill" : "photo")
                                     .font(.system(size: 24, weight: .semibold))
                                     .foregroundStyle(.secondary)
                             }
@@ -873,6 +902,13 @@ private struct ExplorePostComposerMediaTile: View {
 
                     if item.isVideo {
                         Image(systemName: "play.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(7)
+                            .background(.black.opacity(0.58), in: Circle())
+                    }
+                    if item.isAudio {
+                        Image(systemName: "speaker.wave.2.fill")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white)
                             .padding(7)
@@ -905,9 +941,10 @@ private struct ExplorePostComposerMediaTile: View {
         }
         .buttonStyle(.plain)
         .disabled(!canDeselect && item.isIncluded)
-        .accessibilityLabel(item.isVideo ? "Video media" : "Image media")
+        .accessibilityLabel(item.isAudio ? "Audio media" : item.isVideo ? "Video media" : "Image media")
         .accessibilityHint(isCover ? "Selected as the cover. Drag to reorder." : "Tap to include or exclude. Drag to reorder.")
         .task(id: item.previewPath) {
+            guard !item.isAudio else { return }
             image = await LocalImageLoader.shared.loadImage(fromPath: item.previewPath, fallbackUrl: nil, maxDimension: Int(tileSize * 2))
         }
     }

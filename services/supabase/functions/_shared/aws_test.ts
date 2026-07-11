@@ -1,4 +1,7 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  assertEquals,
+  assertRejects,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
 import r2Lifecycle from "../../../../docs/r2-lifecycle.json" with {
   type: "json",
 };
@@ -91,6 +94,32 @@ Deno.test("deleteScanMediaR2Objects skips durable avatar objects", async () => {
   assertEquals(deletedUrls, [
     "https://account.r2.cloudflarestorage.com/media-bucket/public_uploads/free/user/photo.webp",
   ]);
+});
+
+Deno.test("deleteR2Objects rejects when Cloudflare does not confirm deletion", async () => {
+  const config = {
+    bucketName: "media-bucket",
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    s3Client: {
+      fetch() {
+        return Promise.resolve(new Response(null, { status: 503 }));
+      },
+    },
+  } as unknown as R2Config;
+
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await assertRejects(
+      () => deleteR2Objects([
+        "https://media.merian.app/public_uploads/free/audio.wav",
+      ], config),
+      AggregateError,
+      "Failed to delete 1/1 R2 object(s)",
+    );
+  } finally {
+    console.error = originalError;
+  }
 });
 
 Deno.test("R2 prefix helpers classify scan media separately from avatars", () => {

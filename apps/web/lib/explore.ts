@@ -21,7 +21,7 @@ type SupabaseRpcError = {
 type ExplorePostRow = {
   post_id: string;
   scan_id: string;
-  hero_image_url: string;
+  hero_image_url?: string | null;
   shared_at: string;
   author_user_id: string;
   author_name: string;
@@ -42,6 +42,14 @@ type ExplorePostRow = {
   comment_count: number;
   viewer_has_liked: boolean;
   is_owned_by_viewer: boolean;
+  media_items?: Array<{
+    kind?: "image" | "video" | "audio";
+    url?: string;
+    thumbnail_url?: string | null;
+    order_index?: number;
+    duration_seconds?: number | null;
+    has_audio?: boolean;
+  }> | null;
 };
 
 type ExplorePostDetailRow = {
@@ -138,7 +146,8 @@ const countryNames = new Set([
 export type ExplorePost = {
   postId: string;
   scanId: string;
-  heroImageUrl: string;
+  heroImageUrl: string | null;
+  mediaItems: ExplorePostMediaItem[];
   sharedAt: string;
   authorUserId: string;
   authorName: string;
@@ -158,6 +167,15 @@ export type ExplorePost = {
   commentCount: number;
   viewerHasLiked: boolean;
   isOwnedByViewer: boolean;
+};
+
+export type ExplorePostMediaItem = {
+  kind: "image" | "video" | "audio";
+  url: string;
+  thumbnailUrl: string | null;
+  orderIndex: number;
+  durationSeconds: number | null;
+  hasAudio: boolean;
 };
 
 export type ExploreReferenceImage = {
@@ -439,10 +457,33 @@ function taxonomyRows(row: ExplorePostDetailRow) {
 }
 
 function mapExplorePost(row: ExplorePostRow): ExplorePost {
+  const mediaItems = Array.isArray(row.media_items)
+    ? row.media_items.flatMap((item, fallbackIndex) => {
+      if (
+        (item?.kind !== "image" && item?.kind !== "video" && item?.kind !== "audio") ||
+        typeof item.url !== "string" || !item.url.trim()
+      ) {
+        return [];
+      }
+      return [{
+        kind: item.kind,
+        url: item.url.trim(),
+        thumbnailUrl: trimmedString(item.thumbnail_url),
+        orderIndex: Number.isFinite(item.order_index) ? item.order_index! : fallbackIndex,
+        durationSeconds: typeof item.duration_seconds === "number" &&
+            Number.isFinite(item.duration_seconds)
+          ? item.duration_seconds
+          : null,
+        hasAudio: item.has_audio === true,
+      } satisfies ExplorePostMediaItem];
+    }).sort((left, right) => left.orderIndex - right.orderIndex)
+    : [];
+
   return {
     postId: row.post_id,
     scanId: row.scan_id,
-    heroImageUrl: row.hero_image_url,
+    heroImageUrl: trimmedString(row.hero_image_url),
+    mediaItems,
     sharedAt: row.shared_at,
     authorUserId: row.author_user_id,
     authorName: row.author_name,
@@ -597,7 +638,6 @@ export async function fetchExplorePost(
     });
     return null;
   }
-
   let authorUsername: string | null = null;
   let isPro = false;
   try {

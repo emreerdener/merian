@@ -59,13 +59,23 @@ Merian is a field-ready biological identification app built around zero-friction
   completion badges, optional challenge hashtag suggestions, and published pages
   or challenge entries that stay separate from Explore feeds and maps.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
-- Explore posts support public image/video media snapshots; feed and detail can play muted playback videos while maps, widgets, and compact profile previews stay thumbnail-first.
+- Explore posts support image, short-video, and standalone-audio media snapshots.
+  Audio shares are fail-closed: the server transcribes and moderates the clip
+  before creating or reactivating the Explore post, so only an approved share
+  becomes public. Feed and detail reuse the shared AVPlayer host for video/audio, while
+  maps, widgets, and compact profile previews stay thumbnail-first.
 - Author profiles open inside the Explore navigation stack, expose
   privacy-scoped public stats, non-opening public achievements, and
   active/published Field Trip previews, and cap profile-to-scan nesting after
   one profile hop.
-- Home Screen widget caches thumbnail-first Explore snapshots through the shared App Group, with video posts rendered as clean still thumbnails.
-- Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
+- Home Screen widget caches thumbnail-first visual Explore snapshots through the
+  shared App Group, renders video posts as clean still thumbnails, and excludes
+  audio-only posts.
+- Public Explore share pages render visual posts at
+  `https://merian.earth/explore/post/{postId}` through the Next.js web app.
+  Approved audio-only posts use an audio card and native, user-initiated playback;
+  mixed posts expose their audio beneath the visual media. Audio-only posts remain
+  excluded from Home Screen widgets.
 
 ### Native Share Extensions
 - Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Merian card, or text description into the compose field.

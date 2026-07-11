@@ -3,12 +3,13 @@ import {
   ScanMediaAssetRow,
 } from "./scanMediaAssets.ts";
 
-export type ExploreComposerMediaKind = "image" | "video";
+export type ExploreComposerMediaKind = "image" | "video" | "audio";
 
 export interface ExploreComposerScanMediaRow {
   id: string;
   image_storage_urls?: string[] | null;
   video_storage_urls?: string[] | null;
+  audio_storage_urls?: string[] | null;
   captured_media?: unknown[] | null;
   media_assets?: ScanMediaAssetRow[] | null;
 }
@@ -46,7 +47,7 @@ export function makeSourceMediaId(
 
 export function parseSourceMediaId(value: string): ExploreSourceMediaId | null {
   const match = value.trim().match(
-    /^scan:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(image|video):(\d+)$/i,
+    /^scan:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(image|video|audio):(\d+)$/i,
   );
   if (!match) return null;
 
@@ -74,6 +75,7 @@ export function buildComposerMediaSources(
 
   const imageUrls = cleanMediaUrls(scan.image_storage_urls);
   const videoUrls = cleanMediaUrls(scan.video_storage_urls);
+  const audioUrls = cleanMediaUrls(scan.audio_storage_urls);
   const manifestRows = buildComposerMediaSourcesFromManifest(
     scan,
     selectedSourceMediaIds,
@@ -123,6 +125,20 @@ export function buildComposerMediaSources(
     });
   });
 
+  audioUrls.forEach((url, index) => {
+    const sourceMediaId = makeSourceMediaId(scan.id, "audio", index);
+    rows.push({
+      source_media_id: sourceMediaId,
+      kind: "audio",
+      url,
+      thumbnail_url: "",
+      order_index: rows.length,
+      has_audio: true,
+      is_selected: selectedSourceMediaIds.has(sourceMediaId),
+      selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
+    });
+  });
+
   return rows;
 }
 
@@ -136,9 +152,14 @@ function buildComposerMediaSourcesFromAssets(
   const rows: ExploreComposerMediaSource[] = [];
   let imageIndex = 0;
   let videoIndex = 0;
+  let audioIndex = 0;
 
   for (const asset of assets) {
-    const index = asset.kind === "video" ? videoIndex : imageIndex;
+    const index = asset.kind === "video"
+      ? videoIndex
+      : asset.kind === "audio"
+      ? audioIndex
+      : imageIndex;
     const sourceMediaId = makeSourceMediaId(scan.id, asset.kind, index);
     const thumbnailUrl = asset.thumbnail_url?.trim() ||
       (asset.kind === "image" ? asset.url : "");
@@ -154,13 +175,16 @@ function buildComposerMediaSourcesFromAssets(
       url: asset.url,
       thumbnail_url: thumbnailUrl,
       order_index: rows.length,
-      has_audio: asset.kind === "video" && asset.has_audio === true,
+      has_audio: asset.kind === "audio" ||
+        (asset.kind === "video" && asset.has_audio === true),
       is_selected: selectedSourceMediaIds.has(sourceMediaId),
       selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
     });
 
     if (asset.kind === "video") {
       videoIndex += 1;
+    } else if (asset.kind === "audio") {
+      audioIndex += 1;
     } else {
       imageIndex += 1;
     }
@@ -180,10 +204,27 @@ function buildComposerMediaSourcesFromManifest(
   const rows: ExploreComposerMediaSource[] = [];
   let imageIndex = 0;
   let videoIndex = 0;
+  let audioIndex = 0;
 
   for (const item of scan.captured_media) {
     if (!item || typeof item !== "object") continue;
     const record = item as Record<string, unknown>;
+    const audioUrl = serializedMediaPath(record.audio);
+    if (audioUrl) {
+      const sourceMediaId = makeSourceMediaId(scan.id, "audio", audioIndex);
+      rows.push({
+        source_media_id: sourceMediaId,
+        kind: "audio",
+        url: audioUrl,
+        thumbnail_url: "",
+        order_index: rows.length,
+        has_audio: true,
+        is_selected: selectedSourceMediaIds.has(sourceMediaId),
+        selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
+      });
+      audioIndex += 1;
+      continue;
+    }
     const imageUrl = serializedMediaPath(record.image);
     if (imageUrl) {
       const sourceMediaId = makeSourceMediaId(scan.id, "image", imageIndex);

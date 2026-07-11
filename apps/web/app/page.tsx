@@ -12,7 +12,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconLeaf } from "@tabler/icons-react";
+import { IconLeaf, IconVolume } from "@tabler/icons-react";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { fetchExploreFeedPosts } from "@/lib/explore";
 
@@ -97,11 +97,26 @@ export default async function HomePage() {
                         overflow: "hidden",
                       }}
                     >
-                      <img
-                        src={post.heroImageUrl}
-                        alt={post.speciesCommonName || "Observation"}
-                        className="explore-grid-image"
-                      />
+                      {post.heroImageUrl ? (
+                        <img
+                          src={post.heroImageUrl}
+                          alt={post.speciesCommonName || "Observation"}
+                          className="explore-grid-image"
+                        />
+                      ) : (
+                        <Box
+                          aria-label="Audio observation"
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "grid",
+                            placeItems: "center",
+                            background: "var(--mantine-color-default-hover)",
+                          }}
+                        >
+                          <IconVolume size={48} aria-hidden="true" />
+                        </Box>
+                      )}
                       <Box className="explore-grid-overlay">
                         <Text size="sm" fw={700} truncate>
                           {post.speciesCommonName || "Unknown Species"}

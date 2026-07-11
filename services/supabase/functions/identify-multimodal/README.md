@@ -43,9 +43,12 @@ decode; staged media is fetched through bounded stream readers.
 ## Media Rules
 
 - Still images are Gemini visual inputs and durable scan/display media.
-- Standalone audio and extracted video audio are Gemini audio inputs. They are
-  not public scan media and consumed staging objects are deleted after
-  finalization.
+- Standalone audio and extracted video audio are Gemini audio inputs.
+  Standalone audio is also durable scan media: it is promoted into
+  `audio_storage_urls`, represented in `captured_media`, and normalized as a
+  ready audio asset for optional Explore sharing. Extracted `video_audio`
+  remains inference-only and is deleted after finalization because the playback
+  MP4 is the public artifact.
 - Video inference is represented by sampled image frames plus optional extracted
   audio. The playback `.mp4` is not sent to Gemini.
 - New video scans require durable playback video promotion. If

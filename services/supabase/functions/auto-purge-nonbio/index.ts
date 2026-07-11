@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
+import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
 import { corsHeaders } from "../_shared/http.ts";
 import { timingSafeCompare } from "../_shared/http.ts";
 
@@ -60,12 +61,7 @@ Deno.serve(async (req: Request) => {
     // 3. Batch extract media URLs and IDs
     for (const scan of scans) {
       idsToDelete.push(scan.id);
-      if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
-        mediaToWipe.push(...scan.image_storage_urls);
-      }
-      if (scan.video_storage_urls && Array.isArray(scan.video_storage_urls)) {
-        mediaToWipe.push(...scan.video_storage_urls);
-      }
+      mediaToWipe.push(...collectScanMediaUrls(scan));
     }
 
     // 4. Delete all aggregated R2 images via Cloudflare AWS protocol natively

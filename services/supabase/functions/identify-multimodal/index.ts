@@ -171,6 +171,7 @@ type StoredMediaReferenceDTO = {
 
 type SerializedMediaItemDTO =
   | { image: { _0: StoredMediaReferenceDTO } }
+  | { audio: { _0: StoredMediaReferenceDTO } }
   | {
     video: {
       _0: {
@@ -397,7 +398,9 @@ function publicUrlsByStorageKey(
 function buildCapturedMediaManifest(
   imageStorageUrls: string[],
   videoStorageUrls: string[],
+  audioStorageUrls: string[],
   visualMediaItems: VisualMediaDescriptor[],
+  audioMediaItems: AudioMediaDescriptor[],
 ): SerializedMediaItemDTO[] | null {
   const sanitizedImageUrls = imageStorageUrls
     .map((url) => url.trim())
@@ -405,8 +408,14 @@ function buildCapturedMediaManifest(
   const sanitizedVideoUrls = videoStorageUrls
     .map((url) => url.trim())
     .filter((url) => url.length > 0);
+  const sanitizedAudioUrls = audioStorageUrls
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0);
 
-  if (sanitizedImageUrls.length === 0 && sanitizedVideoUrls.length === 0) {
+  if (
+    sanitizedImageUrls.length === 0 && sanitizedVideoUrls.length === 0 &&
+    sanitizedAudioUrls.length === 0
+  ) {
     return null;
   }
 
@@ -441,6 +450,20 @@ function buildCapturedMediaManifest(
     }
   }
 
+  const standaloneAudioUrls = audioMediaItems.length === sanitizedAudioUrls.length
+    ? audioMediaItems.flatMap((descriptor, index) =>
+      descriptor.kind === "audio" && sanitizedAudioUrls[index]
+        ? [sanitizedAudioUrls[index]]
+        : []
+    )
+    : sanitizedVideoUrls.length === 0
+    ? sanitizedAudioUrls
+    : [];
+
+  for (const audioUrl of standaloneAudioUrls) {
+    items.push({ audio: { _0: remoteMediaReference(audioUrl) } });
+  }
+
   if (items.length > 0) {
     return items;
   }
@@ -464,9 +487,15 @@ function buildCapturedMediaManifest(
     });
   }
 
-  return sanitizedImageUrls.map((imageUrl) => ({
+  const imageItems: SerializedMediaItemDTO[] = sanitizedImageUrls.map((imageUrl) => ({
     image: { _0: remoteMediaReference(imageUrl) },
   }));
+  return [
+    ...imageItems,
+    ...standaloneAudioUrls.map((audioUrl): SerializedMediaItemDTO => ({
+      audio: { _0: remoteMediaReference(audioUrl) },
+    })),
+  ];
 }
 
 function capturedMediaVideoCount(
@@ -1289,6 +1318,7 @@ export async function handleIdentifyMultimodalRequest(
       | undefined;
     let scanInserted = false;
     let videoStorageUrls: string[] = [];
+    let promotedAudioUrlsForRollback: string[] = [];
     const markUploadAssetsFailedBestEffort = async (
       storageKeys: string[],
       failureReason: string,
@@ -1422,6 +1452,9 @@ export async function handleIdentifyMultimodalRequest(
       }
 
       let speciesId: string | null = null;
+      let audioStorageUrls: string[] = [];
+      let standaloneAudioStorageKeys: string[] = [];
+      let companionAudioStorageKeys: string[] = [];
       if (videoR2ObjectKeys.length > 0) {
         try {
           await updateIngestionJobBestEffort(
@@ -1455,6 +1488,53 @@ export async function handleIdentifyMultimodalRequest(
             },
           );
           throw err;
+        }
+      }
+
+      if (audioR2ObjectKeys.length > 0 || audioBase64s.length > 0) {
+        const promotedAudioUrls = await promoteSafeMedia({
+          userId: user.id,
+          r2ObjectKeys: audioR2ObjectKeys.length > 0
+            ? audioR2ObjectKeys
+            : undefined,
+          imageBase64s: audioBase64s.length > 0 ? audioBase64s : undefined,
+          userTier,
+          r2Config: getR2Config(),
+          contentType: "audio/wav",
+          fallbackExtension: "wav",
+        });
+        promotedAudioUrlsForRollback = promotedAudioUrls;
+        const expectedAudioCount = audioR2ObjectKeys.length > 0
+          ? audioR2ObjectKeys.length
+          : audioBase64s.length;
+        if (promotedAudioUrls.length !== expectedAudioCount) {
+          throw new Error(
+            `Audio promotion returned ${promotedAudioUrls.length}/${expectedAudioCount} URL(s).`,
+          );
+        }
+        const standaloneIndexes = normalizedAudioMediaItems.flatMap(
+          (descriptor, index) => descriptor.kind === "audio" ? [index] : [],
+        );
+        audioStorageUrls = standaloneIndexes.flatMap((index) =>
+          promotedAudioUrls[index] ? [promotedAudioUrls[index]] : []
+        );
+        standaloneAudioStorageKeys = standaloneIndexes.flatMap((index) =>
+          audioR2ObjectKeys[index] ? [audioR2ObjectKeys[index]] : []
+        );
+        companionAudioStorageKeys = audioR2ObjectKeys.filter((_, index) =>
+          !standaloneIndexes.includes(index)
+        );
+        const companionAudioUrls = promotedAudioUrls.filter((_, index) =>
+          !standaloneIndexes.includes(index)
+        );
+        if (companionAudioUrls.length > 0) {
+          const r2Config = getR2Config();
+          await Promise.allSettled(companionAudioUrls.map((url) =>
+            deleteR2Object(
+              url.replace("https://media.merian.app/", ""),
+              r2Config,
+            )
+          ));
         }
       }
 
@@ -1504,7 +1584,9 @@ export async function handleIdentifyMultimodalRequest(
       const capturedMedia = buildCapturedMediaManifest(
         modResult?.publicUrls ?? [],
         videoStorageUrls,
+        audioStorageUrls,
         normalizedVisualMediaItems,
+        normalizedAudioMediaItems,
       );
 
       await updateIngestionJobBestEffort(
@@ -1549,6 +1631,7 @@ export async function handleIdentifyMultimodalRequest(
           llm_total_tokens: llmTotalTokens,
           image_storage_urls: modResult?.publicUrls ?? [],
           video_storage_urls: videoStorageUrls,
+          audio_storage_urls: audioStorageUrls,
           captured_media: capturedMedia,
           life_stage: parsedData.life_stage ?? "unknown",
           reproductive_condition: parsedData.reproductive_condition ??
@@ -1585,20 +1668,41 @@ export async function handleIdentifyMultimodalRequest(
             modResult?.publicUrls ?? [],
           ),
           ...publicUrlsByStorageKey(videoR2ObjectKeys, videoStorageUrls),
+          ...publicUrlsByStorageKey(
+            standaloneAudioStorageKeys,
+            audioStorageUrls,
+          ),
         ]),
       );
-      await markUploadAssetsDeletedBestEffort(audioR2ObjectKeys);
+      await markUploadAssetsDeletedBestEffort(companionAudioStorageKeys);
       await refreshScanMediaAssetsBestEffort(generatedScanId, supabaseAdmin);
-      if (audioR2ObjectKeys.length > 0) {
-        const r2Config = getR2Config();
-        Promise.allSettled(
-          audioR2ObjectKeys.map((key: string) => deleteR2Object(key, r2Config)),
-        ).catch((e) =>
-          console.error(
-            "multimodal: failed to cleanup staged audio objects",
-            e,
-          )
-        );
+      if (audioStorageUrls.length > 0) {
+        await supabaseAdmin.from("scan_media_assets").delete()
+          .eq("scan_id", generatedScanId)
+          .eq("source", "manual")
+          .eq("kind", "audio");
+        const { error: audioAssetError } = await supabaseAdmin
+          .from("scan_media_assets")
+          .insert(audioStorageUrls.map((url, index) => ({
+            scan_id: generatedScanId,
+            client_scan_id: generatedScanId,
+            user_id: user.id,
+            kind: "audio",
+            role: "audio",
+            status: "ready",
+            source: "manual",
+            url,
+            order_index: index,
+            has_audio: true,
+            content_type: "audio/wav",
+            ready_at: new Date().toISOString(),
+            metadata: { manifest_source: "identify_multimodal" },
+          })));
+        if (audioAssetError) {
+          throw new Error(
+            `Failed to persist durable audio assets: ${audioAssetError.message}`,
+          );
+        }
       }
 
       let candidateEnrichmentTask: Promise<void> = Promise.resolve();
@@ -1814,6 +1918,7 @@ export async function handleIdentifyMultimodalRequest(
       const promotedPublicUrls = [
         ...(modResult?.publicUrls ?? []),
         ...videoStorageUrls,
+        ...promotedAudioUrlsForRollback,
       ];
       if (!scanInserted && promotedPublicUrls.length) {
         const r2Config = getR2Config();

@@ -34,6 +34,7 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import { ImageCarousel } from "@/components/ImageCarousel";
+import { ExploreAudioPlayers } from "@/components/ExploreAudioPlayers";
 
 type ExplorePostPageProps = {
   params: Promise<{
@@ -93,18 +94,15 @@ export async function generateMetadata({
       description: `${description} shared on Merian.`,
       url: canonicalPath,
       siteName: "Merian",
-      images: [
-        {
-          url: post.heroImageUrl,
-          alt: title,
-        },
-      ],
+      ...(post.heroImageUrl
+        ? { images: [{ url: post.heroImageUrl, alt: title }] }
+        : {}),
     },
     twitter: {
-      card: "summary_large_image",
+      card: post.heroImageUrl ? "summary_large_image" : "summary",
       title,
       description: `${description} shared on Merian.`,
-      images: [post.heroImageUrl],
+      ...(post.heroImageUrl ? { images: [post.heroImageUrl] } : {}),
     },
   };
 }
@@ -130,6 +128,9 @@ export default async function ExplorePostPage({
   const observationRows = buildObservationRows(post);
   const conservationStatus = normalizedIucnStatus(detail?.iucnRedListStatus);
   const hasOverview = Boolean(conservationStatus || detail?.wikipediaOverview);
+  const hasVisualMedia = post.mediaItems.some((item) =>
+    item.kind === "image" || item.kind === "video"
+  );
 
   const hazardType = detail?.hazardType?.trim().toLowerCase() || "none";
   let hazardTitle = "Toxic";
@@ -173,11 +174,28 @@ export default async function ExplorePostPage({
         </Link>
 
         <Card withBorder shadow="sm" radius="lg" p={0}>
-          <ImageCarousel
-            heroImageUrl={post.heroImageUrl}
-            referenceImages={detail?.referenceImages ?? []}
-            altText={title}
-          />
+          {hasVisualMedia ? (
+            <ImageCarousel
+              heroImageUrl={post.heroImageUrl}
+              referenceImages={detail?.referenceImages ?? []}
+              altText={title}
+            />
+          ) : (
+            <>
+              <ExploreAudioPlayers items={post.mediaItems} prominent />
+              {detail?.referenceImages.length ? (
+                <ImageCarousel
+                  heroImageUrl={null}
+                  referenceImages={detail.referenceImages}
+                  altText={`${title} reference`}
+                />
+              ) : null}
+            </>
+          )}
+
+          {hasVisualMedia ? (
+            <ExploreAudioPlayers items={post.mediaItems} />
+          ) : null}
 
           <Stack gap="lg" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="flex-start" gap="md">

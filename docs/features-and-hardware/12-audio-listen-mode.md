@@ -546,9 +546,39 @@ success. The multimodal handler:
 4. Reuses the same `_shared/identify` DB, threshold, and moderation primitives
    as the image pipeline.
 
-For audio-only scans, `insertScan` persists `image_storage_urls: []` and the
-same scan metadata contract used elsewhere. Staged audio keys are inference
-inputs only and are deleted from R2 after successful background ingestion.
+For audio-only scans, `insertScan` persists `image_storage_urls: []`, durable
+`audio_storage_urls`, and an audio item in the canonical `captured_media`
+timeline. Standalone audio is promoted into durable scan storage and normalized
+as a ready `scan_media_assets(kind = 'audio', role = 'audio')` row. Extracted
+`video_audio` remains inference-only: it is deleted after finalization because
+the shareable playback MP4 already contains its own audio track.
+
+## 13. Explore Audio Publication
+
+Standalone audio can be selected in the Explore composer. Audio publication is
+separate from biological identification:
+
+1. `/share-scan-to-explore` resolves the selected audio without writing or
+   reactivating an Explore post.
+2. `_shared/audioModeration.ts` fetches the bounded clip, transcribes it with
+   `gpt-4o-mini-transcribe`, and sends only the transcript to
+   `omni-moderation-latest`.
+3. An approved result allows the normal atomic post/media share write to run.
+   A flagged result or provider/configuration failure returns an error and
+   leaves the prior Explore state unchanged; failures never publish a post.
+4. The Edge deployment requires `OPENAI_API_KEY`. The transcript is held only
+   in function memory and is not written to Postgres, logs, or client payloads.
+
+This v1 primarily protects against harmful speech. It does not claim complete
+classification of non-speech sounds; user reporting remains the
+post-publication safety layer.
+
+Approved audio is available in the iOS Explore feed and public Next.js share
+pages. Web playback uses native browser controls, requires user interaction, and
+preloads metadata rather than the clip body. Audio-only posts use an audio card;
+mixed posts retain their visual hero and expose every approved audio item in
+canonical order. The widget snapshot writer still filters out audio-only posts
+before applying its 12-item cap.
 
 ### Error Status Semantics
 
@@ -559,7 +589,7 @@ payloads → 400.
 
 ---
 
-## 13. Implementation Status
+## 14. Implementation Status
 
 | Item                                             | Status                                                                                                                            |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -570,6 +600,8 @@ payloads → 400.
 | Offline replay audio dispatch path               | **Complete** — queued audio uploads to R2 and replays as `audioR2ObjectKeys`                                                      |
 | Two-phase R2 audio upload                        | **Complete for queued replay** — foreground live audio remains inline by design                                                   |
 | `deleteQueuedScan` / purge audio cleanup         | **Complete** — cleans Documents WAV on delete/purge                                                                               |
+| Durable standalone audio media                   | **Complete** — promoted into `audio_storage_urls`, `captured_media`, and ready normalized asset rows                              |
+| Explore transcript moderation                    | **Complete** — synchronous share precondition; only approved audio can create/reactivate a public post                            |
 
 ## 2026-04 Hardening Updates
 

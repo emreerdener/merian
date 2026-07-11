@@ -741,6 +741,9 @@ The transaction log for every successful identification.
   not these public playback URLs. For new video scans this column is a
   durability gate: if a requested playback video cannot be promoted, the scan
   insert fails/retries instead of creating a frame-only video row.
+- `audio_storage_urls` (Text Array): Durable standalone-audio links. Extracted
+  video companion audio is not stored here because the playback MP4 is the
+  public artifact.
 - `captured_media` (JSONB): Canonical captured-media timeline using the iOS
   `SerializedMediaItem` shape. Video entries attach the playback clip and poster
   thumbnail together so sampled inference frames do not hydrate as standalone
@@ -1179,7 +1182,9 @@ refresh helper after an early deployment exposed an ambiguous PL/pgSQL
 `image_url` reference in the legacy-array fallback path. Migration
 `20260707041259_fix_video_has_audio_metadata.sql` corrects video `has_audio`
 derivation so generated media rows and Explore snapshots only mark audio when a
-captured-media video audio reference exists.
+captured-media video audio reference exists. Migration
+`20260710120000_add_explore_audio_moderation.sql` adds durable standalone-audio
+URLs and permits approved audio snapshots in Explore post media.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until
@@ -1191,14 +1196,14 @@ captured-media video audio reference exists.
   request.
 - `user_id` (UUID FK -> `users.id`, CASCADE DELETE): Denormalized owner for RLS
   and efficient owner-scoped media reads.
-- `kind` (TEXT): `image`, `video`, or `audio`. Audio rows are lifecycle
-  diagnostics for inference input, not user-visible media.
+- `kind` (TEXT): `image`, `video`, or `audio`. Standalone audio can be durable
+  user media; extracted `video_audio` remains inference-only.
 - `role` (TEXT): Lifecycle role. Current user-visible rows use `display` for
-  still images and `playback` for playable video clips; reserved roles include
-  `thumbnail` and `inference_frame`.
+  still images, `playback` for playable video clips, and `audio` for standalone
+  clips; reserved roles include `thumbnail` and `inference_frame`.
 - `status` (TEXT): Lifecycle state: `staged`, `promoted`, `processing`, `ready`,
   `failed`, or `deleted`. Explore/composer/status readers only surface `ready`
-  rows whose role is `display` or `playback`.
+  rows whose role is `display`, `playback`, or `audio`.
 - `source` (TEXT): Writer that created the row, such as `scan_refresh`,
   `capture_upload`, `repair`, `backfill`, or `manual`.
 - `url` (TEXT, nullable): Current public CDN URL. Required for ready
@@ -1245,9 +1250,9 @@ when structured scan uploads include `clientScanId` and `mediaRole`.
 Capture-upload rows must keep a client scan id and storage key; promoted
 capture-upload rows must also have a final `scan_id` and public URL.
 `identify-multimodal` links those rows to `scan_id` during finalization:
-promoted image/video rows become `promoted`, consumed staged audio rows become
-`deleted`, and failed moderation/promotion/insert paths mark remaining staged
-rows as `failed`. The scheduled `reconcile-scan-media-assets` worker revisits
+promoted image/video/standalone-audio rows become durable media, while extracted
+video-audio rows become `deleted`; failed moderation/promotion/insert paths mark
+remaining staged rows as `failed`. The scheduled `reconcile-scan-media-assets` worker revisits
 old staged rows: existing scan rows can be repaired from surviving staged
 playback videos, while abandoned upload sessions are failed and garbage
 collected after their TTL.
@@ -1282,13 +1287,14 @@ migration `20260703130000_add_explore_post_media.sql`.
 
 - `post_id` (UUID FK -> `explore_posts.id`, CASCADE DELETE): The owning public
   post.
-- `kind` (TEXT): `image` or `video`.
-- `url` (TEXT): Public CDN URL for the image or playback video object.
+- `kind` (TEXT): `image`, `video`, or `audio`.
+- `url` (TEXT): Public CDN URL for the image, playback video, or standalone
+  audio object.
 - `thumbnail_url` (TEXT, nullable): Public image thumbnail for video playback
   and compact previews. Video posts require a thumbnail when shared.
 - `order_index` (INT): Stable carousel ordering within the post.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
-  metadata.
+  or audio metadata.
 - `has_audio` (BOOLEAN): Whether the video has a persisted audio companion.
   Public playback starts muted; audio requires explicit viewer action. Snapshot
   writers copy this from ready media rows or from the `captured_media` video
@@ -1301,9 +1307,12 @@ grid, and compact surfaces should keep using `hero_image_url` thumbnails.
 In-app compact previews may add a play indicator when any returned media item is
 video, but Home Screen widgets intentionally show clean still thumbnails without
 a video badge. Scan media source
-resolution prefers ready display/playback `scan_media_assets` rows, then
+resolution prefers ready display/playback/audio `scan_media_assets` rows, then
 `captured_media`, and finally legacy URL arrays so playback video URLs and
-poster thumbnails remain paired.
+poster thumbnails remain paired. Audio approval is checked before the
+Explore post/media write, so the database contains no pending audio post:
+successful rows are normal shared posts and rejected/failed attempts do not
+mutate public state.
 
 ### `explore_post_hashtags`
 

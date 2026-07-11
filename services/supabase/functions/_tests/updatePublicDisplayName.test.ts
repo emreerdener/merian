@@ -12,10 +12,7 @@ Deno.test("update-public-display-name - normalizes whitespace", () => {
 
 Deno.test("update-public-display-name - validates display name policy", () => {
   assertEquals(publicDisplayNameValidationError("River Wren"), null);
-  assertEquals(
-    publicDisplayNameValidationError(""),
-    "Display name cannot be empty.",
-  );
+  assertEquals(publicDisplayNameValidationError(""), null);
   assertEquals(
     publicDisplayNameValidationError("A".repeat(41)),
     "Display name must be 40 characters or fewer.",

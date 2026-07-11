@@ -18,6 +18,7 @@ Merian.
 | `REVENUECAT_API_KEY`                | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret; production export should use an iOS `appl_` key     |
 | `POSTHOG_API_KEY`                   | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
 | `GEMINI_API_KEY`                    | Supabase Edge secret only                            | Never in iOS bundle                                                                    |
+| `OPENAI_API_KEY`                    | Supabase Edge secret only                            | Explore audio transcription/moderation; never in iOS bundle                            |
 | `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret or server-side web env only     | Never in iOS bundle or browser-exposed web config                                      |
 | `Merian_HasAuthenticatedOAuth`      | `KeychainManager` (`kSecClassGenericPassword`)       | Security-sensitive auth flag, migrated from `UserDefaults` on first run                |
 | Device IDFV (`Merian_Device_IDFV`)  | `DeviceIdentityManager` (`kSecClassGenericPassword`) | Persisted across reinstalls within the same vendor group                               |
@@ -48,6 +49,10 @@ environment variable.**
   inference endpoints, primarily `/identify-multimodal`; legacy `/identify`,
   `/identify-describe`, and `/audio-spec` remain server-side compatibility
   routes only.
+- `OPENAI_API_KEY` — lives exclusively in Supabase Edge secrets and is used by
+  `/share-scan-to-explore` for fail-closed audio transcription and transcript
+  moderation. It must never be placed in iOS config, web client config, or
+  logs.
 - `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side
   web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`,
   and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as

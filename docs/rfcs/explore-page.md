@@ -1,11 +1,16 @@
 # Explore Page RFC
 
-Merian Explore is a manual-share, image-only public feed of discoveries. V1 is intentionally narrow: users can browse posts, like them, and leave comments, while Merian preserves its privacy-first posture for both authenticated and ghost users.
+Merian Explore began as a manual-share, image-only feed and now supports
+post-owned image, short-video, and standalone-audio media. Users can browse
+posts, like them, and leave comments while Merian preserves its privacy-first
+posture for both authenticated and ghost users.
 
 ## Locked Product Decisions
 
 - Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.
-- Explore is image-only in V1. Audio is out of scope.
+- Audio sharing is manual and fail-closed. Transcript moderation must approve
+  the selected media before the Explore post is created or reactivated;
+  flagged or failed checks do not change public state.
 - Post descriptions/captions are out of scope in V1.
 - Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications and Field Trip activity are in-app only.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.

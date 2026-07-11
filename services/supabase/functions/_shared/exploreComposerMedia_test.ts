@@ -223,3 +223,31 @@ Deno.test("buildComposerMediaSources collapses legacy video frame URLs", () => {
   assertEquals(media[0].thumbnail_url, "https://media.merian.app/frame-1.webp");
   assertEquals(media[0].has_audio, false);
 });
+
+Deno.test("buildComposerMediaSources exposes durable standalone audio", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000003",
+    audio_storage_urls: ["https://media.merian.app/clip.wav"],
+    captured_media: [
+      {
+        audio: {
+          _0: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/clip.wav",
+          },
+        },
+      },
+    ],
+  });
+
+  assertEquals(media, [{
+    source_media_id: "scan:00000000-0000-0000-0000-000000000003:audio:0",
+    kind: "audio",
+    url: "https://media.merian.app/clip.wav",
+    thumbnail_url: "",
+    order_index: 0,
+    has_audio: true,
+    is_selected: false,
+    selection_order_index: null,
+  }]);
+});

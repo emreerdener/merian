@@ -173,6 +173,14 @@ TestFlight, App Store, support, and QA.
   media records for future sharing and playback repairs.
 - Fixed Explore video audio metadata so posts only mark video as audio-backed
   when the captured video manifest actually includes an audio companion.
+- Added standalone audio to Explore sharing with waveform playback and a
+  fail-closed publication check: speech is transcribed and moderated before the
+  share succeeds, so rejected or failed checks create no public post.
+- Added approved Explore audio to public web share pages with native,
+  user-initiated playback and audio-safe social metadata. Audio-only posts remain
+  excluded from Home Screen widgets.
+- Fixed standalone-audio R2 cleanup so user scan deletion, the 30-day
+  non-biological purge, and failed-ingestion rollback do not orphan recordings.
 - Added Explore post management actions to the Insight top menu so published
   scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts
@@ -184,6 +192,9 @@ TestFlight, App Store, support, and QA.
 
 ### Scans
 
+- Fixed newly empty scan libraries showing a blank screen instead of the first-scan
+  empty state, including after switching from a previously signed-in account to a
+  ghost session.
 - Improved offline queue reliability so image, video, audio, and description
   scans keep retry state across app restarts, show retry/needs-attention status,
   and no longer discard user media after a fixed number of transient failures.
@@ -213,6 +224,13 @@ TestFlight, App Store, support, and QA.
   recent older libraries use the smallest source-specific plan available.
 - Fixed offline-queue schema upgrades so existing queued scans initialize their
   durable retry state instead of repeatedly reopening in safe mode.
+
+### Profile
+
+- Added an Edit profile picture action to the Profile identity menu so the avatar
+  picker is available alongside name and username editing.
+- Made profile names optional; clearing a custom name now restores the public
+  username as the author label across Profile and Explore.
 - Fixed V47 queued-media library upgrades so queued scans are snapshotted and
   recreated with durable retry metadata, avoiding a SwiftData startup crash
   during TestFlight upgrade checks.

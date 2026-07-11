@@ -115,8 +115,11 @@ function normalizeMediaItems(
 
     const record = entry as Record<string, unknown>;
     const kind = record.kind;
-    if (kind !== "image" && kind !== "video") {
-      throw makeHttpError(400, "media_items can only include image or video.");
+    if (kind !== "image" && kind !== "video" && kind !== "audio") {
+      throw makeHttpError(
+        400,
+        "media_items can only include image, video, or audio.",
+      );
     }
     const sourceMediaId = typeof record.source_media_id === "string"
       ? record.source_media_id.trim()

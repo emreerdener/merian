@@ -5,6 +5,7 @@ export interface DBScanRow {
   user_id: string;
   image_storage_urls: string[];
   video_storage_urls: string[];
+  audio_storage_urls: string[];
 }
 
 export async function fetchScanRecord(
@@ -13,7 +14,7 @@ export async function fetchScanRecord(
 ): Promise<DBScanRow | null> {
   const { data: scan, error: fetchError } = await supabaseAdmin
     .from("scans")
-    .select("id, user_id, image_storage_urls, video_storage_urls")
+    .select("id, user_id, image_storage_urls, video_storage_urls, audio_storage_urls")
     .eq("id", scanId)
     .single();
 

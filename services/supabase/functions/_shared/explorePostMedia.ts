@@ -151,6 +151,25 @@ function legacySourceForSelection(
     };
   }
 
+  if (item.kind === "audio") {
+    const audioUrls = cleanMediaUrls(scan.audio_storage_urls);
+    const url = audioUrls[sourceIndex];
+    if (!url) {
+      throw makeHttpError(
+        400,
+        "Selected audio media does not belong to this scan.",
+      );
+    }
+    return {
+      source_media_id: makeSourceMediaId(scan.id, "audio", sourceIndex),
+      kind: "audio",
+      url,
+      thumbnail_url: "",
+      order_index: 0,
+      has_audio: true,
+    };
+  }
+
   const url = videoUrls[sourceIndex];
   if (!url) {
     throw makeHttpError(

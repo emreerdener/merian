@@ -20,6 +20,11 @@ separately from the backing scan's `geoprivacy`.
       "kind": "video",
       "source_media_id": "scan:uuid:video:0",
       "order_index": 1
+    },
+    {
+      "kind": "audio",
+      "source_media_id": "scan:uuid:audio:0",
+      "order_index": 2
     }
   ]
 }
@@ -33,9 +38,9 @@ post-owned value.
 public media selection for this post. New clients should submit
 `source_media_id` values returned by `get-explore-composer-media`. Legacy
 clients may still submit `source_index` and `thumbnail_source_index` values that
-point to the scan's promoted image/video URL arrays; for videos,
+point to the scan's promoted image/video/audio URL arrays; for videos,
 `thumbnail_source_index` must resolve to the scan's promoted poster image.
-Audio, Describe content, AI/reference images, and Dictionary media are not valid
+Describe content, AI/reference images, and Dictionary media are not valid
 Explore post media.
 
 For video scans, `source_media_id` resolves through the same source list shown
@@ -74,9 +79,17 @@ Legacy `hidden` input is accepted as `private`.
   "post_id": "uuid",
   "scan_id": "uuid",
   "shared_at": "2026-06-17T19:30:00.000Z",
-  "location_sharing": "obscured"
+  "location_sharing": "obscured",
+  "publication_status": "published"
 }
 ```
+
+All successful shares return `200` with `publication_status = "published"`.
+For standalone audio or an audio-bearing video,
+`_shared/audioModeration.ts` must transcribe and approve every audible selected
+item before the post/media upsert runs. Flagged transcripts return `422`;
+provider or configuration failures return `503`. In both cases nothing is
+created, reactivated, or made public.
 
 ## Rules
 
@@ -84,7 +97,7 @@ Legacy `hidden` input is accepted as `private`.
 - `scan_id` must belong to the current user.
 - Tombstoned scans, media-less scans, and scans without a resolved species are
   not share-eligible.
-- Sharing snapshots public image/video URLs into `explore_post_media` for the
+- Sharing snapshots public image/video/audio URLs into `explore_post_media` for the
   post. Video posts require a public thumbnail image; otherwise the endpoint
   returns `Video thumbnail unavailable.`
 - Media selections are validated before the post is reported as shared. Public
@@ -96,11 +109,16 @@ Legacy `hidden` input is accepted as `private`.
 - Describe/observation context is private scan context. It is never copied into
   `field_notes`, hashtags, captions, media metadata, or the public media
   snapshot unless the user manually writes that text into the composer.
-- When `media_items` is supplied, only the selected image/video rows are written
+- When `media_items` is supplied, only the selected image/video/audio rows are written
   to `explore_post_media`, ordered by `order_index`; the first selected item's
   image URL or video thumbnail becomes the computed `hero_image_url`.
-- Empty media selections, non-visual media kinds, invalid source indexes, and
+- Empty media selections, unsupported media kinds, invalid source indexes, and
   videos without a thumbnail are rejected.
+- Audio moderation requires the `OPENAI_API_KEY` Edge secret. Transcripts are
+  not persisted or returned to clients.
+- Audio moderation runs before `explore_posts`, `explore_post_media`, hashtags,
+  or resolved-community publication state is mutated. Approval is therefore a
+  strict prerequisite for the share, not a post-publication status.
 - If the scan has a resolved Ask the Community request, publishing materializes
   any new GBIF-backed resolved species into `species_dictionary`, sets
   `scans.confirmed_species_id`, and stamps the request's `explore_published_at`

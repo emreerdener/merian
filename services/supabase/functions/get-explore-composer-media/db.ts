@@ -22,6 +22,7 @@ interface ComposerScanRow {
   user_id: string;
   image_storage_urls: string[] | null;
   video_storage_urls: string[] | null;
+  audio_storage_urls: string[] | null;
   captured_media: unknown[] | null;
   media_assets?: ScanMediaAssetRow[] | null;
   is_tombstoned: boolean;
@@ -35,7 +36,7 @@ interface ComposerPostRow {
 }
 
 interface PostMediaRow {
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   url: string;
   thumbnail_url?: string | null;
   order_index: number;
@@ -131,7 +132,7 @@ async function fetchOwnedScan(
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
-      "id,user_id,image_storage_urls,video_storage_urls,captured_media,is_tombstoned",
+      "id,user_id,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned",
     )
     .eq("id", scanId)
     .eq("user_id", userId)

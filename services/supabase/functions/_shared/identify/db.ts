@@ -323,6 +323,7 @@ export interface ScanInsertRow {
   llm_total_tokens?: number | null;
   image_storage_urls: string[];
   video_storage_urls?: string[];
+  audio_storage_urls?: string[];
   captured_media?: unknown[] | null;
   life_stage?: string;
   reproductive_condition?: string;

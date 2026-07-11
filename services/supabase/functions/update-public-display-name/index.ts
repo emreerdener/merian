@@ -1,5 +1,5 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { parseJsonBody, requireParams } from "../_shared/http.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 import {
   makePublicDisplayNameResponse,
   normalizePublicDisplayName,
@@ -10,8 +10,12 @@ Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
     if (parsedBody instanceof Response) return parsedBody;
-    const paramErr = requireParams(parsedBody, ["display_name"]);
-    if (paramErr) return paramErr;
+    if (
+      !("display_name" in parsedBody) ||
+      typeof parsedBody.display_name !== "string"
+    ) {
+      return jsonResponse({ error: "display_name must be a string." }, 400);
+    }
 
     const displayName = normalizePublicDisplayName(parsedBody.display_name);
     const validationError = publicDisplayNameValidationError(displayName);
@@ -24,7 +28,7 @@ Deno.serve((req: Request) =>
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("users")
-      .select("id")
+      .select("id,public_username")
       .eq("id", user.id)
       .single();
 
@@ -32,11 +36,16 @@ Deno.serve((req: Request) =>
       return jsonResponse({ error: "User profile not found." }, 404);
     }
 
+    const resolvedAuthorName = displayName || profile.public_username;
+    if (!resolvedAuthorName) {
+      return jsonResponse({ error: "Public username not found." }, 409);
+    }
+
     const { error: updateError } = await supabaseAdmin
       .from("users")
       .update({
-        public_author_name: displayName,
-        public_identity_source: "display_name",
+        public_author_name: resolvedAuthorName,
+        public_identity_source: displayName ? "display_name" : "alias",
       })
       .eq("id", user.id);
 
@@ -44,6 +53,6 @@ Deno.serve((req: Request) =>
       throw new Error(`Failed to update display name: ${updateError.message}`);
     }
 
-    return jsonResponse(makePublicDisplayNameResponse(displayName), 200);
+    return jsonResponse(makePublicDisplayNameResponse(resolvedAuthorName), 200);
   })
 );

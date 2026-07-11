@@ -20,6 +20,8 @@ interface PromoteSafeMediaInput {
   imageBase64s: string[] | undefined;
   userTier: string;
   r2Config: PromotionR2Config;
+  contentType?: string;
+  fallbackExtension?: string;
 }
 
 function publicUrlForKey(key: string): string {
@@ -33,6 +35,8 @@ export async function promoteSafeMedia(
     imageBase64s,
     userTier,
     r2Config,
+    contentType = "image/webp",
+    fallbackExtension = "webp",
   }: PromoteSafeMediaInput,
   {
     copyObject = copyR2Object,
@@ -52,14 +56,14 @@ export async function promoteSafeMedia(
       for (const base64 of imageBase64s) {
         const fallbackUUID = crypto.randomUUID();
         const fileName = r2ObjectKeys?.[index]?.split("/").pop() ||
-          `${fallbackUUID}.webp`;
+          `${fallbackUUID}.${fallbackExtension}`;
         const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
         const targetS3Url = `${endpoint}/${bucketName}/${publicUploadKey}`;
 
         const arrayBuffer = decodeBase64(base64);
         const uploadReq = new Request(targetS3Url, {
           method: "PUT",
-          headers: { "Content-Type": "image/webp" },
+          headers: { "Content-Type": contentType },
           body: arrayBuffer as unknown as BodyInit,
         });
         const signedUpload = await signRequest(uploadReq);

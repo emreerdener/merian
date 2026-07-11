@@ -1763,6 +1763,32 @@ struct MerianNetworkClientTests {
         #expect(response.displayName == "River Wren")
     }
 
+    @Test func testClearPublicDisplayNameSendsEmptyValueAndParsesAliasFallback() async throws {
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/update-public-display-name"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["display_name"] as? String == "")
+
+            let data = Data("""
+            {
+              "display_name": "briar_grove_23"
+            }
+            """.utf8)
+            return (mockResponse, data)
+        }
+
+        let response = try await MerianNetworkClient.shared.updatePublicDisplayName("")
+
+        #expect(response.displayName == "briar_grove_23")
+    }
+
     @Test func budgetValidationPassesAtExactLimit() throws {
         // 3_600_000 bytes total — boundary value (> 3_600_000 throws, == does not)
         let payload = String(repeating: "X", count: 3_600_000)

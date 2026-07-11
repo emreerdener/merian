@@ -103,6 +103,15 @@ struct UserProfile: View {
 
     private var profileMenu: some View {
         Menu {
+            PhotosPicker(
+                selection: $selectedAvatarItem,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                Label("Edit profile picture", systemImage: "person.crop.circle")
+            }
+            .disabled(profileViewModel.isUpdatingAvatar)
+
             Button {
                 isShowingDisplayNameEditor = true
             } label: {
@@ -465,7 +474,7 @@ private struct PublicDisplayNameEditSheet: View {
                 .font(.footnote)
                 .foregroundStyle(.red)
         } else {
-            Text("Use 1-40 characters.")
+            Text("Optional · up to 40 characters.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -479,7 +488,13 @@ private struct PublicDisplayNameEditSheet: View {
 
     private var canSave: Bool {
         guard !isSaving, validationError == nil else { return false }
-        return normalizedDraft != viewModel.publicAuthorName
+        return normalizedDraft != currentCustomDisplayName
+    }
+
+    private var currentCustomDisplayName: String {
+        guard viewModel.publicIdentitySource == "display_name" else { return "" }
+        return viewModel.publicAuthorName?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private var inputBorderColor: Color {
@@ -487,7 +502,6 @@ private struct PublicDisplayNameEditSheet: View {
     }
 
     private var validationError: String? {
-        if normalizedDraft.isEmpty { return "Name cannot be empty." }
         if normalizedDraft.count > 40 { return "Name must be 40 characters or fewer." }
         if normalizedDraft.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) {
             return "Name cannot include control characters."

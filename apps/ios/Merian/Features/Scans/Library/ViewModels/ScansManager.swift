@@ -177,7 +177,12 @@ struct ScanLibraryFilters: Equatable {
     // MARK: - UI Published State
     var searchQuery: String = ""
     var filteredScans: [LocalScanRecord] = []
-    var isFiltering: Bool = true
+    /// True only while an actual search or filter task is in flight.
+    ///
+    /// Starting in the filtering state leaves a brand-new empty library permanently
+    /// blank: the store synchronization correctly detects that both snapshots are
+    /// empty and skips scheduling a redundant search, so nothing would clear the flag.
+    var isFiltering: Bool = false
     var activeCategoryFilter: String = "All"
     var filters = ScanLibraryFilters() {
         didSet {

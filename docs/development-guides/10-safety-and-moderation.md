@@ -5,6 +5,29 @@ before persisting any scan to the database. The shared implementation lives in
 `_shared/identify/moderation.ts` and is used by both `/identify` and
 `/identify-multimodal`. It never blocks the HTTP response.
 
+Public Explore audio uses a separate publication gate. Identification safety
+and public-audio safety are intentionally different decisions: a clip may be
+valid biological evidence while its background speech is unsuitable for a
+public feed.
+
+## Explore Audio Transcript Moderation
+
+When selected media contains standalone audio or an audio-bearing playback
+video, `/share-scan-to-explore` treats moderation as a precondition. Before any
+Explore post or public-media snapshot is created or reactivated, the function:
+
+1. downloads the selected media with a 12 MB hard cap;
+2. transcribes it using `gpt-4o-mini-transcribe`;
+3. checks the transcript with `omni-moderation-latest`;
+4. continues into the normal atomic share write only when every audible
+   selected item is approved.
+
+Flagged transcripts and any fetch, provider, configuration, or response-shape
+failure return an error and leave the prior Explore state unchanged; nothing is
+shared. The transcript is not persisted. `OPENAI_API_KEY` is a required Edge
+secret for this path. This is a
+speech-focused v1; manual reports remain necessary for harmful non-speech audio.
+
 ## Architecture Overview
 
 ```

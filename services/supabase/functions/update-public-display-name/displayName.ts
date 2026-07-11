@@ -11,7 +11,6 @@ export function normalizePublicDisplayName(value: unknown): string {
 export function publicDisplayNameValidationError(
   displayName: string,
 ): string | null {
-  if (displayName.length === 0) return "Display name cannot be empty.";
   if (displayName.length > MAX_PUBLIC_DISPLAY_NAME_LENGTH) {
     return "Display name must be 40 characters or fewer.";
   }

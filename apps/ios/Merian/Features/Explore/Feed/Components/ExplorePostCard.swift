@@ -716,12 +716,22 @@ struct ExplorePublicMediaView: View {
         }
     }
 
+    @ViewBuilder
     private var posterImage: some View {
-        ExploreHeroImageView(
-            imageUrl: mediaItem.thumbnailUrl ?? fallbackImageUrl,
-            reloadGeneration: reloadGeneration,
-            preloadedImage: preloadedImage
-        )
+        if mediaItem.kind == .audio {
+            ZStack {
+                Color(uiColor: .secondarySystemBackground)
+                Image(systemName: "waveform")
+                    .font(.system(size: 54, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            ExploreHeroImageView(
+                imageUrl: mediaItem.thumbnailUrl ?? fallbackImageUrl,
+                reloadGeneration: reloadGeneration,
+                preloadedImage: preloadedImage
+            )
+        }
     }
 
     @ViewBuilder
@@ -748,7 +758,7 @@ struct ExplorePublicMediaView: View {
     }
 
     private var hasLocalVideoPlaybackState: Bool {
-        mediaItem.kind == .video ||
+        mediaItem.kind == .video || mediaItem.kind == .audio ||
             player != nil ||
             configuredVideoURL != nil ||
             playbackOverlayState.needsPlayerRebuildForRecovery
@@ -945,7 +955,7 @@ struct ExplorePublicMediaView: View {
     }
 
     private func videoURLStringForPlayerConfiguration(forceRebuildForRecovery: Bool) -> String? {
-        if mediaItem.kind == .video {
+        if mediaItem.kind == .video || mediaItem.kind == .audio {
             return mediaItem.url
         }
 
@@ -1216,6 +1226,7 @@ struct ExplorePublicMediaView: View {
         verifiesRecovery: Bool = false
     ) {
         guard isVideoPlaybackHost else { return }
+        guard mediaItem.kind != .audio || force else { return }
         guard force || playbackCoordinator?.hasActiveOverlay != true else {
             logPlayback("skip-resume-covered")
             reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
@@ -1247,6 +1258,9 @@ struct ExplorePublicMediaView: View {
             showPlaybackControlTemporarily()
         } else {
             reducePlaybackOverlay(.autoplayStarted, animation: .easeInOut(duration: 0.18))
+        }
+        if mediaItem.kind == .audio {
+            player.isMuted = false
         }
         player.play()
         if shouldVerifyRecovery {

@@ -33,6 +33,7 @@ struct ExploreComposerMediaItem: Decodable, Equatable {
 enum ExploreMediaKind: String, Decodable, Equatable {
     case image
     case video
+    case audio
 }
 
 struct ExploreMediaItem: Decodable, Equatable {
@@ -1417,6 +1418,7 @@ struct ExploreShareResponse: Decodable {
     let scanId: String
     let sharedAt: String
     let locationSharing: ExplorePostLocationSharing?
+    let publicationStatus: String?
 }
 
 struct ExploreScanShareState: Decodable, Equatable {

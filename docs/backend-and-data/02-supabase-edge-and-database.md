@@ -1140,12 +1140,14 @@ visual placeholder rather than looping on a `ProgressView`.
 ### Automated 30-Day Non-Biological Purge
 
 The `auto-purge-nonbio` Edge Function, triggered by `pg_cron` via `pg_net`,
-removes non-biological scans after 30 days. A standard Cloudflare R2 Object
+removes non-biological scans and their durable image, video, and standalone
+audio objects after 30 days. A standard Cloudflare R2 Object
 Lifecycle rule cannot be used here because R2 lifecycle rules operate on object
 age and prefix, not on the PostgreSQL `is_biological_subject = false` flag. A
 bare Postgres `DELETE` without R2 coordination would orphan stored objects. The
 Edge Function handles both the database deletion and the R2 object removal
-atomically. Webhook secret validation in this function uses
+as one ordered operation: any rejected or non-successful R2 delete aborts the
+database deletion so the job can retry without orphaning media. Webhook secret validation in this function uses
 `timingSafeCompare()` for constant-time comparison. The function must delete R2
 objects through `deleteScanMediaR2Objects(...)`, not raw `deleteR2Objects(...)`,
 so only `public_uploads/free/` and `public_uploads/pro/` URLs are eligible for
@@ -1474,6 +1476,9 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
+- **`OPENAI_API_KEY`**: Authenticates `gpt-4o-mini-transcribe` and
+  `omni-moderation-latest` for the fail-closed Explore audio publication gate.
+  Audio posts remain hidden or rejected when this secret is absent.
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
 - **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants
   backend write access to the R2 Storage bucket.

@@ -695,10 +695,11 @@ during subsequent offline inference triggers.
 
 `mediaAssetId` and `mediaSessionId` are omitted for non-scan uploads, such as
 profile avatars, and for legacy `fileNames` clients. During
-`identify-multimodal` finalization, promoted image/video staging keys update the
-matching staged rows to `promoted` and link them to the completed scan. Consumed
-audio staging keys become `deleted`; moderation, promotion, or scan-insert
-failures mark still-staged rows as `failed`. The returned `mediaSessionId`
+`identify-multimodal` finalization, promoted image/video/standalone-audio
+staging keys update the matching staged rows and link them to the completed
+scan. Consumed extracted `video_audio` staging keys become `deleted`;
+moderation, promotion, or scan-insert failures mark still-staged rows as
+`failed`. The returned `mediaSessionId`
 values also let ingestion recover the exact upload sessions for the staged
 object keys; those session ids participate in the `scan_ingestion_jobs`
 `manifest_checksum`, giving retries and repair workers a stable server-side
@@ -2818,19 +2819,21 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   `video_storage_urls`, rebuilds `captured_media`, makes a best-effort
   `scan_media_assets` refresh for ready playback rows, and then writes the
   public Explore snapshot.
-- Sharing snapshots image and video URLs into `explore_post_media`, ordered for
+- Sharing snapshots image, video, and standalone-audio URLs into
+  `explore_post_media`, ordered for
   the public carousel. `hero_image_url` remains the required thumbnail and
   backward-compatible image field; video media without an image thumbnail is
   rejected with `Video thumbnail unavailable.`
 - New clients may pass ordered `media_items` using owner-scoped
   `source_media_id` values from `/get-explore-composer-media`; legacy
   `source_index` and `thumbnail_source_index` are accepted only when they map to
-  eligible scan image/video URLs. Empty selections, non-visual media kinds,
+  eligible scan image/video/audio URLs. Empty selections, unsupported media kinds,
   Describe/observation context, AI/reference images, and Dictionary media are
   rejected or ignored before the public post snapshot is written.
 - `source_media_id` values are resolved through the same media source list
-  returned to the composer: ready display/playback `scan_media_assets` rows
-  first, `captured_media` second, and legacy image/video URL arrays last. This
+  returned to the composer: ready display/playback/audio `scan_media_assets`
+  rows first, `captured_media` second, and legacy image/video/audio URL arrays
+  last. This
   keeps video playback URLs and poster thumbnails paired even when sampled
   inference frames remain in compatibility image URL arrays. Share-state
   visibility requires a saved `explore_post_media` row, preventing failed media
@@ -2841,6 +2844,13 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 - Video `has_audio` metadata is copied from ready media rows or derived from
   the `captured_media` video audio reference. Legacy URL-array video sources
   default false because they do not prove that an audio companion exists.
+- If any selected item is standalone audio or an audio-bearing video,
+  `gpt-4o-mini-transcribe` plus `omni-moderation-latest` must approve every
+  audible item before the Explore post/media upsert runs. A flagged transcript
+  returns `422`; provider/configuration failures return `503`. Neither failure
+  creates, reactivates, or changes a public post. Successful shares return
+  `200` with `publication_status = published`. The transcript is not persisted,
+  and the Edge runtime requires `OPENAI_API_KEY`.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved
@@ -3671,8 +3681,8 @@ ordered compositions of images, audio, and descriptive context.
   `captured_media`; otherwise the client receives a retryable failure rather
   than a frame-only video scan. Uploads signed with `clientScanId`/`mediaRole`
   already have staged `scan_media_assets` rows; this endpoint links those rows
-  to the scan as `promoted`, marks consumed audio rows `deleted`, and marks
-  failed finalization rows `failed`.
+  to the scan as durable media, marks consumed extracted `video_audio` rows
+  `deleted`, and marks failed finalization rows `failed`.
 - Before inference work starts, the endpoint claims a `scan_ingestion_jobs` row
   for the authenticated user and `client_scan_id`. The claim records media
   counts, staged image/audio/video object keys, recovered upload-session ids,

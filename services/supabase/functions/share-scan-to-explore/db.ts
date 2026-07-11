@@ -4,6 +4,7 @@ import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
+import { moderateExploreAudioUrl } from "../_shared/audioModeration.ts";
 
 export interface ShareEligibleScanRow {
   id: string;
@@ -11,6 +12,7 @@ export interface ShareEligibleScanRow {
   geoprivacy: string;
   image_storage_urls: string[];
   video_storage_urls?: string[];
+  audio_storage_urls?: string[];
   captured_media?: unknown[] | null;
   is_tombstoned: boolean;
   species_id: string | null;
@@ -18,7 +20,7 @@ export interface ShareEligibleScanRow {
 }
 
 export interface SelectedExplorePostMediaItem {
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   source_media_id?: string;
   source_index?: number;
   thumbnail_source_index?: number;
@@ -125,7 +127,7 @@ export async function fetchShareEligibleScan(
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
-      "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
+      "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
     )
     .eq("id", scanId)
     .eq("user_id", userId)
@@ -161,7 +163,7 @@ export async function fetchShareEligibleScan(
       .eq("id", scanId)
       .eq("user_id", userId)
       .select(
-        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
+        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
       )
       .single();
 
@@ -209,7 +211,7 @@ export async function fetchShareEligibleScan(
       .eq("id", scanId)
       .eq("user_id", userId)
       .select(
-        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
+        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
       )
       .single();
 
@@ -228,7 +230,8 @@ export async function fetchShareEligibleScan(
 
   if (
     (row.image_storage_urls?.length ?? 0) === 0 &&
-    (row.video_storage_urls?.length ?? 0) === 0
+    (row.video_storage_urls?.length ?? 0) === 0 &&
+    (row.audio_storage_urls?.length ?? 0) === 0
   ) {
     throw makeHttpError(409, "This scan no longer has shareable media.");
   }
@@ -298,8 +301,10 @@ export async function upsertExplorePost(
   locationSharing: string,
   mediaItems: SelectedExplorePostMediaItem[] | undefined,
   supabaseAdmin: SupabaseClient,
-): Promise<{ id: string; shared_at: string }> {
+): Promise<{ id: string; shared_at: string; publication_status: string }> {
   const mediaRows = buildExplorePostMediaRows(scan, mediaItems);
+  await requireApprovedAudioMedia(mediaRows);
+  const sharedAt = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
     .from("explore_posts")
@@ -310,7 +315,7 @@ export async function upsertExplorePost(
         species_common_name: speciesCommonName,
         field_notes: fieldNotes,
         location_sharing: locationSharing,
-        shared_at: new Date().toISOString(),
+        shared_at: sharedAt,
         unshared_at: null,
       },
       {
@@ -326,10 +331,40 @@ export async function upsertExplorePost(
     );
   }
 
-  const post = data as { id: string; shared_at: string };
+  const post = data as {
+    id: string;
+    shared_at: string;
+  };
   await replaceExplorePostMediaRows(post.id, mediaRows, supabaseAdmin);
 
-  return post;
+  return { ...post, publication_status: "published" };
+}
+
+export async function requireApprovedAudioMedia(
+  rows: ReturnType<typeof buildExplorePostMediaRows>,
+  moderate: typeof moderateExploreAudioUrl = moderateExploreAudioUrl,
+): Promise<void> {
+  const audibleRows = rows.filter((row) =>
+    row.kind === "audio" || (row.kind === "video" && row.has_audio)
+  );
+
+  try {
+    for (const row of audibleRows) {
+      const decision = await moderate(row.url);
+      if (!decision.approved) {
+        throw makeHttpError(
+          422,
+          "This audio cannot be shared because it did not pass moderation.",
+        );
+      }
+    }
+  } catch (error) {
+    if (error && typeof error === "object" && "status" in error) throw error;
+    throw makeHttpError(
+      503,
+      "Audio moderation is temporarily unavailable. Nothing was shared.",
+    );
+  }
 }
 
 async function replaceExplorePostMediaRows(

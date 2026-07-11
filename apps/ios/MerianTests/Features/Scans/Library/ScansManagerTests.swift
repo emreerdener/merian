@@ -31,6 +31,12 @@ final class ScansManagerTests: XCTestCase {
         sharedExplorePostLookup = nil
     }
 
+    func testNewManagerStartsIdleSoEmptyLibraryCanShowItsEmptyState() {
+        XCTAssertTrue(searchManager.allScans.isEmpty)
+        XCTAssertTrue(searchManager.filteredScans.isEmpty)
+        XCTAssertFalse(searchManager.isFiltering)
+    }
+
     func testEmptyLibraryCopyExplainsSafeModeUnavailable() {
         let copy = ScanLibraryEmptyStateCopy.make(
             startupStoreState: .safeMode,

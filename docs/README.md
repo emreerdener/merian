@@ -235,7 +235,8 @@ networking, and hardware orchestration logic.
   `HardwareOrchestrator`).
 - **[`/development-guides/10-safety-and-moderation.md`](./development-guides/10-safety-and-moderation.md)**
   — Gemini safety rating evaluation, abuse strike system, shadowban logic, and
-  R2 media promotion pipeline.
+  R2 media promotion pipeline, plus fail-closed Explore audio transcript
+  moderation.
 - **[`/development-guides/11-swiftdata-and-api-gotchas.md`](./development-guides/11-swiftdata-and-api-gotchas.md)**
   — SwiftData background synchronization drops, relationship fault boundaries,
   and API envelope parsing constraints.

@@ -2,6 +2,49 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-10-explore-audio-moderation",
+      "date": "2026-07-10",
+      "title": "Audio sharing in Explore",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Standalone audio scans can now be selected and played in Explore posts.",
+            "Speech is checked for harmful content before an audio share succeeds, so rejected or unavailable checks create no public post.",
+            "Approved audio posts can play in Explore and on public web share pages; audio-only posts remain excluded from Home Screen widgets.",
+            "Deleting or automatically expiring a scan now removes its standalone audio from cloud storage."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-10-profile-picture-menu-action",
+      "date": "2026-07-10",
+      "title": "Profile picture editing",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "The Profile identity menu now includes an Edit profile picture action alongside name and username editing.",
+            "Profile names are now optional; clearing a custom name restores the public username as the author label across Profile and Explore."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-10-empty-scan-library-state",
+      "date": "2026-07-10",
+      "title": "Empty scan libraries",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Newly empty scan libraries now show the first-scan empty state instead of a blank screen, including after switching from a previously signed-in account to a ghost session."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-10-revenuecat-account-linking",
       "date": "2026-07-10",
       "title": "Account and Pro access",

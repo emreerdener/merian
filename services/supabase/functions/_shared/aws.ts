@@ -80,6 +80,7 @@ const R2_DELETE_CONCURRENCY = 16;
 
 export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
   const { s3Client } = r2Config;
+  const failures: Array<{ url: string; reason: string }> = [];
   await mapWithConcurrencyLimit(
     urls,
     R2_DELETE_CONCURRENCY,
@@ -87,12 +88,27 @@ export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
       try {
         console.log(`Deleting R2 object: ${url}`);
         const s3Url = getInternalS3Url(url, r2Config);
-        await s3Client.fetch(new Request(s3Url, { method: "DELETE" }));
+        const response = await s3Client.fetch(
+          new Request(s3Url, { method: "DELETE" }),
+        );
+        if (!response.ok) {
+          throw new Error(`R2 delete returned HTTP ${response.status}`);
+        }
       } catch (e) {
         console.error(`Failed to wipe media at ${url} from Cloudflare R2:`, e);
+        failures.push({
+          url,
+          reason: e instanceof Error ? e.message : String(e),
+        });
       }
     },
   );
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures.map((failure) => new Error(`${failure.url}: ${failure.reason}`)),
+      `Failed to delete ${failures.length}/${urls.length} R2 object(s).`,
+    );
+  }
 };
 
 export async function deleteScanMediaR2Objects(

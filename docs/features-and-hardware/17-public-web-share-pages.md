@@ -50,7 +50,12 @@ the web surface.
 8. The page renders the public post with default Mantine components and props,
    without route-specific CSS classes or custom page chrome.
 
-If the RPC returns no visible row, the route returns a not-found page and marks metadata as non-indexable.
+If the RPC returns no visible row, the route returns a not-found page and marks
+metadata as non-indexable. Approved audio-only posts are public and indexable:
+they render an audio-focused header with native, user-initiated controls and
+text-only social metadata. Mixed posts retain visual social previews and render
+each approved audio item beneath the visual header in canonical order. Audio
+uses `preload="metadata"` and never autoplays.
 
 ## Environment Variables
 

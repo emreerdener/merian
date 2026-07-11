@@ -1,8 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
+import { requireApprovedAudioMedia } from "../share-scan-to-explore/db.ts";
 
 export interface ExistingExplorePostMediaSelection {
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   source_media_id?: string;
   url?: string;
   thumbnail_url?: string | null;
@@ -129,6 +130,15 @@ async function replaceExplorePostMedia(
     )
     : await mediaRowsFromExistingPost(postId, mediaItems, supabaseAdmin);
 
+  await requireApprovedAudioMedia(rows as Array<{
+    kind: "image" | "video" | "audio";
+    url: string;
+    thumbnail_url: string;
+    order_index: number;
+    duration_seconds: number | null;
+    has_audio: boolean;
+  }>);
+
   const { error: deleteError } = await supabaseAdmin
     .from("explore_post_media")
     .delete()
@@ -166,7 +176,7 @@ async function mediaRowsFromExistingPost(
   }
 
   const existing = new Map<string, {
-    kind: "image" | "video";
+    kind: "image" | "video" | "audio";
     url: string;
     thumbnail_url: string | null;
     duration_seconds: number | null;
@@ -175,7 +185,7 @@ async function mediaRowsFromExistingPost(
 
   for (const row of data ?? []) {
     const typed = row as {
-      kind: "image" | "video";
+      kind: "image" | "video" | "audio";
       url: string;
       thumbnail_url: string | null;
       duration_seconds: number | null;
@@ -228,7 +238,7 @@ async function mediaRowsFromSourceIds(
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
-      "id,user_id,image_storage_urls,video_storage_urls,captured_media,is_tombstoned",
+      "id,user_id,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned",
     )
     .eq("id", scanId)
     .eq("user_id", userId)
@@ -244,6 +254,7 @@ async function mediaRowsFromSourceIds(
     id: string;
     image_storage_urls: string[] | null;
     video_storage_urls: string[] | null;
+    audio_storage_urls: string[] | null;
     captured_media: unknown[] | null;
     is_tombstoned: boolean;
   };

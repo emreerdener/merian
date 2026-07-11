@@ -14,7 +14,7 @@ export type ScanMediaAssetStatus =
   | "ready"
   | "failed"
   | "deleted";
-export type ReadyScanMediaAssetKind = "image" | "video";
+export type ReadyScanMediaAssetKind = "image" | "video" | "audio";
 
 export interface ScanMediaAssetRow {
   kind: ScanMediaAssetKind;
@@ -72,7 +72,7 @@ export type ReadyScanMediaAssetRow =
   >
   & {
     kind: ReadyScanMediaAssetKind;
-    role: "display" | "playback";
+    role: "display" | "playback" | "audio";
     status: "ready";
   };
 
@@ -99,9 +99,11 @@ export function cleanScanMediaAssetRows(
 function isReadyVisibleAssetRow(
   row: NormalizedScanMediaAssetRow,
 ): row is ReadyScanMediaAssetRow {
-  const isVisualKind = row.kind === "image" || row.kind === "video";
-  const isVisibleRole = row.role === "display" || row.role === "playback";
-  return isVisualKind &&
+  const isPublicMediaKind = row.kind === "image" || row.kind === "video" ||
+    row.kind === "audio";
+  const isVisibleRole = row.role === "display" || row.role === "playback" ||
+    row.role === "audio";
+  return isPublicMediaKind &&
     row.status === "ready" &&
     isVisibleRole &&
     row.url.length > 0;
