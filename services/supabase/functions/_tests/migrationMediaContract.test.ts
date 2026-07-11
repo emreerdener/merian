@@ -260,10 +260,17 @@ Deno.test("scan media refresh synchronizes and backfills standalone audio", asyn
       "PERFORM public.refresh_scan_audio_assets(target_scan_id)",
       "GRANT EXECUTE ON FUNCTION public.refresh_scan_media_assets(UUID) TO service_role",
       "WHERE COALESCE(ARRAY_LENGTH(s.audio_storage_urls, 1), 0) > 0",
+      "SELECT COALESCE(MAX(asset.order_index), -1) + 1",
+      "WHERE asset.scan_id = target_scan_id",
     ]
   ) {
     assertStringIncludes(sql, fragment);
   }
+
+  assert(
+    !sql.includes("AND asset.status = 'ready'"),
+    "audio ordering must account for preserved failed and staged rows because the unique index is status-independent",
+  );
 });
 
 Deno.test("Explore audio migration enables durable audio and public snapshots", async () => {

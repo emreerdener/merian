@@ -1,7 +1,9 @@
 import AVFoundation
 import Foundation
 
-struct ExploreAudioBoostResult: Sendable {
+// Shared on-device listening enhancement for Explore and private Insight audio.
+
+struct AudioBoostResult: Sendable {
     let url: URL
     let gainDecibels: Double
 
@@ -14,36 +16,53 @@ struct ExploreAudioBoostResult: Sendable {
     }
 }
 
-actor ExploreAudioBoostProcessor {
-    static let shared = ExploreAudioBoostProcessor()
+struct AudioSourceLease: Sendable {
+    let url: URL
+    let shouldDeleteAfterUse: Bool
 
-    private var cached: [String: ExploreAudioBoostResult] = [:]
+    func release() {
+        if shouldDeleteAfterUse {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+}
+
+actor AudioBoostProcessor {
+    static let shared = AudioBoostProcessor()
+
+    private var cached: [String: AudioBoostResult] = [:]
     private var cacheOrder: [String] = []
+    private var inFlight: [String: Task<AudioBoostResult, Error>] = [:]
     private let maxCacheEntries = 8
 
-    func prepare(urlString: String) async throws -> ExploreAudioBoostResult {
-        if let cached = cached[urlString] { return cached }
-        guard let remoteURL = URL(string: urlString), remoteURL.scheme == "https" else {
-            throw URLError(.badURL)
+    func prepare(source: String) async throws -> AudioBoostResult {
+        if let cached = cached[source] { return cached }
+        if let inFlight = inFlight[source] {
+            return try await inFlight.value
         }
 
-        var request = URLRequest(url: remoteURL)
-        request.timeoutInterval = 30
-        let (downloadURL, response) = try await URLSession.shared.download(for: request)
-        guard let response = response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        let byteSize = try downloadURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard byteSize <= MerianConfig.audioPayloadMaxBytes else { throw URLError(.dataLengthExceedsMaximum) }
+        let task = Task<AudioBoostResult, Error> {
+            let resolved = try await Self.resolveSource(source)
+            defer {
+                if resolved.shouldDeleteAfterUse {
+                    try? FileManager.default.removeItem(at: resolved.url)
+                }
+            }
+            return try Self.renderBoostedAudio(sourceURL: resolved.url)
+        }
+        inFlight[source] = task
 
-        let sourceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("explore-boost-source-\(UUID().uuidString).wav")
-        try FileManager.default.moveItem(at: downloadURL, to: sourceURL)
-        defer { try? FileManager.default.removeItem(at: sourceURL) }
-
-        let result = try Self.renderBoostedAudio(sourceURL: sourceURL)
-        cached[urlString] = result
-        cacheOrder.removeAll { $0 == urlString }
-        cacheOrder.append(urlString)
+        let result: AudioBoostResult
+        do {
+            result = try await task.value
+        } catch {
+            inFlight[source] = nil
+            throw error
+        }
+        inFlight[source] = nil
+        cached[source] = result
+        cacheOrder.removeAll { $0 == source }
+        cacheOrder.append(source)
         while cacheOrder.count > maxCacheEntries {
             let evictedKey = cacheOrder.removeFirst()
             if let evicted = cached.removeValue(forKey: evictedKey) {
@@ -53,7 +72,51 @@ actor ExploreAudioBoostProcessor {
         return result
     }
 
-    private static nonisolated func renderBoostedAudio(sourceURL: URL) throws -> ExploreAudioBoostResult {
+    func prepare(urlString: String) async throws -> AudioBoostResult {
+        try await prepare(source: urlString)
+    }
+
+    func acquireSource(_ source: String) async throws -> AudioSourceLease {
+        try await Self.resolveSource(source)
+    }
+
+    private static func resolveSource(_ source: String) async throws -> AudioSourceLease {
+        if let remoteURL = URL(string: source), remoteURL.scheme == "https" {
+            var request = URLRequest(url: remoteURL)
+            request.timeoutInterval = 30
+            let (downloadURL, response) = try await URLSession.shared.download(for: request)
+            guard let response = response as? HTTPURLResponse,
+                  (200..<300).contains(response.statusCode) else { throw URLError(.badServerResponse) }
+            try validateSize(of: downloadURL)
+            return AudioSourceLease(url: downloadURL, shouldDeleteAfterUse: true)
+        }
+
+        let localURL: URL
+        if let fileURL = URL(string: source), fileURL.isFileURL {
+            localURL = fileURL
+        } else if source.hasPrefix("/") {
+            localURL = URL(fileURLWithPath: source)
+        } else {
+            let documentsURL = URL.documentsDirectory.appendingPathComponent(source)
+            localURL = FileManager.default.fileExists(atPath: documentsURL.path)
+                ? documentsURL
+                : FileManager.default.temporaryDirectory.appendingPathComponent(source)
+        }
+        guard FileManager.default.fileExists(atPath: localURL.path) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try validateSize(of: localURL)
+        return AudioSourceLease(url: localURL, shouldDeleteAfterUse: false)
+    }
+
+    private static func validateSize(of url: URL) throws {
+        let byteSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard byteSize <= MerianConfig.audioPayloadMaxBytes else {
+            throw URLError(.dataLengthExceedsMaximum)
+        }
+    }
+
+    private static nonisolated func renderBoostedAudio(sourceURL: URL) throws -> AudioBoostResult {
         let source = try AVAudioFile(forReading: sourceURL)
         let format = source.processingFormat
         let frameCapacity = AVAudioFrameCount(min(source.length, 4096))
@@ -111,7 +174,7 @@ actor ExploreAudioBoostProcessor {
             }
             try output.write(from: buffer)
         }
-        return ExploreAudioBoostResult(url: outputURL, gainDecibels: gainDb)
+        return AudioBoostResult(url: outputURL, gainDecibels: gainDb)
     }
 
     static nonisolated func adaptiveGainDecibels(rmsDb: Double, peakDb: Double) -> Double {

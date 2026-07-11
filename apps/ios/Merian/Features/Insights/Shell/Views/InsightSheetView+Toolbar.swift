@@ -80,6 +80,12 @@ extension InsightSheetView {
                 viewModel.state.explorePresentationTarget = .communityRequest
                 viewModel.state.showExploreSheet = true
             } : nil,
+            audioBoostEnabled: viewModel.audioBoostEligibleScanId != nil
+                ? $viewModel.state.isAudioBoostEnabled
+                : nil,
+            onAudioBoostEnableRequested: {
+                viewModel.state.audioBoostActionToken = UUID()
+            },
             isAnalyzing: viewModel.isProcessing,
             isProActive: RevenueCatManager.shared.isProActive
         )

@@ -53,7 +53,11 @@ struct InsightContentView: View {
                         onDescriptionTap: { isObservationSheetPresented = true },
                         onVisualImageTap: { presentation in
                             fullscreenGalleryPresentation = presentation
-                        }
+                        },
+                        isAudioBoostEnabled: $viewModel.state.isAudioBoostEnabled,
+                        audioBoostActionToken: viewModel.state.audioBoostActionToken,
+                        onAudioBoostActionFinished: viewModel.finishAudioBoostAction,
+                        onAudioBoostToggleRequested: viewModel.toggleAudioBoostFromMedia
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)

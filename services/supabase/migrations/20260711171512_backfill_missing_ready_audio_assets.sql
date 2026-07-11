@@ -18,7 +18,6 @@ DECLARE
     media_item JSONB;
     audio_url TEXT;
     order_idx INTEGER;
-    audio_ordinality BIGINT;
 BEGIN
     SELECT s.id, s.user_id, s.audio_storage_urls, s.captured_media
     INTO scan_row
@@ -38,10 +37,19 @@ BEGIN
       AND kind = 'audio'
       AND source IN ('scan_refresh', 'backfill', 'manual');
 
+    -- Other writers (notably capture_upload and repair) may already own low
+    -- order indexes, including failed/staged rows. The uniqueness contract is
+    -- scan-wide and status-independent, so append rebuilt audio after every
+    -- preserved row rather than restarting captured-media audio at zero.
+    SELECT COALESCE(MAX(asset.order_index), -1) + 1
+    INTO order_idx
+    FROM public.scan_media_assets asset
+    WHERE asset.scan_id = target_scan_id;
+
     IF JSONB_TYPEOF(scan_row.captured_media) = 'array' THEN
-        FOR media_item, audio_ordinality IN
-            SELECT value, ordinality
-            FROM JSONB_ARRAY_ELEMENTS(scan_row.captured_media) WITH ORDINALITY
+        FOR media_item IN
+            SELECT value
+            FROM JSONB_ARRAY_ELEMENTS(scan_row.captured_media)
         LOOP
             audio_url := public.scan_media_reference_path(media_item #> '{audio,_0}');
             IF audio_url IS NULL THEN
@@ -55,21 +63,16 @@ BEGIN
             ) VALUES (
                 scan_row.id, scan_row.id, scan_row.user_id, 'audio', 'audio',
                 'ready', 'scan_refresh', audio_url, NULL, NULL,
-                (audio_ordinality - 1)::INTEGER, TRUE,
+                order_idx, TRUE,
                 CASE
                     WHEN LOWER(SPLIT_PART(audio_url, '?', 1)) ~ '\.(m4a|mp4)$' THEN 'audio/mp4'
                     ELSE 'audio/wav'
                 END,
                 NOW(), JSONB_BUILD_OBJECT('manifest_source', 'captured_media')
             );
+            order_idx := order_idx + 1;
         END LOOP;
     END IF;
-
-    SELECT COALESCE(MAX(asset.order_index), -1) + 1
-    INTO order_idx
-    FROM public.scan_media_assets asset
-    WHERE asset.scan_id = target_scan_id
-      AND asset.status = 'ready';
 
     FOR audio_url IN
         SELECT NULLIF(BTRIM(raw_audio_url), '')

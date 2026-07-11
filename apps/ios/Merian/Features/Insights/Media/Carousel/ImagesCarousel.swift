@@ -8,6 +8,10 @@ struct CarouselPageBuilder {
         isProcessing: Bool = false,
         selectedIndex: Binding<Int> = .constant(0),
         isVideoMuted: Binding<Bool> = .constant(true),
+        isAudioBoostEnabled: Binding<Bool> = .constant(false),
+        audioBoostActionToken: UUID? = nil,
+        onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
+        onAudioBoostToggleRequested: (() -> Void)? = nil,
         onImageFailure: @escaping (String) -> Void,
         onDescriptionTap: (() -> Void)?
     ) -> [CarouselPageItem] {
@@ -39,7 +43,13 @@ struct CarouselPageBuilder {
                 pages.append(CarouselPageItem(
                     id: "audio-\(resolvedPath)",
                     mediaKind: .audio,
-                    view: AnyView(AudioPlaybackCarouselPage(filePath: resolvedPath))
+                    view: AnyView(AudioPlaybackCarouselPage(
+                        filePath: resolvedPath,
+                        isAudioBoostEnabled: isAudioBoostEnabled,
+                        audioBoostActionToken: audioBoostActionToken,
+                        onAudioBoostActionFinished: onAudioBoostActionFinished,
+                        onAudioBoostToggleRequested: onAudioBoostToggleRequested
+                    ))
                 ))
             case .video(let resolvedPath):
                 let pageIndex = pages.count
@@ -415,6 +425,10 @@ struct ImagesCarousel: View {
     /// Triggers when the currently selected carousel page can be represented in
     /// the full-screen visual gallery.
     let onVisualImageTap: ((InsightImageGalleryPresentation) -> Void)?
+    @Binding var isAudioBoostEnabled: Bool
+    let audioBoostActionToken: UUID?
+    let onAudioBoostActionFinished: ((UUID) -> Void)?
+    let onAudioBoostToggleRequested: (() -> Void)?
 
     // MARK: - State
     @State private var selectedIndex: Int = 0
@@ -470,6 +484,10 @@ struct ImagesCarousel: View {
             isProcessing: isProcessing,
             selectedIndex: $selectedIndex,
             isVideoMuted: $isVideoMuted,
+            isAudioBoostEnabled: $isAudioBoostEnabled,
+            audioBoostActionToken: audioBoostActionToken,
+            onAudioBoostActionFinished: onAudioBoostActionFinished,
+            onAudioBoostToggleRequested: onAudioBoostToggleRequested,
             onImageFailure: { handleImageFailure(identifier: $0) },
             onDescriptionTap: onDescriptionTap
         )

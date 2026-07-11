@@ -68,14 +68,106 @@ struct ExploreAudioBoostTests {
     }
 
     @Test func adaptiveGainIsBoundedAndPeakSafe() {
-        #expect(ExploreAudioBoostProcessor.adaptiveGainDecibels(rmsDb: -50, peakDb: -30) == 18)
-        #expect(ExploreAudioBoostProcessor.adaptiveGainDecibels(rmsDb: -30, peakDb: -4) == 3)
-        #expect(ExploreAudioBoostProcessor.adaptiveGainDecibels(rmsDb: -12, peakDb: -0.5) == 0)
+        #expect(AudioBoostProcessor.adaptiveGainDecibels(rmsDb: -50, peakDb: -30) == 18)
+        #expect(AudioBoostProcessor.adaptiveGainDecibels(rmsDb: -30, peakDb: -4) == 3)
+        #expect(AudioBoostProcessor.adaptiveGainDecibels(rmsDb: -12, peakDb: -0.5) == 0)
     }
 
     @Test func preparationFeedbackRequiresExplicitActionToken() {
         #expect(!ExploreAudioBoostFeedbackPolicy.shouldPresent(actionToken: nil))
         #expect(ExploreAudioBoostFeedbackPolicy.shouldPresent(actionToken: UUID()))
+    }
+
+    @Test func feedBoostPillPresentsShortcutUntilBoostedAudioIsReady() {
+        let unboosted = ExploreFeedAudioBoostPillState.resolve(
+            surface: .feed,
+            mediaKind: .audio,
+            isBoostEnabled: false,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        )
+        let preparing = ExploreFeedAudioBoostPillState.resolve(
+            surface: .feed,
+            mediaKind: .audio,
+            isBoostEnabled: true,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        )
+        let boosted = ExploreFeedAudioBoostPillState.resolve(
+            surface: .feed,
+            mediaKind: .audio,
+            isBoostEnabled: true,
+            isBoostedAudioReady: true,
+            hasToggleAction: true
+        )
+
+        #expect(unboosted == .boost)
+        #expect(preparing == .boost)
+        #expect(boosted == .boosted)
+        #expect(unboosted?.title == "Boost audio")
+        #expect(unboosted?.systemImage == "chevron.right")
+        #expect(boosted?.title == "Boosted audio")
+        #expect(boosted?.systemImage == nil)
+        #expect(boosted?.accessibilityLabel == "Turn off audio boost")
+    }
+
+    @Test func feedBoostPillIsLimitedToInteractiveFeedAudio() {
+        #expect(ExploreFeedAudioBoostPillState.resolve(
+            surface: .detail,
+            mediaKind: .audio,
+            isBoostEnabled: false,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        ) == nil)
+        #expect(ExploreFeedAudioBoostPillState.resolve(
+            surface: .feed,
+            mediaKind: .video,
+            isBoostEnabled: false,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        ) == nil)
+        #expect(ExploreFeedAudioBoostPillState.resolve(
+            surface: .feed,
+            mediaKind: .audio,
+            isBoostEnabled: false,
+            isBoostedAudioReady: false,
+            hasToggleAction: false
+        ) == nil)
+    }
+
+    @Test func insightBoostPillTransitionsOnlyAfterBoostedAudioIsReady() {
+        let unboosted = InsightAudioBoostPillState.resolve(
+            isBoostEnabled: false,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        )
+        let preparing = InsightAudioBoostPillState.resolve(
+            isBoostEnabled: true,
+            isBoostedAudioReady: false,
+            hasToggleAction: true
+        )
+        let boosted = InsightAudioBoostPillState.resolve(
+            isBoostEnabled: true,
+            isBoostedAudioReady: true,
+            hasToggleAction: true
+        )
+
+        #expect(unboosted == .boost)
+        #expect(preparing == .boost)
+        #expect(boosted == .boosted)
+        #expect(unboosted?.systemImage == "chevron.right")
+        #expect(boosted?.systemImage == nil)
+        #expect(InsightAudioBoostPillState.resolve(
+            isBoostEnabled: false,
+            isBoostedAudioReady: false,
+            hasToggleAction: false
+        ) == nil)
+    }
+
+    @Test func insightAudioTimestampUsesElapsedAndDurationClockFormat() {
+        #expect(AudioPlaybackCarouselPage.formattedTime(2.9) == "0:02")
+        #expect(AudioPlaybackCarouselPage.formattedTime(75) == "1:15")
+        #expect(AudioPlaybackCarouselPage.formattedTime(.nan) == "0:00")
     }
 
     @Test func returningToExploreFeedResetsVideoMutePreference() throws {
@@ -118,5 +210,42 @@ struct ExploreAudioBoostTests {
 
         #expect(!store.isEnabled(for: "post-0"))
         #expect(store.isEnabled(for: "post-500"))
+    }
+
+    @Test func insightPreferencesArePerScanAndSeparateFromExplorePosts() throws {
+        let suite = "InsightAudioBoostPreferenceTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let insightStore = InsightAudioBoostPreferenceStore(defaults: defaults)
+        let exploreStore = ExploreAudioBoostPreferenceStore(defaults: defaults)
+
+        insightStore.setEnabled(true, for: "scan-cardinal")
+
+        #expect(insightStore.isEnabled(for: "scan-cardinal"))
+        #expect(!insightStore.isEnabled(for: "scan-frog"))
+        #expect(!exploreStore.isEnabled(for: "scan-cardinal"))
+    }
+
+    @Test func insightBoostRequiresPersistedCompletedStandaloneAudio() {
+        #expect(InsightAudioBoostAvailability.isAvailable(
+            hasPersistedScan: true,
+            isProcessing: false,
+            hasStandaloneAudio: true
+        ))
+        #expect(!InsightAudioBoostAvailability.isAvailable(
+            hasPersistedScan: false,
+            isProcessing: false,
+            hasStandaloneAudio: true
+        ))
+        #expect(!InsightAudioBoostAvailability.isAvailable(
+            hasPersistedScan: true,
+            isProcessing: true,
+            hasStandaloneAudio: true
+        ))
+        #expect(!InsightAudioBoostAvailability.isAvailable(
+            hasPersistedScan: true,
+            isProcessing: false,
+            hasStandaloneAudio: false
+        ))
     }
 }

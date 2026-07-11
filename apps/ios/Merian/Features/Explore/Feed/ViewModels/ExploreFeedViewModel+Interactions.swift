@@ -1,5 +1,16 @@
 import Foundation
 
+enum ExploreShareMessageFormatter {
+    static func message(
+        commonName: String,
+        postId: String,
+        primaryMediaKind: ExploreMediaKind?
+    ) -> String {
+        let introduction = primaryMediaKind == .audio ? "Listen to" : "Check out"
+        return "\(introduction) this \(commonName)\nhttps://merian.earth/explore/post/\(postId)"
+    }
+}
+
 extension ExploreFeedViewModel {
     func toggleLike(for post: ExplorePost) async {
         upsertPost(post)
@@ -94,15 +105,11 @@ extension ExploreFeedViewModel {
     }
 
     func share(_ post: ExplorePost, playbackCoordinator: ExploreVideoPlaybackCoordinator? = nil) {
-        var shareText = "Check out this Merian Explore post: \(resolvedSpeciesCommonName(for: post))"
-        if !post.speciesScientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            shareText += " (\(post.speciesScientificName))"
-        }
-        if let publicLocationLabel = post.publicDisplayLocationLabel {
-            shareText += " in \(publicLocationLabel)"
-        }
-
-        shareText += "\nhttps://merian.earth/explore/post/\(post.id)"
+        let shareText = ExploreShareMessageFormatter.message(
+            commonName: resolvedSpeciesCommonName(for: post),
+            postId: post.id,
+            primaryMediaKind: post.resolvedMediaItems.first?.kind
+        )
 
         let overlayToken = playbackCoordinator?.beginOverlay(reason: "explore-share-sheet")
         ShareSheetUtility.present(items: [shareText]) {

@@ -57,6 +57,12 @@ moderate the enhanced waveform instead of the original public bytes. A boost
 preference is device-local listening state and is not part of the safety or
 publication decision.
 
+Private scan-library Insight boost uses the same local DSP after scan
+finalization, with a separate per-scan preference. It likewise never overwrites
+or uploads enhanced bytes and cannot change identification, retention,
+moderation, or later Explore publication decisions; any public share is still
+moderated against the canonical original recording.
+
 ## Architecture Overview
 
 ```

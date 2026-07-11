@@ -89,6 +89,35 @@ extension InsightSheetViewModel {
         return displayMedia(cachedMedia)
     }
 
+    var hasStandaloneAudio: Bool {
+        activeMedia.items.contains { item in
+            if case .audio = item { return true }
+            return false
+        }
+    }
+
+    var audioBoostEligibleScanId: String? {
+        let hasPersistedScan = activeLocalRecord != nil || toolbarRecordSnapshot != nil
+        guard InsightAudioBoostAvailability.isAvailable(
+            hasPersistedScan: hasPersistedScan,
+            isProcessing: isProcessing,
+            hasStandaloneAudio: hasStandaloneAudio
+        ) else { return nil }
+        return persistentScanId
+    }
+
+    func finishAudioBoostAction(_ token: UUID) {
+        guard state.audioBoostActionToken == token else { return }
+        state.audioBoostActionToken = nil
+    }
+
+    func toggleAudioBoostFromMedia() {
+        if !state.isAudioBoostEnabled {
+            state.audioBoostActionToken = UUID()
+        }
+        state.isAudioBoostEnabled.toggle()
+    }
+
     var observationContext: ObservationContext? {
         for item in activeMedia.items {
             if case .description(let ctx) = item { return ctx }

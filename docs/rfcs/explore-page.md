@@ -961,7 +961,10 @@ Client behavior:
 - Comments pagination is cursor-based on `(created_at, comment_id)`
 - Notifications pagination is cursor-based on `(updated_at, notification_id)`
 - Like and comment counts should update optimistically
-- Feed cards can single-tap into detail and double-tap the image to like
+- Feed images single-tap into detail and double-tap to like. Feed audio/video
+  reserve a centered 96-point playback zone: single tap plays or pauses without
+  navigation and double tap likes; taps outside that zone retain the normal
+  detail/like behavior.
 - The map should use a dedicated spatial endpoint rather than piggybacking on feed pagination
 - The map should keep stale results visible while the user pans and only refetch on an explicit `Search This Area` action
 - Marker selection should open a preview card first and only then open full detail
@@ -1043,7 +1046,9 @@ When the public species-page project exists:
 - Feed and detail payloads never include coordinates; map payloads include only privacy-safe public coordinates.
 - Users can like and comment on posts.
 - Users can externally share posts from the feed.
-- Tapping a feed post opens a public post detail page.
+- Tapping a feed post outside an audio/video center playback zone opens a public
+  post detail page. The center zone controls playback locally and never
+  navigates.
 - Tapping the feed comment icon opens a bottom-sheet comment view.
 - The detail page shows inline comments plus privacy-safe telemetry and public species cards.
 - The Explore surface includes a map tab backed by the same `explore_posts` model.

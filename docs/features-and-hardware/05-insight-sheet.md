@@ -272,6 +272,16 @@ The carousel now renders a unified mixed-media page model rather than stitching 
 
 1. **Live captures** (`viewModel.activeMedia.liveImageData`) — display-quality `Data` for the current session's live frame when analysis is still in flight.
 2. **Persisted user media** (`viewModel.activeMedia.items`) — the ordered user timeline rebuilt from `CapturedMediaSnapshot`. This can contain image pages, video playback pages, standalone audio playback pages, and description pages in one stable sequence. Video poster thumbnails stay attached to the video item for grid/list preview purposes and are not duplicated as separate carousel pages; extracted video audio is kept as inference metadata on the video item, not a visible media page. Cloud hydration prefers `scans.captured_media` when present; legacy rows with `video_storage_urls` collapse sampled frame URLs into the video thumbnail instead of rendering those frames as standalone pages.
+
+Persisted, completed scans with standalone audio add **Boost audio** to the top
+ellipsis menu and directly on the spectrogram. The compact bottom-left control
+shares the carousel attribution-tag inset and transitions to **Boosted audio**
+when the processed source is ready; a matching bottom-right badge shows elapsed
+and total playback time. The preference is device-local and per scan, applies to every
+standalone audio page in a mixed-media carousel, and remains independent from
+any public Explore-post preference. Restoration is silent; explicit activation
+shows progress, and successful playback displays **Boosted audio** without
+modifying the original recording.
 3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF occurrence hydration. **Suppressed for human subjects**: `viewModel.refUrls` returns `[]` when `speciesData.isHumanSubject` is true, preventing third-party photos of people from appearing in the carousel regardless of what the server populates.
 
 **Seamless user-media handoff**: On a live scan, the saved on-disk media is rebuilt into `ActiveScanMedia` before `speciesData` is assigned and before the transient live image is cleared. On queued scans, `InsightSheetViewModel` seeds `cachedActiveMedia` directly from `queuedContext.capturedMediaSnapshot.activeScanMedia`. On completed records, `fetchLocalRecord` hydrates the same structure from `record.capturedMediaSnapshot.activeScanMedia`. That shared read path is what keeps the playback video clip, standalone audio clip, or mixed-media order intact while the sheet transitions from queued/analyzing state to results. Pending video paths may move from temporary capture storage into Documents during queue persistence, so the resolver falls back by filename before declaring video unavailable.

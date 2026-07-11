@@ -82,6 +82,8 @@ final class InsightSheetViewModel {
         var isSafariPresented = false
         var selectedWikiURL: URL?
         var isSavingPhotos = false
+        var isAudioBoostEnabled = false
+        var audioBoostActionToken: UUID?
         var isSharingToExplore = false
         var isUpdatingExplorePostContent = false
         var isUpdatingExploreFieldNotes = false

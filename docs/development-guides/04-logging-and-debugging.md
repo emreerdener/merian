@@ -131,6 +131,12 @@ Useful event names:
 | `recovery-watchdog-passed` / `recovery-watchdog-failed` | The recovery attempt either reached `.playing` or left the visible play control as the user-facing recovery path. |
 | `tap-repair-hidden-control` | A hidden, unhealthy video tap repaired/revealed playback instead of routing the feed card to detail. |
 
+Feed audio/video interaction is intentionally split before these recovery paths:
+the centered 96-point zone always owns Play/Pause (and center double-tap Like),
+while the surrounding media owns detail navigation. If a center tap opens
+detail, inspect `ExploreFeedMediaInteractionPolicy`, the playback overlay
+`zIndex`, and competing full-media gestures before changing recovery logic.
+
 If a video freezes after a sheet closes, first check that every covering
 Explore-hosted sheet owns exactly one
 `.exploreVideoOverlayLifecycle(isPresented:reason:)` token, or that a UIKit

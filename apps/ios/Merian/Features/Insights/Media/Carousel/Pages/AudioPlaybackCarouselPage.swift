@@ -8,14 +8,53 @@ final class PlayerDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable
     }
 }
 
+enum InsightAudioBoostPillState: Equatable {
+    case boost
+    case boosted
+
+    static func resolve(
+        isBoostEnabled: Bool,
+        isBoostedAudioReady: Bool,
+        hasToggleAction: Bool
+    ) -> Self? {
+        guard hasToggleAction else { return nil }
+        return isBoostEnabled && isBoostedAudioReady ? .boosted : .boost
+    }
+
+    var title: String {
+        switch self {
+        case .boost: "Boost audio"
+        case .boosted: "Boosted audio"
+        }
+    }
+
+    var systemImage: String? {
+        self == .boost ? "chevron.right" : nil
+    }
+
+    var accessibilityLabel: String {
+        self == .boost ? "Boost audio" : "Turn off audio boost"
+    }
+}
+
 struct AudioPlaybackCarouselPage: View {
     let filePath: String
+    @Binding var isAudioBoostEnabled: Bool
+    let audioBoostActionToken: UUID?
+    let onAudioBoostActionFinished: ((UUID) -> Void)?
+    let onAudioBoostToggleRequested: (() -> Void)?
     
     @State private var player: AVAudioPlayer?
     @State private var playerDelegate = PlayerDelegate()
     @State private var columns: [SpectrogramColumn] = []
     @State private var playbackProgress: Double = 0.0
     @State private var isDecoding: Bool = true
+    @State private var isPreparingAudioBoost = false
+    @State private var showsAudioBoostPreparationStatus = false
+    @State private var audioBoostPreparationFailed = false
+    @State private var isBoostedAudioReady = false
+    @State private var hasTrackedBoostedPlaybackStart = false
+    @State private var originalAudioLease: AudioSourceLease?
     
     @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
@@ -32,6 +71,20 @@ struct AudioPlaybackCarouselPage: View {
     
     private var accessibilityIdentifier: String {
         "AudioPlaybackCarouselPage_\(URL(fileURLWithPath: filePath).lastPathComponent)"
+    }
+
+    init(
+        filePath: String,
+        isAudioBoostEnabled: Binding<Bool> = .constant(false),
+        audioBoostActionToken: UUID? = nil,
+        onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
+        onAudioBoostToggleRequested: (() -> Void)? = nil
+    ) {
+        self.filePath = filePath
+        self._isAudioBoostEnabled = isAudioBoostEnabled
+        self.audioBoostActionToken = audioBoostActionToken
+        self.onAudioBoostActionFinished = onAudioBoostActionFinished
+        self.onAudioBoostToggleRequested = onAudioBoostToggleRequested
     }
 
     var body: some View {
@@ -75,6 +128,28 @@ struct AudioPlaybackCarouselPage: View {
                 }
                 .disabled(isHardwareDisabled)
                 .opacity(isHardwareDisabled ? 0.3 : 1.0)
+
+                playbackBadges
+
+                if isPreparingAudioBoost && showsAudioBoostPreparationStatus {
+                    Text("Boosting audio…")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(.black.opacity(0.62), in: Capsule())
+                        .allowsHitTesting(false)
+                }
+
+                if audioBoostPreparationFailed {
+                    Text("Audio boost unavailable. Playing original.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(.black.opacity(0.68), in: Capsule())
+                        .allowsHitTesting(false)
+                }
             }
         }
         .overlay {
@@ -90,6 +165,8 @@ struct AudioPlaybackCarouselPage: View {
         .onDisappear {
             player?.stop()
             isPlaying = false
+            originalAudioLease?.release()
+            originalAudioLease = nil
             restoreSession()
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -103,6 +180,10 @@ struct AudioPlaybackCarouselPage: View {
         .task {
             await decodeAudio()
         }
+        .task(id: isAudioBoostEnabled) {
+            guard !isDecoding else { return }
+            await updateAudioBoostMode()
+        }
         .task(id: isPlaying) {
             guard isPlaying else { return }
             while !Task.isCancelled {
@@ -111,6 +192,57 @@ struct AudioPlaybackCarouselPage: View {
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
+    }
+
+    @ViewBuilder
+    private var playbackBadges: some View {
+        VStack {
+            Spacer()
+            HStack(alignment: .center) {
+                if let pillState = InsightAudioBoostPillState.resolve(
+                    isBoostEnabled: isAudioBoostEnabled,
+                    isBoostedAudioReady: isBoostedAudioReady && !audioBoostPreparationFailed,
+                    hasToggleAction: onAudioBoostToggleRequested != nil
+                ) {
+                    Button {
+                        onAudioBoostToggleRequested?()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(pillState.title)
+                            if let systemImage = pillState.systemImage {
+                                Image(systemName: systemImage)
+                                    .font(.system(size: 8, weight: .bold))
+                            }
+                        }
+                        .insightAudioBadgeStyle()
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(pillState.accessibilityLabel)
+                }
+
+                Spacer()
+
+                if let player, player.duration > 0 {
+                    Text("\(Self.formattedTime(player.currentTime)) / \(Self.formattedTime(player.duration))")
+                        .fontDesign(.monospaced)
+                        .insightAudioBadgeStyle()
+                        .allowsHitTesting(false)
+                        .accessibilityLabel(
+                            "\(Self.formattedTime(player.currentTime)) elapsed of \(Self.formattedTime(player.duration))"
+                        )
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 40)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isBoostedAudioReady)
+    }
+
+    static func formattedTime(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+        let totalSeconds = Int(seconds.rounded(.down))
+        return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
     
     // MARK: - Handlers
@@ -125,8 +257,9 @@ struct AudioPlaybackCarouselPage: View {
             // Guarantee audio session is hot before play
             do {
                 try AVAudioSession.sharedInstance().setActive(true)
-                player.play()
-                isPlaying = true
+            player.play()
+            isPlaying = true
+            trackBoostedPlaybackStartedIfNeeded()
             } catch {
                 MerianLog.general.debug("AudioPlaybackCarouselPage: session activation failed: \(error, privacy: .private)")
             }
@@ -161,26 +294,120 @@ struct AudioPlaybackCarouselPage: View {
     
     // MARK: - DSP Decoding Pipeline
 
-    private nonisolated func decodeAudio() async {
-        defer { Task { @MainActor in self.isDecoding = false } }
-        
-        let url = URL(fileURLWithPath: filePath)
-        let playerURL = url
-        let preparedPlayer: AVAudioPlayer? = try? await MainActor.run {
-            let p = try AVAudioPlayer(contentsOf: playerURL)
-            playerDelegate.onFinish = {
-                playbackProgress = 0.0
-                isPlaying = false
+    @MainActor
+    private func decodeAudio() async {
+        do {
+            let lease = try await AudioBoostProcessor.shared.acquireSource(filePath)
+            guard !Task.isCancelled else {
+                lease.release()
+                return
             }
-            p.delegate = playerDelegate
-            p.prepareToPlay()
-            return p
+            originalAudioLease = lease
+            player = makePlayer(url: lease.url, resumeTime: 0, shouldPlay: false)
+            columns = await AudioSpectrogramDecoder.decodeColumns(fromFilePath: lease.url.path)
+        } catch {
+            player = nil
+            columns = []
         }
-        await MainActor.run { self.player = preparedPlayer }
+        isDecoding = false
+        if isAudioBoostEnabled {
+            await updateAudioBoostMode()
+        }
+    }
 
-        let finalColumns = await AudioSpectrogramDecoder.decodeColumns(fromFilePath: url.path)
-        await MainActor.run {
-            self.columns = finalColumns
+    @MainActor
+    private func updateAudioBoostMode() async {
+        let wasPlaying = player?.isPlaying == true
+        let resumeTime = player?.currentTime ?? 0
+
+        if isAudioBoostEnabled {
+            let actionToken = audioBoostActionToken
+            isPreparingAudioBoost = true
+            showsAudioBoostPreparationStatus = ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                actionToken: actionToken
+            )
+            audioBoostPreparationFailed = false
+            defer {
+                isPreparingAudioBoost = false
+                showsAudioBoostPreparationStatus = false
+                if let actionToken {
+                    onAudioBoostActionFinished?(actionToken)
+                }
+            }
+            do {
+                let result = try await AudioBoostProcessor.shared.prepare(source: filePath)
+                guard !Task.isCancelled else { return }
+                guard let boostedPlayer = makePlayer(
+                    url: result.url,
+                    resumeTime: resumeTime,
+                    shouldPlay: wasPlaying
+                ) else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                player = boostedPlayer
+                isBoostedAudioReady = true
+                AppTelemetry.trackInsightAudioBoost(event: "enabled", gainBand: result.gainBand)
+                if wasPlaying {
+                    trackBoostedPlaybackStartedIfNeeded()
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                isBoostedAudioReady = false
+                audioBoostPreparationFailed = ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                    actionToken: actionToken
+                )
+                AppTelemetry.trackInsightAudioBoost(event: "preparation_failed")
+            }
+        } else {
+            audioBoostPreparationFailed = false
+            showsAudioBoostPreparationStatus = false
+            guard isBoostedAudioReady else { return }
+            guard let originalURL = originalAudioLease?.url else { return }
+            player = makePlayer(url: originalURL, resumeTime: resumeTime, shouldPlay: wasPlaying)
+            isBoostedAudioReady = false
+            hasTrackedBoostedPlaybackStart = false
+            AppTelemetry.trackInsightAudioBoost(event: "disabled")
         }
+    }
+
+    @MainActor
+    private func makePlayer(url: URL, resumeTime: TimeInterval, shouldPlay: Bool) -> AVAudioPlayer? {
+        guard let preparedPlayer = try? AVAudioPlayer(contentsOf: url) else { return nil }
+        playerDelegate.onFinish = {
+            playbackProgress = 0.0
+            isPlaying = false
+        }
+        preparedPlayer.delegate = playerDelegate
+        preparedPlayer.prepareToPlay()
+        preparedPlayer.currentTime = min(max(0, resumeTime), preparedPlayer.duration)
+        if shouldPlay {
+            preparedPlayer.play()
+            isPlaying = true
+        }
+        return preparedPlayer
+    }
+
+    private func trackBoostedPlaybackStartedIfNeeded() {
+        guard isAudioBoostEnabled, isBoostedAudioReady, !hasTrackedBoostedPlaybackStart else { return }
+        hasTrackedBoostedPlaybackStart = true
+        AppTelemetry.trackInsightAudioBoost(event: "boosted_playback_started")
+    }
+}
+
+private extension View {
+    func insightAudioBadgeStyle() -> some View {
+        self
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(.black.opacity(0.28))
+            }
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
     }
 }

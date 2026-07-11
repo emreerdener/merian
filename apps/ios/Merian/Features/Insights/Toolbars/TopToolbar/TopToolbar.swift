@@ -103,6 +103,8 @@ struct TopToolbar: ToolbarContent {
     var onEditExplorePost: (() -> Void)?
     var onViewExplorePost: (() -> Void)?
     var onViewCommunityRequest: (() -> Void)?
+    var audioBoostEnabled: Binding<Bool>?
+    var onAudioBoostEnableRequested: (() -> Void)?
     let isAnalyzing: Bool
     let isProActive: Bool
 
@@ -132,6 +134,8 @@ struct TopToolbar: ToolbarContent {
         onEditExplorePost: (() -> Void)? = nil,
         onViewExplorePost: (() -> Void)? = nil,
         onViewCommunityRequest: (() -> Void)? = nil,
+        audioBoostEnabled: Binding<Bool>? = nil,
+        onAudioBoostEnableRequested: (() -> Void)? = nil,
         isAnalyzing: Bool,
         isProActive: Bool
     ) {
@@ -160,6 +164,8 @@ struct TopToolbar: ToolbarContent {
         self.onEditExplorePost = onEditExplorePost
         self.onViewExplorePost = onViewExplorePost
         self.onViewCommunityRequest = onViewCommunityRequest
+        self.audioBoostEnabled = audioBoostEnabled
+        self.onAudioBoostEnableRequested = onAudioBoostEnableRequested
         self.isAnalyzing = isAnalyzing
         self.isProActive = isProActive
     }
@@ -218,6 +224,20 @@ struct TopToolbar: ToolbarContent {
 
     @ViewBuilder
     private var actionMenuContent: some View {
+        if let audioBoostEnabled {
+            Button {
+                if !audioBoostEnabled.wrappedValue {
+                    onAudioBoostEnableRequested?()
+                }
+                audioBoostEnabled.wrappedValue.toggle()
+            } label: {
+                Label(
+                    audioBoostEnabled.wrappedValue ? "Turn off audio boost" : "Boost audio",
+                    systemImage: audioBoostEnabled.wrappedValue ? "speaker.wave.2" : "speaker.wave.3"
+                )
+            }
+        }
+
         if hasUserPhotos {
             Button(action: { onSavePhotos() }) {
                 Label("Download scan", systemImage: "arrow.down.circle")

@@ -6,6 +6,16 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Explore
+
+- Added a compact **Boost audio** control directly to standalone-audio feed
+  posts. It transitions to the existing **Boosted audio** treatment when ready,
+  toggles back to original audio when tapped again, and does not open post
+  detail from its protected tap area.
+- Updated Explore sharing to lead with the discovery itself: image and video
+  posts now say “Check out this {species},” while audio posts say “Listen to
+  this {species},” followed by the public post link.
+
 ### Account & Billing
 
 - Fixed logout so signing out on one simulator or device clears only that local
@@ -151,6 +161,16 @@ TestFlight, App Store, support, and QA.
   while the original recording remains unchanged; active boosted clips show a
   small “Boosted audio” badge on the spectrogram, and saved boost settings restore quietly
   without showing action-progress messaging.
+
+### Insights
+
+- Added direct **Boost audio** and elapsed/total timestamp badges to Insight
+  audio spectrograms, positioned above the overlapping result card using the
+  carousel attribution-tag treatment.
+- Added device-local, per-scan “Boost audio” controls to completed scan-library
+  Insights with standalone audio. Mixed-media scans apply one setting to every
+  audio page, preserve playback position while switching, restore quietly, and
+  leave the original recording unchanged.
 - Added an allowlisted Field Trips preview to Explore: regional checklist quests can auto-start from
   new scans, unlock levels sequentially, show active checklist progress on
   public profiles, and publish Field Trip pages with species snapshots, likes,

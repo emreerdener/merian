@@ -69,6 +69,9 @@ Merian is a field-ready biological identification app built around zero-friction
 - Standalone Explore audio posts offer an optional device-local “Boost audio”
   listening mode from feed and detail menus, remembered independently per post
   without changing the original recording.
+- Completed scan-library Insights with standalone audio offer the same local
+  listening boost, remembered separately per private scan and applied to every
+  audio clip in that scan without changing stored media.
   Audio shares are fail-closed: the server evaluates speech and non-speech
   sounds before creating or reactivating the Explore post, so only an approved
   share becomes public. Content-addressed attestations safely avoid repeat

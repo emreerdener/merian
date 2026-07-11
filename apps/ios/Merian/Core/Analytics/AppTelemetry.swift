@@ -140,6 +140,12 @@ enum AppTelemetry {
         send("ExploreAudioBoostChanged", with: properties)
     }
 
+    static func trackInsightAudioBoost(event: String, gainBand: String? = nil) {
+        var properties = ["surface": "insight", "action": event]
+        if let gainBand { properties["gainBand"] = gainBand }
+        send("InsightAudioBoostChanged", with: properties)
+    }
+
     // MARK: - Achievement Events
 
     /// Records opening an achievement detail sheet.

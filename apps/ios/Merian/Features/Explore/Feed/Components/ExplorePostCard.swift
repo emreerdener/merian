@@ -136,6 +136,7 @@ struct ExplorePostCard: View {
             audioBoostEnabled: $isAudioBoostEnabled,
             audioBoostActionToken: audioBoostActionToken,
             onAudioBoostActionFinished: finishAudioBoostAction,
+            onAudioBoostToggleRequested: toggleAudioBoost,
             onSingleTap: onOpenDetail,
             onDoubleTap: handleDoubleTapLike
         )
@@ -324,12 +325,7 @@ struct ExplorePostCard: View {
     private var menuButton: some View {
         Menu {
             if hasStandalonePrimaryAudio {
-                Button {
-                    if !isAudioBoostEnabled {
-                        audioBoostActionToken = UUID()
-                    }
-                    isAudioBoostEnabled.toggle()
-                } label: {
+                Button(action: toggleAudioBoost) {
                     Label(
                         isAudioBoostEnabled ? "Turn off audio boost" : "Boost audio",
                         systemImage: isAudioBoostEnabled ? "speaker.wave.2" : "speaker.wave.3"
@@ -371,6 +367,13 @@ struct ExplorePostCard: View {
         }
         .buttonStyle(.plain)
         .tint(.primary)
+    }
+
+    private func toggleAudioBoost() {
+        if !isAudioBoostEnabled {
+            audioBoostActionToken = UUID()
+        }
+        isAudioBoostEnabled.toggle()
     }
 
     private var hasStandalonePrimaryAudio: Bool {
@@ -461,6 +464,7 @@ struct ExploreFeedMediaView: View {
     @Binding var audioBoostEnabled: Bool
     let audioBoostActionToken: UUID?
     let onAudioBoostActionFinished: ((UUID) -> Void)?
+    let onAudioBoostToggleRequested: (() -> Void)?
     let onSingleTap: (() -> Void)?
     let onDoubleTap: (() -> Void)?
 
@@ -472,6 +476,7 @@ struct ExploreFeedMediaView: View {
         audioBoostEnabled: Binding<Bool> = .constant(false),
         audioBoostActionToken: UUID? = nil,
         onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
+        onAudioBoostToggleRequested: (() -> Void)? = nil,
         onSingleTap: (() -> Void)? = nil,
         onDoubleTap: (() -> Void)? = nil
     ) {
@@ -482,6 +487,7 @@ struct ExploreFeedMediaView: View {
         self._audioBoostEnabled = audioBoostEnabled
         self.audioBoostActionToken = audioBoostActionToken
         self.onAudioBoostActionFinished = onAudioBoostActionFinished
+        self.onAudioBoostToggleRequested = onAudioBoostToggleRequested
         self.onSingleTap = onSingleTap
         self.onDoubleTap = onDoubleTap
     }
@@ -501,6 +507,7 @@ struct ExploreFeedMediaView: View {
                 audioBoostEnabled: audioBoostEnabled,
                 audioBoostActionToken: audioBoostActionToken,
                 onAudioBoostActionFinished: onAudioBoostActionFinished,
+                onAudioBoostToggleRequested: onAudioBoostToggleRequested,
                 onSingleTap: onSingleTap,
                 onDoubleTap: onDoubleTap
             )
@@ -678,6 +685,42 @@ enum ExploreFeedMediaInteractionPolicy {
     }
 }
 
+enum ExploreFeedAudioBoostPillState: Equatable {
+    case boost
+    case boosted
+
+    static func resolve(
+        surface: ExploreVideoPlaybackSurface,
+        mediaKind: ExploreMediaKind,
+        isBoostEnabled: Bool,
+        isBoostedAudioReady: Bool,
+        hasToggleAction: Bool
+    ) -> Self? {
+        guard case .feed = surface,
+              mediaKind == .audio,
+              hasToggleAction else { return nil }
+        return isBoostEnabled && isBoostedAudioReady ? .boosted : .boost
+    }
+
+    var title: String {
+        switch self {
+        case .boost: "Boost audio"
+        case .boosted: "Boosted audio"
+        }
+    }
+
+    var systemImage: String? {
+        self == .boost ? "chevron.right" : nil
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .boost: "Boost audio"
+        case .boosted: "Turn off audio boost"
+        }
+    }
+}
+
 struct ExploreVideoPlaybackResumeIntentState: Equatable {
     private(set) var shouldResumeAfterSystemInterruption = false
 
@@ -710,6 +753,7 @@ struct ExplorePublicMediaView: View {
     let audioBoostEnabled: Bool
     let audioBoostActionToken: UUID?
     let onAudioBoostActionFinished: ((UUID) -> Void)?
+    let onAudioBoostToggleRequested: (() -> Void)?
 
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @State private var player: AVPlayer?
@@ -750,6 +794,7 @@ struct ExplorePublicMediaView: View {
         audioBoostEnabled: Bool = false,
         audioBoostActionToken: UUID? = nil,
         onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
+        onAudioBoostToggleRequested: (() -> Void)? = nil,
         onSingleTap: (() -> Void)? = nil,
         onDoubleTap: (() -> Void)? = nil
     ) {
@@ -764,6 +809,7 @@ struct ExplorePublicMediaView: View {
         self.audioBoostEnabled = audioBoostEnabled
         self.audioBoostActionToken = audioBoostActionToken
         self.onAudioBoostActionFinished = onAudioBoostActionFinished
+        self.onAudioBoostToggleRequested = onAudioBoostToggleRequested
         self.onSingleTap = onSingleTap
         self.onDoubleTap = onDoubleTap
     }
@@ -814,28 +860,7 @@ struct ExplorePublicMediaView: View {
                 .zIndex(3)
             }
 
-            if mediaItem.kind == .audio,
-               audioBoostEnabled,
-               boostedAudioURL != nil,
-               !audioBoostPreparationFailed {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Text("Boosted audio")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(.black.opacity(0.58), in: Capsule())
-                        Spacer()
-                    }
-                }
-                .padding(12)
-                .allowsHitTesting(false)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Audio boost is on")
-                .zIndex(3)
-            }
+            audioBoostOverlay
 
             if mediaItem.kind == .audio &&
                 isPreparingAudioBoost &&
@@ -927,6 +952,66 @@ struct ExplorePublicMediaView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
             handleAudioSessionInterruption(notification)
+        }
+    }
+
+    @ViewBuilder
+    private var audioBoostOverlay: some View {
+        if let pillState = ExploreFeedAudioBoostPillState.resolve(
+            surface: surface,
+            mediaKind: mediaItem.kind,
+            isBoostEnabled: audioBoostEnabled,
+            isBoostedAudioReady: boostedAudioURL != nil && !audioBoostPreparationFailed,
+            hasToggleAction: onAudioBoostToggleRequested != nil
+        ) {
+            VStack {
+                Spacer()
+                HStack {
+                    Button {
+                        onAudioBoostToggleRequested?()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(pillState.title)
+                            if let systemImage = pillState.systemImage {
+                                Image(systemName: systemImage)
+                                    .font(.system(size: 8, weight: .bold))
+                            }
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(.black.opacity(0.58), in: Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(pillState.accessibilityLabel)
+                    Spacer()
+                }
+            }
+            .padding(12)
+            .zIndex(5)
+        } else if mediaItem.kind == .audio,
+                  audioBoostEnabled,
+                  boostedAudioURL != nil,
+                  !audioBoostPreparationFailed {
+            VStack {
+                Spacer()
+                HStack {
+                    Text("Boosted audio")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(.black.opacity(0.58), in: Capsule())
+                    Spacer()
+                }
+            }
+            .padding(12)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Audio boost is on")
+            .zIndex(3)
         }
     }
 
@@ -1023,7 +1108,6 @@ struct ExplorePublicMediaView: View {
 
     private var playbackControlShowsPlayingIcon: Bool {
         playbackOverlayState.isPlaying &&
-            player?.timeControlStatus == .playing &&
             !playbackOverlayState.needsPlayerRebuildForRecovery
     }
 
@@ -1292,7 +1376,7 @@ struct ExplorePublicMediaView: View {
                 }
             }
             do {
-                let result = try await ExploreAudioBoostProcessor.shared.prepare(urlString: mediaItem.url)
+                let result = try await AudioBoostProcessor.shared.prepare(urlString: mediaItem.url)
                 guard !Task.isCancelled else { return }
                 boostedAudioURL = result.url
                 AppTelemetry.trackExploreAudioBoost(

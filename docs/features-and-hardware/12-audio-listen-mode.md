@@ -611,7 +611,7 @@ Entries are touched when read, expire after 180 days, and are capped at the 500
 most recently accessed posts. The preference is not account-synced, sent to
 Supabase, or restored after app deletion.
 
-`ExploreAudioBoostProcessor` performs a size-bounded download, analyzes RMS and
+The shared `AudioBoostProcessor` performs a size-bounded download, analyzes RMS and
 peak levels, and creates a temporary enhanced WAV. It targets quiet material
 conservatively, caps gain at 18 dB, applies a gentle 35 Hz high-pass filter for
 rumble, and clamps peaks near -1 dBFS. It deliberately avoids denoising because
@@ -633,6 +633,33 @@ The user-facing terminology is deliberately specific: the action remains
 **Boost audio**, preparation reads **Boosting audio…**, and successful playback
 shows **Boosted audio**. Merian does not call this “enhancement” because the
 local DSP does not perform denoising or AI restoration.
+
+### Scan-Library Insight Audio Boost
+
+Completed persisted Insights containing standalone audio expose the same
+**Boost audio** action in the top ellipsis menu and as a direct bottom-left
+spectrogram control. A bottom-right badge shows elapsed and total playback time;
+both badges reuse the image-attribution inset and material treatment so the
+overlapping result card does not cover them. Insight preferences use a
+separate device-local namespace keyed by immutable `scanId`; they do not change
+the setting of an Explore post created from that scan. Entries retain the same
+180-day and 500-scan bounds. One scan setting applies to every standalone audio
+page in a mixed-media carousel.
+
+`AudioBoostProcessor` lives under `Core/Media` and accepts bounded local paths,
+`file://` URLs, or HTTPS media. Explore and Insight reuse its RMS/peak analysis,
+18 dB cap, 35 Hz rumble filter, peak limiting, download deduplication, and
+eight-item temporary output cache. Insight swaps `AVAudioPlayer` sources while
+preserving current time and play/pause state. The original spectrogram remains
+visible and the source recording is never overwritten, uploaded, or
+re-moderated.
+
+Saved settings restore silently. Explicit toolbar or spectrogram activation
+shows **Boosting audio…**; successful preparation transitions the direct control
+to **Boosted audio**, which can be tapped again to restore original playback. A user-initiated failure reports that original
+audio is playing, while restoration failure falls back silently. Insight
+telemetry uses `InsightAudioBoostChanged` with action, `surface = insight`, and
+an optional coarse gain band only—never scan IDs, paths, URLs, or audio content.
 
 PostHog records `ExploreAudioBoostChanged` for enabled, disabled, restored,
 preparation-failed, and boosted-playback-started transitions. Properties are

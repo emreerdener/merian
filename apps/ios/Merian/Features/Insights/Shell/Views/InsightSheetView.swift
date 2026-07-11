@@ -349,6 +349,21 @@ private extension InsightSheetView {
             .task(id: viewModel.persistentScanId) {
                 viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
             }
+            .task(id: viewModel.audioBoostEligibleScanId) {
+                guard let scanId = viewModel.audioBoostEligibleScanId else {
+                    viewModel.state.isAudioBoostEnabled = false
+                    viewModel.state.audioBoostActionToken = nil
+                    return
+                }
+                viewModel.state.isAudioBoostEnabled = InsightAudioBoostPreferenceStore().isEnabled(for: scanId)
+                if viewModel.state.isAudioBoostEnabled {
+                    AppTelemetry.trackInsightAudioBoost(event: "restored")
+                }
+            }
+            .onChange(of: viewModel.state.isAudioBoostEnabled) { _, enabled in
+                guard let scanId = viewModel.audioBoostEligibleScanId else { return }
+                InsightAudioBoostPreferenceStore().setEnabled(enabled, for: scanId)
+            }
             .task(id: inferenceEngine.speciesData?.scanId) {
                 // Queued scans have no speciesData — skip the record fetch and name load.
                 guard viewModel.queuedContext == nil else { return }

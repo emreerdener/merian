@@ -54,14 +54,17 @@ saved spectrogram with a moving playhead and elapsed/total timestamp, and it
 participates in the same one-active-player and audio-session lifecycle as other
 Explore media.
 
-Feed-card and post-detail ellipsis menus expose **Boost audio** only when the
-primary media item is standalone audio. `ExploreAudioBoostPreferenceStore`
+Feed cards with standalone primary audio expose a compact, filled **Boost audio**
+pill at the bottom-left of the spectrogram, while feed-card and post-detail
+ellipsis menus retain the same action. The feed pill owns its hit-test region,
+so tapping it never opens post detail; the rest of the media keeps the existing
+navigation and center-playback behavior. `ExploreAudioBoostPreferenceStore`
 remembers enabled post IDs locally for 180 days, capped at 500 entries, so each
 post has an independent setting. An in-process preference notification keeps
 visible feed and detail players synchronized. Preferences are device-only and
 are never written to Supabase.
 
-`ExploreAudioBoostProcessor` creates a bounded temporary enhanced WAV using
+The shared `AudioBoostProcessor` in `Core/Media` creates a bounded temporary enhanced WAV using
 RMS/peak analysis, at most 18 dB of adaptive gain, gentle low-frequency rumble
 reduction, and peak limiting. It never changes or uploads the canonical
 recording. Switching modes preserves position and play/pause state; preparation
@@ -69,10 +72,11 @@ failure falls back to the original audio. The processor keeps at most eight
 temporary enhanced files. Images, videos, mixed-media ordering, and feed
 playback are unaffected.
 
-Once the enhanced file is ready and active, the spectrogram shows a small
-**Boosted audio** badge in its bottom-left corner. The badge is withheld during
-preparation and after fallback to original playback, so it always describes the
-audio source the player can actually use.
+Once the enhanced file is ready and active, the feed pill transitions to
+**Boosted audio** without its chevron and remains tappable to restore original
+audio. Post detail retains its passive **Boosted audio** badge. The boosted
+state is withheld during preparation and after fallback to original playback,
+so it always describes the audio source the player can actually use.
 
 Saved preferences and cross-surface notifications prepare silently. The
 **Boosting audio…** and fallback messages are reserved for a one-shot action
