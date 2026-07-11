@@ -40,6 +40,9 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackAchievementDetailOpened(type: "fungi", state: "in_progress")
         AppTelemetry.trackAchievementContributionOpened(type: "fungi")
         AppTelemetry.trackExploreNotificationOpenFailed(type: "comment")
+        AppTelemetry.trackExploreAudioPlaybackStarted(surface: "feed")
+        AppTelemetry.trackExploreAudioPlaybackCompleted(surface: "detail")
+        AppTelemetry.trackExploreAudioPlaybackFailed(surface: "detail")
         AppTelemetry.trackSpeciesDictionaryOpened(entryPoint: "insight_similar_species")
         AppTelemetry.trackSpeciesDictionaryLoaded(entryPoint: "insight_similar_species", contentQuality: "sparse")
         AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: "explore_detail_similar_species")
@@ -62,6 +65,9 @@ final class AppTelemetryTests: XCTestCase {
             "AchievementDetailOpened",
             "AchievementContributionOpened",
             "ExploreNotificationOpenFailed",
+            "ExploreAudioPlaybackStarted",
+            "ExploreAudioPlaybackCompleted",
+            "ExploreAudioPlaybackFailed",
             "SpeciesDictionaryOpened",
             "SpeciesDictionaryPageLoaded",
             "SpeciesDictionaryNotFound",

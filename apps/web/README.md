@@ -45,6 +45,7 @@ Optional public variables:
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_APP_STORE_URL`
 - `NEXT_PUBLIC_SUPPORT_EMAIL`
+- `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe web playback events
 
 Optional server/public fallback variables:
 

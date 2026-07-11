@@ -1,4 +1,8 @@
-import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import {
+  jsonResponse,
+  runBackground,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
   normalizeExploreHashtag,
@@ -13,6 +17,7 @@ import {
   upsertExplorePost,
 } from "./db.ts";
 import type { SelectedExplorePostMediaItem } from "./db.ts";
+import { trackPostHogEvent } from "../_shared/posthog.ts";
 
 function makeHttpError(
   status: number,
@@ -251,42 +256,75 @@ Deno.serve((req: Request) =>
     );
     const mediaItems = normalizeMediaItems(body.media_items);
 
-    const scan = await fetchShareEligibleScan(
-      scanId,
-      user.id,
-      restoredObjectKeys,
-      restoredVideoObjectKeys,
-      supabaseAdmin,
-    );
-    await assertCommunityRequestCanPublishToExplore(
-      scanId,
-      user.id,
-      supabaseAdmin,
-    );
-    const locationSharing = requestedLocationSharing ?? scan.geoprivacy;
-    await syncPublicAuthorIdentity(user.id, supabaseAdmin);
-    const post = await upsertExplorePost(
-      scan,
-      user.id,
-      speciesCommonName,
-      fieldNotes,
-      locationSharing,
-      mediaItems,
-      supabaseAdmin,
-    );
-    await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
-    await markResolvedCommunityRequestPublishedToExplore(
-      post.id,
-      user.id,
-      supabaseAdmin,
-    );
-    return jsonResponse({
-      success: true,
-      post_id: post.id,
-      scan_id: scanId,
-      shared_at: post.shared_at,
-      location_sharing: locationSharing,
-      publication_status: post.publication_status,
-    });
+    runBackground(trackPostHogEvent(user.id, "ExplorePostShareStarted", {
+      event_source: "supabase_edge",
+      requested_audio_clip_count: mediaItems?.filter((item) =>
+        item.kind === "audio"
+      ).length ?? null,
+    }));
+
+    try {
+      const scan = await fetchShareEligibleScan(
+        scanId,
+        user.id,
+        restoredObjectKeys,
+        restoredVideoObjectKeys,
+        supabaseAdmin,
+      );
+      await assertCommunityRequestCanPublishToExplore(
+        scanId,
+        user.id,
+        supabaseAdmin,
+      );
+      const locationSharing = requestedLocationSharing ?? scan.geoprivacy;
+      await syncPublicAuthorIdentity(user.id, supabaseAdmin);
+      const post = await upsertExplorePost(
+        scan,
+        user.id,
+        speciesCommonName,
+        fieldNotes,
+        locationSharing,
+        mediaItems,
+        supabaseAdmin,
+      );
+      await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
+      await markResolvedCommunityRequestPublishedToExplore(
+        post.id,
+        user.id,
+        supabaseAdmin,
+      );
+      runBackground(trackPostHogEvent(user.id, "ExplorePostShared", {
+        event_source: "supabase_edge",
+        has_audio: post.audible_media_count > 0,
+        audio_clip_count: post.audio_clip_count,
+        is_mixed_media: post.audio_clip_count > 0 &&
+          post.media_kinds.some((kind) => kind !== "audio"),
+        location_sharing: locationSharing,
+      }));
+      return jsonResponse({
+        success: true,
+        post_id: post.id,
+        scan_id: scanId,
+        shared_at: post.shared_at,
+        location_sharing: locationSharing,
+        publication_status: post.publication_status,
+      });
+    } catch (error) {
+      runBackground(trackPostHogEvent(user.id, "ExplorePostShareFailed", {
+        event_source: "supabase_edge",
+        reason: shareFailureReason(error),
+      }));
+      throw error;
+    }
   })
 );
+
+function shareFailureReason(error: unknown): string {
+  const status = error && typeof error === "object" && "status" in error
+    ? Number(error.status)
+    : 500;
+  if (status === 422) return "moderation_rejected";
+  if (status === 503) return "dependency_unavailable";
+  if (status >= 400 && status < 500) return "request_rejected";
+  return "publication_failed";
+}

@@ -106,6 +106,12 @@ The web page must not render:
 - moderation-only state
 - service-role credentials or Supabase tokens
 
+Public audio playback emits privacy-safe PostHog events for start, completion,
+and failure when `NEXT_PUBLIC_POSTHOG_API_KEY` is configured. These events carry
+only the public web surface name; they never include media URLs, transcripts,
+filenames, post/species identity, or location. The PostHog project key is a
+public ingestion key and must not be confused with a server-side secret.
+
 The web page must trust the public post projection as-is. Post-level
 `location_sharing` controls whether `public_location_label` is present; the web
 route must not query scan GPS, scan `semantic_location`, or scan geoprivacy to

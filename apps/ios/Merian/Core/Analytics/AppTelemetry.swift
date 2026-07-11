@@ -121,6 +121,19 @@ enum AppTelemetry {
         send("ExploreMapDetailOpened", with: ["entryPoint": entryPoint])
     }
 
+    /// Records a user-initiated public audio playback without media or species identity.
+    static func trackExploreAudioPlaybackStarted(surface: String) {
+        send("ExploreAudioPlaybackStarted", with: ["surface": surface])
+    }
+
+    static func trackExploreAudioPlaybackCompleted(surface: String) {
+        send("ExploreAudioPlaybackCompleted", with: ["surface": surface])
+    }
+
+    static func trackExploreAudioPlaybackFailed(surface: String) {
+        send("ExploreAudioPlaybackFailed", with: ["surface": surface])
+    }
+
     // MARK: - Achievement Events
 
     /// Records opening an achievement detail sheet.

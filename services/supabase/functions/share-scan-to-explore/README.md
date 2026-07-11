@@ -87,9 +87,16 @@ Legacy `hidden` input is accepted as `private`.
 All successful shares return `200` with `publication_status = "published"`.
 For standalone audio or an audio-bearing video,
 `_shared/audioModeration.ts` must transcribe and approve every audible selected
-item before the post/media upsert runs. Flagged transcripts return `422`;
+item before the post/media upsert runs. Flagged speech or non-speech content returns `422`;
 provider or configuration failures return `503`. In both cases nothing is
 created, reactivated, or made public.
+
+The function emits privacy-safe PostHog funnel events for each audible media
+moderation outcome and for successful publication. Properties are limited to
+coarse outcome, media composition, model, latency bucket, and location-sharing
+mode. They never include transcripts, media URLs, filenames, post IDs, species
+identity, or coordinates. Telemetry uses the Edge background execution lock so
+PostHog latency cannot delay publication.
 
 ## Rules
 

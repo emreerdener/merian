@@ -5,6 +5,8 @@ import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 import { moderateExploreAudioUrl } from "../_shared/audioModeration.ts";
+import { trackPostHogEvent } from "../_shared/posthog.ts";
+import { runBackground } from "../_shared/edgeHandler.ts";
 
 export interface ShareEligibleScanRow {
   id: string;
@@ -301,9 +303,16 @@ export async function upsertExplorePost(
   locationSharing: string,
   mediaItems: SelectedExplorePostMediaItem[] | undefined,
   supabaseAdmin: SupabaseClient,
-): Promise<{ id: string; shared_at: string; publication_status: string }> {
+): Promise<{
+  id: string;
+  shared_at: string;
+  publication_status: string;
+  media_kinds: string[];
+  audio_clip_count: number;
+  audible_media_count: number;
+}> {
   const mediaRows = buildExplorePostMediaRows(scan, mediaItems);
-  await requireApprovedAudioMedia(mediaRows);
+  await requireApprovedAudioMedia(mediaRows, moderateExploreAudioUrl, userId);
   const sharedAt = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
@@ -337,12 +346,22 @@ export async function upsertExplorePost(
   };
   await replaceExplorePostMediaRows(post.id, mediaRows, supabaseAdmin);
 
-  return { ...post, publication_status: "published" };
+  return {
+    ...post,
+    publication_status: "published",
+    media_kinds: mediaRows.map((row) => row.kind),
+    audio_clip_count: mediaRows.filter((row) => row.kind === "audio").length,
+    audible_media_count:
+      mediaRows.filter((row) =>
+        row.kind === "audio" || (row.kind === "video" && row.has_audio)
+      ).length,
+  };
 }
 
 export async function requireApprovedAudioMedia(
   rows: ReturnType<typeof buildExplorePostMediaRows>,
   moderate: typeof moderateExploreAudioUrl = moderateExploreAudioUrl,
+  telemetryUserId?: string,
 ): Promise<void> {
   const audibleRows = rows.filter((row) =>
     row.kind === "audio" || (row.kind === "video" && row.has_audio)
@@ -350,7 +369,23 @@ export async function requireApprovedAudioMedia(
 
   try {
     for (const row of audibleRows) {
+      const startedAt = performance.now();
       const decision = await moderate(row.url);
+      if (telemetryUserId) {
+        runBackground(trackPostHogEvent(
+          telemetryUserId,
+          "ExploreAudioModerationCompleted",
+          {
+            event_source: "supabase_edge",
+            outcome: decision.approved ? "approved" : "rejected",
+            media_kind: row.kind,
+            model: decision.model,
+            latency_bucket: moderationLatencyBucket(
+              performance.now() - startedAt,
+            ),
+          },
+        ));
+      }
       if (!decision.approved) {
         throw makeHttpError(
           422,
@@ -359,12 +394,32 @@ export async function requireApprovedAudioMedia(
       }
     }
   } catch (error) {
+    if (
+      telemetryUserId &&
+      !(error && typeof error === "object" && "status" in error)
+    ) {
+      runBackground(trackPostHogEvent(
+        telemetryUserId,
+        "ExploreAudioModerationCompleted",
+        {
+          event_source: "supabase_edge",
+          outcome: "error",
+        },
+      ));
+    }
     if (error && typeof error === "object" && "status" in error) throw error;
     throw makeHttpError(
       503,
       "Audio moderation is temporarily unavailable. Nothing was shared.",
     );
   }
+}
+
+function moderationLatencyBucket(elapsedMs: number): string {
+  if (elapsedMs < 1_000) return "under_1s";
+  if (elapsedMs < 3_000) return "1_to_3s";
+  if (elapsedMs < 10_000) return "3_to_10s";
+  return "over_10s";
 }
 
 async function replaceExplorePostMediaRows(

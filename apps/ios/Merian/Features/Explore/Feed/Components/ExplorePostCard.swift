@@ -622,6 +622,7 @@ struct ExplorePublicMediaView: View {
     @State private var playbackRecoveryWatchdogTask: Task<Void, Never>?
     @State private var unexpectedPauseRecoveryTask: Task<Void, Never>?
     @State private var playbackResumeIntentState = ExploreVideoPlaybackResumeIntentState()
+    @State private var hasTrackedAudioPlaybackStart = false
     @AppStorage("MerianExplorePublicVideoMuted") private var isMuted = true
 
     init(
@@ -911,6 +912,9 @@ struct ExplorePublicMediaView: View {
             ) { [weak player] _ in
                 guard let player else { return }
                 logPlayback("item-ended")
+                if mediaItem.kind == .audio {
+                    AppTelemetry.trackExploreAudioPlaybackCompleted(surface: surface.rawValue)
+                }
                 player.seek(to: .zero)
                 if playbackOverlayState.isPlaying {
                     player.play()
@@ -932,6 +936,9 @@ struct ExplorePublicMediaView: View {
                 queue: .main
             ) { _ in
                 logPlayback("item-failed-to-end")
+                if mediaItem.kind == .audio {
+                    AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
+                }
                 pauseForRecoverableInterruption()
             }
         ]
@@ -1261,6 +1268,10 @@ struct ExplorePublicMediaView: View {
         }
         if mediaItem.kind == .audio {
             player.isMuted = false
+            if !hasTrackedAudioPlaybackStart {
+                hasTrackedAudioPlaybackStart = true
+                AppTelemetry.trackExploreAudioPlaybackStarted(surface: surface.rawValue)
+            }
         }
         player.play()
         if shouldVerifyRecovery {
