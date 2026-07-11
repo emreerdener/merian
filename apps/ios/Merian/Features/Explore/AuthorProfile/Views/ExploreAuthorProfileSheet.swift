@@ -143,6 +143,7 @@ struct ExploreAuthorProfileContent: View {
     let onOpenPublication: (String) -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
 
     @State private var profile: ExploreAuthorProfile?
     @State private var isLoadingProfile = true
@@ -187,6 +188,7 @@ struct ExploreAuthorProfileContent: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(mode == .library)
         .navigationTitle(navigationTitle)
         .toolbar { toolbarContent }
         .task(id: route.authorUserId) {
@@ -549,12 +551,15 @@ struct ExploreAuthorProfileContent: View {
 
          return LazyVGrid(columns: columns, spacing: 2) {
              ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
+                 let localReferenceUrl = localReferenceUrl(for: post)
                  Button {
                      openPost(post)
                  } label: {
                      if applyCornerRounding {
                          ExploreHeroImageView(
-                             imageUrl: post.gridThumbnailUrl,
+                             imageUrl: post.gridThumbnailUrl(
+                                 localReferenceUrl: localReferenceUrl
+                             ),
                              reloadGeneration: viewModel.mediaReloadGeneration,
                              maxDimension: 360
                          )
@@ -569,7 +574,9 @@ struct ExploreAuthorProfileContent: View {
                          .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
                      } else {
                          ExploreHeroImageView(
-                             imageUrl: post.gridThumbnailUrl,
+                             imageUrl: post.gridThumbnailUrl(
+                                 localReferenceUrl: localReferenceUrl
+                             ),
                              reloadGeneration: viewModel.mediaReloadGeneration,
                              maxDimension: 360
                          )
@@ -592,6 +599,15 @@ struct ExploreAuthorProfileContent: View {
              }
          }
      }
+
+    private func localReferenceUrl(for post: ExplorePost) -> String? {
+        guard SupabaseManager.shared.currentUser?.id.uuidString.lowercased()
+            == route.authorUserId.lowercased() else {
+            return nil
+        }
+
+        return localScans.first { $0.id == post.scanId }?.referenceImageUrl
+    }
 
     @ViewBuilder
     private func authorAvatar(url: URL?, size: CGFloat) -> some View {

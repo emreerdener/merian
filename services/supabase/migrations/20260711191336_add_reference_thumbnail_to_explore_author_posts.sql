@@ -29,7 +29,8 @@ RETURNS TABLE(
     comment_count INTEGER,
     viewer_has_liked BOOLEAN,
     is_owned_by_viewer BOOLEAN,
-    ranking_value INTEGER
+    ranking_value INTEGER,
+    media_items JSONB
 )
 LANGUAGE SQL
 STABLE
@@ -59,7 +60,8 @@ AS $$
         cards.comment_count,
         cards.viewer_has_liked,
         cards.is_owned_by_viewer,
-        NULL::INTEGER AS ranking_value
+        NULL::INTEGER AS ranking_value,
+        cards.media_items
     FROM public.explore_projected_post_cards(self_id) cards
     JOIN public.scans scan ON scan.id = cards.scan_id
     LEFT JOIN public.species_dictionary species ON species.id = scan.species_id

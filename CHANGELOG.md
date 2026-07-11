@@ -14,13 +14,16 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Fixed the Explore author profile's full published-scans view so it shows one
+  back button instead of overlapping the stack and profile-library controls.
 - Fixed missing Explore location labels on audio-only and other non-visual
   discoveries by resolving their capture location before scan persistence.
   Existing affected posts can be repaired from their saved coordinates without
   changing the author’s post-level location-sharing choice.
 - Fixed standalone-audio thumbnails in profile and compact Explore grids so
   they keep the species reference photo after remote post data loads, with a
-  waveform badge identifying the recording.
+  bottom-right waveform badge identifying the recording; video posts retain
+  the matching play badge.
 - Added tactile feedback to user-controlled audio and video playback, mute,
   seeking, and audio-boost actions while keeping autoplay and restored settings
   silent.
