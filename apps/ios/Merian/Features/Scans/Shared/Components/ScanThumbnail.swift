@@ -261,6 +261,16 @@ struct ScanThumbnail: View {
 
     @ViewBuilder
     private var loadingView: some View {
+        if prefersReferenceForAudio, hasAudio {
+            GlowPulsingSkeletonView(cornerRadius: 0, style: .raisedGrid)
+                .accessibilityHidden(true)
+        } else {
+            loadingPlaceholderByStyle
+        }
+    }
+
+    @ViewBuilder
+    private var loadingPlaceholderByStyle: some View {
         switch placeholderStyle {
         case .pendingReference(let mediaKind):
             ScanThumbnailPlaceholderView(

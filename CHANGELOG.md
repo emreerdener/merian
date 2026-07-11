@@ -14,6 +14,10 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Fixed missing Explore location labels on audio-only and other non-visual
+  discoveries by resolving their capture location before scan persistence.
+  Existing affected posts can be repaired from their saved coordinates without
+  changing the author’s post-level location-sharing choice.
 - Fixed standalone-audio thumbnails in profile and compact Explore grids so
   they keep the species reference photo after remote post data loads, with a
   waveform badge identifying the recording.
@@ -50,7 +54,8 @@ TestFlight, App Store, support, and QA.
 
 - Updated standalone-audio tiles in the Scans library to use the species
   reference photo with a waveform badge. Opening the scan still presents the
-  recording spectrogram and playback controls.
+  recording spectrogram and playback controls. Reference-photo loading now uses
+  the standard media skeleton instead of a technical pending-state message.
 
 ### Analytics
 

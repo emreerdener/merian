@@ -56,12 +56,23 @@ extension CaptureWorkspaceViewModel {
         pendingAnalyzeScanId = scanId
 
         Task {
-            let resolvedContext = await capturedPreFetchTask?.value
             let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
+            // Audio and description captures do not pass through the camera shutter path,
+            // which normally starts `preFetchTask`. Resolve the cached coordinate here so
+            // non-visual scans persist the same semantic/public location label as visual scans.
+            // Pinning the lookup to `cachedLocation` keeps the context tied to capture time.
+            let resolvedContext: EnvironmentContext
+            if let capturedPreFetchTask {
+                resolvedContext = await capturedPreFetchTask.value
+            } else {
+                resolvedContext = await diContainer.environmentContextManager.fetchDeferredContext(
+                    preLockedLocation: cachedLocation
+                )
+            }
 
             let telemetry: CaptureTelemetry
-            if let env = resolvedContext {
-                telemetry = CaptureTelemetry(from: env, distance: nil)
+            if resolvedContext.location != nil || resolvedContext.locationName != nil {
+                telemetry = CaptureTelemetry(from: resolvedContext, distance: nil)
             } else {
                 telemetry = CaptureTelemetry(
                     subjectDistanceInMeters: nil,

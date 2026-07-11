@@ -5,6 +5,23 @@ developer shell. Local `supabase login` is useful for emergency maintenance, but
 production deploys should be repeatable from CI with explicit secrets and
 validation.
 
+## Legacy Location-Label Repair
+
+If a scan has exact coordinates but no `semantic_location`, changing an Explore
+post’s `location_sharing` cannot produce a label. Preview a targeted repair with:
+
+```bash
+SCAN_ID=<scan-uuid> DRY_RUN=true deno run --allow-net --allow-env \
+  services/supabase/scripts/retroactive_geocoding.ts
+```
+
+Remove `DRY_RUN=true` to write the resolved label. Omit `SCAN_ID` for the
+resumable, paginated full backfill. The script requires `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`, rate-limits Nominatim requests, and updates only
+scans that have exact coordinates and a missing semantic location. Existing
+database triggers sanitize the scan label and reproject every linked Explore
+post while preserving its saved post-level location-sharing choice.
+
 ## Production Path
 
 Pushes to `main` that touch Supabase backend or deployment-support paths, plus

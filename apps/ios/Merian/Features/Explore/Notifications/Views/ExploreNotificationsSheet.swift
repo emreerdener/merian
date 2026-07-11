@@ -102,7 +102,8 @@ struct ExploreNotificationsSheet: View {
 
     private var emptyState: some View {
         EmptyStateView(
-            iconName: "bell.slash",
+            imageName: "bell",
+            imageHeight: 200,
             title: "Nothing new yet",
             message: "Follows, likes on your posts, comments on your posts, and reactions to your comments will show up here."
         )

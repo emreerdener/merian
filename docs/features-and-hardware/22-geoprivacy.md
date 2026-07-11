@@ -11,6 +11,14 @@ shared UI, Explore, public map data, and public exports.
 | `obscured` | Shows a coarse location label, weather, and a rounded map region with a 10 km uncertainty circle. Elevation is hidden. | Publishes rounded public coordinates and a sanitized public location label with `coordinate_uncertainty_in_meters >= 10000`; Explore posts default to `obscured` location sharing and stay off the Explore Map unless the author explicitly changes that post to `open`. |
 | `private` | Hides location label, elevation, weather, and map from scan-information surfaces. | Clears scan public coordinates, public uncertainty, and public location labels; Explore posts default to `private` location sharing but can be explicitly changed per post. |
 
+Audio-only, description-only, and other non-visual captures resolve the cached
+capture coordinate through the same environment-context path used by camera
+captures before persistence. This ensures a sanitized location label is
+available if the scan or an Explore post later uses `open` or `obscured`
+sharing. Changing a post from `private` to `open` cannot invent a missing label;
+legacy rows with exact coordinates but no `semantic_location` must first be
+repaired with `services/supabase/scripts/retroactive_geocoding.ts`.
+
 `users.default_geoprivacy` is the preference source of truth. New scans send the
 current setting in the identify request where possible, and Edge insert helpers
 fall back to `users.default_geoprivacy` for older clients or queued jobs that do

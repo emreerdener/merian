@@ -167,10 +167,10 @@ struct ProfilePublicScansPreview: View {
                     )
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
-                    .overlay(alignment: .topTrailing) {
+                    .overlay(alignment: .bottomTrailing) {
                         if item.hasVideoMedia || item.hasAudioMedia {
                             ExploreMediaTypeIndicator(kind: item.hasVideoMedia ? .video : .audio)
-                                .padding(6)
+                                .padding(8)
                         }
                     }
                     .clipped()
@@ -538,10 +538,10 @@ private struct ProfilePublishedScansLibraryView: View {
                     )
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
-                    .overlay(alignment: .topTrailing) {
+                    .overlay(alignment: .bottomTrailing) {
                         if post.hasVideoMedia || post.hasAudioMedia {
                             ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
-                                .padding(6)
+                                .padding(8)
                         }
                     }
                     .clipped()

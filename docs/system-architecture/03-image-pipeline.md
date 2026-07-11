@@ -171,6 +171,9 @@ spectrogram tile with the hydrated reference photo and bottom-trailing waveform
 badge. The persisted audio path is unchanged and the Insight media carousel
 continues to open on the spectrogram/playback surface. Collections,
 Achievements, and other `ScanThumbnail` callers retain their existing policy.
+While the Scans library is resolving an audio reference image, the tile uses
+the same neutral raised-grid loading skeleton as visual media rather than
+showing the internal `Reference pending` state.
 
 - **Thundering herd prevention**: The `activeTasks: [String: Task<UIImage?, Never>]` dictionary ensures that 50 cells requesting the same image key in a single scroll frame all await one download, not 50 parallel downloads. The inner fetch task is explicitly spawned using `Task.detached(priority: .userInitiated) { ... }` rather than a standard `Task`. This severs the concurrency context and prevents **Task Cancellation Poisoning**: if the SwiftUI view that originally initiated the fetch scrolls off-screen and its `.task` modifier cancels, the detached background load continues uninterrupted. This guarantees the image successfully enters the RAM cache and subsequent coalesced callers receive the image rather than a poisoned `nil` result.
 - **Bounded remote session**: `LocalImageLoader.mediaSession` uses `httpMaximumConnectionsPerHost = 4`, `httpShouldSetCookies = false`, `requestCachePolicy = .reloadIgnoringLocalCacheData`, and `urlCache = nil`. This keeps remote thumbnail fetch pressure aligned with the four-slot asynchronous decode pool and avoids filling the shared URL cache with one-off media responses. Permit waiters suspend rather than blocking an OS thread, while admitted ImageIO work uses an explicitly QoS-tagged decode queue.

@@ -560,10 +560,10 @@ struct ExploreAuthorProfileContent: View {
                          )
                          .aspectRatio(1, contentMode: .fill)
                          .clipped()
-                         .overlay(alignment: .topTrailing) {
+                         .overlay(alignment: .bottomTrailing) {
                              if post.hasVideoMedia || post.hasAudioMedia {
                                  ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
-                                     .padding(6)
+                                     .padding(8)
                              }
                          }
                          .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
@@ -575,10 +575,10 @@ struct ExploreAuthorProfileContent: View {
                          )
                          .aspectRatio(1, contentMode: .fill)
                          .clipped()
-                         .overlay(alignment: .topTrailing) {
+                         .overlay(alignment: .bottomTrailing) {
                              if post.hasVideoMedia || post.hasAudioMedia {
                                  ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
-                                     .padding(6)
+                                     .padding(8)
                              }
                          }
                      }
