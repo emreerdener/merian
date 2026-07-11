@@ -101,6 +101,13 @@ when the table is temporarily unavailable, but deploying the migration first
 avoids unnecessary provider calls and cache-error logs. Never deploy a function
 that treats a cache error as approval.
 
+Legacy-audio sharing also requires
+`20260711143348_repair_scan_media_assets_audio_constraints.sql` in production.
+Without it, `/generate-upload-urls` fails before upload with SQLSTATE `23514`
+and `scan_media_assets_kind_check` when it inserts a staged `kind = 'audio'`,
+`role = 'audio'` row. Apply the constraint repair before validating the iOS
+legacy-recovery flow.
+
 Field Trips releases are migration-plus-function releases too. Deploy
 `20260708021110_field_trips_v1.sql` before
 `20260708033451_field_trips_v2.sql` before

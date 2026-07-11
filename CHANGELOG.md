@@ -193,6 +193,11 @@ TestFlight, App Store, support, and QA.
 - Added legacy audio repair during Explore sharing: surviving local recordings
   upload to staging, become durable scan media, and are moderated before the
   post can become public; missing local recordings remain unavailable.
+- Repaired early production `scan_media_assets` constraints so staged and
+  durable standalone audio rows are accepted during legacy sharing recovery.
+- Replaced raw database constraint text during media-upload preparation with a
+  concise retry message while preserving technical details in structured Edge
+  logs.
 - Added Explore post management actions to the Insight top menu so published
   scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts

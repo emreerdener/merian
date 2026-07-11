@@ -4,6 +4,7 @@ enum ExploreErrorFormatter {
     private static let genericMessage = "Something went wrong. Please try again."
     private static let persistenceFallbackMessage = "We couldn’t finish that. Please try again."
     private static let duplicateScanMessage = "This scan is already saved. Try sharing again."
+    private static let mediaPreparationMessage = "We couldn’t prepare this media for sharing. Please try again."
 
     private struct ErrorEnvelope: Decodable {
         let error: String?
@@ -84,10 +85,18 @@ enum ExploreErrorFormatter {
             return duplicateScanMessage
         }
 
+        if normalized.contains("createstagedscanmediaassets")
+            || normalized.contains("scan_media_assets_kind_check")
+            || normalized.contains("scan_media_assets_role_check")
+            || normalized.contains("couldn’t prepare this media for upload") {
+            return mediaPreparationMessage
+        }
+
         let technicalMarkers = [
             "duplicate key value",
             "violates unique constraint",
             "violates foreign key constraint",
+            "violates check constraint",
             "null value in column",
             "row-level security",
             "permission denied for table",

@@ -1,4 +1,8 @@
-import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import {
+  jsonResponse,
+  logStructuredError,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
 import {
   createStagedScanMediaAssets,
   StagedScanMediaAssetInput,
@@ -81,10 +85,23 @@ Deno.serve((req: Request) =>
     }
 
     const urls = await generateStagingUrls(user.id, parsed.files);
-    const stagedAssets = await createStagedScanMediaAssets(
-      stagedAssetInputs(user.id, parsed.files, urls),
-      supabaseAdmin,
-    );
+    let stagedAssets: StagedScanMediaAssetRow[];
+    try {
+      stagedAssets = await createStagedScanMediaAssets(
+        stagedAssetInputs(user.id, parsed.files, urls),
+        supabaseAdmin,
+      );
+    } catch (error) {
+      logStructuredError("generate_upload_urls_asset_persistence_failed", {
+        user_id: user.id,
+        media_kinds: [...new Set(parsed.files.map((file) => file.mediaKind))],
+        file_count: parsed.files.length,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonResponse({
+        error: "We couldn’t prepare this media for upload. Please try again.",
+      }, 503);
+    }
 
     return jsonResponse({
       success: true,

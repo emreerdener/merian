@@ -54,6 +54,7 @@ struct AudioPlaybackCarouselPage: View {
                 GeometryReader { proxy in
                     SpectrogramView(columns: columns, layout: .fitToData)
                         .equatable()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
                         .allowsHitTesting(false)
                         .overlay(alignment: .leading) {
                             if isPlaying || playbackProgress > 0 {
@@ -64,7 +65,6 @@ struct AudioPlaybackCarouselPage: View {
                             }
                         }
                 }
-                .padding(.horizontal, 24) // Match SpectrogramView safe bounds
 
                 Button(action: togglePlayback) {
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")

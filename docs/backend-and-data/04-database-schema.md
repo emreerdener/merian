@@ -1191,6 +1191,11 @@ key is `(checksum_sha256, policy_version, model)`, so unchanged bytes can reuse
 a decision while policy/model upgrades automatically require re-moderation. It
 stores no transcript, URL, filename, user identity, or media bytes; RLS is
 enabled and client roles have no table grants.
+Migration `20260711143348_repair_scan_media_assets_audio_constraints.sql`
+repairs early production tables whose existing `kind`, `role`, kind/role, ready
+URL, and ready-order index definitions predated standalone audio. This explicit
+replacement is required because the original `CREATE TABLE IF NOT EXISTS`
+migration cannot alter constraints on an already-existing table.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until

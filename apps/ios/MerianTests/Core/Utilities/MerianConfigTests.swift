@@ -79,6 +79,16 @@ struct ExploreErrorFormatterTests {
         #expect(message == "We couldn’t finish that. Please try again.")
     }
 
+    @Test func stagedMediaConstraintErrorsUseSharePreparationCopy() {
+        let rawMessage = "createStagedScanMediaAssets: new row violates check constraint \"scan_media_assets_kind_check\""
+        let message = ExploreErrorFormatter.message(for: MerianError.httpError(
+            statusCode: 500,
+            message: rawMessage
+        ))
+
+        #expect(message == "We couldn’t prepare this media for sharing. Please try again.")
+    }
+
     @Test func emptyHttpErrorsUseGenericCopy() {
         let message = ExploreErrorFormatter.message(for: MerianError.httpError(
             statusCode: 400,

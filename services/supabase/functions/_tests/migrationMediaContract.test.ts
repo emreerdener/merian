@@ -235,6 +235,25 @@ Deno.test("Explore audio migration enables durable audio and public snapshots", 
   ) assertStringIncludes(sql, fragment);
 });
 
+Deno.test("scan media audio constraint repair upgrades early production tables", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260711143348_repair_scan_media_assets_audio_constraints.sql",
+    ),
+  );
+  for (
+    const fragment of [
+      "DROP CONSTRAINT IF EXISTS scan_media_assets_kind_check",
+      "CHECK (kind IN ('image', 'video', 'audio')) NOT VALID",
+      "CHECK (role IN ('display', 'playback', 'thumbnail', 'inference_frame', 'audio')) NOT VALID",
+      "OR (kind = 'audio' AND role = 'audio')",
+      "OR role NOT IN ('display', 'playback', 'audio')",
+      "VALIDATE CONSTRAINT scan_media_assets_ready_visible_url",
+      "WHERE status = 'ready' AND role IN ('display', 'playback', 'audio')",
+    ]
+  ) assertStringIncludes(sql, fragment);
+});
+
 Deno.test("Explore audio moderation attestations are content-addressed and service-only", async () => {
   const sql = normalized(
     await migrationSql(
