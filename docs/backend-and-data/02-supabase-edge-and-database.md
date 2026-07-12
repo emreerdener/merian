@@ -822,10 +822,11 @@ Dictionary galleries and reference-image promotion remain image-only and read
 from the eligible scan image URLs rather than public video clips.
 
 Standalone Explore audio uses the same post-owned snapshot contract. After the
-audio passes publication moderation, `share-scan-to-explore` derives a
-deterministic PNG with the iOS spectrogram parameters (2048-point Hann-windowed
-FFT, 128 mel bins over 80 Hz–16 kHz), stores it beside the durable WAV, and
-copies the URL into `explore_post_media.thumbnail_url` plus the matching
+audio passes publication moderation, `share-scan-to-explore` and media edits
+through `update-explore-field-notes` derive or reuse a deterministic PNG with
+the iOS spectrogram parameters (2048-point Hann-windowed FFT, 128 mel bins over
+80 Hz–16 kHz), store it beside the durable WAV, and copy the URL into
+`explore_post_media.thumbnail_url` plus the matching
 `scan_media_assets.thumbnail_url`. Public web feed, detail, and Open Graph
 surfaces render that cached asset without downloading or decoding the recording
 in each visitor's browser. The service-role-only
@@ -1078,8 +1079,8 @@ that operate on anonymous IDFV boundaries:
     GitHub Actions, or another trusted server caller can reach the Deno runtime,
     then enforce the service-role bearer header inside Deno with
     `timingSafeCompare`. This includes species refresh, reference-image refresh,
-    taxonomy import/status/refresh, consensus processing, and non-biological
-    purge workers.
+    taxonomy import/status/refresh, consensus processing, non-biological purge,
+    and `backfill-explore-audio-spectrograms` workers.
 - **Rule for new Edge Functions**: Every new function directory under
   `services/supabase/functions/` MUST have a corresponding `[functions.<name>]`
   entry in `config.toml` before deployment. Use `verify_jwt = false` for

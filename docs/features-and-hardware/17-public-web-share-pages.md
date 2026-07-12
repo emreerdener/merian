@@ -8,7 +8,10 @@ The first shipped route is:
 https://merian.earth/explore/post/{postId}
 ```
 
-This URL is the long-term share target for Explore posts. It should render a useful web page for recipients without the app, provide Open Graph metadata for Messages/social previews, and eventually become the Universal Link that opens the native iOS detail page when Merian is installed.
+This URL is the long-term share target for Explore posts. It renders a useful
+web page for recipients without the app, provides Open Graph metadata for
+Messages/social previews, and is the Universal Link that opens the native iOS
+detail page when Merian is installed.
 
 ## Product Contract
 
@@ -25,8 +28,9 @@ This URL is the long-term share target for Explore posts. It should render a use
 The public web page is not the full Explore product yet. It is a rich read-only
 detail surface for one post, with enough context to understand what was shared
 and a clean path back into the app. Anonymous web visitors can view the post and
-comment count, but they cannot like, comment, reply, follow, report, or edit on
-the web surface.
+comment count, but they cannot like, comment, reply, follow, or edit on
+the web surface. The page does provide a support-email report action containing
+the immutable post id; this is not an authenticated in-product report write.
 
 ## Data Flow
 
@@ -46,16 +50,22 @@ the web surface.
    to hydrate public field notes, hashtags, reference images, overview,
    conservation status, taxonomy labels, and alternate names.
 6. The server maps those RPC rows into the `ExplorePost` page model.
-7. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata using the post title and hero image.
-8. The page renders the public post with default Mantine components and props,
+7. `explorePosterUrl(...)` prefers the canonical visual hero and otherwise uses
+   the first persisted standalone-audio spectrogram thumbnail.
+8. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata
+   using the post title and resolved poster.
+9. The page renders the public post with default Mantine components and props,
    without route-specific CSS classes or custom page chrome.
 
 If the RPC returns no visible row, the route returns a not-found page and marks
 metadata as non-indexable. Approved audio-only posts are public and indexable:
-they render an audio-focused header with native, user-initiated controls and
-text-only social metadata. Mixed posts retain visual social previews and render
-each approved audio item beneath the visual header in canonical order. Audio
-uses `preload="metadata"` and never autoplays.
+WAV posts render the persisted spectrogram in the public home grid,
+audio-focused post header, Open Graph metadata, and Twitter metadata, alongside
+native, user-initiated controls. Mixed posts retain their visual social preview
+and render each approved audio item beneath the visual header in canonical
+order. Legacy non-WAV posts or failed poster generation retain the speaker
+fallback and normal playback. Audio uses `preload="metadata"` and never
+autoplays.
 
 ## Environment Variables
 
@@ -69,6 +79,8 @@ Optional public values:
 - `NEXT_PUBLIC_SITE_URL` — canonical site URL. Production should be `https://merian.earth`.
 - `NEXT_PUBLIC_APP_STORE_URL` — optional App Store CTA target.
 - `NEXT_PUBLIC_SUPPORT_EMAIL` — public support contact shown on legal/support pages.
+- `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe
+  audio playback telemetry.
 
 Optional fallback values:
 
@@ -84,6 +96,8 @@ The web page may render only data already intended for the public Explore projec
 
 - public post id
 - public hero image URL
+- ordered public media items, including standalone-audio URL and persisted
+  spectrogram `thumbnail_url`
 - public species common/scientific name
 - privacy-filtered location label
 - coarse public telemetry such as time of day, month, weather condition, and temperature
@@ -117,6 +131,13 @@ public web contract. Web pages always stream the approved canonical recording
 through native browser controls; they do not receive the device-local
 preference or the temporary enhanced WAV. A future web enhancement must remain
 client-side, opt-in, and must preserve the same no-upload/no-mutation rule.
+
+The web app never downloads the recording to calculate FFT data in a visitor's
+browser. Spectrogram PNGs are generated once at the approved publication seam,
+stored beside the durable WAV under `public_uploads/{tier}/{userId}/`, and
+referenced through the public post projection. This avoids R2 CORS dependence,
+repeated audio downloads, and per-viewer DSP. Missing thumbnails are a
+presentation fallback only and must not affect moderation or playback.
 
 The web page must trust the public post projection as-is. Post-level
 `location_sharing` controls whether `public_location_label` is present; the web
@@ -208,6 +229,7 @@ Useful checks:
 
 ```bash
 npm run typecheck
+npm test
 npm run build
 npm audit --audit-level=moderate
 ```
@@ -255,6 +277,8 @@ the `theme` query parameter; public share URLs should not.
 - Keep `apps/web/.env.example`, `apps/web/README.md`, root `README.md`, and this doc aligned when adding public web routes or env variables.
 - Keep Open Graph metadata server-rendered. Messages and social crawlers need HTML metadata before client-side hydration.
 - Treat `apps/web/lib/explore.ts` as a public projection mapper, not a place to expose raw database rows.
+- Keep `apps/web/lib/exploreMedia.ts` pure and covered by Node tests so visual
+  heroes continue to take precedence over audio spectrogram posters.
 - Prefer adding dedicated Supabase RPCs/views for web surfaces instead of querying broad private tables.
 - Use `NEXT_PUBLIC_SITE_URL=https://merian.earth` in production so canonical and Open Graph URLs point at the real domain.
 - If an Explore post is unshared, blocked, removed, or privacy-filtered out for the public viewer, the route should resolve to not found rather than showing stale metadata.

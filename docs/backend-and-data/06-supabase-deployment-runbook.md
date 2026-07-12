@@ -125,6 +125,18 @@ and `scan_media_assets_kind_check` when it inserts a staged `kind = 'audio'`,
 `role = 'audio'` row. Apply the constraint repair before validating the iOS
 legacy-recovery flow.
 
+Explore audio spectrogram releases are function-plus-web releases with no new
+database migration. Deploy the updated `share-scan-to-explore`,
+`update-explore-field-notes`, and `delete-scan` bundles plus the new
+`backfill-explore-audio-spectrograms` bundle before deploying `apps/web`.
+Because `_shared/audioSpectrogram.ts` and `_shared/aws.ts` are bundled into each
+dependent function, partial deployment can leave publication or deletion on an
+older lifecycle contract. After function deployment, invoke the service-role
+backfill in WAV-only batches while `generated_count` remains greater than zero,
+then deploy the web app so cached feed/detail payloads can resolve the persisted
+posters. Legacy non-WAV rows are intentionally outside the backfill candidate
+set and retain normal playback plus the speaker fallback.
+
 Field Trips releases are migration-plus-function releases too. Deploy
 `20260708021110_field_trips_v1.sql` before
 `20260708033451_field_trips_v2.sql` before
@@ -510,7 +522,8 @@ After deployment:
   `_shared/aws.ts` change.
 - For public Explore audio, confirm both audio migrations are applied,
   `GEMINI_API_KEY` exists as an Edge secret, and `identify-multimodal`,
-  `share-scan-to-explore`, `delete-scan`, `auto-purge-nonbio`, and
+  `share-scan-to-explore`, `update-explore-field-notes`, `delete-scan`,
+  `backfill-explore-audio-spectrograms`, `auto-purge-nonbio`, and
   `scan-media-health` were deployed together.
 - Confirm `/generate-upload-urls` was deployed after any
   `_shared/mediaBudgets.ts` or media-staging contract change.
@@ -531,6 +544,14 @@ After deployment:
 - Share approved and policy-violating staging audio. Confirm only approved audio
   creates/reactivates a post, web and iOS playback requires user interaction,
   widgets omit audio-only posts, and moderation logs contain no transcript or URL.
+- Share an approved WAV and confirm its audio `explore_post_media.thumbnail_url`
+  and matching `scan_media_assets.thumbnail_url` point to the same
+  `spectrogram-v1-{sha256}.png` under the recording's durable R2 directory.
+  Confirm the public home grid, post header, Open Graph metadata, and Twitter
+  metadata use the spectrogram while native audio remains user-initiated.
+- Run `backfill-explore-audio-spectrograms` on an older blank WAV snapshot and
+  confirm `generated_count` advances, a second run reuses the deterministic
+  object, and a legacy M4A remains playable with the speaker fallback.
 - Re-share the unchanged approved clip and confirm
   `explore_audio_moderation_cache_hit` appears without a second Gemini
   classification. Replace the bytes and confirm a new decision is created.
@@ -542,7 +563,8 @@ After deployment:
   moderates before publication. Repeat with the local file unavailable and
   confirm no empty or phantom public post is created.
 - Delete one disposable audio scan and purge one expired non-biological audio
-  scan; confirm their R2 objects disappear before their database rows do.
+  scan; confirm their source recordings and derived spectrogram objects
+  disappear before their database rows do.
 - Submit or replay a short video scan and verify Edge logs do not show
   `Payload Too Large` for the normal six-file manifest or
   `scan_media_assets` nullability errors during staged row creation.

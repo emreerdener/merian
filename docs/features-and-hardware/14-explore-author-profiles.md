@@ -34,7 +34,10 @@ achievement evidence.
 - The "View all published scans" button side-transitions the profile route into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
 - Library tiles open `ExplorePostDetailView` inside the same Explore navigation stack. The post detail carries the originating author-profile depth, disables insight presentation, and blocks one more author-profile hop after `profile -> scan` so users cannot recursively build `profile -> scan -> profile -> scan` stacks. Public similar-species cards can still open the species dictionary page.
 - `ExploreAuthorProfileNavigationPolicy.maxProfileDepth` is intentionally `1`: root/feed/detail/comment surfaces can open an author profile, and scans opened from that profile can still be viewed, but those nested scan details do not open another author profile.
-- Preview grids render image-only thumbnails. Species names remain available in Explore detail, but they are not overlaid on profile preview thumbnails.
+- Preview grids are thumbnail-first. Visual posts use their saved image/video
+  poster; standalone-audio posts prefer the server-projected species reference
+  image and add the waveform badge. Species names remain available in Explore
+  detail, but they are not overlaid on profile preview thumbnails.
 - Follow counts are display-only in v1. They do not open follower/following lists.
 - The follow button is asymmetric and does not create friend requests, mutual-only states, DMs, or access to private scans.
 - Logged-in/provider-derived authors keep display names such as `Emre E.` as
@@ -55,7 +58,11 @@ The feature has two separate data scopes:
 | Published Field Trips | Snapshot items from `field_trip_publications` and `field_trip_publication_items` |
 | Field Trip Challenge Badges | Badge cards from `field_trip_challenge_badges`, without scan evidence |
 
-Profile aggregates intentionally include private scans because they mirror the user's own profile stats at a high level. Published grids never include private scans, unshared posts, tombstoned scans, posts with no image media, or scans that no longer resolve to a species-backed row.
+Profile aggregates intentionally include private scans because they mirror the
+user's own profile stats at a high level. Published grids never include private
+scans, unshared posts, tombstoned scans, posts without saved public media, or
+scans that no longer resolve to a species-backed row. Audio-only posts remain
+eligible through their media snapshot plus reference-thumbnail projection.
 
 The backend returns a profile only when the target author has at least one
 Explore post currently visible to the requesting viewer or at least one visible

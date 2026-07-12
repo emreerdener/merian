@@ -78,6 +78,17 @@ Untagged posts return `[]`. The Edge function performs one batched lookup over
 the page's `post_id` values in `public.explore_post_hashtags`; feed cards must
 not fetch post detail only to render hashtag chips.
 
+## Response Media
+
+Every card includes ordered `media_items` with `kind`, playback `url`, nullable
+`thumbnail_url`, `order_index`, `duration_seconds`, and `has_audio`. Approved
+standalone WAV posts normally expose their persisted spectrogram PNG through
+`thumbnail_url`; non-WAV legacy audio can leave it blank and remains playable.
+`hero_image_url` prefers the first saved media thumbnail, so the public web home
+grid and metadata can render an audio spectrogram without fetching private scan
+state. Compact iOS author/map/profile surfaces may still intentionally prefer
+the separately projected species reference thumbnail and waveform badge.
+
 ## Response Identity
 
 Every returned card row includes:
@@ -120,7 +131,7 @@ Every mode excludes:
 
 - unshared posts
 - tombstoned scans
-- scans with no image media
+- posts with no saved public `explore_post_media` rows
 - scans without a species key
 - shadowbanned authors
 - both directions of user blocking

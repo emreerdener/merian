@@ -21,6 +21,10 @@ deployed for development and must not be treated as public launch status.
   flagged or failed checks do not change public state. An unchanged clip may
   reuse a content-addressed attestation only when its SHA-256, model, and
   derived policy-contract hash all match.
+- Approved standalone WAV media receives a deterministic persisted spectrogram
+  poster after moderation. Public web feed/detail/social surfaces reuse that
+  cached image; poster failure never changes approval or playback, and non-WAV
+  legacy posts keep the speaker fallback.
 - Standalone-audio post details offer an optional per-post **Boost audio**
   listening mode on iOS. The choice is stored only on that device by immutable
   post ID, expires after 180 days, and is capped at 500 posts. Enhancement uses
@@ -322,7 +326,8 @@ Imported historical photos and in-app captured photos should both be eligible.
 > fallback and videos/audio allowed for public posts/Community ID requests.
 > Author-post projections additionally return `reference_thumbnail_url` so
 > compact audio tiles can show species imagery without treating the recording
-> URL as an image. See
+> URL as an image. Full feed/detail and public web surfaces may instead use the
+> audio media's persisted spectrogram `thumbnail_url`. See
 > `docs/backend-and-data/04-database-schema.md#explore_post_media` for the
 > current contract.
 

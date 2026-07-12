@@ -116,6 +116,21 @@ call; changed bytes, policy versions, or models force live moderation. Cache
 failures fall back to live Gemini classification and never approve content by
 default.
 
+After standalone WAV audio is approved, `_shared/audioSpectrogram.ts` performs
+the presentation-only media step: it decodes bounded PCM WAV, applies the same
+2048-point Hann-windowed FFT, 128 mel bins, 80 Hz–16 kHz range, −80 dB floor,
+and palette used by iOS, then writes a deterministic
+`spectrogram-v1-{sha256}.png` beside the durable recording. An existing object
+with the same content-derived key is reused. The URL is copied to the audio
+`explore_post_media.thumbnail_url` snapshot and matching
+`scan_media_assets.thumbnail_url` row.
+
+Spectrogram creation never weakens or replaces moderation. It runs only after
+approval and is non-blocking: unsupported legacy codecs, malformed WAV data, or
+R2 thumbnail failures keep the recording playable with the speaker fallback.
+`backfill-explore-audio-spectrograms` applies the same deterministic generator
+to historical blank WAV snapshots in bounded service-role-only batches.
+
 ## Rules
 
 - Requires an authenticated user through `withEdgeHandler`.
@@ -125,6 +140,9 @@ default.
 - Sharing snapshots public image/video/audio URLs into `explore_post_media` for the
   post. Video posts require a public thumbnail image; otherwise the endpoint
   returns `Video thumbnail unavailable.`
+- Approved standalone WAV rows normally carry a generated PNG
+  `thumbnail_url`; non-WAV legacy rows may keep that field blank without losing
+  playback eligibility.
 - Media selections are validated before the post is reported as shared. Public
   feed/share-state visibility requires at least one saved `explore_post_media`
   row, so a failed media snapshot cannot leave a phantom visible Explore post.
@@ -135,8 +153,9 @@ default.
   `field_notes`, hashtags, captions, media metadata, or the public media
   snapshot unless the user manually writes that text into the composer.
 - When `media_items` is supplied, only the selected image/video/audio rows are written
-  to `explore_post_media`, ordered by `order_index`; the first selected item's
-  image URL or video thumbnail becomes the computed `hero_image_url`.
+  to `explore_post_media`, ordered by `order_index`; the first selected visual
+  URL, video poster, or persisted audio spectrogram becomes the computed
+  `hero_image_url`.
 - Empty media selections, unsupported media kinds, invalid source indexes, and
   videos without a thumbnail are rejected.
 - Audio moderation reuses the `GEMINI_API_KEY` Edge secret. Gemini transcripts

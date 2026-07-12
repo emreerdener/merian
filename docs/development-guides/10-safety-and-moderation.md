@@ -44,6 +44,13 @@ model change is an automatic cache miss, so changed safety rules always force a
 new Gemini decision. Cache read/write failures degrade to live moderation and
 never bypass the publication gate.
 
+Spectrogram generation is downstream presentation work, not a safety decision.
+Only after standalone WAV media is approved may `_shared/audioSpectrogram.ts`
+derive and upload its deterministic PNG. Generation failure must preserve the
+approved canonical recording and speaker fallback; it must never reinterpret a
+failed thumbnail as moderation approval, reprocess unapproved bytes, persist a
+transcript, or log a media URL.
+
 Legacy audio repair does not bypass this gate. Owner-scoped staging keys are
 promoted and persisted to the scan before selection resolution; the restored
 bytes then require the same checksum attestation or live Gemini decision as new

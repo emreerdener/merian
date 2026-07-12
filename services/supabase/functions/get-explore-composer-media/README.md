@@ -88,9 +88,11 @@ or:
   If the cloud row lacks a video item but the local scan still has a playback
   `.mp4`, the client can fall back to local media long enough to attempt
   `/share-scan-to-explore` repair.
-- Standalone audio is returned with an empty thumbnail and `has_audio = true`.
-  Extracted `video_audio`, Describe content, observation context, AI/reference
-  images, and Dictionary media are not returned as standalone items.
+- Standalone audio is returned with `has_audio = true`. A never-published audio
+  source may have an empty thumbnail; a previously shared or backfilled WAV may
+  reuse its persisted `scan_media_assets.thumbnail_url` spectrogram. Extracted
+  `video_audio`, Describe content, observation context, AI/reference images, and
+  Dictionary media are not returned as standalone items.
 - For first-share `scan_id` requests, all eligible media is selected by default.
 - For edit `post_id` requests, current public post media is marked selected and
   ordered by `selection_order_index`; eligible unselected scan media is returned

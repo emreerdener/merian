@@ -96,9 +96,11 @@ Merian is a field-ready biological identification app built around zero-friction
   audio-only posts.
 - Public Explore share pages render visual posts at
   `https://merian.earth/explore/post/{postId}` through the Next.js web app.
-  Approved audio-only posts use an audio card and native, user-initiated playback;
-  mixed posts expose their audio beneath the visual media. Audio-only posts remain
-  excluded from Home Screen widgets.
+  Approved WAV posts persist a reusable spectrogram thumbnail for the public
+  home grid, post page, and social metadata while retaining native,
+  user-initiated playback; mixed posts expose audio beneath their visual media.
+  Legacy non-WAV posts keep playback plus the speaker fallback. Audio-only posts
+  remain excluded from Home Screen widgets.
 
 ### Native Share Extensions
 - Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Merian card, or text description into the compose field.

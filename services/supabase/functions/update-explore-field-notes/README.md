@@ -53,6 +53,15 @@ thumbnail instead of relying on sampled frame indexes. Video `has_audio`
 metadata follows the selected source's actual audio evidence; legacy URL-array
 video sources default false.
 
+Standalone-audio edits use the same publication contract as first share. Every
+newly selected audible item must pass the existing content-addressed
+attestation/live moderation gate before public media changes are written. An
+approved WAV then reuses or generates its deterministic spectrogram PNG and
+copies that URL into the replacement `explore_post_media` rows plus matching
+normalized scan asset. Reordering an existing legacy audio row preserves a
+blank thumbnail instead of substituting the WAV playback URL as image media;
+web playback therefore keeps the speaker fallback safely.
+
 ## Response
 
 ```json

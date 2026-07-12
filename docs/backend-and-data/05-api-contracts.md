@@ -2893,11 +2893,12 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   Cache lookup/store failures degrade to live classification rather than
   approving by default.
 - After standalone WAV audio passes moderation,
-  `share-scan-to-explore` generates a deterministic PNG spectrogram beside the
-  durable recording and stores its URL in both the post snapshot and matching
-  normalized scan asset. This presentation step is non-blocking: unsupported
-  legacy codecs and generation failures retain playback plus the volume-icon
-  fallback. The service-role-only
+  `share-scan-to-explore` and media edits through
+  `update-explore-field-notes` generate or reuse a deterministic PNG
+  spectrogram beside the durable recording and store its URL in both the post
+  snapshot and matching normalized scan asset. This presentation step is
+  non-blocking: unsupported legacy codecs and generation failures retain
+  playback plus the volume-icon fallback. The service-role-only
   `/backfill-explore-audio-spectrograms` endpoint accepts an optional bounded
   `{ "limit": 1...200 }` batch size and repairs older blank WAV thumbnails;
   repeat while `generated_count` is greater than zero.
@@ -2933,6 +2934,32 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 - Updating the user's global/default geoprivacy or the backing scan's
   `geoprivacy` later does not overwrite an existing Explore post's explicit
   `location_sharing` choice.
+
+### `/backfill-explore-audio-spectrograms` (Internal)
+
+Service-role-only `POST` worker for historical standalone WAV
+`explore_post_media` rows with a null/blank thumbnail. `verify_jwt = false`
+allows the service-role credential through the gateway; the function still
+performs an explicit timing-safe comparison against
+`SUPABASE_SERVICE_ROLE_KEY`. It must never be called by iOS or public web code.
+
+Request:
+
+```json
+{ "limit": 50 }
+```
+
+`limit` defaults to 50 and is clamped to 1...200. Oldest candidates run first.
+Each successful item reuses or creates the deterministic PNG, updates the
+post-owned thumbnail, and best-effort updates the matching normalized scan
+asset. The worker does not change moderation, visibility, recording URLs, or
+species data.
+
+Response counters are `scanned_count`, `generated_count`,
+`unsupported_count`, and `failed_count`, plus bounded per-media `errors`.
+Repeat bounded calls while `generated_count` is greater than zero. Non-WAV
+legacy audio is not selected; malformed/mislabeled WAV increments
+`unsupported_count` and retains the playback fallback.
 
 ### `/update-explore-field-notes`
 

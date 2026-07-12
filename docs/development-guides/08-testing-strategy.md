@@ -8,6 +8,7 @@ The public web app in `apps/web/` has its own checks:
 
 ```bash
 cd apps/web
+npm test
 npm run typecheck
 npm run build
 npm audit --audit-level=moderate
@@ -16,6 +17,8 @@ npm audit --audit-level=moderate
 Run these when changing Next.js routes, Mantine UI, public metadata, Supabase
 web access, or `merian.earth` share behavior. Open Graph routes should remain
 server-rendered so link unfurlers can read metadata without client hydration.
+`lib/explorePoster.test.ts` locks visual-hero precedence, audio spectrogram
+fallback, and the missing-poster speaker fallback.
 
 ## In-Memory Database Containers (`SwiftData`)
 
@@ -585,6 +588,16 @@ video-audio metadata backfill, ingestion-job, manifest-checksum, intent-outbox,
 and replay-worker migrations.
 Run the migration contract test with `--allow-read=services/supabase/migrations`
 because it reads SQL files directly.
+
+Explore audio poster coverage is split by contract seam:
+`_shared/audioSpectrogram_test.ts` validates PCM WAV decoding, iOS-compatible
+FFT raster dimensions, PNG decompression, deterministic R2 keys, cache reuse,
+and unsupported-codec fallback; `share-scan-to-explore/db_test.ts` verifies the
+generated URL is copied into the public snapshot and normalized asset;
+`backfill-explore-audio-spectrograms/worker_test.ts` locks bounded historical
+repair; `update-explore-field-notes/db_test.ts` verifies edit media is approved
+before thumbnail attachment; and `_shared/scanMediaDeletion_test.ts` verifies
+derived thumbnails are included in coordinated R2 cleanup.
 
 ### `validate_edge_dtos.ts`
 

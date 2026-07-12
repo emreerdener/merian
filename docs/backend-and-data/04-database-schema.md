@@ -1334,6 +1334,13 @@ playable with its existing fallback instead of weakening moderation or blocking
 publication. `backfill-explore-audio-spectrograms` repairs blank historical WAV
 thumbnails in bounded service-role-only batches.
 
+Generated spectrogram objects remain scan-owned lifecycle media even though the
+post snapshot also references them. `delete-scan` reads thumbnail URLs from both
+`scan_media_assets` and linked `explore_post_media` before cascade deletion,
+deduplicates them with source media, and deletes only approved
+`public_uploads/free/` or `public_uploads/pro/` R2 keys. This prevents a partial
+thumbnail-row update from orphaning the deterministic PNG.
+
 ### `explore_post_hashtags`
 
 Normalized public tag edges for Explore posts. Added in migration

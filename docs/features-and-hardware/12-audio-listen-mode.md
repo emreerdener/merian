@@ -586,7 +586,11 @@ separate from biological identification:
 4. An approved result allows the normal atomic post/media share write to run.
    A flagged result or provider/configuration failure returns an error and
    leaves the prior Explore state unchanged; failures never publish a post.
-5. The Edge deployment reuses `GEMINI_API_KEY`. Transcripts and non-speech
+5. For standalone WAV media, the approved share/edit path generates or reuses a
+   deterministic PNG spectrogram and snapshots its URL into both post-owned and
+   normalized scan media. Thumbnail failure is non-blocking and retains the
+   speaker fallback.
+6. The Edge deployment reuses `GEMINI_API_KEY`. Transcripts and non-speech
    descriptions remain in function memory and are not written to Postgres,
    logs, or client payloads.
 
@@ -598,10 +602,12 @@ no audio, transcript, URL, filename, or user identity.
 
 Approved audio is available in the iOS Explore feed and public Next.js share
 pages. Web playback uses native browser controls, requires user interaction, and
-preloads metadata rather than the clip body. Audio-only posts use an audio card;
+preloads metadata rather than the clip body. Audio-only WAV posts use their
+persisted spectrogram on the public home grid, post header, and social metadata;
 mixed posts retain their visual hero and expose every approved audio item in
-canonical order. The widget snapshot writer still filters out audio-only posts
-before applying its 12-item cap.
+canonical order. Non-WAV legacy posts keep the speaker fallback. The widget
+snapshot writer still filters out audio-only posts before applying its 12-item
+cap.
 
 Legacy scans created before durable audio upload use an on-demand repair path.
 When the original local WAV/M4A still exists, iOS obtains an owner-scoped audio

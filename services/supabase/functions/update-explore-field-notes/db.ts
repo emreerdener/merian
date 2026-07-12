@@ -1,6 +1,10 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import {
+  buildExplorePostMediaRows,
+  type ExplorePostMediaSnapshotRow,
+} from "../_shared/explorePostMedia.ts";
+import {
+  attachAudioSpectrogramThumbnails,
   exploreAudioModerationCache,
   requireApprovedAudioMedia,
 } from "../share-scan-to-explore/db.ts";
@@ -133,19 +137,19 @@ async function replaceExplorePostMedia(
     )
     : await mediaRowsFromExistingPost(postId, mediaItems, supabaseAdmin);
 
-  await requireApprovedAudioMedia(
-    rows as Array<{
-      kind: "image" | "video" | "audio";
-      url: string;
-      thumbnail_url: string;
-      order_index: number;
-      duration_seconds: number | null;
-      has_audio: boolean;
-    }>,
-    {
-      telemetryUserId: userId,
-      cache: exploreAudioModerationCache(supabaseAdmin),
-    },
+  const snapshotRows = rows.map((row) => ({
+    kind: row.kind,
+    url: row.url,
+    thumbnail_url: row.thumbnail_url,
+    order_index: row.order_index,
+    duration_seconds: row.duration_seconds,
+    has_audio: row.has_audio,
+  })) as ExplorePostMediaSnapshotRow[];
+  const preparedRows = await prepareExplorePostMediaRows(
+    scanId,
+    userId,
+    snapshotRows,
+    supabaseAdmin,
   );
 
   const { error: deleteError } = await supabaseAdmin
@@ -161,13 +165,29 @@ async function replaceExplorePostMedia(
 
   const { error: insertError } = await supabaseAdmin
     .from("explore_post_media")
-    .insert(rows);
+    .insert(preparedRows.map((row) => ({ ...row, post_id: postId })));
 
   if (insertError) {
     throw new Error(
       `Failed to save Explore post media: ${insertError.message}`,
     );
   }
+}
+
+export async function prepareExplorePostMediaRows(
+  scanId: string,
+  userId: string,
+  rows: ExplorePostMediaSnapshotRow[],
+  supabaseAdmin: SupabaseClient,
+  approveMedia: typeof requireApprovedAudioMedia = requireApprovedAudioMedia,
+  attachThumbnails: typeof attachAudioSpectrogramThumbnails =
+    attachAudioSpectrogramThumbnails,
+): Promise<ExplorePostMediaSnapshotRow[]> {
+  await approveMedia(rows, {
+    telemetryUserId: userId,
+    cache: exploreAudioModerationCache(supabaseAdmin),
+  });
+  return await attachThumbnails(scanId, rows, supabaseAdmin);
 }
 
 async function mediaRowsFromExistingPost(
@@ -225,9 +245,9 @@ async function mediaRowsFromExistingPost(
         post_id: postId,
         kind: match.kind,
         url: match.url,
-        thumbnail_url: match.kind === "video"
-          ? match.thumbnail_url
-          : match.thumbnail_url ?? match.url,
+        thumbnail_url: match.kind === "image"
+          ? match.url
+          : match.thumbnail_url ?? "",
         order_index: offset,
         duration_seconds: match.duration_seconds,
         has_audio: match.has_audio,
