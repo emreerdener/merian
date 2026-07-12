@@ -1047,14 +1047,22 @@ struct ExplorePublicMediaView: View {
 
     @ViewBuilder
     private var posterImage: some View {
-        if let posterImageUrl = mediaItem.posterImageUrl(fallback: fallbackImageUrl) {
+        if mediaItem.kind == .audio {
+            if let spectrogramUrl = mediaItem.audioSpectrogramPosterUrl {
+                ExploreHeroImageView(
+                    imageUrl: spectrogramUrl,
+                    reloadGeneration: reloadGeneration,
+                    preloadedImage: nil
+                )
+            } else {
+                ExploreAudioSpectrogramPoster(audioUrl: mediaItem.url)
+            }
+        } else if let posterImageUrl = mediaItem.posterImageUrl(fallback: fallbackImageUrl) {
             ExploreHeroImageView(
                 imageUrl: posterImageUrl,
                 reloadGeneration: reloadGeneration,
                 preloadedImage: preloadedImage
             )
-        } else if mediaItem.kind == .audio {
-            ExploreAudioSpectrogramPoster(audioUrl: mediaItem.url)
         } else {
             ZStack {
                 Color(uiColor: .secondarySystemBackground)

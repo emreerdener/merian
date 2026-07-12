@@ -20,13 +20,7 @@ struct BiologicalView: View {
             var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
             descriptor.fetchLimit = 1
             guard let record = try? modelContext.fetch(descriptor).first else { return }
-            
-            let mediaSnapshot = record.capturedMediaSnapshot
-            let imagePaths = mediaSnapshot.thumbnailImagePaths
-            let hasCloudImage = mediaSnapshot.hasCloudImage
-            let imageCount = imagePaths.count
-            guard !hasCloudImage, imageCount <= 1 else { return }
-            
+
             HapticManager.shared.triggerSelectionPulse()
             AppEventPublisher.shared.send(.triggerRefinement(
                 scanId: record.id,

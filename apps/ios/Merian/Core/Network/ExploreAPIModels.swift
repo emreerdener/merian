@@ -77,6 +77,13 @@ struct ExploreMediaItem: Decodable, Equatable {
         return fallback.isEmpty ? nil : fallback
     }
 
+    var audioSpectrogramPosterUrl: String? {
+        guard kind == .audio else { return nil }
+        let thumbnail = thumbnailUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let thumbnail, !thumbnail.isEmpty else { return nil }
+        return thumbnail
+    }
+
     static func legacyImage(url: String) -> Self {
         ExploreMediaItem(
             kind: .image,

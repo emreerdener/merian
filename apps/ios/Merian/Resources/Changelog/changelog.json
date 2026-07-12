@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-12-candidate-review-reanalysis",
+      "date": "2026-07-12",
+      "title": "Reliable candidate reanalysis",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Reanalyze species now remains available after candidate review for cloud-backed and multi-image scans and opens the reanalysis flow after the review sheet closes."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-11-web-explore-audio-spectrograms",
       "date": "2026-07-11",
       "title": "Audio spectrograms on the web",

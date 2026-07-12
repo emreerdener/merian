@@ -14,6 +14,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Kept audio presentation scoped correctly: feed and post detail always show a
+  persisted or locally generated spectrogram, while compact Map, profile, and
+  grid thumbnails continue to use the species reference photo.
 - Added real spectrogram artwork for standalone-audio posts on the public web
   Explore grid and post pages. New WAV shares persist a deterministic thumbnail
   beside the recording, and a bounded repair worker can backfill older posts;
@@ -53,6 +56,9 @@ TestFlight, App Store, support, and QA.
 
 ### Insights
 
+- Fixed candidate review so **Reanalyze species** remains available for
+  cloud-backed and multi-image scans and reliably opens the reanalysis flow
+  after the nested review sheet closes.
 - Added consistent playback, seeking, mute, and audio-boost haptics to Insight
   media while avoiding repeated feedback from timers or playhead updates.
 - Added tap-to-seek and playmarker dragging to completed scan audio pages.

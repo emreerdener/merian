@@ -555,6 +555,7 @@ struct MerianNetworkClientTests {
         #expect(audioOnlyResponse.data.resolvedMediaItems.count == 1)
         #expect(audioOnlyResponse.data.resolvedMediaItems[0].kind == .audio)
         #expect(audioOnlyResponse.data.resolvedMediaItems[0].posterImageUrl(fallback: "") == nil)
+        #expect(audioOnlyResponse.data.resolvedMediaItems[0].audioSpectrogramPosterUrl == nil)
 
         let spectrogramAudio = ExploreMediaItem(
             kind: .audio,
@@ -565,6 +566,7 @@ struct MerianNetworkClientTests {
             hasAudio: true
         )
         #expect(spectrogramAudio.posterImageUrl(fallback: "") == "https://media.merian.app/spectrogram.webp")
+        #expect(spectrogramAudio.audioSpectrogramPosterUrl == "https://media.merian.app/spectrogram.webp")
 
         let videoWithoutThumbnail = ExploreMediaItem(
             kind: .video,

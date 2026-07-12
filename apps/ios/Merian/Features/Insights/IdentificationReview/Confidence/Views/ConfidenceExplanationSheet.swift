@@ -28,16 +28,7 @@ struct ConfidenceExplanationSheet: View {
 
     private var refinementAction: (() -> Void)? {
         guard let record = localRefinementRecord else { return nil }
-        
-        var imageCount = 0
-        if let jsonStr = record.capturedMediaJSON,
-           let jsonData = jsonStr.data(using: .utf8),
-           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-            imageCount = items.filter { if case .image = $0 { return true } else { return false } }.count
-        }
-        
-        guard imageCount <= 1 else { return nil }
-        
+
         return {
             if revenueCatManager.isProActive {
                 HapticManager.shared.triggerSelectionPulse()
@@ -195,21 +186,6 @@ struct ConfidenceExplanationSheet: View {
             }
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
             if let record = try? modelContext.fetch(descriptor).first {
-                var hasCloudImage = false
-                if let jsonStr = record.capturedMediaJSON,
-                   let jsonData = jsonStr.data(using: .utf8),
-                   let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                    for item in items {
-                        if case .image(let reference) = item, reference.isRemote {
-                            hasCloudImage = true
-                            break
-                        }
-                    }
-                }
-                if hasCloudImage {
-                    localRefinementRecord = nil
-                    return
-                }
                 localRefinementRecord = record
             } else {
                 localRefinementRecord = nil

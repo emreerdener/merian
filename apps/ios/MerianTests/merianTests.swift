@@ -166,6 +166,85 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.stagedCapture.images.first?.displayData, expectedDisplaySignature)
     }
 
+    func testStartRefinementScanWithRemoteImageEntersReanalysisFlow() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.activeSheet = .insight
+
+        let media = CapturedMediaSnapshot(items: [
+            .image(.remoteURL("https://example.com/historical-scan.jpg"))
+        ])
+        let record = LocalScanRecord(
+            speciesId: "remote-image-species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
+            capturedMediaJSON: media.jsonString
+        )
+
+        viewModel.startRefinementScan(from: record)
+
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertEqual(viewModel.baseRefinementContext?.scanId, record.id)
+        XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
+        XCTAssertTrue(viewModel.describePromptFlow.isReanalysis)
+        viewModel.cancelRefinementStaging()
+    }
+
+    func testStartRefinementScanWithMultipleImagesStagesFirstAndEntersReanalysisFlow() async throws {
+        let firstFileName = "historical-refinement-first-\(UUID().uuidString).png"
+        let secondFileName = "historical-refinement-second-\(UUID().uuidString).png"
+        let firstFileURL = URL.documentsDirectory.appendingPathComponent(firstFileName)
+        let secondFileURL = URL.documentsDirectory.appendingPathComponent(secondFileName)
+        try makePNGData(color: .systemGreen).write(to: firstFileURL)
+        try makePNGData(color: .systemOrange).write(to: secondFileURL)
+        defer {
+            try? FileManager.default.removeItem(at: firstFileURL)
+            try? FileManager.default.removeItem(at: secondFileURL)
+        }
+        let previewImage = SendableCGImage(image: makePreviewCGImage())
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { request in
+                PreparedStagedImage(
+                    compressedData: Data(request.fileURL.lastPathComponent.utf8),
+                    displayData: Data(request.fileURL.path.utf8),
+                    historicalContext: request.historicalContext,
+                    previewCGImage: previewImage
+                )
+            },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.activeSheet = .insight
+
+        let media = CapturedMediaSnapshot(items: [
+            .image(.documents(firstFileName)),
+            .image(.documents(secondFileName))
+        ])
+        let record = LocalScanRecord(
+            speciesId: "multi-image-species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
+            capturedMediaJSON: media.jsonString
+        )
+
+        viewModel.startRefinementScan(from: record)
+        try await waitUntil { !viewModel.isStagingRefinement }
+
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertEqual(viewModel.baseRefinementContext?.scanId, record.id)
+        XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
+        XCTAssertTrue(viewModel.describePromptFlow.isReanalysis)
+        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertEqual(
+            viewModel.stagedCapture.images.first?.compressedData,
+            Data(firstFileName.utf8)
+        )
+    }
+
     func testStartRefinementScanPreselectsDescribeSubjectFromOriginalScan() {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
