@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-12-video-audio-session-recovery",
+      "date": "2026-07-12",
+      "title": "Reliable video sound",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Videos in Scans, Insights, and Explore now reactivate sound when playback starts or is unmuted, without requiring an audio post to be played first."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-12-insight-fullscreen-video-controls",
       "date": "2026-07-12",
       "title": "Clearer Insight video controls",
@@ -9,7 +22,7 @@
         {
           "title": "Improved",
           "items": [
-            "Fullscreen Insight videos now use the native playback controls without a competing play button, while elevated carousel dots keep adjacent media discoverable.",
+            "Fullscreen Insight videos now use streamlined custom play or pause and mute controls, while carousel dots stay in their standard gallery position.",
             "The center of an Insight video now safely plays or pauses without opening the fullscreen media viewer; tapping elsewhere still opens the gallery.",
             "Insight-sheet videos now pause before the fullscreen media carousel opens, preventing sound from continuing underneath the viewer.",
             "Insight-sheet videos now use streamlined custom playback chrome without skip controls or a progress bar, while retaining center play or pause and mute controls."

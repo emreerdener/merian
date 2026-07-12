@@ -945,8 +945,19 @@ struct ExplorePublicMediaView: View {
         }
         .onChange(of: isMuted) { _, newValue in
             guard mediaItem.kind == .video else { return }
-            player?.isMuted = newValue
-            logPlayback("mute-changed", extra: "muted=\(newValue)")
+            guard !newValue else {
+                player?.isMuted = true
+                logPlayback("mute-changed", extra: "muted=true")
+                return
+            }
+            Task { @MainActor in
+                let activated = await MediaPlaybackAudioSession.activate(
+                    source: "media.explore.\(surface.rawValue).unmute"
+                )
+                guard activated, !isMuted else { return }
+                player?.isMuted = false
+                logPlayback("mute-changed", extra: "muted=false")
+            }
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -1996,6 +2007,21 @@ struct ExplorePublicMediaView: View {
                     )
                 }
             }
+        }
+        if mediaItem.kind == .video, !isMuted {
+            Task { @MainActor in
+                let activated = await MediaPlaybackAudioSession.activate(
+                    source: "media.explore.\(surface.rawValue).video.play"
+                )
+                guard activated, self.player === player, !isMuted else { return }
+                player.isMuted = false
+                player.play()
+                if shouldVerifyRecovery {
+                    startPlaybackRecoveryWatchdog(for: player)
+                }
+                playbackResumeIntentState.clear()
+            }
+            return
         }
         player.play()
         if shouldVerifyRecovery {

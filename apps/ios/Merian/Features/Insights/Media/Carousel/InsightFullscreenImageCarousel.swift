@@ -1,4 +1,4 @@
-import AVKit
+import AVFoundation
 import SwiftUI
 
 struct InsightFullscreenImageCarousel: View {
@@ -6,6 +6,7 @@ struct InsightFullscreenImageCarousel: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedItemID: String?
+    @State private var isVideoMuted = false
 
     private var selectedItem: InsightImageGalleryItem? {
         let fallbackID = presentation.items[safe: presentation.initialSelectedIndex]?.id
@@ -78,6 +79,24 @@ struct InsightFullscreenImageCarousel: View {
                 .accessibilityLabel("Close image viewer")
 
                 Spacer()
+
+                if selectedItem?.source.isVideo == true {
+                    Button {
+                        isVideoMuted.toggle()
+                        HapticManager.shared.triggerSelectionPulse(
+                            source: "media.insight.fullscreen.mute.\(isVideoMuted ? "on" : "off")"
+                        )
+                    } label: {
+                        Image(systemName: isVideoMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(14)
+                            .background(Circle().fill(.white.opacity(0.14)))
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isVideoMuted ? "Unmute video" : "Mute video")
+                }
             }
             .padding(.top, 12)
             .padding(.horizontal, 16)
@@ -102,7 +121,8 @@ struct InsightFullscreenImageCarousel: View {
         case .videoPath(let path):
             FullscreenVideoView(
                 path: path,
-                isSelected: item.id == selectedItem?.id
+                isSelected: item.id == selectedItem?.id,
+                isMuted: $isVideoMuted
             )
         case .referenceURL(let urlString):
             AsyncLocalImageView(
@@ -149,7 +169,7 @@ struct InsightFullscreenImageCarousel: View {
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedItem?.id)
-            .padding(.bottom, selectedItem?.source.isVideo == true ? 132 : 24)
+            .padding(.bottom, 24)
         }
     }
 }
@@ -164,32 +184,115 @@ private extension InsightImageGalleryItem.Source {
 private struct FullscreenVideoView: View {
     let path: String
     let isSelected: Bool
+    @Binding var isMuted: Bool
 
     @State private var player: AVPlayer?
+    @State private var isPlaying = false
+    @State private var playbackEndObserver: NSObjectProtocol?
 
     var body: some View {
         ZStack {
             Color.black
 
             if let player {
-                VideoPlayer(player: player)
+                InsightCoverVideoPlayer(player: player, videoGravity: .resizeAspect)
                     .ignoresSafeArea()
             } else {
                 ProgressView()
                     .tint(.white)
             }
+
+            InsightCenterVideoPlaybackControl(
+                isPlaying: isPlaying,
+                action: togglePlayback
+            )
         }
         .task(id: path) {
-            player?.pause()
-            player = resolvedURL(path).map(AVPlayer.init(url:))
+            configurePlayer()
+        }
+        .onChange(of: isMuted) { _, newValue in
+            guard !newValue else {
+                player?.isMuted = true
+                return
+            }
+            Task { @MainActor in
+                let activated = await MediaPlaybackAudioSession.activate(
+                    source: "media.insight.fullscreen.unmute"
+                )
+                guard activated, !isMuted else { return }
+                player?.isMuted = false
+            }
         }
         .onChange(of: isSelected) { _, newValue in
             if !newValue {
                 player?.pause()
+                isPlaying = false
             }
         }
         .onDisappear {
             player?.pause()
+            isPlaying = false
+            removePlaybackEndObserver()
+        }
+    }
+
+    private func configurePlayer() {
+        player?.pause()
+        removePlaybackEndObserver()
+        isPlaying = false
+
+        guard let url = resolvedURL(path) else {
+            player = nil
+            return
+        }
+
+        let configuredPlayer = AVPlayer(url: url)
+        configuredPlayer.isMuted = isMuted
+        configuredPlayer.actionAtItemEnd = .pause
+        player = configuredPlayer
+        playbackEndObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: configuredPlayer.currentItem,
+            queue: .main
+        ) { _ in
+            configuredPlayer.seek(to: .zero)
+            isPlaying = false
+        }
+    }
+
+    private func togglePlayback() {
+        guard let player else { return }
+
+        if isPlaying {
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.55,
+                source: "media.insight.fullscreen.pause"
+            )
+            player.pause()
+            isPlaying = false
+        } else {
+            HapticManager.shared.triggerMediumPulse(source: "media.insight.fullscreen.play")
+            guard !isMuted else {
+                player.play()
+                isPlaying = true
+                return
+            }
+            Task { @MainActor in
+                let activated = await MediaPlaybackAudioSession.activate(
+                    source: "media.insight.fullscreen.play"
+                )
+                guard activated, self.player === player, !isMuted else { return }
+                player.isMuted = false
+                player.play()
+                isPlaying = true
+            }
+        }
+    }
+
+    private func removePlaybackEndObserver() {
+        if let playbackEndObserver {
+            NotificationCenter.default.removeObserver(playbackEndObserver)
+            self.playbackEndObserver = nil
         }
     }
 

@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Media & Performance
 
+- Fixed videos starting silently after capture or app launch. Audible playback
+  now reactivates the shared media session across Scans, Insights, and Explore
+  without requiring an audio post to be played first.
 - Removed a priority-inversion hang risk from local and remote image decoding.
   Decode concurrency remains capped for memory safety, but excess work now
   suspends asynchronously instead of blocking user-initiated threads.
@@ -56,8 +59,9 @@ TestFlight, App Store, support, and QA.
 
 ### Insights
 
-- Improved fullscreen video viewing by removing competing playback buttons and
-  moving carousel position dots above the native playback controls.
+- Improved fullscreen video viewing with the same streamlined custom play/pause
+  and mute controls used elsewhere, while keeping carousel dots in their
+  standard gallery position.
 - Added a protected center play/pause tap area to Insight video carousels so
   playback taps no longer open the fullscreen media viewer.
 - Paused Insight-sheet video playback before opening the fullscreen media

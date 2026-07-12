@@ -233,6 +233,39 @@ final class InsightCarouselVideoPlaybackCoordinator {
     }
 }
 
+struct InsightCenterVideoPlaybackControl: View {
+    let isPlaying: Bool
+    let action: () -> Void
+
+    var body: some View {
+        ZStack {
+            if !isPlaying {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 21, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 58, height: 58)
+                    .background(.black.opacity(0.46), in: Circle())
+                    .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .frame(
+            width: InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize,
+            height: InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
+        .accessibilityAction {
+            action()
+        }
+        .animation(.easeInOut(duration: 0.22), value: isPlaying)
+    }
+}
+
 private struct VideoPlaybackCarouselPage: View {
     let path: String
     let pageIndex: Int
@@ -254,13 +287,8 @@ private struct VideoPlaybackCarouselPage: View {
         ZStack {
             Color.black
             if let player {
-                CoverVideoPlayer(player: player)
+                InsightCoverVideoPlayer(player: player)
                     .ignoresSafeArea()
-                    .onReceive(player.publisher(for: \.isMuted).removeDuplicates()) { playerIsMuted in
-                        if isMuted != playerIsMuted {
-                            isMuted = playerIsMuted
-                        }
-                    }
                     .onReceive(player.publisher(for: \.timeControlStatus).removeDuplicates()) { status in
                         switch status {
                         case .playing:
@@ -278,7 +306,10 @@ private struct VideoPlaybackCarouselPage: View {
                     .tint(.white)
             }
 
-            centerPlaybackTapTarget
+            InsightCenterVideoPlaybackControl(
+                isPlaying: isPlaying,
+                action: togglePlayback
+            )
         }
         .task(id: path) {
             configurePlayer()
@@ -287,7 +318,17 @@ private struct VideoPlaybackCarouselPage: View {
             updatePlaybackForSelection()
         }
         .onChange(of: isMuted) { _, newValue in
-            player?.isMuted = newValue
+            guard !newValue else {
+                player?.isMuted = true
+                return
+            }
+            Task { @MainActor in
+                let activated = await MediaPlaybackAudioSession.activate(
+                    source: "media.insight.carousel.unmute"
+                )
+                guard activated, !isMuted else { return }
+                player?.isMuted = false
+            }
         }
         .onChange(of: shouldLoopDuringProcessing) { _, _ in
             if let player {
@@ -309,34 +350,6 @@ private struct VideoPlaybackCarouselPage: View {
     private var fullscreenPresentationPausePublisher: AnyPublisher<Void, Never> {
         playbackCoordinator?.pauseForFullscreenPresentationPublisher
             ?? Empty().eraseToAnyPublisher()
-    }
-
-    private var centerPlaybackTapTarget: some View {
-        ZStack {
-            if !isPlaying {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 21, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 58, height: 58)
-                    .background(.black.opacity(0.46), in: Circle())
-                    .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
-                    .allowsHitTesting(false)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            }
-        }
-        .frame(
-            width: InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize,
-            height: InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: togglePlayback)
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
-        .accessibilityAction {
-            togglePlayback()
-        }
-        .animation(.easeInOut(duration: 0.22), value: isPlaying)
     }
 
     private func configurePlayer() {
@@ -379,9 +392,8 @@ private struct VideoPlaybackCarouselPage: View {
             player.seek(to: .zero)
         }
         player.isMuted = isMuted
-        player.play()
         hasAutoplayed = true
-        isPlaying = true
+        play(player, source: "media.insight.carousel.autoplay")
     }
 
     private func togglePlayback() {
@@ -396,9 +408,8 @@ private struct VideoPlaybackCarouselPage: View {
             isPlaying = false
         } else {
             HapticManager.shared.triggerMediumPulse(source: "media.insight.carousel.play")
-            player.play()
             hasAutoplayed = true
-            isPlaying = true
+            play(player, source: "media.insight.carousel.play")
         }
     }
 
@@ -411,11 +422,26 @@ private struct VideoPlaybackCarouselPage: View {
         ) { _ in
             player.seek(to: .zero)
             if shouldLoopDuringProcessing, isSelected {
-                player.play()
-                isPlaying = true
+                play(player, source: "media.insight.carousel.loop")
             } else {
                 isPlaying = false
             }
+        }
+    }
+
+    private func play(_ player: AVPlayer, source: String) {
+        guard !isMuted else {
+            player.play()
+            isPlaying = true
+            return
+        }
+
+        Task { @MainActor in
+            let activated = await MediaPlaybackAudioSession.activate(source: source)
+            guard activated, self.player === player, !isMuted else { return }
+            player.isMuted = false
+            player.play()
+            isPlaying = true
         }
     }
 
@@ -436,12 +462,14 @@ private struct VideoPlaybackCarouselPage: View {
     }
 }
 
-private struct CoverVideoPlayer: UIViewRepresentable {
+struct InsightCoverVideoPlayer: UIViewRepresentable {
     let player: AVPlayer
+    var videoGravity: AVLayerVideoGravity = .resizeAspectFill
 
     func makeUIView(context: Context) -> InsightPlayerLayerView {
         let view = InsightPlayerLayerView()
         view.playerLayer.player = player
+        view.playerLayer.videoGravity = videoGravity
         return view
     }
 
@@ -449,7 +477,7 @@ private struct CoverVideoPlayer: UIViewRepresentable {
         if view.playerLayer.player !== player {
             view.playerLayer.player = player
         }
-        view.playerLayer.videoGravity = .resizeAspectFill
+        view.playerLayer.videoGravity = videoGravity
     }
 
     static func dismantleUIView(_ view: InsightPlayerLayerView, coordinator: ()) {
@@ -457,7 +485,7 @@ private struct CoverVideoPlayer: UIViewRepresentable {
     }
 }
 
-private final class InsightPlayerLayerView: UIView {
+final class InsightPlayerLayerView: UIView {
     override static var layerClass: AnyClass {
         AVPlayerLayer.self
     }

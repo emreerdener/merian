@@ -43,6 +43,23 @@ actor AudioSessionCoordinator {
     }
 }
 
+enum MediaPlaybackAudioSession {
+    /// AVPlayer does not reliably reactivate output after capture leaves the shared session
+    /// inactive or configured for recording. Call this before starting audible media.
+    @discardableResult
+    static func activate(source: String) async -> Bool {
+        do {
+            _ = try await AudioSessionCoordinator.shared.activate(.playback)
+            return true
+        } catch {
+            MerianLog.general.error(
+                "Media playback audio-session activation failed: source=\(source, privacy: .public) error=\(error, privacy: .private)"
+            )
+            return false
+        }
+    }
+}
+
 enum AudioCaptureError: LocalizedError {
     case microphonePermissionDenied
     case hardwareSampleRateZero
