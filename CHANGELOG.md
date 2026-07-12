@@ -56,6 +56,15 @@ TestFlight, App Store, support, and QA.
 
 ### Insights
 
+- Improved fullscreen video viewing by removing competing playback buttons and
+  moving carousel position dots above the native playback controls.
+- Added a protected center play/pause tap area to Insight video carousels so
+  playback taps no longer open the fullscreen media viewer.
+- Paused Insight-sheet video playback before opening the fullscreen media
+  carousel so sound cannot continue from the covered sheet underneath.
+- Replaced native Insight-sheet video chrome with the streamlined Explore-style
+  player, removing skip controls and the progress bar while preserving the
+  center play/pause target and mute control.
 - Fixed candidate review so **Reanalyze species** remains available for
   cloud-backed and multi-image scans and reliably opens the reanalysis flow
   after the nested review sheet closes.

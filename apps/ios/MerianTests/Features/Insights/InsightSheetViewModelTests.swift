@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftData
 import Testing
@@ -1094,6 +1095,65 @@ struct InsightSheetViewModelTests {
             "reference-https://example.com/reference.jpg"
         ])
         #expect(presentation?.initialSelectedIndex == 1)
+    }
+
+    @Test func testInsightImageGalleryPresentationIncludesSelectedVideoPage() {
+        let videoPath = "documents/observation.mp4"
+        let media = ActiveScanMedia(
+            items: [
+                .image("documents/poster.webp"),
+                .video(videoPath)
+            ],
+            referenceState: .loaded(["https://example.com/reference.jpg"])
+        )
+
+        let presentation = InsightImageGalleryBuilder.presentation(
+            for: media,
+            referenceWikipediaUrl: nil,
+            selectedCarouselPageID: "video-\(videoPath)"
+        )
+
+        #expect(presentation?.items.map(\.id) == [
+            "image-documents/poster.webp",
+            "video-\(videoPath)",
+            "reference-https://example.com/reference.jpg"
+        ])
+        #expect(presentation?.initialSelectedIndex == 1)
+    }
+
+    @Test func testInsightVideoCenterPlaybackZoneProtectsNavigationTap() {
+        let containerSize = CGSize(width: 390, height: 440)
+        let center = CGPoint(x: containerSize.width / 2, y: containerSize.height / 2)
+
+        #expect(InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize == 96)
+        #expect(InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+            location: center,
+            containerSize: containerSize,
+            mediaKind: .video
+        ))
+        #expect(!InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+            location: CGPoint(x: 24, y: 24),
+            containerSize: containerSize,
+            mediaKind: .video
+        ))
+        #expect(!InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+            location: center,
+            containerSize: containerSize,
+            mediaKind: .visual
+        ))
+    }
+
+    @Test func testInsightVideoPlaybackCoordinatorPausesBeforeFullscreenPresentation() {
+        let coordinator = InsightCarouselVideoPlaybackCoordinator()
+        var pauseCommandCount = 0
+        let cancellable = coordinator.pauseForFullscreenPresentationPublisher.sink {
+            pauseCommandCount += 1
+        }
+
+        coordinator.pauseForFullscreenPresentation()
+
+        #expect(pauseCommandCount == 1)
+        withExtendedLifetime(cancellable) {}
     }
 
     @Test func testInsightImageGalleryPresentationIgnoresNonVisualPages() {

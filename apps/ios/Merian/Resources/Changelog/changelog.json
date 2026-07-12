@@ -2,6 +2,22 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-12-insight-fullscreen-video-controls",
+      "date": "2026-07-12",
+      "title": "Clearer Insight video controls",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Fullscreen Insight videos now use the native playback controls without a competing play button, while elevated carousel dots keep adjacent media discoverable.",
+            "The center of an Insight video now safely plays or pauses without opening the fullscreen media viewer; tapping elsewhere still opens the gallery.",
+            "Insight-sheet videos now pause before the fullscreen media carousel opens, preventing sound from continuing underneath the viewer.",
+            "Insight-sheet videos now use streamlined custom playback chrome without skip controls or a progress bar, while retaining center play or pause and mute controls."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-12-candidate-review-reanalysis",
       "date": "2026-07-12",
       "title": "Reliable candidate reanalysis",

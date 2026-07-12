@@ -116,6 +116,23 @@ struct ExplorePostDetailView: View {
         audioBoostActionToken = nil
     }
 
+    private func toggleAudioBoostFromMedia() {
+        if !isAudioBoostEnabled {
+            audioBoostActionToken = UUID()
+        }
+        isAudioBoostEnabled.toggle()
+        if isAudioBoostEnabled {
+            HapticManager.shared.triggerMediumPulse(
+                source: "media.explore.detail.audioBoost.enabled"
+            )
+        } else {
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.5,
+                source: "media.explore.detail.audioBoost.disabled"
+            )
+        }
+    }
+
     var body: some View {
         Group {
             if let post = currentPost {
@@ -141,7 +158,8 @@ struct ExplorePostDetailView: View {
                                 reloadGeneration: viewModel.mediaReloadGeneration,
                                 audioBoostEnabled: $isAudioBoostEnabled,
                                 audioBoostActionToken: audioBoostActionToken,
-                                onAudioBoostActionFinished: finishAudioBoostAction
+                                onAudioBoostActionFinished: finishAudioBoostAction,
+                                onAudioBoostToggleRequested: toggleAudioBoostFromMedia
                             )
 
                             ExplorePostDetailActionRow(

@@ -532,6 +532,7 @@ struct ExploreDetailMediaView: View {
     @Binding var audioBoostEnabled: Bool
     let audioBoostActionToken: UUID?
     let onAudioBoostActionFinished: ((UUID) -> Void)?
+    let onAudioBoostToggleRequested: (() -> Void)?
 
     init(
         imageUrl: String,
@@ -541,7 +542,8 @@ struct ExploreDetailMediaView: View {
         allowsZoom: Bool = true,
         audioBoostEnabled: Binding<Bool> = .constant(false),
         audioBoostActionToken: UUID? = nil,
-        onAudioBoostActionFinished: ((UUID) -> Void)? = nil
+        onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
+        onAudioBoostToggleRequested: (() -> Void)? = nil
     ) {
         self.imageUrl = imageUrl
         self.mediaItems = mediaItems?.isEmpty == false ? mediaItems! : [.legacyImage(url: imageUrl)]
@@ -551,6 +553,7 @@ struct ExploreDetailMediaView: View {
         self._audioBoostEnabled = audioBoostEnabled
         self.audioBoostActionToken = audioBoostActionToken
         self.onAudioBoostActionFinished = onAudioBoostActionFinished
+        self.onAudioBoostToggleRequested = onAudioBoostToggleRequested
     }
 
     var body: some View {
@@ -589,7 +592,8 @@ struct ExploreDetailMediaView: View {
             allowsAutoplayInLowPowerMode: true,
             audioBoostEnabled: audioBoostEnabled,
             audioBoostActionToken: audioBoostActionToken,
-            onAudioBoostActionFinished: onAudioBoostActionFinished
+            onAudioBoostActionFinished: onAudioBoostActionFinished,
+            onAudioBoostToggleRequested: onAudioBoostToggleRequested
         )
     }
 }
@@ -708,7 +712,7 @@ enum ExploreFeedAudioBoostPillState: Equatable {
         isBoostedAudioReady: Bool,
         hasToggleAction: Bool
     ) -> Self? {
-        guard case .feed = surface,
+        guard surface == .feed || surface == .detail,
               mediaKind == .audio,
               hasToggleAction else { return nil }
         if isBoostEnabled && isPreparingBoost { return .boosting }

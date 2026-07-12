@@ -100,7 +100,10 @@ struct InsightFullscreenImageCarousel: View {
                 onImageLoadFailed: nil
             )
         case .videoPath(let path):
-            FullscreenVideoView(path: path)
+            FullscreenVideoView(
+                path: path,
+                isSelected: item.id == selectedItem?.id
+            )
         case .referenceURL(let urlString):
             AsyncLocalImageView(
                 path: nil,
@@ -146,7 +149,7 @@ struct InsightFullscreenImageCarousel: View {
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedItem?.id)
-            .padding(.bottom, 24)
+            .padding(.bottom, selectedItem?.source.isVideo == true ? 132 : 24)
         }
     }
 }
@@ -160,9 +163,9 @@ private extension InsightImageGalleryItem.Source {
 
 private struct FullscreenVideoView: View {
     let path: String
+    let isSelected: Bool
 
     @State private var player: AVPlayer?
-    @State private var isPlaying = false
 
     var body: some View {
         ZStack {
@@ -171,56 +174,23 @@ private struct FullscreenVideoView: View {
             if let player {
                 VideoPlayer(player: player)
                     .ignoresSafeArea()
-                    .onTapGesture {
-                        togglePlayback()
-                    }
             } else {
                 ProgressView()
                     .tint(.white)
             }
-
-            VStack {
-                Spacer()
-
-                HStack {
-                    Spacer()
-
-                    Button(action: togglePlayback) {
-                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 52, height: 52)
-                            .background(Circle().fill(.white.opacity(0.14)))
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
-                }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 78)
-            }
         }
         .task(id: path) {
             player?.pause()
-            isPlaying = false
             player = resolvedURL(path).map(AVPlayer.init(url:))
+        }
+        .onChange(of: isSelected) { _, newValue in
+            if !newValue {
+                player?.pause()
+            }
         }
         .onDisappear {
             player?.pause()
-            isPlaying = false
         }
-    }
-
-    private func togglePlayback() {
-        guard let player else { return }
-        if isPlaying {
-            player.pause()
-            HapticManager.shared.triggerLightImpact(intensity: 0.55)
-        } else {
-            player.play()
-            HapticManager.shared.triggerMediumPulse()
-        }
-        isPlaying.toggle()
     }
 
     private func resolvedURL(_ rawPath: String) -> URL? {

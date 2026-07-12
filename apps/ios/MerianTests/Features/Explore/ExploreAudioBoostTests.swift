@@ -131,14 +131,14 @@ struct ExploreAudioBoostTests {
         #expect(boosted?.accessibilityLabel == "Turn off audio boost")
     }
 
-    @Test func feedBoostPillIsLimitedToInteractiveFeedAudio() {
+    @Test func exploreBoostPillIsLimitedToInteractiveFeedAndDetailAudio() {
         #expect(ExploreFeedAudioBoostPillState.resolve(
             surface: .detail,
             mediaKind: .audio,
             isBoostEnabled: false,
             isBoostedAudioReady: false,
             hasToggleAction: true
-        ) == nil)
+        ) == .boost)
         #expect(ExploreFeedAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .video,

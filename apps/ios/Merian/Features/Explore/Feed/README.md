@@ -68,11 +68,12 @@ Autoplay, playhead ticks, saved-setting restoration, and cross-surface state
 updates never emit haptics. Explicit audio-boost failures use the standard error
 feedback and respect the global haptics and expedition-mode preferences.
 
-Feed cards with standalone primary audio expose a compact, filled **Boost audio**
-pill at the bottom-left of the spectrogram, while feed-card and post-detail
-ellipsis menus retain the same action. The feed pill owns its hit-test region,
-so tapping it never opens post detail; the rest of the media keeps the existing
-navigation and center-playback behavior. `ExploreAudioBoostPreferenceStore`
+Feed cards and post detail with standalone primary audio expose a compact,
+filled **Boost audio** pill at the bottom-left of the spectrogram, while their
+ellipsis menus retain the same action. The pill owns its hit-test region above
+feed navigation and detail spectrogram-seeking gestures; the rest of the media
+keeps the existing navigation, seeking, and center-playback behavior.
+`ExploreAudioBoostPreferenceStore`
 remembers enabled post IDs locally for 180 days, capped at 500 entries, so each
 post has an independent setting. An in-process preference notification keeps
 visible feed and detail players synchronized. Preferences are device-only and

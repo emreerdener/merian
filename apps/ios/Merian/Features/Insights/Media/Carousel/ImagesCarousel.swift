@@ -1,4 +1,4 @@
-import AVKit
+import AVFoundation
 import Combine
 import SwiftUI
 
@@ -9,6 +9,7 @@ struct CarouselPageBuilder {
         isProcessing: Bool = false,
         selectedIndex: Binding<Int> = .constant(0),
         isVideoMuted: Binding<Bool> = .constant(true),
+        videoPlaybackCoordinator: InsightCarouselVideoPlaybackCoordinator? = nil,
         isAudioBoostEnabled: Binding<Bool> = .constant(false),
         audioBoostActionToken: UUID? = nil,
         onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
@@ -62,7 +63,8 @@ struct CarouselPageBuilder {
                         pageIndex: pageIndex,
                         selectedIndex: selectedIndex,
                         isMuted: isVideoMuted,
-                        shouldLoopDuringProcessing: isProcessing
+                        shouldLoopDuringProcessing: isProcessing,
+                        playbackCoordinator: videoPlaybackCoordinator
                     ))
                 ))
             }
@@ -198,12 +200,46 @@ enum CarouselMediaKind {
     case description
 }
 
+enum InsightCarouselMediaInteractionPolicy {
+    static let centerPlaybackHitSize: CGFloat = 96
+
+    static func isCenterPlaybackTap(
+        location: CGPoint,
+        containerSize: CGSize,
+        mediaKind: CarouselMediaKind
+    ) -> Bool {
+        guard case .video = mediaKind else { return false }
+
+        let hitSize = centerPlaybackHitSize
+        let hitFrame = CGRect(
+            x: (containerSize.width - hitSize) / 2,
+            y: (containerSize.height - hitSize) / 2,
+            width: hitSize,
+            height: hitSize
+        )
+        return hitFrame.contains(location)
+    }
+}
+
+final class InsightCarouselVideoPlaybackCoordinator {
+    private let pauseForFullscreenPresentationSubject = PassthroughSubject<Void, Never>()
+
+    var pauseForFullscreenPresentationPublisher: AnyPublisher<Void, Never> {
+        pauseForFullscreenPresentationSubject.eraseToAnyPublisher()
+    }
+
+    func pauseForFullscreenPresentation() {
+        pauseForFullscreenPresentationSubject.send()
+    }
+}
+
 private struct VideoPlaybackCarouselPage: View {
     let path: String
     let pageIndex: Int
     @Binding var selectedIndex: Int
     @Binding var isMuted: Bool
     let shouldLoopDuringProcessing: Bool
+    let playbackCoordinator: InsightCarouselVideoPlaybackCoordinator?
 
     @State private var player: AVPlayer?
     @State private var hasAutoplayed = false
@@ -225,10 +261,24 @@ private struct VideoPlaybackCarouselPage: View {
                             isMuted = playerIsMuted
                         }
                     }
+                    .onReceive(player.publisher(for: \.timeControlStatus).removeDuplicates()) { status in
+                        switch status {
+                        case .playing:
+                            isPlaying = true
+                        case .paused:
+                            isPlaying = false
+                        case .waitingToPlayAtSpecifiedRate:
+                            break
+                        @unknown default:
+                            break
+                        }
+                    }
             } else {
                 ProgressView()
                     .tint(.white)
             }
+
+            centerPlaybackTapTarget
         }
         .task(id: path) {
             configurePlayer()
@@ -245,11 +295,48 @@ private struct VideoPlaybackCarouselPage: View {
             }
             updatePlaybackForSelection()
         }
+        .onReceive(fullscreenPresentationPausePublisher) {
+            player?.pause()
+            isPlaying = false
+        }
         .onDisappear {
             player?.pause()
             isPlaying = false
             removePlaybackEndObserver()
         }
+    }
+
+    private var fullscreenPresentationPausePublisher: AnyPublisher<Void, Never> {
+        playbackCoordinator?.pauseForFullscreenPresentationPublisher
+            ?? Empty().eraseToAnyPublisher()
+    }
+
+    private var centerPlaybackTapTarget: some View {
+        ZStack {
+            if !isPlaying {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 21, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 58, height: 58)
+                    .background(.black.opacity(0.46), in: Circle())
+                    .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 6)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .frame(
+            width: InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize,
+            height: InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: togglePlayback)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
+        .accessibilityAction {
+            togglePlayback()
+        }
+        .animation(.easeInOut(duration: 0.22), value: isPlaying)
     }
 
     private func configurePlayer() {
@@ -297,6 +384,24 @@ private struct VideoPlaybackCarouselPage: View {
         isPlaying = true
     }
 
+    private func togglePlayback() {
+        guard let player else { return }
+
+        if isPlaying {
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.55,
+                source: "media.insight.carousel.pause"
+            )
+            player.pause()
+            isPlaying = false
+        } else {
+            HapticManager.shared.triggerMediumPulse(source: "media.insight.carousel.play")
+            player.play()
+            hasAutoplayed = true
+            isPlaying = true
+        }
+    }
+
     private func installPlaybackEndObserver(for player: AVPlayer) {
         removePlaybackEndObserver()
         playbackEndObserver = NotificationCenter.default.addObserver(
@@ -331,23 +436,47 @@ private struct VideoPlaybackCarouselPage: View {
     }
 }
 
-private struct CoverVideoPlayer: UIViewControllerRepresentable {
+private struct CoverVideoPlayer: UIViewRepresentable {
     let player: AVPlayer
 
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.videoGravity = .resizeAspectFill
-        controller.showsPlaybackControls = true
-        controller.view.backgroundColor = .black
-        return controller
+    func makeUIView(context: Context) -> InsightPlayerLayerView {
+        let view = InsightPlayerLayerView()
+        view.playerLayer.player = player
+        return view
     }
 
-    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        if controller.player !== player {
-            controller.player = player
+    func updateUIView(_ view: InsightPlayerLayerView, context: Context) {
+        if view.playerLayer.player !== player {
+            view.playerLayer.player = player
         }
-        controller.videoGravity = .resizeAspectFill
+        view.playerLayer.videoGravity = .resizeAspectFill
+    }
+
+    static func dismantleUIView(_ view: InsightPlayerLayerView, coordinator: ()) {
+        view.playerLayer.player = nil
+    }
+}
+
+private final class InsightPlayerLayerView: UIView {
+    override static var layerClass: AnyClass {
+        AVPlayerLayer.self
+    }
+
+    var playerLayer: AVPlayerLayer {
+        layer as! AVPlayerLayer
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = true
+        backgroundColor = .black
+        clipsToBounds = true
+        playerLayer.videoGravity = .resizeAspectFill
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 
@@ -439,40 +568,43 @@ struct ImagesCarousel: View {
     // MARK: - State
     @State private var selectedIndex: Int = 0
     @State private var isVideoMuted = true
+    @State private var videoPlaybackCoordinator = InsightCarouselVideoPlaybackCoordinator()
 
     // MARK: - Body
     var body: some View {
         Group {
             if activeMedia.totalItems > 0 {
-                NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
-                    // scanId only — activeMedia.totalItems changes async when validHistoricImagePaths resolves.
-                    // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
-                    .id(scanId ?? "null")
-                    .ignoresSafeArea(.all, edges: .top)
-                    .overlay(alignment: .bottom) { paginationDots }
-                    .overlay(alignment: .bottomTrailing) { referenceAttributionTag }
-                    .overlay(alignment: .top) {
-                        LinearGradient(
-                            colors: [.black.opacity(0.4), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
+                GeometryReader { geometry in
+                    NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
+                        // scanId only — activeMedia.totalItems changes async when validHistoricImagePaths resolves.
+                        // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
+                        .id(scanId ?? "null")
+                        .ignoresSafeArea(.all, edges: .top)
+                        .overlay(alignment: .bottom) { paginationDots }
+                        .overlay(alignment: .bottomTrailing) { referenceAttributionTag }
+                        .overlay(alignment: .top) {
+                            LinearGradient(
+                                colors: [.black.opacity(0.4), .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 120)
+                            .allowsHitTesting(false)
+                        }
+                        .overlay {
+                            if isProcessing {
+                                AnalyzingMediaOverlay(kind: selectedMediaKind)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .simultaneousGesture(
+                            SpatialTapGesture().onEnded { value in
+                                handleCarouselTap(at: value.location, containerSize: geometry.size)
+                            }
                         )
-                        .frame(height: 120)
-                        .allowsHitTesting(false)
-                    }
-                    .overlay {
-                        if isProcessing {
-                            AnalyzingMediaOverlay(kind: selectedMediaKind)
-                                .transition(.opacity)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .simultaneousGesture(
-                        TapGesture().onEnded {
-                            handleVisualImageTap()
-                        }
-                    )
-                    .overlay(alignment: .bottomLeading) { videoMuteControl }
+                        .overlay(alignment: .bottomLeading) { videoMuteControl }
+                }
             } else {
                 Color.black
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -490,6 +622,7 @@ struct ImagesCarousel: View {
             isProcessing: isProcessing,
             selectedIndex: $selectedIndex,
             isVideoMuted: $isVideoMuted,
+            videoPlaybackCoordinator: videoPlaybackCoordinator,
             isAudioBoostEnabled: $isAudioBoostEnabled,
             audioBoostActionToken: audioBoostActionToken,
             onAudioBoostActionFinished: onAudioBoostActionFinished,
@@ -508,6 +641,16 @@ struct ImagesCarousel: View {
     }
 
     // MARK: - Action Handlers
+    private func handleCarouselTap(at location: CGPoint, containerSize: CGSize) {
+        guard !InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+            location: location,
+            containerSize: containerSize,
+            mediaKind: selectedMediaKind
+        ) else { return }
+
+        handleVisualImageTap()
+    }
+
     private func handleVisualImageTap() {
         let selectedPageID = carouselPages[safe: selectedIndex]?.id
         guard let presentation = InsightImageGalleryBuilder.presentation(
@@ -516,6 +659,7 @@ struct ImagesCarousel: View {
             selectedCarouselPageID: selectedPageID
         ) else { return }
 
+        videoPlaybackCoordinator.pauseForFullscreenPresentation()
         onVisualImageTap?(presentation)
     }
 
