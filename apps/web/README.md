@@ -18,6 +18,11 @@ public web app never downloads recordings to calculate FFT data in a visitor's
 browser; blank or unsupported legacy thumbnails retain the volume-icon fallback
 and normal `<audio>` playback.
 
+Post-detail audio slides include an optional browser-local **Boost audio** mode.
+Only boost requests use the allowlisted `/api/explore/audio` WAV stream; Web
+Audio applies conservative gain, rumble filtering, and peak limiting without
+uploading or changing the canonical recording.
+
 The production domain is:
 
 ```text

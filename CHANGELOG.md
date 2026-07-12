@@ -17,6 +17,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added an optional **Boost audio** control to public web audio posts. It makes
+  quiet recordings easier to hear with browser-local gain, rumble filtering,
+  and peak limiting while leaving the published recording unchanged.
 - Updated the public web discovery grid to show the species reference image for
   audio posts while retaining the spectrogram and playback controls on post
   detail pages.

@@ -6,13 +6,14 @@ import { IconVolume } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ExplorePostMediaItem, ExploreReferenceImage } from "@/lib/explore";
 import { buildExploreVisualSlides } from "@/lib/exploreVisualMedia";
-import { captureAudioTelemetry, markAudioPlaybackStarted } from "@/lib/audioTelemetry";
+import { ExploreBoostedAudio } from "@/components/ExploreBoostedAudio";
 
 type ExploreMediaCarouselProps = {
   mediaItems: ExplorePostMediaItem[];
   heroImageUrl: string | null;
   referenceImages: ExploreReferenceImage[];
   altText: string;
+  postId: string;
 };
 
 export function ExploreMediaCarousel({
@@ -20,10 +21,10 @@ export function ExploreMediaCarousel({
   heroImageUrl,
   referenceImages,
   altText,
+  postId,
 }: ExploreMediaCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const videoElements = useRef(new Map<number, HTMLVideoElement>());
-  const startedAudioItems = useRef(new Set<string>());
   const slides = useMemo(() => buildExploreVisualSlides({
     mediaItems,
     heroImageUrl,
@@ -107,22 +108,7 @@ export function ExploreMediaCarousel({
                     zIndex: 2,
                   }}
                 >
-                  <Text c="white" size="sm" fw={700} mb={8}>Field recording</Text>
-                  <audio
-                    controls
-                    preload="metadata"
-                    src={slide.url}
-                    aria-label={`Play field recording for ${altText}`}
-                    style={{ width: "100%", display: "block" }}
-                    onPlay={() => {
-                      if (!markAudioPlaybackStarted(startedAudioItems.current, slide.url)) return;
-                      captureAudioTelemetry("ExploreAudioPlaybackStarted", "detail_media_carousel");
-                    }}
-                    onEnded={() => captureAudioTelemetry("ExploreAudioPlaybackCompleted", "detail_media_carousel")}
-                    onError={() => captureAudioTelemetry("ExploreAudioPlaybackFailed", "detail_media_carousel")}
-                  >
-                    Your browser does not support audio playback.
-                  </audio>
+                  <ExploreBoostedAudio audioUrl={slide.url} postId={postId} altText={altText} />
                 </Box>
               </>
             ) : (

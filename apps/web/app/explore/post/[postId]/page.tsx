@@ -179,6 +179,7 @@ export default async function ExplorePostPage({
             heroImageUrl={post.heroImageUrl}
             referenceImages={detail?.referenceImages ?? []}
             altText={title}
+            postId={post.postId}
           />
 
           <Stack gap="lg" p={{ base: "md", sm: "xl" }}>

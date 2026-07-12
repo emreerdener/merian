@@ -1,7 +1,8 @@
 export type AudioTelemetryEvent =
   | "ExploreAudioPlaybackStarted"
   | "ExploreAudioPlaybackCompleted"
-  | "ExploreAudioPlaybackFailed";
+  | "ExploreAudioPlaybackFailed"
+  | "ExploreAudioBoostChanged";
 
 type AudioTelemetryEnvironment = {
   apiKey?: string;
