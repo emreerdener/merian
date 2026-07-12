@@ -708,7 +708,7 @@ Implementation guardrail:
 
 The map should not be powered by `get-explore-feed`.
 
-Recommended new endpoint:
+Shipped endpoint:
 
 - `get-explore-map-points`
 
@@ -721,7 +721,9 @@ Request shape:
   "east_longitude": -87.568,
   "west_longitude": -87.742,
   "zoom_level": 12.3,
-  "limit": 300
+  "limit": 300,
+  "species_categories": ["birds", "insects"],
+  "media_types": ["image", "audio"]
 }
 ```
 
@@ -731,6 +733,15 @@ Response shape:
 {
   "mode": "clusters",
   "visible_count": 243,
+  "category_counts": [
+    { "category": "birds", "count": 82 },
+    { "category": "insects", "count": 51 }
+  ],
+  "media_type_counts": [
+    { "media_type": "image", "count": 132 },
+    { "media_type": "video", "count": 71 },
+    { "media_type": "audio", "count": 40 }
+  ],
   "clusters": [
     {
       "id": "3015:2057",
@@ -747,6 +758,14 @@ Response shape:
 {
   "mode": "posts",
   "visible_count": 24,
+  "category_counts": [
+    { "category": "birds", "count": 12 }
+  ],
+  "media_type_counts": [
+    { "media_type": "image", "count": 14 },
+    { "media_type": "video", "count": 6 },
+    { "media_type": "audio", "count": 4 }
+  ],
   "clusters": [],
   "posts": [
     {
@@ -771,7 +790,17 @@ Response shape:
       "like_count": 12,
       "comment_count": 3,
       "viewer_has_liked": false,
-      "is_owned_by_viewer": false
+      "is_owned_by_viewer": false,
+      "media_items": [
+        {
+          "kind": "image",
+          "url": "https://...",
+          "thumbnail_url": "https://...",
+          "order_index": 0,
+          "duration_seconds": null,
+          "has_audio": false
+        }
+      ]
     }
   ]
 }
@@ -781,6 +810,15 @@ Implementation notes:
 
 - Broad zooms should return cluster rows rather than individual posts
 - Close zooms should return individual posts
+- Optional `species_categories` and `media_types` arrays are multi-select OR
+  filters within their groups; species and media groups intersect
+- Category counts are computed after media filtering, while media-type counts
+  are computed after species filtering, so each sheet section reflects the
+  other section's active choices
+- A post matches a selected media type when any authoritative `media_items`
+  entry has that kind. A video item's audio track does not classify it as an
+  audio post; legacy rows without media items count as images only when they
+  retain a non-empty hero image
 - The endpoint should keep the same blocking, shadowban, media-availability, missing-species, and unshared-post exclusions as `get-explore-feed`
 - The endpoint should require post-level `location_sharing = 'open'` and stored post-owned public coordinates for map rows
 - The endpoint should enforce a hard row cap to prevent pathological city-scale payloads
@@ -791,7 +829,9 @@ Clustering strategy:
 - Plain Postgres bounding-box filtering plus zoom-dependent grid bucketing is sufficient
 - Bucket coordinates using a zoom-dependent snapped grid such as rounded lat/lon cells or `width_bucket`
 - A cluster ID can be derived from the zoom bucket and snapped cell coordinates
-- The shipped SQL path already uses a partial public-coordinate index at the scan layer (`idx_scans_public_coordinates_active`); if we ever move to stored post-owned coordinates, add the equivalent index on that projection too
+- The shipped read path uses stored post-owned public coordinates; keep its
+  partial index aligned with the active/open map eligibility predicate whenever
+  that projection changes
 
 ### Map Preview Payload
 
@@ -799,7 +839,8 @@ The map point payload should be rich enough to render a compact card immediately
 
 The preview card needs:
 
-- Hero image
+- A visual-media poster or species reference thumbnail, plus ordered
+  `media_items` for audio/video badges
 - Common name
 - Scientific name
 - Public location label
@@ -831,9 +872,14 @@ Current shipped state on `ExploreMapViewModel`:
 - `posts`
 - `selectedPostId`
 - `visibleCount`
+- `categoryCounts`
+- `mediaTypeCounts`
+- `selectedSpeciesCategories`
+- `selectedMediaTypes`
 - `isOffline`
 - a computed `showsThumbnailWaypoints` gate derived from the active region zoom plus visible post count
-- an in-memory recent-region cache with capped eviction
+- an in-memory recent-region cache keyed by viewport, selected species, and
+  selected media types, with capped eviction
 
 State machine:
 
@@ -843,11 +889,13 @@ State machine:
 4. If the delta is meaningful, set `needsSearchInArea = true`
 5. If the same area was fetched recently, reuse the cached response immediately and only hit the network again once that cache entry is stale
 6. When the user taps `Search This Area`, call `get-explore-map-points`
-7. If the response is `clusters`, render clusters and clear any selected post
-8. If the response is `posts`, render point annotations
-9. If the camera is sufficiently close and the post count is still low enough, upgrade those point annotations into thumbnail-backed markers instead of plain dots
-10. On point tap, set `selectedPost`
-11. On preview-card tap, route to `ExplorePostDetailView(postId:)`
+7. When a species or media filter changes, clear the selected post and request
+   the same region with both filter groups; filter changes apply immediately
+8. If the response is `clusters`, render clusters and clear any selected post
+9. If the response is `posts`, render point annotations
+10. If the camera is sufficiently close and the post count is still low enough, upgrade those point annotations into thumbnail-backed markers instead of plain dots
+11. On point tap, set `selectedPost`
+12. On preview-card tap, route to `ExplorePostDetailView(postId:)`
 
 Technical notes:
 
@@ -863,7 +911,8 @@ Technical notes:
 Current shipped V1 behavior:
 
 - Keep the last successful result set on screen while the user pans
-- Only replace results after a successful "search this area" fetch
+- Only replace results after a successful area or filter fetch; filter changes
+  request the current committed region immediately
 - Cap rendered individual post annotations to a strict upper bound such as 500
 - Only promote individual post annotations into thumbnail-backed markers when the zoom level is high enough and the visible post set is small enough, preventing dense areas from turning back into thumbnail soup
 - If map fetches fail because the device is offline, show an explicit offline banner rather than silently leaving the map in a stale state
@@ -970,6 +1019,9 @@ Client behavior:
   detail/like behavior.
 - The map should use a dedicated spatial endpoint rather than piggybacking on feed pagination
 - The map should keep stale results visible while the user pans and only refetch on an explicit `Search This Area` action
+- Map filters should keep species shortcuts in the horizontal pill row and put
+  image, video, and audio multi-select controls in the full filter sheet. The
+  generic Filters count and All/Reset actions include both groups.
 - Marker selection should open a preview card first and only then open full detail
 - The map should emit lightweight telemetry for tab open, explicit area search, cluster tap, waypoint preview open, and detail open
 - Feed comment taps present `ExploreCommentsSheet`; detail-page comments render inline with the thread
@@ -1040,7 +1092,8 @@ When the public species-page project exists:
 
 ## Acceptance Criteria For V1
 
-- A user can manually share an eligible image scan to Explore.
+- A user can manually share an eligible scan with supported image, video, or
+  audio media to Explore.
 - A shared post appears in the public feed, with `Recent` as the default reverse-chronological mode plus shipped `Following`, `Trending`, and `Nearby` filters.
 - The feed shows privacy-safe author identity and general location.
 - Authenticated authors can show a public avatar when a provider avatar URL is available.
@@ -1059,6 +1112,8 @@ When the public species-page project exists:
 - Close zoom levels can upgrade individual points into thumbnail-backed markers without changing the selection flow.
 - Tapping a map point opens a compact preview card before opening full detail.
 - Tapping a map preview card opens the same public Explore detail page used by feed posts.
+- Users can filter the map by one or more species categories and one or more
+  media types; selections OR within each group and intersect across groups.
 - `obscured` posts can render scrubbed public location text on feed/detail surfaces, but stay off spatial map and non-owned Nearby results.
 - `open` posts with protected-species or uncertainty safety rules render with rounded post-owned public coordinates and `coordinate_visibility = 'obscured'`.
 - The bell icon shows an unread count and opens an in-app notifications sheet for likes, comments, reactions, and follows.

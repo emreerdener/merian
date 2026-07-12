@@ -2082,7 +2082,7 @@ mode and already filters out:
 
 - unshared posts
 - tombstoned scans
-- scans with no remaining image URLs
+- scans with no remaining published image, video, or audio media
 - shadowbanned authors
 - both directions of user blocking
 
@@ -2275,7 +2275,7 @@ filters as the main feed:
 
 - unshared posts are excluded
 - tombstoned scans are excluded
-- scans with no remaining image URLs are excluded
+- scans with no remaining published image, video, or audio media are excluded
 - shadowbanned authors are excluded
 - both directions of user blocking are excluded
 
@@ -2609,7 +2609,7 @@ request body is:
 - `media_types` is optional. Allowed values are `image`, `video`, and `audio`.
 
 The Edge Function reads `public.get_explore_map_posts(...)` and then applies
-species-type filters and zoom-aware clustering in
+species-category and media-type filters plus zoom-aware clustering in
 `services/supabase/functions/get-explore-map-points/cluster.ts`. The shipped
 behavior is:
 
@@ -2657,6 +2657,11 @@ Current response shapes:
     { "category": "birds", "count": 12 },
     { "category": "insects", "count": 8 }
   ],
+  "media_type_counts": [
+    { "media_type": "image", "count": 14 },
+    { "media_type": "video", "count": 6 },
+    { "media_type": "audio", "count": 4 }
+  ],
   "clusters": [],
   "posts": [
     {
@@ -2685,7 +2690,17 @@ Current response shapes:
       "like_count": 12,
       "comment_count": 3,
       "viewer_has_liked": false,
-      "is_owned_by_viewer": false
+      "is_owned_by_viewer": false,
+      "media_items": [
+        {
+          "kind": "image",
+          "url": "https://...",
+          "thumbnail_url": "https://...",
+          "order_index": 0,
+          "duration_seconds": null,
+          "has_audio": false
+        }
+      ]
     }
   ]
 }
@@ -2694,8 +2709,14 @@ Current response shapes:
 Privacy and filtering rules:
 
 - the map excludes unshared posts, tombstoned scans, scans with no remaining
-  image URLs, non-open post `location_sharing`, shadowbanned authors, and both
-  directions of user blocking
+  published image/video/audio media, non-open post `location_sharing`,
+  shadowbanned authors, and both directions of user blocking
+- media filters match authoritative `media_items.kind` values, not poster
+  images or a video's `has_audio` flag; legacy rows without media items count
+  as images only when they retain a non-empty hero image
+- `category_counts` reflects the active media selection and
+  `media_type_counts` reflects the active species selection; absent facet
+  values are omitted rather than returned with zero counts
 - `coordinate_visibility` communicates whether an open post point is exact or
   approximate because species-safety or uncertainty rules rounded the public
   projection

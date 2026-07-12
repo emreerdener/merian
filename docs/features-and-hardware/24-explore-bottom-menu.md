@@ -30,10 +30,12 @@ Field Trips, and Dictionary.
   Field Trip comment/reply/followed-publication activity may appear in the
   Explore activity sheet and unread badge, but it is in-app only.
 - **Map** lives inside Observations and shows open-location public discoveries.
-  It includes a horizontal species-type filter row below the Explore heading;
-  the filter button opens a sheet with the region's available categories, and
-  active categories filter the map payload before clusters or individual
-  waypoints render.
+  Its horizontal quick-filter row remains species-focused. The filter button
+  opens a sheet with separate Species and Media type sections, where image,
+  video, and audio selections can be combined with species groups. The generic
+  Filters count and Reset/All actions cover both groups, while media types stay
+  out of the horizontal pills. Active filters apply before clusters or
+  individual waypoints render.
 - **Dictionary** opens `SpeciesDictionaryOverviewView`, a browse overview with
   Recently Added, local region, organism-group, and region entry points.
   The featured Recently Added card opens that species' detail page, while a

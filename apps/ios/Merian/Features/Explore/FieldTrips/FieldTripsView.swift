@@ -619,7 +619,7 @@ enum FieldTripsSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .fieldTrips:
-            "Field Trips"
+            "Field trips"
         case .seasonal:
             "Seasonal"
         }

@@ -22,7 +22,10 @@ currently visible map bounds.
 - `zoom_level` controls clustering only.
 - `limit` defaults to `500` and is capped at `500`.
 - `species_categories` and `media_types` are optional multi-select filters.
-  Media values are `image`, `video`, and `audio`.
+  Species values are `plants`, `fungi`, `birds`, `mammals`, `reptiles`,
+  `amphibians`, `fish`, `insects`, `arachnids`, and `other`. Media values are
+  `image`, `video`, and `audio`. Unknown, duplicate, and non-string values are
+  ignored; omitting a group means all values in that group.
 
 ## Response
 
@@ -55,6 +58,12 @@ Post mode:
 {
   "mode": "posts",
   "visible_count": 1,
+  "category_counts": [
+    { "category": "birds", "count": 1 }
+  ],
+  "media_type_counts": [
+    { "media_type": "audio", "count": 1 }
+  ],
   "clusters": [],
   "posts": [
     {
@@ -115,11 +124,15 @@ continues to use `species_scientific_name`.
 clients. For media-only posts, the response prefers a visual-media poster and
 then the normalized species `reference_thumbnail_url`; if neither exists it uses
 an empty string so one post cannot invalidate the complete map response. Ordered
-`media_items` remain authoritative for playback and media badges.
+`media_items` remain authoritative for playback, media badges, and media-type
+filter matching.
+
 Media filtering matches any selected attached kind. Species and media filter
 groups intersect, and each group’s counts reflect the active filters in the
 other group. A legacy row without `media_items` is treated as an image only
-when it still has a non-empty hero image.
+when it still has a non-empty hero image. Facet values with no matching rows are
+omitted from the response; the iOS client supplies zero-count rows for its
+fixed Images, Videos, and Audio controls.
 
 ## Local Verification
 
@@ -131,3 +144,15 @@ deno test --config services/supabase/functions/deno.json --allow-env --allow-net
 
 DB integration tests require a running local Supabase Postgres instance at the
 configured test URL.
+
+## Deployment
+
+The repository keeps `config.toml` and Functions under `services/supabase`, so
+the CLI workdir must be its parent:
+
+```sh
+supabase functions deploy get-explore-map-points --workdir services --project-ref <project-ref>
+```
+
+Deploy this backward-compatible endpoint addition before distributing an iOS
+build that sends `media_types`.

@@ -214,7 +214,8 @@ Public species data:
 Explore and social:
 
 - `get-explore-feed`
-- `get-explore-map-points`
+- `get-explore-map-points` — privacy-safe Explore Map clustering with faceted
+  species-category and image/video/audio filtering
 - `get-explore-post`
 - `get-explore-post-detail`
 - `get-explore-author-profile`

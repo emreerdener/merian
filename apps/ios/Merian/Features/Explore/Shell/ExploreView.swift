@@ -113,7 +113,7 @@ struct ExploreView: View {
                     )
                     .tag(ExploreTab.fieldTrips)
                     .tabItem {
-                        Label("Field Trips", systemImage: "map")
+                        Label("Field trips", systemImage: "map")
                     }
                 }
 
@@ -1144,7 +1144,7 @@ private struct ExploreRootModePicker: View {
                 }
             }
         case .fieldTrips:
-            Picker("Field Trips view", selection: $activeFieldTripsSection) {
+            Picker("Field trips view", selection: $activeFieldTripsSection) {
                 ForEach(FieldTripsSection.allCases) { section in
                     Text(section.title).tag(section)
                 }
