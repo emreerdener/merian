@@ -36,7 +36,7 @@ import {
   IconFlag,
   IconUser,
 } from "@tabler/icons-react";
-import { ImageCarousel } from "@/components/ImageCarousel";
+import { ExploreMediaCarousel } from "@/components/ExploreMediaCarousel";
 import { ExploreAudioPlayers } from "@/components/ExploreAudioPlayers";
 
 type ExplorePostPageProps = {
@@ -179,7 +179,8 @@ export default async function ExplorePostPage({
 
         <Card withBorder shadow="sm" radius="lg" p={0}>
           {hasVisualMedia ? (
-            <ImageCarousel
+            <ExploreMediaCarousel
+              mediaItems={post.mediaItems}
               heroImageUrl={post.heroImageUrl}
               referenceImages={detail?.referenceImages ?? []}
               altText={title}
@@ -188,7 +189,8 @@ export default async function ExplorePostPage({
             <>
               <ExploreAudioPlayers items={post.mediaItems} prominent />
               {detail?.referenceImages.length ? (
-                <ImageCarousel
+                <ExploreMediaCarousel
+                  mediaItems={post.mediaItems}
                   heroImageUrl={null}
                   referenceImages={detail.referenceImages}
                   altText={`${title} reference`}

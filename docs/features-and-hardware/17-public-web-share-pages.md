@@ -57,6 +57,13 @@ the immutable post id; this is not an authenticated in-product report write.
 9. The page renders the public post with default Mantine components and props,
    without route-specific CSS classes or custom page chrome.
 
+Visual media on the detail route is rendered in canonical `order_index` order.
+The active video slide autoplays muted and inline with native browser controls;
+leaving the slide pauses and rewinds it. Videos do not loop, and autoplay
+failure leaves the poster and controls available for user-initiated playback.
+Species reference images follow the post-owned visual media. The public Explore
+grid remains poster-only so browsing it does not fetch or autoplay video.
+
 If the RPC returns no visible row, the route returns a not-found page and marks
 metadata as non-indexable. Approved audio-only posts are public and indexable:
 WAV posts render the persisted spectrogram in the public home grid,

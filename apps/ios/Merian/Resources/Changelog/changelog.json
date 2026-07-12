@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-12-web-explore-video-playback",
+      "date": "2026-07-12",
+      "title": "Explore videos on the web",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Shared Explore post pages now play videos in their media carousel, starting muted with familiar browser controls."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-12-video-audio-session-recovery",
       "date": "2026-07-12",
       "title": "Reliable video sound",
