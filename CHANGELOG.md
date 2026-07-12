@@ -17,10 +17,16 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Simplified public Explore post details by removing like and comment counts
+  and moving **Report this post** beside the author information.
+- Reworked public Explore audio posts so the recording spectrogram fills the
+  square media carousel and playback controls sit directly over its lower edge,
+  with species reference images following as normal carousel slides.
 - Added video playback to public Explore post pages. The active carousel video
   now receives the canonical public video URL, autoplays muted with native
-  controls, and shares the same square frame as every other carousel item; the
-  public discovery grid remains poster-only for fast browsing.
+  controls on a continuous loop, and shares the same square frame as every
+  other carousel item; the public discovery grid remains poster-only for fast
+  browsing.
 - Kept audio presentation scoped correctly: feed and post detail always show a
   persisted or locally generated spectrogram, while compact Map, profile, and
   grid thumbnails continue to use the species reference photo.

@@ -27,10 +27,11 @@ detail page when Merian is installed.
 
 The public web page is not the full Explore product yet. It is a rich read-only
 detail surface for one post, with enough context to understand what was shared
-and a clean path back into the app. Anonymous web visitors can view the post and
-comment count, but they cannot like, comment, reply, follow, or edit on
-the web surface. The page does provide a support-email report action containing
-the immutable post id; this is not an authenticated in-product report write.
+and a clean path back into the app. Anonymous web visitors can view the post,
+but engagement counts are not rendered and they cannot like, comment, reply,
+follow, or edit on the web surface. A support-email report action sits beside
+the author information and contains the immutable post id; this is not an
+authenticated in-product report write.
 
 ## Data Flow
 
@@ -61,22 +62,23 @@ the immutable post id; this is not an authenticated in-product report write.
 
 Visual media on the detail route is rendered in canonical `order_index` order.
 The active video slide autoplays muted and inline with native browser controls;
-leaving the slide pauses and rewinds it. Videos do not loop, and autoplay
-failure leaves the poster and controls available for user-initiated playback.
+it loops continuously while selected, and leaving the slide pauses and rewinds
+it. Autoplay failure leaves the poster and controls available for user-initiated playback.
 Species reference images follow the post-owned visual media. The public Explore
 grid remains poster-only so browsing it does not fetch or autoplay video. The
 detail carousel uses one responsive square frame for post-owned images, videos,
-posters, and species reference images.
+audio spectrograms, posters, and species reference images.
 
 If the RPC returns no visible row, the route returns a not-found page and marks
 metadata as non-indexable. Approved audio-only posts are public and indexable:
 WAV posts render the persisted spectrogram in the public home grid,
 audio-focused post header, Open Graph metadata, and Twitter metadata, alongside
 native, user-initiated controls. Mixed posts retain their visual social preview
-and render each approved audio item beneath the visual header in canonical
-order. Legacy non-WAV posts or failed poster generation retain the speaker
-fallback and normal playback. Audio uses `preload="metadata"` and never
-autoplays.
+and render approved audio in the same canonical square media carousel. Audio
+slides fill the frame with their persisted spectrogram and anchor native
+playback controls over a bottom gradient. Legacy non-WAV posts or failed poster
+generation retain the speaker fallback and normal playback. Audio uses
+`preload="metadata"` and never autoplays.
 
 ## Environment Variables
 

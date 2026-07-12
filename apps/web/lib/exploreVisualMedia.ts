@@ -10,6 +10,11 @@ export type ExploreVisualSlide =
       kind: "video";
       url: string;
       posterUrl: string | null;
+    }
+  | {
+      kind: "audio";
+      url: string;
+      spectrogramUrl: string | null;
     };
 
 export function buildExploreVisualSlides({
@@ -23,16 +28,18 @@ export function buildExploreVisualSlides({
 }): ExploreVisualSlide[] {
   const seen = new Set<string>();
   const slides: ExploreVisualSlide[] = [];
-  const visualItems = mediaItems
-    .filter((item) => item.kind === "image" || item.kind === "video")
-    .sort((left, right) => left.orderIndex - right.orderIndex);
+  const visualItems = [...mediaItems].sort((left, right) => left.orderIndex - right.orderIndex);
 
   for (const item of visualItems) {
     if (seen.has(item.url)) continue;
     seen.add(item.url);
-    slides.push(item.kind === "video"
-      ? { kind: "video", url: item.url, posterUrl: item.thumbnailUrl }
-      : { kind: "image", url: item.url, source: null });
+    if (item.kind === "video") {
+      slides.push({ kind: "video", url: item.url, posterUrl: item.thumbnailUrl });
+    } else if (item.kind === "audio") {
+      slides.push({ kind: "audio", url: item.url, spectrogramUrl: item.thumbnailUrl });
+    } else {
+      slides.push({ kind: "image", url: item.url, source: null });
+    }
   }
 
   if (!slides.length && heroImageUrl && !seen.has(heroImageUrl)) {

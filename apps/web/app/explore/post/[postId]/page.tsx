@@ -37,7 +37,6 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import { ExploreMediaCarousel } from "@/components/ExploreMediaCarousel";
-import { ExploreAudioPlayers } from "@/components/ExploreAudioPlayers";
 
 type ExplorePostPageProps = {
   params: Promise<{
@@ -132,9 +131,6 @@ export default async function ExplorePostPage({
   const observationRows = buildObservationRows(post);
   const conservationStatus = normalizedIucnStatus(detail?.iucnRedListStatus);
   const hasOverview = Boolean(conservationStatus || detail?.wikipediaOverview);
-  const hasVisualMedia = post.mediaItems.some((item) =>
-    item.kind === "image" || item.kind === "video"
-  );
 
   const hazardType = detail?.hazardType?.trim().toLowerCase() || "none";
   let hazardTitle = "Toxic";
@@ -178,30 +174,12 @@ export default async function ExplorePostPage({
         </Link>
 
         <Card withBorder shadow="sm" radius="lg" p={0}>
-          {hasVisualMedia ? (
-            <ExploreMediaCarousel
-              mediaItems={post.mediaItems}
-              heroImageUrl={post.heroImageUrl}
-              referenceImages={detail?.referenceImages ?? []}
-              altText={title}
-            />
-          ) : (
-            <>
-              <ExploreAudioPlayers items={post.mediaItems} prominent />
-              {detail?.referenceImages.length ? (
-                <ExploreMediaCarousel
-                  mediaItems={post.mediaItems}
-                  heroImageUrl={null}
-                  referenceImages={detail.referenceImages}
-                  altText={`${title} reference`}
-                />
-              ) : null}
-            </>
-          )}
-
-          {hasVisualMedia ? (
-            <ExploreAudioPlayers items={post.mediaItems} />
-          ) : null}
+          <ExploreMediaCarousel
+            mediaItems={post.mediaItems}
+            heroImageUrl={post.heroImageUrl}
+            referenceImages={detail?.referenceImages ?? []}
+            altText={title}
+          />
 
           <Stack gap="lg" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="flex-start" gap="md">
@@ -242,10 +220,15 @@ export default async function ExplorePostPage({
                 </Stack>
               </Group>
 
-              <Group gap="xs">
-                <Badge variant="default">{post.likeCount} likes</Badge>
-                <Badge variant="default">{post.commentCount} comments</Badge>
-              </Group>
+              <Button
+                component="a"
+                href={supportMailto(`Report Explore post ${post.postId}`)}
+                variant="default"
+                size="compact-sm"
+                leftSection={<IconFlag size={15} />}
+              >
+                Report this post
+              </Button>
             </Group>
 
             <Stack gap="xs" align="center">
@@ -275,19 +258,6 @@ export default async function ExplorePostPage({
                 ))}
               </Group>
             ) : null}
-
-            <Group justify="center">
-              <Button
-                component="a"
-                href={supportMailto(`Report Explore post ${post.postId}`)}
-                variant="subtle"
-                color="gray"
-                size="compact-sm"
-                leftSection={<IconFlag size={15} />}
-              >
-                Report this post
-              </Button>
-            </Group>
 
             {hazardType !== "none" ? (
               <Card

@@ -128,11 +128,13 @@ omit this parameter so recipients see their own browser/system preference.
 
 - `/` — lightweight Merian public home.
 - `/explore/post/[postId]` — public Explore share page. The MVP is read-only:
-  anonymous visitors can view post context and comment counts, but cannot like,
-  comment, reply, follow, report, or edit from the web page.
-  Ordered image and video media appear in the detail carousel. Its active video
-  autoplays muted and inline once with native controls, while inactive videos
-  pause and rewind. The homepage Explore grid remains poster-only.
+  anonymous visitors can view post context and send a support-email report, but
+  cannot like, comment, reply, follow, or edit from the web page. Engagement
+  counts are intentionally omitted from the public detail presentation.
+  Ordered image, video, and audio media appear in the detail carousel. Its
+  active video autoplays muted and inline on a continuous loop with native
+  controls, while inactive videos pause and rewind. The homepage Explore grid
+  remains poster-only.
 - `/apple-app-site-association` and `/.well-known/apple-app-site-association` — served Apple App Site Association file for iOS deep linking capabilities.
 - `/privacy` — App Store privacy policy URL.
 - `/privacy-choices` — optional App Store privacy choices URL and data deletion help.
