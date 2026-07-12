@@ -65,8 +65,8 @@ leaving the slide pauses and rewinds it. Videos do not loop, and autoplay
 failure leaves the poster and controls available for user-initiated playback.
 Species reference images follow the post-owned visual media. The public Explore
 grid remains poster-only so browsing it does not fetch or autoplay video. The
-detail media frame uses a compact responsive 16:9-oriented height capped at
-430px on larger screens.
+detail carousel uses one responsive square frame for post-owned images, videos,
+posters, and species reference images.
 
 If the RPC returns no visible row, the route returns a not-found page and marks
 metadata as non-indexable. Approved audio-only posts are public and indexable:

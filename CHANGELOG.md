@@ -19,8 +19,8 @@ TestFlight, App Store, support, and QA.
 
 - Added video playback to public Explore post pages. The active carousel video
   now receives the canonical public video URL, autoplays muted with native
-  controls, and stays in a compact responsive frame; the public discovery grid
-  remains poster-only for fast browsing.
+  controls, and shares the same square frame as every other carousel item; the
+  public discovery grid remains poster-only for fast browsing.
 - Kept audio presentation scoped correctly: feed and post detail always show a
   persisted or locally generated spectrogram, while compact Map, profile, and
   grid thumbnails continue to use the species reference photo.

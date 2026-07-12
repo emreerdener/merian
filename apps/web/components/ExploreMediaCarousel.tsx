@@ -13,8 +13,6 @@ type ExploreMediaCarouselProps = {
   altText: string;
 };
 
-const mediaFrameHeight = "clamp(240px, 56.25vw, 430px)";
-
 export function ExploreMediaCarousel({
   mediaItems,
   heroImageUrl,
@@ -47,11 +45,12 @@ export function ExploreMediaCarousel({
   if (!slides.length) return null;
 
   return (
-    <Box style={{ position: "relative", width: "100%", height: mediaFrameHeight, overflow: "hidden" }}>
+    <Box style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", overflow: "hidden" }}>
       <Carousel
         withIndicators={slides.length > 1}
         withControls={slides.length > 1}
-        height={mediaFrameHeight}
+        height="100%"
+        style={{ position: "absolute", inset: 0 }}
         onSlideChange={setActiveIndex}
         emblaOptions={{ loop: slides.length > 1, align: "start", slidesToScroll: 1 }}
       >
