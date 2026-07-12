@@ -2,6 +2,22 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-12-public-web-media-polish",
+      "date": "2026-07-12",
+      "title": "Richer public Explore posts",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Public Explore post pages now present images, looping muted videos, audio spectrograms, and reference images in one square media carousel.",
+            "Public web audio posts now offer an optional Boost audio control that improves quiet playback locally without changing the published recording.",
+            "The public discovery grid now uses species reference photos for audio posts while post details retain the playable spectrogram.",
+            "Public post details now place Report this post beside the author and omit like and comment counts."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-12-web-explore-video-playback",
       "date": "2026-07-12",
       "title": "Explore videos on the web",
@@ -9,7 +25,7 @@
         {
           "title": "New",
           "items": [
-            "Shared Explore post pages now play videos in their media carousel, starting muted with familiar browser controls."
+            "Shared Explore post pages now autoplay videos muted on a continuous loop while their carousel slide is selected, with familiar browser controls."
           ]
         }
       ]
@@ -66,7 +82,7 @@
         {
           "title": "Improved",
           "items": [
-            "Audio posts now show their recording spectrogram on the public Merian Explore grid and web post page instead of a generic speaker placeholder."
+            "Audio posts now show their playable recording spectrogram on the public Merian web post page instead of a generic speaker placeholder."
           ]
         }
       ]

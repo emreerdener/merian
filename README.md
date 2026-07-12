@@ -96,11 +96,13 @@ Merian is a field-ready biological identification app built around zero-friction
   audio-only posts.
 - Public Explore share pages render visual posts at
   `https://merian.earth/explore/post/{postId}` through the Next.js web app.
-  Approved WAV posts persist a reusable spectrogram thumbnail for the public
-  home grid, post page, and social metadata while retaining native,
-  user-initiated playback; mixed posts expose audio beneath their visual media.
-  Legacy non-WAV posts keep playback plus the speaker fallback. Audio-only posts
-  remain excluded from Home Screen widgets.
+  Detail pages use a square ordered image/video/audio carousel: videos autoplay
+  muted on a loop while selected, and WAV audio fills the frame with its
+  persisted spectrogram plus user-initiated controls and optional browser-local
+  Boost Audio. The public home grid uses species reference thumbnails for audio
+  posts, while social metadata retains the spectrogram. Legacy non-WAV posts
+  keep playback plus the speaker fallback. Audio-only posts remain excluded
+  from Home Screen widgets.
 
 ### Native Share Extensions
 - Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Merian card, or text description into the compose field.
@@ -252,7 +254,11 @@ npm install
 npm run dev
 ```
 
-The initial web routes include `/explore/post/[postId]`, a server-rendered public Explore share page with Open Graph metadata for rich Messages/social previews, plus public policy/support pages at `/privacy`, `/terms`, `/guidelines`, `/privacy-choices`, `/support`, and `/legal`.
+The web routes include `/explore/post/[postId]`, a server-rendered public Explore
+share page with Open Graph metadata, and the allowlisted
+`/api/explore/audio` stream used only for browser-local Boost Audio processing,
+plus public policy/support pages at `/privacy`, `/terms`, `/guidelines`,
+`/privacy-choices`, `/support`, and `/legal`.
 
 See `apps/web/README.md` and `docs/features-and-hardware/17-public-web-share-pages.md` for the web env contract, share URL strategy, and Universal Links roadmap.
 

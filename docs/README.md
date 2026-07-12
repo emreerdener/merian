@@ -44,9 +44,10 @@ networking, and hardware orchestration logic.
 - **Public audio poster contract**: Approved standalone WAV shares generate a
   deterministic spectrogram PNG beside the durable R2 recording. The URL is
   saved in both normalized scan media and the post-owned Explore snapshot, so
-  public web grids, detail pages, and social metadata reuse one cached asset.
-  A bounded service-role worker repairs historical blanks; non-WAV legacy media
-  remains playable with the speaker fallback.
+  public web detail pages and social metadata reuse one cached asset. Compact
+  public web grids use the species reference thumbnail instead. A bounded
+  service-role worker repairs historical blanks; non-WAV legacy media remains
+  playable with the speaker fallback.
 - **Video media contract**: Pro video remains a short capture surface, not
   arbitrary gallery import. The app submits five sampled frames plus optional
   extracted WAV audio for inference, stages one upload-bounded playback `.mp4`

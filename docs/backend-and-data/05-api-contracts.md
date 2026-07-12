@@ -2241,6 +2241,16 @@ Current response shape:
     "post_id": "uuid",
     "scan_id": "uuid",
     "hero_image_url": "https://...",
+    "media_items": [
+      {
+        "kind": "video",
+        "url": "https://media.merian.app/public_uploads/pro/.../video_playback.mp4",
+        "thumbnail_url": "https://media.merian.app/public_uploads/pro/.../poster.webp",
+        "order_index": 0,
+        "duration_seconds": 8.2,
+        "has_audio": false
+      }
+    ],
     "shared_at": "2026-04-26T17:22:11.000Z",
     "author_user_id": "uuid",
     "author_name": "Emre E.",
@@ -2266,6 +2276,21 @@ Current response shape:
 
 If the post is no longer visible to the viewer because it was unshared, blocked,
 tombstoned, or lost media, the endpoint returns `404`.
+
+The recent `get_explore_feed` SQL projection additionally exposes
+`reference_thumbnail_url` beside `hero_image_url` and `media_items`. Public web
+grid cards use the species reference thumbnail for audio posts, while detail and
+social-preview surfaces retain the audio spectrogram from the canonical media
+snapshot.
+
+### `GET /api/explore/audio?url={canonicalWavUrl}` (Public Web)
+
+Next.js same-origin stream used only after a visitor activates **Boost audio**.
+It accepts HTTPS `.wav` URLs on exact host `media.merian.app` below
+`/public_uploads/`, forwards byte ranges and safe cache/media headers, and
+rejects arbitrary hosts, credentials, staging/private paths, unsupported
+formats, missing upstream media, and oversized non-range responses. It stores
+no bytes and does not change the public recording or moderation state.
 
 ### `/get-explore-post-detail`
 

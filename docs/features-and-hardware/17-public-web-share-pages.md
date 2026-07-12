@@ -116,7 +116,8 @@ The web page may render only data already intended for the public Explore projec
 - coarse public telemetry such as time of day, month, weather condition, and temperature
 - public author display name/avatar, plus canonical username handle only if the
   public projection supplies it
-- public like/comment counts
+- public like/comment counts, retained in the projection for compatibility but
+  intentionally not rendered on the public detail page
 - public field notes already copied onto the Explore post
 - normalized public hashtags
 - public reference images, species overview, conservation status, taxonomy
@@ -298,7 +299,10 @@ the `theme` query parameter; public share URLs should not.
 - Keep Open Graph metadata server-rendered. Messages and social crawlers need HTML metadata before client-side hydration.
 - Treat `apps/web/lib/explore.ts` as a public projection mapper, not a place to expose raw database rows.
 - Keep `apps/web/lib/exploreMedia.ts` pure and covered by Node tests so visual
-  heroes continue to take precedence over audio spectrogram posters.
+  heroes remain canonical for visual posts, audio grids prefer species reference
+  thumbnails, and detail/social surfaces retain spectrogram posters.
+- Keep `/api/explore/audio` exact-host and public-WAV-path only. Any expansion of
+  its upstream allowlist requires a security review and matching proxy tests.
 - Prefer adding dedicated Supabase RPCs/views for web surfaces instead of querying broad private tables.
 - Use `NEXT_PUBLIC_SITE_URL=https://merian.earth` in production so canonical and Open Graph URLs point at the real domain.
 - If an Explore post is unshared, blocked, removed, or privacy-filtered out for the public viewer, the route should resolve to not found rather than showing stale metadata.

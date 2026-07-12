@@ -15,7 +15,17 @@ When the user captures an image, the architecture triggers a coordinated sequenc
 
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
 
-Merian also has a small public web frontend in `apps/web/`. The first route, `https://merian.earth/explore/post/{postId}`, server-renders a public Explore post from the `get_explore_post` RPC and emits Open Graph metadata for share previews. This web surface is a public projection only: it may show public species, image, author, count, and privacy-filtered location fields, but it must never expose exact coordinates, private notes, raw scan telemetry, or server credentials.
+Merian also has a small public web frontend in `apps/web/`.
+`https://merian.earth/explore/post/{postId}` server-renders a public Explore post
+from the `get_explore_post` RPC, emits Open Graph metadata, and hydrates a square
+ordered image/video/audio carousel. Public video autoplays muted and loops only
+while selected; audio uses the persisted spectrogram, native controls, and an
+optional browser-local Boost Audio graph. The allowlisted `/api/explore/audio`
+route exists only to provide same-origin public WAV bytes for that graph. This
+web surface is a public projection only: it may consume public species, media,
+author, engagement, and privacy-filtered location fields, but it does not render
+engagement counts and must never expose exact coordinates, private notes, raw
+scan telemetry, or server credentials.
 
 ## Core Decoupling (AppDIContainer)
 

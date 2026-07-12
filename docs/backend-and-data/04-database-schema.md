@@ -1573,7 +1573,8 @@ coordinates to the client contract.
 
 - `public.get_explore_feed(self_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   The shipped `recent` feed projection. It returns reverse-chronological feed
-  rows with public author identity, hero image URL, coarse location, optional
+  rows with public author identity, canonical `hero_image_url`, the compact
+  `reference_thumbnail_url`, ordered `media_items`, coarse location, optional
   public telemetry (`time_of_day`, `current_month`, `weather_condition`,
   `weather_temperature_f`), denormalized like/comment counts, viewer-specific
   flags (`viewer_has_liked`, `is_owned_by_viewer`), and a compatibility
@@ -1607,9 +1608,10 @@ coordinates to the client contract.
   client feed feeling like Explore rather than a pure nearest-neighbor list
   while preserving the same coordinate boundary used by the map.
 - `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same
-  card projection as `get_explore_feed` for a single post. This is used by
-  notification taps and future deep-link paths so routing does not depend on the
-  post already being present in the loaded in-memory feed page.
+  public card projection for a single post, including canonical ordered
+  `media_items`. This is used by native routing and the public web detail page so
+  video/audio playback does not query private scan tables or depend on an
+  already-loaded feed row.
 - `public.get_explore_post_detail(self_id UUID, target_post_id UUID)`: Returns a
   single public species-detail projection for the Explore detail page. Fields
   currently include `field_notes`, `species_dictionary_id`,

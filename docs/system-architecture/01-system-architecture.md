@@ -173,9 +173,12 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `apps/web/`: Next.js + Mantine frontend for public Merian pages on
     `merian.earth`.
   - `/explore/post/[postId]`: Server-rendered public Explore share route. It
-    calls the `get_explore_post` RPC from the Next.js server, emits Open Graph
-    metadata for rich previews, and links back into the native app with
-    `merian://explore/post/{postId}`.
+    calls the `get_explore_post` RPC from the Next.js server, renders the square
+    ordered image/video/audio carousel, emits Open Graph metadata, and links
+    back into the native app with `merian://explore/post/{postId}`.
+  - `/api/explore/audio`: Exact-host/public-path WAV stream used only for
+    browser-local Boost Audio. Web Audio applies gain, a 35 Hz high-pass filter,
+    and peak limiting without storing or uploading a derived recording.
   - `MerianMessagesExtension` reads the App Group scan cache and inserts image,
     card, or description content into Messages without sending automatically.
   - Universal Links should eventually bind

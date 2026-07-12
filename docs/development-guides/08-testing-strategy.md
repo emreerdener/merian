@@ -17,8 +17,13 @@ npm audit --audit-level=moderate
 Run these when changing Next.js routes, Mantine UI, public metadata, Supabase
 web access, or `merian.earth` share behavior. Open Graph routes should remain
 server-rendered so link unfurlers can read metadata without client hydration.
-`lib/explorePoster.test.ts` locks visual-hero precedence, audio spectrogram
-fallback, and the missing-poster speaker fallback.
+`lib/explorePoster.test.ts` locks detail/social spectrogram precedence and the
+grid-only species-reference policy. `lib/exploreVisualMedia.test.ts` locks
+canonical mixed-media ordering and deduplication. `lib/audioProxy.test.ts`
+locks the Boost Audio stream to exact-host public Merian WAV URLs and rejects
+arbitrary hosts, staging paths, credentials, and unsupported formats. Browser
+verification should cover Boost → Boosted → original transitions because Web
+Audio context activation cannot be proven by TypeScript alone.
 
 ## In-Memory Database Containers (`SwiftData`)
 

@@ -603,11 +603,14 @@ no audio, transcript, URL, filename, or user identity.
 Approved audio is available in the iOS Explore feed and public Next.js share
 pages. Web playback uses native browser controls, requires user interaction, and
 preloads metadata rather than the clip body. Audio-only WAV posts use their
-persisted spectrogram on the public home grid, post header, and social metadata;
-mixed posts retain their visual hero and expose every approved audio item in
-canonical order. Non-WAV legacy posts keep the speaker fallback. The widget
-snapshot writer still filters out audio-only posts before applying its 12-item
-cap.
+persisted spectrogram on the post detail carousel and social metadata; the
+public home grid uses the species reference thumbnail. Mixed posts expose every
+approved audio item in canonical carousel order. Web detail offers an opt-in
+fixed Boost Audio mode through an exact-host/public-path WAV stream, with local
+gain, 35 Hz rumble filtering, peak limiting, per-post browser preference, and
+original-playback fallback. Non-WAV legacy posts keep the speaker fallback. The
+widget snapshot writer still filters out audio-only posts before applying its
+12-item cap.
 
 Legacy scans created before durable audio upload use an on-demand repair path.
 When the original local WAV/M4A still exists, iOS obtains an owner-scoped audio

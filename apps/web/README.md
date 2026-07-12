@@ -140,7 +140,12 @@ omit this parameter so recipients see their own browser/system preference.
   Ordered image, video, and audio media appear in the detail carousel. Its
   active video autoplays muted and inline on a continuous loop with native
   controls, while inactive videos pause and rewind. The homepage Explore grid
-  remains poster-only.
+  remains poster-only and uses species reference images for audio posts. Audio
+  detail slides retain their spectrogram, bottom-anchored controls, and optional
+  browser-local Boost Audio toggle.
+- `/api/explore/audio?url={canonicalWavUrl}` — range-capable same-origin stream
+  used only by Boost Audio. It accepts canonical public Merian WAV URLs, is not
+  a general media proxy, and stores no derived audio.
 - `/apple-app-site-association` and `/.well-known/apple-app-site-association` — served Apple App Site Association file for iOS deep linking capabilities.
 - `/privacy` — App Store privacy policy URL.
 - `/privacy-choices` — optional App Store privacy choices URL and data deletion help.
@@ -154,7 +159,8 @@ omit this parameter so recipients see their own browser/system preference.
 
 The public page should consume only the privacy-safe Explore projections
 returned by `get_explore_post` and `get_explore_post_detail`: public image,
-species labels, public author identity, counts, shared timestamp,
+species labels, public author identity, engagement counts (not rendered on the
+detail page), shared timestamp,
 privacy-filtered location/telemetry, public field notes, normalized hashtags,
 reference images, overview text, conservation status, taxonomy labels, and
 alternate names. If the public projection supplies `author_username`, render it

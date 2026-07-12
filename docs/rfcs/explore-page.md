@@ -326,8 +326,9 @@ Imported historical photos and in-app captured photos should both be eligible.
 > fallback and videos/audio allowed for public posts/Community ID requests.
 > Author-post projections additionally return `reference_thumbnail_url` so
 > compact audio tiles can show species imagery without treating the recording
-> URL as an image. Full feed/detail and public web surfaces may instead use the
-> audio media's persisted spectrogram `thumbnail_url`. See
+> URL as an image. Native full feed/detail and public web detail use the audio
+> media's persisted spectrogram `thumbnail_url`; the public web home grid follows
+> the compact reference-thumbnail policy. See
 > `docs/backend-and-data/04-database-schema.md#explore_post_media` for the
 > current contract.
 

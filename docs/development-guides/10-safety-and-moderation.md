@@ -56,13 +56,15 @@ promoted and persisted to the scan before selection resolution; the restored
 bytes then require the same checksum attestation or live Gemini decision as new
 audio. Failed scan persistence rolls back the promoted R2 objects.
 
-The iOS **Boost audio** option is strictly post-publication playback DSP. It
-operates on a bounded temporary local copy after the canonical recording has
-passed publication moderation. It must never overwrite or upload the enhanced
-file, change the R2 object/checksum, create a new moderation attestation, or
-moderate the enhanced waveform instead of the original public bytes. A boost
-preference is device-local listening state and is not part of the safety or
-publication decision.
+Native and public-web **Boost audio** are strictly post-publication playback
+DSP. Native processing uses a bounded temporary local copy; web processing uses
+an allowlisted same-origin stream plus browser-local gain/filter/limiting. They
+must never overwrite or upload enhanced audio, change the R2 object/checksum,
+create a new moderation attestation, or moderate the processed waveform instead
+of the original public bytes. Boost preferences remain local listening state
+and are not part of the safety or publication decision. The web proxy accepts
+only HTTPS `.wav` objects on exact host `media.merian.app` below
+`public_uploads/`; it must not become a general-purpose fetch proxy.
 
 Private scan-library Insight boost uses the same local DSP after scan
 finalization, with a separate per-scan preference. It likewise never overwrites
