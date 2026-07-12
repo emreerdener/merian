@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { normalizeExploreMapRows } from "./contract.ts";
+import { normalizeMediaTypes, normalizeSpeciesCategories } from "./input.ts";
 import type { ExploreMapPostRow } from "./types.ts";
 
 function makeRow(
@@ -79,4 +80,16 @@ Deno.test("one malformed row does not remove valid map rows", () => {
   ]);
   assertEquals(rows.map((row) => row.post_id), ["valid", "media-only"]);
   assertEquals(rows[1].hero_image_url, "");
+});
+
+Deno.test("map filters normalize allowed values and remove duplicates", () => {
+  assertEquals(
+    normalizeSpeciesCategories([" Birds ", "birds", "unknown", 42]),
+    ["birds"],
+  );
+  assertEquals(
+    normalizeMediaTypes([" Video ", "video", "audio", "document", null]),
+    ["video", "audio"],
+  );
+  assertEquals(normalizeMediaTypes("video"), []);
 });

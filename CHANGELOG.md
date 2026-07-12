@@ -14,11 +14,15 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added image, video, and audio filters to the Explore map filter sheet. Media
+  filters can be combined with species groups and remain accurate for clustered
+  map results.
 - Fixed the Explore map becoming unavailable when an audio-only or other
   media-only discovery had no hero image. Map points now use media posters or
   species reference thumbnails and isolate missing-thumbnail data safely. Map
-  discovery cards now retain audio/video typing and show the shared compact
-  bottom-right waveform or play badge.
+  discovery cards now keep the Map-specific reference poster when an older feed
+  copy of the same post is cached, retain audio/video typing, and show the shared
+  compact bottom-right waveform or play badge.
 - Fixed the Explore author profile's full published-scans view so it shows one
   back button instead of overlapping the stack and profile-library controls.
 - Fixed missing Explore location labels on audio-only and other non-visual

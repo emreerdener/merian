@@ -2,6 +2,7 @@ import type { PetIdentification } from "../_shared/identify/types.ts";
 import type { ExplorePostMediaItem } from "../_shared/explore.ts";
 
 export type ExploreCoordinateVisibility = "exact" | "obscured";
+export type ExploreMapMediaType = "image" | "video" | "audio";
 export type ExploreMapSpeciesCategory =
   | "plants"
   | "fungi"
@@ -51,6 +52,11 @@ export interface ExploreMapCategoryCount {
   count: number;
 }
 
+export interface ExploreMapMediaTypeCount {
+  media_type: ExploreMapMediaType;
+  count: number;
+}
+
 export interface ExploreMapCluster {
   id: string;
   latitude: number;
@@ -62,6 +68,7 @@ export interface ExploreMapPointsPayload {
   mode: "clusters" | "posts";
   visible_count: number;
   category_counts: ExploreMapCategoryCount[];
+  media_type_counts: ExploreMapMediaTypeCount[];
   clusters: ExploreMapCluster[];
   posts: ExploreMapPostRow[];
 }

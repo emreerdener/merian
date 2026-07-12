@@ -9,20 +9,7 @@ import {
 import { fetchExploreMapPosts } from "./db.ts";
 import { buildExploreMapPayload } from "./cluster.ts";
 import { normalizeExploreMapRows } from "./contract.ts";
-import { ExploreMapSpeciesCategory } from "./types.ts";
-
-const ALLOWED_SPECIES_CATEGORIES = new Set<ExploreMapSpeciesCategory>([
-  "plants",
-  "fungi",
-  "birds",
-  "mammals",
-  "reptiles",
-  "amphibians",
-  "fish",
-  "insects",
-  "arachnids",
-  "other",
-]);
+import { normalizeMediaTypes, normalizeSpeciesCategories } from "./input.ts";
 
 function makeHttpError(
   status: number,
@@ -59,26 +46,6 @@ function normalizeZoomLevel(value: unknown): number {
   }
 
   return Math.max(0, Math.min(value, 20));
-}
-
-function normalizeSpeciesCategories(
-  value: unknown,
-): ExploreMapSpeciesCategory[] {
-  if (!Array.isArray(value)) return [];
-
-  const categories: ExploreMapSpeciesCategory[] = [];
-  for (const rawCategory of value) {
-    if (typeof rawCategory !== "string") continue;
-    const category = rawCategory.trim()
-      .toLowerCase() as ExploreMapSpeciesCategory;
-    if (
-      ALLOWED_SPECIES_CATEGORIES.has(category) && !categories.includes(category)
-    ) {
-      categories.push(category);
-    }
-  }
-
-  return categories;
 }
 
 Deno.serve((req: Request) =>
@@ -119,6 +86,7 @@ Deno.serve((req: Request) =>
     const speciesCategories = normalizeSpeciesCategories(
       body.species_categories,
     );
+    const mediaTypes = normalizeMediaTypes(body.media_types);
 
     await refreshExploreAuthorStateBestEffort(
       user.id,
@@ -148,7 +116,7 @@ Deno.serve((req: Request) =>
     );
 
     return jsonResponse(
-      buildExploreMapPayload(rows, zoomLevel, speciesCategories),
+      buildExploreMapPayload(rows, zoomLevel, speciesCategories, mediaTypes),
       200,
     );
   })

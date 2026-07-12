@@ -1,6 +1,8 @@
 import {
   ExploreMapCategoryCount,
   ExploreMapCluster,
+  ExploreMapMediaType,
+  ExploreMapMediaTypeCount,
   ExploreMapPointsPayload,
   ExploreMapPostRow,
   ExploreMapSpeciesCategory,
@@ -108,6 +110,43 @@ function buildCategoryCounts(
     );
 }
 
+export function mediaTypesForMapPost(
+  row: Pick<ExploreMapPostRow, "media_items" | "hero_image_url">,
+): ExploreMapMediaType[] {
+  const mediaTypes = new Set<ExploreMapMediaType>();
+  for (const item of row.media_items ?? []) {
+    mediaTypes.add(item.kind);
+  }
+
+  if (
+    mediaTypes.size === 0 &&
+    typeof row.hero_image_url === "string" &&
+    row.hero_image_url.trim().length > 0
+  ) {
+    mediaTypes.add("image");
+  }
+
+  return Array.from(mediaTypes);
+}
+
+function buildMediaTypeCounts(
+  rows: ExploreMapPostRow[],
+): ExploreMapMediaTypeCount[] {
+  const counts = new Map<ExploreMapMediaType, number>();
+  for (const row of rows) {
+    for (const mediaType of mediaTypesForMapPost(row)) {
+      counts.set(mediaType, (counts.get(mediaType) ?? 0) + 1);
+    }
+  }
+
+  const sortOrder: ExploreMapMediaType[] = ["image", "video", "audio"];
+  return Array.from(counts.entries())
+    .map(([media_type, count]) => ({ media_type, count }))
+    .sort((lhs, rhs) =>
+      sortOrder.indexOf(lhs.media_type) - sortOrder.indexOf(rhs.media_type)
+    );
+}
+
 function filterRowsByCategory(
   rows: ExploreMapPostRow[],
   categoryFilters: ExploreMapSpeciesCategory[],
@@ -118,13 +157,30 @@ function filterRowsByCategory(
   return rows.filter((row) => requested.has(categoryForMapPost(row)));
 }
 
+function filterRowsByMediaType(
+  rows: ExploreMapPostRow[],
+  mediaTypeFilters: ExploreMapMediaType[],
+): ExploreMapPostRow[] {
+  if (mediaTypeFilters.length === 0) return rows;
+
+  const requested = new Set(mediaTypeFilters);
+  return rows.filter((row) =>
+    mediaTypesForMapPost(row).some((mediaType) => requested.has(mediaType))
+  );
+}
+
 export function buildExploreMapPayload(
   rows: ExploreMapPostRow[],
   zoomLevel: number,
   categoryFilters: ExploreMapSpeciesCategory[] = [],
+  mediaTypeFilters: ExploreMapMediaType[] = [],
 ): ExploreMapPointsPayload {
-  const categoryCounts = buildCategoryCounts(rows);
-  rows = filterRowsByCategory(rows, categoryFilters);
+  const categoryCounts = buildCategoryCounts(
+    filterRowsByMediaType(rows, mediaTypeFilters),
+  );
+  const categoryFilteredRows = filterRowsByCategory(rows, categoryFilters);
+  const mediaTypeCounts = buildMediaTypeCounts(categoryFilteredRows);
+  rows = filterRowsByMediaType(categoryFilteredRows, mediaTypeFilters);
   const cellSize = clusterCellSize(zoomLevel);
   const visibleCount = rows.length;
 
@@ -133,6 +189,7 @@ export function buildExploreMapPayload(
       mode: "posts",
       visible_count: visibleCount,
       category_counts: categoryCounts,
+      media_type_counts: mediaTypeCounts,
       clusters: [],
       posts: rows,
     };
@@ -143,6 +200,7 @@ export function buildExploreMapPayload(
       mode: "posts",
       visible_count: visibleCount,
       category_counts: categoryCounts,
+      media_type_counts: mediaTypeCounts,
       clusters: [],
       posts: rows,
     };
@@ -153,6 +211,7 @@ export function buildExploreMapPayload(
       mode: "posts",
       visible_count: visibleCount,
       category_counts: categoryCounts,
+      media_type_counts: mediaTypeCounts,
       clusters: [],
       posts: rows.slice(0, MAX_INDIVIDUAL_POSTS),
     };
@@ -168,6 +227,7 @@ export function buildExploreMapPayload(
       mode: "posts",
       visible_count: visibleCount,
       category_counts: categoryCounts,
+      media_type_counts: mediaTypeCounts,
       clusters: [],
       posts: rows,
     };
@@ -177,6 +237,7 @@ export function buildExploreMapPayload(
     mode: "clusters",
     visible_count: visibleCount,
     category_counts: categoryCounts,
+    media_type_counts: mediaTypeCounts,
     clusters,
     posts: [],
   };

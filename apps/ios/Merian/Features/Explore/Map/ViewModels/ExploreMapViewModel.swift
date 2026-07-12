@@ -7,6 +7,7 @@ import SwiftUI
 private struct ExploreMapCacheEntry {
     var region: MKCoordinateRegion
     var speciesCategories: Set<ExploreMapSpeciesCategory>
+    var mediaTypes: Set<ExploreMediaKind>
     var response: ExploreMapPointsResponse
     var lastAccessedAt: Date
 
@@ -32,8 +33,11 @@ final class ExploreMapViewModel {
     var selectedPostId: String?
     var visibleCount = 0
     var categoryCounts: [ExploreMapCategoryCount] = []
+    var mediaTypeCounts: [ExploreMapMediaTypeCount] = []
     var selectedSpeciesCategories: Set<ExploreMapSpeciesCategory> = []
+    var selectedMediaTypes: Set<ExploreMediaKind> = []
     private var appliedSpeciesCategories: Set<ExploreMapSpeciesCategory> = []
+    private var appliedMediaTypes: Set<ExploreMediaKind> = []
 
     @ObservationIgnored private let maxPostLimit = 500
     @ObservationIgnored private let thumbnailZoomLevelThreshold = 11.5
@@ -66,14 +70,31 @@ final class ExploreMapViewModel {
         !selectedSpeciesCategories.isEmpty
     }
 
+    var hasActiveMediaTypeFilters: Bool {
+        !selectedMediaTypes.isEmpty
+    }
+
+    var hasActiveFilters: Bool {
+        hasActiveSpeciesFilters || hasActiveMediaTypeFilters
+    }
+
+    var activeFilterCount: Int {
+        selectedSpeciesCategories.count + selectedMediaTypes.count
+    }
+
     var visiblePosts: [ExploreMapPost] {
-        if appliedSpeciesCategories == selectedSpeciesCategories {
+        if appliedSpeciesCategories == selectedSpeciesCategories,
+           appliedMediaTypes == selectedMediaTypes {
             return posts
         }
 
-        guard hasActiveSpeciesFilters, appliedSpeciesCategories.isEmpty else { return [] }
+        guard appliedSpeciesCategories.isEmpty, appliedMediaTypes.isEmpty else { return [] }
         return posts.filter { post in
-            selectedSpeciesCategories.contains(Self.speciesCategory(for: post))
+            let matchesSpecies = selectedSpeciesCategories.isEmpty
+                || selectedSpeciesCategories.contains(Self.speciesCategory(for: post))
+            let matchesMedia = selectedMediaTypes.isEmpty
+                || !selectedMediaTypes.isDisjoint(with: Self.mediaTypes(for: post))
+            return matchesSpecies && matchesMedia
         }
     }
 
@@ -90,9 +111,10 @@ final class ExploreMapViewModel {
     }
 
     var visibleClusters: [ExploreMapCluster] {
-        guard appliedSpeciesCategories == selectedSpeciesCategories else { return [] }
-        guard hasActiveSpeciesFilters else { return clusters }
-        return categoryCounts.isEmpty ? [] : clusters
+        guard appliedSpeciesCategories == selectedSpeciesCategories,
+              appliedMediaTypes == selectedMediaTypes else { return [] }
+        guard hasActiveFilters else { return clusters }
+        return visibleCount == 0 ? [] : clusters
     }
 
     var visibleDiscoveryCount: Int {
@@ -128,6 +150,13 @@ final class ExploreMapViewModel {
                 }
                 return lhs.category.title < rhs.category.title
             }
+    }
+
+    var visibleMediaTypeCounts: [ExploreMapMediaTypeCount] {
+        let countsByType = Dictionary(uniqueKeysWithValues: mediaTypeCounts.map { ($0.mediaType, $0.count) })
+        return ExploreMediaKind.allCases.map { mediaType in
+            ExploreMapMediaTypeCount(mediaType: mediaType, count: countsByType[mediaType] ?? 0)
+        }
     }
 
     /// Determines whether map waypoints should be rendered as thumbnail images instead of generic dots.
@@ -202,6 +231,18 @@ final class ExploreMapViewModel {
         await setSpeciesFilters([])
     }
 
+    func clearMediaTypeFilters() async {
+        await setMediaTypeFilters([])
+    }
+
+    func clearFilters() async {
+        guard hasActiveFilters else { return }
+        selectedSpeciesCategories = []
+        selectedMediaTypes = []
+        selectedPostId = nil
+        await searchCurrentArea()
+    }
+
     func toggleSpeciesFilter(_ category: ExploreMapSpeciesCategory) async {
         var nextFilters = selectedSpeciesCategories
         if nextFilters.contains(category) {
@@ -215,6 +256,23 @@ final class ExploreMapViewModel {
     func setSpeciesFilters(_ categories: Set<ExploreMapSpeciesCategory>) async {
         guard categories != selectedSpeciesCategories else { return }
         selectedSpeciesCategories = categories
+        selectedPostId = nil
+        await searchCurrentArea()
+    }
+
+    func toggleMediaTypeFilter(_ mediaType: ExploreMediaKind) async {
+        var nextFilters = selectedMediaTypes
+        if nextFilters.contains(mediaType) {
+            nextFilters.remove(mediaType)
+        } else {
+            nextFilters.insert(mediaType)
+        }
+        await setMediaTypeFilters(nextFilters)
+    }
+
+    func setMediaTypeFilters(_ mediaTypes: Set<ExploreMediaKind>) async {
+        guard mediaTypes != selectedMediaTypes else { return }
+        selectedMediaTypes = mediaTypes
         selectedPostId = nil
         await searchCurrentArea()
     }
@@ -321,6 +379,7 @@ final class ExploreMapViewModel {
         }
 
         let requestedSpeciesCategories = selectedSpeciesCategories
+        let requestedMediaTypes = selectedMediaTypes
 
         do {
             let response = try await MerianNetworkClient.shared.getExploreMapPoints(
@@ -330,10 +389,22 @@ final class ExploreMapViewModel {
                 westLongitude: region.westLongitude,
                 zoomLevel: zoomLevel(for: region),
                 limit: maxPostLimit,
-                speciesCategories: requestedSpeciesCategories
+                speciesCategories: requestedSpeciesCategories,
+                mediaTypes: requestedMediaTypes
             )
-            storeCachedResponse(response, for: region, speciesCategories: requestedSpeciesCategories, now: now)
-            apply(response: response, for: region, speciesCategories: requestedSpeciesCategories)
+            storeCachedResponse(
+                response,
+                for: region,
+                speciesCategories: requestedSpeciesCategories,
+                mediaTypes: requestedMediaTypes,
+                now: now
+            )
+            apply(
+                response: response,
+                for: region,
+                speciesCategories: requestedSpeciesCategories,
+                mediaTypes: requestedMediaTypes
+            )
         } catch let error as MerianError {
             if case .httpError(let statusCode, _) = error, statusCode == 503 {
                 hasServiceUnavailableError = true
@@ -382,14 +453,17 @@ final class ExploreMapViewModel {
     private func apply(
         response: ExploreMapPointsResponse,
         for region: MKCoordinateRegion,
-        speciesCategories: Set<ExploreMapSpeciesCategory>
+        speciesCategories: Set<ExploreMapSpeciesCategory>,
+        mediaTypes: Set<ExploreMediaKind>
     ) {
         mode = response.mode
         clusters = response.clusters
         posts = Array(response.posts.prefix(maxPostLimit))
         visibleCount = response.visibleCount
         categoryCounts = response.categoryCounts
+        mediaTypeCounts = response.mediaTypeCounts
         appliedSpeciesCategories = speciesCategories
+        appliedMediaTypes = mediaTypes
         errorMessage = nil
         hasServiceUnavailableError = false
         isOffline = false
@@ -432,7 +506,12 @@ final class ExploreMapViewModel {
 
         let cachedEntry = cachedResponses[cacheIndex]
         cachedResponses[cacheIndex].lastAccessedAt = now
-        apply(response: cachedEntry.response, for: region, speciesCategories: cachedEntry.speciesCategories)
+        apply(
+            response: cachedEntry.response,
+            for: region,
+            speciesCategories: cachedEntry.speciesCategories,
+            mediaTypes: cachedEntry.mediaTypes
+        )
         pruneCachedResponses(around: region)
 
         return now.timeIntervalSince(cachedEntry.lastAccessedAt) < freshCacheTTL
@@ -440,13 +519,16 @@ final class ExploreMapViewModel {
 
     private func cachedResponseIndex(
         for region: MKCoordinateRegion,
-        speciesCategories: Set<ExploreMapSpeciesCategory>? = nil
+        speciesCategories: Set<ExploreMapSpeciesCategory>? = nil,
+        mediaTypes: Set<ExploreMediaKind>? = nil
     ) -> Int? {
         let requestedSpeciesCategories = speciesCategories ?? selectedSpeciesCategories
+        let requestedMediaTypes = mediaTypes ?? selectedMediaTypes
         return cachedResponses.indices
             .filter {
                 regionsAreCacheCompatible(cachedResponses[$0].region, region)
                     && cachedResponses[$0].speciesCategories == requestedSpeciesCategories
+                    && cachedResponses[$0].mediaTypes == requestedMediaTypes
             }
             .max(by: { cachedResponses[$0].lastAccessedAt < cachedResponses[$1].lastAccessedAt })
     }
@@ -455,16 +537,22 @@ final class ExploreMapViewModel {
         _ response: ExploreMapPointsResponse,
         for region: MKCoordinateRegion,
         speciesCategories: Set<ExploreMapSpeciesCategory>,
+        mediaTypes: Set<ExploreMediaKind>,
         now: Date
     ) {
         let entry = ExploreMapCacheEntry(
             region: region,
             speciesCategories: speciesCategories,
+            mediaTypes: mediaTypes,
             response: response,
             lastAccessedAt: now
         )
 
-        if let existingIndex = cachedResponseIndex(for: region, speciesCategories: speciesCategories) {
+        if let existingIndex = cachedResponseIndex(
+            for: region,
+            speciesCategories: speciesCategories,
+            mediaTypes: mediaTypes
+        ) {
             cachedResponses[existingIndex] = entry
         } else {
             cachedResponses.append(entry)
@@ -563,6 +651,10 @@ final class ExploreMapViewModel {
         default:
             return .other
         }
+    }
+
+    private static func mediaTypes(for post: ExploreMapPost) -> Set<ExploreMediaKind> {
+        Set(post.resolvedMediaItems.map(\.kind))
     }
 }
 

@@ -2593,7 +2593,8 @@ request body is:
   "west_longitude": -98.001,
   "zoom_level": 10.7,
   "limit": 500,
-  "species_categories": ["birds", "insects"]
+  "species_categories": ["birds", "insects"],
+  "media_types": ["image", "audio"]
 }
 ```
 
@@ -2605,16 +2606,17 @@ request body is:
 - `species_categories` is optional. Allowed values are `plants`, `fungi`,
   `birds`, `mammals`, `reptiles`, `amphibians`, `fish`, `insects`, `arachnids`,
   and `other`.
+- `media_types` is optional. Allowed values are `image`, `video`, and `audio`.
 
 The Edge Function reads `public.get_explore_map_posts(...)` and then applies
 species-type filters and zoom-aware clustering in
 `services/supabase/functions/get-explore-map-points/cluster.ts`. The shipped
 behavior is:
 
-- category counts are computed from the unfiltered privacy-safe rows in the
-  current region
-- selected species categories are applied before clustering, so clusters and
-  waypoints reflect the active filters
+- category counts are computed after applying media filters, while media-type
+  counts are computed after applying species filters
+- selected values use OR within each filter group and AND between species and
+  media groups; both groups are applied before clustering
 - when the visible result set is small, return `mode: "posts"`
 - when the viewport is broad or dense, return `mode: "clusters"`
 - at close zooms, individual posts are still capped to prevent annotation
@@ -2629,6 +2631,11 @@ Current response shapes:
   "category_counts": [
     { "category": "birds", "count": 82 },
     { "category": "insects", "count": 51 }
+  ],
+  "media_type_counts": [
+    { "media_type": "image", "count": 132 },
+    { "media_type": "video", "count": 71 },
+    { "media_type": "audio", "count": 40 }
   ],
   "clusters": [
     {

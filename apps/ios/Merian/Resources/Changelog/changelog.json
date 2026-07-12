@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-11-explore-map-media-filters",
+      "date": "2026-07-11",
+      "title": "Explore map media filters",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Explore map results can now be filtered by images, videos, or audio alongside species groups."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-11-collection-cover-fallback",
       "date": "2026-07-11",
       "title": "More reliable collection covers",

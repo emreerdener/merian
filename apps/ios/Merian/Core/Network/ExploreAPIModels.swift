@@ -53,10 +53,12 @@ struct ExploreComposerMediaItem: Decodable, Equatable {
     let selectionOrderIndex: Int?
 }
 
-enum ExploreMediaKind: String, Decodable, Equatable {
+enum ExploreMediaKind: String, Codable, CaseIterable, Hashable, Identifiable {
     case image
     case video
     case audio
+
+    var id: Self { self }
 }
 
 struct ExploreMediaItem: Decodable, Equatable {
@@ -988,6 +990,7 @@ struct ExploreMapPointsResponse: Decodable {
     let mode: ExploreMapMode
     let visibleCount: Int
     let categoryCounts: [ExploreMapCategoryCount]
+    let mediaTypeCounts: [ExploreMapMediaTypeCount]
     let clusters: [ExploreMapCluster]
     let posts: [ExploreMapPost]
 
@@ -995,6 +998,7 @@ struct ExploreMapPointsResponse: Decodable {
         case mode
         case visibleCount
         case categoryCounts
+        case mediaTypeCounts
         case clusters
         case posts
     }
@@ -1004,6 +1008,7 @@ struct ExploreMapPointsResponse: Decodable {
         mode = try container.decode(ExploreMapMode.self, forKey: .mode)
         visibleCount = try container.decode(Int.self, forKey: .visibleCount)
         categoryCounts = try container.decodeIfPresent([ExploreMapCategoryCount].self, forKey: .categoryCounts) ?? []
+        mediaTypeCounts = try container.decodeIfPresent([ExploreMapMediaTypeCount].self, forKey: .mediaTypeCounts) ?? []
         clusters = try container.decode([ExploreMapCluster].self, forKey: .clusters)
         posts = try container.decode([ExploreMapPost].self, forKey: .posts)
     }
@@ -1076,6 +1081,13 @@ struct ExploreMapCategoryCount: Decodable, Identifiable, Equatable {
     let count: Int
 
     var id: ExploreMapSpeciesCategory { category }
+}
+
+struct ExploreMapMediaTypeCount: Decodable, Identifiable, Equatable {
+    let mediaType: ExploreMediaKind
+    let count: Int
+
+    var id: ExploreMediaKind { mediaType }
 }
 
 struct ExploreMapCluster: Decodable, Identifiable, Equatable {

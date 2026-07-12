@@ -1516,7 +1516,8 @@ final class MerianNetworkClient {
         westLongitude: Double,
         zoomLevel: Double,
         limit: Int = 500,
-        speciesCategories: Set<ExploreMapSpeciesCategory> = []
+        speciesCategories: Set<ExploreMapSpeciesCategory> = [],
+        mediaTypes: Set<ExploreMediaKind> = []
     ) async throws -> ExploreMapPointsResponse {
         let functionUrl = try endpointURL("get-explore-map-points")
         var payload: [String: Any] = [
@@ -1529,6 +1530,9 @@ final class MerianNetworkClient {
         ]
         if !speciesCategories.isEmpty {
             payload["species_categories"] = speciesCategories.map(\.rawValue).sorted()
+        }
+        if !mediaTypes.isEmpty {
+            payload["media_types"] = mediaTypes.map(\.rawValue).sorted()
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)

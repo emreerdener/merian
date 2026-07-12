@@ -146,11 +146,11 @@ common/scientific-name display, and species-level resolutions set
 `scans.confirmed_species_id` after materializing any new GBIF-backed species
 into Merian's Dictionary. The original AI `scans.species_id` is preserved.
 
-Map species-type filters are backed by `/get-explore-map-points`, which derives
-category counts from the privacy-safe posts in the current region and applies
-selected species categories before clustering. The UI can therefore keep the
-pill row dynamic without exposing private scan coordinates or separate raw
-taxonomy queries.
+Map species and media-type filters are backed by `/get-explore-map-points`.
+The endpoint derives faceted counts from privacy-safe posts, applies selected
+species and media groups before clustering, and treats attached media kinds as
+an OR match. The horizontal pill row remains species-focused; image, video, and
+audio choices live in the full Map filters sheet.
 
 Dictionary and Tree use species-level public data only. The Dictionary overview
 returns featured, group, and region summaries, while pushed catalog pages return

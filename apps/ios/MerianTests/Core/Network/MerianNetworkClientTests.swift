@@ -716,6 +716,52 @@ struct MerianNetworkClientTests {
         #expect(response.posts[1].hasVideoMedia)
         #expect(response.posts[1].mapThumbnailUrl == "https://example.com/monarch.webp")
         #expect(response.posts[1].asExplorePost.hasVideoMedia)
+        #expect(response.mediaTypeCounts.isEmpty)
+    }
+
+    @Test func testGetExploreMapPointsSendsMediaFiltersAndDecodesCounts() async throws {
+        let testData = Data("""
+        {
+            "mode": "posts",
+            "visible_count": 0,
+            "category_counts": [],
+            "media_type_counts": [
+                { "media_type": "image", "count": 4 },
+                { "media_type": "audio", "count": 2 }
+            ],
+            "clusters": [],
+            "posts": []
+        }
+        """.utf8)
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/get-explore-map-points"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["species_categories"] as? [String] == ["birds"])
+            #expect(payload["media_types"] as? [String] == ["audio", "video"])
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getExploreMapPoints(
+            northLatitude: 31,
+            southLatitude: 30,
+            eastLongitude: -97,
+            westLongitude: -98,
+            zoomLevel: 12,
+            speciesCategories: [.birds],
+            mediaTypes: [.video, .audio]
+        )
+
+        #expect(response.mediaTypeCounts == [
+            ExploreMapMediaTypeCount(mediaType: .image, count: 4),
+            ExploreMapMediaTypeCount(mediaType: .audio, count: 2)
+        ])
     }
 
     @Test func testGetExploreFeedTrendingConstructsPayloadAndParsesResponse() async throws {

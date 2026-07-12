@@ -887,7 +887,11 @@ final class ExploreAuthorDisplayNameTests: XCTestCase {
 
 @MainActor
 final class ExploreMapViewModelSelectionTests: XCTestCase {
-    private func makeMapPost(id: String, latitude: Double) -> ExploreMapPost {
+    private func makeMapPost(
+        id: String,
+        latitude: Double,
+        mediaKinds: [ExploreMediaKind] = [.image]
+    ) -> ExploreMapPost {
         ExploreMapPost(
             postId: id,
             scanId: "scan-\(id)",
@@ -915,7 +919,17 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
             likeCount: 0,
             commentCount: 0,
             viewerHasLiked: false,
-            isOwnedByViewer: false
+            isOwnedByViewer: false,
+            mediaItems: mediaKinds.enumerated().map { index, kind in
+                ExploreMediaItem(
+                    kind: kind,
+                    url: "https://example.com/\(id)-\(kind.rawValue)",
+                    thumbnailUrl: kind == .audio ? nil : "https://example.com/\(id)-\(kind.rawValue).webp",
+                    orderIndex: index,
+                    durationSeconds: kind == .image ? nil : 4,
+                    hasAudio: kind != .image
+                )
+            }
         )
     }
 
@@ -987,6 +1001,51 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
         // When selection is cleared, order is unchanged
         viewModel.selectPost(nil)
         XCTAssertEqual(viewModel.orderedMapPosts.map(\.id), ["first", "second", "third"])
+    }
+
+    func testMediaTypeFiltersMatchAnySelectedKindAndCombineWithSpecies() {
+        let viewModel = ExploreMapViewModel()
+        let image = makeMapPost(id: "image", latitude: 30.267, mediaKinds: [.image])
+        let video = makeMapPost(id: "video", latitude: 30.268, mediaKinds: [.video])
+        let mixed = makeMapPost(id: "mixed", latitude: 30.269, mediaKinds: [.image, .audio])
+        viewModel.posts = [image, video, mixed]
+
+        viewModel.selectedMediaTypes = [.video, .audio]
+        viewModel.selectedSpeciesCategories = [.insects]
+
+        XCTAssertEqual(viewModel.visiblePosts.map(\.id), ["video", "mixed"])
+        XCTAssertTrue(viewModel.hasActiveFilters)
+        XCTAssertEqual(viewModel.activeFilterCount, 3)
+    }
+
+    func testVisibleMediaTypeCountsIncludeZeroCountTypes() {
+        let viewModel = ExploreMapViewModel()
+        viewModel.mediaTypeCounts = [
+            ExploreMapMediaTypeCount(mediaType: .video, count: 3),
+            ExploreMapMediaTypeCount(mediaType: .audio, count: 1)
+        ]
+
+        XCTAssertEqual(viewModel.visibleMediaTypeCounts, [
+            ExploreMapMediaTypeCount(mediaType: .image, count: 0),
+            ExploreMapMediaTypeCount(mediaType: .video, count: 3),
+            ExploreMapMediaTypeCount(mediaType: .audio, count: 1)
+        ])
+    }
+
+    func testClearingAllFiltersClearsSelection() async {
+        let viewModel = ExploreMapViewModel()
+        let post = makeMapPost(id: "selected", latitude: 30.267, mediaKinds: [.audio])
+        viewModel.posts = [post]
+        viewModel.selectedSpeciesCategories = [.insects]
+        viewModel.selectedMediaTypes = [.audio]
+        viewModel.selectPost(post.id)
+
+        await viewModel.clearFilters()
+
+        XCTAssertTrue(viewModel.selectedSpeciesCategories.isEmpty)
+        XCTAssertTrue(viewModel.selectedMediaTypes.isEmpty)
+        XCTAssertNil(viewModel.selectedPostId)
+        XCTAssertFalse(viewModel.hasActiveFilters)
     }
 }
 

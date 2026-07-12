@@ -237,10 +237,10 @@ struct ExploreMapView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 mapFilterPill(
-                    title: viewModel.hasActiveSpeciesFilters
-                        ? "Filters \(viewModel.selectedSpeciesCategories.count.formatted())"
+                    title: viewModel.hasActiveFilters
+                        ? "Filters \(viewModel.activeFilterCount.formatted())"
                         : "Filters",
-                    isSelected: viewModel.hasActiveSpeciesFilters
+                    isSelected: viewModel.hasActiveFilters
                 ) {
                     isShowingFilterSheet = true
                 }
@@ -248,9 +248,9 @@ struct ExploreMapView: View {
 
                 mapFilterPill(
                     title: "All",
-                    isSelected: !viewModel.hasActiveSpeciesFilters
+                    isSelected: !viewModel.hasActiveFilters
                 ) {
-                    Task { await viewModel.clearSpeciesFilters() }
+                    Task { await viewModel.clearFilters() }
                 }
 
                 ForEach(viewModel.visibleCategoryCounts) { categoryCount in
@@ -337,7 +337,7 @@ struct ExploreMapView: View {
 
     private var resolvedSelectedPost: ExplorePost? {
         guard let mapPost = viewModel.selectedPost else { return nil }
-        return postStore.post(id: mapPost.id) ?? mapPost.asExplorePost
+        return mapPost.asExplorePost
     }
 
     private var activePreviewCenterMapPost: ExploreMapPost? {
@@ -466,7 +466,7 @@ struct ExploreMapView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(viewModel.visiblePosts) { mapPost in
-                        let post = postStore.post(id: mapPost.id) ?? mapPost.asExplorePost
+                        let post = mapPost.asExplorePost
                         ExploreMapPreviewCard(
                             post: post,
                             speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
@@ -501,6 +501,8 @@ struct ExploreMapView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 12) {
+                    filterSectionTitle("Species")
+
                     Button {
                         HapticManager.shared.triggerSelectionPulse()
                         Task { await viewModel.clearSpeciesFilters() }
@@ -530,6 +532,41 @@ struct ExploreMapView: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    filterSectionTitle("Media type")
+                        .padding(.top, 8)
+
+                    Button {
+                        HapticManager.shared.triggerSelectionPulse()
+                        Task { await viewModel.clearMediaTypeFilters() }
+                    } label: {
+                        ExploreMapFilterSheetRow(
+                            title: "All media",
+                            subtitle: viewModel.hasActiveMediaTypeFilters
+                                ? "Show every media type"
+                                : discoveriesInViewLabel(count: viewModel.visibleDiscoveryCount),
+                            systemImage: "rectangle.stack",
+                            isSelected: !viewModel.hasActiveMediaTypeFilters
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(viewModel.visibleMediaTypeCounts) { mediaTypeCount in
+                        Button {
+                            HapticManager.shared.triggerSelectionPulse()
+                            Task { await viewModel.toggleMediaTypeFilter(mediaTypeCount.mediaType) }
+                        } label: {
+                            ExploreMapFilterSheetRow(
+                                title: mediaTypeCount.mediaType.mapFilterTitle,
+                                subtitle: mediaTypeCount.count >= 1
+                                    ? discoveriesInViewLabel(count: mediaTypeCount.count)
+                                    : "Filter map",
+                                systemImage: mediaTypeCount.mediaType.mapFilterSymbolName,
+                                isSelected: viewModel.selectedMediaTypes.contains(mediaTypeCount.mediaType)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding()
             }
@@ -539,9 +576,9 @@ struct ExploreMapView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Reset") {
                         HapticManager.shared.triggerSelectionPulse()
-                        Task { await viewModel.clearSpeciesFilters() }
+                        Task { await viewModel.clearFilters() }
                     }
-                    .disabled(!viewModel.hasActiveSpeciesFilters)
+                    .disabled(!viewModel.hasActiveFilters)
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -561,6 +598,16 @@ struct ExploreMapView: View {
     private var totalAvailableDiscoveryCount: Int {
         let countedTotal = viewModel.categoryCounts.reduce(0) { $0 + $1.count }
         return max(countedTotal, viewModel.visibleCount)
+    }
+
+    private func filterSectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.footnote)
+            .fontWeight(.semibold)
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
     }
 
     private func openPost(_ post: ExplorePost, focusCommentComposer: Bool) {
@@ -800,7 +847,7 @@ struct ExploreMapView: View {
 
     private func resolvedPost(for mapPost: ExploreMapPost?) -> ExplorePost? {
         guard let mapPost else { return nil }
-        return postStore.post(id: mapPost.id) ?? mapPost.asExplorePost
+        return mapPost.asExplorePost
     }
 
     private func registerAnnotationTap() {
@@ -809,6 +856,24 @@ struct ExploreMapView: View {
         Task { @MainActor in
             await Task.yield()
             ignoreNextBackgroundTap = false
+        }
+    }
+}
+
+private extension ExploreMediaKind {
+    var mapFilterTitle: String {
+        switch self {
+        case .image: "Images"
+        case .video: "Videos"
+        case .audio: "Audio"
+        }
+    }
+
+    var mapFilterSymbolName: String {
+        switch self {
+        case .image: "photo"
+        case .video: "video.fill"
+        case .audio: "waveform"
         }
     }
 }

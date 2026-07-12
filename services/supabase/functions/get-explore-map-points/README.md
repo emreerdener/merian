@@ -12,13 +12,17 @@ currently visible map bounds.
   "east_longitude": -97.517,
   "west_longitude": -98.001,
   "zoom_level": 10.7,
-  "limit": 500
+  "limit": 500,
+  "species_categories": ["birds"],
+  "media_types": ["image", "audio"]
 }
 ```
 
 - Bounds are required and validated as latitude/longitude numbers.
 - `zoom_level` controls clustering only.
 - `limit` defaults to `500` and is capped at `500`.
+- `species_categories` and `media_types` are optional multi-select filters.
+  Media values are `image`, `video`, and `audio`.
 
 ## Response
 
@@ -28,6 +32,11 @@ Cluster mode:
 {
   "mode": "clusters",
   "visible_count": 243,
+  "category_counts": [],
+  "media_type_counts": [
+    { "media_type": "image", "count": 198 },
+    { "media_type": "audio", "count": 45 }
+  ],
   "clusters": [
     {
       "id": "3015:2057",
@@ -107,6 +116,10 @@ clients. For media-only posts, the response prefers a visual-media poster and
 then the normalized species `reference_thumbnail_url`; if neither exists it uses
 an empty string so one post cannot invalidate the complete map response. Ordered
 `media_items` remain authoritative for playback and media badges.
+Media filtering matches any selected attached kind. Species and media filter
+groups intersect, and each group’s counts reflect the active filters in the
+other group. A legacy row without `media_items` is treated as an image only
+when it still has a non-empty hero image.
 
 ## Local Verification
 
