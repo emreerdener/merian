@@ -23,6 +23,8 @@
           "title": "Improved",
           "items": [
             "Fullscreen Insight videos now use streamlined custom play or pause and mute controls, while carousel dots stay in their standard gallery position.",
+            "Fullscreen Insight videos now begin playing immediately and preserve the sound setting selected in the Insight carousel.",
+            "Insight videos now loop continuously while selected in both the sheet carousel and fullscreen viewer.",
             "The center of an Insight video now safely plays or pauses without opening the fullscreen media viewer; tapping elsewhere still opens the gallery.",
             "Insight-sheet videos now pause before the fullscreen media carousel opens, preventing sound from continuing underneath the viewer.",
             "Insight-sheet videos now use streamlined custom playback chrome without skip controls or a progress bar, while retaining center play or pause and mute controls."

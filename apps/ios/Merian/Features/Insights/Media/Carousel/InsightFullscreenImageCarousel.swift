@@ -6,7 +6,12 @@ struct InsightFullscreenImageCarousel: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedItemID: String?
-    @State private var isVideoMuted = false
+    @State private var isVideoMuted: Bool
+
+    init(presentation: InsightImageGalleryPresentation) {
+        self.presentation = presentation
+        _isVideoMuted = State(initialValue: presentation.initialVideoMuted)
+    }
 
     private var selectedItem: InsightImageGalleryItem? {
         let fallbackID = presentation.items[safe: presentation.initialSelectedIndex]?.id
@@ -256,8 +261,13 @@ private struct FullscreenVideoView: View {
             queue: .main
         ) { _ in
             configuredPlayer.seek(to: .zero)
-            isPlaying = false
+            guard isSelected else {
+                isPlaying = false
+                return
+            }
+            startPlayback(source: "media.insight.fullscreen.loop")
         }
+        startPlayback(source: "media.insight.fullscreen.autoplay")
     }
 
     private func togglePlayback() {
@@ -272,20 +282,24 @@ private struct FullscreenVideoView: View {
             isPlaying = false
         } else {
             HapticManager.shared.triggerMediumPulse(source: "media.insight.fullscreen.play")
-            guard !isMuted else {
-                player.play()
-                isPlaying = true
-                return
-            }
-            Task { @MainActor in
-                let activated = await MediaPlaybackAudioSession.activate(
-                    source: "media.insight.fullscreen.play"
-                )
-                guard activated, self.player === player, !isMuted else { return }
-                player.isMuted = false
-                player.play()
-                isPlaying = true
-            }
+            startPlayback(source: "media.insight.fullscreen.play")
+        }
+    }
+
+    private func startPlayback(source: String) {
+        guard isSelected, let player else { return }
+        guard !isMuted else {
+            player.play()
+            isPlaying = true
+            return
+        }
+
+        Task { @MainActor in
+            let activated = await MediaPlaybackAudioSession.activate(source: source)
+            guard activated, self.player === player, isSelected, !isMuted else { return }
+            player.isMuted = false
+            player.play()
+            isPlaying = true
         }
     }
 

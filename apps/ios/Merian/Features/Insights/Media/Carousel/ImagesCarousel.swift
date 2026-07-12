@@ -6,7 +6,6 @@ struct CarouselPageBuilder {
     static func buildPages(
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?,
-        isProcessing: Bool = false,
         selectedIndex: Binding<Int> = .constant(0),
         isVideoMuted: Binding<Bool> = .constant(true),
         videoPlaybackCoordinator: InsightCarouselVideoPlaybackCoordinator? = nil,
@@ -63,7 +62,6 @@ struct CarouselPageBuilder {
                         pageIndex: pageIndex,
                         selectedIndex: selectedIndex,
                         isMuted: isVideoMuted,
-                        shouldLoopDuringProcessing: isProcessing,
                         playbackCoordinator: videoPlaybackCoordinator
                     ))
                 ))
@@ -119,10 +117,16 @@ struct InsightImageGalleryPresentation: Identifiable, Equatable {
     let id: String
     let items: [InsightImageGalleryItem]
     let initialSelectedIndex: Int
+    let initialVideoMuted: Bool
 
-    init(items: [InsightImageGalleryItem], initialSelectedIndex: Int) {
+    init(
+        items: [InsightImageGalleryItem],
+        initialSelectedIndex: Int,
+        initialVideoMuted: Bool = true
+    ) {
         self.items = items
         self.initialSelectedIndex = initialSelectedIndex
+        self.initialVideoMuted = initialVideoMuted
         self.id = "\(items.map(\.id).joined(separator: "|"))#\(initialSelectedIndex)"
     }
 }
@@ -180,7 +184,8 @@ struct InsightImageGalleryBuilder {
     static func presentation(
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?,
-        selectedCarouselPageID: String?
+        selectedCarouselPageID: String?,
+        isVideoMuted: Bool = true
     ) -> InsightImageGalleryPresentation? {
         guard let selectedCarouselPageID else { return nil }
 
@@ -189,7 +194,11 @@ struct InsightImageGalleryBuilder {
             return nil
         }
 
-        return InsightImageGalleryPresentation(items: items, initialSelectedIndex: selectedIndex)
+        return InsightImageGalleryPresentation(
+            items: items,
+            initialSelectedIndex: selectedIndex,
+            initialVideoMuted: isVideoMuted
+        )
     }
 }
 
@@ -271,7 +280,6 @@ private struct VideoPlaybackCarouselPage: View {
     let pageIndex: Int
     @Binding var selectedIndex: Int
     @Binding var isMuted: Bool
-    let shouldLoopDuringProcessing: Bool
     let playbackCoordinator: InsightCarouselVideoPlaybackCoordinator?
 
     @State private var player: AVPlayer?
@@ -330,12 +338,6 @@ private struct VideoPlaybackCarouselPage: View {
                 player?.isMuted = false
             }
         }
-        .onChange(of: shouldLoopDuringProcessing) { _, _ in
-            if let player {
-                installPlaybackEndObserver(for: player)
-            }
-            updatePlaybackForSelection()
-        }
         .onReceive(fullscreenPresentationPausePublisher) {
             player?.pause()
             isPlaying = false
@@ -376,8 +378,6 @@ private struct VideoPlaybackCarouselPage: View {
 
         if isSelected {
             if !hasAutoplayed {
-                startPlayback(fromBeginning: true)
-            } else if shouldLoopDuringProcessing && !isPlaying {
                 startPlayback(fromBeginning: true)
             }
         } else if !isSelected, isPlaying {
@@ -421,15 +421,16 @@ private struct VideoPlaybackCarouselPage: View {
             queue: .main
         ) { _ in
             player.seek(to: .zero)
-            if shouldLoopDuringProcessing, isSelected {
-                play(player, source: "media.insight.carousel.loop")
-            } else {
+            guard isSelected else {
                 isPlaying = false
+                return
             }
+            play(player, source: "media.insight.carousel.loop")
         }
     }
 
     private func play(_ player: AVPlayer, source: String) {
+        guard isSelected else { return }
         guard !isMuted else {
             player.play()
             isPlaying = true
@@ -438,7 +439,7 @@ private struct VideoPlaybackCarouselPage: View {
 
         Task { @MainActor in
             let activated = await MediaPlaybackAudioSession.activate(source: source)
-            guard activated, self.player === player, !isMuted else { return }
+            guard activated, self.player === player, isSelected, !isMuted else { return }
             player.isMuted = false
             player.play()
             isPlaying = true
@@ -647,7 +648,6 @@ struct ImagesCarousel: View {
         CarouselPageBuilder.buildPages(
             for: activeMedia,
             referenceWikipediaUrl: referenceWikipediaUrl,
-            isProcessing: isProcessing,
             selectedIndex: $selectedIndex,
             isVideoMuted: $isVideoMuted,
             videoPlaybackCoordinator: videoPlaybackCoordinator,
@@ -684,7 +684,8 @@ struct ImagesCarousel: View {
         guard let presentation = InsightImageGalleryBuilder.presentation(
             for: activeMedia,
             referenceWikipediaUrl: referenceWikipediaUrl,
-            selectedCarouselPageID: selectedPageID
+            selectedCarouselPageID: selectedPageID,
+            isVideoMuted: isVideoMuted
         ) else { return }
 
         videoPlaybackCoordinator.pauseForFullscreenPresentation()

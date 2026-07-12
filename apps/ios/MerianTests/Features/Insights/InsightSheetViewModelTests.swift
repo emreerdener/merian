@@ -1110,7 +1110,8 @@ struct InsightSheetViewModelTests {
         let presentation = InsightImageGalleryBuilder.presentation(
             for: media,
             referenceWikipediaUrl: nil,
-            selectedCarouselPageID: "video-\(videoPath)"
+            selectedCarouselPageID: "video-\(videoPath)",
+            isVideoMuted: false
         )
 
         #expect(presentation?.items.map(\.id) == [
@@ -1119,6 +1120,7 @@ struct InsightSheetViewModelTests {
             "reference-https://example.com/reference.jpg"
         ])
         #expect(presentation?.initialSelectedIndex == 1)
+        #expect(presentation?.initialVideoMuted == false)
     }
 
     @Test func testInsightVideoCenterPlaybackZoneProtectsNavigationTap() {

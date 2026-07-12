@@ -61,7 +61,9 @@ TestFlight, App Store, support, and QA.
 
 - Improved fullscreen video viewing with the same streamlined custom play/pause
   and mute controls used elsewhere, while keeping carousel dots in their
-  standard gallery position.
+  standard gallery position. Fullscreen videos now begin playing immediately
+  and inherit the Insight carousel's current sound setting. Video playback now
+  loops while the video remains selected in both carousel sizes.
 - Added a protected center play/pause tap area to Insight video carousels so
   playback taps no longer open the fullscreen media viewer.
 - Paused Insight-sheet video playback before opening the fullscreen media
