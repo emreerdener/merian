@@ -22,6 +22,7 @@ type ExplorePostRow = {
   post_id: string;
   scan_id: string;
   hero_image_url?: string | null;
+  reference_thumbnail_url?: string | null;
   shared_at: string;
   author_user_id: string;
   author_name: string;
@@ -147,6 +148,7 @@ export type ExplorePost = {
   postId: string;
   scanId: string;
   heroImageUrl: string | null;
+  referenceThumbnailUrl: string | null;
   mediaItems: ExplorePostMediaItem[];
   sharedAt: string;
   authorUserId: string;
@@ -483,6 +485,7 @@ function mapExplorePost(row: ExplorePostRow): ExplorePost {
     postId: row.post_id,
     scanId: row.scan_id,
     heroImageUrl: trimmedString(row.hero_image_url),
+    referenceThumbnailUrl: trimmedString(row.reference_thumbnail_url),
     mediaItems,
     sharedAt: row.shared_at,
     authorUserId: row.author_user_id,

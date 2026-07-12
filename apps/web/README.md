@@ -11,11 +11,12 @@ The first route is the public Explore share page:
 It fetches the public Explore post and detail projections from Supabase on the
 server, renders a rich read-only post page with default Mantine components, and
 emits Open Graph metadata so Messages/social shares can render a clean preview.
-Standalone-audio posts consume the persisted `media_items.thumbnail_url`
-spectrogram for the home grid, post header, and social preview. The public web
-app never downloads recordings to calculate FFT data in a visitor's browser;
-blank or unsupported legacy thumbnails retain the volume-icon fallback and
-normal `<audio>` playback.
+Standalone-audio post details and social previews consume the persisted
+`media_items.thumbnail_url` spectrogram. The home grid uses the public species
+reference thumbnail instead, with the spectrogram as a legacy fallback. The
+public web app never downloads recordings to calculate FFT data in a visitor's
+browser; blank or unsupported legacy thumbnails retain the volume-icon fallback
+and normal `<audio>` playback.
 
 The production domain is:
 

@@ -71,9 +71,9 @@ audio spectrograms, posters, and species reference images.
 
 If the RPC returns no visible row, the route returns a not-found page and marks
 metadata as non-indexable. Approved audio-only posts are public and indexable:
-WAV posts render the persisted spectrogram in the public home grid,
-audio-focused post header, Open Graph metadata, and Twitter metadata, alongside
-native, user-initiated controls. Mixed posts retain their visual social preview
+WAV posts render the persisted spectrogram in the audio-focused post header,
+Open Graph metadata, and Twitter metadata, while the public home grid uses the
+species reference thumbnail. Mixed posts retain their visual social preview
 and render approved audio in the same canonical square media carousel. Audio
 slides fill the frame with their persisted spectrogram and anchor native
 playback controls over a bottom gradient. Legacy non-WAV posts or failed poster

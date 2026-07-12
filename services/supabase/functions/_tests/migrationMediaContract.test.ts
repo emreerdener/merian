@@ -259,6 +259,26 @@ Deno.test("public Explore post detail exposes canonical ordered media", async ()
   }
 });
 
+Deno.test("public Explore feed exposes compact reference thumbnails", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260712181152_add_reference_thumbnail_to_explore_feed.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "reference_thumbnail_url TEXT",
+      "public.public_species_first_reference_image_url",
+      "cards.media_items",
+      "JOIN public.scans scan ON scan.id = cards.scan_id",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("scan media refresh derives video audio metadata from captured media", async () => {
   const sql = normalized(
     await migrationSql(

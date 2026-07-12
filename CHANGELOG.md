@@ -17,6 +17,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Updated the public web discovery grid to show the species reference image for
+  audio posts while retaining the spectrogram and playback controls on post
+  detail pages.
 - Simplified public Explore post details by removing like and comment counts
   and moving **Report this post** beside the author information.
 - Reworked public Explore audio posts so the recording spectrogram fills the
@@ -30,10 +33,10 @@ TestFlight, App Store, support, and QA.
 - Kept audio presentation scoped correctly: feed and post detail always show a
   persisted or locally generated spectrogram, while compact Map, profile, and
   grid thumbnails continue to use the species reference photo.
-- Added real spectrogram artwork for standalone-audio posts on the public web
-  Explore grid and post pages. New WAV shares persist a deterministic thumbnail
-  beside the recording, and a bounded repair worker can backfill older posts;
-  unsupported legacy formats keep normal playback and the volume-icon fallback.
+- Added real spectrogram artwork for standalone-audio public web post pages and
+  social previews. New WAV shares persist a deterministic thumbnail beside the
+  recording, and a bounded repair worker can backfill older posts; unsupported
+  legacy formats keep normal playback and the volume-icon fallback.
 - Added image, video, and audio filters to the Explore map filter sheet. Media
   filters can be combined with species groups and remain accurate for clustered
   map results.

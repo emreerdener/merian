@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { explorePosterUrl } from "./exploreMedia.ts";
+import { exploreGridPosterUrl, explorePosterUrl } from "./exploreMedia.ts";
 
 const audioItem = {
   kind: "audio",
@@ -31,5 +31,27 @@ test("audio-only Explore posts retain the fallback when no spectrogram exists", 
       mediaItems: [{ ...audioItem, thumbnailUrl: null }],
     }),
     null,
+  );
+});
+
+test("Explore grid audio posts prefer the species reference thumbnail", () => {
+  assert.equal(
+    exploreGridPosterUrl({
+      heroImageUrl: "https://media.merian.app/spectrogram.png",
+      referenceThumbnailUrl: "https://media.merian.app/cardinal-reference.webp",
+      mediaItems: [audioItem],
+    }),
+    "https://media.merian.app/cardinal-reference.webp",
+  );
+});
+
+test("Explore grid visual posts retain their canonical hero", () => {
+  assert.equal(
+    exploreGridPosterUrl({
+      heroImageUrl: "https://media.merian.app/observation.webp",
+      referenceThumbnailUrl: "https://media.merian.app/reference.webp",
+      mediaItems: [{ ...audioItem, kind: "image" }],
+    }),
+    "https://media.merian.app/observation.webp",
   );
 });

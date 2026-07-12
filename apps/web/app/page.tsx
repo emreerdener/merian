@@ -15,7 +15,7 @@ import {
 import { IconLeaf, IconVolume } from "@tabler/icons-react";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { fetchExploreFeedPosts } from "@/lib/explore";
-import { explorePosterUrl } from "@/lib/exploreMedia";
+import { exploreGridPosterUrl } from "@/lib/exploreMedia";
 
 export const metadata: Metadata = {
   title: "Merian Beta Waitlist",
@@ -98,9 +98,9 @@ export default async function HomePage() {
                         overflow: "hidden",
                       }}
                     >
-                      {explorePosterUrl(post) ? (
+                      {exploreGridPosterUrl(post) ? (
                         <img
-                          src={explorePosterUrl(post)!}
+                          src={exploreGridPosterUrl(post)!}
                           alt={post.speciesCommonName || "Observation"}
                           className="explore-grid-image"
                         />
