@@ -238,6 +238,27 @@ Deno.test("scan media refresh ambiguity repair qualifies legacy array aliases", 
   );
 });
 
+Deno.test("public Explore post detail exposes canonical ordered media", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260712164923_expose_media_items_in_explore_post.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "DROP FUNCTION IF EXISTS public.get_explore_post(UUID, UUID)",
+      "CREATE FUNCTION public.get_explore_post",
+      "media_items JSONB",
+      "cards.media_items",
+      "FROM public.explore_projected_post_cards(self_id) cards",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("scan media refresh derives video audio metadata from captured media", async () => {
   const sql = normalized(
     await migrationSql(

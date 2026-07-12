@@ -50,6 +50,8 @@ the immutable post id; this is not an authenticated in-product report write.
    to hydrate public field notes, hashtags, reference images, overview,
    conservation status, taxonomy labels, and alternate names.
 6. The server maps those RPC rows into the `ExplorePost` page model.
+   `get_explore_post` includes the canonical ordered `media_items` snapshot;
+   the hero image remains the static poster and metadata fallback.
 7. `explorePosterUrl(...)` prefers the canonical visual hero and otherwise uses
    the first persisted standalone-audio spectrogram thumbnail.
 8. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata
@@ -62,7 +64,9 @@ The active video slide autoplays muted and inline with native browser controls;
 leaving the slide pauses and rewinds it. Videos do not loop, and autoplay
 failure leaves the poster and controls available for user-initiated playback.
 Species reference images follow the post-owned visual media. The public Explore
-grid remains poster-only so browsing it does not fetch or autoplay video.
+grid remains poster-only so browsing it does not fetch or autoplay video. The
+detail media frame uses a compact responsive 16:9-oriented height capped at
+430px on larger screens.
 
 If the RPC returns no visible row, the route returns a not-found page and marks
 metadata as non-indexable. Approved audio-only posts are public and indexable:
