@@ -14,6 +14,18 @@ struct CollectionSummaryItem {
     static let empty = CollectionSummaryItem(count: 0, coverScan: nil)
 }
 
+extension LocalScanRecord {
+    /// Collection cards should prefer a member that can render something useful
+    /// instead of letting an archived scan hide the rest of the collection.
+    var isEligibleCollectionCover: Bool {
+        let presentation = scanThumbnailPresentation
+        return presentation.imagePath != nil ||
+            presentation.fallbackImageUrl != nil ||
+            presentation.audioPath != nil ||
+            presentation.placeholderStyle != .archived
+    }
+}
+
 struct CollectionMembershipSnapshot {
     static let empty = CollectionMembershipSnapshot(
         summariesByCollectionID: [:],
@@ -36,13 +48,24 @@ struct CollectionMembershipSnapshot {
                 let current = summaries[collection.id] ?? .empty
                 summaries[collection.id] = CollectionSummaryItem(
                     count: current.count + 1,
-                    coverScan: current.coverScan ?? scan
+                    coverScan: Self.preferredCover(current: current.coverScan, candidate: scan)
                 )
             }
         }
 
         self.summariesByCollectionID = summaries
         self.memberIDsByCollectionID = memberIDs
+    }
+
+    private static func preferredCover(
+        current: LocalScanRecord?,
+        candidate: LocalScanRecord
+    ) -> LocalScanRecord {
+        guard let current else { return candidate }
+        if !current.isEligibleCollectionCover, candidate.isEligibleCollectionCover {
+            return candidate
+        }
+        return current
     }
 
     private init(
@@ -104,7 +127,8 @@ struct FeaturedCollectionCard: View {
     private let rotationTimer = Timer.publish(every: 5.0, on: .main, in: .common).autoconnect()
 
     private var featuredScans: [LocalScanRecord] {
-        snapshot.scans
+        let eligibleScans = snapshot.scans.filter(\.isEligibleCollectionCover)
+        return eligibleScans.isEmpty ? snapshot.scans : eligibleScans
     }
 
     private var featuredScan: LocalScanRecord? {

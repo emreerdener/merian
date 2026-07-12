@@ -271,7 +271,8 @@ final class ExploreMapViewModel {
                 likeCount: canonical.likeCount,
                 commentCount: canonical.commentCount,
                 viewerHasLiked: canonical.viewerHasLiked,
-                isOwnedByViewer: canonical.isOwnedByViewer
+                isOwnedByViewer: canonical.isOwnedByViewer,
+                mediaItems: canonical.mediaItems?.isEmpty == false ? canonical.mediaItems : mapPost.mediaItems
             )
         }
 

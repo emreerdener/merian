@@ -304,7 +304,7 @@ struct TopToolbar: ToolbarContent {
                     if isProActive {
                         Label("Reanalyze species", systemImage: "arrow.2.circlepath")
                     } else {
-                        Label("Reanalyze species (Pro)", systemImage: "lock.fill")
+                        Label("Reanalyze species", systemImage: "lock.fill")
                     }
                 }
             }

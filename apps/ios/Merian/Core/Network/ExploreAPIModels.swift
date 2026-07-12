@@ -1177,6 +1177,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             postId: postId,
             scanId: scanId,
             heroImageUrl: heroImageUrl,
+            referenceThumbnailUrl: referenceThumbnailUrl,
             sharedAt: sharedAt,
             authorUserId: authorUserId,
             authorName: authorName,

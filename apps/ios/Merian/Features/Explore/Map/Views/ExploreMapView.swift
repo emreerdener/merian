@@ -1001,10 +1001,10 @@ private struct ExploreMapPreviewCard: View {
                             reloadGeneration: mediaReloadGeneration
                         )
                         .frame(width: 82, height: 82)
-                        .overlay(alignment: .topLeading) {
-                            if post.hasVideoMedia {
-                                ExploreMediaPlayIndicator()
-                                    .padding(6)
+                        .overlay(alignment: .bottomTrailing) {
+                            if post.hasVideoMedia || post.hasAudioMedia {
+                                ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
+                                    .padding(8)
                             }
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))

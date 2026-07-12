@@ -16,7 +16,9 @@ TestFlight, App Store, support, and QA.
 
 - Fixed the Explore map becoming unavailable when an audio-only or other
   media-only discovery had no hero image. Map points now use media posters or
-  species reference thumbnails and isolate missing-thumbnail data safely.
+  species reference thumbnails and isolate missing-thumbnail data safely. Map
+  discovery cards now retain audio/video typing and show the shared compact
+  bottom-right waveform or play badge.
 - Fixed the Explore author profile's full published-scans view so it shows one
   back button instead of overlapping the stack and profile-library controls.
 - Fixed missing Explore location labels on audio-only and other non-visual
@@ -545,6 +547,8 @@ TestFlight, App Store, support, and QA.
 
 ### Collections
 
+- Collection thumbnails now fall back to another scan when the selected cover's
+  visuals have been archived.
 - Moved built-in collection tiles below the main Collections content so
   first-collection guidance appears before Favorites and Non-biological.
 - Added a little more top spacing to Collections so the first cards sit more

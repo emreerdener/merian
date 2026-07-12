@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-11-collection-cover-fallback",
+      "date": "2026-07-11",
+      "title": "More reliable collection covers",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Collection thumbnails now use another scan when the selected cover's visuals have been archived."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-11-audio-reference-thumbnails",
       "date": "2026-07-11",
       "title": "Clearer audio scan thumbnails",

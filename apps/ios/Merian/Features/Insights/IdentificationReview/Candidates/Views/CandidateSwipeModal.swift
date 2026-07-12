@@ -276,7 +276,7 @@ extension CandidateSwipeModal {
             VStack(spacing: 12) {
                 if let onRefineScan = onRefineScan {
                     SlideToConfirm(
-                        label: RevenueCatManager.shared.isProActive ? "Reanalyze species" : "Reanalyze species (Pro)",
+                        label: "Reanalyze species",
                         onConfirm: {
                             if RevenueCatManager.shared.isProActive {
                                 isDismissing = true

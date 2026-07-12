@@ -710,9 +710,12 @@ struct MerianNetworkClientTests {
         #expect(response.posts[0].heroImageUrl.isEmpty)
         #expect(response.posts[0].hasAudioMedia)
         #expect(response.posts[0].mapThumbnailUrl == "https://example.com/cardinal.webp")
+        #expect(response.posts[0].asExplorePost.referenceThumbnailUrl == "https://example.com/cardinal.webp")
+        #expect(response.posts[0].asExplorePost.hasAudioMedia)
         #expect(response.posts[1].heroImageUrl.isEmpty)
         #expect(response.posts[1].hasVideoMedia)
         #expect(response.posts[1].mapThumbnailUrl == "https://example.com/monarch.webp")
+        #expect(response.posts[1].asExplorePost.hasVideoMedia)
     }
 
     @Test func testGetExploreFeedTrendingConstructsPayloadAndParsesResponse() async throws {

@@ -328,13 +328,16 @@ enum SmartCollectionSuggester {
         title: String,
         from sortedScans: [LocalScanRecord]
     ) -> LocalScanRecord? {
+        let eligibleScans = sortedScans.filter(\.isEligibleCollectionCover)
+        let coverCandidates = eligibleScans.isEmpty ? sortedScans : eligibleScans
+
         switch rule {
         case .featured:
-            return sortedScans.first
+            return coverCandidates.first
         case .recentFinds:
-            return sortedScans.first
+            return coverCandidates.first
         default:
-            return stableRandomScan(from: sortedScans, seed: normalize(title))
+            return stableRandomScan(from: coverCandidates, seed: normalize(title))
         }
     }
 
