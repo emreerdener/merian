@@ -11,6 +11,8 @@ import {
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { runBackground } from "../_shared/edgeHandler.ts";
 import { moderationLatencyBucket } from "../_shared/exploreAudioTelemetry.ts";
+import { createAudioSpectrogramThumbnail } from "../_shared/audioSpectrogram.ts";
+import type { ExplorePostMediaSnapshotRow } from "../_shared/explorePostMedia.ts";
 
 type TrackEvent = typeof trackPostHogEvent;
 type ModerateAudio = typeof moderateExploreAudioUrl;
@@ -400,13 +402,18 @@ export async function upsertExplorePost(
   audio_clip_count: number;
   audible_media_count: number;
 }> {
-  const mediaRows = buildExplorePostMediaRows(scan, mediaItems);
+  let mediaRows = buildExplorePostMediaRows(scan, mediaItems);
   await requireApprovedAudioMedia(
     mediaRows,
     {
       telemetryUserId: userId,
       cache: exploreAudioModerationCache(supabaseAdmin),
     },
+  );
+  mediaRows = await attachAudioSpectrogramThumbnails(
+    scan.id,
+    mediaRows,
+    supabaseAdmin,
   );
   const sharedAt = new Date().toISOString();
 
@@ -451,6 +458,53 @@ export async function upsertExplorePost(
         row.kind === "audio" || (row.kind === "video" && row.has_audio)
       ).length,
   };
+}
+
+export async function attachAudioSpectrogramThumbnails(
+  scanId: string,
+  rows: ExplorePostMediaSnapshotRow[],
+  supabaseAdmin: SupabaseClient,
+  createThumbnail: typeof createAudioSpectrogramThumbnail =
+    createAudioSpectrogramThumbnail,
+): Promise<ExplorePostMediaSnapshotRow[]> {
+  const output: ExplorePostMediaSnapshotRow[] = [];
+  for (const row of rows) {
+    if (row.kind !== "audio" || row.thumbnail_url.trim().length > 0) {
+      output.push(row);
+      continue;
+    }
+
+    try {
+      const thumbnailUrl = await createThumbnail(row.url);
+      if (!thumbnailUrl) {
+        output.push(row);
+        continue;
+      }
+
+      const { error } = await supabaseAdmin
+        .from("scan_media_assets")
+        .update({ thumbnail_url: thumbnailUrl })
+        .eq("scan_id", scanId)
+        .eq("kind", "audio")
+        .eq("url", row.url);
+      if (error) {
+        console.warn(JSON.stringify({
+          event: "explore_audio_spectrogram_asset_update_failed",
+          scan_id: scanId,
+          error: error.message,
+        }));
+      }
+      output.push({ ...row, thumbnail_url: thumbnailUrl });
+    } catch (error) {
+      console.warn(JSON.stringify({
+        event: "explore_audio_spectrogram_generation_failed",
+        scan_id: scanId,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+      output.push(row);
+    }
+  }
+  return output;
 }
 
 export async function requireApprovedAudioMedia(

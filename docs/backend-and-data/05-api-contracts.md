@@ -2892,6 +2892,15 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   description are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`.
   Cache lookup/store failures degrade to live classification rather than
   approving by default.
+- After standalone WAV audio passes moderation,
+  `share-scan-to-explore` generates a deterministic PNG spectrogram beside the
+  durable recording and stores its URL in both the post snapshot and matching
+  normalized scan asset. This presentation step is non-blocking: unsupported
+  legacy codecs and generation failures retain playback plus the volume-icon
+  fallback. The service-role-only
+  `/backfill-explore-audio-spectrograms` endpoint accepts an optional bounded
+  `{ "limit": 1...200 }` batch size and repairs older blank WAV thumbnails;
+  repeat while `generated_count` is greater than zero.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved

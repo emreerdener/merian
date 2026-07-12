@@ -171,6 +171,23 @@ export async function headR2Object(
   return await s3Client.fetch(new Request(headUrl, { method: "HEAD" }));
 }
 
+export async function putR2Object(
+  key: string,
+  body: Uint8Array,
+  contentType: string,
+  config: R2Config,
+): Promise<Response> {
+  const { s3Client, bucketName, endpoint } = config;
+  const putUrl = `${endpoint}/${bucketName}/${key}`;
+  return await s3Client.fetch(
+    new Request(putUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: body as unknown as BodyInit,
+    }),
+  );
+}
+
 /**
  * Generates a presigned PUT URL for an R2 object.
  *

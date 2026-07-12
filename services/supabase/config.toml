@@ -619,3 +619,6 @@ verify_jwt = false
 
 [functions.send-push-notification]
 verify_jwt = false
+
+[functions.backfill-explore-audio-spectrograms]
+verify_jwt = false

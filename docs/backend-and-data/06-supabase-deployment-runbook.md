@@ -322,6 +322,12 @@ service-role endpoint. Start triage from the issue code:
   durable recording must be preserved.
 - `explore_video_missing_thumbnail`: inspect `explore_post_media.thumbnail_url`
   and the source scan's first safe image/poster thumbnail.
+- Blank standalone-audio `explore_post_media.thumbnail_url`: deploy
+  `backfill-explore-audio-spectrograms`, then invoke it with the service-role
+  bearer token in bounded WAV-only batches while `generated_count` is greater
+  than zero. Review `unsupported_count` separately; legacy non-WAV recordings
+  intentionally keep playback plus the volume fallback rather than failing
+  publication.
 - `latest_reconciliation_run_not_clean`: inspect
   `scan_media_reconciliation_runs.errors` before rerunning the worker.
 

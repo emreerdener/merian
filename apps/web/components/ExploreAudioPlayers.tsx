@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Card, Image, Stack, Text, ThemeIcon } from "@mantine/core";
 import { IconVolume } from "@tabler/icons-react";
 import { useRef } from "react";
 import type { ExplorePostMediaItem } from "@/lib/explore";
@@ -15,11 +15,12 @@ export function ExploreAudioPlayers({ items, prominent = false }: ExploreAudioPl
   const startedItems = useRef(new Set<string>());
   const audioItems = items.filter((item) => item.kind === "audio");
   if (!audioItems.length) return null;
+  const hasSpectrogram = audioItems.some((item) => item.thumbnailUrl);
 
   return (
     <Card withBorder radius={prominent ? 0 : "md"} p={{ base: "md", sm: "lg" }}>
       <Stack gap="md" align={prominent ? "center" : "stretch"}>
-        {prominent ? (
+        {prominent && !hasSpectrogram ? (
           <ThemeIcon size={64} radius="xl" variant="light" aria-hidden="true">
             <IconVolume size={32} />
           </ThemeIcon>
@@ -29,6 +30,16 @@ export function ExploreAudioPlayers({ items, prominent = false }: ExploreAudioPl
         </Text>
         {audioItems.map((item, index) => (
           <Stack key={`${item.url}-${item.orderIndex}`} gap={6} w="100%">
+            {item.thumbnailUrl ? (
+              <Image
+                src={item.thumbnailUrl}
+                alt={`Spectrogram for audio clip ${index + 1}`}
+                radius={prominent ? 0 : "md"}
+                fit="cover"
+                w="100%"
+                style={{ aspectRatio: prominent ? "1 / 1" : "2 / 1" }}
+              />
+            ) : null}
             <Text size="sm" c="dimmed" id={`audio-clip-${item.orderIndex}`}>
               Audio clip {index + 1}
             </Text>

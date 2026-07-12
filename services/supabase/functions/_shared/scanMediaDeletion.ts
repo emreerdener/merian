@@ -2,6 +2,7 @@ export type ScanMediaUrlSource = {
   image_storage_urls?: unknown;
   video_storage_urls?: unknown;
   audio_storage_urls?: unknown;
+  derived_media_urls?: unknown;
 };
 
 function stringUrls(value: unknown): string[] {
@@ -14,8 +15,11 @@ function stringUrls(value: unknown): string[] {
 /** Returns every durable scan-media URL eligible for coordinated R2 deletion. */
 export function collectScanMediaUrls(scan: ScanMediaUrlSource): string[] {
   return [
-    ...stringUrls(scan.image_storage_urls),
-    ...stringUrls(scan.video_storage_urls),
-    ...stringUrls(scan.audio_storage_urls),
+    ...new Set([
+      ...stringUrls(scan.image_storage_urls),
+      ...stringUrls(scan.video_storage_urls),
+      ...stringUrls(scan.audio_storage_urls),
+      ...stringUrls(scan.derived_media_urls),
+    ]),
   ];
 }

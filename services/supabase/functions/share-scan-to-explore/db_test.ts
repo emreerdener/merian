@@ -4,9 +4,11 @@ import {
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import {
+  attachAudioSpectrogramThumbnails,
   buildRestoredAudioCapturedMedia,
   buildRestoredVideoCapturedMedia,
 } from "./db.ts";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import type {
   SelectedExplorePostMediaItem,
   ShareEligibleScanRow,
@@ -244,4 +246,52 @@ Deno.test("video restoration preserves already-restored standalone audio", () =>
       audioItem,
     ],
   );
+});
+
+Deno.test("attachAudioSpectrogramThumbnails snapshots and persists generated audio posters", async () => {
+  const updates: Array<Record<string, unknown>> = [];
+  const query = {
+    error: null,
+    eq() {
+      return this;
+    },
+  };
+  const supabase = {
+    from(table: string) {
+      assertEquals(table, "scan_media_assets");
+      return {
+        update(values: Record<string, unknown>) {
+          updates.push(values);
+          return query;
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const rows = [{
+    kind: "audio" as const,
+    url: "https://media.merian.app/public_uploads/pro/user/clip.wav",
+    thumbnail_url: "",
+    order_index: 0,
+    duration_seconds: null,
+    has_audio: true,
+  }];
+
+  const result = await attachAudioSpectrogramThumbnails(
+    scanId,
+    rows,
+    supabase,
+    () =>
+      Promise.resolve(
+        "https://media.merian.app/public_uploads/pro/user/spectrogram.png",
+      ),
+  );
+
+  assertEquals(
+    result[0].thumbnail_url,
+    "https://media.merian.app/public_uploads/pro/user/spectrogram.png",
+  );
+  assertEquals(updates, [{
+    thumbnail_url:
+      "https://media.merian.app/public_uploads/pro/user/spectrogram.png",
+  }]);
 });

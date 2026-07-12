@@ -821,6 +821,18 @@ video posts as clean still thumbnails with no badge or inline playback.
 Dictionary galleries and reference-image promotion remain image-only and read
 from the eligible scan image URLs rather than public video clips.
 
+Standalone Explore audio uses the same post-owned snapshot contract. After the
+audio passes publication moderation, `share-scan-to-explore` derives a
+deterministic PNG with the iOS spectrogram parameters (2048-point Hann-windowed
+FFT, 128 mel bins over 80 Hz–16 kHz), stores it beside the durable WAV, and
+copies the URL into `explore_post_media.thumbnail_url` plus the matching
+`scan_media_assets.thumbnail_url`. Public web feed, detail, and Open Graph
+surfaces render that cached asset without downloading or decoding the recording
+in each visitor's browser. The service-role-only
+`backfill-explore-audio-spectrograms` worker fills older blank WAV thumbnails in
+bounded batches. Non-WAV legacy recordings remain playable and use the volume
+fallback until a codec-capable media processor is introduced.
+
 For captured-media video scans, the Explore composer, `share-scan-to-explore`,
 `update-explore-field-notes`, and Ask the Community request creation all resolve
 media from the same asset-first source list, pairing the playback `.mp4` with

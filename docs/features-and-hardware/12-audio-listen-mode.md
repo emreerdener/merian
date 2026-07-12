@@ -52,6 +52,11 @@ AVAudioPCMBuffer → [zero-pad to 2048] → Hann window → Real FFT → power m
 | Frequency range | 80 Hz – 16 kHz | Covers the bioacoustically relevant range for birds, insects, and frogs           |
 | dB floor        | −80 dB         | Clamps below-noise-floor energy to zero before normalization                      |
 
+The public web renderer mirrors these constants and `SpectrogramPalette` in the
+server-side `audioSpectrogram.ts` processor. Approved standalone WAV shares are
+rendered once to a deterministic PNG in R2; web Explore cards, post detail, and
+social metadata reuse that image instead of running FFT work in every browser.
+
 **`processColumns(buffer:) -> [SpectrogramColumn]`**\
 Wrapped in `autoreleasepool` to prevent Obj-C `AVAudioPCMBuffer` objects from
 accumulating across repeated tap callbacks. Emits one spectrogram column per
@@ -652,6 +657,13 @@ they were playing before it began. Original and boosted sources use the same
 normalized position, and VoiceOver adjusts playback in five-second steps.
 Explore feed cards remain non-seekable to preserve their playback, like, and
 navigation gesture contract.
+
+Public web Explore playback is thumbnail-first. The home grid and post page use
+the persisted audio media `thumbnail_url` when available, while the native audio
+element remains the playback source. Blank or unsupported legacy formats keep a
+speaker fallback. The service-role-only
+`backfill-explore-audio-spectrograms` worker can repair historical WAV posts
+without changing the original recording or moderation decision.
 
 Audio playback feedback is action-bound rather than state-bound. Play uses a
 medium pulse; pause and mode-off actions use a light impact; discrete seek taps

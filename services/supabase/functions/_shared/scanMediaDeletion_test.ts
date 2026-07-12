@@ -1,7 +1,7 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { collectScanMediaUrls } from "./scanMediaDeletion.ts";
 
-Deno.test("collectScanMediaUrls includes image, video, and standalone audio", () => {
+Deno.test("collectScanMediaUrls includes source media and derived thumbnails", () => {
   assertEquals(
     collectScanMediaUrls({
       image_storage_urls: [
@@ -13,11 +13,15 @@ Deno.test("collectScanMediaUrls includes image, video, and standalone audio", ()
       audio_storage_urls: [
         "https://media.merian.app/public_uploads/free/c.wav",
       ],
+      derived_media_urls: [
+        "https://media.merian.app/public_uploads/free/spectrogram.png",
+      ],
     }),
     [
       "https://media.merian.app/public_uploads/free/a.jpg",
       "https://media.merian.app/public_uploads/free/b.mp4",
       "https://media.merian.app/public_uploads/free/c.wav",
+      "https://media.merian.app/public_uploads/free/spectrogram.png",
     ],
   );
 });

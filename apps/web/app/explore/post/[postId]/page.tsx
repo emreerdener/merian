@@ -23,6 +23,7 @@ import {
   fetchExplorePostPage,
   type ExplorePost,
 } from "@/lib/explore";
+import { explorePosterUrl } from "@/lib/exploreMedia";
 import { compactSpeciesTitle, postTitle } from "@/lib/formatting";
 import { supportMailto } from "@/lib/site";
 import {
@@ -83,6 +84,7 @@ export async function generateMetadata({
     post.speciesScientificName,
   );
   const canonicalPath = `/explore/post/${post.postId}`;
+  const posterUrl = explorePosterUrl(post);
 
   return {
     title,
@@ -96,15 +98,15 @@ export async function generateMetadata({
       description: `${description} shared on Merian.`,
       url: canonicalPath,
       siteName: "Merian",
-      ...(post.heroImageUrl
-        ? { images: [{ url: post.heroImageUrl, alt: title }] }
+      ...(posterUrl
+        ? { images: [{ url: posterUrl, alt: title }] }
         : {}),
     },
     twitter: {
-      card: post.heroImageUrl ? "summary_large_image" : "summary",
+      card: posterUrl ? "summary_large_image" : "summary",
       title,
       description: `${description} shared on Merian.`,
-      ...(post.heroImageUrl ? { images: [post.heroImageUrl] } : {}),
+      ...(posterUrl ? { images: [posterUrl] } : {}),
     },
   };
 }

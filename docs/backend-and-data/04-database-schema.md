@@ -1222,8 +1222,8 @@ migration cannot alter constraints on an already-existing table.
   diagnostics.
 - `storage_key` (TEXT, nullable): Durable storage object key when known.
   Legacy/backfilled rows may only have a public URL.
-- `thumbnail_url` (TEXT, nullable): Public image thumbnail for compact previews
-  and video poster frames.
+- `thumbnail_url` (TEXT, nullable): Public image thumbnail for compact previews,
+  video poster frames, and reusable standalone-audio spectrogram artwork.
 - `order_index` (INT): Stable media order within the scan's captured-media
   timeline for ready display/playback rows.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
@@ -1301,8 +1301,11 @@ migration `20260703130000_add_explore_post_media.sql`.
 - `kind` (TEXT): `image`, `video`, or `audio`.
 - `url` (TEXT): Public CDN URL for the image, playback video, or standalone
   audio object.
-- `thumbnail_url` (TEXT, nullable): Public image thumbnail for video playback
-  and compact previews. Video posts require a thumbnail when shared.
+- `thumbnail_url` (TEXT, nullable): Public image thumbnail for video playback,
+  compact previews, or a standalone-audio spectrogram. Video posts require a
+  thumbnail when shared. Approved WAV shares generate a deterministic PNG in
+  the recording's durable `public_uploads/{tier}/{userId}/` directory and copy
+  that URL into both the post snapshot and matching scan media asset.
 - `order_index` (INT): Stable carousel ordering within the post.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
   or audio metadata.
@@ -1325,7 +1328,11 @@ resolution prefers ready display/playback/audio `scan_media_assets` rows, then
 poster thumbnails remain paired. Audio approval is checked before the
 Explore post/media write, so the database contains no pending audio post:
 successful rows are normal shared posts and rejected/failed attempts do not
-mutate public state.
+mutate public state. Spectrogram generation is deliberately non-blocking after
+approval: unsupported legacy codecs or thumbnail failures keep the audio post
+playable with its existing fallback instead of weakening moderation or blocking
+publication. `backfill-explore-audio-spectrograms` repairs blank historical WAV
+thumbnails in bounded service-role-only batches.
 
 ### `explore_post_hashtags`
 

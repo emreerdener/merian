@@ -14,6 +14,10 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added real spectrogram artwork for standalone-audio posts on the public web
+  Explore grid and post pages. New WAV shares persist a deterministic thumbnail
+  beside the recording, and a bounded repair worker can backfill older posts;
+  unsupported legacy formats keep normal playback and the volume-icon fallback.
 - Added image, video, and audio filters to the Explore map filter sheet. Media
   filters can be combined with species groups and remain accurate for clustered
   map results.

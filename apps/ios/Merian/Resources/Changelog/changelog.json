@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-11-web-explore-audio-spectrograms",
+      "date": "2026-07-11",
+      "title": "Audio spectrograms on the web",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Audio posts now show their recording spectrogram on the public Merian Explore grid and web post page instead of a generic speaker placeholder."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-11-explore-map-media-filters",
       "date": "2026-07-11",
       "title": "Explore map media filters",
