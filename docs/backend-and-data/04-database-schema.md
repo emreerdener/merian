@@ -906,7 +906,8 @@ dictionary endpoints, public web pages, or Darwin Core exports.
 
 ### `flagged_reviews`
 
-Captures user feedback reporting improper or harmful inferences.
+Captures user feedback disputing an identification or inference. It is not the
+moderation queue for reports about public Explore post content.
 
 - `id` (UUID): Primary key.
 - `scan_id` (UUID - Foreign Key): References `scans`.
@@ -915,6 +916,15 @@ Captures user feedback reporting improper or harmful inferences.
 - `flag_reason` (Text): e.g. "Incorrect Species" or "Inappropriate Content".
 - `user_suggestion` (Text): Optional custom text feedback.
 - `status` (Text): Defaults to `PENDING_REVIEW`.
+
+### `explore_post_reports`
+
+Service-role-only moderation queue for complaints about public Explore post
+content. Rows store `post_id`, reporter and author IDs, bounded reason/details,
+review status, and timestamps. `(post_id, reporter_user_id)` is unique so repeat
+submissions update one queue item. RLS is enabled with no public policies; the
+authenticated `/report-explore-post` Edge Function performs validated writes.
+This table never changes `scans.is_flagged`.
 
 ### `export_jobs`
 

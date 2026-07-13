@@ -1,10 +1,12 @@
 # Flag Issue
 
-The Trust and Safety moderation queue ingress. This endpoint is triggered whenever a user highlights a scan inside the iOS `ReportInsightView` as biologically incorrect, inappropriate, or malicious.
+The identification-review queue ingress. This endpoint is triggered whenever a user highlights a scan inside the iOS `ReportInsightView` as biologically incorrect, inappropriate, or malicious.
 
 The module explicitly handles:
-1. Inserting a trackable row into the `flagged_reviews` Postgres schema with the reporter's context mapping.
-2. Tagging the global `scans` table row actively with `is_flagged = true`, applying the user's manual taxonomy suggestions directly to the `human_intervention_notes` column to prompt Admin Dashboard review.
+1. Inserting an identification-review row into the `flagged_reviews` Postgres schema with the reviewer's context mapping.
+2. Tagging the global `scans` table row with `is_flagged = true`, applying the user's taxonomy suggestion to `human_intervention_notes` for Admin Dashboard review.
+
+Explore post-content reports must use `/report-explore-post` and `explore_post_reports`; they must never call this function or change `scans.is_flagged`.
 
 ## Architecture
 

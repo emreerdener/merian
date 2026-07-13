@@ -37,7 +37,10 @@ The immutable publication policy is a Gemini system instruction so speech or
 lyrics inside untrusted media cannot replace it. Standalone audio preserves its
 supported audio MIME type; audio-bearing MP4 uses `video/mp4` so Gemini evaluates
 the actual container instead of relabeling video bytes as WAV.
-Public web post pages include a report action containing the immutable post id.
+Public web post pages include a support-email report action containing the
+immutable post id. Native Explore post reports write the dedicated
+`explore_post_reports` moderation queue through `/report-explore-post`; they do
+not enter identification review or set `scans.is_flagged`.
 Structured moderation telemetry logs only outcome, model, latency, and sanitized
 errors; transcripts and media URLs must never be logged. A policy-version or
 model change is an automatic cache miss, so changed safety rules always force a
@@ -300,10 +303,10 @@ illegal collection, pesticide/poison instructions, and human-subject
 identification. Refused answers should stay educational and conservative rather
 than giving action instructions.
 
-## Flagged Reviews (User-Reported)
+## Identification Flags and Explore Content Reports
 
-Separate from the automated moderation system, users can manually report a scan
-via the flag flow in `BiologicalView`. This writes a row to the
+Separate from automated publication moderation, users can dispute a scan's
+identification via the flag flow in `BiologicalView`. This writes a row to the
 `flagged_reviews` table via the `/flag-issue` Edge Function:
 
 - `scan_id` — The scan being reported
@@ -315,6 +318,13 @@ via the flag flow in `BiologicalView`. This writes a row to the
 Flagged reviews require human review and do not trigger automatic action. The
 automated abuse strike system and the flagged review system are entirely
 independent pipelines.
+
+Reporting a public Explore post is a different pipeline. The authenticated
+`/report-explore-post` function validates that the post is visible and not owned
+by the reporter, then upserts `explore_post_reports`. Repeat reports from the
+same reporter update one row without reopening a report that moderators already
+dismissed or actioned. Post reporting must never call `/flag-issue`, set
+`scans.is_flagged`, or create an identification-review record.
 
 ## Database Columns
 

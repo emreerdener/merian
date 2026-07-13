@@ -69,15 +69,8 @@ extension ExploreFeedViewModel {
 
     @discardableResult
     func report(_ post: ExplorePost) async -> Bool {
-        let userId = SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId
-
         do {
-            try await MerianNetworkClient.shared.submitFlagIssue(
-                scanId: post.scanId,
-                flagReason: "Inappropriate content",
-                userSuggestion: "Reported from Explore feed",
-                userId: userId
-            )
+            try await MerianNetworkClient.shared.reportExplorePost(postId: post.id)
             removePost(id: post.id)
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Report submitted. Thanks!"

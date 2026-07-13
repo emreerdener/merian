@@ -1252,10 +1252,13 @@ Users can flag incorrect taxonomy results from `InsightSheetView`:
   constraint violations (`23503`) implicitly converting missing offline
   references into a clean `HTTP 404` rejection stream to properly shield
   downstream logs from transient offline sync race-condition 500 alerts.
-- **`flagged_reviews` table** (`00005_flagged_reviews.sql`): Stores flagged scan
-  references tied to the reporting `user_id`, defaulting to `PENDING_REVIEW`.
-- **`scans` table update**: Sets `is_flagged = true` and writes debug context to
-  `human_intervention_notes` on the parent scan.
+- **`flagged_reviews` table** (`00005_flagged_reviews.sql`): Stores identification
+  review requests tied to the reviewing `user_id`, defaulting to
+  `PENDING_REVIEW`. Explore post-content reports do not use this table.
+- **`scans` table update**: Sets `is_flagged = true` and writes review context to
+  `human_intervention_notes` when an identification is flagged for review.
+- **`explore_post_reports` table**: Stores native Explore post-content reports
+  submitted through `/report-explore-post`, without changing `scans.is_flagged`.
 
 The one-time beta product survey uses a separate feedback path rather than the
 moderation queue:

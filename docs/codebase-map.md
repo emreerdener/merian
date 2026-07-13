@@ -227,6 +227,7 @@ Explore and social:
 - `get-explore-mention-suggestions`
 - `field-trips`
 - `report-explore-comment`
+- `report-explore-post`
 - `toggle-explore-comment-reaction`
 
 Explore community identification:

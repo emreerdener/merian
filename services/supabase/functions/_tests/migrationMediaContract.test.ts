@@ -293,6 +293,28 @@ Deno.test("public Explore detail keeps reasoning visible for flagged scans", asy
   assertStringIncludes(sql, "NOTIFY pgrst, 'reload schema'");
 });
 
+Deno.test("Explore post reports are separate from identification flags", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260713022307_separate_explore_post_reports_from_identification_flags.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE IF NOT EXISTS public.explore_post_reports",
+      "UNIQUE INDEX IF NOT EXISTS idx_explore_post_reports_post_reporter_unique",
+      "ALTER TABLE public.explore_post_reports ENABLE ROW LEVEL SECURITY",
+      "REVOKE ALL ON TABLE public.explore_post_reports FROM PUBLIC, anon, authenticated",
+      "MIGRATED_TO_EXPLORE_POST_REPORT",
+      "fr.status = 'PENDING_REVIEW'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("scan media refresh derives video audio metadata from captured media", async () => {
   const sql = normalized(
     await migrationSql(

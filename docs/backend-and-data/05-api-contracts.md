@@ -3356,6 +3356,20 @@ it immediately.
 - Duplicate reports by the same user collapse into a single row keyed by
   `(comment_id, reporter_user_id)`.
 
+### `/report-explore-post`
+
+Creates or updates a moderation report for a visible Explore post without
+changing the underlying identification review state.
+
+- Required body fields: `post_id`, `reason`
+- Optional body field: `details` (trimmed and capped at 500 characters)
+- Allowed reasons: `Spam`, `Harassment`, `Inappropriate content`, `Other`
+- Users cannot report their own or an unavailable post.
+- Duplicate reports collapse on `(post_id, reporter_user_id)` and preserve an
+  existing moderation status rather than reopening dismissed or actioned work.
+- Writes only `explore_post_reports`; it never calls `/flag-issue`, inserts an
+  identification `flagged_reviews` row, or sets `scans.is_flagged`.
+
 ### `/get-explore-notifications`
 
 Returns the viewer's in-app Explore activity feed. The request body is optional:

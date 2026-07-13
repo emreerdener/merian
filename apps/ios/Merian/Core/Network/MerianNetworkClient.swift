@@ -2815,6 +2815,21 @@ final class MerianNetworkClient {
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
     }
 
+    func reportExplorePost(
+        postId: String,
+        reason: String = "Inappropriate content",
+        details: String = "Reported from Explore feed"
+    ) async throws {
+        let functionUrl = try endpointURL("report-explore-post")
+        let payload: [String: Any] = [
+            "post_id": postId,
+            "reason": reason,
+            "details": details
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
     // MARK: - Product Feedback
 
     func submitFeedbackSurvey(_ submission: FeedbackSurveySubmission) async throws {

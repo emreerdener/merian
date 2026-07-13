@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-12-separate-post-reports-from-id-flags",
+      "date": "2026-07-12",
+      "title": "Correct Explore report routing",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Reporting an Explore post now enters the public-content moderation queue without incorrectly flagging the underlying species identification for review."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-12-public-web-media-polish",
       "date": "2026-07-12",
       "title": "Richer public Explore posts",
