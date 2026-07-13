@@ -2401,13 +2401,13 @@ prefer `species_id` for dictionary sheet lookup.
 copied into `explore_posts`. It is only exposed when the scan still reflects the
 original AI identification:
 
-- `is_flagged = false`
 - `user_review_state != 'user_overridden'`
 - `user_identification_override IS NULL`
 
-That means the Explore detail page automatically hides the reasoning if the user
-later flags the identification or overrides it, while still allowing
-AI-confirmed scans to show the original per-photo reasoning.
+Report flags do not hide reasoning because moderation workflow state does not
+rewrite the identification. The Explore detail page hides reasoning only after
+the user overrides the AI identification, preventing stale reasoning from being
+presented for a replacement identification.
 
 ### `/get-explore-author-profile`
 

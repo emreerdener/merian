@@ -29,8 +29,8 @@ The public web page is not the full Explore product yet. It is a rich read-only
 detail surface for one post, with enough context to understand what was shared
 and a clean path back into the app. Anonymous web visitors can view the post,
 but engagement counts are not rendered and they cannot like, comment, reply,
-follow, or edit on the web surface. A support-email report action sits beside
-the author information and contains the immutable post id; this is not an
+follow, or edit on the web surface. A centered support-email report action sits
+below the Taxonomy card and contains the immutable post id; this is not an
 authenticated in-product report write.
 
 ## Data Flow

@@ -17,6 +17,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Kept AI identification reasoning visible on public Explore post pages when a
+  scan is reported; reasoning is hidden only when the identification itself is
+  replaced by a user override.
 - Added an optional **Boost audio** control to public web audio posts. It makes
   quiet recordings easier to hear with browser-local gain, rumble filtering,
   and peak limiting while leaving the published recording unchanged.
@@ -24,7 +27,7 @@ TestFlight, App Store, support, and QA.
   audio posts while retaining the spectrogram and playback controls on post
   detail pages.
 - Simplified public Explore post details by removing like and comment counts
-  and moving **Report this post** beside the author information.
+  and moving **Report this post** below the Taxonomy card.
 - Reworked public Explore audio posts so the recording spectrogram fills the
   square media carousel and playback controls sit directly over its lower edge,
   with species reference images following as normal carousel slides.

@@ -1616,7 +1616,8 @@ coordinates to the client contract.
   single public species-detail projection for the Explore detail page. Fields
   currently include `field_notes`, `species_dictionary_id`,
   `alternative_common_names`, taxonomy ranks (`kingdom`, `phylum`, `class`,
-  `order`, `family`, `genus`), conditional public `ai_reasoning`,
+  `order`, `family`, `genus`), public `ai_reasoning` unless the user has
+  overridden the AI identification (report flags do not suppress it),
   `habitat_description`, `gbif_taxon_key`, `iucn_red_list_status`,
   `wikipedia_url`, `reference_image_url`, `wikipedia_overview`, and
   `similar_species` JSONB hydrated from `species_lookalikes`.

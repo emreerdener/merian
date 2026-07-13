@@ -221,15 +221,6 @@ export default async function ExplorePostPage({
                 </Stack>
               </Group>
 
-              <Button
-                component="a"
-                href={supportMailto(`Report Explore post ${post.postId}`)}
-                variant="default"
-                size="compact-sm"
-                leftSection={<IconFlag size={15} />}
-              >
-                Report this post
-              </Button>
             </Group>
 
             <Stack gap="xs" align="center">
@@ -397,6 +388,18 @@ export default async function ExplorePostPage({
             </Stack>
           </InfoCard>
         ) : null}
+
+        <Group justify="center">
+          <Button
+            component="a"
+            href={supportMailto(`Report Explore post ${post.postId}`)}
+            variant="default"
+            size="compact-sm"
+            leftSection={<IconFlag size={15} />}
+          >
+            Report this post
+          </Button>
+        </Group>
       </Stack>
     </Container>
   );

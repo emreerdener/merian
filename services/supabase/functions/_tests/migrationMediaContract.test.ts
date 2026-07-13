@@ -279,6 +279,20 @@ Deno.test("public Explore feed exposes compact reference thumbnails", async () =
   }
 });
 
+Deno.test("public Explore detail keeps reasoning visible for flagged scans", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260713021306_show_flagged_scan_ai_reasoning.sql",
+    ),
+  );
+
+  assertStringIncludes(sql, "THEN s.ai_reasoning");
+  assertStringIncludes(sql, "user_review_state");
+  assertStringIncludes(sql, "user_identification_override IS NULL");
+  assert(!sql.includes("s.is_flagged = FALSE"));
+  assertStringIncludes(sql, "NOTIFY pgrst, 'reload schema'");
+});
+
 Deno.test("scan media refresh derives video audio metadata from captured media", async () => {
   const sql = normalized(
     await migrationSql(

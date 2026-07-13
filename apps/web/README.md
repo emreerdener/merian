@@ -134,7 +134,8 @@ omit this parameter so recipients see their own browser/system preference.
 
 - `/` — lightweight Merian public home.
 - `/explore/post/[postId]` — public Explore share page. The MVP is read-only:
-  anonymous visitors can view post context and send a support-email report, but
+  anonymous visitors can view post context and send a support-email report from
+  the centered action below the Taxonomy card, but
   cannot like, comment, reply, follow, or edit from the web page. Engagement
   counts are intentionally omitted from the public detail presentation.
   Ordered image, video, and audio media appear in the detail carousel. Its

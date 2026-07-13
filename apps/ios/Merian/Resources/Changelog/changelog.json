@@ -12,7 +12,7 @@
             "Public Explore post pages now present images, looping muted videos, audio spectrograms, and reference images in one square media carousel.",
             "Public web audio posts now offer an optional Boost audio control that improves quiet playback locally without changing the published recording.",
             "The public discovery grid now uses species reference photos for audio posts while post details retain the playable spectrogram.",
-            "Public post details now place Report this post beside the author and omit like and comment counts."
+            "Public post details now center Report this post below the Taxonomy card and omit like and comment counts."
           ]
         }
       ]
