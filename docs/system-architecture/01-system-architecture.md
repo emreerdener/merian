@@ -190,8 +190,14 @@ single-responsibility functions under `/services/supabase/functions/`.
     post-owned sharing fields, handles blocking mechanisms, and uses scrubbed or
     rounded public coordinates when Explore surfaces are allowed to expose
     location.
-  - `/block-user` & `/flag-issue`: Trust and Safety endpoint managers mitigating
-    bad actors on the global feed.
+  - `/block-user`: Removes blocked-user content and interactions from the
+    requesting user's Explore surfaces.
+  - `/report-explore-post`: Authenticated public-content moderation ingress. It
+    writes `explore_post_reports` and never changes the underlying scan's
+    identification-review state.
+  - `/flag-issue`: Identification-review ingress for disputed scan inference.
+    It writes `flagged_reviews` and sets `scans.is_flagged`; it is not used for
+    reports about Explore post content.
 - **Revenue Integration**
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription
     transitions, stamping user tiers natively into Postgres bounds without

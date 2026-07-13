@@ -57,6 +57,11 @@ networking, and hardware orchestration logic.
   resets the prepared movie connection so still-photo capture retains normal
   resolution and latency. Public `has_audio` metadata is true only when
   captured-media or normalized media rows prove that an audio companion exists.
+- **Moderation routing contract**: Native Explore post-content reports write the
+  service-only `explore_post_reports` queue through `/report-explore-post`.
+  Identification disputes alone use `/flag-issue`, `flagged_reviews`, and
+  `scans.is_flagged`. Anonymous public-web reports remain support emails with
+  the immutable post id rather than authenticated database writes.
 
 ## Directory Structure
 

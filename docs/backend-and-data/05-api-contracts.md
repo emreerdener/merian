@@ -3361,6 +3361,14 @@ it immediately.
 Creates or updates a moderation report for a visible Explore post without
 changing the underlying identification review state.
 
+```json
+{
+  "post_id": "00000000-0000-0000-0000-000000000001",
+  "reason": "Inappropriate content",
+  "details": "Optional context"
+}
+```
+
 - Required body fields: `post_id`, `reason`
 - Optional body field: `details` (trimmed and capped at 500 characters)
 - Allowed reasons: `Spam`, `Harassment`, `Inappropriate content`, `Other`
@@ -3369,6 +3377,11 @@ changing the underlying identification review state.
   existing moderation status rather than reopening dismissed or actioned work.
 - Writes only `explore_post_reports`; it never calls `/flag-issue`, inserts an
   identification `flagged_reviews` row, or sets `scans.is_flagged`.
+- Returns `HTTP 200` with `success`, `post_id`, and a moderation message.
+  Missing authentication returns `HTTP 401`; invalid input or self-reporting
+  returns `HTTP 400`; unavailable posts return `HTTP 404`.
+- The anonymous public web page does not call this endpoint. Its report action
+  opens a support email containing the immutable public post id.
 
 ### `/get-explore-notifications`
 
@@ -4736,8 +4749,9 @@ user's Discovery Feed via `SocialGuardManager`.
 
 ## Deno `/flag-issue` Edge Node
 
-Submits a report against an AI inference from the `ReportInsightView`, inserting
-a row into `00005_flagged_reviews.sql`.
+Requests human review of an AI inference from `ReportInsightView`, inserting a
+row into the `flagged_reviews` table created by `00005_flagged_reviews.sql`.
+This endpoint is not the Explore post-content reporting API.
 
 ### Request Payload
 
@@ -4758,12 +4772,14 @@ a row into `00005_flagged_reviews.sql`.
   `["Incorrect species", "Inappropriate content", "Bad image quality", "Other"]`.
   Values outside this set are rejected with `HTTP 400` before any database
   access.
-- Inserts a row tracking the reporter's context into `public.flagged_reviews`.
+- Inserts a row tracking the review request into `public.flagged_reviews`.
 - Automatically overrides the underlying `public.scans` row, configuring
   `is_flagged = true` and dynamically stamping the `flagReason` and
   `userSuggestion` into the `human_intervention_notes` column to prompt Admin
   Dashboard review.
 - Returns `HTTP 200` on success.
+- Explore post-content reports use `/report-explore-post` instead and never
+  change `scans.is_flagged` or `human_intervention_notes`.
 
 ---
 

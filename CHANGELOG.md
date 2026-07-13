@@ -19,7 +19,8 @@ TestFlight, App Store, support, and QA.
 
 - Separated Explore post reports from identification flags. Reporting public
   content now enters its own moderation queue without marking the underlying
-  species identification for review; existing misrouted reports are repaired.
+  species identification for review; existing misrouted reports are repaired,
+  and repeat submissions preserve completed moderator decisions.
 - Kept AI identification reasoning visible on public Explore post pages when a
   scan is reported; reasoning is hidden only when the identification itself is
   replaced by a user override.

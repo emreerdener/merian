@@ -227,7 +227,8 @@ Explore and social:
 - `get-explore-mention-suggestions`
 - `field-trips`
 - `report-explore-comment`
-- `report-explore-post`
+- `report-explore-post` — authenticated Explore post-content moderation queue;
+  separate from scan identification review
 - `toggle-explore-comment-reaction`
 
 Explore community identification:
@@ -271,7 +272,8 @@ Data lifecycle, identity, and exports:
   shell.
 - `safe-delete`
 - `delete-scan`
-- `flag-issue`
+- `flag-issue` — disputed-identification review only; writes `flagged_reviews`
+  and marks the scan for review
 - `submit-feedback-survey`
 - `request-export-dwca`
 - `export-dwca`

@@ -911,8 +911,8 @@ moderation queue for reports about public Explore post content.
 
 - `id` (UUID): Primary key.
 - `scan_id` (UUID - Foreign Key): References `scans`.
-- `user_id` (UUID - Foreign Key): References the `auth.users` GoTrue identifier
-  of the reporting user.
+- `user_id` (UUID - Foreign Key): References `public.users(id)` for the user
+  requesting identification review.
 - `flag_reason` (Text): e.g. "Incorrect Species" or "Inappropriate Content".
 - `user_suggestion` (Text): Optional custom text feedback.
 - `status` (Text): Defaults to `PENDING_REVIEW`.
@@ -920,11 +920,27 @@ moderation queue for reports about public Explore post content.
 ### `explore_post_reports`
 
 Service-role-only moderation queue for complaints about public Explore post
-content. Rows store `post_id`, reporter and author IDs, bounded reason/details,
-review status, and timestamps. `(post_id, reporter_user_id)` is unique so repeat
-submissions update one queue item. RLS is enabled with no public policies; the
-authenticated `/report-explore-post` Edge Function performs validated writes.
-This table never changes `scans.is_flagged`.
+content.
+
+- `id` (UUID): Primary key.
+- `post_id` (UUID - Foreign Key): References `explore_posts(id)` and cascades
+  when the post is deleted.
+- `reporter_user_id` (UUID - Foreign Key): References `public.users(id)` for the
+  authenticated reporter.
+- `post_author_user_id` (UUID - Foreign Key): Snapshots the reported post owner
+  for moderation lookup and cascades with the user.
+- `reason` (Text): CHECK-constrained to `Spam`, `Harassment`,
+  `Inappropriate content`, or `Other`.
+- `details` (Text): Optional context; the Edge Function trims and caps input at
+  500 characters.
+- `status` (Text): `PENDING_REVIEW`, `DISMISSED`, or `ACTIONED`.
+- `created_at`, `updated_at` (Timestamptz): Queue timestamps.
+
+`(post_id, reporter_user_id)` is unique so repeat submissions update one queue
+item. RLS is enabled with no public policies; the authenticated
+`/report-explore-post` Edge Function performs validated service-role writes.
+New rows default to `PENDING_REVIEW`; repeat submissions preserve an existing
+`DISMISSED` or `ACTIONED` status. This table never changes `scans.is_flagged`.
 
 ### `export_jobs`
 

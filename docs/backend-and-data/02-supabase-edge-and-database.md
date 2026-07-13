@@ -771,7 +771,8 @@ the identify pipeline. The current shipped surface includes:
 - mutations: `share-scan-to-explore`, `unshare-explore-post`,
   `update-explore-field-notes`, `set-explore-post-like`, `set-user-follow`,
   `create-explore-comment`, `delete-explore-comment`,
-  `toggle-explore-comment-reaction`, `report-explore-comment`
+  `toggle-explore-comment-reaction`, `report-explore-comment`,
+  `report-explore-post`
 - activity reads: `get-explore-notifications`,
   `get-explore-unread-notification-count`, `mark-explore-notifications-read`
 - device registration and delivery: `register-push-device`,
@@ -1238,7 +1239,7 @@ after a new same-user custom avatar has been promoted. Deno tests load
 `docs/r2-lifecycle.json` and fail if any enabled expiration rule targets the
 `avatars/` prefix.
 
-## Customer Support & ML Feedback Loop (`flag-issue`)
+## Identification Review and Explore Content Reports
 
 Users can flag incorrect taxonomy results from `InsightSheetView`:
 
@@ -1259,6 +1260,11 @@ Users can flag incorrect taxonomy results from `InsightSheetView`:
   `human_intervention_notes` when an identification is flagged for review.
 - **`explore_post_reports` table**: Stores native Explore post-content reports
   submitted through `/report-explore-post`, without changing `scans.is_flagged`.
+- **Duplicate lifecycle**: One row is retained per post and reporter. Repeat
+  reports refresh context without resetting a moderator's `DISMISSED` or
+  `ACTIONED` status to `PENDING_REVIEW`.
+- **Public web boundary**: Anonymous web visitors report by support email with
+  the immutable post id; the public web route does not write this queue.
 
 The one-time beta product survey uses a separate feedback path rather than the
 moderation queue:

@@ -520,6 +520,9 @@ Recommended V1 endpoints:
   - Deletes a comment if permitted
 - `report-explore-comment`
   - Reports a comment for trust-and-safety review
+- `report-explore-post`
+  - Reports visible Explore post content into a dedicated moderation queue;
+    this is separate from identification review
 
 Existing endpoint reuse:
 
@@ -980,6 +983,16 @@ Reporting:
 
 - V1 should support reporting both posts and comments for safety review.
 - After a successful report, the client should locally hide the reported post or comment for that reporting user immediately rather than waiting for a full feed refresh.
+- Native post reports use `/report-explore-post` and the service-only
+  `explore_post_reports` queue. They must not call `/flag-issue`, create a
+  `flagged_reviews` row, or change `scans.is_flagged`; those belong only to
+  identification review.
+- One native post-report row is retained per `(post_id, reporter_user_id)`.
+  Repeat submissions may refresh the report context but must preserve an
+  existing `DISMISSED` or `ACTIONED` moderation status.
+- Anonymous public-web visitors use the support-email report action containing
+  the immutable post id; the read-only web surface does not make an
+  authenticated moderation write.
 
 ## iOS Architecture
 
