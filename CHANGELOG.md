@@ -145,6 +145,8 @@ TestFlight, App Store, support, and QA.
 
 ### Species Dictionary
 
+- Fixed **Community sightings** so its initial request always starts when a
+  species page appears, instead of silently skipping the section before loading.
 - Added **Community sightings** after observation charts. Species pages now
   preview six exact-species public Explore posts and can open a paginated grid,
   while respecting each viewer's Explore visibility and privacy rules.

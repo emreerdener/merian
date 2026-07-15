@@ -16,7 +16,10 @@ struct SpeciesCommunitySightingsSection: View {
     )
 
     var body: some View {
-        Group {
+        // Keep an identity-bearing container mounted even before the first page
+        // starts loading. A conditional-only Group can collapse to EmptyView,
+        // preventing the task that triggers the request from ever attaching.
+        VStack(alignment: .leading, spacing: 0) {
             if viewModel.isLoadingInitial && viewModel.posts.isEmpty {
                 loadingSection
             } else if !viewModel.posts.isEmpty {

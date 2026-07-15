@@ -73,6 +73,9 @@ final class SpeciesCommunitySightingsViewModel {
             posts = deduplicated(response.data)
             nextCursor = response.nextCursor
             hasLoadedInitialPage = true
+            MerianLog.network.debug(
+                "Loaded \(self.posts.count, privacy: .public) community sighting(s) for species \(normalizedSpeciesId, privacy: .private)."
+            )
         } catch {
             guard !Task.isCancelled,
                   requestGeneration == generation,
@@ -82,6 +85,9 @@ final class SpeciesCommunitySightingsViewModel {
             nextCursor = nil
             didFail = true
             hasLoadedInitialPage = true
+            MerianLog.network.error(
+                "Failed to load community sightings for species \(normalizedSpeciesId, privacy: .private): \(error.localizedDescription, privacy: .private)"
+            )
         }
     }
 
