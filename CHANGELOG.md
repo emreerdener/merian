@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Media & Performance
 
+- Fixed Audio recording occasionally reporting unavailable hardware immediately
+  after switching from Camera. Recording now waits for camera release and
+  safely recovers while the microphone route settles.
 - Fixed videos starting silently after capture or app launch. Audible playback
   now reactivates the shared media session across Scans, Insights, and Explore
   without requiring an audio post to be played first.

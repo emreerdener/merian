@@ -1,6 +1,6 @@
-import XCTest
 import AVFoundation
 @testable import Merian
+import XCTest
 
 @MainActor
 final class CameraManagerTests: XCTestCase {
@@ -28,6 +28,13 @@ final class CameraManagerTests: XCTestCase {
         XCTAssertEqual(cameraManager.zoomFactor, 1.0)
         XCTAssertEqual(cameraManager.maxZoomFactor, 1.0)
         XCTAssertFalse(cameraManager.isZoomSupported)
+    }
+
+    func testStopSessionAndWaitPublishesStoppedStateBeforeReturning() async {
+        await cameraManager.stopSessionAndWait()
+
+        XCTAssertFalse(cameraManager.isSessionRunning)
+        XCTAssertFalse(cameraManager.isFlashEnabled)
     }
 
     // MARK: - Zoom

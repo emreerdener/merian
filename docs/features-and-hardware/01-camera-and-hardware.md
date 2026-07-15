@@ -164,6 +164,12 @@ See [Audio Listen Mode](./12-audio-listen-mode.md) for the full `SpectrogramActo
 
 **Session lifecycle**: The camera session is tightly coupled to the UI state to conserve thermal budget and prevent hardware deadlocks.
 - `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()` on every mode switch, then stops the camera session when switching to `.audio` and restarts it on return to `.visual` (unless `activeSheet` is present).
+- `stopSession()` remains the fire-and-forget lifecycle API. Audio recording uses
+  `stopSessionAndWait()` as the stronger ownership-transfer API: it completes
+  `AVCaptureSession.stopRunning()` on the camera queue before the microphone
+  engine may activate. The pending audio-start task is canceled if the user
+  reverses the mode switch, preventing the old Audio action from racing a newly
+  restarted visual session.
 - **Sheet Occlusion Guard**: `CaptureWorkspaceView.onChange(of: viewModel.activeSheet)` explicitly stops the `AVCaptureSession` whenever `activeSheet != nil` (e.g., when the Scans Library or Insight sheet is open). When processing completes via `viewModel.handleInferenceProcessingChange()`, the system forces `activeSheet = .insight` *only* for live scans (where `activeSheet` is `nil` or `.paywall`). For historical scans opened from the library, it preserves the existing parent sheet (`.scans` or `.profile`), relying on their local bindings (like `selectedScanForInsight`) to present the Insight view. This strict state retention prevents SwiftUI sheet transition collisions and ensures that the background camera remains cleanly paused while viewing historical data.
 
 ---

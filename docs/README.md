@@ -161,7 +161,8 @@ networking, and hardware orchestration logic.
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)**
   — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP,
   `AudioCaptureManager` 15-second recording pipeline, live `SpectrogramView`
-  Canvas UI, SNR gauge, and the shared non-visual durability path.
+  Canvas UI, SNR gauge, coordinated camera-to-microphone hardware handoff, and
+  the shared non-visual durability path.
 - **[`/features-and-hardware/13-explore-home-screen-widget.md`](./features-and-hardware/13-explore-home-screen-widget.md)**
   — Explore Home Screen widget: image-only WidgetKit extension, App Group cache
   contract, timeline carousel behavior, and deep-link routing.

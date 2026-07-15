@@ -120,6 +120,8 @@ final class AudioCaptureManager {
     private var audioSessionLease: AudioSessionCoordinator.Lease?
     private var autoSubmitOnMaxDuration: Bool = false
     private static let snrHoldTickCount = 48
+    nonisolated private static let inputFormatRecoveryAttempts = 4
+    nonisolated private static let inputFormatRecoveryDelayNanoseconds: UInt64 = 75_000_000
 
     #if targetEnvironment(simulator)
     private static let preferredRecordSampleRate: Double? = 48_000
@@ -181,17 +183,35 @@ final class AudioCaptureManager {
         let manager = self
 
         do {
-            try await Task.detached { [manager] in
+            let setupTask = Task.detached { [manager] in
                 let lease = try await AudioSessionCoordinator.shared.activate(
                     .recordMeasurement(preferredSampleRate: AudioCaptureManager.preferredRecordSampleRate)
                 )
                 await MainActor.run { [weak manager] in
                     manager?.audioSessionLease = lease
                 }
+                try Task.checkCancellation()
 
                 let inputNode = engine.inputNode
-                let fmt = inputNode.outputFormat(forBus: 0)
-                guard fmt.sampleRate > 0 else { throw AudioCaptureError.hardwareSampleRateZero }
+                var fmt = inputNode.outputFormat(forBus: 0)
+                if fmt.sampleRate <= 0 || fmt.channelCount == 0 {
+                    // AVFoundation can briefly expose a zero-rate input while the route is
+                    // settling after another capture session releases the hardware. Give the
+                    // activated recording route a small, bounded recovery window before
+                    // reporting a genuine hardware failure.
+                    for _ in 0..<AudioCaptureManager.inputFormatRecoveryAttempts {
+                        try Task.checkCancellation()
+                        try await Task.sleep(
+                            nanoseconds: AudioCaptureManager.inputFormatRecoveryDelayNanoseconds
+                        )
+                        engine.reset()
+                        fmt = inputNode.outputFormat(forBus: 0)
+                        if fmt.sampleRate > 0 && fmt.channelCount > 0 { break }
+                    }
+                }
+                guard fmt.sampleRate > 0, fmt.channelCount > 0 else {
+                    throw AudioCaptureError.hardwareSampleRateZero
+                }
 
                 // Write canonical Int16 PCM WAV regardless of the hardware's native Float32
                 // layout. AVAudioFile converts Float32→Int16 automatically on each write, and
@@ -266,9 +286,15 @@ final class AudioCaptureManager {
                     continuation.yield(retainedBuffer)
                 }
 
+                try Task.checkCancellation()
                 engine.prepare()
                 try engine.start()
-            }.value
+            }
+            try await withTaskCancellationHandler {
+                try await setupTask.value
+            } onCancel: {
+                setupTask.cancel()
+            }
         } catch {
             handleCancelledOrFailedStartup()
             throw error

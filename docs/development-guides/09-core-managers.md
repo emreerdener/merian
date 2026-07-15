@@ -99,6 +99,19 @@ triggering excessive SwiftUI view rebuilds.
   synchronously into a bounded `AsyncStream(bufferingNewest: 2)` before handing
   it to `SpectrogramActor`, preventing tap-owned buffers from crossing the async
   boundary and capping DSP backlog.
+- **Camera handoff contract** — `CaptureControlBar` owns one cancellable audio
+  startup task and awaits `CameraManager.stopSessionAndWait()` before calling
+  `startRecording()`. Leaving Audio cancels that task without a toast. This
+  prevents rapid Camera → Audio → Record and Audio → Camera reversals from
+  overlapping camera and audio hardware ownership. Cancellation is explicitly
+  forwarded to the detached AVFoundation setup task, which checks it after
+  session activation and before engine start so normal failure cleanup can
+  release any partially acquired resources.
+- **Transient input-route recovery** — after the recording audio session is
+  active, a zero-rate or zero-channel input format is retried four times at
+  75 ms intervals with `audioEngine.reset()`. A route that remains invalid
+  after the bounded 300 ms window still throws
+  `AudioCaptureError.hardwareSampleRateZero`.
 - **`pauseRecording()`** — cancels countdown, calls `audioEngine.pause()`, sets
   `isPaused = true`.
 - **`resumeRecording()`** — reacquires a fresh `AudioSessionCoordinator.Lease`,

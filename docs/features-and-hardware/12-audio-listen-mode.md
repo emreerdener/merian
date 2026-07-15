@@ -129,6 +129,8 @@ Task.detached {
     AVAudioSession.setCategory(.record, mode: .measurement)
     AVAudioSession.setActive(true)
     inputNode.outputFormat(forBus: 0)     ← IPC: never call on @MainActor
+    if zero-rate/zero-channel:
+        retry 4 × 75 ms with engine.reset()  ← bounded route-settle recovery
     AVAudioFormat(.pcmFormatInt16, ...)   ← canonical Int16 PCM — wav.ts compatible
     AVAudioFile(forWriting: fileURL, settings: int16Fmt.settings)
     inputNode.removeTap(onBus: 0)         ← defensive: prevents nullptr == Tap() crash
@@ -145,6 +147,27 @@ recordingTask = Task { 100 ticks × 0.15 s → finishRecording() }
 `startRecording()` call from slipping through the `!isRecording` guard during
 the async setup window — the condition that triggered the `nullptr == Tap()`
 AVAudioEngine crash.
+
+**Camera-to-audio handoff**: the center-button action owns one cancellable
+audio-start task. Before calling `startRecording()`, it awaits
+`CameraManager.stopSessionAndWait()`, which returns only after
+`AVCaptureSession.stopRunning()` has completed on the camera queue. This keeps a
+fast Camera → Audio → Record gesture from asking two capture pipelines to own
+the hardware simultaneously. Leaving Audio or removing the control bar cancels
+the pending task; cancellation is treated as an expected lifecycle event and
+does not show an error toast. The task is not cleared until its `defer` runs, so
+a rapid Audio → Camera → Audio sequence cannot overlap two startup tasks.
+Cancellation is forwarded into the detached AVFoundation setup task; that task
+checks cancellation after session activation and again before engine start, and
+the manager's existing failure cleanup removes the tap, stops the engine,
+deletes the partial file, and releases the audio-session lease.
+
+**Input-route recovery**: even after `AVAudioSession.setActive(true)`, iOS can
+briefly expose an input format with a zero sample rate or zero channels while
+the new route settles. Startup retries that format read four times at 75 ms
+intervals, resetting the engine between reads. The 300 ms bound prevents a
+transient handoff from becoming a false “Audio hardware unavailable” error
+without hiding a persistent device or route failure.
 
 **WAV file format**: The recording uses an explicit
 `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate:, channels:, interleaved: true)`
@@ -455,8 +478,15 @@ case .audio:
             audioCaptureManager.pauseRecording()       // recording → paused
         }
     } else {
-        Task {
-            do { try await audioCaptureManager.startRecording() }
+        guard audioRecordingStartTask == nil else { return }
+        audioRecordingStartTask = Task {
+            defer { audioRecordingStartTask = nil }
+            do {
+                await cameraManager.stopSessionAndWait()
+                try Task.checkCancellation()
+                try await audioCaptureManager.startRecording()
+            }
+            catch is CancellationError { /* expected mode transition */ }
             catch { viewModel.offlineToastMessage = error.localizedDescription }
         }
     }
@@ -504,6 +534,8 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 
 | Trigger                                                 | Action                                                                                                                      |
 | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| User taps Record immediately after entering `.audio`    | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms         |
+| User leaves `.audio` while recording startup is pending | Cancel the owned startup task; do not activate audio and do not show a cancellation toast                                   |
 | Swipe from `.audio` to another mode                     | `cancelRecording()` if active or paused — clears engine, file, and review state                                             |
 | App backgrounds while `.audio` active                   | Same: `cancelRecording()` if recording or paused                                                                            |
 | 15 s countdown completes                                | `finishRecording()` → sets `pendingPlaybackPath` → transitions to review state                                              |
@@ -515,8 +547,9 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 | User taps `AudioDeleteButton` in review                 | `discardPending()` → returns to idle                                                                                        |
 | User taps `AudioReviewPlayButton` in review             | Toggles `playPendingRecording()` / `stopPlayback()`                                                                         |
 
-The camera session is **not** started when the user is on `.audio` (camera is
-stopped on `captureMode` change to `.audio`, same as `.describe`).
+The camera session is **not** started when the user is on `.audio`. The mode
+change still requests an eager stop, and the Record path independently awaits
+`stopSessionAndWait()` as the correctness boundary before audio activation.
 
 ---
 
@@ -524,9 +557,10 @@ stopped on `captureMode` change to `.audio`, same as `.describe`).
 
 | Event                                      | Action                                                                                |
 | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Camera → Audio record handoff              | Await camera-queue `stopRunning()` completion before activating the recording session |
 | `startRecording` called                    | `.setCategory(.record, mode: .measurement)` + `.setActive(true)` — in `Task.detached` |
 | `cancelRecording()` or `finishRecording()` | `.setActive(false, options: .notifyOthersOnDeactivation)` — in `Task.detached`        |
-| Task cancelled mid-setup                   | Session deactivation fires before returning from `startRecording`                     |
+| Task cancelled mid-setup                   | Startup cleanup stops the engine, removes the tap/file, and schedules lease deactivation |
 
 `notifyOthersOnDeactivation` signals the OS to restore ducked audio and ensures
 `SpeechManager` can cleanly acquire its own session when the user swipes to

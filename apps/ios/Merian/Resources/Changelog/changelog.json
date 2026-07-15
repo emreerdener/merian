@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-14-camera-audio-handoff",
+      "date": "2026-07-14",
+      "title": "Reliable Audio recording",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Audio recording now waits for the camera to release capture hardware when switching modes, preventing false hardware-unavailable errors during a fast Camera-to-Audio transition."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-12-separate-post-reports-from-id-flags",
       "date": "2026-07-12",
       "title": "Correct Explore report routing",

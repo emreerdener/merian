@@ -372,6 +372,26 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         #endif
     }
 
+    /// Stops the capture session and returns only after AVFoundation has released it.
+    /// Use this before handing camera-owned hardware to another capture pipeline.
+    func stopSessionAndWait() async {
+        #if targetEnvironment(simulator)
+        isSessionRunning = false
+        isFlashEnabled = false
+        #else
+        await withCheckedContinuation { continuation in
+            queue.async {
+                if self.session.isRunning {
+                    self.session.stopRunning()
+                }
+                continuation.resume()
+            }
+        }
+        isSessionRunning = false
+        isFlashEnabled = false
+        #endif
+    }
+
     // MARK: - Frame Rate Control
 
     func applyTargetFPS(_ fps: Int) {

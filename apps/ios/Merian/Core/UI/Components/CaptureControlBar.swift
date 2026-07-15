@@ -21,6 +21,8 @@ struct CaptureControlBar: View {
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
 
+    @State private var audioRecordingStartTask: Task<Void, Never>?
+
     private var isRefining: Bool { viewModel.baseRefinementContext != nil }
     // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
     // flows get the same two-slot limit as multi-capture without enabling multi-capture.
@@ -122,11 +124,20 @@ struct CaptureControlBar: View {
                                     audioCaptureManager.pauseRecording()
                                 }
                             } else {
-                                Task {
+                                guard audioRecordingStartTask == nil else { return }
+                                audioRecordingStartTask = Task {
+                                    defer { audioRecordingStartTask = nil }
                                     do {
+                                        // Mode changes request camera shutdown asynchronously. Await
+                                        // the hardware handoff here so a fast tap cannot start the
+                                        // audio engine while AVCaptureSession is still releasing it.
+                                        await cameraManager.stopSessionAndWait()
+                                        try Task.checkCancellation()
                                         try await audioCaptureManager.startRecording(
                                             autoSubmitOnMaxDuration: !appSettings.requiresScanConfirmation
                                         )
+                                    } catch is CancellationError {
+                                        // Expected when the user leaves audio mode during startup.
                                     } catch {
                                         await MainActor.run {
                                             viewModel.offlineToastMessage = error.localizedDescription
@@ -188,6 +199,14 @@ struct CaptureControlBar: View {
                         .preference(key: CaptureBarHeightPreferenceKey.self, value: proxy.size.height)
                 }
             }
+        }
+        .onChange(of: captureMode) { _, newMode in
+            if newMode != .audio {
+                audioRecordingStartTask?.cancel()
+            }
+        }
+        .onDisappear {
+            audioRecordingStartTask?.cancel()
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
