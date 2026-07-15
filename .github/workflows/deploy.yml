@@ -61,40 +61,59 @@ jobs:
       - name: Validate Edge Function formatting
         run: |
           deno fmt --check \
+            supabase/functions/_shared/auth.ts \
+            supabase/functions/_shared/edgeHandler.ts \
+            supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aws.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
             supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/_shared/identify/latencyDb.ts \
+            supabase/functions/_shared/identify/latencyDb_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanIngestionIntents_test.ts \
+            supabase/functions/_shared/scanIngestionJobs_test.ts \
             supabase/functions/_shared/scanMediaDeletion.ts \
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/update-scan-context/index.ts \
             supabase/functions/insight-chat \
             supabase/functions/scan-media-health
 
       - name: Validate Edge Function lint
         run: |
           deno lint --config supabase/functions/deno.json \
+            supabase/functions/_shared/auth.ts \
+            supabase/functions/_shared/edgeHandler.ts \
+            supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aws.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
             supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/_shared/identify/latencyDb.ts \
+            supabase/functions/_shared/identify/latencyDb_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanIngestionIntents_test.ts \
+            supabase/functions/_shared/scanIngestionJobs_test.ts \
             supabase/functions/_shared/scanMediaDeletion.ts \
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
@@ -102,23 +121,33 @@ jobs:
             supabase/functions/delete-scan/index.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/update-scan-context/index.ts \
             supabase/functions/insight-chat \
             supabase/functions/scan-media-health
 
       - name: Validate shared Edge runtime checks
         run: |
           deno check --config supabase/functions/deno.json \
+            supabase/functions/_shared/auth.ts \
+            supabase/functions/_shared/edgeHandler.ts \
+            supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aws.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
             supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/_shared/identify/latencyDb.ts \
+            supabase/functions/_shared/identify/latencyDb_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanIngestionIntents_test.ts \
+            supabase/functions/_shared/scanIngestionJobs_test.ts \
             supabase/functions/_shared/scanMediaDeletion.ts \
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/index.ts \
+            supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
@@ -126,19 +155,25 @@ jobs:
             supabase/functions/delete-scan/index.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/update-scan-context/index.ts \
             supabase/functions/insight-chat/index.ts \
             supabase/functions/scan-media-health/index.ts
 
       - name: Test shared Edge helpers
         run: |
           deno test --config supabase/functions/deno.json \
+            --allow-read=supabase/functions/identify-multimodal/index.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/_shared/identify/latencyDb_test.ts \
             supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanIngestionIntents_test.ts \
+            supabase/functions/_shared/scanIngestionJobs_test.ts \
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/insight-chat/guards_test.ts \

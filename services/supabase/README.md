@@ -49,7 +49,8 @@ deno check --config deno.json <changed edge files>
 
 Run Deno tests:
 ```bash
-deno test --config deno.json --allow-env --allow-net _tests/
+deno test --config deno.json --allow-env --allow-net \
+  --allow-read=../migrations _tests/
 ```
 
 ### Testing Database Migrations

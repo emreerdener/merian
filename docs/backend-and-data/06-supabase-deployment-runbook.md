@@ -44,7 +44,9 @@ The workflow performs the following steps:
 3. Installs the Supabase CLI.
 4. Fails fast if required deployment secrets are missing.
 5. Validates Edge Function formatting, lint, type checks, and focused shared
-   helper tests.
+   helper tests. Source-inspection tests receive an explicit, least-privilege
+   read grant for `identify-multimodal/index.ts`; Deno does not grant
+   `readTextFile` access merely because the source is part of the import graph.
 6. Validates static Supabase migration contracts, including media-schema drift
    repair required before production `db push`.
 7. Prepares a Postgres connection string for database migrations without
@@ -506,6 +508,9 @@ Only use the local path when GitHub Actions is unavailable.
 cd /Users/emreerdener/Developer/merian
 
 deno check --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/auth.ts \
+  services/supabase/functions/_shared/edgeHandler.ts \
+  services/supabase/functions/_shared/http.ts \
   services/supabase/functions/_shared/aws.ts \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/mediaBudgets.ts \
@@ -513,8 +518,13 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/encoding.ts \
   services/supabase/functions/_shared/concurrency.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/functions/_shared/identify/latencyDb.ts \
+  services/supabase/functions/_shared/identify/latencyDb_test.ts \
   services/supabase/functions/_shared/scanIngestionCompatibility.ts \
   services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+  services/supabase/functions/_shared/scanIngestionIntents_test.ts \
+  services/supabase/functions/_shared/scanIngestionJobs_test.ts \
+  services/supabase/functions/_tests/auth.test.ts \
   services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
   services/supabase/functions/_tests/migrationMediaContract.test.ts \
   services/supabase/scripts/monitor_scan_media_health.ts \
@@ -523,6 +533,9 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/generate-upload-urls/storage_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/update-public-display-name/index.ts \
+  services/supabase/functions/identify-multimodal/index.ts \
+  services/supabase/functions/identify-multimodal/index.test.ts \
+  services/supabase/functions/update-scan-context/index.ts \
   services/supabase/functions/insight-chat/index.ts \
   services/supabase/functions/scan-media-health/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
@@ -531,14 +544,20 @@ deno check --config services/supabase/functions/deno.json \
 
 deno test --config services/supabase/functions/deno.json \
   --allow-read=docs/contracts \
+  --allow-read=services/supabase/functions/identify-multimodal/index.ts \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/mediaBudgets_test.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/functions/_shared/identify/latencyDb_test.ts \
   services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+  services/supabase/functions/_shared/scanIngestionIntents_test.ts \
+  services/supabase/functions/_shared/scanIngestionJobs_test.ts \
+  services/supabase/functions/_tests/auth.test.ts \
   services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
   services/supabase/scripts/monitor_scan_media_health_test.ts \
   services/supabase/functions/update-public-avatar/avatar_test.ts \
   services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
+  services/supabase/functions/identify-multimodal/index.test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
   services/supabase/functions/scan-media-health/health_test.ts \
