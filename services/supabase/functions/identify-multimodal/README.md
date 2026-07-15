@@ -129,7 +129,9 @@ non-resumable.
 
 ## Latency And Authentication Boundary
 
-Public requests use `withEdgeHandler(..., { authStrategy: "claims" })`.
+Public requests inject `requireClaimsAuth` into `withEdgeHandler`. The claims
+client is isolated from the wrapper's default `getUser` dependency graph, so
+unrelated authenticated functions do not bundle the claims-only SDK.
 `auth.getClaims(token)` verifies the project's ES256 signature through cached
 JWKS, after which Merian validates issuer, audience, expiration/not-before,
 role, and `sub`. Anonymous and authenticated users are valid; public

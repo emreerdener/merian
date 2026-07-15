@@ -137,12 +137,14 @@ Several utilities are shared across all Edge Functions via
   reference images, group tags, hazard/conservation fields, and lookalikes.
   Writers use the helper as a best-effort side effect: provenance failures are
   logged but never block scan ingestion or public dictionary reads.
-- **`auth.ts`**: Shared bearer-token extraction plus two explicit verification
-  strategies. Existing endpoints can retain `auth.getUser()` compatibility;
-  latency-sensitive `/identify-multimodal` and `/update-scan-context` use
-  `auth.getClaims(token)` with the project's cached ES256 JWKS and then validate
+- **`auth.ts` / `claimsAuth.ts`**: `auth.ts` owns shared bearer extraction,
+  explicit claims validation, and `auth.getUser()` compatibility.
+  `claimsAuth.ts` is injected only by latency-sensitive
+  `/identify-multimodal` and `/update-scan-context`; it uses
+  `auth.getClaims(token)` with the project's cached ES256 JWKS, then validates
   issuer, audience, expiration/not-before, role, and `sub`. The claims path
-  accepts anonymous/authenticated user roles but rejects service-role replay.
+  accepts anonymous/authenticated user roles but rejects service-role replay,
+  while unrelated functions avoid its additional SDK graph.
 
 ## The R2 Upload URL Node (`generate-upload-urls`)
 
@@ -1415,8 +1417,10 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
   runtime base64/hex work should use `_shared/encoding.ts`.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,
   `external.ts`, `tierCache.ts`, `posthog.ts`, `gemini.ts`, `aws.ts`,
-  `encoding.ts`, and `auth.ts` domains cleanly separate the core proxy engine
-  natively without polluting the specific Webhook routers.
+  `encoding.ts`, `auth.ts`, and opt-in `claimsAuth.ts` domains cleanly separate
+  the core proxy engine natively without polluting the specific Webhook
+  routers. The claims-capable SDK resolves through the central Deno import map
+  and stays outside `edgeHandler.ts`, so unrelated functions do not bundle it.
 
 ## The Enrichment Node (`enrich-scan`)
 

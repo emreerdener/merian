@@ -3,10 +3,15 @@ import {
   SupabaseClient,
   User,
 } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { requireAuth, requireClaimsAuth } from "./auth.ts";
+import { requireAuth } from "./auth.ts";
 import { corsHeaders, jsonResponse } from "./http.ts";
 
 export { jsonResponse };
+
+export type EdgeAuthenticator = (
+  req: Request,
+  supabaseAdmin: SupabaseClient,
+) => Promise<{ user: User | null; response: Response | null }>;
 
 /**
  * Emits a structured JSON error log for alertable operational events.
@@ -54,7 +59,7 @@ export async function withEdgeHandler(
     supabaseAdmin: SupabaseClient,
     context: { authDurationMs: number },
   ) => Promise<Response>,
-  options: { authStrategy?: "user" | "claims" } = {},
+  options: { authenticate?: EdgeAuthenticator } = {},
 ): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -67,9 +72,7 @@ export async function withEdgeHandler(
     );
 
     const authStart = performance.now();
-    const authenticate = options.authStrategy === "claims"
-      ? requireClaimsAuth
-      : requireAuth;
+    const authenticate = options.authenticate ?? requireAuth;
     const { user, response } = await authenticate(req, supabaseAdmin);
     const authDuration = performance.now() - authStart;
 

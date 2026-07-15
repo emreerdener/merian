@@ -62,6 +62,7 @@ jobs:
         run: |
           deno fmt --check \
             supabase/functions/_shared/auth.ts \
+            supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aws.ts \
@@ -95,6 +96,7 @@ jobs:
         run: |
           deno lint --config supabase/functions/deno.json \
             supabase/functions/_shared/auth.ts \
+            supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aws.ts \
@@ -129,6 +131,7 @@ jobs:
         run: |
           deno check --config supabase/functions/deno.json \
             supabase/functions/_shared/auth.ts \
+            supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aws.ts \
@@ -162,7 +165,7 @@ jobs:
       - name: Test shared Edge helpers
         run: |
           deno test --config supabase/functions/deno.json \
-            --allow-read=supabase/functions/identify-multimodal/index.ts \
+            --allow-read=supabase/functions/deno.json,supabase/functions/_shared/auth.ts,supabase/functions/_shared/claimsAuth.ts,supabase/functions/_shared/edgeHandler.ts,supabase/functions/identify-multimodal/index.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/identify/latencyDb_test.ts \

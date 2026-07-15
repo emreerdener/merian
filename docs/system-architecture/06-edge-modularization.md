@@ -263,7 +263,10 @@ avoid direct runtime imports from esm.sh or deno.land in deployed functions. A
 transient CDN 5xx while Supabase creates a function graph can otherwise fail the
 entire deploy even when the function source did not change. Test-only Deno std
 assert imports are acceptable because they are not bundled into production
-functions.
+functions. The separately pinned `@supabase/supabase-js-claims` alias belongs
+only in `_shared/claimsAuth.ts`; latency-sensitive routes inject that
+authenticator, while the universal `edgeHandler.ts` retains the compatibility
+SDK graph used by the rest of the function fleet.
 
 **PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in
 **all** Edge Functions and `_shared/biology.ts` **must not be `await`-ed**.

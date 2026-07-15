@@ -49,6 +49,9 @@ Before contributing, please review our core architectural tenets. Refactoring co
   New deployed functions should call `Deno.serve(...)` directly and avoid
   runtime imports from deno.land or esm.sh; route packages through `deno.json`
   and use local shared helpers such as `_shared/encoding.ts` where available.
+  The `@supabase/supabase-js-claims` alias is reserved for
+  `_shared/claimsAuth.ts`; do not import that opt-in dependency from
+  `_shared/edgeHandler.ts` or other universal helpers.
 
 ## Submitting a Pull Request 🚀
 

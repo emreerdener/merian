@@ -3,6 +3,7 @@ import {
   logStructuredError,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
+import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -104,6 +105,6 @@ Deno.serve((req: Request) =>
 
       return jsonResponse({ success: true, applied: data === true });
     },
-    { authStrategy: "claims" },
+    { authenticate: requireClaimsAuth },
   )
 );

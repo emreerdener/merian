@@ -102,3 +102,31 @@ Deno.test("validateVerifiedClaims rejects service-role replay on the public auth
   );
   assertEquals(result.valid, false);
 });
+
+Deno.test("claims authentication remains opt-in and npm-pinned", async () => {
+  const [denoConfigSource, authSource, claimsAuthSource, edgeHandlerSource] =
+    await Promise.all([
+      Deno.readTextFile(new URL("../deno.json", import.meta.url)),
+      Deno.readTextFile(new URL("../_shared/auth.ts", import.meta.url)),
+      Deno.readTextFile(new URL("../_shared/claimsAuth.ts", import.meta.url)),
+      Deno.readTextFile(new URL("../_shared/edgeHandler.ts", import.meta.url)),
+    ]);
+  const denoConfig = JSON.parse(denoConfigSource) as {
+    imports?: Record<string, string>;
+  };
+
+  assertEquals(
+    denoConfig.imports?.["@supabase/supabase-js-claims"],
+    "npm:@supabase/supabase-js@2.110.6",
+  );
+  assertEquals(claimsAuthSource.includes("@supabase/supabase-js-claims"), true);
+  assertEquals(
+    claimsAuthSource.includes(
+      "https://esm.sh/@supabase/supabase-js@2.110.6",
+    ),
+    false,
+  );
+  assertEquals(authSource.includes("2.110.6"), false);
+  assertEquals(edgeHandlerSource.includes("claimsAuth"), false);
+  assertEquals(edgeHandlerSource.includes("requireClaimsAuth"), false);
+});

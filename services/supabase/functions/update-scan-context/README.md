@@ -32,10 +32,11 @@ location-sharing policy, or arbitrary scan columns.
 
 ## Authentication And Ownership
 
-The shared claims auth strategy verifies the ES256 JWT signature and issuer,
-audience, expiration/not-before, role, and `sub`. Anonymous and authenticated
-owners are allowed; public service-role use is rejected. The request body does
-not choose a user.
+The route injects the opt-in `claimsAuth.ts` authenticator, which verifies the
+ES256 JWT signature and issuer, audience, expiration/not-before, role, and
+`sub`. Anonymous and authenticated owners are allowed; public service-role use
+is rejected. The request body does not choose a user. The claims-capable SDK is
+not imported by the universal Edge wrapper.
 
 The Edge handler calls service-role-only `apply_or_stage_scan_context` with the
 verified `user.id`. Direct RPC execution is revoked from `PUBLIC`, `anon`, and

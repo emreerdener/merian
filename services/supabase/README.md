@@ -18,7 +18,11 @@ services/supabase/
 Edge Functions are written in TypeScript and run on Deno. They handle logic like AI inference (`identify-multimodal`), gamification telemetry, public user profile updates, and Explore feed projections.
 
 - **Configuration**: Every new Edge Function MUST have a `[functions.<name>]` entry in `config.toml`. Pay attention to `verify_jwt` (set to `false` for app-facing anonymous-compatible functions to bypass gateway-level JWT validation, allowing the function to handle validation internally).
-- **Dependencies**: Runtime Edge dependencies are resolved through `functions/deno.json`.
+- **Dependencies**: Runtime Edge dependencies are resolved through
+  `functions/deno.json`. The claims-capable Supabase SDK is pinned under the
+  `@supabase/supabase-js-claims` alias and remains isolated in
+  `_shared/claimsAuth.ts`; do not add direct runtime `esm.sh` imports or pull the
+  claims client into the universal Edge wrapper.
 
 ### Identification Latency Contract
 
@@ -28,7 +32,9 @@ must not alter prompts, response schema, thinking budgets, media resolution,
 output-token limits, or the one-`generateContent`-call invariant.
 
 The latency-sensitive path uses cached ES256 JWKS verification through
-`auth.getClaims`, `begin_scan_ingestion` for atomic pre-Gemini setup, and
+`auth.getClaims`, injected only by the two latency-sensitive routes so unrelated
+function graphs retain the compatibility SDK alone; `begin_scan_ingestion` for
+atomic pre-Gemini setup; and
 `hydrate_identification_dictionary` for post-Gemini cache hydration. External
 cache misses and optional ingestion work run as Edge background tasks except
 for required video durability. `/update-scan-context` applies or stages late

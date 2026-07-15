@@ -14,12 +14,14 @@ multiple functions need the same behavior and the ownership boundary is clear.
   timing, and additive `Server-Timing` propagation.
 - **`http.ts`**: CORS headers, JSON responses, parameter validation, JSON-body
   parsing, body-size checks, and constant-time comparison helpers.
-- **`auth.ts`**: Supabase user/session validation helpers. Existing endpoints
-  retain the Auth-server `getUser` strategy; latency-sensitive endpoints select
-  cached-JWKS `getClaims` verification and explicitly validate issuer, audience,
-  expiration/not-before, role, and `sub`. Public claims auth accepts anonymous
-  and authenticated users but rejects `service_role`; internal replay keeps its
-  separate timing-safe service credential path.
+- **`auth.ts`**: Shared bearer parsing, claims validation, and the compatibility
+  Auth-server `getUser` strategy used by existing authenticated endpoints.
+- **`claimsAuth.ts`**: Opt-in cached-JWKS `getClaims` authentication for
+  latency-sensitive routes. It explicitly validates issuer, audience,
+  expiration/not-before, role, and `sub`; accepts anonymous and authenticated
+  users; and rejects `service_role`. Keeping this dependency out of
+  `edgeHandler.ts` prevents unrelated functions from bundling the claims-only
+  SDK. Internal replay keeps its separate timing-safe service credential path.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
   and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
   internally so lifecycle workers do not run unbounded delete fanout. Prefix

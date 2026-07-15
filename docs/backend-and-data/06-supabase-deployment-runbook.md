@@ -168,11 +168,25 @@ old `--import-map` flag; newer Supabase CLIs reject that flag during deploy. The
 Deno config keeps dependency resolution stable while Supabase builds each
 function graph: historical `https://esm.sh/@supabase/supabase-js@2.49.1` imports
 are remapped to the npm package, and runtime dependencies such as `aws4fetch`
-and `jszip` also resolve through npm instead of esm.sh. Edge entrypoints should
-use `Deno.serve(...)` directly rather than importing `serve` from Deno std.
-Shared runtime helpers should prefer local utilities such as
-`_shared/encoding.ts` for base64/hex helpers so production deploys do not fail
-when deno.land or esm.sh returns a transient 5xx during bundling.
+and `jszip` also resolve through npm instead of esm.sh. The newer Supabase SDK
+needed for `auth.getClaims` is pinned under the
+`@supabase/supabase-js-claims` alias and may be imported only by
+`_shared/claimsAuth.ts`. Do not import it from the universal
+`_shared/edgeHandler.ts`: doing so adds the second SDK graph to every
+authenticated function and makes an unrelated function deploy depend on that
+graph. Edge entrypoints should use `Deno.serve(...)` directly rather than
+importing `serve` from Deno std. Shared runtime helpers should prefer local
+utilities such as `_shared/encoding.ts` for base64/hex helpers so production
+deploys do not fail when deno.land or esm.sh returns a transient 5xx during
+bundling.
+
+`supabase functions deploy` uploads functions sequentially. A graph-creation
+failure can therefore occur after migrations and some function versions are
+already live. Treat that run as a mixed deployment: do not repeatedly rerun the
+same failing commit, and do not roll back an already-applied migration. Fix the
+dependency graph, run the full validation suite, push a new commit, and let the
+next full function deploy reconcile every bundle. Complete the normal
+post-deploy smoke checks before declaring the release healthy.
 
 ## Identification Latency Rollout
 
@@ -509,6 +523,7 @@ cd /Users/emreerdener/Developer/merian
 
 deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/auth.ts \
+  services/supabase/functions/_shared/claimsAuth.ts \
   services/supabase/functions/_shared/edgeHandler.ts \
   services/supabase/functions/_shared/http.ts \
   services/supabase/functions/_shared/aws.ts \

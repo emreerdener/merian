@@ -11,6 +11,7 @@ import {
   runBackground,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
+import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
 import { corsHeaders } from "../_shared/http.ts";
 import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
@@ -2192,6 +2193,6 @@ Deno.serve(async (req: Request) => {
         supabaseAdmin,
         context.authDurationMs,
       ),
-    { authStrategy: "claims" },
+    { authenticate: requireClaimsAuth },
   );
 });

@@ -80,7 +80,9 @@ when changing web routes.
   direct `https://deno.land/std/...` or `https://esm.sh/...` imports. Use local
   helpers such as `_shared/encoding.ts` for base64/hex work and run
   `deno check --config services/supabase/functions/deno.json ...` when touching
-  Edge runtime files.
+  Edge runtime files. Keep the `@supabase/supabase-js-claims` alias isolated to
+  `_shared/claimsAuth.ts`; importing it from `_shared/edgeHandler.ts` couples
+  every authenticated function to the second SDK graph.
 
 ## 7. Database Safeties
 - Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to persist `UsageManager` limits locally on iOS across reinstalls. Do not use IDFV (`.deviceId`) for backend user records, analytics identifiers, or constructed S3/R2 storage keys.

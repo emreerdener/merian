@@ -971,11 +971,12 @@ insight sheet display.
 ### Edge Function Critical Path
 
 - **Local JWKS claims verification**: `/identify-multimodal` verifies the ES256
-  JWT through `auth.getClaims(token)` and validates signature-backed claims,
-  issuer, audience, expiration/not-before, role, and `sub`. Anonymous and
-  authenticated users remain supported; service-role JWTs are rejected on the
-  public inference path. The cached JWKS path avoids an Auth-server request per
-  scan.
+  JWT through the opt-in `claimsAuth.ts` `auth.getClaims(token)` path and
+  validates signature-backed claims, issuer, audience,
+  expiration/not-before, role, and `sub`. Anonymous and authenticated users
+  remain supported; service-role JWTs are rejected on the public inference
+  path. The cached JWKS path avoids an Auth-server request per scan, while
+  keeping its claims-capable SDK out of unrelated function graphs.
 - **Atomic ingestion setup RPC**: upload-session lookup, ingestion-job claim,
   sanitized replay-intent recording, and the `ai_inference_started` transition
   execute through one service-role-only SQL RPC. A compatibility fallback keeps
