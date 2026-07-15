@@ -764,15 +764,20 @@ enum ProfilePublishedScanGridStyle {
         Array(repeating: GridItem(.flexible(), spacing: spacing), count: columnCount)
     }
 
-    static func cornerRadii(index: Int, itemCount: Int) -> RectangleCornerRadii {
+    static func cornerRadii(
+        index: Int,
+        itemCount: Int,
+        columnCount: Int = ProfilePublishedScanGridStyle.columnCount
+    ) -> RectangleCornerRadii {
         guard itemCount > 0 else { return RectangleCornerRadii() }
 
-        let r = index / columnCount
-        let c = index % columnCount
-        let totalRows = (itemCount + columnCount - 1) / columnCount
+        let normalizedColumnCount = max(columnCount, 1)
+        let r = index / normalizedColumnCount
+        let c = index % normalizedColumnCount
+        let totalRows = (itemCount + normalizedColumnCount - 1) / normalizedColumnCount
 
         func itemsInRow(_ row: Int) -> Int {
-            min(columnCount, itemCount - row * columnCount)
+            min(normalizedColumnCount, itemCount - row * normalizedColumnCount)
         }
 
         let isTopLeft = r == 0 && c == 0
@@ -800,10 +805,18 @@ private extension String {
 }
 
 extension View {
-    func profilePublishedScanTileCorners(index: Int, itemCount: Int) -> some View {
+    func profilePublishedScanTileCorners(
+        index: Int,
+        itemCount: Int,
+        columnCount: Int = ProfilePublishedScanGridStyle.columnCount
+    ) -> some View {
         clipShape(
             UnevenRoundedRectangle(
-                cornerRadii: ProfilePublishedScanGridStyle.cornerRadii(index: index, itemCount: itemCount),
+                cornerRadii: ProfilePublishedScanGridStyle.cornerRadii(
+                    index: index,
+                    itemCount: itemCount,
+                    columnCount: columnCount
+                ),
                 style: .continuous
             )
         )

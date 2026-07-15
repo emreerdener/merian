@@ -595,6 +595,24 @@ struct SpeciesDictionaryTests {
         #expect(!viewModel.isLoadingInitial)
     }
 
+    @Test func testCommunitySightingsTwoColumnGridRoundsOuterCorners() {
+        let topRight = ProfilePublishedScanGridStyle.cornerRadii(
+            index: 1,
+            itemCount: 6,
+            columnCount: 2
+        )
+        let bottomRight = ProfilePublishedScanGridStyle.cornerRadii(
+            index: 5,
+            itemCount: 6,
+            columnCount: 2
+        )
+
+        #expect(topRight.topTrailing == ProfilePublishedScanGridStyle.cornerRadius)
+        #expect(topRight.bottomTrailing == 0)
+        #expect(bottomRight.topTrailing == 0)
+        #expect(bottomRight.bottomTrailing == ProfilePublishedScanGridStyle.cornerRadius)
+    }
+
     @Test func testSpeciesDictionaryCatalogResponseDecodesItemsAndCursor() throws {
         let data = Data("""
         {

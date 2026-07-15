@@ -12,7 +12,7 @@ struct SpeciesCommunitySightingsSection: View {
     private let previewLimit = 6
     private let columns = Array(
         repeating: GridItem(.flexible(), spacing: 2),
-        count: 3
+        count: 2
     )
 
     var body: some View {
@@ -75,7 +75,8 @@ struct SpeciesCommunitySightingsSection: View {
                         )
                         .profilePublishedScanTileCorners(
                             index: index,
-                            itemCount: min(viewModel.posts.count, previewLimit)
+                            itemCount: min(viewModel.posts.count, previewLimit),
+                            columnCount: 2
                         )
                     }
                     .buttonStyle(.plain)
@@ -99,7 +100,8 @@ struct SpeciesCommunitySightingsSection: View {
                         }
                         .profilePublishedScanTileCorners(
                             index: index,
-                            itemCount: previewLimit
+                            itemCount: previewLimit,
+                            columnCount: 2
                         )
                 }
             }
@@ -166,7 +168,7 @@ private struct SpeciesCommunitySightingsGrid: View {
     private let pageSize = 30
     private let columns = Array(
         repeating: GridItem(.flexible(), spacing: 2),
-        count: 3
+        count: 2
     )
 
     var body: some View {
