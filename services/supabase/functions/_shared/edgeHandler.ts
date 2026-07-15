@@ -1,8 +1,4 @@
-import {
-  createClient,
-  SupabaseClient,
-  User,
-} from "@supabase/supabase-js";
+import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./auth.ts";
 import { corsHeaders, jsonResponse } from "./http.ts";
 

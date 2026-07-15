@@ -1,8 +1,4 @@
-import {
-  createClient,
-  SupabaseClient,
-  User,
-} from "@supabase/supabase-js";
+import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
 import { corsHeaders } from "./http.ts";
 
 export function bearerTokenFromAuthorizationHeader(
