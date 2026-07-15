@@ -9,8 +9,8 @@
         {
           "title": "Improved",
           "items": [
-            "Still-image scans now replace the laser sweep with fast native subject brackets and a dimmed exterior when Merian finds a clear focus area.",
-            "Broad or ambiguous scenes remain unobstructed with no fallback box, while the complete cropped image continues to be analyzed."
+            "Still-image scans now replace the full-image laser sweep with fast native subject brackets, a dimmed exterior, and a subtle scanning highlight contained inside the focus area.",
+            "Broad or ambiguous scenes show no fallback box and retain the full-image scan animation; focused and full-image scans never appear together."
           ]
         }
       ]

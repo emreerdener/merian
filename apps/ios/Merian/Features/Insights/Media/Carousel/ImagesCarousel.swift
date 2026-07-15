@@ -716,6 +716,19 @@ struct ImagesCarousel: View {
 }
 
 // MARK: - Analyzing Overlay
+enum StillImageAnalyzingMode: Equatable {
+    case fullImageScan
+    case isolatedFocus(NormalizedImageFocusRegion)
+
+    init(focusRegion: NormalizedImageFocusRegion?) {
+        if let focusRegion {
+            self = .isolatedFocus(focusRegion)
+        } else {
+            self = .fullImageScan
+        }
+    }
+}
+
 private struct AnalyzingMediaOverlay: View {
     let kind: CarouselMediaKind
     let focusRegion: NormalizedImageFocusRegion?
@@ -734,9 +747,12 @@ private struct AnalyzingMediaOverlay: View {
 
                 switch kind {
                 case .visual:
-                    if let focusRegion {
+                    switch StillImageAnalyzingMode(focusRegion: focusRegion) {
+                    case .isolatedFocus(let focusRegion):
                         LensFocusOverlay(region: focusRegion)
                             .id(focusRegion)
+                    case .fullImageScan:
+                        visualScan(in: geometry.size)
                     }
                 case .video:
                     visualScan(in: geometry.size)
@@ -849,7 +865,10 @@ private struct AnalyzingMediaOverlay: View {
     }
 
     private func startAnimation() {
-        guard kind != .visual else { return }
+        if kind == .visual,
+           case .isolatedFocus = StillImageAnalyzingMode(focusRegion: focusRegion) {
+            return
+        }
 
         guard !reduceMotion else {
             pulse = true
@@ -908,6 +927,7 @@ private struct LensFocusOverlay: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isResolved = false
+    @State private var scanProgress: CGFloat = 0
 
     var body: some View {
         GeometryReader { geometry in
@@ -928,6 +948,15 @@ private struct LensFocusOverlay: View {
                 }
                 .fill(.black.opacity(0.22), style: FillStyle(eoFill: true))
                 .opacity(isResolved ? 1 : 0)
+
+                if !reduceMotion {
+                    LensFocusScanHighlight(
+                        focusRect: focusRect,
+                        cornerRadius: cornerRadius,
+                        progress: scanProgress
+                    )
+                    .opacity(isResolved ? 1 : 0)
+                }
 
                 LensFocusBracketShape(
                     rect: focusRect,
@@ -957,8 +986,41 @@ private struct LensFocusOverlay: View {
                 withAnimation(.easeOut(duration: 0.20)) {
                     isResolved = true
                 }
+                withAnimation(.easeInOut(duration: 1.9).repeatForever(autoreverses: true)) {
+                    scanProgress = 1
+                }
             }
         }
+    }
+}
+
+private struct LensFocusScanHighlight: View {
+    let focusRect: CGRect
+    let cornerRadius: CGFloat
+    let progress: CGFloat
+
+    var body: some View {
+        let bandHeight = min(46, max(26, focusRect.height * 0.14))
+        let travelDistance = focusRect.height + bandHeight
+
+        LinearGradient(
+            colors: [
+                .clear,
+                .cyan.opacity(0.035),
+                .white.opacity(0.13),
+                .cyan.opacity(0.035),
+                .clear
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(width: focusRect.width, height: bandHeight)
+        .offset(y: -travelDistance / 2 + travelDistance * progress)
+        .frame(width: focusRect.width, height: focusRect.height)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .position(x: focusRect.midX, y: focusRect.midY)
+        .blendMode(.screen)
+        .allowsHitTesting(false)
     }
 }
 

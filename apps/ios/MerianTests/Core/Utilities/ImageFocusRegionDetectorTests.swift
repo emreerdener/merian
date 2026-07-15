@@ -156,4 +156,16 @@ struct ImageFocusRegionDetectorTests {
         #expect(pages[2].focusRegion == nil)
         #expect(pages[3].focusRegion == secondRegion)
     }
+
+    @Test func stillImageAnalyzingModesAreMutuallyExclusive() {
+        let region = NormalizedImageFocusRegion(
+            x: 0.2,
+            y: 0.25,
+            width: 0.4,
+            height: 0.5
+        )
+
+        #expect(StillImageAnalyzingMode(focusRegion: nil) == .fullImageScan)
+        #expect(StillImageAnalyzingMode(focusRegion: region) == .isolatedFocus(region))
+    }
 }

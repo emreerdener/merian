@@ -61,9 +61,13 @@ object, or image-token charge.
 During still-image inference, `AnalyzingMediaOverlay` maps the normalized square
 image bounds through the carousel's aspect-fill transform, dims only the exterior
 by 22%, and draws four detached white corner brackets. The brackets resolve with
-a 200 ms entrance and then remain static; Reduce Motion uses opacity only. If no
-region exists, the still image has no box and no laser. Video keeps its existing
-laser animation, while audio and description keep their existing sweeps.
+a 200 ms entrance and then remain static while a low-opacity illumination band
+sweeps up and down only inside the accepted region. Reduce Motion uses opacity
+only and omits the interior sweep. If no region exists, the still image has no
+focus geometry and falls back to the original full-image scan animation. The
+full-image and isolated-region sweeps are mutually exclusive. Video keeps its
+existing laser animation, while audio and description keep their existing
+sweeps.
 
 The camera shutter path explicitly separates orchestration from ImageIO work. `executeCapture()` snapshots location, composing-zone center, and Pro tier on the main actor, then calls `DetachedWork.value(category: .imagePreparation)` to downsample, crop, and encode the 12MP buffer. The detached worker returns bounded inference/display bytes plus a `SendableCGImage` preview wrapper. No `CGImageSourceCreateThumbnailAtIndex` or `CGImageDestinationFinalize` work is allowed to inherit the view model's `@MainActor` executor.
 

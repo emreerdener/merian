@@ -11,8 +11,12 @@ sheet.
 
 Still images use the accepted `NormalizedImageFocusRegion` to render four
 detached white corner brackets and a dimmed exterior in the Insight carousel.
-The treatment fades and resolves once, remains noninteractive, and replaces the
-old still-image laser. Images without a clear isolated subject show only the
-uniform analyzing tint and status phrase—there is no centered or full-image
-fallback. Video, audio, and description animations retain their existing
+The brackets fade and resolve once, then remain static while a soft low-opacity
+illumination band sweeps only inside the accepted region. The treatment remains
+noninteractive and replaces the old full-image laser. Reduce Motion disables the
+interior sweep. Images without a clear isolated subject use the uniform
+analyzing tint, status phrase, and original full-image scan sweep—there is
+no centered or full-image focus box. The full-image sweep is omitted whenever
+an accepted focus region exists, so it never competes with the isolated-region
+animation. Video, audio, and description animations retain their existing
 behavior.
