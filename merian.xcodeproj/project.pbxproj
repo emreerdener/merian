@@ -121,6 +121,7 @@
 		389B57724639D8D224D51FED /* PhotoLibraryPermissionSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A0325BC2FFA2EFFBC8B75B /* PhotoLibraryPermissionSheetView.swift */; };
 		38B950DFEC32F436D6CD7F3F /* GridSwipeableCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FAF1CE3A443BB7F02013643 /* GridSwipeableCell.swift */; };
 		39BDD27F97A8FAE430A9D948 /* OnboardingStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4091758C197619E397B32D77 /* OnboardingStep.swift */; };
+		3A39CF22A7C8F4004A2A2993 /* SpeciesCommunitySightingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6B742E3FBD35DC03D5BBFF /* SpeciesCommunitySightingsViewModel.swift */; };
 		3B0B4417F90F2CEAEE75E0FC /* ViewfinderIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119B433DC21B3CBB5FBEBDA4 /* ViewfinderIntelligence.swift */; };
 		3B268A402DC794837D352215 /* ConfirmedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0CD118F9601A1F86637198 /* ConfirmedView.swift */; };
 		3B5A8D924F2C23933ADD1F92 /* OfflineSyncTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CC5EF41526F0D6D900A6661 /* OfflineSyncTypes.swift */; };
@@ -191,6 +192,7 @@
 		5C24A11583E4E45CC4BCC2EC /* SchemaV17.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0AB6C819E0FA1B40CEAF169 /* SchemaV17.swift */; };
 		5D544FD1FA1F6A441D7F7531 /* UserStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0F3342973330C8E340D204 /* UserStats.swift */; };
 		5E16712054E5EAE254B0B1F0 /* ExploreWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8648E5E50A155EB08BE43937 /* ExploreWidgetCache.swift */; };
+		5EC2724594C3AAF2A8B71710 /* SpeciesCommunitySightings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CE2AAEF6610A3B139A6699 /* SpeciesCommunitySightings.swift */; };
 		5EDAC0ABC27EE9C88BA2C721 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF31B1A84D06C5169F17EA22 /* FlowLayout.swift */; };
 		5F5A2679813B5437B81C4D53 /* DescribeAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA2A7F92E7BCDDB6578560C9 /* DescribeAnalysis.swift */; };
 		5FE6C75292C440DD03B11F93 /* SchemaV23.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBF41E0897783B63B113ECC /* SchemaV23.swift */; };
@@ -969,6 +971,7 @@
 		CCB7151B16D561973526B1D6 /* AchievementToastBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementToastBanner.swift; sourceTree = "<group>"; };
 		CCE9731A58B022F38AAF0DDB /* SpeciesObservationChartsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesObservationChartsCard.swift; sourceTree = "<group>"; };
 		CD2F826786333CB7FACE40CB /* ScanCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCollection.swift; sourceTree = "<group>"; };
+		CD6B742E3FBD35DC03D5BBFF /* SpeciesCommunitySightingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesCommunitySightingsViewModel.swift; sourceTree = "<group>"; };
 		CDFB6CD05BBA65DB648549A2 /* ExploreWidgetSnapshotWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreWidgetSnapshotWriter.swift; sourceTree = "<group>"; };
 		CE733421F466A101B30361CA /* ScansToolbarModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansToolbarModifier.swift; sourceTree = "<group>"; };
 		CF08D5D1A680FFDE561CBEB0 /* ExploreAuthorProfileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreAuthorProfileSheet.swift; sourceTree = "<group>"; };
@@ -1060,6 +1063,7 @@
 		F91E035B0972D398350B2FAD /* ExploreAudioBoostPreferenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreAudioBoostPreferenceStore.swift; sourceTree = "<group>"; };
 		F9477C52322B468EBEE6C9B3 /* SchemaV39.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV39.swift; sourceTree = "<group>"; };
 		F9AD721C0085D8D47BC26C8A /* QueuedScanContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedScanContext.swift; sourceTree = "<group>"; };
+		F9CE2AAEF6610A3B139A6699 /* SpeciesCommunitySightings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesCommunitySightings.swift; sourceTree = "<group>"; };
 		F9EA7B5B49BE570AFD0006D9 /* SchemaV11.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV11.swift; sourceTree = "<group>"; };
 		FA1BD4B4474D268EA505D201 /* OfflineQueueManagerAudioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManagerAudioTests.swift; sourceTree = "<group>"; };
 		FA59FF99FD6F0D97EAD199F9 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
@@ -1787,6 +1791,7 @@
 		3DA1A65D9476815E49FDE128 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				CD6B742E3FBD35DC03D5BBFF /* SpeciesCommunitySightingsViewModel.swift */,
 				C2516B9624A4F36CC4F3D018 /* SpeciesDictionaryPageViewModel.swift */,
 			);
 			path = ViewModels;
@@ -2840,6 +2845,7 @@
 		B03F571C291CF454DF835A04 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				F9CE2AAEF6610A3B139A6699 /* SpeciesCommunitySightings.swift */,
 				D3B59E541D3EC54A6B50A405 /* SpeciesDictionaryCards.swift */,
 				E5DBC96B4FEFC355C434C70C /* SpeciesDictionaryReferenceGallery.swift */,
 			);
@@ -4324,6 +4330,8 @@
 				A23A56326807DFF6A2BCF9DD /* SmartCollection.swift in Sources */,
 				EAFEA2189F98E2A6F56FBAE5 /* SmartCollectionDetailView.swift in Sources */,
 				89143DCFA1EF1A9D5B72F894 /* SocialGuardManager.swift in Sources */,
+				5EC2724594C3AAF2A8B71710 /* SpeciesCommunitySightings.swift in Sources */,
+				3A39CF22A7C8F4004A2A2993 /* SpeciesCommunitySightingsViewModel.swift in Sources */,
 				448656F1135935AE41FD651A /* SpeciesData.swift in Sources */,
 				65C5E866CFC3A8224021A64A /* SpeciesDictionaryAPIModels.swift in Sources */,
 				EC08EDD753CE17201E96E45B /* SpeciesDictionaryCards.swift in Sources */,

@@ -145,6 +145,9 @@ TestFlight, App Store, support, and QA.
 
 ### Species Dictionary
 
+- Added **Community sightings** after observation charts. Species pages now
+  preview six exact-species public Explore posts and can open a paginated grid,
+  while respecting each viewer's Explore visibility and privacy rules.
 - Added durable species dictionary enrichment queueing so new and existing
   sparse species records can backfill Wikipedia, GBIF, reference image,
   habitat, lookalike, and group-tag details through the scheduled workers.

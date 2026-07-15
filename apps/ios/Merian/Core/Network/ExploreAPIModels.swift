@@ -108,6 +108,11 @@ struct ExploreHashtagPostsResponse: Decodable {
     let data: [ExplorePost]
 }
 
+struct ExploreSpeciesPostsResponse: Decodable, Equatable {
+    let data: [ExplorePost]
+    let nextCursor: ExploreSpeciesPostCursor?
+}
+
 struct ExploreFollowState: Decodable, Equatable {
     let success: Bool
     let authorUserId: String
@@ -458,6 +463,12 @@ struct ExploreHashtagPostCursor: Equatable {
     var isEmpty: Bool {
         beforeSharedAt == nil && beforePostId == nil
     }
+}
+
+struct ExploreSpeciesPostCursor: Decodable, Equatable {
+    let imageQualityScore: Int?
+    let sharedAt: String
+    let postId: String
 }
 
 struct CommunityIdentificationFeedResponse: Decodable {

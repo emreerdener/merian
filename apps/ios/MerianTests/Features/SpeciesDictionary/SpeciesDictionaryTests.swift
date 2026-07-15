@@ -545,6 +545,56 @@ struct SpeciesDictionaryTests {
         #expect(viewModel.state == .notFound)
     }
 
+    @Test func testCommunitySightingsViewModelLoadsPaginatesAndDeduplicates() async throws {
+        let firstCursor = ExploreSpeciesPostCursor(
+            imageQualityScore: 88,
+            sharedAt: "2026-07-14T12:00:00.000Z",
+            postId: "post-2"
+        )
+        let responses = [
+            try makeCommunitySightingsResponse(
+                postIds: ["post-1", "post-2"],
+                nextCursor: firstCursor
+            ),
+            try makeCommunitySightingsResponse(
+                postIds: ["post-2", "post-3"],
+                nextCursor: nil
+            )
+        ]
+        var requestedCursors: [ExploreSpeciesPostCursor?] = []
+        let viewModel = SpeciesCommunitySightingsViewModel { speciesId, limit, cursor in
+            #expect(speciesId == "species-123")
+            #expect(limit == (cursor == nil ? 6 : 30))
+            requestedCursors.append(cursor)
+            return responses[requestedCursors.count - 1]
+        }
+
+        await viewModel.loadInitial(speciesId: "species-123")
+
+        #expect(viewModel.posts.map(\.id) == ["post-1", "post-2"])
+        #expect(viewModel.hasMore)
+        #expect(!viewModel.didFail)
+
+        await viewModel.loadMore()
+
+        #expect(viewModel.posts.map(\.id) == ["post-1", "post-2", "post-3"])
+        #expect(!viewModel.hasMore)
+        #expect(requestedCursors == [nil, firstCursor])
+    }
+
+    @Test func testCommunitySightingsViewModelHidesFailedInitialLoad() async {
+        let viewModel = SpeciesCommunitySightingsViewModel { _, _, _ in
+            throw MerianError.invalidResponse
+        }
+
+        await viewModel.loadInitial(speciesId: "species-123")
+
+        #expect(viewModel.posts.isEmpty)
+        #expect(!viewModel.hasMore)
+        #expect(viewModel.didFail)
+        #expect(!viewModel.isLoadingInitial)
+    }
+
     @Test func testSpeciesDictionaryCatalogResponseDecodesItemsAndCursor() throws {
         let data = Data("""
         {
@@ -1068,4 +1118,50 @@ struct SpeciesDictionaryTests {
 
         return SpeciesDictionaryTreePayload(nodes: nodes, edges: lineageEdges + speciesEdges)
     }
+}
+
+private func makeCommunitySightingsResponse(
+    postIds: [String],
+    nextCursor: ExploreSpeciesPostCursor?
+) throws -> ExploreSpeciesPostsResponse {
+    let posts: [[String: Any]] = postIds.map { postId in
+        [
+            "post_id": postId,
+            "scan_id": "scan-\(postId)",
+            "hero_image_url": "https://example.com/\(postId).webp",
+            "shared_at": "2026-07-14T12:00:00.000Z",
+            "author_user_id": "author-123",
+            "author_name": "Sightings Author",
+            "author_avatar_url": NSNull(),
+            "species_common_name": "Field Test",
+            "species_scientific_name": "Testus floridus",
+            "public_location_label": NSNull(),
+            "location_sharing": "obscured",
+            "time_of_day": NSNull(),
+            "current_month": NSNull(),
+            "weather_condition": NSNull(),
+            "weather_temperature_f": NSNull(),
+            "like_count": 0,
+            "comment_count": 0,
+            "viewer_has_liked": false,
+            "is_owned_by_viewer": false,
+            "ranking_value": NSNull()
+        ]
+    }
+    let nextCursorPayload: Any = if let nextCursor {
+        [
+            "image_quality_score": nextCursor.imageQualityScore.map { $0 as Any } ?? NSNull(),
+            "shared_at": nextCursor.sharedAt,
+            "post_id": nextCursor.postId
+        ] as [String: Any]
+    } else {
+        NSNull()
+    }
+    let data = try JSONSerialization.data(withJSONObject: [
+        "data": posts,
+        "next_cursor": nextCursorPayload
+    ])
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    return try decoder.decode(ExploreSpeciesPostsResponse.self, from: data)
 }

@@ -6,6 +6,7 @@ struct SpeciesDictionaryPageView: View {
     let entryPoint: SpeciesDictionaryEntryPoint
 
     @Environment(\.dismiss) private var dismiss
+    @State private var exploreViewModel = ExploreFeedViewModel()
 
     init(
         scientificName: String,
@@ -24,6 +25,7 @@ struct SpeciesDictionaryPageView: View {
                 speciesId: speciesId,
                 entryPoint: entryPoint,
                 showsCloseButton: true,
+                exploreViewModel: exploreViewModel,
                 onClose: { dismiss() }
             )
             .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
@@ -31,7 +33,8 @@ struct SpeciesDictionaryPageView: View {
                     scientificName: route.scientificName,
                     speciesId: route.speciesId,
                     entryPoint: route.entryPoint,
-                    showsCloseButton: false
+                    showsCloseButton: false,
+                    exploreViewModel: exploreViewModel
                 )
             }
         }
@@ -46,8 +49,10 @@ struct SpeciesDictionaryPageContentView: View {
     let entryPoint: SpeciesDictionaryEntryPoint
     let showsCloseButton: Bool
     let onClose: () -> Void
+    private let suppliedExploreViewModel: ExploreFeedViewModel?
 
     @State private var viewModel: SpeciesDictionaryPageViewModel
+    @State private var fallbackExploreViewModel = ExploreFeedViewModel()
     @State private var isCommonNameScrolledPast = false
     @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
 
@@ -56,12 +61,14 @@ struct SpeciesDictionaryPageContentView: View {
         speciesId: String? = nil,
         entryPoint: SpeciesDictionaryEntryPoint,
         showsCloseButton: Bool,
+        exploreViewModel: ExploreFeedViewModel? = nil,
         onClose: @escaping () -> Void = {}
     ) {
         self.scientificName = scientificName
         self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).trimmedNonEmpty
         self.entryPoint = entryPoint
         self.showsCloseButton = showsCloseButton
+        suppliedExploreViewModel = exploreViewModel
         self.onClose = onClose
         _viewModel = State(initialValue: SpeciesDictionaryPageViewModel(
             scientificName: scientificName,
@@ -189,6 +196,11 @@ struct SpeciesDictionaryPageContentView: View {
                         scientificName: species.scientificName
                     )
 
+                    SpeciesCommunitySightingsSection(
+                        speciesId: species.id,
+                        exploreViewModel: effectiveExploreViewModel
+                    )
+
                     if let similarData = species.similarSpeciesData {
                         SimilarSpeciesGallery(
                             similarData: similarData,
@@ -279,6 +291,10 @@ struct SpeciesDictionaryPageContentView: View {
 
     private var toolbarBadgeTitle: String {
         viewModel.loadedSpecies?.commonName ?? ""
+    }
+
+    private var effectiveExploreViewModel: ExploreFeedViewModel {
+        suppliedExploreViewModel ?? fallbackExploreViewModel
     }
 
     private func speciesDictionaryRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {

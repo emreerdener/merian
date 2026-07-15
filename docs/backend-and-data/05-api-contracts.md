@@ -1639,6 +1639,10 @@ Explore post-detail contracts:
 - Species dictionary data includes only canonical dictionary fields and
   reference imagery.
 
+Related Explore cards are intentionally fetched afterward through the separate
+authenticated `/get-explore-species-posts` contract below; they are never added
+to the publicly cached dictionary payload.
+
 The function has `verify_jwt = false` in `services/supabase/config.toml`. Detail
 and catalog requests do not call `requireAuth`; they may receive normal app auth
 headers from `MerianNetworkClient`, but identity is not read and must not affect
@@ -2073,6 +2077,40 @@ handle:
 `public_author_name` is not a future mention handle. Comment mentions and other
 handle-based features must use `public_username` / `author_username`. The field
 is additive and optional for rollout tolerance; older clients may ignore it.
+
+### `/get-explore-species-posts`
+
+Returns visibility-safe Explore cards whose effective canonical species is the
+requested dictionary UUID. Confirmed identifications use the confirmed species;
+community-resolved observations use the projected resolved taxon. Genus-level
+and merely similar-species posts do not match.
+
+```json
+{
+  "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+  "limit": 30,
+  "before_image_quality_score": 87,
+  "before_shared_at": "2026-07-14T12:00:00.000Z",
+  "before_post_id": "uuid"
+}
+```
+
+- `species_id` must be a UUID and `limit` must be an integer from 1 through 100.
+- Omit all cursor fields for the first page. `before_shared_at` and
+  `before_post_id` must be supplied together. An omitted/null quality field with
+  those two fields represents a cursor in the unscored tier.
+- Ordering is `image_quality_score DESC`, then `shared_at DESC`, then post UUID
+  descending. Null quality scores sort after every scored post.
+- The response is `{ "data": [<standard Explore cards>], "next_cursor": ... }`.
+  `next_cursor` contains the three ordering fields or is `null` when exhausted.
+- `image_quality_score` is never included in a card. It is used only inside the
+  service-role RPC and in `next_cursor`.
+- Image, video, audio, legacy, and text-first presentation variants use the
+  standard Explore card/media metadata and species reference-thumbnail fallback.
+- The shared Explore projection continues to exclude unshared, tombstoned,
+  blocked, shadowbanned, identification-pending, and media-less posts.
+- The SQL RPC grants `EXECUTE` only to `service_role`; clients call the
+  authenticated Edge Function, never PostgREST directly.
 
 ### `/get-explore-feed`
 

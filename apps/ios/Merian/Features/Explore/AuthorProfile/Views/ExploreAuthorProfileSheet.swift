@@ -113,7 +113,8 @@ struct ExploreAuthorProfileSheet: View {
                     scientificName: route.scientificName,
                     speciesId: route.speciesId,
                     entryPoint: route.entryPoint,
-                    showsCloseButton: false
+                    showsCloseButton: false,
+                    exploreViewModel: viewModel
                 )
             }
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in

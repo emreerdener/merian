@@ -540,6 +540,22 @@ See `docs/backend-and-data/05-api-contracts.md` and
 `docs/features-and-hardware/16-species-dictionary.md` for the request/response
 contract and iOS surface.
 
+## The Authenticated Species Sightings Node (`get-explore-species-posts`)
+
+`/get-explore-species-posts` keeps viewer-aware Explore cards out of the public,
+cacheable `/species-dictionary` response. It requires the normal app session,
+validates a canonical species UUID and a 1...100 limit, and calls the
+service-role-only `public.get_explore_species_posts(...)` RPC.
+
+The RPC reuses `public.explore_projected_post_cards(viewer_id)` for visibility
+and privacy, then matches the exact effective species. Confirmed scan taxonomy
+uses `confirmed_species_id`; `community_resolved` posts use the projected taxon
+node's canonical `species_id`. Genus and lookalike similarity never participate.
+Rows order by `image_quality_score DESC NULLS LAST`, `shared_at DESC`, and post
+UUID descending. The Edge Function uses the internal score to build a stable
+cursor, removes it from card payloads, then applies the normal Explore username,
+Pro badge, hashtag, and media enrichment.
+
 ## The Public Species Observation Stats Node (`species-observation-stats`)
 
 The `/species-observation-stats` Edge Function returns global public iNaturalist

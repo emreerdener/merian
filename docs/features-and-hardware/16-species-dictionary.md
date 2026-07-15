@@ -1,11 +1,12 @@
 # Species Dictionary Page
 
-The Species Dictionary Page is the standalone in-app public page for a
-discovered species. It presents canonical species-level dictionary data and
-reference imagery without loading a user scan, Explore post, field notes, or
-comments. The only personalized V1 element is the on-device local-observation
-overlay inside `SpeciesObservationChartsCard`; those local counts are never sent
-to Supabase.
+The Species Dictionary Page is the standalone in-app page for a discovered
+species. Its primary content remains canonical public species-level dictionary
+data and reference imagery. A separate authenticated **Community sightings**
+request adds visibility-safe Explore cards without placing viewer-sensitive
+data in the cacheable dictionary response. The on-device local-observation
+overlay inside `SpeciesObservationChartsCard` remains local; those counts are
+never sent to Supabase.
 
 This creates three separate species surfaces in the iOS app:
 
@@ -13,7 +14,7 @@ This creates three separate species surfaces in the iOS app:
 | ----------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
 | Insight scan            | A user's specific scan result | `InferenceEngine.shared.speciesData`, local scan media, and per-scan AI reasoning |
 | Explore post            | A public shared scan          | Explore post/detail endpoints plus the backing public scan projection             |
-| Species dictionary page | General species reference     | `species_dictionary`, `species_lookalikes`, public reference imagery, local on-device observation aggregates, and cached global public iNaturalist stats |
+| Species dictionary page | General species reference     | `species_dictionary`, `species_lookalikes`, public reference imagery, local on-device observation aggregates, cached global public iNaturalist stats, and a separate authenticated Explore species-post projection |
 
 ## Product Scope
 
@@ -33,6 +34,7 @@ Included in V1:
 - habitat description and GBIF heatmap when `gbif_taxon_key` is available
 - observation pattern charts from local on-device logs plus cached global public
   iNaturalist stats
+- a six-post **Community sightings** preview with a paginated Explore grid
 - taxonomy
 - IUCN Red List status
 - hazard status
@@ -40,7 +42,6 @@ Included in V1:
 
 Excluded in V1:
 
-- Explore posts as dictionary-page content
 - local scan lists, scan media, or per-scan detail pages
 - user-uploaded gallery media
 - field notes
@@ -60,9 +61,11 @@ Primary files:
 - `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesCommunitySightingsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryCards.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesCommunitySightings.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SimilarSpeciesGallery.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
@@ -97,6 +100,15 @@ after Habitat & Distribution. It owns its own
 `/species-observation-stats`. The dictionary page passes `species.id` and
 `species.scientificName`, so the stats endpoint can use the dictionary UUID and
 resolve/store `inaturalist_taxon_id`.
+
+`SpeciesCommunitySightingsSection` follows the observation charts and precedes
+similar species. It loads six square tiles, hides itself after an empty or
+failed request, and shows **View all** only when the backend returns another
+cursor. The destination reuses those six results, loads 30-item pages in the
+same three-column grid, deduplicates posts, and supports pull-to-refresh. Explore
+and Profile hosts supply their existing `ExploreFeedViewModel`; standalone
+Dictionary, Scans, and Insight routes use a local fallback so tile taps still
+push the existing Explore post detail in the current navigation stack.
 
 ## Entry Point
 
@@ -217,6 +229,25 @@ species-level public dictionary data only.
 dictionary page and Explore detail similar-species projection. iOS treats the
 key as optional for backward compatibility with older mocks or deployed
 functions, and future web clients should use it before depending on new fields.
+
+Community sightings use a separate authenticated request:
+
+```swift
+MerianNetworkClient.shared.getExploreSpeciesPosts(
+    speciesId: species.id,
+    limit: 30,
+    cursor: cursor
+)
+```
+
+`/get-explore-species-posts` accepts `species_id`, `limit`, and optional flat
+`before_image_quality_score`, `before_shared_at`, and `before_post_id` cursor
+fields. It returns standard Explore cards plus `next_cursor`. Results are exact
+canonical species matches, including confirmed identifications and
+community-resolved taxonomy, ordered by image quality descending, then newest
+`shared_at`, then post UUID; unscored posts form the final tier. The internal
+quality score is present only in the service-role RPC row used to construct the
+cursor and is removed from card payloads.
 
 ### Overview and Catalog Modes
 
@@ -472,6 +503,11 @@ Insight or Explore tap that carries a dictionary ID can warm a later
 scientific-name route for the same species. The cache is cleared in DEBUG
 whenever tests swap the injected `URLSession`.
 
+Community sightings are not part of either cache. Their endpoint requires the
+current viewer so blocked authors and other visibility state are evaluated on
+every request; a failure remains supplemental and never blocks dictionary
+content.
+
 Invalidation is currently TTL-based: rows refreshed by the scheduled species
 workers (`refresh-species-content`, `refresh-species-model-content`, and
 `refresh-merian-reference-images`) become visible after the iOS memo TTL and the
@@ -631,7 +667,7 @@ Manual acceptance for Merian reference images:
 
 ## Privacy Rules
 
-The species dictionary page must never expose:
+The public `/species-dictionary` response must never expose:
 
 - scan IDs
 - user IDs
@@ -647,6 +683,12 @@ The species dictionary page must never expose:
 
 If a future web frontend consumes this endpoint, it should be able to use the
 same response safely without an authenticated session.
+
+The separate authenticated sightings endpoint may return standard public
+Explore card identifiers and media, but only through
+`public.explore_projected_post_cards(viewer_id)`. Unshared, tombstoned,
+blocked, shadowbanned, identification-pending, and media-less posts remain
+excluded, and the SQL RPC is executable only by `service_role`.
 
 ## Testing
 

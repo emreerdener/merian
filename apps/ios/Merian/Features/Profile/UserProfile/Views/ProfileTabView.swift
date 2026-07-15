@@ -137,7 +137,8 @@ struct ProfileTabView: View {
                     scientificName: route.scientificName,
                     speciesId: route.speciesId,
                     entryPoint: route.entryPoint,
-                    showsCloseButton: false
+                    showsCloseButton: false,
+                    exploreViewModel: exploreViewModel
                 )
             }
             .task(id: profileRefreshToken) {

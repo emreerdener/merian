@@ -2414,6 +2414,30 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreHashtagPostsResponse.self, from: data).data
     }
 
+    func getExploreSpeciesPosts(
+        speciesId: String,
+        limit: Int = 30,
+        cursor: ExploreSpeciesPostCursor? = nil
+    ) async throws -> ExploreSpeciesPostsResponse {
+        let functionUrl = try endpointURL("get-explore-species-posts")
+        var payload: [String: Any] = [
+            "species_id": speciesId,
+            "limit": limit
+        ]
+
+        if let cursor {
+            if let imageQualityScore = cursor.imageQualityScore {
+                payload["before_image_quality_score"] = imageQualityScore
+            }
+            payload["before_shared_at"] = cursor.sharedAt
+            payload["before_post_id"] = cursor.postId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreSpeciesPostsResponse.self, from: data)
+    }
+
     func getExploreShareState(scanId: String) async throws -> ExploreScanShareState {
         let functionUrl = try endpointURL("get-scan-explore-share-state")
         let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])

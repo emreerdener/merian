@@ -566,6 +566,9 @@ verify_jwt = false
 [functions.get-explore-hashtag-posts]
 verify_jwt = false
 
+[functions.get-explore-species-posts]
+verify_jwt = false
+
 [functions.get-scan-explore-share-state]
 verify_jwt = false
 

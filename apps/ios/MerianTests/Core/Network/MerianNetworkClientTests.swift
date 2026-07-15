@@ -1143,6 +1143,117 @@ struct MerianNetworkClientTests {
         #expect(posts[0].id == "post-author-page-123")
     }
 
+    @Test func testGetExploreSpeciesPostsConstructsQualityCursorAndDecodesNextCursor() async throws {
+        let testData = Data("""
+        {
+            "data": [
+                {
+                    "post_id": "post-species-page-123",
+                    "scan_id": "scan-species-page-123",
+                    "hero_image_url": "https://example.com/species.webp",
+                    "reference_thumbnail_url": "https://example.com/reference.webp",
+                    "shared_at": "2026-07-14T12:00:00.000Z",
+                    "author_user_id": "author-species-123",
+                    "author_name": "Species Author",
+                    "author_avatar_url": null,
+                    "species_common_name": "Monarch Butterfly",
+                    "species_scientific_name": "Danaus plexippus",
+                    "public_location_label": null,
+                    "location_sharing": "obscured",
+                    "time_of_day": null,
+                    "current_month": null,
+                    "weather_condition": null,
+                    "weather_temperature_f": null,
+                    "like_count": 4,
+                    "comment_count": 1,
+                    "viewer_has_liked": false,
+                    "is_owned_by_viewer": false,
+                    "ranking_value": null,
+                    "media_items": [
+                        {
+                            "kind": "audio",
+                            "url": "https://example.com/species.wav",
+                            "thumbnail_url": "https://example.com/spectrogram.webp",
+                            "order_index": 0,
+                            "duration_seconds": 4.2,
+                            "has_audio": true
+                        }
+                    ]
+                }
+            ],
+            "next_cursor": {
+                "image_quality_score": null,
+                "shared_at": "2026-07-14T12:00:00.000Z",
+                "post_id": "post-species-page-123"
+            }
+        }
+        """.utf8)
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/get-explore-species-posts"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["species_id"] as? String == "species-dictionary-123")
+            #expect(payload["limit"] as? Int == 6)
+            #expect(payload["before_image_quality_score"] as? Int == 91)
+            #expect(payload["before_shared_at"] as? String == "2026-07-15T12:00:00.000Z")
+            #expect(payload["before_post_id"] as? String == "post-cursor-123")
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getExploreSpeciesPosts(
+            speciesId: "species-dictionary-123",
+            limit: 6,
+            cursor: ExploreSpeciesPostCursor(
+                imageQualityScore: 91,
+                sharedAt: "2026-07-15T12:00:00.000Z",
+                postId: "post-cursor-123"
+            )
+        )
+
+        #expect(response.data.map(\.id) == ["post-species-page-123"])
+        #expect(response.data[0].hasAudioMedia)
+        #expect(response.data[0].gridThumbnailUrl == "https://example.com/reference.webp")
+        #expect(response.nextCursor?.imageQualityScore == nil)
+        #expect(response.nextCursor?.postId == "post-species-page-123")
+    }
+
+    @Test func testGetExploreSpeciesPostsOmitsQualityFieldForUnscoredCursor() async throws {
+        let testData = Data(#"{"data":[],"next_cursor":null}"#.utf8)
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/get-explore-species-posts"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["before_image_quality_score"] == nil)
+            #expect(payload["before_shared_at"] as? String == "2026-07-14T12:00:00.000Z")
+            #expect(payload["before_post_id"] as? String == "post-unscored-123")
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getExploreSpeciesPosts(
+            speciesId: "species-dictionary-123",
+            cursor: ExploreSpeciesPostCursor(
+                imageQualityScore: nil,
+                sharedAt: "2026-07-14T12:00:00.000Z",
+                postId: "post-unscored-123"
+            )
+        )
+
+        #expect(response.data.isEmpty)
+        #expect(response.nextCursor == nil)
+    }
+
     @Test func testSetUserFollowConstructsPayloadAndParsesState() async throws {
         let testData = """
         {
