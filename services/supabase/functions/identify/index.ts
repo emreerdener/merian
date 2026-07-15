@@ -3,7 +3,7 @@ import {
   HarmCategory,
   Part,
   SafetyRating,
-} from "npm:@google/genai@1.0.0";
+} from "@google/genai";
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
 import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import {

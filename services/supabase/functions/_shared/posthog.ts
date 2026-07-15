@@ -1,4 +1,4 @@
-import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { User } from "@supabase/supabase-js";
 
 export async function trackPostHogEvent(
   userOrId: string | User,

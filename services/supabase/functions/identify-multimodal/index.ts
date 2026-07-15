@@ -1,9 +1,9 @@
-import { Part, SafetyRating } from "npm:@google/genai@1.0.0";
+import { Part, SafetyRating } from "@google/genai";
 import {
   createClient,
   type SupabaseClient,
   type User,
-} from "https://esm.sh/@supabase/supabase-js@2.49.1";
+} from "@supabase/supabase-js";
 
 import {
   jsonResponse,

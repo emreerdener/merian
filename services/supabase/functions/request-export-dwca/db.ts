@@ -1,5 +1,5 @@
 // deno-lint-ignore no-import-prefix
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export async function hasRecentExportJob(
   userId: string,

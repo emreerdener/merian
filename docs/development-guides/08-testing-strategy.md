@@ -564,6 +564,19 @@ Merian relies on Supabase Edge Functions. Due to the rapid iteration cycle of
 Gemini structures, type safety at the network boundary (Swift → TS) must be
 guaranteed by AST regression guards.
 
+Dependency validation must use the same boundary as production bundling.
+`sync_function_deno_configs.ts --check` verifies every deployable function has
+the generated local config derived from the reviewed root manifest.
+`validate_function_dependencies.ts` verifies the shared frozen lock, one exact
+Supabase SDK, aliased runtime imports, and `config.toml` parity, then CI runs
+`deno check --frozen --config <function>/deno.json <function>/index.ts` for all
+entrypoints. `function_dependency_tools_test.ts` locks deployment selection for
+route-local, transitive shared, config, dependency-policy, docs, and test-only
+changes. `deploy_function_batches_test.sh` uses a fake Supabase CLI to prove a
+failed batch retries only its own members and rejects malformed function names.
+This suite exists specifically to prevent local checks from passing against a
+parent config that the remote function bundler does not discover.
+
 Function-local tests under `services/supabase/functions/insight-chat/` verify
 the expanded text-only prompt context, raw image URL/storage-key/coordinate
 exclusion, raw-image-access system instruction, supported action parsing,

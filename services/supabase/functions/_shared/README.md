@@ -19,9 +19,10 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`claimsAuth.ts`**: Opt-in cached-JWKS `getClaims` authentication for
   latency-sensitive routes. It explicitly validates issuer, audience,
   expiration/not-before, role, and `sub`; accepts anonymous and authenticated
-  users; and rejects `service_role`. Keeping this dependency out of
-  `edgeHandler.ts` prevents unrelated functions from bundling the claims-only
-  SDK. Internal replay keeps its separate timing-safe service credential path.
+  users; and rejects `service_role`. All functions share the same exact
+  Supabase SDK, but keeping this policy out of `edgeHandler.ts` prevents an
+  implicit fleet-wide authentication change. Internal replay keeps its separate
+  timing-safe service credential path.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
   and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
   internally so lifecycle workers do not run unbounded delete fanout. Prefix

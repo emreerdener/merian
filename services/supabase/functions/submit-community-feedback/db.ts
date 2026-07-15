@@ -1,4 +1,4 @@
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { SupabaseClient } from "@supabase/supabase-js";
 import { CommunityFeedbackInsert } from "./validation.ts";
 
 export async function insertCommunityFeedback(

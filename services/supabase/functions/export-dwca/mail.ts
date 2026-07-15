@@ -1,4 +1,4 @@
-import { Resend } from "npm:resend@4.1.2";
+import { Resend } from "resend";
 
 export async function sendExportEmail(email: string, signedUrl: string) {
   const resendKey = Deno.env.get("RESEND_API_KEY");

@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { backfillExploreAudioSpectrograms } from "./worker.ts";
 
 Deno.test("backfillExploreAudioSpectrograms updates post snapshots and normalized assets", async () => {

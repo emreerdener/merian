@@ -3,7 +3,7 @@ import {
   logStructuredError,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireParams } from "../_shared/http.ts";
 import { scanIngestionClientState } from "../_shared/scanIngestionJobs.ts";
 import { fetchScanStatusJob, fetchScanStatusMedia } from "./db.ts";

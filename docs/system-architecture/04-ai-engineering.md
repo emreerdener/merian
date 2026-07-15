@@ -976,7 +976,9 @@ insight sheet display.
   expiration/not-before, role, and `sub`. Anonymous and authenticated users
   remain supported; service-role JWTs are rejected on the public inference
   path. The cached JWKS path avoids an Auth-server request per scan, while
-  keeping its claims-capable SDK out of unrelated function graphs.
+  the opt-in policy boundary keeps unrelated routes on their established
+  `getUser` behavior. All Edge Functions use the same exact pinned Supabase SDK
+  and shared frozen dependency lock.
 - **Atomic ingestion setup RPC**: upload-session lookup, ingestion-job claim,
   sanitized replay-intent recording, and the `ai_inference_started` transition
   execute through one service-role-only SQL RPC. A compatibility fallback keeps

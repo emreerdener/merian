@@ -1,4 +1,8 @@
 {
+  "lock": {
+    "path": "./dependencies.lock",
+    "frozen": true
+  },
   "tasks": {
     "test": "deno test --allow-env --allow-net --allow-read=../migrations,deno.json,_shared/auth.ts,_shared/claimsAuth.ts,_shared/edgeHandler.ts _tests/"
   },
@@ -7,13 +11,12 @@
     "@std/http/": "https://deno.land/std@0.224.0/http/",
     "@std/encoding/": "https://deno.land/std@0.224.0/encoding/",
     "@std/encoding-base64": "jsr:@std/encoding@1/base64",
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.1",
-    "@supabase/supabase-js-claims": "npm:@supabase/supabase-js@2.110.6",
-    "https://esm.sh/@supabase/supabase-js@2.49.1": "npm:@supabase/supabase-js@2.49.1",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.6",
     "jose": "npm:jose@5.9.6",
     "aws4fetch": "npm:aws4fetch@1.0.20",
     "@google/genai": "npm:@google/genai@1.0.0",
-    "jszip": "npm:jszip@3.10.1"
+    "jszip": "npm:jszip@3.10.1",
+    "resend": "npm:resend@4.1.2"
   },
   "lint": {
     "rules": {

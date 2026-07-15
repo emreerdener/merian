@@ -39,19 +39,26 @@ Before contributing, please review our core architectural tenets. Refactoring co
   cd services/supabase/functions
   deno task test
   ```
-  Runtime Edge dependencies are resolved through `services/supabase/functions/deno.json`.
-  The Supabase CLI discovers that Deno config during function graph creation, so
-  local type checks for runtime files should use the same config:
+  `services/supabase/functions/deno.json` owns reviewed dependency pins. Each
+  deployable function has a generated local `deno.json` that uses the shared
+  frozen `dependencies.lock`, matching the config Supabase discovers while
+  building that function. Validate and type-check that exact graph:
   ```bash
   cd /Users/emreerdener/Developer/merian
-  deno check --config services/supabase/functions/deno.json <changed edge files>
+  deno run --allow-read=services/supabase \
+    services/supabase/scripts/sync_function_deno_configs.ts --check
+  deno run --allow-read=services/supabase \
+    services/supabase/scripts/validate_function_dependencies.ts
+  deno check --frozen \
+    --config services/supabase/functions/<function>/deno.json \
+    services/supabase/functions/<function>/index.ts
   ```
   New deployed functions should call `Deno.serve(...)` directly and avoid
-  runtime imports from deno.land or esm.sh; route packages through `deno.json`
-  and use local shared helpers such as `_shared/encoding.ts` where available.
-  The `@supabase/supabase-js-claims` alias is reserved for
-  `_shared/claimsAuth.ts`; do not import that opt-in dependency from
-  `_shared/edgeHandler.ts` or other universal helpers.
+  direct runtime URL/npm/JSR imports; route packages through the root manifest,
+  regenerate function-local configs, and use local shared helpers such as
+  `_shared/encoding.ts` where available. The fleet uses one exact Supabase SDK.
+  Keep `_shared/claimsAuth.ts` out of `_shared/edgeHandler.ts` because claims
+  verification is an opt-in route policy, not because it uses another SDK.
 
 ## Submitting a Pull Request 🚀
 

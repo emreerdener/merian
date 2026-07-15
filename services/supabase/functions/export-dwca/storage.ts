@@ -31,11 +31,12 @@ export async function zipAndUploadToR2(
   const exportKey = `exports/${userId}/Scans_DwC_Archive_${timestamp}.zip`;
   const urlString = `${endpoint}/${bucketName}/${exportKey}`;
 
-  const putRes = await s3Client.fetch(urlString, {
+  const putRequest = new Request(urlString, {
     method: "PUT",
     headers: { "Content-Type": "application/zip" },
     body: readableZipStream,
   });
+  const putRes = await s3Client.fetch(putRequest);
 
   if (!putRes.ok) {
     throw new Error(`Failed to upload to R2: ${putRes.statusText}`);
@@ -44,8 +45,10 @@ export async function zipAndUploadToR2(
   const getUrl = new URL(urlString);
   getUrl.searchParams.set("X-Amz-Expires", "86400"); // 24 hours
 
-  const signedGet = await s3Client.sign(getUrl.toString(), {
+  const unsignedGet = new Request(getUrl, {
     method: "GET",
+  });
+  const signedGet = await s3Client.sign(unsignedGet, {
     aws: { signQuery: true },
   });
 

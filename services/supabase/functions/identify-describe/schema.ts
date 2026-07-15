@@ -1,4 +1,4 @@
-import { Schema, Type } from "npm:@google/genai@1.0.0";
+import { Schema, Type } from "@google/genai";
 
 type ResponseSchema = Schema;
 const SchemaType = Type;

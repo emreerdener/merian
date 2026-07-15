@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAudioSpectrogramThumbnail } from "../_shared/audioSpectrogram.ts";
 
 type AudioMediaRow = {

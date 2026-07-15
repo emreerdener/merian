@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "@supabase/supabase-js";
 import { importPKCS8, SignJWT } from "jose";
 import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";

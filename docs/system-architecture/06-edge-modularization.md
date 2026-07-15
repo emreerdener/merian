@@ -253,20 +253,27 @@ All shared primitives natively driving API functions (`aws.ts`, `biology.ts`,
 guidelines regarding the global dependencies, refer directly to
 `_shared/README.md`.
 
-**Deploy Dependency Rule — Use the Function Import Map for Runtime Packages:**
-Runtime Edge code must resolve third-party packages through
-`services/supabase/functions/deno.json`. The current Supabase CLI discovers that
-Deno config during `supabase functions deploy`; do not pass the retired
-`--import-map` deploy flag. Prefer npm specifiers in the import map for packages
-such as `aws4fetch`, `jszip`, `@google/genai`, and `@supabase/supabase-js`;
-avoid direct runtime imports from esm.sh or deno.land in deployed functions. A
-transient CDN 5xx while Supabase creates a function graph can otherwise fail the
-entire deploy even when the function source did not change. Test-only Deno std
-assert imports are acceptable because they are not bundled into production
-functions. The separately pinned `@supabase/supabase-js-claims` alias belongs
-only in `_shared/claimsAuth.ts`; latency-sensitive routes inject that
-authenticator, while the universal `edgeHandler.ts` retains the compatibility
-SDK graph used by the rest of the function fleet.
+**Deploy Dependency Rule — Use Generated Function-Local Deno Configs:** Runtime
+Edge code resolves third-party packages through aliases owned by
+`services/supabase/functions/deno.json`. That root file is the reviewed source
+manifest; `sync_function_deno_configs.ts` copies its import map into every
+deployable function's local `deno.json`, and each local config points at the
+shared frozen `functions/dependencies.lock`. This matches Supabase's
+function-directory config discovery and avoids relying on a parent config that
+the remote bundler may not apply. Do not pass the retired `--import-map` flag.
+Use exact npm pins behind aliases for packages such as `aws4fetch`, `jszip`,
+`@google/genai`, and `@supabase/supabase-js`; production graphs must not contain
+direct esm.sh, deno.land, npm, or JSR specifiers. Test-only Deno std assert
+imports remain acceptable because they are not bundled into production
+functions.
+
+The entire fleet uses one exact `@supabase/supabase-js@2.110.6` dependency.
+`_shared/claimsAuth.ts` is still imported only by latency-sensitive routes, but
+that isolation protects authentication semantics rather than carrying a second
+SDK: the universal `edgeHandler.ts` retains the established Auth-server
+`getUser` policy while opted-in routes use cached-JWKS `getClaims` validation.
+CI rejects stale generated configs, lock drift, direct runtime specifiers, and
+missing or stale `[functions.<name>]` configuration entries.
 
 **PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in
 **all** Edge Functions and `_shared/biology.ts` **must not be `await`-ed**.

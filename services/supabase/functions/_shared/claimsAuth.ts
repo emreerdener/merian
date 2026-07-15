@@ -1,8 +1,5 @@
-import { createClient as createClaimsClient } from "@supabase/supabase-js-claims";
-import type {
-  SupabaseClient,
-  User,
-} from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient as createClaimsClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import {
   authFailureCode,
   bearerTokenFromAuthorizationHeader,
@@ -27,9 +24,10 @@ function unauthorizedClaimsResponse(message: string): Response {
  * Verifies asymmetric JWTs against Supabase's cached JWKS path. Supabase's SDK
  * safely falls back to the Auth server for legacy symmetric signing projects.
  *
- * This module is imported only by latency-sensitive routes. Keeping it out of
- * edgeHandler.ts prevents every authenticated function from bundling the
- * newer claims-capable SDK alongside the repository's compatibility SDK.
+ * This module is imported only by latency-sensitive routes. The fleet shares
+ * one exact Supabase SDK version, but keeping this policy out of edgeHandler.ts
+ * prevents every authenticated function from silently switching from the
+ * established getUser behavior to cached-JWKS claims authentication.
  */
 export async function requireClaimsAuth(
   req: Request,

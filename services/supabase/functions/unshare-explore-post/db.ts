@@ -1,4 +1,4 @@
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 function makeHttpError(status: number, message: string): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };

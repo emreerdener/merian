@@ -1,5 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { SafetyRating } from "npm:@google/genai@1.0.0";
+import { createClient } from "@supabase/supabase-js";
+import { SafetyRating } from "@google/genai";
 
 import { copyR2Object, deleteR2Object, getR2Config } from "../aws.ts";
 import { logStructuredError } from "../edgeHandler.ts";

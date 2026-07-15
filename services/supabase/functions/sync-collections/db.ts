@@ -1,4 +1,4 @@
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { SupabaseClient } from "@supabase/supabase-js";
 import { MembershipRow, SyncCollectionPayload } from "./types.ts";
 
 /// Queries the collections table for any incoming IDs that are already owned by a

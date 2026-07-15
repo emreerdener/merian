@@ -18,11 +18,14 @@ services/supabase/
 Edge Functions are written in TypeScript and run on Deno. They handle logic like AI inference (`identify-multimodal`), gamification telemetry, public user profile updates, and Explore feed projections.
 
 - **Configuration**: Every new Edge Function MUST have a `[functions.<name>]` entry in `config.toml`. Pay attention to `verify_jwt` (set to `false` for app-facing anonymous-compatible functions to bypass gateway-level JWT validation, allowing the function to handle validation internally).
-- **Dependencies**: Runtime Edge dependencies are resolved through
-  `functions/deno.json`. The claims-capable Supabase SDK is pinned under the
-  `@supabase/supabase-js-claims` alias and remains isolated in
-  `_shared/claimsAuth.ts`; do not add direct runtime `esm.sh` imports or pull the
-  claims client into the universal Edge wrapper.
+- **Dependencies**: `functions/deno.json` is the reviewed source manifest for
+  exact dependency pins, and every deployable function has a generated local
+  `deno.json` that points at the shared frozen `functions/dependencies.lock`.
+  Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
+  npm, or JSR specifiers. The whole fleet uses one exact
+  `@supabase/supabase-js@2.110.6` graph; `_shared/claimsAuth.ts` remains the
+  opt-in authentication policy boundary for cached-JWKS claims verification,
+  not a second SDK dependency.
 
 ### Identification Latency Contract
 
@@ -33,7 +36,7 @@ output-token limits, or the one-`generateContent`-call invariant.
 
 The latency-sensitive path uses cached ES256 JWKS verification through
 `auth.getClaims`, injected only by the two latency-sensitive routes so unrelated
-function graphs retain the compatibility SDK alone; `begin_scan_ingestion` for
+functions retain their existing `getUser` behavior; `begin_scan_ingestion` for
 atomic pre-Gemini setup; and
 `hydrate_identification_dictionary` for post-Gemini cache hydration. External
 cache misses and optional ingestion work run as Edge background tasks except
@@ -44,14 +47,28 @@ contract.
 
 ### Testing Edge Functions
 
-Before opening a PR targeting `services/supabase/functions`, run formatting, linting, and type checking:
+Before opening a PR targeting `services/supabase/functions`, run formatting,
+linting, dependency-policy validation, and type checking:
 
 ```bash
 cd services/supabase/functions
 deno fmt --check
 deno lint --config deno.json
-deno check --config deno.json <changed edge files>
+cd ../../..
+deno run --allow-read=services/supabase \
+  services/supabase/scripts/sync_function_deno_configs.ts --check
+deno run --allow-read=services/supabase \
+  services/supabase/scripts/validate_function_dependencies.ts
+deno check --frozen \
+  --config services/supabase/functions/<function>/deno.json \
+  services/supabase/functions/<function>/index.ts
 ```
+
+After changing a pin in `functions/deno.json`, regenerate the function-local
+configs with `sync_function_deno_configs.ts`, refresh
+`functions/dependencies.lock`, and commit all three surfaces together. CI rejects
+stale generated configs, unlocked packages, direct runtime specifiers, or a
+function missing its `config.toml` entry.
 
 Run Deno tests:
 ```bash
@@ -137,6 +154,15 @@ supabase --workdir services db push
 ```bash
 supabase --workdir services functions deploy
 ```
+
+That command is the emergency/manual full-fleet path. Production CI computes
+the affected functions from the transitive import graph, deploys bounded
+batches, and isolates retries to members of a failed batch. A manual workflow
+dispatch intentionally selects the full fleet. Database migrations still run
+before function deployment, so same-release schema changes must follow
+expand/migrate/contract compatibility: the migration must remain safe for the
+currently live function version, and destructive cleanup ships only after the
+new readers/writers are proven live.
 
 For identification-latency releases, apply migrations before deploying function
 code that calls the new RPCs, then stage the client and Edge rollout using the

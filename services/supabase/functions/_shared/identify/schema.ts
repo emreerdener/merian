@@ -1,4 +1,4 @@
-import { Schema, Type } from "npm:@google/genai@1.0.0";
+import { Schema, Type } from "@google/genai";
 
 // Alias for backward compat within this file
 type ResponseSchema = Schema;

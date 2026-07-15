@@ -43,19 +43,25 @@ The workflow performs the following steps:
 2. Installs Deno 2, matching `services/supabase/config.toml`.
 3. Installs the Supabase CLI.
 4. Fails fast if required deployment secrets are missing.
-5. Validates Edge Function formatting, lint, type checks, and focused shared
-   helper tests. Source-inspection tests receive an explicit, least-privilege
-   read grant for `identify-multimodal/index.ts`; Deno does not grant
-   `readTextFile` access merely because the source is part of the import graph.
-6. Validates static Supabase migration contracts, including media-schema drift
-   repair required before production `db push`.
-7. Prepares a Postgres connection string for database migrations without
+5. Validates Edge Function formatting, lint, and shared runtime type checks.
+6. Confirms every function has a current generated local `deno.json`, a matching
+   `config.toml` entry, only approved aliased runtime imports, and a graph fully
+   represented by the shared frozen `dependencies.lock`; then type-checks all
+   function entrypoints with the exact local config Supabase will discover.
+7. Runs focused shared-helper, deployment-planner, and static migration-contract
+   tests. Source-inspection tests receive explicit read grants because Deno does
+   not grant `readTextFile` access merely because a source is in the import graph.
+8. Builds an affected-function deployment plan from the pushed Git diff. Manual
+   dispatch and an unresolvable Git diff safely select the full fleet.
+9. Prepares a Postgres connection string for database migrations without
    calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
    can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
    `SUPABASE_DB_PASSWORD`.
-8. Pushes database migrations with `supabase db push --db-url`.
-9. Deploys all Edge Function directories with `supabase functions deploy`.
-10. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
+10. Pushes database migrations with `supabase db push --db-url`.
+11. Deploys the planned functions in bounded batches. A failed batch is retried
+    function-by-function, so a transient graph failure cannot restart the whole
+    fleet deployment.
+12. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
    endpoint, and a dry-run bounded GBIF import with the production service-role
    credential.
 
@@ -64,11 +70,32 @@ Actual GBIF taxonomy imports are intentionally separated into
 smoke-tests a dry run; it does not write taxonomy rows or advance import
 cursors.
 
-Deploying all function directories is intentional. Shared modules such as
-`functions/_shared/aws.ts`, `functions/_shared/mediaBudgets.ts`, and
-`functions/_shared/concurrency.ts` are bundled into each dependent Edge Function
-at deploy time; deploying a hand-maintained partial list risks leaving
-production on mixed helper versions.
+The deployment subset is computed from the TypeScript import graph rather than
+a hand-maintained list. A route-local runtime change selects that route. A
+shared-module change selects every function that transitively imports it. A
+function-local `deno.json` change selects that function. Changes to
+`config.toml`, the root dependency manifest, or the shared lock select the full
+fleet because they can affect any bundle. New, deleted, or otherwise
+unresolvable shared runtime files also fall back to the full fleet. Docs and
+test-only changes select no functions. This preserves shared-helper consistency
+without paying for an unconditional 77-function deployment on every backend
+commit.
+
+Deleting a function directory is intentionally not treated as a zero-function
+deploy: the planner fails with an explicit-decommission message because normal
+deploys do not prove that the remote route was removed. Retire a function as a
+reviewed operational change, confirm all clients and schedules are off the
+route, delete the remote function explicitly, and then remove its source and
+config. Do not silently rely on source deletion or enable fleet-wide `--prune`
+in the routine deployment path.
+
+Database/function releases use an expand/migrate/contract sequence. A migration
+in the deploy workflow must be backward-compatible with the function versions
+already serving traffic: add nullable columns, new tables, or compatible RPCs
+first; deploy readers/writers that understand both shapes; backfill or observe;
+then remove old columns, constraints, RPC signatures, or compatibility code in
+a later release. The workflow deliberately does not pretend migrations and
+Edge bundles switch atomically.
 
 ## Manual Data Repair Utilities
 
@@ -162,31 +189,46 @@ anonymous-compatible app routes set `verify_jwt = false` and then perform manual
 auth inside Deno; the known authenticated-only exceptions are documented in
 `docs/backend-and-data/02-supabase-edge-and-database.md`.
 
-The deploy command relies on `services/supabase/functions/deno.json`, which the
-current Supabase CLI discovers during function graph creation. Do not pass the
-old `--import-map` flag; newer Supabase CLIs reject that flag during deploy. The
-Deno config keeps dependency resolution stable while Supabase builds each
-function graph: historical `https://esm.sh/@supabase/supabase-js@2.49.1` imports
-are remapped to the npm package, and runtime dependencies such as `aws4fetch`
-and `jszip` also resolve through npm instead of esm.sh. The newer Supabase SDK
-needed for `auth.getClaims` is pinned under the
-`@supabase/supabase-js-claims` alias and may be imported only by
-`_shared/claimsAuth.ts`. Do not import it from the universal
-`_shared/edgeHandler.ts`: doing so adds the second SDK graph to every
-authenticated function and makes an unrelated function deploy depend on that
-graph. Edge entrypoints should use `Deno.serve(...)` directly rather than
-importing `serve` from Deno std. Shared runtime helpers should prefer local
-utilities such as `_shared/encoding.ts` for base64/hex helpers so production
-deploys do not fail when deno.land or esm.sh returns a transient 5xx during
-bundling.
+`services/supabase/functions/deno.json` is the reviewed dependency source, not
+the deploy-time parent config. `sync_function_deno_configs.ts` generates a
+`deno.json` inside every function directory, and each generated config points
+at the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
+discovers the function-local config while bundling. Do not pass the retired
+`--import-map` flag. Runtime code imports configured aliases; direct esm.sh,
+deno.land, npm, and JSR specifiers are rejected from production graphs. The
+fleet uses one exact `@supabase/supabase-js@2.110.6` dependency for both
+`getUser` and `getClaims`. `_shared/claimsAuth.ts` remains opt-in to avoid
+silently changing authentication policy for unrelated routes, not to isolate a
+second SDK. `functions/dependencies.lock` is the only lockfile; do not add a
+root or function-local `deno.lock` that can silently diverge from it.
 
-`supabase functions deploy` uploads functions sequentially. A graph-creation
-failure can therefore occur after migrations and some function versions are
-already live. Treat that run as a mixed deployment: do not repeatedly rerun the
-same failing commit, and do not roll back an already-applied migration. Fix the
-dependency graph, run the full validation suite, push a new commit, and let the
-next full function deploy reconcile every bundle. Complete the normal
-post-deploy smoke checks before declaring the release healthy.
+When changing dependencies, update the root manifest, regenerate all local
+configs, refresh the lockfile, and commit the three surfaces together:
+
+```bash
+deno run --allow-read=services/supabase \
+  --allow-write=services/supabase/functions \
+  services/supabase/scripts/sync_function_deno_configs.ts
+
+deno install --config services/supabase/functions/deno.json \
+  --lock services/supabase/functions/dependencies.lock \
+  --frozen=false --lockfile-only --entrypoint \
+  $(rg --files services/supabase/functions services/supabase/scripts \
+    | rg '\.ts$')
+
+deno run --allow-read=services/supabase \
+  services/supabase/scripts/validate_function_dependencies.ts
+```
+
+The workflow deploys planned names in batches of eight with four CLI jobs. If a
+batch reports failure, only its members enter isolated retries, up to three
+attempts each with bounded backoff. A failure can still occur after migrations
+and some function versions are live; treat that as a mixed deployment. Do not
+roll back an already-applied migration. Fix the graph or runtime issue, run the
+full validation suite, and push a new commit. The next dependency-aware plan
+will select changed functions; use manual dispatch when an operator deliberately
+needs a full-fleet reconciliation. Complete the normal smoke checks before
+declaring the release healthy.
 
 ## Identification Latency Rollout
 

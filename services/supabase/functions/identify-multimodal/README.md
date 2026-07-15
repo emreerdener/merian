@@ -130,8 +130,9 @@ non-resumable.
 ## Latency And Authentication Boundary
 
 Public requests inject `requireClaimsAuth` into `withEdgeHandler`. The claims
-client is isolated from the wrapper's default `getUser` dependency graph, so
-unrelated authenticated functions do not bundle the claims-only SDK.
+policy is isolated from the wrapper's default `getUser` path, so unrelated
+authenticated functions keep their established authentication semantics while
+all routes share one exact Supabase SDK graph.
 `auth.getClaims(token)` verifies the project's ES256 signature through cached
 JWKS, after which Merian validates issuer, audience, expiration/not-before,
 role, and `sub`. Anonymous and authenticated users are valid; public

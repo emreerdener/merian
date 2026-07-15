@@ -76,13 +76,13 @@ when changing web routes.
 - **Every new Edge Function MUST have a `[functions.<name>]` entry in `services/supabase/config.toml`.** App-facing anonymous-compatible functions should use `verify_jwt = false`; omitting the entry causes Supabase's Kong gateway to default to `verify_jwt = true`, which performs gateway-level JWT validation before the function code runs. This rejects valid ES256 anonymous sessions with `401 Invalid JWT` even though the token is structurally valid. Authenticated endpoints then verify identity inside the function with `withEdgeHandler` / `requireAuth`. Intentional gateway-auth deviations must be documented: `merge-ghost-profile` and `request-export-dwca` use `verify_jwt = true`; `species-dictionary` and `species-observation-stats` use `verify_jwt = false` but intentionally skip `requireAuth` because they return only public species-level data. Internal service-role workers and status endpoints such as species refresh, reference-image refresh, taxonomy import/status/refresh, consensus processing, non-biological purge, scan-media reconciliation, and scan-media health use `verify_jwt = false` so trusted server callers can reach Deno, then require `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with `timingSafeCompare` or the shared service-role auth helper.
 - **Edge runtime imports must be deploy-stable.** New function entrypoints should
   use `Deno.serve(...)` directly, runtime dependencies must be routed through
-  `services/supabase/functions/deno.json`, and deployed code should not add
-  direct `https://deno.land/std/...` or `https://esm.sh/...` imports. Use local
-  helpers such as `_shared/encoding.ts` for base64/hex work and run
-  `deno check --config services/supabase/functions/deno.json ...` when touching
-  Edge runtime files. Keep the `@supabase/supabase-js-claims` alias isolated to
-  `_shared/claimsAuth.ts`; importing it from `_shared/edgeHandler.ts` couples
-  every authenticated function to the second SDK graph.
+  the reviewed `services/supabase/functions/deno.json` manifest, and deployed
+  code should not add direct URL/npm/JSR imports. Regenerate the function-local
+  configs, validate the shared frozen lock, and run `deno check --frozen` with
+  the touched function's own `deno.json`. The fleet uses one exact Supabase SDK;
+  `_shared/claimsAuth.ts` remains opt-in and must stay out of
+  `_shared/edgeHandler.ts` so cached-JWKS claims verification is limited to the
+  routes that explicitly adopt that authentication policy.
 
 ## 7. Database Safeties
 - Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to persist `UsageManager` limits locally on iOS across reinstalls. Do not use IDFV (`.deviceId`) for backend user records, analytics identifiers, or constructed S3/R2 storage keys.

@@ -103,7 +103,7 @@ Deno.test("validateVerifiedClaims rejects service-role replay on the public auth
   assertEquals(result.valid, false);
 });
 
-Deno.test("claims authentication remains opt-in and npm-pinned", async () => {
+Deno.test("claims authentication shares the pinned SDK and remains opt-in", async () => {
   const [denoConfigSource, authSource, claimsAuthSource, edgeHandlerSource] =
     await Promise.all([
       Deno.readTextFile(new URL("../deno.json", import.meta.url)),
@@ -116,17 +116,13 @@ Deno.test("claims authentication remains opt-in and npm-pinned", async () => {
   };
 
   assertEquals(
-    denoConfig.imports?.["@supabase/supabase-js-claims"],
+    denoConfig.imports?.["@supabase/supabase-js"],
     "npm:@supabase/supabase-js@2.110.6",
   );
-  assertEquals(claimsAuthSource.includes("@supabase/supabase-js-claims"), true);
-  assertEquals(
-    claimsAuthSource.includes(
-      "https://esm.sh/@supabase/supabase-js@2.110.6",
-    ),
-    false,
-  );
-  assertEquals(authSource.includes("2.110.6"), false);
+  assertEquals(claimsAuthSource.includes("@supabase/supabase-js"), true);
+  assertEquals(authSource.includes("@supabase/supabase-js"), true);
+  assertEquals(claimsAuthSource.includes("https://esm.sh"), false);
+  assertEquals(authSource.includes("https://esm.sh"), false);
   assertEquals(edgeHandlerSource.includes("claimsAuth"), false);
   assertEquals(edgeHandlerSource.includes("requireClaimsAuth"), false);
 });

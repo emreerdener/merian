@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";

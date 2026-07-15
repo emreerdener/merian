@@ -305,6 +305,12 @@ Every function above has a `[functions.<name>]` entry in
 `services/supabase/config.toml`. `merge-ghost-profile` and `request-export-dwca`
 intentionally use `verify_jwt = true`; app-facing functions generally set
 `verify_jwt = false` and perform identity checks inside shared handler code.
+Each function also has a generated local `deno.json` backed by
+`functions/dependencies.lock`. The dependency/deploy control plane lives in
+`services/supabase/scripts/function_dependency_tools.ts`,
+`sync_function_deno_configs.ts`, `validate_function_dependencies.ts`,
+`plan_function_deploy.ts`, and `deploy_function_batches.sh`; CI uses that graph
+to type-check deploy-time configs and select transitive runtime consumers.
 
 ## Supabase Media Projections
 

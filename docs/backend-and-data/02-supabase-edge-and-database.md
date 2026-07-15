@@ -1408,19 +1408,21 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 #### V8 Execution Abstractions
 
 - **Deploy-Stable Runtime Imports**: Production deploys rely on
-  `services/supabase/functions/deno.json`, discovered by the Supabase CLI during
-  function graph creation. Runtime Edge dependencies must resolve through that
-  Deno config, preferably to npm specifiers, so Supabase's bundler is not forced
-  to fetch deno.land or esm.sh modules while creating every function graph.
-  Historical Supabase JS URL imports are still remapped by the Deno config for
-  compatibility. New entrypoints should call `Deno.serve(...)` directly, and
-  runtime base64/hex work should use `_shared/encoding.ts`.
+  a generated `deno.json` inside each function directory, which is the config
+  Supabase discovers while creating that function graph. The root
+  `services/supabase/functions/deno.json` owns reviewed exact pins; generated
+  configs copy those aliases and point at the shared frozen
+  `dependencies.lock`. Production code imports aliases rather than direct URL,
+  npm, or JSR specifiers. New entrypoints call `Deno.serve(...)` directly, and
+  runtime base64/hex work uses `_shared/encoding.ts`.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,
   `external.ts`, `tierCache.ts`, `posthog.ts`, `gemini.ts`, `aws.ts`,
   `encoding.ts`, `auth.ts`, and opt-in `claimsAuth.ts` domains cleanly separate
   the core proxy engine natively without polluting the specific Webhook
-  routers. The claims-capable SDK resolves through the central Deno import map
-  and stays outside `edgeHandler.ts`, so unrelated functions do not bundle it.
+  routers. All routes resolve the same exact Supabase SDK through generated
+  function-local configs and the shared frozen lock. `claimsAuth.ts` stays
+  outside `edgeHandler.ts` so unrelated functions retain their established
+  `getUser` authentication semantics.
 
 ## The Enrichment Node (`enrich-scan`)
 

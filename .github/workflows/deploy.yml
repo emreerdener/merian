@@ -85,6 +85,11 @@ jobs:
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
+            supabase/scripts/function_dependency_tools.ts \
+            supabase/scripts/function_dependency_tools_test.ts \
+            supabase/scripts/plan_function_deploy.ts \
+            supabase/scripts/sync_function_deno_configs.ts \
+            supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
@@ -119,6 +124,11 @@ jobs:
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
+            supabase/scripts/function_dependency_tools.ts \
+            supabase/scripts/function_dependency_tools_test.ts \
+            supabase/scripts/plan_function_deploy.ts \
+            supabase/scripts/sync_function_deno_configs.ts \
+            supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
             supabase/functions/identify-multimodal/index.ts \
@@ -129,7 +139,7 @@ jobs:
 
       - name: Validate shared Edge runtime checks
         run: |
-          deno check --config supabase/functions/deno.json \
+          deno check --frozen --config supabase/functions/deno.json \
             supabase/functions/_shared/auth.ts \
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
@@ -154,6 +164,11 @@ jobs:
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
+            supabase/scripts/function_dependency_tools.ts \
+            supabase/scripts/function_dependency_tools_test.ts \
+            supabase/scripts/plan_function_deploy.ts \
+            supabase/scripts/sync_function_deno_configs.ts \
+            supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
             supabase/functions/identify-multimodal/index.ts \
@@ -162,9 +177,29 @@ jobs:
             supabase/functions/insight-chat/index.ts \
             supabase/functions/scan-media-health/index.ts
 
+      - name: Validate isolated Edge Function dependency graphs
+        run: |
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase \
+            supabase/scripts/sync_function_deno_configs.ts --check
+
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase \
+            supabase/scripts/validate_function_dependencies.ts
+
+          checked=0
+          for entrypoint in supabase/functions/*/index.ts; do
+            function_dir="${entrypoint%/index.ts}"
+            deno check --frozen \
+              --config "$function_dir/deno.json" \
+              "$entrypoint"
+            checked=$((checked + 1))
+          done
+          echo "Checked $checked Edge Function entrypoints with deploy-time configs."
+
       - name: Test shared Edge helpers
         run: |
-          deno test --config supabase/functions/deno.json \
+          deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/functions/deno.json,supabase/functions/_shared/auth.ts,supabase/functions/_shared/claimsAuth.ts,supabase/functions/_shared/edgeHandler.ts,supabase/functions/identify-multimodal/index.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
@@ -183,11 +218,57 @@ jobs:
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
 
+      - name: Test Edge Function deployment planner
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase \
+            supabase/scripts/function_dependency_tools_test.ts
+
+          bash -n supabase/scripts/deploy_function_batches.sh
+          bash -n supabase/scripts/deploy_function_batches_test.sh
+          bash supabase/scripts/deploy_function_batches_test.sh
+
       - name: Validate Supabase migration contracts
         run: |
-          deno test --config supabase/functions/deno.json \
+          deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/migrations \
             supabase/functions/_tests/migrationMediaContract.test.ts
+
+      - name: Plan affected Edge Function deployment
+        id: function-plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          plan_file="$RUNNER_TEMP/merian-supabase-functions.txt"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            deno run --frozen --config supabase/functions/deno.json \
+              --allow-read=supabase \
+              supabase/scripts/plan_function_deploy.ts \
+              --all > "$plan_file"
+          else
+            deno run --frozen --config supabase/functions/deno.json \
+              --allow-read=supabase \
+              --allow-run=git \
+              supabase/scripts/plan_function_deploy.ts \
+              --base "$BEFORE_SHA" \
+              --head "$HEAD_SHA" > "$plan_file"
+          fi
+
+          function_count="$(grep -cve '^[[:space:]]*$' "$plan_file" || true)"
+          echo "plan_file=$plan_file" >> "$GITHUB_OUTPUT"
+          echo "count=$function_count" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Edge Function deployment plan"
+            echo
+            echo "Functions selected: $function_count"
+            if [ "$function_count" -gt 0 ]; then
+              sed 's/^/- /' "$plan_file"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prepare database connection URL
         run: |
@@ -211,22 +292,16 @@ jobs:
       - name: Push Database Migrations
         run: supabase db push --db-url "$SUPABASE_DB_PUSH_URL"
 
-      - name: Deploy Edge Functions
+      - name: Deploy affected Edge Functions
+        if: steps.function-plan.outputs.count != '0'
         run: |
-          for attempt in 1 2 3; do
-            if supabase functions deploy --project-ref "$PROJECT_ID"; then
-              exit 0
-            fi
+          bash supabase/scripts/deploy_function_batches.sh \
+            "${{ steps.function-plan.outputs.plan_file }}" \
+            "$PROJECT_ID"
 
-            if [ "$attempt" = "3" ]; then
-              echo "Supabase Edge Function deploy failed after $attempt attempts."
-              exit 1
-            fi
-
-            sleep_seconds=$((attempt * 20))
-            echo "Supabase Edge Function deploy failed; retrying in ${sleep_seconds}s..."
-            sleep "$sleep_seconds"
-          done
+      - name: Confirm no Edge Function deploy is required
+        if: steps.function-plan.outputs.count == '0'
+        run: echo "No Edge Function runtime or dependency changes were detected."
 
       - name: Load Supabase service-role key
         run: |

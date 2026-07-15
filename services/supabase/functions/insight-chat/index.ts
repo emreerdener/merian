@@ -1,4 +1,4 @@
-import { Type } from "npm:@google/genai@1.0.0";
+import { Type } from "@google/genai";
 import { requireUuid } from "../_shared/explore.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";

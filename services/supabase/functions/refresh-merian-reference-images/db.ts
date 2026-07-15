@@ -1,4 +1,4 @@
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export const DEFAULT_QUALITY_THRESHOLD = 80;
 export const DEFAULT_SPECIES_CONFIDENCE_THRESHOLD = 0.95;

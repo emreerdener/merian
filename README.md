@@ -302,6 +302,11 @@ supabase --workdir services db push
 supabase --workdir services functions deploy
 ```
 
+That is the manual full-fleet command. Production deployment runs through the
+path-filtered GitHub workflow, which validates frozen function-local dependency
+graphs and deploys only transitive runtime consumers in bounded batches. See the
+[Supabase deployment runbook](docs/backend-and-data/06-supabase-deployment-runbook.md).
+
 ---
 
 ## Documentation

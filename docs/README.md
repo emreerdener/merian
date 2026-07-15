@@ -129,7 +129,8 @@ networking, and hardware orchestration logic.
   `Server-Timing`, and `/update-scan-context`.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — CI-first Supabase deployment path, required GitHub secrets, local emergency
-  fallback, staged identification-latency rollout gates, and post-deploy smoke
+  fallback, frozen function-local dependency configs, dependency-aware batched
+  deploys, staged identification-latency rollout gates, and post-deploy smoke
   checks.
 - **[`/backend-and-data/07-community-taxonomy-import-checklist.md`](./backend-and-data/07-community-taxonomy-import-checklist.md)**
   — Running checklist for bounded GBIF Community Taxonomy imports, completed

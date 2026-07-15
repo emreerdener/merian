@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "@supabase/supabase-js";
 import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
 import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
 import { corsHeaders } from "../_shared/http.ts";

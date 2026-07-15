@@ -2,7 +2,7 @@ import {
   createClient,
   SupabaseClient,
   User,
-} from "https://esm.sh/@supabase/supabase-js@2.49.1";
+} from "@supabase/supabase-js";
 import { corsHeaders } from "./http.ts";
 
 export function bearerTokenFromAuthorizationHeader(
