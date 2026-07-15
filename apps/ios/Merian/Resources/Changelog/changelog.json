@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-15-synchronized-scan-results",
+      "date": "2026-07-15",
+      "title": "Synchronized scan results",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Scan results now reveal the identification, carousel state, and completion feedback together while optional reference details continue loading in the background."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-15-native-image-focus",
       "date": "2026-07-15",
       "title": "Focused still-image analysis",

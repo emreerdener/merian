@@ -717,9 +717,9 @@ extension OfflineQueueManager {
                 // "Network timeout" even though the scan completed successfully.
                 //
                 // Cancelling inferenceTask causes its defer { isProcessing = false } to run
-                // cooperatively (URLError.cancelled → catch → return). Setting isProcessing and
-                // speciesData here is safe because we are on the main actor; the deferred set is
-                // a later no-op on the same actor, and the cancel path never writes speciesData.
+                // cooperatively (URLError.cancelled → catch → return). The shared result commit
+                // publishes species data before clearing the processing flag on the main actor;
+                // the deferred clear is a later no-op and the cancel path never writes result data.
                 if let speciesData = processingResult.speciesData {
                     let engine = AppDIContainer.shared.inferenceEngine
                     // Hydrate when the engine is still waiting for a result for this exact scan.
@@ -730,8 +730,10 @@ extension OfflineQueueManager {
                     if engine.activeScanId == scanId,
                        engine.isProcessing || engine.speciesData?.scanId == nil {
                         engine.inferenceTask?.cancel()
-                        engine.isProcessing = false
-                        engine.speciesData = speciesData
+                        engine.commitSuccessfulResult(
+                            for: scanId,
+                            speciesData: speciesData
+                        )
                     }
                 }
             }

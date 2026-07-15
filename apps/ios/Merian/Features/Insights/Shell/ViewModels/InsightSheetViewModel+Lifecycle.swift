@@ -37,16 +37,17 @@ extension InsightSheetViewModel {
     func evaluateProcessingCompletion(isStillProcessing: Bool, inferenceEngine: InferenceEngine, modelContext: ModelContext) {
         guard !isStillProcessing else { return }
 
+        if let data = inferenceEngine.speciesData,
+           !data.isInferenceErrorPlaceholder {
+            HapticManager.shared.triggerHeavyImpact(source: "insight.analysis.completed")
+        }
+
         markRecordViewedIfAppropriate(modelContext: modelContext)
 
         // The sheet was opened before inference completed, so onAppear saw nil speciesData.
         // Re-evaluate celebration and VoiceOver now that data has arrived.
         evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
         if let data = inferenceEngine.speciesData {
-            if !isValidNewToMerianMilestone(data) {
-                HapticManager.shared.triggerSheetSpring()
-            }
-            
             if data.isBiological && !appSettings.hasSeenExploreOnboarding {
                 Task {
                     try? await Task.sleep(nanoseconds: 3_000_000_000)

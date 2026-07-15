@@ -792,7 +792,7 @@ After a successful live inference result, three bare fire-and-forget `Task { [we
 - a Wikipedia child task, skipped when the identify response already included `wikipediaOverview`
 - an enrichment child task that can update taxonomy / habitat / lookalikes, then sequentially fetch GBIF reference images with a cancellation check before the GBIF call
 
-The helper preserves the one intentional modality difference through `LiveReferenceHydrationPolicy`: visual captures may set `activeMedia.referenceState = .loading` while waiting for missing reference imagery; describe/audio success paths keep that loading state quiet. Both paths wait for the same bounded two-second hydration window, then let the tracked task finish in the background or be cancelled by the next scan.
+The helper preserves the one intentional modality difference through `LiveReferenceHydrationPolicy`: visual captures may set `activeMedia.referenceState = .loading` while waiting for missing reference imagery; describe/audio success paths keep that loading state quiet. Core result presentation does not wait for hydration. `commitSuccessfulResult(...)` owner-checks the active scan, publishes persisted media, response-provided references, and `SpeciesData`, then clears `isProcessing` last in the same main-actor turn. The tracked hydration task continues progressively in the background and is cancelled if the user starts another scan.
 
 ### Singleton Lifecycle Consistency in Child Tasks (`OfflineQueueManager+Sync`)
 

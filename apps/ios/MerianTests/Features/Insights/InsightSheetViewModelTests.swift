@@ -241,6 +241,97 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.toastMessage == nil)
     }
 
+    @Test func successfulResultCommitTransitionsRouterWithCompletedCarousel() {
+        let engine = InferenceEngine()
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+        let scanId = "router-result-commit"
+        engine.activeScanId = scanId
+        engine.isProcessing = true
+        engine.activeMedia = ActiveScanMedia(items: [.liveImage(Data([0x01]))])
+
+        #expect(viewModel.contentMode == .analyzing)
+
+        let species = SpeciesData(
+            scanId: scanId,
+            commonName: "Monarch Butterfly",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings with black veins.", hazardType: "none"),
+            confidenceScore: 0.97,
+            referenceImageUrl: "https://example.com/one.jpg,https://example.com/two.jpg",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let didCommit = engine.commitSuccessfulResult(
+            for: scanId,
+            speciesData: species,
+            persistedMediaItems: [.image("documents/router-result.webp")]
+        )
+
+        #expect(didCommit)
+        #expect(viewModel.contentMode == .biological)
+        #expect(viewModel.resolvedHeaderTitle == "Monarch Butterfly")
+        #expect(viewModel.activeMedia.totalItems == 3)
+        #expect(viewModel.isProcessing == false)
+    }
+
+    @Test func successfulProcessingCompletionUsesSingleResultHapticSource() throws {
+        let ctx = try createIsolatedContext()
+        let engine = InferenceEngine()
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+        engine.speciesData = SpeciesData(
+            scanId: "successful-haptic",
+            commonName: "Field Notebook",
+            scientificName: "Not applicable",
+            insightData: InsightData(aiReasoning: "A non-biological object.", hazardType: "none"),
+            confidenceScore: 0.95,
+            isBiological: false,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+
+        viewModel.evaluateProcessingCompletion(
+            isStillProcessing: false,
+            inferenceEngine: engine,
+            modelContext: ctx
+        )
+
+        #expect(HapticManager.shared.lastAttempt?.event == "heavyImpact")
+        #expect(HapticManager.shared.lastAttempt?.source == "insight.analysis.completed")
+    }
+
+    @Test func inferenceErrorCompletionDoesNotEmitResultHaptic() throws {
+        let ctx = try createIsolatedContext()
+        let engine = InferenceEngine()
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+        HapticManager.shared.triggerSelectionPulse(source: "test.error-completion-baseline")
+        engine.speciesData = SpeciesData(
+            scanId: nil,
+            commonName: "Network timeout",
+            scientificName: "Offline mode",
+            insightData: InsightData(
+                aiReasoning: "Merian saved this scan and will retry automatically.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0,
+            isBiological: false,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+
+        viewModel.evaluateProcessingCompletion(
+            isStillProcessing: false,
+            inferenceEngine: engine,
+            modelContext: ctx
+        )
+
+        #expect(HapticManager.shared.lastAttempt?.source == "test.error-completion-baseline")
+    }
+
     private func milestoneTestSpecies(
         commonName: String = "Monarch Butterfly",
         isBiological: Bool = true

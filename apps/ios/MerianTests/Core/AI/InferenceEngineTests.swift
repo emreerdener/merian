@@ -1176,6 +1176,85 @@ struct InferenceEngineTests {
         #expect(engine.isProcessing == true)
     }
 
+    @Test func successfulResultCommitPublishesCompleteRevealState() {
+        let engine = InferenceEngine()
+        let scanId = "synchronized-result"
+        let focusRegion = NormalizedImageFocusRegion(
+            x: 0.2,
+            y: 0.25,
+            width: 0.4,
+            height: 0.5
+        )
+        let species = SpeciesData(
+            scanId: scanId,
+            commonName: "Monarch Butterfly",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings with black veins.", hazardType: "none"),
+            confidenceScore: 0.97,
+            referenceImageUrl: "https://example.com/reference-1.jpg, https://example.com/reference-2.jpg",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        engine.activeScanId = scanId
+        engine.isProcessing = true
+        engine.activeMedia = ActiveScanMedia(
+            items: [.liveImage(Data([0x01]))],
+            focusRegionsBySourceIndex: [0: focusRegion]
+        )
+
+        let didCommit = engine.commitSuccessfulResult(
+            for: scanId,
+            speciesData: species,
+            persistedMediaItems: [.image("documents/synchronized-result.webp")]
+        )
+
+        #expect(didCommit)
+        #expect(engine.speciesData?.scanId == scanId)
+        #expect(engine.activeMedia.items == [.image("documents/synchronized-result.webp")])
+        #expect(engine.activeMedia.referenceState == .loaded([
+            "https://example.com/reference-1.jpg",
+            "https://example.com/reference-2.jpg"
+        ]))
+        #expect(engine.activeMedia.focusRegionsBySourceIndex[0] == focusRegion)
+        #expect(engine.activeMedia.totalItems == 3)
+        #expect(engine.isProcessing == false)
+    }
+
+    @Test func staleResultCommitCannotOverwriteCurrentScan() {
+        let engine = InferenceEngine()
+        engine.activeScanId = "current-scan"
+        engine.isProcessing = true
+        engine.activeMedia = ActiveScanMedia(items: [.liveImage(Data([0x02]))])
+
+        let staleSpecies = SpeciesData(
+            scanId: "stale-scan",
+            commonName: "Stale Result",
+            scientificName: "Resultus stale",
+            insightData: InsightData(aiReasoning: "Should not publish.", hazardType: "none"),
+            confidenceScore: 0.9,
+            referenceImageUrl: "https://example.com/stale.jpg",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let didCommit = engine.commitSuccessfulResult(
+            for: "stale-scan",
+            speciesData: staleSpecies,
+            persistedMediaItems: [.image("documents/stale.webp")]
+        )
+
+        #expect(didCommit == false)
+        #expect(engine.speciesData == nil)
+        #expect(engine.activeMedia.items == [.liveImage(Data([0x02]))])
+        #expect(engine.activeMedia.referenceState == .empty)
+        #expect(engine.isProcessing)
+    }
+
     /// Tests the defer block pattern at `InferenceEngine.swift:235-238`.
     /// When the inference task exits — for any reason (success, error, or cancellation) —
     /// both `isProcessing` and `activeScanId` must be cleared synchronously via defer.

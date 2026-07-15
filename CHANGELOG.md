@@ -85,6 +85,10 @@ TestFlight, App Store, support, and QA.
 
 ### Insights
 
+- Fixed successful scans revealing carousel pagination and completion feedback
+  before the identification title and result content. The saved core result now
+  appears as one synchronized transition while optional reference enrichment
+  continues progressively in the background.
 - Replaced the still-image laser sweep with a fast native focus treatment. When
   Merian isolates a clear subject, the analyzing image now uses Lens-style
   corner brackets, a dimmed exterior, and a subtle scanning highlight contained

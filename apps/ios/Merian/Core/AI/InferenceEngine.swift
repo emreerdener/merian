@@ -454,6 +454,27 @@ private struct GBIFMedia: Decodable {
         }
     }
 
+    /// Publishes a completed core identification as one main-actor state transition.
+    /// Result content is assigned before `isProcessing` clears so observers cannot render
+    /// a completed carousel alongside the analyzing content subtree. The owner check also
+    /// prevents a cancelled task from committing over a newer scan.
+    @discardableResult
+    func commitSuccessfulResult(
+        for ownedScanId: String?,
+        speciesData: SpeciesData,
+        persistedMediaItems: [MediaItem]? = nil
+    ) -> Bool {
+        guard activeScanId == ownedScanId else { return false }
+
+        if let persistedMediaItems {
+            activeMedia.items = persistedMediaItems
+        }
+        self.speciesData = speciesData
+        applyReferenceStateIfAvailable(from: speciesData)
+        isProcessing = false
+        return true
+    }
+
     private func completeQueuedLiveInferenceIfNeeded(scanId: String?, mediaPathsToKeep: [String]) {
         guard let scanId else { return }
 
@@ -477,29 +498,11 @@ private struct GBIFMedia: Decodable {
         )
     }
 
-    private func waitForLiveHydrationWindow() async {
-        guard let hydrationTask = liveHydrationTask else { return }
-
-        do {
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask { await hydrationTask.value }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
-                    throw CancellationError()
-                }
-                try await group.next()
-                group.cancelAll()
-            }
-        } catch {
-            // Timeout reached; proceed and let the images finish loading in the background.
-        }
-    }
-
     private func schedulePostInferenceHydrationIfNeeded(
         for mappedData: SpeciesData,
         modelContext: ModelContext?,
         referencePolicy: LiveReferenceHydrationPolicy
-    ) async {
+    ) {
         guard mappedData.isBiological else { return }
 
         let capturedScientificName = mappedData.scientificName
@@ -578,8 +581,6 @@ private struct GBIFMedia: Decodable {
                 self.markSpeciesEnriched(capturedScientificName)
             }
         }
-
-        await waitForLiveHydrationWindow()
     }
 
     /// Runs the live AI taxonomy pipeline for a new scan submission.
@@ -799,16 +800,15 @@ private struct GBIFMedia: Decodable {
                         isSubscribed: RevenueCatManager.shared.isSubscribed,
                         inferenceTier: mappedData.inferenceTier
                     )
-                    if self.activeScanId == ownedScanId {
-                        HapticManager.shared.triggerHeavyImpact()
-                        self.activeMedia.items = self.mediaItems(
+                    let didCommitResult = self.commitSuccessfulResult(
+                        for: ownedScanId,
+                        speciesData: mappedData,
+                        persistedMediaItems: self.mediaItems(
                             from: resolvedMediaTimeline,
                             liveImageDatas: nil,
                             persistedImagePaths: savedImagePaths
                         )
-                        self.speciesData = mappedData
-                        applyReferenceStateIfAvailable(from: mappedData)
-                    }
+                    )
 
                     completeQueuedLiveInferenceIfNeeded(
                         scanId: scanId,
@@ -820,11 +820,13 @@ private struct GBIFMedia: Decodable {
                     MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
                     // --- Step 5: Post-Inference Background Hydration ---
-                    await schedulePostInferenceHydrationIfNeeded(
-                        for: mappedData,
-                        modelContext: modelContext,
-                        referencePolicy: .showLoadingWhenReferenceMissing
-                    )
+                    if didCommitResult {
+                        schedulePostInferenceHydrationIfNeeded(
+                            for: mappedData,
+                            modelContext: modelContext,
+                            referencePolicy: .showLoadingWhenReferenceMissing
+                        )
+                    }
                 }
             } catch {
                 // --- Step 6: Failure Handling & Error State ---
@@ -978,11 +980,10 @@ private struct GBIFMedia: Decodable {
                         inferenceTier: mappedData.inferenceTier
                     )
 
-                    if self.activeScanId == ownedScanId {
-                        HapticManager.shared.triggerHeavyImpact()
-                        self.speciesData = mappedData
-                        applyReferenceStateIfAvailable(from: mappedData)
-                    }
+                    let didCommitResult = self.commitSuccessfulResult(
+                        for: ownedScanId,
+                        speciesData: mappedData
+                    )
 
                     if shouldFlushQueuedScan {
                         completeQueuedLiveInferenceIfNeeded(
@@ -991,11 +992,13 @@ private struct GBIFMedia: Decodable {
                         )
                     }
                     sendInferenceCompleteNotificationIfEnabled(for: mappedData)
-                    await schedulePostInferenceHydrationIfNeeded(
-                        for: mappedData,
-                        modelContext: modelContext,
-                        referencePolicy: .none
-                    )
+                    if didCommitResult {
+                        schedulePostInferenceHydrationIfNeeded(
+                            for: mappedData,
+                            modelContext: modelContext,
+                            referencePolicy: .none
+                        )
+                    }
                 }
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
