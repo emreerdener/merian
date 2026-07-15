@@ -274,6 +274,16 @@ private extension InsightSheetView {
 
     var configuredContent: some View {
         mainContentStack
+            .background(alignment: .topLeading) {
+                InsightFirstRenderProbe(
+                    scanId: inferenceEngine.speciesData?.scanId,
+                    onRendered: { scanId in
+                        inferenceEngine.recordFirstRenderedFrame(scanId: scanId)
+                    }
+                )
+                .frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+            }
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar { sheetToolbar }
             .toolbarBackground(.visible, for: .bottomBar)
@@ -460,5 +470,56 @@ private extension InsightSheetView {
         MerianLog.data.debug(
             "InsightSheetView.attemptQueuedCompletionHandoff: no completed local record visible scanId=\(scanId, privacy: .public)"
         )
+    }
+}
+
+private struct InsightFirstRenderProbe: UIViewRepresentable {
+    let scanId: String?
+    let onRendered: @MainActor (String) -> Void
+
+    func makeUIView(context: Context) -> InsightFirstRenderProbeView {
+        let view = InsightFirstRenderProbeView()
+        view.configure(scanId: scanId, onRendered: onRendered)
+        return view
+    }
+
+    func updateUIView(_ uiView: InsightFirstRenderProbeView, context: Context) {
+        uiView.configure(scanId: scanId, onRendered: onRendered)
+    }
+}
+
+private final class InsightFirstRenderProbeView: UIView {
+    private var scanId: String?
+    private var reportedScanId: String?
+    private var onRendered: (@MainActor (String) -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(
+        scanId: String?,
+        onRendered: @escaping @MainActor (String) -> Void
+    ) {
+        self.onRendered = onRendered
+        guard self.scanId != scanId else { return }
+        self.scanId = scanId
+        setNeedsDisplay()
+    }
+
+    override func draw(_ rect: CGRect) {
+        super.draw(rect)
+        guard window != nil,
+              let scanId,
+              reportedScanId != scanId else { return }
+        reportedScanId = scanId
+        onRendered?(scanId)
     }
 }

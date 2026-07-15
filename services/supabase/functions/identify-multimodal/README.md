@@ -51,6 +51,20 @@ derived from the JWT user. Staged keys must belong to that user and remain under
 the expected `staging/` prefix. Inline base64 media is size-checked before
 decode; staged media is fetched through bounded stream readers.
 
+## Model And Generation Invariants
+
+Each accepted scan makes exactly one primary identification
+`_genAI.models.generateContent` call:
+
+- Free: `gemini-2.5-flash`
+- Pro: `gemini-2.5-pro`
+
+The route retains the existing modality-specific system instructions,
+temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
+`5000`, structured response schema, image/media resolution, and safety behavior.
+Latency optimization must happen around this call, not by changing its economics
+or identification semantics.
+
 ## Media Rules
 
 - Still images are Gemini visual inputs and durable scan/display media.
@@ -94,6 +108,13 @@ The endpoint writes two server-side records before AI inference:
   object keys, upload-session ids, accepted focus metadata, and
   `payload_checksum`.
 
+`begin_scan_ingestion` performs upload-session lookup, job claim, intent upsert,
+server-side checksum canonicalization, and the `ai_inference_started` transition
+in one service-role-only database round trip. Checksums are calculated only
+after resolved upload-session ids have been merged into the stored payload. The
+handler retains the former helper sequence only as a rolling-deployment fallback
+when the migration is not yet visible.
+
 Replay intents deliberately do not store raw base64 media bytes or local device
 paths. If a request used inline foreground media, the intent is marked
 `resumable = false` and `inline_media_redacted = true`; the iOS queue remains
@@ -105,6 +126,36 @@ Compatibility scan-producing endpoints (`identify`, `identify-describe`, and
 sanitized intents target this endpoint for replay and preserve the legacy route
 name as `compatibilityEndpoint`; inline base64 media remains redacted and
 non-resumable.
+
+## Latency And Authentication Boundary
+
+Public requests use `withEdgeHandler(..., { authStrategy: "claims" })`.
+`auth.getClaims(token)` verifies the project's ES256 signature through cached
+JWKS, after which Merian validates issuer, audience, expiration/not-before,
+role, and `sub`. Anonymous and authenticated users are valid; public
+`service_role` use is rejected. Internal replay is recognized first and retains
+its timing-safe service-role plus explicit replay-user checks.
+
+The Gemini timer stops immediately after `generateContent` returns, before
+finish-reason processing, JSON parsing, dictionary work, or persistence. After
+parsing, `hydrate_identification_dictionary` returns cached primary-species data
+and candidate common names in one service-role-only RPC. Cache-miss
+Wikipedia/GBIF work, analytics, and optional ingestion updates run through
+`EdgeRuntime.waitUntil`; required playback-video promotion and insert remain
+synchronous because they are part of the established video durability contract.
+
+Successful responses add diagnostic headers without changing the JSON body:
+
+- `Server-Timing`: `auth`, `body_read`, `tier`, `pre_gemini_db`, `gemini`,
+  `dictionary`, `post_gemini`, and `edge_total`.
+- `X-Merian-Edge-Region`: the observed Edge region when available.
+
+The structured `multimodal/latency` event is tagged by tier, model, image count,
+payload bytes, Edge region, and constrained-network state. It must not include
+user ID, scan ID, species, coordinates, media keys, or request contents.
+
+Late shutter context is sent separately to `/update-scan-context`, keyed by the
+same `scan_id`; it never changes this request or creates another model call.
 
 ## Recovery And Health
 
@@ -144,8 +195,8 @@ a normalized biological subject.
 ## Local Verification
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-multimodal/index.ts services/supabase/functions/_shared/identify/subjectClassification.ts
-deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/identify-multimodal/index.test.ts services/supabase/functions/_shared/scanIngestionIntents_test.ts services/supabase/functions/_shared/scanIngestionJobs_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-multimodal/index.ts services/supabase/functions/update-scan-context/index.ts services/supabase/functions/_shared/identify/latencyDb.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net --allow-read services/supabase/functions/identify-multimodal/index.test.ts services/supabase/functions/_tests/auth.test.ts services/supabase/functions/_shared/identify/latencyDb_test.ts services/supabase/functions/_shared/scanIngestionIntents_test.ts services/supabase/functions/_shared/scanIngestionJobs_test.ts services/supabase/functions/_tests/migrationMediaContract.test.ts
 ```
 
 Database integration tests require a running local Supabase Postgres instance.

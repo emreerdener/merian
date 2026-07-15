@@ -152,7 +152,12 @@ LocalScanRecord[] (SwiftData)
 
 `ProfileDatabaseActor` is instantiated in `ProfileTabView.body` inside a `.task` modifier. `calculateAll()` is the primary profile render entry point: it loads one `ProfileStatsProjection`, derives species count, streak, heatmap, and awards from that projection, then dispatches the flat `Sendable` result back to `@MainActor` in a single `MainActor.run` block.
 
-`ProfileDatabaseActor.calculateAwards()` is also called by `InferenceEngine` after **every** successful inference — not just new discoveries. This is intentional: awards can trigger on conditions unrelated to species novelty (time-of-day, elevation, temperature, IUCN status, etc.).
+`ProfileDatabaseActor.calculateAwards()` is also called by `InferenceEngine`
+after **every** successful inference — not just new discoveries. The call runs in
+follow-up work after parsed/persisted `speciesData` is committed, so award
+projection and notification evaluation cannot delay the first result frame.
+This is intentional: awards can trigger on conditions unrelated to species
+novelty (time-of-day, elevation, temperature, IUCN status, etc.).
 
 All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimise the SQLite column surface loaded into memory, preventing JetSam pressure on accounts with large scan histories. The stats projection cache stores only scalar `Sendable` structs, timestamps, and precomputed counts — never live `LocalScanRecord` model objects. Cache reuse is fingerprinted by scan count, latest scan ID, and latest timestamp; call `invalidateCachedProfileProjections()` before reusing a long-lived actor after in-place scan edits.
 

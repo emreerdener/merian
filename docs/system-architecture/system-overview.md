@@ -8,10 +8,15 @@ Merian is built around a "Zero-OOM" (Out Of Memory) design philosophy targeting 
 
 When the user captures an image, the architecture triggers a coordinated sequence of singletons:
 
-1. **Hardware Abstraction**: `HardwareOrchestrator` governs `CameraManager`, locking white balance and reading the exact location coordinates (`CLLocationCoordinate2D`, elevation, and LiDAR `subjectDistanceInMeters`).
-2. **Network Abstraction**: If `NWPathMonitor` reports an active connection, `OfflineQueueManager` asks the Supabase Edge (`generate-upload-urls`) for a temporary Cloudflare R2 upload URL and `PUT`s the file in the background.
-3. **Biological Inference (`InferenceEngine.swift`)**: Fires the R2 key and `CaptureTelemetry` to the Supabase `/identify` Edge Node, keeping the `GEMINI_API_KEY` off the client.
-4. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing is gated by the daily scan quota (`UsageManager.canPerformScan`) — free users who have exhausted their 1-scan-per-day limit hit the paywall at capture time rather than at sync time. Every scan that enters the queue is already paid for and uploads unconditionally. Successful non-biological results count as scan attempts; the scoped non-biological correction reanalysis bypasses only the Pro feature gate, not daily scan accounting.
+1. **Hardware Abstraction**: `HardwareOrchestrator` governs `CameraManager`, locking white balance and reading the shutter-time coordinates (`CLLocationCoordinate2D`, elevation, and LiDAR `subjectDistanceInMeters`). WeatherKit and reverse geocoding are prefetched concurrently.
+2. **Durable Acceptance**: `OfflineQueueManager` persists the ordered media timeline and one stable `scan_id` before live inference. An eligible live-camera still scan is temporarily excluded from background upload so it does not compete with the inline request.
+3. **Biological Inference (`InferenceEngine.swift`)**: For that live-camera still path, after at most 150 ms of environmental-context grace, the pinned network client sends inline media and `CaptureTelemetry` to `/identify-multimodal`, keeping `GEMINI_API_KEY` off the client. The request-body completion callback then releases the durable queue for R2/background recovery. Late context is applied through `/update-scan-context` without a second model call. Gallery, audio-bearing, and video submissions retain their existing behavior while receiving pipeline instrumentation.
+4. **First Result**: The Edge route verifies cached ES256 claims, performs one atomic ingestion-setup RPC, calls the unchanged tier model once, and uses at most one combined cached dictionary-hydration RPC for eligible biological results. Parsed and locally persisted `speciesData` renders before awards, Field Trips, and cache-miss enrichment.
+5. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing is gated by the daily scan quota (`UsageManager.canPerformScan`) — free users who have exhausted their 1-scan-per-day limit hit the paywall at capture time rather than at sync time. Every scan that enters the queue is already paid for and uploads unconditionally. Successful non-biological results count as scan attempts; the scoped non-biological correction reanalysis bypasses only the Pro feature gate, not daily scan accounting.
+
+Free inference remains `gemini-2.5-flash` and Pro remains
+`gemini-2.5-pro`. The latency path does not change prompts, schema, thinking
+budgets, image resolution, output limits, or the one-model-call contract.
 
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
 
@@ -35,6 +40,9 @@ Everything is wired in `AppDIContainer.swift`:
 
 - A global singleton providing protocol-free dependency injection.
 - Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and `.handleBackgroundPhase()` lifecycle handlers to manage hardware state, historical sync, non-biological cleanup, and queue recovery. It also manages the background inference race: `CaptureWorkspaceViewModel` observes the inactive phase to reset view state but does not nil out active ML payloads — that is reserved for `handleBackgroundPhase()`. When the app backgrounds mid-inference, Pro users have their capture enqueued to `OfflineQueueManager` (resuming via background URLSession) and the live request is cancelled. Free users have their in-flight request left running within iOS's ~30-second background window; on completion, `InferenceEngine.analyze()` dispatches a push notification.
+- App backgrounding also releases any process-local live-upload suppression so
+  the already-durable queue row becomes eligible for background recovery. App
+  termination cannot strand a row because the suppression set is not persisted.
 
 ## SwiftData & Data Layer
 

@@ -10,10 +10,16 @@ multiple functions need the same behavior and the ownership boundary is clear.
 ## Infrastructure Map
 
 - **`edgeHandler.ts`**: Authenticated user-facing function wrapper, preflight
-  handling, background task dispatch, and structured operational logging.
+  handling, background task dispatch, structured operational logging, auth
+  timing, and additive `Server-Timing` propagation.
 - **`http.ts`**: CORS headers, JSON responses, parameter validation, JSON-body
   parsing, body-size checks, and constant-time comparison helpers.
-- **`auth.ts`**: Supabase user/session validation helpers.
+- **`auth.ts`**: Supabase user/session validation helpers. Existing endpoints
+  retain the Auth-server `getUser` strategy; latency-sensitive endpoints select
+  cached-JWKS `getClaims` verification and explicitly validate issuer, audience,
+  expiration/not-before, role, and `sub`. Public claims auth accepts anonymous
+  and authenticated users but rejects `service_role`; internal replay keeps its
+  separate timing-safe service credential path.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
   and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
   internally so lifecycle workers do not run unbounded delete fanout. Prefix
@@ -112,6 +118,11 @@ identical:
   ecological field clamping.
 - **`db.ts`**: Scan insert/update helpers, species cache writes, and shared
   database boundaries.
+- **`latencyDb.ts`**: Thin service-role RPC client for atomic ingestion setup
+  (`begin_scan_ingestion`, including its server-canonicalized session ids and
+  checksums) and combined primary/candidate dictionary hydration
+  (`hydrate_identification_dictionary`). Keep rollout compatibility fallbacks
+  in the calling route, not in this module.
 - **`media.ts`**: Image/audio media resolution from inline payloads and R2
   staging keys.
 - **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media

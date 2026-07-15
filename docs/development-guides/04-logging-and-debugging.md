@@ -160,26 +160,44 @@ MerianLog.general.debug("⏱️ operation completed in \(String(format: "%.3f", 
 
 The inference pipeline emits structured `[⏱ BENCH]` markers at each stage to make latency breakdowns visible without an attached profiler. These use `.debug` level and are filtered by the prefix in the Xcode console or Console.app.
 
-**iOS — `InferenceEngine.swift`** (filter in Xcode console: `⏱ BENCH`):
+**iOS — capture submission, networking, and `InferenceEngine.swift`** (filter in
+Xcode console: `⏱ BENCH`):
 
 ```
-[⏱ BENCH] Pre-flight (encode+auth): 0.052s      ← base64 encode + auth headers
-[⏱ BENCH] Post-flight (parse+save+state): 0.087s ← parseAndSave + awards + state commit
-[⏱ BENCH] Total pipeline: 4.123s                 ← shutter to insight sheet
+[⏱ BENCH] tap→durable queue: 0.041s
+[⏱ BENCH] context grace: 0.150s timed_out=true
+[⏱ BENCH] non-visual context wait: 0.482s
+[⏱ BENCH] URLSession request_upload=0.082s ttfb_after_upload=4.101s response_transfer=0.022s
+[⏱ BENCH] HTTP identify-multimodal auth=0.006s transfer+server=4.205s bytes=183424
+[⏱ BENCH] Server-Timing auth;dur=3.1, body_read;dur=11.8, tier;dur=0.4, pre_gemini_db;dur=7.2, gemini;dur=4189.0, dictionary;dur=5.6, post_gemini;dur=8.1, edge_total;dur=4223.4 region=...
+[⏱ BENCH] Response parsing: 0.009s bytes=7824
+[⏱ BENCH] Result persistence: 0.061s
+[⏱ BENCH] response→first-result state: 0.082s
+[⏱ BENCH] tap→first rendered frame: 4.478s
 ```
 
-The existing `"Gemini inference completed in X.XXXs"` log (also `MerianLog.general`) captures the Gemini round-trip alone. The three `[⏱ BENCH]` lines bracket it so the pre-flight and post-flight overhead are separately visible.
+The first timestamp is taken when Analyze is tapped, before queue persistence or
+environmental context. The final value comes from a one-shot UIKit draw probe
+after the result view participates in its first display pass; awards and Field
+Trips are intentionally outside that boundary. URLSession task metrics separate
+request upload, time to first byte, and response transfer.
+`X-Merian-Constrained-Network` tags the Edge request, and the response exposes
+the privacy-safe `Server-Timing` breakdown plus
+`X-Merian-Edge-Region`.
 
-**Edge Function — `identify/index.ts`** (Supabase Dashboard → Edge Functions → identify → Logs):
+**Edge Function — `identify-multimodal/index.ts`** (Supabase Dashboard → Edge
+Functions → identify-multimodal → Logs):
 
 ```
-[⏱ BENCH] payload_resolved: 12ms    ← after base64 validation or R2 fetch
-[⏱ BENCH] pre_gemini: 14ms          ← total overhead before Gemini call
-[⏱ BENCH] gemini_done: 4203ms total, 4189ms inference
-[⏱ BENCH] total_to_response: 4218ms
+{"event":"multimodal/latency","tier":"pro","model":"gemini-2.5-pro","image_count":2,"payload_bytes":312640,"edge_region":"...","constrained_network":false,"auth_ms":3,"pre_gemini_db_ms":8,"gemini_latency_ms":4876,"dictionary_hydration_ms":6,"post_gemini_ms":9,"edge_total_ms":4925}
 ```
 
-Note: `tier_resolved` does not appear in these logs — tier resolution runs in the background task after the response is sent and is not on the critical path.
+`gemini_latency_ms` stops immediately after the single `generateContent` call.
+Do not add database work, candidate hydration, external enrichment, ingestion,
+or response serialization to this timer. Tags intentionally omit user ID, scan
+ID, species, coordinates, object keys, and media contents. The production
+dashboard should segment p50/p95 by tier, model, image count, payload bytes,
+Edge region, and constrained-network state.
 
 ---
 

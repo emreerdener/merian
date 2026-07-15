@@ -3,6 +3,28 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Vision
 
+private struct EnvironmentContextGraceResult: @unchecked Sendable {
+    let context: EnvironmentContext?
+    let timedOut: Bool
+}
+
+private final class EnvironmentContextGraceGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<EnvironmentContextGraceResult, Never>?
+
+    init(_ continuation: CheckedContinuation<EnvironmentContextGraceResult, Never>) {
+        self.continuation = continuation
+    }
+
+    func resolve(_ result: EnvironmentContextGraceResult) {
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(returning: result)
+    }
+}
+
 extension CaptureWorkspaceViewModel {
 
     // MARK: - Submit Staged Capture
@@ -18,12 +40,13 @@ extension CaptureWorkspaceViewModel {
     /// 2. Snapshot the staging buffers, then clear them to prevent double-submit.
     /// 3. Generate a stable `scanId` shared by the queue record and live inference task.
     /// 4. **Enqueue immediately** (still in foreground) with cached GPS and the
-    ///    serialized observation context when present. The background URLSession
-    ///    upload is dispatched inside the same `UIBackgroundTask` window.
-    /// 5. Await the pre-fetched `EnvironmentContext`, build full telemetry, and fire
-    ///    `InferenceEngine.analyze`. The live path and background upload race —
-    ///    whichever completes first wins.
+    ///    serialized observation context when present. For an eligible live-camera
+    ///    still scan, hold its duplicate queue upload until the inline body is sent.
+    /// 5. Give shutter-prefetched context a 150 ms grace period for that live still
+    ///    path, then fire `InferenceEngine.analyze`. Gallery, video, and audio-bearing
+    ///    visual submissions retain their full-context wait and existing upload race.
     func submitStagedCapture(modelContext: ModelContext) {
+        let analysisTappedAt = CFAbsoluteTimeGetCurrent()
         let stagedNodes = stagedCapture.orderedNodes
         var capturedMediaTimeline: [CaptureSubmissionMediaItem] = []
         var capturedDisplayImages: [StagedImage] = []
@@ -86,7 +109,8 @@ extension CaptureWorkspaceViewModel {
                 videoFileNames: capturedVideoFilePaths,
                 mediaTimeline: capturedMediaTimeline,
                 modelContext: modelContext,
-                targetEradicationScanId: baseRefinementContext?.scanId
+                targetEradicationScanId: baseRefinementContext?.scanId,
+                userPerceivedStart: analysisTappedAt
             )
             clearStagedCaptureAndCropState()
             baseRefinementContext = nil
@@ -100,6 +124,12 @@ extension CaptureWorkspaceViewModel {
         let capturedZoomFactor         = diContainer.cameraManager.zoomFactor
         let defaultZoomFactor          = diContainer.cameraManager.nativeZoomFactor
         let primaryImageIsGalleryPhoto = capturedDisplayImages.first?.original.isFromGallery == true
+        let shouldOptimizeLiveImageAnalysis = Self.shouldOptimizeLiveImageAnalysis(
+            hasStillImage: stillImageSourceIndex > 0,
+            hasAudio: !capturedAudioFilePaths.isEmpty,
+            hasVideo: !capturedVideoFilePaths.isEmpty,
+            isGalleryPhoto: primaryImageIsGalleryPhoto
+        )
 
         // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
         clearStagedCaptureAndCropState()
@@ -144,10 +174,20 @@ extension CaptureWorkspaceViewModel {
             observationContexts: capturedObservationContexts,
             mediaTimeline: capturedMediaTimeline,
             visualMediaItems: capturedVisualMediaItems,
+            startSyncImmediately: !shouldOptimizeLiveImageAnalysis,
             onQueued: { [weak self] didQueue in
                 guard let self else { return }
+                let queueCommittedAt = CFAbsoluteTimeGetCurrent()
+                MerianLog.general.debug(
+                    "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", queueCommittedAt - analysisTappedAt), privacy: .public)s"
+                )
                 guard self.pendingAnalyzeScanId == scanId else {
-                    if !didQueue {
+                    if didQueue {
+                        self.diContainer.offlineQueueManager.releaseDeferredLiveUpload(
+                            scanId: scanId,
+                            reason: "live_scan_superseded_before_start"
+                        )
+                    } else {
                         self.discardLocalMediaFiles(at: capturedMediaFilePaths)
                     }
                     return
@@ -162,9 +202,19 @@ extension CaptureWorkspaceViewModel {
                 }
 
                 guard self.diContainer.offlineQueueManager.isOnline else {
+                    self.diContainer.offlineQueueManager.releaseDeferredLiveUpload(
+                        scanId: scanId,
+                        reason: "offline_before_live_request"
+                    )
                     self.pendingAnalyzeScanId = nil
                     self.offlineToastMessage = "No network connection. Queued for upload."
                     return
+                }
+
+                if shouldOptimizeLiveImageAnalysis {
+                    self.diContainer.offlineQueueManager.beginForegroundInference(
+                        scanId: scanId
+                    )
                 }
 
                 self.diContainer.inferenceEngine.prepareForNewScan()
@@ -173,20 +223,56 @@ extension CaptureWorkspaceViewModel {
                 // 6. Concurrently resolve the full telemetry and fire live inference.
                 Task { [weak self] in
                     guard let self else { return }
-                    let resolvedContext = await capturedPreFetchTask?.value
-
-                    let telemetry = await CaptureTelemetry.resolveForActiveScan(
-                        resolvedContext: resolvedContext,
-                        historicalContext: capturedDisplayImages.first?.original.environmentContext,
-                        isGalleryPhoto: primaryImageIsGalleryPhoto,
-                        firstImageData: capturedDisplayImages.first?.compressedData,
-                        distanceMeters: self.diContainer.cameraManager.subjectDistanceInMeters,
-                        zoomFactor: capturedZoomFactor,
-                        defaultZoomFactor: defaultZoomFactor
+                    let contextWaitStartedAt = CFAbsoluteTimeGetCurrent()
+                    let graceResult: EnvironmentContextGraceResult
+                    if shouldOptimizeLiveImageAnalysis {
+                        graceResult = await Self.environmentContext(
+                            from: capturedPreFetchTask,
+                            graceMilliseconds: 150
+                        )
+                    } else {
+                        let resolvedContext: EnvironmentContext?
+                        if let capturedPreFetchTask {
+                            resolvedContext = await capturedPreFetchTask.value
+                        } else {
+                            resolvedContext = nil
+                        }
+                        graceResult = EnvironmentContextGraceResult(
+                            context: resolvedContext,
+                            timedOut: false
+                        )
+                    }
+                    let telemetry: CaptureTelemetry
+                    if graceResult.timedOut {
+                        telemetry = immediateTelemetry
+                    } else {
+                        telemetry = await CaptureTelemetry.resolveForActiveScan(
+                            resolvedContext: graceResult.context,
+                            historicalContext: capturedDisplayImages.first?.original.environmentContext,
+                            isGalleryPhoto: primaryImageIsGalleryPhoto,
+                            firstImageData: capturedDisplayImages.first?.compressedData,
+                            distanceMeters: immediateDistance,
+                            zoomFactor: capturedZoomFactor,
+                            defaultZoomFactor: defaultZoomFactor
+                        )
+                    }
+                    MerianLog.general.debug(
+                        "[⏱ BENCH] Context grace: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - contextWaitStartedAt), privacy: .public)s timed_out=\(graceResult.timedOut, privacy: .public)"
                     )
 
                     await MainActor.run {
-                        guard self.pendingAnalyzeScanId == scanId else { return }
+                        guard self.pendingAnalyzeScanId == scanId else {
+                            self.diContainer.offlineQueueManager.endForegroundInference(
+                                scanId: scanId,
+                                resumeBackground: true,
+                                reason: "live_scan_superseded_during_context_wait"
+                            )
+                            return
+                        }
+                        guard !shouldOptimizeLiveImageAnalysis ||
+                                self.diContainer.offlineQueueManager.foregroundInferenceScanIds.contains(scanId) else {
+                            return
+                        }
                         self.diContainer.inferenceEngine.analyze(
                             scanId: scanId,
                             imageDatas: capturedInferenceImages.map(\.compressedData),
@@ -199,12 +285,79 @@ extension CaptureWorkspaceViewModel {
                             visualMediaItems: capturedVisualMediaItems,
                             audioMediaItems: capturedAudioMediaItems,
                             modelContext: modelContext,
-                            targetEradicationScanId: targetEradicationScanId
+                            targetEradicationScanId: targetEradicationScanId,
+                            userPerceivedStart: analysisTappedAt
                         )
+                    }
+
+                    if graceResult.timedOut, let capturedPreFetchTask {
+                        Task {
+                            let lateContext = await capturedPreFetchTask.value
+                            let lateTelemetry = await CaptureTelemetry.resolveForActiveScan(
+                                resolvedContext: lateContext,
+                                historicalContext: capturedDisplayImages.first?.original.environmentContext,
+                                isGalleryPhoto: primaryImageIsGalleryPhoto,
+                                firstImageData: capturedDisplayImages.first?.compressedData,
+                                distanceMeters: immediateDistance,
+                                zoomFactor: capturedZoomFactor,
+                                defaultZoomFactor: defaultZoomFactor
+                            )
+                            self.diContainer.offlineQueueManager.updateDeferredContext(
+                                scanId: scanId,
+                                telemetry: lateTelemetry
+                            )
+                            do {
+                                try await MerianNetworkClient.shared.updateDeferredScanContext(
+                                    scanId: scanId,
+                                    telemetry: lateTelemetry
+                                )
+                            } catch {
+                                // The context can beat the atomic ingestion claim by a few
+                                // milliseconds. Retry once; the durable local queue remains
+                                // the fallback if the live request never reaches Edge.
+                                try? await Task.sleep(for: .milliseconds(500))
+                                try? await MerianNetworkClient.shared.updateDeferredScanContext(
+                                    scanId: scanId,
+                                    telemetry: lateTelemetry
+                                )
+                            }
+                        }
                     }
                 }
             }
         )
+    }
+
+    private static func environmentContext(
+        from task: Task<EnvironmentContext, Never>?,
+        graceMilliseconds: Int
+    ) async -> EnvironmentContextGraceResult {
+        guard let task else {
+            return EnvironmentContextGraceResult(context: nil, timedOut: false)
+        }
+
+        return await withCheckedContinuation { continuation in
+            let gate = EnvironmentContextGraceGate(continuation)
+            Task {
+                gate.resolve(EnvironmentContextGraceResult(
+                    context: await task.value,
+                    timedOut: false
+                ))
+            }
+            Task {
+                try? await Task.sleep(for: .milliseconds(graceMilliseconds))
+                gate.resolve(EnvironmentContextGraceResult(context: nil, timedOut: true))
+            }
+        }
+    }
+
+    nonisolated static func shouldOptimizeLiveImageAnalysis(
+        hasStillImage: Bool,
+        hasAudio: Bool,
+        hasVideo: Bool,
+        isGalleryPhoto: Bool
+    ) -> Bool {
+        hasStillImage && !hasAudio && !hasVideo && !isGalleryPhoto
     }
 
     // MARK: - Inference Processing Change

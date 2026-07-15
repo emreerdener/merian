@@ -318,6 +318,21 @@ triggering excessive SwiftUI view rebuilds.
   runtime and making it consistent across live and offline inference paths.
 - On network failure, routes the payload to `OfflineQueueManager` and triggers
   the Graceful Degradation UI state.
+- **First-result critical path**: visual analysis receives the original
+  Analyze-tap timestamp, commits persisted media and parsed `speciesData`
+  immediately, and measures the response-to-state boundary. A one-shot UIKit
+  draw probe in `InsightSheetView` closes tap-to-first-render timing on the first
+  actual result frame. Award calculation and Field Trips run in a follow-up task. Field
+  Trips polls `/check-scan-status` before invoking its remote progress endpoint,
+  so tools requiring server persistence stay disabled until the existing
+  ingestion ledger confirms the scan.
+- **Inline/background upload handoff**: `analyze()` installs a two-second
+  fail-safe, then asks `MerianNetworkClient` to release the live scan's deferred
+  queue row when request-body upload completes. Network failure releases the row
+  immediately. The callback is idempotent, so progress, response fallback,
+  failure, and timer races cannot dispatch duplicate queue ownership.
+  A separate foreground-inference claim lets recovery media stage without
+  allowing staged replay to dispatch a duplicate primary identification.
 - **Post-inference carousel handoff**: On a successful result, the saved user
   media is rebuilt into `ActiveScanMedia` _before_ `speciesData` is assigned.
   This ensures the insight sheet carousel always has the user's saved
@@ -401,6 +416,21 @@ triggering excessive SwiftUI view rebuilds.
 
 - Manages background `URLSession` uploads, queuing scan media to the local
   Documents Directory when the device is off-grid.
+- **Durable live-scan suppression**: `enqueueCapture(...,
+  startSyncImmediately: false)` persists eligible online live-camera still scans without immediately
+  consuming the uplink twice. `syncPendingScans()` filters the process-local
+  deferred-ID set until `releaseDeferredLiveUpload(scanId:)` is called by inline
+  request progress, its two-second fail-safe, request failure, connectivity
+  loss, or app backgrounding. Relaunch starts with an empty set, so durable rows
+  are never stranded after termination; live success still cancels tasks and
+  removes the queue row through the existing cleanup path.
+  Gallery, audio-bearing, and video submissions continue using immediate
+  background sync.
+- **Deferred environment context**: `updateDeferredContext` merges late
+  WeatherKit/geocoding values into the queued record. The live path also calls
+  `/update-scan-context`, allowing the server to apply the same owner-scoped
+  context to an in-progress ingestion or a completed scan without identifying
+  the media again.
 - Registers background handlers in `AppDelegate` so `URLSession` callbacks
   complete independently from the main UI thread.
 - Uses `BackgroundTaskWrapper.execute(name:operation:)` to wrap operations in
@@ -931,6 +961,15 @@ and `KeychainManager` migration logic. Do not inline
   `MerianError.invalidURL` and no fallback network request is attempted.
 - Centralizes JWT validation in `performAuthenticatedRequest`, which handles
   authentication for all five public endpoints.
+- Prewarms `/identify-multimodal` with `OPTIONS` through the same TLS-pinned
+  `URLSession` used by the real request; the Supabase auth SDK's connection pool
+  is not treated as an inference connection prewarm.
+- `performAuthenticatedRequest` accepts an optional request-body completion
+  callback. A per-task `URLSessionTaskDelegate` fires it from upload progress;
+  receiving a response is the fallback for transports/test protocols without
+  progress events, and transport errors fire it immediately. Inference requests
+  also attach the aggregate `X-Merian-Constrained-Network` diagnostic tag and
+  log `Server-Timing` plus the Edge region.
 - Calls `getValidAuthHeaders()` with `try` (not `try?`) so authentication errors
   propagate to callers rather than being silently dropped. Previously, using
   `try?` made network failures impossible to diagnose.

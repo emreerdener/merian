@@ -388,6 +388,9 @@ verify_jwt = false
 [functions.identify-multimodal]
 verify_jwt = false
 
+[functions.update-scan-context]
+verify_jwt = false
+
 [functions.identify-describe]
 verify_jwt = false
 

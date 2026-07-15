@@ -137,8 +137,12 @@ Several utilities are shared across all Edge Functions via
   reference images, group tags, hazard/conservation fields, and lookalikes.
   Writers use the helper as a best-effort side effect: provenance failures are
   logged but never block scan ingestion or public dictionary reads.
-- **`auth.ts`**: The baremetal JWT parser extracting anonymous and authenticated
-  keys natively across the `Authorization` header map.
+- **`auth.ts`**: Shared bearer-token extraction plus two explicit verification
+  strategies. Existing endpoints can retain `auth.getUser()` compatibility;
+  latency-sensitive `/identify-multimodal` and `/update-scan-context` use
+  `auth.getClaims(token)` with the project's cached ES256 JWKS and then validate
+  issuer, audience, expiration/not-before, role, and `sub`. The claims path
+  accepts anonymous/authenticated user roles but rejects service-role replay.
 
 ## The R2 Upload URL Node (`generate-upload-urls`)
 
@@ -467,15 +471,18 @@ The `/identify` Edge Function acts as the inference proxy:
     representing exactly what physical features led to the ID), `ai_reasoning`
     (Gemini's visual identification justification), and `colors` (1–3 dominant
     biological colors) are all written in the same insert. `llm_thinking_tokens`
-    captures Gemini's internal reasoning token consumption (thinkingBudget: 2048
-    for Flash, 5000 for Pro) and is billed at the output token rate — it is the
-    dominant cost driver for Pro scans. `llm_cached_tokens` is non-zero when
+    captures Gemini's internal reasoning token consumption and is billed at the
+    output token rate — it is the dominant cost driver for Pro scans.
+    `llm_cached_tokens` is non-zero when
     Gemini's implicit context caching served the system instruction prefix from
     cache (Flash only; requires the prefix to exceed 2,048 tokens); cached
     tokens are billed at 75% off the standard input rate. `colors` feeds into
     `semanticTags` on the Swift side for full-text search. `ai_reasoning` is
     fetched back during historical cloud sync and stored as
-    `LocalScanRecord.aiReasoning`. Note: `group_tags` are stored on
+    `LocalScanRecord.aiReasoning`. The legacy `/identify` Flash route explicitly
+    uses a 2,048-token thinking budget, while `/identify-multimodal` preserves
+    its existing Flash provider-default behavior; both primary Pro routes retain
+    their existing explicit 5,000-token budget. Note: `group_tags` are stored on
     `species_dictionary`, not `scans`. **LLM field sanitization bounds**
     (applied in `index.ts` after scientific name sanitization, before the DB
     insert): `colors`, `extracted_visual_traits`, and `ecological_interactions`
@@ -775,6 +782,39 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    table is refreshed by the database trigger plus a best-effort Edge refresh
    call, so newer media readers can use ready display/playback rows instead of
    inferring user-visible media from compatibility arrays.
+
+### Latency Boundary and Database Round Trips
+
+The `/identify-multimodal` body, model selection, prompt/schema, thinking
+budgets, image resolution, output limits, and one-call-per-scan behavior remain
+unchanged. Free uses `gemini-2.5-flash`; Pro uses `gemini-2.5-pro`.
+
+Before inference, the service-role-only `begin_scan_ingestion` RPC combines
+upload-session lookup, ingestion-job claim, sanitized intent recording, and the
+`ai_inference_started` transition into one database round trip. It computes the
+manifest and payload checksums only after the resolved upload-session ids are
+merged into the stored payload. After Gemini,
+`hydrate_identification_dictionary` combines cached primary-species hydration
+and candidate common-name lookup. Both functions revoke execution from
+`PUBLIC`, `anon`, and `authenticated`; only `service_role` may call them.
+
+Cache-miss Wikipedia/GBIF enrichment, analytics, and optional image ingestion
+updates run behind `EdgeRuntime.waitUntil` so they cannot delay the response.
+Video retains synchronous promotion and persistence because a response without
+its required playback media would violate the existing durability contract.
+
+Successful responses expose privacy-safe `Server-Timing` metrics for auth, body
+read, tier resolution, pre-Gemini database work, Gemini, dictionary hydration,
+post-Gemini response work, and total Edge time. The structured latency event is
+tagged only by tier, model, image count, payload bytes, Edge region, and
+constrained-network state. `gemini_latency_ms` ends immediately after
+`generateContent` returns.
+
+`/update-scan-context` accepts late elevation, weather, and semantic-location
+fields keyed by `scan_id`. `apply_or_stage_scan_context` updates an existing
+owner scan or stores the values in `scan_deferred_context_updates`; a before-
+insert trigger merges staged context when the scan is created. RLS is enabled
+and direct client table/function privileges are revoked.
 
 ## The Explore Social Surface
 
@@ -1077,7 +1117,9 @@ that operate on anonymous IDFV boundaries:
   key server-side.
 - App-facing anonymous-compatible Edge Functions set `verify_jwt = false` in
   `config.toml`. Authenticated endpoints then perform manual JWT verification
-  via `requireAuth` inside `withEdgeHandler`. This is mandatory for
+  via `requireAuth` or the stricter claims strategy inside `withEdgeHandler`.
+  `/identify-multimodal` and `/update-scan-context` use cached ES256 JWKS claims
+  verification; other routes retain their existing `getUser` verification. This is mandatory for
   anonymous-compatible routes: omitting an entry causes Supabase's Kong gateway
   to default to `verify_jwt = true`, which validates the JWT at the gateway
   layer before the function code runs and rejects valid ES256 anonymous sessions

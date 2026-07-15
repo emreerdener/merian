@@ -6,6 +6,33 @@ import UIKit
 @Suite("StagedCapture", .serialized)
 struct StagedCaptureTests {
 
+    @Test func liveImageLatencyOptimizationExcludesGalleryAudioAndVideo() {
+        #expect(CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
+            hasStillImage: true,
+            hasAudio: false,
+            hasVideo: false,
+            isGalleryPhoto: false
+        ))
+        #expect(!CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
+            hasStillImage: true,
+            hasAudio: false,
+            hasVideo: false,
+            isGalleryPhoto: true
+        ))
+        #expect(!CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
+            hasStillImage: true,
+            hasAudio: true,
+            hasVideo: false,
+            isGalleryPhoto: false
+        ))
+        #expect(!CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
+            hasStillImage: false,
+            hasAudio: false,
+            hasVideo: true,
+            isGalleryPhoto: false
+        ))
+    }
+
     // MARK: - isEmpty
 
     @Test func isEmptyWhenAllModalitiesAreEmpty() {

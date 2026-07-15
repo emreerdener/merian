@@ -49,22 +49,20 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
 1. A stable `scanId` UUID is generated. This UUID is shared by both the offline
    queue record and the concurrent live inference request.
-2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:onQueued:)`
+2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:startSyncImmediately:onQueued:)`
    is called **synchronously on the main actor**, before any `async` boundary is
    crossed. It wraps its work in a `.userInitiated` priority
    `BackgroundTaskWrapper`, dispatching disk writes to `FileIOActor` to prevent
-   blocking the UI, ensuring the SwiftData insert and
-   `urlSession.uploadTask(...).resume()` dispatch all complete before the
+   blocking the UI and ensuring the SwiftData insert completes before the
    cooperative thread pool can be preempted by an app suspension. GPS is sourced
    from `EnvironmentContextManager.lastKnownLocation` — which returns the most
    recent accurate fix (≤30m) or falls back to the most recent inaccurate
    reading — so even scans captured during a GPS satellite acquisition carry a
-   macro-region coordinate. Weather and `locationName` are absent from the queue
-   record but are backfilled by `dispatchInferenceDownloadTask` via
-   `EnvironmentContextManager.fetchHistoricalContext(location:date:)` before the
-   inference request is dispatched, and the hydrated values are written back to
-   `OfflineQueuedScan` so the background URLSession delegate can read them on
-   result delivery.
+   macro-region coordinate. Weather and `locationName` may be absent from the
+   initial queue record. A late shutter-prefetch result is merged into
+   `OfflineQueuedScan` and submitted to `/update-scan-context`; background replay
+   can still backfill missing historical context before its own inference
+   dispatch.
 3. The visual submit path waits for `onQueued` before presenting queued/offline
    success or starting live analysis. A durable-queue rejection rolls back the
    pending live scan, shows an error, and deletes orphaned source video/audio
@@ -79,10 +77,14 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    user that there is no network connection and the scan is queued for upload,
    saving battery and tokens by recognizing that live inference would
    inevitably result in a network timeout.
-5. Concurrently (if online), a `Task {}` awaits the pre-fetched
-   `EnvironmentContext` (GPS + WeatherKit, started at shutter press) and fires
-   `InferenceEngine.analyze(scanId:imageDatas:...)` with the full telemetry once
-   it resolves. This is the **live inference path** — it delivers results faster
+5. Concurrently (if online and the submission is an eligible live-camera still
+   with no audio or video), a `Task {}` gives the pre-fetched
+   `EnvironmentContext` (GPS + WeatherKit/geocoding, started at shutter press)
+   at most **150 ms** to finish. If that grace period expires, it fires
+   `InferenceEngine.analyze(scanId:imageDatas:...)` with shutter-time
+   coordinates, date/time, distance, and cached telemetry. The late context is
+   merged through the authenticated deferred-context endpoint and never causes
+   a second identification request. This is the **live inference path** — it delivers results faster
    than the background upload + Gemini round-trip, directly to the open insight
    sheet. Before calling `analyze()`, the Task checks
    `pendingAnalyzeScanId == scanId` on the main actor — a property set on
@@ -92,8 +94,29 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    independently. This replaces the weaker `guard isProcessing` that only
    detected completion (not supersession).
 
-The live inference path and the background upload path race. Whichever completes
-first wins:
+Gallery images and audio-bearing or video visual submissions keep the existing
+full-context wait and immediate queue-sync race in this first optimization pass.
+They still emit the same pipeline timing instrumentation.
+
+For an eligible live-camera still, the live inference path owns the uplink
+initially. The durable background path
+is handed off as soon as the inline request body has finished sending:
+
+- **Deferred background start**: `OfflineQueueManager` excludes the active live
+  `scanId` from normal pending batches. `MerianRequestUploadDelegate` observes
+  request-body progress and releases the row when all bytes are sent. A
+  two-second fail-safe handles transports that do not provide progress callbacks.
+- **Single inference owner**: recovery media may stage after that handoff, but
+  `foregroundInferenceScanIds` prevents staged replay from dispatching a second
+  identification while the foreground request still owns the scan.
+- **Immediate recovery start**: request failure, connectivity loss, or app
+  backgrounding releases both the upload hold and foreground inference claim.
+  The suppression is process-local, so app termination/relaunch also leaves the
+  durable row eligible for normal synchronization. Before a staged row starts
+  background inference, it checks `/check-scan-status`; a processing/finalizing
+  foreground ingestion remains server-owned and is polled instead of issuing a
+  duplicate model call.
+After handoff, either path can finish first:
 
 - **Live wins**: `analyze()` calls
   `OfflineQueueManager.shared.deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)`
@@ -429,10 +452,12 @@ that resolves slightly later.
 edge function uses it as `generatedScanId` when provided, claims
 `scan_ingestion_jobs` before AI inference, and records expected media counts,
 staged image/audio/video object keys, recovered upload-session ids, and a
-deterministic `manifest_checksum`. It also writes a service-role-only
+deterministic `manifest_checksum`. The atomic RPC calculates that checksum only
+after it resolves the upload-session ids. It also writes a service-role-only
 `scan_ingestion_intents` row containing the sanitized replay intent: telemetry,
 observation context, media descriptors, staged keys, upload-session ids, and a
-payload checksum. Raw inline media bytes are not stored; if a foreground request
+payload checksum calculated from the exact stored payload. Raw inline media
+bytes are not stored; if a foreground request
 used inline base64 media, the intent is marked non-resumable and the iOS queue
 remains the recovery source. The scheduled `replay-scan-ingestion` worker claims
 due resumable jobs, reconstructs the staged request, and invokes
@@ -845,8 +870,10 @@ disconnected.
    > not even reach the Deno runtime. Anonymous-compatible authenticated routes
    > must be deployed with `verify_jwt = false` / `--no-verify-jwt`. This
    > bypasses Kong's fast-path validation and allows our internal `requireAuth`
-   > wrapper in `_shared/auth.ts` to natively validate the token using
-   > `supabaseClient.auth.getUser()`, which natively supports `ES256`.
+   > wrapper in `_shared/auth.ts` to validate the token. Most routes retain
+   > `supabaseClient.auth.getUser()`; latency-sensitive identify/deferred-context
+   > routes use the cached-JWKS `getClaims(token)` path with explicit claims
+   > validation. Both strategies natively support `ES256`.
    > Deliberately public routes such as `species-dictionary` also use
    > `verify_jwt = false`, but skip `requireAuth` and must document their public
    > data boundary.

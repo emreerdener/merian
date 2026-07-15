@@ -32,7 +32,8 @@ extension CaptureWorkspaceViewModel {
             audioFileNames: [audioFileName],
             observationContexts: [],
             mediaTimeline: [.audio(audioFileName)],
-            modelContext: modelContext
+            modelContext: modelContext,
+            userPerceivedStart: now
         )
     }
 
@@ -49,7 +50,8 @@ extension CaptureWorkspaceViewModel {
         videoFileNames: [String] = [],
         mediaTimeline: [CaptureSubmissionMediaItem],
         modelContext: ModelContext,
-        targetEradicationScanId: String? = nil
+        targetEradicationScanId: String? = nil,
+        userPerceivedStart: CFAbsoluteTime? = nil
     ) {
         guard !mediaTimeline.isEmpty else { return }
 
@@ -68,6 +70,7 @@ extension CaptureWorkspaceViewModel {
         pendingAnalyzeScanId = scanId
 
         Task {
+            let contextWaitStartedAt = CFAbsoluteTimeGetCurrent()
             let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
             // Audio and description captures do not pass through the camera shutter path,
             // which normally starts `preFetchTask`. Resolve the cached coordinate here so
@@ -100,6 +103,9 @@ extension CaptureWorkspaceViewModel {
                     estimatedSizeCm: nil
                 )
             }
+            MerianLog.general.debug(
+                "[⏱ BENCH] Non-visual context wait: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - contextWaitStartedAt), privacy: .public)s"
+            )
 
             await MainActor.run {
                 if shouldEnqueueDurably {
@@ -114,6 +120,11 @@ extension CaptureWorkspaceViewModel {
                     guard enqueued else {
                         self.offlineToastMessage = "Unable to save capture. Please try again."
                         return
+                    }
+                    if let userPerceivedStart {
+                        MerianLog.general.debug(
+                            "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - userPerceivedStart), privacy: .public)s"
+                        )
                     }
                 }
 
@@ -134,7 +145,8 @@ extension CaptureWorkspaceViewModel {
                     mediaTimeline: mediaTimeline,
                     telemetry: telemetry,
                     modelContext: modelContext,
-                    targetEradicationScanId: targetEradicationScanId
+                    targetEradicationScanId: targetEradicationScanId,
+                    userPerceivedStart: userPerceivedStart
                 )
             }
         }

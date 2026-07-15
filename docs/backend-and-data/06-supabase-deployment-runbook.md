@@ -172,6 +172,90 @@ Shared runtime helpers should prefer local utilities such as
 `_shared/encoding.ts` for base64/hex helpers so production deploys do not fail
 when deno.land or esm.sh returns a transient 5xx during bundling.
 
+## Identification Latency Rollout
+
+The image-analysis latency change is a staged operational rollout, not a reason
+to change Gemini configuration. Free remains `gemini-2.5-flash`; Pro remains
+`gemini-2.5-pro`. Prompts, schema, thinking budgets, image resolution,
+`maxOutputTokens`, and the single primary identification model call per scan are
+release invariants.
+Audio and video receive the additive timing instrumentation but no client
+behavioral change in this pass.
+
+Release in three observable waves:
+
+1. Deploy compatible timing instrumentation and establish pre-change p50/p95
+   baselines for Gemini, non-Gemini Edge work, response-to-first-render, failures,
+   missing remote scans, and stuck ingestion jobs.
+2. Roll out the iOS critical-path changes: eligible live-camera still-image
+   150 ms context grace, pinned-session prewarm, inline/background upload
+   handoff, and first-result-before-secondary-work commit.
+3. Roll out the Edge/database optimization. Within this wave, apply
+   `20260715153946_reduce_identification_latency_round_trips.sql` before deploying
+   `identify-multimodal`, `_shared` dependents, and `update-scan-context`. The
+   identify handler has a temporary old-helper fallback for propagation safety;
+   repeated fallback logs after rollout are an incident, not a steady state.
+
+Advance Edge traffic through 10%, 50%, and 100% only when the observation window
+meets every gate:
+
+- non-Gemini p95 is at most 1 second (target p50 at most 300 ms);
+- response-to-first-render p95 is at most 300 ms;
+- identification quality is unchanged;
+- failure rate increases by less than 0.5 percentage points;
+- missing remote scans and stuck ingestion jobs do not increase.
+
+When measured Gemini p95 is at most 5 seconds, the corresponding end-to-end p95
+goal is at most 6 seconds. If the final end-to-end p95 remains high and
+`Server-Timing` shows `gemini` dominates, record Gemini as the remaining floor;
+do not alter model economics under this rollout.
+
+Keep automatic nearest-user Edge execution as the baseline. Compare it with a
+database-region invocation using equivalent traffic, tier/model/image-count/
+payload-size/network segments. Force a region only if p95 improves by at least
+150 ms without a failure-rate increase. Record the experiment and rollback
+decision before changing production region configuration.
+
+Before increasing traffic, verify:
+
+- valid anonymous and authenticated ES256 JWTs succeed;
+- expired, malformed, wrong-issuer/audience, and public service-role JWTs fail;
+- internal replay still requires the timing-safe service credential and explicit
+  replay-user identity;
+- `Server-Timing` contains `auth`, `body_read`, `tier`, `pre_gemini_db`,
+  `gemini`, `dictionary`, `post_gemini`, and `edge_total` and contains no private
+  identifiers;
+- the latency event includes only approved aggregate tags;
+- a deferred-context call updates an existing owner scan or stages against a
+  claimed ingestion job, and cannot update another user;
+- WeatherKit, geocoding, awards, Field Trips, Wikipedia, and GBIF delays do not
+  move the first-render boundary;
+- request failure, connectivity loss, backgrounding, termination, the two-second
+  fail-safe, and duplicate live/background completion leave no missing or stuck
+  scan.
+
+The migration grants can be spot-checked after `db push`:
+
+```sql
+select routine_name, routine_type
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in (
+    'begin_scan_ingestion',
+    'hydrate_identification_dictionary',
+    'apply_or_stage_scan_context'
+  );
+
+select relname, relrowsecurity
+from pg_class
+where relname = 'scan_deferred_context_updates';
+```
+
+Do not describe the latency targets as production-validated until all three
+waves and the final observation window complete. After validation, update the
+changelog and latency/AI/API/logging/offline-queue docs with the measured p50/p95
+and the chosen Edge-region policy.
+
 ## Required GitHub Secrets
 
 Set these in the repository's GitHub Actions secrets:
@@ -504,6 +588,13 @@ actionable if a command fails while applying Auth provider config.
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- For identification-latency releases, confirm the three service-role RPCs and
+  RLS-enabled `scan_deferred_context_updates` table exist before calling
+  `/update-scan-context`. Submit one free and one Pro image and verify the exact
+  expected model in privacy-safe latency logs, one `generateContent` call,
+  complete `Server-Timing`, a first result before awards/Field Trips, and no
+  duplicate foreground/background upload contention. Confirm a delayed context
+  update survives both the pre-insert staged path and the completed-scan path.
 - For Field Trips releases, confirm `field-trips` serves `catalog`,
   `template_detail`, `start`, `community_publications`, `recent_publications`,
   `challenges_catalog`, `challenge_detail`, `join_challenge`,

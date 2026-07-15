@@ -1054,6 +1054,15 @@ scan row is not yet complete. RLS allows owners to read their own job rows;
 service-role writers own mutation, and the claim RPC is executable only by
 `service_role`.
 
+Migration `20260715153946_reduce_identification_latency_round_trips.sql` adds
+`public.begin_scan_ingestion(...)`. It performs upload-session lookup, job claim,
+sanitized intent upsert, and the `ai_inference_started` stage transition in one
+transaction. After resolving upload sessions, it canonicalizes the manifest and
+sanitized-payload checksums against the exact stored JSON and returns those
+checksums with the recovered upload-session ids. The function validates and
+casts the text scan id to UUID before querying UUID-backed media rows. Execute is
+revoked from `PUBLIC`, `anon`, and `authenticated`; only `service_role` may call it.
+
 The media reconciliation worker also feeds back into this ledger. If a stale
 capture-upload row still belongs to an active or future-retry job, the worker
 leaves the media pending. If a surviving staged playback video repairs an
@@ -1075,8 +1084,9 @@ attempts. Added in migration `20260705140000_add_scan_ingestion_intents.sql`.
 - `media_counts`, `media_object_keys`, `upload_session_ids`,
   `manifest_checksum`: Duplicated from the job claim so replay workers and ops
   can recover the exact media shape without joining through logs.
-- `payload_checksum` (TEXT): SHA-256 checksum of the sanitized replay payload,
-  used to detect request-intent drift separately from the media manifest.
+- `payload_checksum` (TEXT): SHA-256 checksum of the exact sanitized replay
+  payload after server-side upload-session resolution, used to detect
+  request-intent drift separately from the media manifest.
 - `resumable` (BOOLEAN): `true` when the intent contains enough staged/cloud
   references for server-side replay. Inline foreground base64 media is redacted,
   so those rows remain client-retry-only until the client stages media first.
@@ -1103,6 +1113,50 @@ returns the sanitized request payload to the scheduled replay dispatcher. The
 follow-up migration `20260707143157_cap_scan_ingestion_replay_attempts.sql`
 keeps the same RPC signature but excludes over-budget intents from new claims
 and marks them terminal at `server_replay_limit_reached`.
+
+### Identification dictionary hydration RPC
+
+Migration `20260715153946_reduce_identification_latency_round_trips.sql` also
+adds `public.hydrate_identification_dictionary(...)`. One service-role call
+returns a JSON object containing:
+
+- `primary`: the cached primary `species_dictionary` row, or `null`.
+- `candidate_common_names`: a scientific-name-to-English-common-name object for
+  cached candidate rows.
+
+Blank primary names and empty candidate arrays are valid. Like the ingestion
+setup RPC, execute is revoked from `PUBLIC`, `anon`, and `authenticated` and
+granted only to `service_role`. Cache-miss external enrichment is not performed
+inside this SQL function.
+
+### `scan_deferred_context_updates`
+
+Owner-scoped staging for WeatherKit/geocoding data that arrives after inference
+has started but before `public.scans` is inserted. Added in migration
+`20260715153946_reduce_identification_latency_round_trips.sql`.
+
+- `user_id` (UUID) and `scan_id` (UUID): Composite primary key. `user_id`
+  intentionally has no foreign key to `public.users`, because a first anonymous
+  scan can be claimed before background ghost-user creation completes.
+- `context` (JSONB): JSON object populated by the Edge endpoint with normalized
+  deferred fields accepted by `/update-scan-context`: `gps_elevation`,
+  `weather_temperature_f`, `weather_condition`, and `semantic_location`.
+- `created_at` / `updated_at` (TIMESTAMPTZ): Initial and most recent staged
+  update. `idx_scan_deferred_context_updates_created` supports bounded stale
+  row inspection or cleanup.
+
+RLS is enabled with no client policy, and direct table privileges are revoked
+from `PUBLIC`, `anon`, and `authenticated`. `service_role` receives only the
+table access required by the Edge RPC.
+
+`public.apply_or_stage_scan_context(p_scan_id, p_user_id, p_context)` updates the
+matching owner scan when it already exists. Otherwise it requires a matching
+owner `scan_ingestion_jobs` row and upserts the staged context. The service-role-
+only function returns `true` for an immediate scan update and `false` for a
+staged update. A `BEFORE INSERT` trigger on `public.scans` merges any staged
+context into the new owner row and deletes the staging record in the same
+transaction. Late context never initiates AI inference or changes ingestion job
+ownership.
 
 ### `user_blocks`
 

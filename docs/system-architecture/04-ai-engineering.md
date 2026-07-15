@@ -573,12 +573,11 @@ or audio attached:
   `services/supabase/functions/insight-chat` keep the repeated scan/species
   evidence before the variable conversation history so active Pro follow-up
   sessions can benefit from the same implicit-cache behavior.
-- **Token Budget (`maxOutputTokens: 2000`)**: All production Edge bindings
-  enforce `maxOutputTokens: 2000` for the vision call. The 2000 token ceiling
-  accommodates the flat structured JSON output while preventing runaway
-  generation from exhausting Edge execution time limits. Raised from 1000 in the
-  `@google/genai@1.0.0` migration after production data showed complex
-  biological responses regularly approaching the old ceiling.
+- **Primary multimodal token budget (`maxOutputTokens: 8192`)**:
+  `/identify-multimodal` keeps the existing 8,192-token ceiling for both tiers
+  so the complete structured identification schema is not truncated. Other
+  Gemini routes retain their own route-specific limits; the latency work does
+  not normalize or lower any output budget.
 - **Token Telemetry Tracking**: To measure AI inference costs accurately, Edge
   functions intercept Gemini `UsageMetadata`. The immediate identification path
   records the primary vision call and any synchronous group-tag work that
@@ -916,19 +915,30 @@ insight sheet display.
 
 ### iOS Critical Path
 
-- **Connection + auth pre-warm** (`CaptureWorkspaceViewModel.init`): A
-  background task calls `SupabaseManager.shared.getValidAuthHeaders()` the
-  moment `CaptureWorkspaceViewModel` is initialised — before the user composes a
-  shot. This opens the persistent HTTPS connection to Supabase and refreshes the
-  JWT if near expiry, eliminating TCP/TLS handshake latency (~200–400ms) and
-  token refresh latency from the scan submission path.
-- **Redundant `MainActor.run` removal** (`InferenceEngine.swift`):
-  Post-inference state commits (gamification, awards, image paths,
-  `speciesData`, push notification check) previously had three separate
-  `await MainActor.run` suspension points. Since `inferenceTask` is created on
-  `@MainActor` and returns there after each off-actor `await`, those closures
-  already execute on main — the explicit hops were no-ops that introduced
-  unnecessary task suspension points. All post-inference work is now inlined.
+- **Pinned-session connection + auth pre-warm**
+  (`CaptureWorkspaceViewModel.init`): a background task refreshes auth and sends
+  an `OPTIONS` request to `/identify-multimodal` through
+  `MerianNetworkClient`'s actual TLS-pinned `URLSession`. This warms the same
+  connection pool used by inference instead of warming only the Supabase SDK's
+  separate auth session.
+- **Bounded environmental-context grace** (`Analysis.swift`): durable queue
+  acceptance remains mandatory. For eligible live-camera still scans,
+  WeatherKit and reverse geocoding receive at
+  most 150 ms after acceptance. On timeout, inference starts with shutter-time
+  coordinates/date/time/distance plus cached telemetry. Late weather or location
+  is merged locally and through `/update-scan-context`; it never causes a second
+  Gemini call. Gallery, audio-bearing, and video submissions keep their prior
+  full-context behavior in this pass.
+- **Live/background upload handoff**: the eligible active live-camera still scan is durably queued but
+  excluded from background upload until the inline request body finishes
+  sending. Upload progress releases the queue immediately; a two-second
+  fail-safe, transport failure, connectivity loss, app backgrounding, or relaunch
+  keeps recovery durable without creating uplink contention.
+- **First-result commit before secondary work** (`InferenceEngine.swift`): after
+  response parsing and local persistence, saved media and `speciesData` are
+  committed immediately. Award calculation and Field Trips run asynchronously;
+  Field Trips waits for the existing server-ingestion status to report the scan
+  before invoking tools that require remote persistence.
 - **base64 encoding priority** (`InferenceProcessingActor`): Multi-image base64
   encoding uses `withTaskGroup` at `.userInitiated` priority so the CPU-bound
   work is not deprioritized behind background system tasks on a loaded device.
@@ -960,6 +970,22 @@ insight sheet display.
 
 ### Edge Function Critical Path
 
+- **Local JWKS claims verification**: `/identify-multimodal` verifies the ES256
+  JWT through `auth.getClaims(token)` and validates signature-backed claims,
+  issuer, audience, expiration/not-before, role, and `sub`. Anonymous and
+  authenticated users remain supported; service-role JWTs are rejected on the
+  public inference path. The cached JWKS path avoids an Auth-server request per
+  scan.
+- **Atomic ingestion setup RPC**: upload-session lookup, ingestion-job claim,
+  sanitized replay-intent recording, and the `ai_inference_started` transition
+  execute through one service-role-only SQL RPC. A compatibility fallback keeps
+  rolling deployment safe until the migration reaches every environment.
+- **At most one dictionary hydration RPC**: after Gemini returns, eligible
+  biological results fetch cached primary-species data and candidate common
+  names together. External Wikipedia/GBIF
+  cache misses, analytics, and optional image-scan ingestion work run under
+  `EdgeRuntime.waitUntil` and cannot delay the HTTP response. Video durability
+  semantics remain unchanged.
 - **Lightweight critical-path tier SELECT**: A single
   `SELECT subscription_tier, created_at, subscription_expires_at` runs before
   the Gemini call when the warm-isolate cache misses. It determines the
@@ -985,27 +1011,53 @@ insight sheet display.
 
 ### Benchmark Timing
 
-`[⏱ BENCH]` timing markers are emitted at each stage:
+Timing starts when Analyze is tapped, before environmental context and durable
+queue persistence. `[⏱ BENCH]` markers and response headers provide both client
+and server boundaries:
 
 **iOS (`MerianLog.general.debug`)** — visible in Xcode console (filter:
 `⏱ BENCH`) and Console.app:
 
 ```
-[⏱ BENCH] Pre-flight (encode+auth): 0.052s
-[⏱ BENCH] Post-flight (parse+save+state): 0.087s
-[⏱ BENCH] Total pipeline: 4.123s
+[⏱ BENCH] tap→durable queue: 0.041s
+[⏱ BENCH] context grace: 0.150s timed_out=true
+[⏱ BENCH] URLSession request_upload=0.082s ttfb_after_upload=4.101s response_transfer=0.022s
+[⏱ BENCH] HTTP identify-multimodal auth=0.006s transfer+server=4.205s bytes=183424
+[⏱ BENCH] Response parsing: 0.009s bytes=7824
+[⏱ BENCH] Result persistence: 0.061s
+[⏱ BENCH] response→first-result state: 0.082s
+[⏱ BENCH] tap→first rendered frame: 4.478s
 ```
 
 **Edge Function (`console.log`)** — visible in Supabase Dashboard → Edge
-Functions → identify → Logs:
+Functions → identify-multimodal → Logs:
 
 ```
-[⏱ BENCH] payload_resolved: 12ms
-[⏱ BENCH] pre_gemini: 14ms
-[⏱ BENCH] gemini_done: 4203ms total, 4189ms inference
-[⏱ BENCH] total_to_response: 4218ms
+Server-Timing: auth;dur=3.1, body_read;dur=11.8, tier;dur=0.4, pre_gemini_db;dur=7.2, gemini;dur=4189.0, dictionary;dur=5.6, post_gemini;dur=8.1, edge_total;dur=4223.4
+{"event":"multimodal/latency","tier":"free","model":"gemini-2.5-flash","image_count":1,"payload_bytes":183424,"edge_region":"...","constrained_network":false,"auth_ms":3,"gemini_latency_ms":4189,"edge_total_ms":4223}
 ```
 
-Tier resolution now emits no separate bench log — on a cache hit it is
-effectively free; on a cache miss the SELECT completes before `pre_gemini` fires
-and its latency is absorbed into the `payload_resolved → pre_gemini` gap.
+`gemini_latency_ms` stops immediately when `generateContent` returns; dictionary,
+enrichment, ingestion, and response assembly are not included. Diagnostic
+headers are privacy-safe and do not contain scan, user, species, location, or
+media identifiers. The production gates are non-Gemini p50 ≤300 ms, non-Gemini
+p95 ≤1 second, and response-to-first-render p95 ≤300 ms. Region selection remains
+automatic until an A/B test demonstrates at least a 150 ms p95 improvement with
+no failure-rate increase.
+
+This work deliberately does not change inference economics or semantics. Free
+remains `gemini-2.5-flash`, Pro remains `gemini-2.5-pro`, and thinking budgets,
+schema, image resolutions, output-token limits, prompts, and one primary
+identification Gemini call per scan remain fixed. If measured end-to-end p95 remains high while the `gemini`
+timing dominates, that model duration is the documented latency floor.
+
+### Production Rollout Gate
+
+Deploy timing instrumentation first, then the client critical-path changes,
+then the Edge/RPC migration. Edge changes advance through 10%, 50%, and 100%
+only while non-Gemini p95 is ≤1 second, response-to-first-render p95 is ≤300 ms,
+failure rate rises by less than 0.5 percentage points, identification-quality
+metrics remain neutral, and missing remote scans/stuck ingestion jobs do not
+increase. Automatic nearest-user Edge execution remains the baseline; a forced
+database-region deployment requires an A/B p95 improvement of at least 150 ms
+without higher failures.

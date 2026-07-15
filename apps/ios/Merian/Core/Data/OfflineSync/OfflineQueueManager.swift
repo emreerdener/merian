@@ -90,6 +90,16 @@ import SwiftData
     /// reconciliation must still treat the scan as active.
     @ObservationIgnored var uploadCompletionScanIds: Set<String> = []
 
+    /// Live scans that are durably queued but intentionally held until the
+    /// foreground inference request has finished sending its body. This avoids
+    /// two copies of the same media competing for the device uplink.
+    @ObservationIgnored var deferredLiveUploadScanIds: Set<String> = []
+
+    /// Eligible live-camera scans whose foreground identification request is
+    /// active. Their recovery media may upload after the inline body is sent,
+    /// but background inference must wait so Gemini is not called twice.
+    @ObservationIgnored var foregroundInferenceScanIds: Set<String> = []
+
     /// Delayed status probes for inference tasks. The edge function can persist the
     /// scan but lose the background response path; these probes recover from that gap.
     @ObservationIgnored var inferenceStatusProbeTasks: [String: Task<Void, Never>] = [:]
@@ -210,6 +220,8 @@ import SwiftData
                         await OfflineJobScheduler.shared.drainRunnableJobs(using: self)
                     }
                 } else {
+                    self?.releaseAllDeferredLiveUploads(reason: "connectivity_lost")
+                    self?.releaseAllForegroundInferenceClaims(reason: "connectivity_lost")
                     // Circuit-break active uploads immediately on connectivity loss.
                     self?.reconnectDebounceTask?.cancel()
                     self?.reconnectDebounceTask = nil

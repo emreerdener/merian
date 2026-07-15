@@ -57,6 +57,7 @@ private struct GBIFMedia: Decodable {
     /// same capture. Used by the background offline path to detect when it completes the same
     /// scan and should hydrate the engine instead of leaving `isProcessing = true` forever.
     @ObservationIgnored var activeScanId: String?
+    @ObservationIgnored private var pendingFirstRenderMetric: (scanId: String, startedAt: CFAbsoluteTime)?
     var isProcessing: Bool = false
     var scanningPhaseText: String = "Analyzing subject..."
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
@@ -275,6 +276,7 @@ private struct GBIFMedia: Decodable {
 
         // Reset scan identity and processing flags.
         self.activeScanId = nil
+        self.pendingFirstRenderMetric = nil
         self.isProcessing = true
         self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
@@ -398,6 +400,27 @@ private struct GBIFMedia: Decodable {
         guard let scanId else { return }
 
         do {
+            var isPersisted = false
+            let retryDelaysMilliseconds = [0, 250, 500, 1_000, 2_000, 4_000]
+            for delay in retryDelaysMilliseconds {
+                if delay > 0 {
+                    try await Task.sleep(for: .milliseconds(delay))
+                }
+                try Task.checkCancellation()
+                let status = try await MerianNetworkClient.shared.checkScanStatusDetails(scanId: scanId)
+                if status.isFound {
+                    isPersisted = true
+                    break
+                }
+                if status.jobStatus == .failed { return }
+            }
+            guard isPersisted else {
+                MerianLog.general.debug(
+                    "Field Trip progress deferred because remote scan persistence is not complete."
+                )
+                return
+            }
+
             let result = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: scanId)
             if !result.fieldTripUpdates.isEmpty {
                 AppEventPublisher.shared.send(.fieldTripProgressUpdated(result.fieldTripUpdates))
@@ -615,7 +638,8 @@ private struct GBIFMedia: Decodable {
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
         modelContext: ModelContext? = nil,
-        targetEradicationScanId: String? = nil
+        targetEradicationScanId: String? = nil,
+        userPerceivedStart: CFAbsoluteTime? = nil
     ) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
@@ -671,6 +695,12 @@ private struct GBIFMedia: Decodable {
         // Capture before the Task so the defer can compare against the ID this Task owns.
         let ownedScanId = scanId
         let resolvedClientScanId = scanId ?? UUID().uuidString.lowercased()
+        if let userPerceivedStart {
+            self.pendingFirstRenderMetric = (
+                scanId: resolvedClientScanId,
+                startedAt: userPerceivedStart
+            )
+        }
 
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
@@ -749,6 +779,15 @@ private struct GBIFMedia: Decodable {
                 } else {
                     videoR2ObjectKeys = []
                 }
+                let uploadFailSafe = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                        scanId: resolvedClientScanId,
+                        reason: "inline_upload_two_second_failsafe"
+                    )
+                }
+                defer { uploadFailSafe.cancel() }
                 let resultData = try await client.identifyMultiModal(
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
@@ -760,8 +799,17 @@ private struct GBIFMedia: Decodable {
                     audioMediaItems: validAudioMediaItems,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
-                    clientScanId: resolvedClientScanId
+                    clientScanId: resolvedClientScanId,
+                    onRequestBodySent: {
+                        Task { @MainActor in
+                            OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                                scanId: resolvedClientScanId,
+                                reason: "inline_request_body_sent"
+                            )
+                        }
+                    }
                 )
+                let responseReceivedAt = CFAbsoluteTimeGetCurrent()
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
                 // --- Step 3: Response Parsing & Local Persistence ---
@@ -786,8 +834,6 @@ private struct GBIFMedia: Decodable {
                 
                 if var mappedData = finalMappedData {
                     applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
-                    await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
-                    await applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
                     transferReplacementMetadataIfNeeded(
                         from: targetEradicationScanId,
                         to: mappedData.scanId,
@@ -809,7 +855,10 @@ private struct GBIFMedia: Decodable {
                             persistedImagePaths: savedImagePaths
                         )
                     )
-
+                    let stateCommittedAt = CFAbsoluteTimeGetCurrent()
+                    MerianLog.general.debug(
+                        "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
+                    )
                     completeQueuedLiveInferenceIfNeeded(
                         scanId: scanId,
                         mediaPathsToKeep: (mappedData.audioFilePaths ?? []) + (mappedData.videoFilePaths ?? [])
@@ -826,10 +875,24 @@ private struct GBIFMedia: Decodable {
                             modelContext: modelContext,
                             referencePolicy: .showLoadingWhenReferenceMissing
                         )
+                        Task { [weak self, mappedData] in
+                            guard let self else { return }
+                            await self.refreshAchievementNotificationsIfPossible(modelContext: modelContext)
+                            await self.applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
+                        }
                     }
                 }
             } catch {
                 // --- Step 6: Failure Handling & Error State ---
+                OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                    scanId: resolvedClientScanId,
+                    reason: "live_request_failed_or_cancelled"
+                )
+                OfflineQueueManager.shared.endForegroundInference(
+                    scanId: resolvedClientScanId,
+                    resumeBackground: true,
+                    reason: "live_request_failed_or_cancelled"
+                )
                 
                 // Cancellation: the task was cancelled (e.g., user started a new scan via
                 // prepareForNewScan). The scan is already durably in the offline queue, so
@@ -883,7 +946,8 @@ private struct GBIFMedia: Decodable {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         telemetry: CaptureTelemetry,
         modelContext: ModelContext?,
-        targetEradicationScanId: String? = nil
+        targetEradicationScanId: String? = nil,
+        userPerceivedStart: CFAbsoluteTime? = nil
     ) {
         let filteredAudioFilePaths = (audioFilePaths ?? []).filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
@@ -920,10 +984,18 @@ private struct GBIFMedia: Decodable {
         self.activeMedia = ActiveScanMedia(items: mediaItems(from: resolvedMediaTimeline, liveImageDatas: nil, persistedImagePaths: nil))
 
         let ownedScanId = scanId
+        let resolvedClientScanId = scanId ?? UUID().uuidString.lowercased()
         let shouldFlushQueuedScan = !filteredAudioFilePaths.isEmpty
+        if let userPerceivedStart {
+            self.pendingFirstRenderMetric = (
+                scanId: resolvedClientScanId,
+                startedAt: userPerceivedStart
+            )
+        }
 
         self.inferenceTask = Task { [weak self] in
             guard let self else { return }
+            let pipelineStart = CFAbsoluteTimeGetCurrent()
 
             defer {
                 if self.activeScanId == ownedScanId {
@@ -947,6 +1019,8 @@ private struct GBIFMedia: Decodable {
                     telemetry: telemetry,
                     clientScanId: scanId
                 )
+                let responseReceivedAt = CFAbsoluteTimeGetCurrent()
+                let postFlightStart = CFAbsoluteTimeGetCurrent()
 
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
@@ -965,8 +1039,6 @@ private struct GBIFMedia: Decodable {
 
                 if var mappedData = finalMappedData {
                     applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
-                    await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
-                    await applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
                     transferReplacementMetadataIfNeeded(
                         from: targetEradicationScanId,
                         to: mappedData.scanId,
@@ -984,6 +1056,23 @@ private struct GBIFMedia: Decodable {
                         for: ownedScanId,
                         speciesData: mappedData
                     )
+                    let stateCommittedAt = CFAbsoluteTimeGetCurrent()
+                    MerianLog.general.debug(
+                        "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
+                    )
+                    MerianLog.general.debug(
+                        "[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", stateCommittedAt - postFlightStart), privacy: .public)s"
+                    )
+                    MerianLog.general.debug(
+                        "[⏱ BENCH] Total pipeline: \(String(format: "%.3f", stateCommittedAt - pipelineStart), privacy: .public)s"
+                    )
+                    if didCommitResult {
+                        Task { [weak self, mappedData] in
+                            guard let self else { return }
+                            await self.refreshAchievementNotificationsIfPossible(modelContext: modelContext)
+                            await self.applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
+                        }
+                    }
 
                     if shouldFlushQueuedScan {
                         completeQueuedLiveInferenceIfNeeded(
@@ -1839,6 +1928,7 @@ private struct GBIFMedia: Decodable {
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.speciesData = nil
+        self.pendingFirstRenderMetric = nil
         self.activeMedia = ActiveScanMedia()
         activeLatitude = nil
         activeLongitude = nil
@@ -1846,6 +1936,21 @@ private struct GBIFMedia: Decodable {
         activeLocationName = nil
         activeWeatherCondition = nil
         activeTemperatureF = nil
+    }
+
+    /// Called by the Insight sheet's one-shot UIKit draw probe. Unlike a task
+    /// yield, `draw(_:)` only fires when the result view participates in a real
+    /// display pass, so this closes the user-perceived latency interval at the
+    /// first rendered frame rather than at state assignment.
+    func recordFirstRenderedFrame(scanId: String) {
+        guard let metric = pendingFirstRenderMetric,
+              metric.scanId.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
+        pendingFirstRenderMetric = nil
+        MerianLog.general.debug(
+            "[⏱ BENCH] Analyze tap to first rendered frame: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - metric.startedAt), privacy: .public)s"
+        )
     }
 
 #if DEBUG

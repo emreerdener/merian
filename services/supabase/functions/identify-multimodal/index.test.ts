@@ -929,3 +929,77 @@ Deno.test("sex falls back to cannot_determine for invalid enum values", () => {
   assertEquals(sanitizeSex("worker"), "cannot_determine");
   assertEquals(sanitizeSex(undefined), "cannot_determine");
 });
+
+Deno.test("latency work preserves the scoped Gemini model and generation configuration", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  assertEquals(
+    source.match(/_genAI\.models\.generateContent\(/g)?.length,
+    1,
+  );
+  for (
+    const fragment of [
+      'userTier === "pro"\n    ? "gemini-2.5-pro"\n    : "gemini-2.5-flash"',
+      "temperature: 0.1",
+      "seed: 42",
+      "maxOutputTokens: 8192",
+      "? { thinkingBudget: 5000 }\n          : undefined",
+      'responseMimeType: "application/json"',
+      "responseSchema: getMerianResponseSchema(diagnosticTrigger)",
+    ]
+  ) {
+    assert(source.includes(fragment), `missing Gemini invariant: ${fragment}`);
+  }
+});
+
+Deno.test("cache-miss external enrichment begins inside background ingestion", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const backgroundStart = source.indexOf(
+    "const runBackgroundIngestion = async () =>",
+  );
+  const primaryExternalFetch = source.indexOf(
+    "externalData = await fetchExternalEnrichment",
+  );
+  assert(backgroundStart >= 0);
+  assert(primaryExternalFetch > backgroundStart);
+});
+
+Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const latencyStart = source.indexOf('event: "multimodal/latency"');
+  const latencyEnd = source.indexOf("}));", latencyStart);
+  assert(latencyStart >= 0 && latencyEnd > latencyStart);
+  const latencyBlock = source.slice(latencyStart, latencyEnd);
+  assert(!latencyBlock.includes("scan_id"));
+  for (
+    const fragment of [
+      "tier: userTier",
+      "model: targetModel",
+      "image_count: mediaTelemetry.imageCount",
+      "payload_bytes: payloadBytes",
+      "edge_region: edgeRegion",
+      "constrained_network: constrainedNetwork",
+      "auth_ms: Math.round(authDurationMs)",
+    ]
+  ) {
+    assert(latencyBlock.includes(fragment), `missing latency tag: ${fragment}`);
+  }
+
+  const generationCall = source.indexOf("await _genAI.models.generateContent");
+  const geminiStop = source.indexOf(
+    "geminiLatencyMs = Date.now() - geminiStart;",
+    generationCall,
+  );
+  const responseExtraction = source.indexOf(
+    "finishReason = result.candidates",
+    generationCall,
+  );
+  assert(generationCall >= 0);
+  assert(geminiStop > generationCall);
+  assert(geminiStop < responseExtraction);
+});

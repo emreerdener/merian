@@ -225,6 +225,17 @@ extension OfflineQueueManager {
         let inferenceActor = resolvedInferenceDbActor(container: extracted.container)
         await inferenceActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
 
+        // The foreground request still owns identification for an eligible
+        // live-camera still. Keep the durable row staged, but do not dispatch a
+        // second Gemini call. Foreground failure/backgrounding releases this
+        // claim and replay picks the staged row up immediately.
+        if foregroundInferenceScanIds.contains(scanId) {
+            MerianLog.data.debug(
+                "processUploadCompletion: staged recovery media while foreground inference owns scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
+
         // Atomically claim the scan for inference. If replayInferenceForUploadedScans already
         // claimed it between markScanAsStaged and here (same actor, so serialized), skip —
         // the replay path already dispatched the background download task.
@@ -389,6 +400,23 @@ extension OfflineQueueManager {
         let existingInferenceTasks = await backgroundSession.allTasks
         if existingInferenceTasks.contains(where: { isLiveInferenceTask($0, scanId: scanId) }) {
             MerianLog.data.debug("dispatchInferenceDownloadTask: inference task already active for \(scanId, privacy: .private); skipping duplicate dispatch")
+            return
+        }
+
+        // The app may have backgrounded or relaunched after the foreground body
+        // reached Edge but before its response returned. Consult the durable
+        // ingestion ledger before starting recovery inference so the two paths
+        // cannot normally issue a second primary Gemini call. If the status
+        // endpoint itself is unavailable, preserve zero-data-loss behavior by
+        // allowing the queued recovery request to proceed.
+        let serverRecovery = await recoverCompletedInferenceFromServer(
+            scanId: scanId,
+            reason: "pre-background-inference dispatch"
+        )
+        guard serverRecovery == .unresolved else {
+            MerianLog.data.debug(
+                "dispatchInferenceDownloadTask: server owns or completed scanId=\(scanId, privacy: .public); skipping duplicate inference"
+            )
             return
         }
 
@@ -771,7 +799,7 @@ extension OfflineQueueManager {
 
         func boundedDelay(from isoString: String?, fallback: TimeInterval) -> TimeInterval {
             guard let isoString,
-                  let date = ISO8601DateFormatter().date(from: isoString) else {
+                  let date = Self.parseRetryAfterDate(isoString) else {
                 return fallback
             }
             return min(max(date.timeIntervalSince(now), 1), 300)

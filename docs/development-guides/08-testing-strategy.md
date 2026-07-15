@@ -594,6 +594,41 @@ and replay-worker migrations.
 Run the migration contract test with `--allow-read=services/supabase/migrations`
 because it reads SQL files directly.
 
+Identification latency has focused contract coverage at each boundary:
+
+- `identify-multimodal/index.test.ts` source-locks the Free/Pro model mapping,
+  generation configuration, one `generateContent` call, exact Gemini timer stop,
+  privacy-safe latency event, and background placement of cache-miss enrichment.
+- `_tests/auth.test.ts` covers valid anonymous claims plus expired,
+  malformed-issuer/audience/subject, and public service-role rejection. Internal
+  replay continues to use its separate service-role/replay-user tests; never
+  weaken that path to make public claims tests pass.
+- `_tests/migrationMediaContract.test.ts` verifies that
+  `begin_scan_ingestion`, `hydrate_identification_dictionary`, and
+  `apply_or_stage_scan_context` are service-role-only and that deferred context
+  is RLS-protected and merged at scan insert. `_shared/identify/latencyDb_test.ts`
+  verifies that the atomic setup client consumes the RPC's server-canonicalized
+  upload-session ids and checksums.
+- `MerianNetworkClientTests` verifies pinned-session `OPTIONS` prewarming,
+  idempotent inline request-body completion, and owner-scoped
+  `/update-scan-context` construction.
+
+Before production percentage increases, run a device/simulator lifecycle matrix
+for slow WeatherKit, reverse geocoding, awards, Field Trips, Wikipedia, and GBIF;
+none may delay first render. Exercise queue durability rejection, inline request
+failure, connectivity loss, app background during upload, termination/relaunch,
+duplicate live/background completion, and the two-second upload fail-safe.
+Verify specifically that releasing the body-upload hold does not release
+foreground inference ownership: staged recovery media must wait until live
+success, failure, cancellation, or app backgrounding resolves that ownership.
+When recovery takes ownership, verify its pre-dispatch status check polls a
+processing/finalizing server job and accepts fractional PostgreSQL
+`retry_after` timestamps.
+Inspect `Server-Timing` and the one-shot first-draw marker rather than treating a
+successful build or state assignment as latency proof. Run one Free and one Pro
+scan and verify the expected model/configuration and exactly one primary
+identification model call.
+
 Explore audio poster coverage is split by contract seam:
 `_shared/audioSpectrogram_test.ts` validates PCM WAV decoding, iOS-compatible
 FFT raster dimensions, PNG decompression, deterministic R2 keys, cache reuse,

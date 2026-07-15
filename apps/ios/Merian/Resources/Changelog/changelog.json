@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-15-faster-image-analysis",
+      "date": "2026-07-15",
+      "title": "Faster image analysis",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Live-camera still-image analysis now starts sooner, avoids competing duplicate uploads and analysis requests, and shows the saved identification before optional follow-up work finishes. Analysis quality and plan-specific AI models are unchanged."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-15-synchronized-scan-results",
       "date": "2026-07-15",
       "title": "Synchronized scan results",

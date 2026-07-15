@@ -10,18 +10,22 @@ Cloudflare R2 and Gemini models.
 ```mermaid
 flowchart TD
     A([📱 Capture]) -->|Builds ordered media timeline + telemetry| B[OfflineQueueManager]
-    B -->|Persists scan + job metadata| C[(SwiftData Native DB)]
-    C -->|NWPathMonitor wakes OfflineJobScheduler| D{Network Status 200 OK}
+    B -->|Mandatory durable acceptance| C[(SwiftData Native DB)]
+    C -->|Online live scan; background upload deferred| D[Inline pinned URLSession request]
+    D -->|/identify-multimodal| G([⚡️ Supabase Edge])
+    D -->|Body sent; release durable recovery| Q[OfflineJobScheduler]
+    C -->|Offline, failure, background, or relaunch| Q
 
-    D -->|/generate-upload-urls| E[Cloudflare R2 Staging Bucket]
+    Q -->|/generate-upload-urls| E[Cloudflare R2 Staging Bucket]
     E -->|URLSession Background PUT (image/audio/video media)| F((Cloudflare R2))
-    F -->|Background replay or live request| G([⚡️ Supabase Edge /identify-multimodal])
+    F -->|Background replay| G
 
-    G -->|Resolves mixed media & validates| H[🤖 Gemini 2.5 Flash / Pro]
+    G -->|Verified claims + atomic ingestion setup| H[🤖 Gemini 2.5 Flash / Pro]
     H -->|Returns structured result JSON| G
 
     G -->|Upserts biological dictionaries| I[(PostgreSQL `species_dictionary`)]
     G -->|Persists UUID scan constraints| J[(PostgreSQL `scans`)]
+    K[Late WeatherKit / geocoding] -->|/update-scan-context; no new AI call| G
 
     C -->|Writes lightweight extension snapshots| N[(App Group Cache)]
     L([Messages Extension]) -->|Reads scan cache| N
@@ -82,7 +86,7 @@ flowchart TD
   conditions) by mapping `PHAsset` EXIF data for library imports prior to
   inference.
 
-### 2. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
+### 3. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
 
 - Employs a zero-data-loss queue structure tracking users without cellular data
   using `SwiftData` inside `MerianApp`. The durable unit is a canonical ordered
@@ -92,6 +96,16 @@ flowchart TD
   live analysis. If the queue cannot durably write the scan, the UI reports the
   failure and discards orphaned source media instead of showing a false queued
   or analyzing state.
+- Eligible online live-camera still submissions create the durable row with
+  immediate background sync suppressed for that process-local `scan_id`.
+  Inference waits no more than
+  150 ms for shutter-prefetched WeatherKit/geocoding, then begins with available
+  coordinates and cached telemetry. The inline request's body-upload callback
+  releases the queue row; a two-second fail-safe, request failure, connectivity
+  loss, app backgrounding, or relaunch also makes it eligible. Late context is
+  merged locally and through `/update-scan-context` without another model call.
+  Gallery, audio-bearing, and video submissions remain instrumented but retain
+  their prior context wait and upload scheduling behavior.
 - `NWPathMonitor` observes off-grid boundaries, debouncing signals for 3 seconds
   when connectivity returns. `OfflineJobScheduler` then drains runnable scan
   ingestion, cloud deletion, and collection-sync jobs according to persisted
@@ -103,7 +117,7 @@ flowchart TD
   `OfflineQueueEvent`) makes retry state durable across app kills and provides a
   redacted diagnostics export without raw media paths or private media bytes.
 
-### 3. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
+### 4. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
 
 - A Cloud-native workflow decoupling Apple users from raw API logic.
 - The `identify-multimodal` Deno Edge node accepts pre-signed multi-capture iOS
@@ -115,6 +129,16 @@ flowchart TD
   Legacy scan-producing routes record the same ingestion job/intent ledger
   before returning success so staged image/audio and text-only compatibility
   rows can recover through the multimodal replay worker.
+- The latency-sensitive route verifies ES256 JWT claims through cached JWKS,
+  combines pre-inference ingestion setup in `begin_scan_ingestion`, and combines
+  post-inference cache hydration in `hydrate_identification_dictionary`.
+  Cache-miss external enrichment and analytics run as background tasks for
+  non-video scans. Privacy-safe `Server-Timing` separates auth, request body,
+  database, Gemini, dictionary, and response work; the Gemini timer stops as
+  soon as the single `generateContent` call returns.
+- Free remains `gemini-2.5-flash` and Pro remains `gemini-2.5-pro`. Thinking,
+  prompt/schema, media resolution, output limits, and one-call semantics are not
+  latency tuning levers in this work.
 - `Task.checkCancellation()` boundaries are injected inside `InferenceEngine`
   before transferring `URLSession` data payloads to Cloudflare R2. If the iOS
   Watchdog or the user cancels a processing scan, execution aborts immediately
@@ -133,6 +157,8 @@ single-responsibility functions under `/services/supabase/functions/`.
 - **Identity & Analysis**
   - `/identify-multimodal`: The primary shipped inference orchestrator for live
     and replayed mixed-media captures.
+  - `/update-scan-context`: Applies or stages late owner-scoped elevation,
+    weather, and semantic location without rerunning inference.
   - `/identify`: Still-image compatibility entry point that reuses the same
     identify modules and writes the shared ingestion ledger before returning
     success.
@@ -203,14 +229,14 @@ single-responsibility functions under `/services/supabase/functions/`.
     transitions, stamping user tiers natively into Postgres bounds without
     client-side polling.
 
-### 4. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)
+### 5. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)
 
 - Tracks device-native state (`UserDefaults`), tying species identifications
   into `.riv` visual triggers inside interactive glassmorphic view modifiers
   (`Terrarium`).
 - Binds global haptics to success triggers and interactions.
 
-### 5. Private Analytics (`AppTelemetry`, `PostHog`)
+### 6. Private Analytics (`AppTelemetry`, `PostHog`)
 
 - PII-free app analytics flow through `AppTelemetry` into `PostHog`, preserving
   the existing client event names and marking iOS-emitted events with

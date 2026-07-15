@@ -492,6 +492,57 @@ private enum InferencePayloadBuilder {
 ///   openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 -showcerts </dev/null \
 ///     | awk 'n==1{cert=cert"\n"$0} /BEGIN CERT/{n++} /END CERT/{if(n==2)exit}' \
 ///     | openssl x509 -outform DER | openssl dgst -sha256 -binary | base64
+private final class MerianRequestUploadDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let expectedBodyBytes: Int64
+    private let onBodySent: @Sendable () -> Void
+    private let lock = NSLock()
+    private var didNotify = false
+
+    init(expectedBodyBytes: Int, onBodySent: @escaping @Sendable () -> Void) {
+        self.expectedBodyBytes = Int64(expectedBodyBytes)
+        self.onBodySent = onBodySent
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesSent >= expectedBodyBytes else { return }
+        notifyBodySentIfNeeded()
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didFinishCollecting metrics: URLSessionTaskMetrics
+    ) {
+        guard let transaction = metrics.transactionMetrics.last else { return }
+        let requestUpload = transaction.requestStartDate.flatMap { start in
+            transaction.requestEndDate.map { $0.timeIntervalSince(start) }
+        }
+        let timeToFirstByte = transaction.requestEndDate.flatMap { requestEnd in
+            transaction.responseStartDate.map { $0.timeIntervalSince(requestEnd) }
+        }
+        let responseTransfer = transaction.responseStartDate.flatMap { responseStart in
+            transaction.responseEndDate.map { $0.timeIntervalSince(responseStart) }
+        }
+        MerianLog.network.debug(
+            "[⏱ BENCH] URLSession request_upload=\(String(format: "%.3f", requestUpload ?? 0), privacy: .public)s ttfb_after_upload=\(String(format: "%.3f", timeToFirstByte ?? 0), privacy: .public)s response_transfer=\(String(format: "%.3f", responseTransfer ?? 0), privacy: .public)s"
+        )
+    }
+
+    func notifyBodySentIfNeeded() {
+        lock.lock()
+        let shouldNotify = !didNotify
+        didNotify = true
+        lock.unlock()
+        if shouldNotify { onBodySent() }
+    }
+}
+
 private final class MerianTLSDelegate: NSObject, URLSessionDelegate {
     // Leaf cert (expires ~90 days — rotate per runbook above).
     // Intermediate CA (Sectigo RSA Domain Validation Secure Server CA) — stable across leaf rotations.
@@ -608,6 +659,26 @@ final class MerianNetworkClient {
         return url
     }
 
+    /// Opens the actual pinned inference connection pool used by live scans.
+    /// Authentication is prewarmed separately because Supabase Auth owns a
+    /// different URLSession.
+    func prewarmInferenceEndpoint() async {
+        do {
+            let url = try endpointURL("identify-multimodal")
+            var request = URLRequest(
+                url: url,
+                cachePolicy: .reloadIgnoringLocalCacheData,
+                timeoutInterval: 5
+            )
+            request.httpMethod = "OPTIONS"
+            _ = try await activeSession.data(for: request)
+        } catch {
+            MerianLog.network.debug(
+                "Inference endpoint prewarm skipped: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
     private func makeExploreDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -687,8 +758,10 @@ final class MerianNetworkClient {
         method: String,
         body: Data? = nil,
         timeoutInterval: TimeInterval = 30.0,
-        isRetry: Bool = false
+        isRetry: Bool = false,
+        onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> (Data, HTTPURLResponse) {
+        let requestStart = CFAbsoluteTimeGetCurrent()
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -713,20 +786,44 @@ final class MerianNetworkClient {
         }
         #endif
 
+        let constrainedNetwork = await MainActor.run {
+            OfflineQueueManager.shared.isCurrentNetworkConstrained
+        }
+        request.setValue(constrainedNetwork ? "true" : "false", forHTTPHeaderField: "X-Merian-Constrained-Network")
+        let authCompletedAt = CFAbsoluteTimeGetCurrent()
+
         let (data, response): (Data, URLResponse)
+        var requestUploadDelegate: MerianRequestUploadDelegate?
         do {
-            (data, response) = try await activeSession.data(for: request)
+            if let body, let onRequestBodySent {
+                let uploadDelegate = MerianRequestUploadDelegate(
+                    expectedBodyBytes: body.count,
+                    onBodySent: onRequestBodySent
+                )
+                requestUploadDelegate = uploadDelegate
+                (data, response) = try await activeSession.data(for: request, delegate: uploadDelegate)
+            } else {
+                (data, response) = try await activeSession.data(for: request)
+            }
         } catch let urlError as URLError {
+            // A transport failure means the inline request can no longer be the
+            // sole owner of the uplink. Release the durable queue immediately;
+            // the callback is idempotent and remains safe if upload progress
+            // already reported completion.
+            onRequestBodySent?()
             let transientCodes: Set<URLError.Code> = [
                 .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet
             ]
             if transientCodes.contains(urlError.code) && !isRetry {
                 MerianLog.network.debug("Transient network error \(urlError.code.rawValue, privacy: .public) — retrying in 2s.")
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
             }
             throw urlError
         }
+        // Some custom URLProtocol implementations do not emit upload progress.
+        // A received response proves the request body finished sending.
+        requestUploadDelegate?.notifyBodySentIfNeeded()
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MerianError.invalidResponse
@@ -739,7 +836,7 @@ final class MerianNetworkClient {
             if httpResponse.statusCode == 401 && !isRetry {
                 if Self.isMissingAuthSessionError(responseData: data, fallbackMessage: errString) {
                     if await SupabaseManager.shared.refreshActiveSessionForRetry() {
-                        return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+                        return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
                     }
 
                     let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
@@ -751,7 +848,7 @@ final class MerianNetworkClient {
                         MerianLog.network.debug("Missing anonymous auth session detected — regenerating ghost session.")
                         if await SupabaseManager.shared.resetGhostSessionForRetry() {
                             try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+                            return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
                         }
 
                         await SupabaseManager.shared.clearLocalSessionAfterAuthFailure()
@@ -777,7 +874,7 @@ final class MerianNetworkClient {
                     // Allow ~1.5s for the API gateway to recognize the new token signature.
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
 
-                    return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+                    return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
                 } else {
                     throw MerianError.invalidResponse
                 }
@@ -789,12 +886,21 @@ final class MerianNetworkClient {
             if httpResponse.statusCode >= 500 && !isRetry {
                 MerianLog.network.debug("Server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
             }
 
             throw MerianError.httpError(statusCode: httpResponse.statusCode, message: errString)
         }
 
+        let responseCompletedAt = CFAbsoluteTimeGetCurrent()
+        MerianLog.network.debug(
+            "[⏱ BENCH] HTTP \(url.lastPathComponent, privacy: .public) auth=\(String(format: "%.3f", authCompletedAt - requestStart), privacy: .public)s transfer+server=\(String(format: "%.3f", responseCompletedAt - authCompletedAt), privacy: .public)s bytes=\(body?.count ?? 0, privacy: .public)"
+        )
+        if let serverTiming = httpResponse.value(forHTTPHeaderField: "Server-Timing") {
+            MerianLog.network.debug(
+                "[⏱ BENCH] Server-Timing \(serverTiming, privacy: .public) region=\(httpResponse.value(forHTTPHeaderField: "X-Merian-Edge-Region") ?? "unknown", privacy: .public)"
+            )
+        }
         return (data, httpResponse)
     }
 
@@ -1079,7 +1185,8 @@ final class MerianNetworkClient {
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
-        clientScanId: String? = nil
+        clientScanId: String? = nil,
+        onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> Data {
         let request = try await buildMultiModalRequest(
             r2ObjectKeys: r2ObjectKeys,
@@ -1099,8 +1206,40 @@ final class MerianNetworkClient {
             throw MerianError.invalidURL
         }
 
-        let (data, _) = try await performAuthenticatedRequest(url: url, method: "POST", body: bodyData, timeoutInterval: 90.0)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: url,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: 90.0,
+            onRequestBodySent: onRequestBodySent
+        )
         return data
+    }
+
+    func updateDeferredScanContext(scanId: String, telemetry: CaptureTelemetry) async throws {
+        let functionUrl = try endpointURL("update-scan-context")
+        var payload: [String: Any] = ["scan_id": scanId]
+        if let gpsElevation = telemetry.gpsElevation {
+            payload["gps_elevation"] = gpsElevation
+        }
+        if let condition = telemetry.weatherCondition {
+            payload["weather_condition"] = condition
+        }
+        if let temperature = telemetry.weatherTemperatureF {
+            payload["weather_temperature_f"] = temperature
+        }
+        if let locationName = telemetry.locationName {
+            payload["semantic_location"] = locationName
+        }
+        guard payload.count > 1 else { return }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: 15
+        )
     }
 
     func fetchEnrichment(

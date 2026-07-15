@@ -173,7 +173,7 @@ Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation
 ### Post-Inference Image Buffer Cleanup (`InferenceEngine`)
 Prior to the enqueue-at-submission refactor, `InferenceEngine` retained `activeImageData`, `activeLiveCaptureDatas`, and `activeCompressedImageData` as `@MainActor` properties to support background-rescue re-queuing. For multi-shot captures, these arrays held several MB of compressed JPEG bytes with no cleanup path on the success branch.
 
-All three buffers have been removed entirely. Scan durability is now provided at submission time — `CaptureWorkspaceViewModel.submitActiveScan` calls `enqueueCapture` synchronously before any `async` boundary, writing images to disk and dispatching the background URLSession upload while the app is still in the foreground (see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`). `analyze()` receives images as `imageDatas` parameters, uses them for base64 encoding, and does not retain them as instance state — Swift ARC reclaims the memory after the call.
+All three buffers have been removed entirely. Scan durability is now provided at submission time — `CaptureWorkspaceViewModel.submitActiveScan` calls `enqueueCapture` synchronously before any `async` boundary and writes images to disk (see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`). An online live scan initially suppresses that row's background upload so it does not contend with the inline inference body; upload completion, a two-second fail-safe, request failure, connectivity loss, app backgrounding, or relaunch releases the durable row. `analyze()` receives images as `imageDatas` parameters, uses them for base64 encoding, and does not retain them as instance state — Swift ARC reclaims the memory after the call.
 
 `activeImageData: Data?` is the only raw image buffer retained in `InferenceEngine` during the inference window. It holds a single 2048 px display-quality WebP frame that seeds `activeMedia` with a live preview while inference is in progress. Once `InferenceProcessingActor.parseAndSave` completes, the persisted user timeline is rebuilt into `activeMedia` and the carousel transitions from the in-memory preview to path-backed `MediaItem.image` entries — at which point `activeImageData` is still held but no longer the primary display source. It is released when `prepareForNewScan()` or `cancelActiveRequest()` fires. This two-phase design eliminates the previous `activeDisplayDatas: [Data]` array that held all display images (potentially multiple MB for multi-image captures) simultaneously in RAM for the full inference session.
 
@@ -852,7 +852,9 @@ if !capturedHasWikipedia {
 }
 ```
 
-For any species that has been scanned at least once before (so `species_dictionary` is already populated), this eliminates a ~300–600 ms Wikipedia API call from the post-inference hot path.
+For any species whose dictionary row already contains Wikipedia data, this
+eliminates a ~300–600 ms client Wikipedia call from background result hydration.
+Cache misses remain outside the first-render path.
 
 ### Scoped Concurrent Enrichment (`InferenceEngine.fetchAndApplyEnrichment`)
 

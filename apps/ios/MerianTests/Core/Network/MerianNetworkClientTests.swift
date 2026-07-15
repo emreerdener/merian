@@ -65,6 +65,23 @@ class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+private final class SendableCallbackProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    func mark() {
+        lock.lock()
+        value = true
+        lock.unlock()
+    }
+
+    var wasMarked: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
 @Suite("Network Client Tests", .serialized)
 @MainActor
 struct MerianNetworkClientTests {
@@ -98,6 +115,100 @@ struct MerianNetworkClientTests {
             hasAuthenticatedOAuth: true,
             isGuestUser: false
         ))
+    }
+
+    @Test func testInferencePrewarmUsesPinnedClientSessionAndOptionsRoute() async {
+        let probe = SendableCallbackProbe()
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            #expect(request.httpMethod == "OPTIONS")
+            probe.mark()
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("ok".utf8))
+        }
+
+        await MerianNetworkClient.shared.prewarmInferenceEndpoint()
+        #expect(probe.wasMarked)
+    }
+
+    @Test func testIdentifyMultiModalSignalsWhenInlineRequestBodyIsSent() async throws {
+        let probe = SendableCallbackProbe()
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: [
+                    "Server-Timing": "auth;dur=1.0, gemini;dur=10.0",
+                    "X-Merian-Edge-Region": "test-region"
+                ]
+            )!
+            return (response, Data("{\"success\":true}".utf8))
+        }
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: 1,
+            gpsLatitude: 41.9,
+            gpsLongitude: -87.6,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: "2026-07-15T15:00:00Z",
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+
+        _ = try await MerianNetworkClient.shared.identifyMultiModal(
+            base64ImageDatas: ["AA=="],
+            telemetry: telemetry,
+            clientScanId: "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6",
+            onRequestBodySent: { probe.mark() }
+        )
+        #expect(probe.wasMarked)
+    }
+
+    @Test func testDeferredContextUpdateUsesOwnerScanEndpoint() async throws {
+        MockURLProtocol.mockEndpoints["/update-scan-context"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(payload["scan_id"] as? String == "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6")
+            #expect(payload["gps_elevation"] as? Double == 181.5)
+            #expect(payload["weather_condition"] as? String == "Clear")
+            #expect(payload["weather_temperature_f"] as? Double == 72.0)
+            #expect(payload["semantic_location"] as? String == "Chicago, Illinois")
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{\"success\":true}".utf8))
+        }
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: 181.5,
+            locationName: "Chicago, Illinois",
+            weatherCondition: "Clear",
+            weatherTemperatureF: 72,
+            timeOfDay: nil,
+            timestamp: nil,
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+
+        try await MerianNetworkClient.shared.updateDeferredScanContext(
+            scanId: "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6",
+            telemetry: telemetry
+        )
     }
 
     @Test func testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON() async throws {

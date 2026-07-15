@@ -8,6 +8,11 @@ TestFlight, App Store, support, and QA.
 
 ### Media & Performance
 
+- Reduced live-camera still-image analysis wait time by starting inference after
+  a bounded environmental-context grace period, avoiding duplicate live/background
+  uploads and duplicate inference dispatch, and moving optional enrichment,
+  awards, and Field Trips work off the first-result path. Free and Pro Gemini models and quality settings are
+  unchanged; gallery, audio-bearing, and video submission behavior is unchanged.
 - Fixed Audio recording occasionally reporting unavailable hardware immediately
   after switching from Camera. Recording now waits for camera release and
   safely recovers while the microphone route settles.

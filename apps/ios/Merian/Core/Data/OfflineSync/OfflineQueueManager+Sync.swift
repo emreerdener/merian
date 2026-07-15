@@ -289,8 +289,10 @@ extension OfflineQueueManager {
             let session  = await MainActor.run { self.backgroundSession }
             let allowsLargeUploads = await MainActor.run { self.allowsLargeQueuedUploadsOnCurrentNetwork }
             let forcedLargeUploadIds = await MainActor.run { self.userRequestedLargeUploadScanIds }
+            let deferredLiveUploadIds = await MainActor.run { self.deferredLiveUploadScanIds }
             let eligibleScanData = scanData.filter { scan in
-                allowsLargeUploads || scan.localVideoPaths.isEmpty || forcedLargeUploadIds.contains(scan.id)
+                !deferredLiveUploadIds.contains(scan.id) &&
+                    (allowsLargeUploads || scan.localVideoPaths.isEmpty || forcedLargeUploadIds.contains(scan.id))
             }
 
             let filteredScans = self.selectUploadBatch(from: eligibleScanData)

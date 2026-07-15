@@ -20,6 +20,22 @@ Edge Functions are written in TypeScript and run on Deno. They handle logic like
 - **Configuration**: Every new Edge Function MUST have a `[functions.<name>]` entry in `config.toml`. Pay attention to `verify_jwt` (set to `false` for app-facing anonymous-compatible functions to bypass gateway-level JWT validation, allowing the function to handle validation internally).
 - **Dependencies**: Runtime Edge dependencies are resolved through `functions/deno.json`.
 
+### Identification Latency Contract
+
+`identify-multimodal` remains the single production inference request for a
+scan. Free uses `gemini-2.5-flash`; Pro uses `gemini-2.5-pro`. Latency changes
+must not alter prompts, response schema, thinking budgets, media resolution,
+output-token limits, or the one-`generateContent`-call invariant.
+
+The latency-sensitive path uses cached ES256 JWKS verification through
+`auth.getClaims`, `begin_scan_ingestion` for atomic pre-Gemini setup, and
+`hydrate_identification_dictionary` for post-Gemini cache hydration. External
+cache misses and optional ingestion work run as Edge background tasks except
+for required video durability. `/update-scan-context` applies or stages late
+owner weather/location fields without rerunning inference. See the function-
+local READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
+contract.
+
 ### Testing Edge Functions
 
 Before opening a PR targeting `services/supabase/functions`, run formatting, linting, and type checking:
@@ -42,6 +58,10 @@ Media durability migrations have an additional static contract test that runs
 without a local Postgres instance. It checks the normalized scan-media lifecycle
 schema, the scan-ingestion job ledger, and the drift-repair SQL that must run
 before media reconciliation indexes are created.
+
+The same migration contract suite covers the identification-latency migration:
+service-role-only RPC grants, the atomic ingestion setup function, combined
+dictionary hydration, and the RLS-protected deferred-context table/trigger.
 
 Field Trips migrations also have static contract coverage. The current chain is
 V1 template/progress/publication storage, V2 guided detail/start/pins, V3
@@ -110,3 +130,8 @@ supabase --workdir services db push
 ```bash
 supabase --workdir services functions deploy
 ```
+
+For identification-latency releases, apply migrations before deploying function
+code that calls the new RPCs, then stage the client and Edge rollout using the
+gates in `docs/backend-and-data/06-supabase-deployment-runbook.md`. Do not force
+an Edge region without the documented A/B evidence.

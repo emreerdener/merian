@@ -537,6 +537,42 @@ Deno.test("scan_ingestion_intents migration declares the replay intent contract"
   }
 });
 
+Deno.test("identification latency migration keeps RPCs service-role-only and stages deferred context", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260715153946_reduce_identification_latency_round_trips.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.begin_scan_ingestion",
+      "scan_id_uuid := p_scan_id::UUID",
+      "asset.client_scan_id = scan_id_uuid",
+      "stage, attempt_count",
+      "'ai_inference_started'",
+      "INSERT INTO public.scan_ingestion_intents",
+      "SHA256(CONVERT_TO(manifest_payload::TEXT, 'UTF8'))",
+      "SHA256(CONVERT_TO(stored_payload::TEXT, 'UTF8'))",
+      "'manifest_checksum', resolved_manifest_checksum",
+      "'payload_checksum', resolved_payload_checksum",
+      "GRANT EXECUTE ON FUNCTION public.begin_scan_ingestion",
+      "CREATE OR REPLACE FUNCTION public.hydrate_identification_dictionary",
+      "GRANT EXECUTE ON FUNCTION public.hydrate_identification_dictionary",
+      "CREATE TABLE IF NOT EXISTS public.scan_deferred_context_updates",
+      "ALTER TABLE public.scan_deferred_context_updates ENABLE ROW LEVEL SECURITY",
+      "CREATE OR REPLACE FUNCTION public.apply_or_stage_scan_context",
+      "CREATE TRIGGER merge_staged_scan_context_before_insert",
+      "REVOKE ALL ON TABLE public.scan_deferred_context_updates FROM PUBLIC, anon, authenticated",
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.scan_deferred_context_updates TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.apply_or_stage_scan_context",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("scan ingestion replay migration claims resumable jobs and schedules the worker", async () => {
   const sql = normalized(
     await migrationSql("20260705150000_schedule_scan_ingestion_replay.sql"),

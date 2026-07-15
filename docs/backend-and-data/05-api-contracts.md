@@ -3936,6 +3936,80 @@ ordered compositions of images, audio, and descriptive context.
 - The multimodal background ingestion path shares the same `_shared/identify`
   DB, media, schema, threshold, and moderation primitives as `/identify`.
 
+### Latency and Authentication Contract
+
+The request and JSON response bodies remain backward-compatible. The endpoint
+adds only diagnostic response headers:
+
+- `Server-Timing`: `auth`, `body_read`, `tier`, `pre_gemini_db`, `gemini`,
+  `dictionary`, `post_gemini`, and `edge_total` durations in milliseconds.
+- `X-Merian-Edge-Region`: the runtime region reported by the Edge environment,
+  when available.
+
+The request may include `X-Merian-Constrained-Network: true|false` for aggregate
+latency segmentation. Logs and headers never contain user ID, scan ID, species,
+location, media keys, or request contents. `gemini` stops immediately after the
+single `generateContent` call returns.
+
+`/identify-multimodal` verifies the bearer token with the cached ES256 JWKS path
+through `auth.getClaims(token)`, then explicitly validates issuer, audience,
+expiration, not-before, role, and `sub`. Both anonymous and authenticated user
+JWTs are accepted. Service-role tokens are rejected on this public endpoint.
+The request body's `user_id` is never an authority source. The existing
+`X-Merian-Internal-Replay` path is checked before public claims auth and retains
+its timing-safe service-role verification plus explicit replay-user header.
+
+Before Gemini, one service-role-only `begin_scan_ingestion` RPC performs upload
+session lookup, ingestion claim, sanitized intent recording, and the
+`ai_inference_started` stage transition atomically. It returns the recovered
+upload-session ids plus manifest and payload checksums canonicalized from the
+exact stored values. After Gemini, eligible
+biological results use at most one `hydrate_identification_dictionary` RPC to
+return cached primary-species data and candidate common names. External
+Wikipedia/GBIF cache misses, analytics, and
+optional image-scan ingestion updates run under `EdgeRuntime.waitUntil`; video
+finalization retains its existing synchronous durability gate.
+
+## Deno `/update-scan-context` Edge Node
+
+Adds late WeatherKit/geocoding data to the owner's active ingestion job or
+completed scan without rerunning identification.
+
+### Request Payload
+
+```json
+{
+  "scan_id": "A1B2C3D4-0000-4000-8000-000000000000",
+  "gps_elevation": 42.5,
+  "weather_condition": "Partly Cloudy",
+  "weather_temperature_f": 68.0,
+  "semantic_location": "Zilker Park"
+}
+```
+
+`scan_id` is required and must be a UUID. Every other field is optional, but at
+least one valid late-context field must be present. The endpoint accepts
+camelCase aliases and normalizes them before the database call. Empty strings
+and non-finite/out-of-range numeric values are omitted; a request with no valid
+context returns `400`.
+
+### Response
+
+```json
+{ "success": true, "applied": true }
+```
+
+`applied` is `true` when the owner's scan already exists and `false` when the
+update is staged until ingestion creates it. The endpoint verifies the same
+anonymous/authenticated user claims as `/identify-multimodal`. The
+service-role-only `apply_or_stage_scan_context` RPC owns the update, so a caller
+cannot attach context to another user's scan.
+
+The route returns `409` when neither the owner scan nor its ingestion claim is
+visible yet. The iOS live path retries once after 500 ms and preserves the same
+context in the durable local queue; this condition never causes a second
+identification request.
+
 ## Text-Only Describe Path
 
 The current app routes text-only observations through `/identify-multimodal`
@@ -4004,9 +4078,9 @@ text-only request.
 
 ### IDOR & Auth
 
-The server extracts the user identity from the `Authorization: Bearer` JWT via
-`supabaseAdmin.auth.getUser()`. The `user_id` in the request body is ignored for
-auth purposes.
+The server extracts the user identity from the verified
+`Authorization: Bearer` JWT claims. The `user_id` in the request body is ignored
+for auth purposes.
 
 ### Error Responses
 

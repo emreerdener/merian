@@ -134,7 +134,22 @@ have received a `200 OK` with the AI result. The active multimodal path claims a
 `scan_ingestion_jobs` row before AI inference and updates it through
 `processing`, `finalizing`, `failed_retryable`, `failed_terminal`, and
 `complete` states so `/check-scan-status` can report more than a bare not-found
-result. Compatibility scan-producing endpoints (`identify`, `identify-describe`,
+result.
+
+For eligible live-camera still-image analysis, request-body completion releases the matching durable
+queue row for background upload. Transport failure, connectivity loss, app
+backgrounding, and a two-second fail-safe release it too; release is idempotent
+and never deletes the row. Only the established live-success cleanup path adopts
+saved media, cancels duplicate tasks, and removes the queue record. This keeps a
+failed or suspended foreground request recoverable without allowing two uploads
+to contend from the start.
+
+`/update-scan-context` may return `409` when the late WeatherKit/geocoding result
+arrives before the ingestion claim. The live caller retries once after a short
+delay and the local queued record retains the context for normal replay. A 409
+must not trigger another identification request and must not discard the scan.
+
+Compatibility scan-producing endpoints (`identify`, `identify-describe`,
 and `audio-spec`) now use the shared compatibility ledger to claim the same
 job/intent rows after inference and before returning success; staged image/audio
 and text-only compatibility intents are shaped for `/identify-multimodal`

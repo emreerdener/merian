@@ -25,8 +25,23 @@ Merian is a field-ready biological identification app built around zero-friction
 - Structured JSON output schema enforced server-side: common name, scientific name, full Linnaean taxonomy, ecology type, IUCN Red List status, location-aware invasiveness flag with region/rationale/confidence, confidence score, dominant colors, categorical group tags, and a lookalike diagnostic comparison.
 - Dog and cat scans keep species-grade taxonomy (`Canis lupus familiaris` / `Felis catus`) while optionally carrying a separate pet label for confident breed, mix, coat-pattern, or body-type display.
 - Concurrent on-device `VNClassifyImageRequest` drives the scanning overlay's status phrases while the network round-trip runs.
-- Environmental telemetry attached to every inference call: GPS coordinates, elevation, LiDAR depth scale, weather condition and temperature, semantic location, zoom factor, time of day, month, and device locale.
+- Environmental telemetry captured for each scan: shutter-time GPS, date/time,
+  LiDAR depth scale, zoom, and cached device context travel with live inference.
+  For eligible live-camera still scans, elevation, WeatherKit, and semantic
+  location join within a 150 ms grace period or are patched into the owner scan
+  afterward.
 - `/identify-multimodal` is the shared live and replay endpoint for visual, audio, describe, and mixed submissions; queued media uploads through R2 staging before inference.
+- Live-camera still-image analysis becomes eligible to start as soon as the
+  durable local queue accepts the scan. WeatherKit/reverse geocoding receive a 150 ms grace period,
+  late context is patched without re-identifying, and the live request hands the
+  uplink to background recovery after its body finishes sending. Parsed and
+  persisted results render before awards, Field Trips, or cache-miss enrichment.
+  Gallery, audio-bearing, and video submissions retain their existing context
+  and upload behavior in this first optimization pass, while receiving timing
+  instrumentation.
+  Free remains on `gemini-2.5-flash` and Pro remains on `gemini-2.5-pro`; prompts,
+  schema, thinking budgets, image resolution, output limits, and the single
+  Gemini call per scan are unchanged.
 
 ### Scans Library
 - Grid view of all personal captures, sorted by newest, oldest, or alphabetical.

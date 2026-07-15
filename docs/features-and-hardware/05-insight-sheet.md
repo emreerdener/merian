@@ -47,6 +47,20 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 
 `InsightSheetViewModel` holds a reference to the `InferenceEngine` and exposes computed properties:
 
+### First-result presentation boundary
+
+For a live-camera still scan, `InferenceEngine` commits `speciesData` only after the
+response has parsed and the local scan/media write succeeds. It does so before
+award calculation or Field Trips. Field Trips remains gated on
+`/check-scan-status` confirming server ingestion, and optional enrichment may
+fill cards later without blocking the initial result.
+
+`InsightSheetView` records tap-to-first-render with a one-shot 1x1 UIKit draw
+probe installed on the result hierarchy. The measurement closes only after an
+actual display pass; `speciesData` assignment, `onAppear`, or a SwiftUI task
+yield is not an acceptable substitute. This keeps the release target of
+response-to-first-render p95 at or below 300 ms tied to user-visible output.
+
 `SpeciesData.isNewDiscovery` remains the local "new to this user" signal for
 stats, persona, firefly progress, and achievement calculations. It no longer
 drives a user-facing Insight celebration. `SpeciesData.isNewToMerianDictionary`
@@ -583,7 +597,7 @@ When none of the above conditions are met, no review card is rendered and the fu
 
 Extended ecological media data is loaded in three passes:
 
-1. **Synchronous with inference** (live scans): the Edge function fetches Wikipedia in `EdgeRuntime.waitUntil` and includes `wikipedia_overview` and `wikipedia_url` in the response. These populate immediately when the sheet opens.
+1. **Cached with the inference response** (live scans): the post-Gemini dictionary RPC includes an already-cached primary species row, so existing `wikipedia_overview`, `wikipedia_url`, and reference imagery can populate immediately. A cache miss is not fetched synchronously; Edge Wikipedia/GBIF work runs behind `EdgeRuntime.waitUntil` and cannot delay the response.
 2. **Retroactive Wikipedia hydration** (live scans where Wikipedia was missing, and all historical scans): `InferenceEngine.fetchWikipediaAndHydrate` fires a `GET` to `en.wikipedia.org/api/rest_v1/page/mobile-sections/<scientific_name>` with an 8-second timeout. The response includes all article sections; the function finds the first section whose `title` case-insensitively equals `"Description"` and strips its HTML to plain text via `InferenceEngine.stripHTML(_:)`. If no "Description" section exists, hydration is skipped entirely. On success it commits `speciesData.wikipediaOverview` (the stripped description body), `speciesData.wikipediaUrl` (constructed from `lead.normalizedtitle`), and `speciesData.referenceImageUrl` (`lead.originalimage.source`) in a single full-value replacement on `@MainActor`.
 3. **Dynamic GBIF Native Hydration**: When the species' `gbif_taxon_key` is available (either instantly on a Cache Hit, or returned seconds later by the `enrich-scan` API), the iOS client calls `InferenceEngine.fetchGBIFImagesAndHydrate(for:)`. This queries the `api.gbif.org/v1/occurrence/search` API for 3-4 high-quality iNaturalist field photos, dynamically injecting them into the carousel to ensure highly accurate visual context.
 

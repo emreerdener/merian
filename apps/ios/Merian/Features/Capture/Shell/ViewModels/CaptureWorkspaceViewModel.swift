@@ -237,12 +237,15 @@ final class CaptureWorkspaceViewModel {
         self.diContainer = diContainer
         self.preparedImageLoader = preparedImageLoader
 
-        // Pre-warm the HTTPS connection to Supabase and refresh the auth token while the
-        // user composes their shot. Eliminates TCP/TLS handshake (~200–400ms) and token
-        // refresh latency from the scan critical path on cold app launch.
+        // Pre-warm both connection pools while the user composes their shot: Supabase Auth
+        // owns one session, while live inference uses MerianNetworkClient's pinned session.
         if prewarmHeadersOnInit {
             Task {
-                _ = try? await diContainer.supabaseManager.getValidAuthHeaders()
+                async let authWarmup: Void = {
+                    _ = try? await diContainer.supabaseManager.getValidAuthHeaders()
+                }()
+                async let inferenceWarmup: Void = MerianNetworkClient.shared.prewarmInferenceEndpoint()
+                _ = await (authWarmup, inferenceWarmup)
             }
         }
 
@@ -835,6 +838,14 @@ final class CaptureWorkspaceViewModel {
         }
         if newPhase == .background && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
             audioCaptureManager.pauseRecording()
+        }
+        if newPhase == .background {
+            diContainer.offlineQueueManager.releaseAllDeferredLiveUploads(
+                reason: "app_backgrounded"
+            )
+            diContainer.offlineQueueManager.releaseAllForegroundInferenceClaims(
+                reason: "app_backgrounded"
+            )
         }
         if newPhase == .inactive || newPhase == .background, isVideoRecording {
             stopVideoCapture()

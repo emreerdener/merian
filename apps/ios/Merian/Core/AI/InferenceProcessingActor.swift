@@ -55,6 +55,7 @@ actor InferenceProcessingActor {
         videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil
     ) async throws -> ParseAndSaveResult {
+        let parseStartedAt = CFAbsoluteTimeGetCurrent()
         let parsedWrapper: EdgeResponseWrapper
         do {
             parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
@@ -75,12 +76,16 @@ actor InferenceProcessingActor {
         mappedData.zoomFactor = telemetry.zoomFactor.map { Double($0) }
         mappedData.audioFilePaths = audioFilePaths
         mappedData.videoFilePaths = videoFilePaths
+        MerianLog.general.debug(
+            "[⏱ BENCH] Response parsing: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - parseStartedAt), privacy: .public)s bytes=\(resultData.count, privacy: .public)"
+        )
 
         try Task.checkCancellation()
 
         var newDiscovery = false
         var savedPaths: [String] = []
 
+        let persistenceStartedAt = CFAbsoluteTimeGetCurrent()
         if mappedData.confidenceScore > 0.0, let container = modelContext?.container,
            !compressedDatas.isEmpty || skipImageRequirement {
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
@@ -108,6 +113,9 @@ actor InferenceProcessingActor {
                 )
             }
         }
+        MerianLog.general.debug(
+            "[⏱ BENCH] Result persistence: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - persistenceStartedAt), privacy: .public)s"
+        )
 
         return ParseAndSaveResult(mappedData: mappedData, isNewDiscovery: newDiscovery, savedPaths: savedPaths)
     }

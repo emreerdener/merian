@@ -35,6 +35,16 @@ networking, and hardware orchestration logic.
   server-side. The shared identify boundary demotes
   manufactured or processed materials to non-biological before candidates,
   dictionary novelty, or `species_dictionary` writes can run.
+- **Image-analysis latency contract**: Durable queue acceptance remains the
+  mandatory gate. The eligible live-camera still path waits no more than 150 ms for shutter-prefetched
+  weather/geocoding, defers its competing background upload until the inline
+  body is sent, and commits parsed/persisted results before awards or Field Trips.
+  The Edge path uses verified ES256 claims, one atomic pre-inference RPC, at
+  most one combined post-inference dictionary RPC, privacy-safe `Server-Timing`, and background
+  cache-miss enrichment. `/update-scan-context` applies late owner-scoped
+  context without a second AI request. Model IDs and all inference-quality and
+  unit-economics settings remain unchanged. Gallery, audio-bearing, and video
+  submissions are instrumented but retain their existing behavior in this pass.
 - **Media durability safety net**: Backend deploys run a media-ingestion
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident
@@ -84,8 +94,8 @@ networking, and hardware orchestration logic.
 - **[`/system-architecture/03-image-pipeline.md`](./system-architecture/03-image-pipeline.md)**
   — Capture → disk → cache → display image flow.
 - **[`/system-architecture/04-ai-engineering.md`](./system-architecture/04-ai-engineering.md)**
-  — LLMOps edge deployment constraints, `maxOutputTokens` limits, and API
-  throttling behaviors.
+  — LLMOps edge deployment constraints, inference invariants, full-pipeline
+  latency instrumentation, `maxOutputTokens` limits, and API throttling.
 - **[`/system-architecture/06-edge-modularization.md`](./system-architecture/06-edge-modularization.md)**
   — Domain-driven modular architecture for Supabase Edge Functions: `index.ts` /
   `db.ts` / `types.ts` separation rules and shared utility conventions.
@@ -93,8 +103,8 @@ networking, and hardware orchestration logic.
 ### Backend & Data
 
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)**
-  — Zero-data-loss architecture, SwiftData queues, and AppDelegate background
-  URLSession mappings.
+  — Zero-data-loss architecture, SwiftData queues, live/background upload
+  ownership, and AppDelegate background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)**
   — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species
   dictionary workers, Insight chat rollout controls, and cron/webhook
@@ -108,16 +118,19 @@ networking, and hardware orchestration logic.
   inference fields, V48 offline job records/events, V49 startup store repair,
   private Insight chat tables, scan media assets, and Explore Community
   Identification versioned taxonomy, consensus jobs, projections, and request
-  tables.
+  tables, atomic ingestion setup/dictionary RPCs, and deferred scan-context
+  staging.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/update-public-avatar`,
   Community Identification endpoints, `/species-dictionary`,
   `/species-observation-stats`, Explore detail similar species, and internal
-  cron workers such as Merian reference-image refresh.
+  cron workers such as Merian reference-image refresh, diagnostic
+  `Server-Timing`, and `/update-scan-context`.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — CI-first Supabase deployment path, required GitHub secrets, local emergency
-  fallback, and post-deploy smoke checks.
+  fallback, staged identification-latency rollout gates, and post-deploy smoke
+  checks.
 - **[`/backend-and-data/07-community-taxonomy-import-checklist.md`](./backend-and-data/07-community-taxonomy-import-checklist.md)**
   — Running checklist for bounded GBIF Community Taxonomy imports, completed
   Birds batches, next offsets, and operational follow-ups.

@@ -144,7 +144,11 @@ struct OfflineQueueManagerTests {
     }
 
     @Test func testScanStatusRecoveryActionRespectsServerIngestionState() throws {
-        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-05T15:00:00.000Z"))
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let now = try #require(
+            formatter.date(from: "2026-07-05T15:00:00.000Z")
+        )
         let finalizing = ScanStatusResponse(
             status: .notFound,
             jobStatus: .finalizing,
@@ -390,6 +394,76 @@ struct OfflineQueueManagerTests {
                 }
             }
         }
+    }
+
+    @Test func testEnqueueCaptureCanHoldAndIdempotentlyReleaseLiveUpload() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let manager = OfflineQueueManager.shared
+        manager.deferredLiveUploadScanIds.removeAll()
+        let ctx = try createIsolatedContext()
+        let scanId = UUID().uuidString
+        let didQueue = await withCheckedContinuation { continuation in
+            manager.enqueueCapture(
+                imageDatas: [Data("deferred_live_image".utf8)],
+                telemetry: dummyTelemetry,
+                scanId: scanId,
+                startSyncImmediately: false,
+                onQueued: { continuation.resume(returning: $0) }
+            )
+        }
+
+        #expect(didQueue)
+        #expect(manager.deferredLiveUploadScanIds.contains(scanId))
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        #expect(fetched.queueState == .pending)
+
+        manager.releaseDeferredLiveUpload(scanId: scanId, reason: "unit_test_body_sent")
+        #expect(!manager.deferredLiveUploadScanIds.contains(scanId))
+        manager.releaseDeferredLiveUpload(scanId: scanId, reason: "unit_test_duplicate_release")
+        #expect(!manager.deferredLiveUploadScanIds.contains(scanId))
+
+        if let json = fetched.capturedMediaJSON,
+           let data = json.data(using: .utf8),
+           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: data) {
+            cleanupSerializedItems(items)
+        }
+    }
+
+    @Test func testForegroundInferenceOwnershipOutlivesBodyUploadHandoff() {
+        let manager = OfflineQueueManager.shared
+        let scanId = UUID().uuidString
+        let originalIsOnline = manager.isOnline
+        manager.isOnline = false
+        defer { manager.isOnline = originalIsOnline }
+        manager.deferredLiveUploadScanIds = [scanId]
+        manager.foregroundInferenceScanIds.removeAll()
+
+        manager.beginForegroundInference(scanId: scanId)
+        manager.releaseDeferredLiveUpload(scanId: scanId, reason: "unit_test_body_sent")
+
+        #expect(!manager.deferredLiveUploadScanIds.contains(scanId))
+        #expect(
+            manager.foregroundInferenceScanIds.contains(scanId),
+            "Recovery media may upload, but foreground inference must retain sole model-call ownership"
+        )
+
+        manager.endForegroundInference(
+            scanId: scanId,
+            resumeBackground: false,
+            reason: "unit_test_success"
+        )
+        #expect(!manager.foregroundInferenceScanIds.contains(scanId))
+        manager.endForegroundInference(
+            scanId: scanId,
+            resumeBackground: false,
+            reason: "unit_test_duplicate_release"
+        )
+        #expect(!manager.foregroundInferenceScanIds.contains(scanId))
     }
 
     @Test func testEnqueueDescribe_InsertsStagedScan() async throws {

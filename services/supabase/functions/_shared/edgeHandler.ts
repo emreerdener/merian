@@ -3,7 +3,7 @@ import {
   SupabaseClient,
   User,
 } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { requireAuth } from "./auth.ts";
+import { requireAuth, requireClaimsAuth } from "./auth.ts";
 import { corsHeaders, jsonResponse } from "./http.ts";
 
 export { jsonResponse };
@@ -30,8 +30,13 @@ export function logStructuredError(
  * falling back gracefully for local development.
  */
 export function runBackground(task: Promise<void>): void {
-  const globalObj = globalThis as unknown as { EdgeRuntime?: { waitUntil: (p: Promise<void>) => void } };
-  if (typeof globalObj.EdgeRuntime === "object" && typeof globalObj.EdgeRuntime.waitUntil === "function") {
+  const globalObj = globalThis as unknown as {
+    EdgeRuntime?: { waitUntil: (p: Promise<void>) => void };
+  };
+  if (
+    typeof globalObj.EdgeRuntime === "object" &&
+    typeof globalObj.EdgeRuntime.waitUntil === "function"
+  ) {
     globalObj.EdgeRuntime.waitUntil(task);
   } else {
     task.catch(console.error);
@@ -44,7 +49,12 @@ export function runBackground(task: Promise<void>): void {
  */
 export async function withEdgeHandler(
   req: Request,
-  handler: (user: User, supabaseAdmin: SupabaseClient) => Promise<Response>
+  handler: (
+    user: User,
+    supabaseAdmin: SupabaseClient,
+    context: { authDurationMs: number },
+  ) => Promise<Response>,
+  options: { authStrategy?: "user" | "claims" } = {},
 ): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -53,22 +63,53 @@ export async function withEdgeHandler(
   try {
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { user, response } = await requireAuth(req, supabaseAdmin);
+    const authStart = performance.now();
+    const authenticate = options.authStrategy === "claims"
+      ? requireClaimsAuth
+      : requireAuth;
+    const { user, response } = await authenticate(req, supabaseAdmin);
+    const authDuration = performance.now() - authStart;
 
     if (response || !user) {
-      return response || jsonResponse({ error: "Unauthorized" }, 401);
+      return withAuthServerTiming(
+        response || jsonResponse({ error: "Unauthorized" }, 401),
+        authDuration,
+      );
     }
 
-    return await handler(user, supabaseAdmin);
+    return withAuthServerTiming(
+      await handler(user, supabaseAdmin, { authDurationMs: authDuration }),
+      authDuration,
+    );
   } catch (error: unknown) {
     console.error("Edge function error:", error);
-    const msg = error instanceof Error ? error.message : "Internal Server Error";
+    const msg = error instanceof Error
+      ? error.message
+      : "Internal Server Error";
     const customStatus = error && typeof error === "object" && "status" in error
       ? (error as Record<string, unknown>).status as number
       : 500;
     return jsonResponse({ error: msg }, customStatus);
   }
+}
+
+function withAuthServerTiming(
+  response: Response,
+  durationMs: number,
+): Response {
+  const headers = new Headers(response.headers);
+  const existing = headers.get("Server-Timing");
+  const authMetric = `auth;dur=${Math.max(durationMs, 0).toFixed(1)}`;
+  headers.set(
+    "Server-Timing",
+    existing ? `${authMetric}, ${existing}` : authMetric,
+  );
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }

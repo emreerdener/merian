@@ -49,6 +49,10 @@ import {
   upsertGhostUserIfMissing,
   upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
+import {
+  beginScanIngestion,
+  fetchIdentificationDictionaryHydration,
+} from "../_shared/identify/latencyDb.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 import { processWAV } from "./audio.ts";
 import {
@@ -560,18 +564,35 @@ function retryAfterIso(minutes = 5): string {
 const INTERNAL_REPLAY_HEADER = "X-Merian-Internal-Replay";
 const INTERNAL_REPLAY_USER_HEADER = "X-Merian-Replay-User-Id";
 
+interface ServerTimingMetric {
+  name: string;
+  durationMs: number;
+}
+
+function serverTimingValue(metrics: ServerTimingMetric[]): string {
+  return metrics
+    .filter((metric) =>
+      Number.isFinite(metric.durationMs) && metric.durationMs >= 0
+    )
+    .map((metric) => `${metric.name};dur=${metric.durationMs.toFixed(1)}`)
+    .join(", ");
+}
+
 export async function handleIdentifyMultimodalRequest(
   req: Request,
   user: User,
   supabaseAdmin: SupabaseClient,
+  authDurationMs = 0,
 ): Promise<Response> {
   const fnStart = Date.now();
+  const bodyReadStart = performance.now();
   const bodyReadResult = await readRequestJsonWithinBudget<
     Record<string, unknown>
   >(
     req,
     MEDIA_BUDGETS.maxMultimodalJsonBodyBytes,
   );
+  const bodyReadMs = performance.now() - bodyReadStart;
   if (bodyReadResult.error || !bodyReadResult.value) {
     return jsonResponse(
       { error: bodyReadResult.error?.message ?? "Invalid JSON body" },
@@ -758,7 +779,9 @@ export async function handleIdentifyMultimodalRequest(
     (mediaTelemetry.hasVideo && processedAudios.length > 0);
 
   // 2. Dispatch Rule
+  const tierStart = performance.now();
   const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+  const tierMs = performance.now() - tierStart;
   const userTier = tierResolution.effective_tier;
   const inferenceTier = userTier === "pro" ? "pro" : "flash";
   const targetModel = userTier === "pro"
@@ -860,34 +883,18 @@ export async function handleIdentifyMultimodalRequest(
     videoKeys: videoR2ObjectKeys,
   });
 
+  const storageKeys = [
+    ...mediaObjectKeys.image,
+    ...mediaObjectKeys.audio,
+    ...mediaObjectKeys.video,
+  ];
   let uploadSessionIds: string[] = [];
-  try {
-    uploadSessionIds = await fetchCaptureUploadSessionIdsForKeys(
-      {
-        userId: user.id,
-        clientScanId: generatedScanId,
-        storageKeys: [
-          ...mediaObjectKeys.image,
-          ...mediaObjectKeys.audio,
-          ...mediaObjectKeys.video,
-        ],
-      },
-      supabaseAdmin,
-    );
-  } catch (error) {
-    logStructuredError("multimodal/upload_session_lookup_failed", {
-      user_id: user.id,
-      scan_id: generatedScanId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  const manifestChecksum = await scanIngestionManifestChecksum({
+  let manifestChecksum = await scanIngestionManifestChecksum({
     mediaCounts,
     mediaObjectKeys,
     uploadSessionIds,
   });
-  const ingestionIntent = await buildScanIngestionIntent({
+  let ingestionIntent = await buildScanIngestionIntent({
     scanId: generatedScanId,
     payload,
     mediaCounts,
@@ -917,30 +924,9 @@ export async function handleIdentifyMultimodalRequest(
     },
   });
 
+  const preGeminiDbStart = performance.now();
   try {
-    await claimScanIngestionJob(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "identify-multimodal",
-        mediaCounts,
-        mediaObjectKeys,
-        uploadSessionIds,
-        manifestChecksum,
-        leaseSeconds: 300,
-      },
-      supabaseAdmin,
-    );
-  } catch (error) {
-    logStructuredError("multimodal/scan_ingestion_job_claim_failed", {
-      user_id: user.id,
-      scan_id: generatedScanId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  try {
-    await recordScanIngestionIntent(
+    const atomicIngestion = await beginScanIngestion(
       {
         scanId: generatedScanId,
         userId: user.id,
@@ -948,36 +934,111 @@ export async function handleIdentifyMultimodalRequest(
         requestPayload: ingestionIntent.payload,
         mediaCounts,
         mediaObjectKeys,
-        uploadSessionIds,
+        storageKeys,
         manifestChecksum,
         payloadChecksum: ingestionIntent.payloadChecksum,
         resumable: ingestionIntent.resumable,
         inlineMediaRedacted: ingestionIntent.inlineMediaRedacted,
         redactedMediaCounts: ingestionIntent.redactedMediaCounts,
+        leaseSeconds: 300,
       },
       supabaseAdmin,
     );
+    uploadSessionIds = atomicIngestion.uploadSessionIds;
+    manifestChecksum = atomicIngestion.manifestChecksum ?? manifestChecksum;
   } catch (error) {
-    logStructuredError("multimodal/scan_ingestion_intent_record_failed", {
+    // Safe rollout fallback while the atomic RPC migration propagates.
+    logStructuredError("multimodal/atomic_ingestion_setup_fallback", {
       user_id: user.id,
       scan_id: generatedScanId,
       error: error instanceof Error ? error.message : String(error),
     });
-  }
 
-  try {
-    await updateIngestionJobBestEffort(
-      "processing",
-      "ai_inference_started",
-      { leaseSeconds: 300 },
-    );
-  } catch (error) {
-    logStructuredError("multimodal/scan_ingestion_job_start_failed", {
-      user_id: user.id,
-      scan_id: generatedScanId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    try {
+      uploadSessionIds = await fetchCaptureUploadSessionIdsForKeys(
+        { userId: user.id, clientScanId: generatedScanId, storageKeys },
+        supabaseAdmin,
+      );
+      manifestChecksum = await scanIngestionManifestChecksum({
+        mediaCounts,
+        mediaObjectKeys,
+        uploadSessionIds,
+      });
+      ingestionIntent = await buildScanIngestionIntent({
+        scanId: generatedScanId,
+        payload,
+        mediaCounts,
+        mediaObjectKeys,
+        uploadSessionIds,
+        manifestChecksum,
+        visualMediaItems: normalizedVisualMediaItems,
+        audioMediaItems: normalizedAudioMediaItems,
+        normalizedTelemetry: {
+          timestamp,
+          gpsLatitude: safeGpsLat,
+          gpsLongitude: safeGpsLon,
+          gpsElevation,
+          semanticLocation,
+          publicLocationLabel: publicExploreLocationLabel,
+          geoprivacy: scanGeoprivacy,
+          weatherCondition,
+          weatherTemperatureF,
+          deviceLocale,
+          deviceTimeZone,
+          deviceRegion,
+          currentMonth,
+          timeOfDay,
+          depthScaleText,
+          zoomFactor,
+          estimatedSizeCm,
+        },
+      });
+      await claimScanIngestionJob(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "identify-multimodal",
+          mediaCounts,
+          mediaObjectKeys,
+          uploadSessionIds,
+          manifestChecksum,
+          leaseSeconds: 300,
+        },
+        supabaseAdmin,
+      );
+      await recordScanIngestionIntent(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "identify-multimodal",
+          requestPayload: ingestionIntent.payload,
+          mediaCounts,
+          mediaObjectKeys,
+          uploadSessionIds,
+          manifestChecksum,
+          payloadChecksum: ingestionIntent.payloadChecksum,
+          resumable: ingestionIntent.resumable,
+          inlineMediaRedacted: ingestionIntent.inlineMediaRedacted,
+          redactedMediaCounts: ingestionIntent.redactedMediaCounts,
+        },
+        supabaseAdmin,
+      );
+      await updateIngestionJobBestEffort(
+        "processing",
+        "ai_inference_started",
+        { leaseSeconds: 300 },
+      );
+    } catch (fallbackError) {
+      logStructuredError("multimodal/scan_ingestion_setup_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: fallbackError instanceof Error
+          ? fallbackError.message
+          : String(fallbackError),
+      });
+    }
   }
+  const preGeminiDbMs = performance.now() - preGeminiDbStart;
 
   // 4. Invocation
   const geminiStart = Date.now();
@@ -989,6 +1050,7 @@ export async function handleIdentifyMultimodalRequest(
   let llmCandidateTokens: number | null = null;
   let llmThinkingTokens: number | null = null;
   let llmTotalTokens: number | null = null;
+  let geminiLatencyMs = 0;
 
   try {
     const result = await _genAI.models.generateContent({
@@ -1006,6 +1068,7 @@ export async function handleIdentifyMultimodalRequest(
         responseSchema: getMerianResponseSchema(diagnosticTrigger),
       },
     });
+    geminiLatencyMs = Date.now() - geminiStart;
 
     finishReason = result.candidates?.[0]?.finishReason;
     safetyRatings = result.candidates?.[0]?.safetyRatings;
@@ -1019,6 +1082,7 @@ export async function handleIdentifyMultimodalRequest(
       llmTotalTokens = usage.totalTokenCount ?? null;
     }
   } catch (genErr) {
+    geminiLatencyMs = Date.now() - geminiStart;
     logStructuredError("multimodal/gemini_failed", {
       user_id: user.id,
       error: String(genErr),
@@ -1036,6 +1100,7 @@ export async function handleIdentifyMultimodalRequest(
       503,
     );
   }
+  const geminiCompletedAt = Date.now();
 
   if (
     finishReason && finishReason !== "STOP" &&
@@ -1272,24 +1337,46 @@ export async function handleIdentifyMultimodalRequest(
   const hasCandidates = Array.isArray(payloadReadyForClient.candidates) &&
     payloadReadyForClient.candidates.length > 0;
 
-  const [commonNameMap, fetchedCachedSpecies] = await Promise.all([
-    hasCandidates
-      ? fetchCandidateCommonNames(
-        payloadReadyForClient.candidates!.map((candidate) =>
-          candidate.scientific_name
-        ),
+  const dictionaryHydrationStart = performance.now();
+  const candidateScientificNames = hasCandidates
+    ? payloadReadyForClient.candidates!.map((candidate) =>
+      candidate.scientific_name
+    )
+    : [];
+  let commonNameMap = new Map<string, string>();
+  let fetchedCachedSpecies: CachedSpeciesRow | null = null;
+  if (isIdentifiedBio || hasCandidates) {
+    try {
+      const hydration = await fetchIdentificationDictionaryHydration(
+        isIdentifiedBio ? parsedData.scientific_name! : null,
+        candidateScientificNames,
         supabaseAdmin,
-      )
-      : Promise.resolve(new Map<string, string>()),
-    isIdentifiedBio
-      ? fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin).catch(
-        (err) => {
-          console.error("Synchronous enrichment error:", err);
-          return null;
-        },
-      )
-      : Promise.resolve(null),
-  ]);
+      );
+      commonNameMap = hydration.candidateCommonNames;
+      fetchedCachedSpecies = hydration.cachedSpecies;
+    } catch (error) {
+      logStructuredError("multimodal/dictionary_hydration_fallback", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      [commonNameMap, fetchedCachedSpecies] = await Promise.all([
+        hasCandidates
+          ? fetchCandidateCommonNames(candidateScientificNames, supabaseAdmin)
+          : Promise.resolve(new Map<string, string>()),
+        isIdentifiedBio
+          ? fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
+            .catch(
+              (err) => {
+                console.error("Dictionary hydration fallback error:", err);
+                return null;
+              },
+            )
+          : Promise.resolve(null),
+      ]);
+    }
+  }
+  const dictionaryHydrationMs = performance.now() - dictionaryHydrationStart;
 
   if (hasCandidates) {
     const candidateNames = payloadReadyForClient.candidates!.map((
@@ -1324,24 +1411,6 @@ export async function handleIdentifyMultimodalRequest(
       wikipediaOverview = payloadReadyForClient.wikipedia_overview ?? null;
       alternativeCommonNames = payloadReadyForClient.alternative_common_names ??
         null;
-    } else {
-      try {
-        externalData = await fetchExternalEnrichment(
-          parsedData.scientific_name!,
-        );
-        if (externalData) {
-          referenceImageUrl = externalData.referenceImageUrl;
-          wikipediaUrl = externalData.wikipediaUrl;
-          wikipediaOverview = externalData.wikiExtract;
-          const primaryEn = (payloadReadyForClient.common_name ?? "")
-            .toLowerCase();
-          alternativeCommonNames = externalData.alternativeCommonNames.filter(
-            (name) => name.toLowerCase() !== primaryEn,
-          );
-        }
-      } catch (err) {
-        console.error("Synchronous enrichment error:", err);
-      }
     }
   }
 
@@ -1355,11 +1424,13 @@ export async function handleIdentifyMultimodalRequest(
   ) as Record<string, unknown> | undefined;
 
   const requireDurableVideo = videoR2ObjectKeys.length > 0;
-  await updateIngestionJobBestEffort(
-    "finalizing",
-    "ai_inference_complete",
-    { leaseSeconds: requireDurableVideo ? 300 : 600 },
-  );
+  if (requireDurableVideo) {
+    await updateIngestionJobBestEffort(
+      "finalizing",
+      "ai_inference_complete",
+      { leaseSeconds: 300 },
+    );
+  }
 
   const runBackgroundIngestion = async () => {
     let modResult:
@@ -1433,6 +1504,13 @@ export async function handleIdentifyMultimodalRequest(
     };
 
     try {
+      if (!requireDurableVideo) {
+        await updateIngestionJobBestEffort(
+          "finalizing",
+          "ai_inference_complete",
+          { leaseSeconds: 600 },
+        );
+      }
       await updateIngestionJobBestEffort(
         "finalizing",
         "background_ingestion_started",
@@ -1586,6 +1664,19 @@ export async function handleIdentifyMultimodalRequest(
               )
             ),
           );
+        }
+      }
+
+      if (
+        isIdentifiedBio &&
+        (!cachedSpecies || !normalizeTaxonomyValue(cachedSpecies.kingdom))
+      ) {
+        try {
+          externalData = await fetchExternalEnrichment(
+            parsedData.scientific_name!,
+          );
+        } catch (error) {
+          console.error("Background primary enrichment error:", error);
         }
       }
 
@@ -1854,7 +1945,7 @@ export async function handleIdentifyMultimodalRequest(
           : null,
         is_identified: isIdentifiedBio,
         species_name: parsedData.scientific_name || null,
-        gemini_latency_ms: Date.now() - geminiStart,
+        gemini_latency_ms: geminiLatencyMs,
       }).catch((e) => console.error("PostHog tracking failed:", e));
 
       const runOptionalSpeciesWrites = async () => {
@@ -2001,7 +2092,50 @@ export async function handleIdentifyMultimodalRequest(
     runBackground(runBackgroundIngestion());
   }
 
-  return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
+  const edgeTotalMs = Date.now() - fnStart + authDurationMs;
+  const postGeminiMs = Math.max(Date.now() - geminiCompletedAt, 0);
+  const payloadBytes = Number(req.headers.get("content-length")) || null;
+  const edgeRegion = Deno.env.get("SB_REGION") ??
+    req.headers.get("x-sb-edge-region") ?? "unknown";
+  const constrainedNetwork =
+    req.headers.get("x-merian-constrained-network") === "true";
+  console.log(JSON.stringify({
+    event: "multimodal/latency",
+    tier: userTier,
+    inference_tier: inferenceTier,
+    model: targetModel,
+    image_count: mediaTelemetry.imageCount,
+    payload_bytes: payloadBytes,
+    edge_region: edgeRegion,
+    constrained_network: constrainedNetwork,
+    auth_ms: Math.round(authDurationMs),
+    body_read_ms: Math.round(bodyReadMs),
+    tier_resolution_ms: Math.round(tierMs),
+    pre_gemini_db_ms: Math.round(preGeminiDbMs),
+    gemini_latency_ms: geminiLatencyMs,
+    dictionary_hydration_ms: Math.round(dictionaryHydrationMs),
+    post_gemini_ms: Math.round(postGeminiMs),
+    non_gemini_ms: Math.max(edgeTotalMs - geminiLatencyMs, 0),
+    edge_total_ms: edgeTotalMs,
+    ts: new Date().toISOString(),
+  }));
+
+  return jsonResponse(
+    { success: true, data: payloadReadyForClient },
+    200,
+    {
+      "Server-Timing": serverTimingValue([
+        { name: "body_read", durationMs: bodyReadMs },
+        { name: "tier", durationMs: tierMs },
+        { name: "pre_gemini_db", durationMs: preGeminiDbMs },
+        { name: "gemini", durationMs: geminiLatencyMs },
+        { name: "dictionary", durationMs: dictionaryHydrationMs },
+        { name: "post_gemini", durationMs: postGeminiMs },
+        { name: "edge_total", durationMs: edgeTotalMs },
+      ]),
+      "X-Merian-Edge-Region": edgeRegion,
+    },
+  );
 }
 
 async function tryHandleInternalReplayRequest(
@@ -2051,7 +2185,13 @@ Deno.serve(async (req: Request) => {
 
   return withEdgeHandler(
     req,
-    (user, supabaseAdmin) =>
-      handleIdentifyMultimodalRequest(req, user, supabaseAdmin),
+    (user, supabaseAdmin, context) =>
+      handleIdentifyMultimodalRequest(
+        req,
+        user,
+        supabaseAdmin,
+        context.authDurationMs,
+      ),
+    { authStrategy: "claims" },
   );
 });

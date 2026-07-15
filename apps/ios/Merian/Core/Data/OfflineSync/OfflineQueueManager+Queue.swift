@@ -149,6 +149,8 @@ extension OfflineQueueManager {
     /// Cancels any in-flight background uploads and purges the item from disk.
     @discardableResult
     func deleteQueuedScan(scanId: String, explicitlyAdoptedMediaPaths: [String] = []) async -> Bool {
+        deferredLiveUploadScanIds.remove(scanId)
+        foregroundInferenceScanIds.remove(scanId)
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
         let allTasks = await backgroundSession.allTasks
         for task in allTasks {
@@ -460,7 +462,9 @@ extension OfflineQueueManager {
         }
         let now = Date()
         let staged = fetched.filter { scan in
-            !scan.queueNeedsAttention && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
+            !foregroundInferenceScanIds.contains(scan.id) &&
+                !scan.queueNeedsAttention &&
+                (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
         }
         guard !staged.isEmpty else {
             MerianLog.data.debug("replayInferenceStagedScans: no staged scans ready for retry")
@@ -534,8 +538,8 @@ extension OfflineQueueManager {
     ///
     /// All disk I/O runs inside a `.userInitiated` `BackgroundTaskWrapper` so iOS grants extended
     /// time and the cooperative scheduler cannot starve the write on rapid app suspension.
-    /// On success, `syncPendingScans()` is called immediately to dispatch the background upload
-    /// while the background execution window is still active.
+    /// On success, `syncPendingScans()` is normally called immediately. A live
+    /// inference caller can defer that dispatch until its inline request body is sent.
     ///
     /// On any failure — disk write or context save — partial image files are cleaned up atomically.
     ///
@@ -560,6 +564,7 @@ extension OfflineQueueManager {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         captureDate: Date = Date(),
+        startSyncImmediately: Bool = true,
         onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
         let resolvedScanId = scanId ?? UUID().uuidString
@@ -659,7 +664,8 @@ extension OfflineQueueManager {
                     visualMediaItemsJSON: visualMediaItemsJSON,
                     telemetry: telemetry,
                     blurScore: blurScore,
-                    timestamp: captureDate
+                    timestamp: captureDate,
+                    startSyncImmediately: startSyncImmediately
                 )
                 if let onQueued {
                     await MainActor.run { onQueued(didQueue) }
@@ -1055,7 +1061,8 @@ extension OfflineQueueManager {
         visualMediaItemsJSON: String?,
         telemetry: CaptureTelemetry,
         blurScore: Double?,
-        timestamp: Date
+        timestamp: Date,
+        startSyncImmediately: Bool
     ) async -> Bool {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
         // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
@@ -1140,7 +1147,14 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "insertAndPersistRecord: saved queue scanId=\(scanId, privacy: .public) state=pending images=\(fileURLs.count, privacy: .public)"
             )
-            syncPendingScans()
+            if startSyncImmediately {
+                syncPendingScans()
+            } else {
+                deferredLiveUploadScanIds.insert(scanId)
+                MerianLog.data.debug(
+                    "insertAndPersistRecord: deferring duplicate live upload scanId=\(scanId, privacy: .public)"
+                )
+            }
             return true
         } catch {
             modelContext.rollback()
@@ -1150,6 +1164,85 @@ extension OfflineQueueManager {
             MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
             await cleanupPersistedCaptureFiles(fileURLs)
             return false
+        }
+    }
+
+    /// Releases a single live scan's upload hold. Idempotent so the body-sent
+    /// callback, two-second fail-safe, lifecycle events, and error path can race safely.
+    func releaseDeferredLiveUpload(scanId: String, reason: String) {
+        guard deferredLiveUploadScanIds.remove(scanId) != nil else { return }
+        MerianLog.data.debug(
+            "releaseDeferredLiveUpload: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public)"
+        )
+        syncPendingScans()
+    }
+
+    func releaseAllDeferredLiveUploads(reason: String) {
+        guard !deferredLiveUploadScanIds.isEmpty else { return }
+        let scanIds = deferredLiveUploadScanIds
+        deferredLiveUploadScanIds.removeAll()
+        MerianLog.data.debug(
+            "releaseAllDeferredLiveUploads: count=\(scanIds.count, privacy: .public) reason=\(reason, privacy: .public)"
+        )
+        syncPendingScans()
+    }
+
+    /// Marks the live request as the sole inference owner while allowing the
+    /// durable queue to upload recovery media after the body-sent handoff.
+    func beginForegroundInference(scanId: String) {
+        foregroundInferenceScanIds.insert(scanId)
+    }
+
+    /// Releases foreground ownership. On failure/cancellation, uploaded scans
+    /// are replayed and pending scans continue normal sync. Idempotent so scene,
+    /// transport, and task-cancellation paths can safely race.
+    func endForegroundInference(
+        scanId: String,
+        resumeBackground: Bool,
+        reason: String
+    ) {
+        guard foregroundInferenceScanIds.remove(scanId) != nil else { return }
+        MerianLog.data.debug(
+            "endForegroundInference: scanId=\(scanId, privacy: .public) resume=\(resumeBackground, privacy: .public) reason=\(reason, privacy: .public)"
+        )
+        guard resumeBackground else { return }
+        syncPendingScans()
+        replayInferenceForUploadedScans()
+    }
+
+    func releaseAllForegroundInferenceClaims(reason: String) {
+        guard !foregroundInferenceScanIds.isEmpty else { return }
+        let scanIds = foregroundInferenceScanIds
+        foregroundInferenceScanIds.removeAll()
+        MerianLog.data.debug(
+            "releaseAllForegroundInferenceClaims: count=\(scanIds.count, privacy: .public) reason=\(reason, privacy: .public)"
+        )
+        syncPendingScans()
+        replayInferenceForUploadedScans()
+    }
+
+    /// Merges late WeatherKit/geocoder values into the durable queue record so
+    /// an offline replay carries the same context even if the live request fails.
+    func updateDeferredContext(scanId: String, telemetry: CaptureTelemetry) {
+        guard let modelContext else { return }
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(descriptor).first else { return }
+
+        scan.gpsElevation = telemetry.gpsElevation ?? scan.gpsElevation
+        scan.weatherCondition = telemetry.weatherCondition ?? scan.weatherCondition
+        scan.weatherTemperatureF = telemetry.weatherTemperatureF ?? scan.weatherTemperatureF
+        scan.locationName = telemetry.locationName ?? scan.locationName
+        scan.queueUpdatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "updateDeferredContext: save failed scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
+            )
         }
     }
 }
