@@ -8,6 +8,7 @@ import {
 interface RootDenoConfig {
   imports?: Record<string, string>;
   lock?: { path?: string; frozen?: boolean };
+  minimumDependencyAge?: string;
 }
 
 export async function expectedFunctionDenoConfig(): Promise<string> {
@@ -26,11 +27,17 @@ export async function expectedFunctionDenoConfig(): Promise<string> {
       "functions/deno.json must use the frozen ./dependencies.lock file.",
     );
   }
+  if (rootConfig.minimumDependencyAge !== "P1D") {
+    throw new Error(
+      "functions/deno.json must enforce a one-day minimum dependency age.",
+    );
+  }
 
   return `${
     JSON.stringify(
       {
         lock: { path: "../dependencies.lock", frozen: true },
+        minimumDependencyAge: rootConfig.minimumDependencyAge,
         imports: rootConfig.imports,
       },
       null,

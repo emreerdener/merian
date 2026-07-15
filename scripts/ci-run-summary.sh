@@ -97,7 +97,12 @@ write_summary() {
       echo ""
       echo "<details><summary>Changed files</summary>"
       echo ""
-      printf '%s\n' "$changed_files" | awk 'NF { print "- `" $0 "`" }' | head -n 100
+      printf '%s\n' "$changed_files" | awk '
+        NF {
+          count += 1
+          if (count <= 100) print "- `" $0 "`"
+        }
+      '
       if [ "$changed_count" -gt 100 ]; then
         echo "- ...truncated after 100 files"
       fi

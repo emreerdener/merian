@@ -568,7 +568,8 @@ Dependency validation must use the same boundary as production bundling.
 `sync_function_deno_configs.ts --check` verifies every deployable function has
 the generated local config derived from the reviewed root manifest.
 `validate_function_dependencies.ts` verifies the shared frozen lock, one exact
-Supabase SDK, aliased runtime imports, and `config.toml` parity, then CI runs
+Supabase SDK, the explicit one-day minimum dependency age, aliased runtime
+imports, and `config.toml` parity, then CI runs
 `deno check --frozen --config <function>/deno.json <function>/index.ts` for all
 entrypoints. `function_dependency_tools_test.ts` locks deployment selection for
 route-local, transitive shared, config, dependency-policy, docs, and test-only

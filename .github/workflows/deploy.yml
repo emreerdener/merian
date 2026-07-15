@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - ".github/workflows/deploy.yml"
+      - "scripts/ci-run-summary.sh"
+      - "scripts/test-ci-run-summary.sh"
       - "scripts/supabase-db-url.sh"
       - "services/supabase/**"
   workflow_dispatch:
@@ -43,10 +45,13 @@ jobs:
           WORKFLOW_REASON: "This workflow is path-filtered to Supabase backend and deploy-support changes, or manual dispatch. It is intentionally separate from iOS simulator startup safety."
         run: bash ../scripts/ci-run-summary.sh
 
+      - name: Test workflow summary rendering
+        run: bash ../scripts/test-ci-run-summary.sh
+
       - name: Setup Deno
         uses: denoland/setup-deno@v1
         with:
-          deno-version: v2.x
+          deno-version: v2.9.2
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1

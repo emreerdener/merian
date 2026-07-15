@@ -25,7 +25,10 @@ Edge Functions are written in TypeScript and run on Deno. They handle logic like
   npm, or JSR specifiers. The whole fleet uses one exact
   `@supabase/supabase-js@2.110.6` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification,
-  not a second SDK dependency.
+  not a second SDK dependency. Generated configs explicitly retain Deno's
+  one-day minimum dependency age; reviewed versions already present in the
+  frozen lock install reproducibly, while future unlocked resolutions must age
+  before adoption.
 
 ### Identification Latency Contract
 

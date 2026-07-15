@@ -3,6 +3,7 @@
     "path": "../dependencies.lock",
     "frozen": true
   },
+  "minimumDependencyAge": "P1D",
   "imports": {
     "@std/http/server.ts": "https://deno.land/std@0.224.0/http/server.ts",
     "@std/http/": "https://deno.land/std@0.224.0/http/",

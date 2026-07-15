@@ -3,6 +3,7 @@
     "path": "./dependencies.lock",
     "frozen": true
   },
+  "minimumDependencyAge": "P1D",
   "tasks": {
     "test": "deno test --allow-env --allow-net --allow-read=../migrations,deno.json,_shared/auth.ts,_shared/claimsAuth.ts,_shared/edgeHandler.ts _tests/"
   },

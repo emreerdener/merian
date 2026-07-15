@@ -36,11 +36,16 @@ guardrail workflows write a **Workflow context** summary that shows purpose,
 trigger, commit, attempt, and changed-file categories so an operator can quickly
 tell whether a visible failure belongs to backend deployment, iOS startup
 safety, or another independent check.
+Large commits render at most 100 changed-file bullets and then append a
+truncation marker. `test-ci-run-summary.sh` locks that behavior without an
+early-closing pipeline, because `set -o pipefail` would otherwise turn an
+expected SIGPIPE into exit 141 before validation or deployment begins.
 
 The workflow performs the following steps:
 
-1. Writes the workflow context summary.
-2. Installs Deno 2, matching `services/supabase/config.toml`.
+1. Writes the workflow context summary and exercises its large-change regression
+   test.
+2. Installs the exact reviewed Deno `2.9.2` runtime.
 3. Installs the Supabase CLI.
 4. Fails fast if required deployment secrets are missing.
 5. Validates Edge Function formatting, lint, and shared runtime type checks.
@@ -201,6 +206,13 @@ fleet uses one exact `@supabase/supabase-js@2.110.6` dependency for both
 silently changing authentication policy for unrelated routes, not to isolate a
 second SDK. `functions/dependencies.lock` is the only lockfile; do not add a
 root or function-local `deno.lock` that can silently diverge from it.
+The root and generated configs explicitly set `minimumDependencyAge` to `P1D`.
+Deno 2.9 applies a one-day default even when the field is absent, but spelling
+the policy out prevents toolchain drift. A fresh CI cache may download a version
+already integrity-pinned in the frozen lock; newly resolved npm/JSR versions
+must still satisfy the one-day delay. Do not disable the protection with
+`--minimum-dependency-age=0` to repair CI. Refresh and commit the lock through
+the reviewed dependency-update flow instead.
 
 When changing dependencies, update the root manifest, regenerate all local
 configs, refresh the lockfile, and commit the three surfaces together:

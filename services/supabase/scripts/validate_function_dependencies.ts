@@ -10,6 +10,7 @@ import { staleFunctionDenoConfigs } from "./sync_function_deno_configs.ts";
 interface RootDenoConfig {
   imports?: Record<string, string>;
   lock?: { path?: string; frozen?: boolean };
+  minimumDependencyAge?: string;
 }
 
 function sortedDifference(lhs: Set<string>, rhs: Set<string>): string[] {
@@ -30,6 +31,11 @@ async function main(): Promise<void> {
     await Deno.readTextFile(join(functionsRoot, "deno.json")),
   ) as RootDenoConfig;
   const imports = rootConfig.imports ?? {};
+  if (rootConfig.minimumDependencyAge !== "P1D") {
+    throw new Error(
+      "functions/deno.json must keep minimumDependencyAge at P1D.",
+    );
+  }
   const expectedSupabaseSpecifier = "npm:@supabase/supabase-js@2.110.6";
   if (imports["@supabase/supabase-js"] !== expectedSupabaseSpecifier) {
     throw new Error(
