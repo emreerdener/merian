@@ -1033,13 +1033,14 @@ extension ExplorePostDetailView {
                         .padding(.bottom, 12)
 
                     mediaView
+                        .padding(.horizontal, 16)
 
                     actionRow
                         .padding(.horizontal, 16)
                         .padding(.top, 14)
                         .padding(.bottom, 12)
 
-                    VStack(spacing: 32) {
+                    VStack(spacing: 24) {
                         speciesSection
 
                         insightCardsSection
@@ -1049,6 +1050,15 @@ extension ExplorePostDetailView {
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, 16)
+                }
+            }
+            .background(Color(uiColor: .systemBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Circle()
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .frame(width: 34, height: 34)
                 }
             }
             .opacity(isGlowing ? 1.0 : 0.6)
@@ -1064,38 +1074,44 @@ extension ExplorePostDetailView {
             HStack(alignment: .center, spacing: 12) {
                 Circle()
                     .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 38, height: 38)
+                    .frame(width: 40, height: 40)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color(uiColor: .secondarySystemFill))
-                    .frame(width: 112, height: 16)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemFill))
+                            .frame(width: 92, height: 17)
+
+                        Capsule()
+                            .fill(placeholderFill(secondary: true))
+                            .frame(width: 34, height: 16)
+                    }
 
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(placeholderFill(secondary: true))
-                        .frame(width: 88, height: 12)
+                        .frame(width: 82, height: 14)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
         private var mediaView: some View {
-            Color.clear
-                .aspectRatio(1, contentMode: .fit)
-                .overlay(
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    placeholderFill(secondary: true),
-                                    placeholderFill()
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            placeholderFill(secondary: true),
+                            placeholderFill()
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
-                .clipped()
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5)
+                }
         }
 
         private var actionRow: some View {
@@ -1124,16 +1140,31 @@ extension ExplorePostDetailView {
         }
         
         private var speciesSection: some View {
-            VStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .center, spacing: 10) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(placeholderFill(secondary: true))
-                    .frame(width: 140, height: 16)
+                    .frame(width: 154, height: 20)
 
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(placeholderFill())
-                    .frame(width: 220, height: 28)
+                    .frame(width: 248, height: 38)
+
+                VStack(spacing: 8) {
+                    reasoningLine(width: nil)
+                    reasoningLine(width: nil)
+                    reasoningLine(width: 270)
+                    reasoningLine(width: 208)
+                }
+                .padding(.top, 8)
             }
             .frame(maxWidth: .infinity)
+        }
+
+        private func reasoningLine(width: CGFloat?) -> some View {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(placeholderFill(secondary: true))
+                .frame(maxWidth: width == nil ? .infinity : nil)
+                .frame(width: width, height: 16)
         }
         
         private var insightCardsSection: some View {
