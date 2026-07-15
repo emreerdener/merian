@@ -57,9 +57,10 @@ multiple functions need the same behavior and the ownership boundary is clear.
   work can detect accidental media-shape drift.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
-  descriptors, staged object keys, upload-session ids, and payload checksums
-  into `scan_ingestion_intents` without raw base64 media bytes or local device
-  paths. Inline-media requests are marked non-resumable so
+  descriptors (including validated still-image focus regions), staged object
+  keys, upload-session ids, and payload checksums into
+  `scan_ingestion_intents` without raw base64 media bytes or local device paths.
+  Inline-media requests are marked non-resumable so
   `replay-scan-ingestion` and health checks know they still depend on the client
   queue. Server replay is capped at 10 claims per sanitized intent before the
   paired job is marked `failed_terminal / server_replay_limit_reached`.

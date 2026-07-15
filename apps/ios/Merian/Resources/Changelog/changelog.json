@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-15-native-image-focus",
+      "date": "2026-07-15",
+      "title": "Focused still-image analysis",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Still-image scans now replace the laser sweep with fast native subject brackets and a dimmed exterior when Merian finds a clear focus area.",
+            "Broad or ambiguous scenes remain unobstructed with no fallback box, while the complete cropped image continues to be analyzed."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-14-camera-audio-handoff",
       "date": "2026-07-14",
       "title": "Reliable Audio recording",

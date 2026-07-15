@@ -2030,6 +2030,52 @@ struct MerianNetworkClientTests {
         #expect(payload["audioR2ObjectKeys"] as? [String] == ["staging/test-user/video-audio.wav"])
     }
 
+    @Test func multimodalRequestBodyCarriesStillImageFocusWithoutAdditionalMedia() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: "2026-07-15T06:00:00.000Z",
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+        let focusRegion = NormalizedImageFocusRegion(
+            x: 0.1,
+            y: 0.2,
+            width: 0.5,
+            height: 0.4
+        )
+
+        let bodyData = try MerianNetworkClient.buildMultiModalRequestBody(
+            base64ImageDatas: ["encoded-image"],
+            visualMediaItems: [.image(sourceIndex: 0, focusRegion: focusRegion)],
+            userId: "test-user",
+            telemetry: telemetry,
+            deviceLocale: "en",
+            deviceTimeZone: "America/Chicago",
+            deviceRegion: "US",
+            currentMonth: 7,
+            timeOfDay: "1:00 AM",
+            depthScaleText: nil,
+            clientScanId: "scan-focus"
+        )
+
+        let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        let visualItems = try #require(payload["visualMediaItems"] as? [[String: Any]])
+        let encodedFocus = try #require(visualItems.first?["focusRegion"] as? [String: Any])
+
+        #expect(payload["imageBase64s"] as? [String] == ["encoded-image"])
+        #expect(visualItems.count == 1)
+        #expect(encodedFocus["source"] as? String == "vision_objectness")
+        #expect(encodedFocus["x"] as? Double == 0.1)
+        #expect(encodedFocus["width"] as? Double == 0.5)
+    }
+
     // MARK: - validateMultiModalPayloadBudget
 
     @Test func budgetValidationPassesWhenUnderLimit() throws {

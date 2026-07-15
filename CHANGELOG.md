@@ -85,6 +85,10 @@ TestFlight, App Store, support, and QA.
 
 ### Insights
 
+- Replaced the still-image laser sweep with a fast native focus treatment. When
+  Merian isolates a clear subject, the analyzing image now uses Lens-style
+  corner brackets and a dimmed exterior; broad or ambiguous scenes remain
+  unobstructed with no fallback box. The full cropped image is still analyzed.
 - Improved fullscreen video viewing with the same streamlined custom play/pause
   and mute controls used elsewhere, while keeping carousel dots in their
   standard gallery position. Fullscreen videos now begin playing immediately

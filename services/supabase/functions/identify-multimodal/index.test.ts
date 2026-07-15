@@ -186,6 +186,15 @@ type VisualMediaDescriptor = {
   sourceIndex?: number;
   clipIndex?: number;
   frameIndex?: number;
+  focusRegion?: NormalizedFocusRegion;
+};
+
+type NormalizedFocusRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  source: "vision_objectness";
 };
 
 type AudioMediaDescriptor = {
@@ -199,6 +208,28 @@ function optionalIndex(value: unknown): number | undefined {
     return undefined;
   }
   return Math.trunc(value);
+}
+
+function normalizeFocusRegion(
+  rawRegion: unknown,
+): NormalizedFocusRegion | undefined {
+  if (!rawRegion || typeof rawRegion !== "object" || Array.isArray(rawRegion)) {
+    return undefined;
+  }
+  const region = rawRegion as Record<string, unknown>;
+  const { x, y, width, height, source } = region;
+  if (
+    typeof x !== "number" || !Number.isFinite(x) ||
+    typeof y !== "number" || !Number.isFinite(y) ||
+    typeof width !== "number" || !Number.isFinite(width) ||
+    typeof height !== "number" || !Number.isFinite(height) ||
+    source !== "vision_objectness" ||
+    x < 0 || y < 0 || width <= 0 || height <= 0 ||
+    x > 1 || y > 1 || x + width > 1 || y + height > 1
+  ) {
+    return undefined;
+  }
+  return { x, y, width, height, source };
 }
 
 function normalizeVisualMediaItems(
@@ -225,6 +256,9 @@ function normalizeVisualMediaItems(
       sourceIndex: optionalIndex(item.sourceIndex ?? item.source_index),
       clipIndex: optionalIndex(item.clipIndex ?? item.clip_index),
       frameIndex: optionalIndex(item.frameIndex ?? item.frame_index),
+      focusRegion: item.kind === "image"
+        ? normalizeFocusRegion(item.focusRegion ?? item.focus_region)
+        : undefined,
     });
   }
 
@@ -348,7 +382,15 @@ function buildVisualMediaPrompt(
       }
 
       const sourceNumber = (item.sourceIndex ?? index) + 1;
-      return `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
+      const photoLabel =
+        `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
+      if (!item.focusRegion) return photoLabel;
+      const { x, y, width, height } = item.focusRegion;
+      return `${photoLabel} The likely primary subject is inside top-left-normalized bounds x=${
+        x.toFixed(4)
+      }, y=${y.toFixed(4)}, width=${width.toFixed(4)}, height=${
+        height.toFixed(4)
+      } in this same photo. Prioritize that region while treating everything outside it as environmental context.`;
     });
 
     const promptLines = includesVideo
@@ -688,6 +730,56 @@ Deno.test("visual media prompt keeps still-photo language for still photos", () 
   assert(prompt.includes("ordered still photos"));
   assert(prompt.includes("Visual input 1: still photo 1"));
   assert(!prompt.includes("video scan"));
+});
+
+Deno.test("visual media prompt adds accepted still-photo focus context", () => {
+  const descriptors = normalizeVisualMediaItems([{
+    kind: "image",
+    sourceIndex: 0,
+    focusRegion: {
+      x: 0.125,
+      y: 0.25,
+      width: 0.5,
+      height: 0.4,
+      source: "vision_objectness",
+    },
+  }], 1);
+  const prompt = buildVisualMediaPrompt(descriptors, false, 1);
+
+  assert(prompt?.includes("top-left-normalized bounds"));
+  assert(prompt?.includes("x=0.1250"));
+  assert(prompt?.includes("environmental context"));
+});
+
+Deno.test("visual media normalization strips malformed and video focus regions", () => {
+  const descriptors = normalizeVisualMediaItems([
+    {
+      kind: "image",
+      sourceIndex: 0,
+      focusRegion: {
+        x: 0.8,
+        y: 0.1,
+        width: 0.4,
+        height: 0.4,
+        source: "vision_objectness",
+      },
+    },
+    {
+      kind: "video_frame",
+      clipIndex: 0,
+      frameIndex: 0,
+      focusRegion: {
+        x: 0.1,
+        y: 0.1,
+        width: 0.4,
+        height: 0.4,
+        source: "vision_objectness",
+      },
+    },
+  ], 2);
+
+  assertEquals(descriptors[0].focusRegion, undefined);
+  assertEquals(descriptors[1].focusRegion, undefined);
 });
 
 // ---------------------------------------------------------------------------

@@ -36,6 +36,34 @@ Three staging buffers are populated in `CaptureWorkspaceViewModel` after each ca
 - `StagedImage.compressedData` — tier-conditional inference payloads: 768 px (Flash/free) or 1024 px (Pro), square-cropped WebP `Data`
 - `StagedImage.displayData` — 2048 px display payloads (square-cropped WebP `Data`, same geometry)
 - `StagedImage.uiImage` — in-memory `UIImage` thumbnails for the Active Scan Toolbar. The camera path wraps the already-decoded `CGImage` directly; the gallery path reconstructs the image once during the final main-actor commit from the prepared inference payload.
+- `StagedImage.focusRegion` — optional transient top-left-normalized subject bounds from Vision objectness saliency. It is queue/inference context, not completed-scan storage.
+
+### Automatic focus metadata
+
+`ImageFocusRegionDetector` runs `VNGenerateObjectnessBasedSaliencyImageRequest`
+revision 2 off the main actor against a 512 px derivative of the final inference
+image. The request has a 300 ms deadline. Selection uses a 0.50 confidence
+floor, center proximity only as a near-confidence tie-break, 12% subject-relative
+padding, a 3–70% accepted area range, and ambiguity rejection for spatially
+separate near-confidence candidates. Failure, timeout, a broad scene, or no
+clear subject produces `nil`; no synthetic fallback rectangle is created.
+
+Camera preparation overlaps detection with display-payload preparation. Gallery
+imports are detected after bounded preparation and then recalculated from the
+confirmed square-crop bytes; required-crop auto-submit waits for that recalculation.
+Historical reanalysis uses the same file-backed prepared-image seam. The
+accepted region is attached to `IdentifyVisualMediaItem` and
+`ActiveScanMedia.focusRegionsBySourceIndex`, ensuring the Insight overlay and AI
+request use the same rectangle. Gemini still receives the entire post-crop
+image, so focus metadata adds context without another crop, image part, storage
+object, or image-token charge.
+
+During still-image inference, `AnalyzingMediaOverlay` maps the normalized square
+image bounds through the carousel's aspect-fill transform, dims only the exterior
+by 22%, and draws four detached white corner brackets. The brackets resolve with
+a 200 ms entrance and then remain static; Reduce Motion uses opacity only. If no
+region exists, the still image has no box and no laser. Video keeps its existing
+laser animation, while audio and description keep their existing sweeps.
 
 The camera shutter path explicitly separates orchestration from ImageIO work. `executeCapture()` snapshots location, composing-zone center, and Pro tier on the main actor, then calls `DetachedWork.value(category: .imagePreparation)` to downsample, crop, and encode the 12MP buffer. The detached worker returns bounded inference/display bytes plus a `SendableCGImage` preview wrapper. No `CGImageSourceCreateThumbnailAtIndex` or `CGImageDestinationFinalize` work is allowed to inherit the view model's `@MainActor` executor.
 

@@ -704,6 +704,8 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    the source remains under the hard video byte cap. `visualMediaItems` is the
    preferred contract for telling the prompt which visual inputs are still
    photos and which are ordered frames from one or more short clips;
+   still-photo entries may add a validated top-left-normalized `focusRegion`
+   that prioritizes the likely subject without replacing the full image;
    `audioMediaItems` identifies standalone audio versus audio extracted from a
    video clip. If optional video audio cannot be parsed or is too short after
    trimming, the edge skips that audio when visual evidence is present instead

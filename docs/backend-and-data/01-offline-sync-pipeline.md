@@ -155,6 +155,13 @@ sharing anchored to the single playback video item. Queue deletion treats those
 sampled frames as inference-only cleanup candidates and preserves any video,
 audio, or display media adopted by the final local scan.
 
+Still-image descriptors may also contain an optional normalized `focusRegion`.
+The existing `visualMediaItemsJSON` field preserves it across queued upload and
+replay without a SwiftData migration. `QueuedScanContext` snapshots the same JSON
+so an analyzing queued Insight can render the identical region without touching
+a live SwiftData model. Focus coordinates are transient and are not copied onto
+completed scan records.
+
 **UI Surface**: While a scan awaits network transit, its `OfflineQueuedScan`
 record is rendered at the **top** of the Scans Library grid (`ScansGrid`) with a
 dark overlay that reflects online, retry-wait, and needs-attention states.

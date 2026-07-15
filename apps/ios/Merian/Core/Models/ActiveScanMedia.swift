@@ -32,10 +32,16 @@ enum ReferenceState: Equatable {
 struct ActiveScanMedia: Equatable {
     var items: [MediaItem] = []
     var referenceState: ReferenceState = .empty
+    var focusRegionsBySourceIndex: [Int: NormalizedImageFocusRegion] = [:]
 
-    init(items: [MediaItem] = [], referenceState: ReferenceState = .empty) {
+    init(
+        items: [MediaItem] = [],
+        referenceState: ReferenceState = .empty,
+        focusRegionsBySourceIndex: [Int: NormalizedImageFocusRegion] = [:]
+    ) {
         self.items = items
         self.referenceState = referenceState
+        self.focusRegionsBySourceIndex = focusRegionsBySourceIndex
     }
 
     /// The consolidated length representing every active UI carousel node natively.
@@ -52,7 +58,11 @@ struct ActiveScanMedia: Equatable {
     }
 
     var withoutReferenceImages: ActiveScanMedia {
-        ActiveScanMedia(items: items, referenceState: .empty)
+        ActiveScanMedia(
+            items: items,
+            referenceState: .empty,
+            focusRegionsBySourceIndex: focusRegionsBySourceIndex
+        )
     }
 
     var hasUserImage: Bool {

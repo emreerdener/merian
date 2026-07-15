@@ -203,6 +203,22 @@ enum AppTelemetry {
         send("CaptureThermalThrottled", with: ["targetFPS": String(fpsLimit)])
     }
 
+    /// Records privacy-safe focus-detection performance without image content or coordinates.
+    static func trackImageFocusDetection(
+        durationMilliseconds: Int,
+        outcome: String,
+        areaBucket: String?
+    ) {
+        var properties = [
+            "durationMs": String(max(0, durationMilliseconds)),
+            "outcome": outcome
+        ]
+        if let areaBucket {
+            properties["areaBucket"] = areaBucket
+        }
+        send("ImageFocusDetectionCompleted", with: properties)
+    }
+
     // MARK: - Error Events
 
     /// Records a named error domain for custom error tracking.

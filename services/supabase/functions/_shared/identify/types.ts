@@ -181,6 +181,16 @@ export interface VisualMediaItemDTO {
   clip_index?: number;
   frameIndex?: number;
   frame_index?: number;
+  focusRegion?: NormalizedImageFocusRegionDTO;
+  focus_region?: NormalizedImageFocusRegionDTO;
+}
+
+export interface NormalizedImageFocusRegionDTO {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  source?: "vision_objectness" | string;
 }
 
 export interface AudioMediaItemDTO {

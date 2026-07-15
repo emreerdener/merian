@@ -499,7 +499,15 @@ struct OfflineQueueManagerTests {
             visualMediaItems: [
                 .videoFrame(clipIndex: 0, frameIndex: 0),
                 .videoFrame(clipIndex: 0, frameIndex: 1),
-                .image(sourceIndex: 0)
+                .image(
+                    sourceIndex: 0,
+                    focusRegion: NormalizedImageFocusRegion(
+                        x: 0.1,
+                        y: 0.2,
+                        width: 0.5,
+                        height: 0.4
+                    )
+                )
             ]
         )
 
@@ -525,6 +533,12 @@ struct OfflineQueueManagerTests {
 
         #expect(inferenceImagePaths.count == 3)
         #expect(visualMediaItems.count == inferenceImagePaths.count)
+        #expect(visualMediaItems[2].focusRegion == NormalizedImageFocusRegion(
+            x: 0.1,
+            y: 0.2,
+            width: 0.5,
+            height: 0.4
+        ))
         #expect(items.count == 2)
 
         guard case .video(let videoReference) = items[0] else {

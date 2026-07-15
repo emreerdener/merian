@@ -39,13 +39,18 @@ struct IdentifyVisualMediaItem: Codable, Sendable, Equatable {
     let sourceIndex: Int?
     let clipIndex: Int?
     let frameIndex: Int?
+    let focusRegion: NormalizedImageFocusRegion?
 
-    static func image(sourceIndex: Int) -> IdentifyVisualMediaItem {
+    static func image(
+        sourceIndex: Int,
+        focusRegion: NormalizedImageFocusRegion? = nil
+    ) -> IdentifyVisualMediaItem {
         IdentifyVisualMediaItem(
             kind: .image,
             sourceIndex: sourceIndex,
             clipIndex: nil,
-            frameIndex: nil
+            frameIndex: nil,
+            focusRegion: focusRegion
         )
     }
 
@@ -54,7 +59,8 @@ struct IdentifyVisualMediaItem: Codable, Sendable, Equatable {
             kind: .videoFrame,
             sourceIndex: nil,
             clipIndex: clipIndex,
-            frameIndex: frameIndex
+            frameIndex: frameIndex,
+            focusRegion: nil
         )
     }
 
@@ -69,7 +75,21 @@ struct IdentifyVisualMediaItem: Codable, Sendable, Equatable {
         if let frameIndex {
             object["frameIndex"] = frameIndex
         }
+        if kind == .image, let focusRegion {
+            object["focusRegion"] = focusRegion.jsonObject
+        }
         return object
+    }
+}
+
+extension Array where Element == IdentifyVisualMediaItem {
+    var focusRegionsBySourceIndex: [Int: NormalizedImageFocusRegion] {
+        reduce(into: [:]) { result, item in
+            guard item.kind == .image,
+                  let sourceIndex = item.sourceIndex,
+                  let focusRegion = item.focusRegion else { return }
+            result[sourceIndex] = focusRegion
+        }
     }
 }
 
@@ -345,9 +365,28 @@ struct StagedImage {
     /// Full-resolution original retained for the crop editor. Holds the `EnvironmentContext`
     /// captured at shutter time (GPS, weather) and whether it came from the photo library.
     let original: IdentifiableImage
+
+    /// Optional transient focus metadata for the final post-crop inference image.
+    let focusRegion: NormalizedImageFocusRegion?
     
     /// Chronological insertion tracking for dynamic UI sorting against other capture modalities.
     var addedAt: Date = Date()
+
+    init(
+        compressedData: Data,
+        displayData: Data,
+        uiImage: UIImage,
+        original: IdentifiableImage,
+        focusRegion: NormalizedImageFocusRegion? = nil,
+        addedAt: Date = Date()
+    ) {
+        self.compressedData = compressedData
+        self.displayData = displayData
+        self.uiImage = uiImage
+        self.original = original
+        self.focusRegion = focusRegion
+        self.addedAt = addedAt
+    }
 
     func replacing(
         compressedData: Data? = nil,
@@ -360,6 +399,18 @@ struct StagedImage {
             displayData: displayData ?? self.displayData,
             uiImage: uiImage ?? self.uiImage,
             original: original ?? self.original,
+            focusRegion: focusRegion,
+            addedAt: addedAt
+        )
+    }
+
+    func replacingFocusRegion(_ focusRegion: NormalizedImageFocusRegion?) -> StagedImage {
+        StagedImage(
+            compressedData: compressedData,
+            displayData: displayData,
+            uiImage: uiImage,
+            original: original,
+            focusRegion: focusRegion,
             addedAt: addedAt
         )
     }

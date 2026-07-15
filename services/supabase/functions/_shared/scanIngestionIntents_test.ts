@@ -115,3 +115,94 @@ Deno.test("buildScanIngestionIntent is stable for staged-only retry payloads", a
   assertEquals(lhs.payloadChecksum, rhs.payloadChecksum);
   assertEquals(lhs.payload.uploadSessionIds, ["session-a", "session-b"]);
 });
+
+Deno.test("buildScanIngestionIntent preserves only valid still-image focus metadata", async () => {
+  const intent = await buildScanIngestionIntent({
+    scanId: "scan-focus",
+    payload: {
+      user_id: "user-1",
+      client_scan_id: "scan-focus",
+      r2ObjectKeys: ["staging/user-1/image.webp"],
+      visualMediaItems: [{
+        kind: "image",
+        sourceIndex: 0,
+        focusRegion: {
+          x: 0.1,
+          y: 0.2,
+          width: 0.5,
+          height: 0.4,
+          source: "vision_objectness",
+        },
+      }],
+    },
+    mediaCounts: {
+      image_count: 1,
+      audio_count: 0,
+      video_count: 0,
+      required_video_count: 0,
+      video_frame_count: 0,
+      video_inference_frame_count: 0,
+      has_description: false,
+    },
+    mediaObjectKeys: {
+      image: ["staging/user-1/image.webp"],
+      audio: [],
+      video: [],
+    },
+  });
+
+  const media = intent.payload.media as Record<string, unknown>;
+  assertEquals(media.visualMediaItems, [{
+    kind: "image",
+    sourceIndex: 0,
+    focusRegion: {
+      x: 0.1,
+      y: 0.2,
+      width: 0.5,
+      height: 0.4,
+      source: "vision_objectness",
+    },
+  }]);
+});
+
+Deno.test("buildScanIngestionIntent strips malformed focus metadata", async () => {
+  const intent = await buildScanIngestionIntent({
+    scanId: "scan-invalid-focus",
+    payload: {
+      user_id: "user-1",
+      client_scan_id: "scan-invalid-focus",
+      r2ObjectKeys: ["staging/user-1/image.webp"],
+      visualMediaItems: [{
+        kind: "image",
+        sourceIndex: 0,
+        focusRegion: {
+          x: 0.8,
+          y: 0.2,
+          width: 0.4,
+          height: 0.4,
+          source: "vision_objectness",
+        },
+      }],
+    },
+    mediaCounts: {
+      image_count: 1,
+      audio_count: 0,
+      video_count: 0,
+      required_video_count: 0,
+      video_frame_count: 0,
+      video_inference_frame_count: 0,
+      has_description: false,
+    },
+    mediaObjectKeys: {
+      image: ["staging/user-1/image.webp"],
+      audio: [],
+      video: [],
+    },
+  });
+
+  const media = intent.payload.media as Record<string, unknown>;
+  assertEquals(media.visualMediaItems, [{
+    kind: "image",
+    sourceIndex: 0,
+  }]);
+});

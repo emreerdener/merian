@@ -39,7 +39,7 @@ struct CropSheetModifier: ViewModifier {
                                 compressedData: croppedData,
                                 uiImage: thumbnail,
                                 original: updatedOriginal
-                            )
+                            ).replacingFocusRegion(nil)
 
                             // Re-run the same crop geometry on the 2048px display image so
                             // the scan library stores what Gemini actually analyzed.
@@ -48,7 +48,8 @@ struct CropSheetModifier: ViewModifier {
                             let capturedDisplayData = existing.displayData
                             viewModel.activeCropTask?.cancel()
                             viewModel.activeCropTask = Task {
-                                let displayCropped = await Task.detached {
+                                async let detectedFocusRegion = ImageFocusRegionDetector.detect(in: croppedData)
+                                async let displayCropped = Task.detached {
                                     let src = ImageDownsampler.downsampledUIImage(data: capturedDisplayData, maxSize: 2048)
                                     guard let image = src else { return Data() }
 
@@ -62,13 +63,14 @@ struct CropSheetModifier: ViewModifier {
                                         maxPixelSize: nil
                                     )
                                 }.value
+                                let (resolvedDisplayCrop, focusRegion) = await (displayCropped, detectedFocusRegion)
                                 guard !Task.isCancelled else { return }
                                 if let resolvedIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
                                     let current = viewModel.stagedCapture.images[resolvedIndex]
-                                    let resolvedDisplayData = displayCropped.isEmpty ? croppedData : displayCropped
+                                    let resolvedDisplayData = resolvedDisplayCrop.isEmpty ? croppedData : resolvedDisplayCrop
                                     viewModel.stagedCapture.images[resolvedIndex] = current.replacing(
                                         displayData: resolvedDisplayData
-                                    )
+                                    ).replacingFocusRegion(focusRegion)
                                 }
 
                                 if isRequiredGalleryCrop {

@@ -29,6 +29,7 @@ struct QueuedScanContext: Identifiable, Equatable {
     let queueLastErrorMessage: String?
     let queueNeedsAttention: Bool
     let approximateQueuedBytes: Int64
+    let visualMediaItemsJSON: String?
 
     var capturedMediaSnapshot: CapturedMediaSnapshot {
         CapturedMediaSnapshot(items: capturedMediaItems)
@@ -36,6 +37,17 @@ struct QueuedScanContext: Identifiable, Equatable {
 
     var capturedMediaJSON: String? {
         capturedMediaSnapshot.jsonString
+    }
+
+    var activeScanMedia: ActiveScanMedia {
+        var media = capturedMediaSnapshot.activeScanMedia
+        guard let visualMediaItemsJSON,
+              let data = visualMediaItemsJSON.data(using: .utf8),
+              let descriptors = try? JSONDecoder().decode([IdentifyVisualMediaItem].self, from: data) else {
+            return media
+        }
+        media.focusRegionsBySourceIndex = descriptors.focusRegionsBySourceIndex
+        return media
     }
 
     var mediaKinds: [String] {
@@ -74,7 +86,8 @@ struct QueuedScanContext: Identifiable, Equatable {
             approximateQueuedBytes: Self.approximateQueuedBytes(
                 mediaItems: scan.serializedCapturedMediaItems,
                 inferenceImagePaths: scan.inferenceImagePaths
-            )
+            ),
+            visualMediaItemsJSON: scan.visualMediaItemsJSON
         )
     }
 
@@ -94,7 +107,8 @@ struct QueuedScanContext: Identifiable, Equatable {
         queueLastErrorCode: String? = nil,
         queueLastErrorMessage: String? = nil,
         queueNeedsAttention: Bool = false,
-        approximateQueuedBytes: Int64 = 0
+        approximateQueuedBytes: Int64 = 0,
+        visualMediaItemsJSON: String? = nil
     ) {
         self.id = id
         self.capturedMediaItems = capturedMediaItems
@@ -112,6 +126,7 @@ struct QueuedScanContext: Identifiable, Equatable {
         self.queueLastErrorMessage = queueLastErrorMessage
         self.queueNeedsAttention = queueNeedsAttention
         self.approximateQueuedBytes = approximateQueuedBytes
+        self.visualMediaItemsJSON = visualMediaItemsJSON
     }
 
     static func approximateQueuedBytes(

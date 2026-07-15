@@ -39,6 +39,7 @@ private extension QueuedScanContext {
         self.queueLastErrorMessage = queueLastErrorMessage
         self.queueNeedsAttention = queueNeedsAttention
         self.approximateQueuedBytes = approximateQueuedBytes
+        self.visualMediaItemsJSON = nil
     }
 
     static var preview: QueuedScanContext {

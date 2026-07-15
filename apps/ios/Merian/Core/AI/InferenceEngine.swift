@@ -648,6 +648,7 @@ private struct GBIFMedia: Decodable {
             liveImageDatas: datasToUse,
             persistedImagePaths: nil
         )
+        self.activeMedia.focusRegionsBySourceIndex = visualMediaItems?.focusRegionsBySourceIndex ?? [:]
         
         self.speciesData = nil
 

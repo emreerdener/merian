@@ -5,6 +5,19 @@ private struct PreparedCameraCapture: Sendable {
     let inferenceData: Data
     let displayData: Data
     let previewCGImage: SendableCGImage
+    let focusRegion: NormalizedImageFocusRegion?
+
+    init(
+        inferenceData: Data,
+        displayData: Data,
+        previewCGImage: SendableCGImage,
+        focusRegion: NormalizedImageFocusRegion? = nil
+    ) {
+        self.inferenceData = inferenceData
+        self.displayData = displayData
+        self.previewCGImage = previewCGImage
+        self.focusRegion = focusRegion
+    }
 }
 
 private struct PreparedVideoPlaybackClip: Sendable {
@@ -170,7 +183,7 @@ extension CaptureWorkspaceViewModel {
             priority: .userInitiated,
             category: .imagePreparation
         ) {
-            autoreleasepool {
+            let inferencePrepared: (data: Data, preview: SendableCGImage)? = autoreleasepool {
                 let inferenceMaxSize = MerianConfig.inferenceImageMaxSize(isProActive: isProActive)
                 guard let safeCGImage = ImageDownsampler.downsample(data: captureData, maxSize: inferenceMaxSize) else {
                     return nil
@@ -186,26 +199,32 @@ extension CaptureWorkspaceViewModel {
                     return nil
                 }
 
-                let displaySafeData: Data = {
+                return (finalSafeData, SendableCGImage(image: safeCGImage))
+            }
+            guard let inferencePrepared else { return nil }
+
+            async let focusRegion = ImageFocusRegionDetector.detect(in: inferencePrepared.data)
+
+            let displaySafeData: Data = autoreleasepool {
                     guard let displayCGImage = ImageDownsampler.downsample(
                         data: captureData,
                         maxSize: MerianConfig.displayImageMaxSize
                     ) else {
-                        return finalSafeData
+                        return inferencePrepared.data
                     }
                     let croppedDisplayCGImage = ImageCropProcessor.squareCrop(
                         displayCGImage,
                         verticalCenterFraction: composingCenter
                     ) ?? displayCGImage
-                    return ImageCropProcessor.encode(croppedDisplayCGImage) ?? finalSafeData
-                }()
-
-                return PreparedCameraCapture(
-                    inferenceData: finalSafeData,
-                    displayData: displaySafeData,
-                    previewCGImage: SendableCGImage(image: safeCGImage)
-                )
+                    return ImageCropProcessor.encode(croppedDisplayCGImage) ?? inferencePrepared.data
             }
+
+            return await PreparedCameraCapture(
+                inferenceData: inferencePrepared.data,
+                displayData: displaySafeData,
+                previewCGImage: inferencePrepared.preview,
+                focusRegion: focusRegion
+            )
         }
     }
 
@@ -721,7 +740,8 @@ extension CaptureWorkspaceViewModel {
                                 compressedData: preparedCapture.inferenceData,
                                 displayData: preparedCapture.displayData,
                                 uiImage: backgroundRawImage,
-                                original: identifiable
+                                original: identifiable,
+                                focusRegion: preparedCapture.focusRegion
                             ))
                         }
                     }

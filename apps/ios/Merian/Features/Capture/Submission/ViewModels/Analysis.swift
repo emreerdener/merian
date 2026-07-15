@@ -40,7 +40,10 @@ extension CaptureWorkspaceViewModel {
                 let imageIndex = capturedDisplayImages.count
                 capturedDisplayImages.append(stagedImage)
                 capturedInferenceImages.append(stagedImage)
-                capturedVisualMediaItems.append(.image(sourceIndex: stillImageSourceIndex))
+                capturedVisualMediaItems.append(.image(
+                    sourceIndex: stillImageSourceIndex,
+                    focusRegion: stagedImage.focusRegion
+                ))
                 stillImageSourceIndex += 1
                 capturedMediaTimeline.append(.image(index: imageIndex))
             case .video(_, let stagedVideo):

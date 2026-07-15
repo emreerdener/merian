@@ -21,6 +21,17 @@ Common fields:
   "videoR2ObjectKeys": ["staging/user-id/playback.mp4"],
   "videoFrameCount": 5,
   "visualMediaItems": [
+    {
+      "kind": "image",
+      "sourceIndex": 0,
+      "focusRegion": {
+        "x": 0.125,
+        "y": 0.25,
+        "width": 0.5,
+        "height": 0.4,
+        "source": "vision_objectness"
+      }
+    },
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 0 }
   ],
   "audioMediaItems": [
@@ -43,6 +54,11 @@ decode; staged media is fetched through bounded stream readers.
 ## Media Rules
 
 - Still images are Gemini visual inputs and durable scan/display media.
+- A still-image descriptor may include `focusRegion` with top-left-normalized
+  bounds and `source: "vision_objectness"`. Valid regions identify the likely
+  primary subject in the prompt while the complete image remains the only
+  Gemini visual part. Invalid, out-of-bounds, non-finite, and video-frame focus
+  regions are stripped without failing the request.
 - Standalone audio and extracted video audio are Gemini audio inputs.
   Standalone audio is also durable scan media: it is promoted into
   `audio_storage_urls`, represented in `captured_media`, and normalized as a
@@ -75,7 +91,8 @@ The endpoint writes two server-side records before AI inference:
   `manifest_checksum`.
 - `scan_ingestion_intents`: the sanitized replay intent for the accepted
   request. It stores telemetry, observation context, media descriptors, staged
-  object keys, upload-session ids, and `payload_checksum`.
+  object keys, upload-session ids, accepted focus metadata, and
+  `payload_checksum`.
 
 Replay intents deliberately do not store raw base64 media bytes or local device
 paths. If a request used inline foreground media, the intent is marked

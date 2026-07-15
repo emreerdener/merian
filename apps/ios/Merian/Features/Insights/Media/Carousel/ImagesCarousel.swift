@@ -17,23 +17,29 @@ struct CarouselPageBuilder {
         onDescriptionTap: (() -> Void)?
     ) -> [CarouselPageItem] {
         var pages: [CarouselPageItem] = []
+        var stillImageSourceIndex = 0
         
         for item in activeMedia.items {
             switch item {
             case .liveImage(let data):
+                let focusRegion = activeMedia.focusRegionsBySourceIndex[stillImageSourceIndex]
+                stillImageSourceIndex += 1
                 pages.append(CarouselPageItem(
                     id: "liveImage-\(data.hashValue)",
                     mediaKind: .visual,
-                    view: AnyView(LiveCapturePageView(data: data))
+                    view: AnyView(LiveCapturePageView(data: data)),
+                    focusRegion: focusRegion
                 ))
             case .image(let path):
+                let focusRegion = activeMedia.focusRegionsBySourceIndex[stillImageSourceIndex]
+                stillImageSourceIndex += 1
                 pages.append(CarouselPageItem(id: "image-\(path)", mediaKind: .visual, view: AnyView(
                     AsyncLocalImageView(
                         path: path,
                         fallbackImageUrl: nil,
                         onImageLoadFailed: { onImageFailure(path) }
                     )
-                )))
+                ), focusRegion: focusRegion))
             case .description(let context):
                 pages.append(CarouselPageItem(
                     id: "description-\(context.serialized())",
@@ -519,21 +525,24 @@ struct CarouselPageItem: Identifiable, Equatable {
     let mediaKind: CarouselMediaKind
     let view: AnyView
     let referenceAttributionLabel: String?
+    let focusRegion: NormalizedImageFocusRegion?
 
     init(
         id: String,
         mediaKind: CarouselMediaKind,
         view: AnyView,
-        referenceAttributionLabel: String? = nil
+        referenceAttributionLabel: String? = nil,
+        focusRegion: NormalizedImageFocusRegion? = nil
     ) {
         self.id = id
         self.mediaKind = mediaKind
         self.view = view
         self.referenceAttributionLabel = referenceAttributionLabel
+        self.focusRegion = focusRegion
     }
 
     static func == (lhs: CarouselPageItem, rhs: CarouselPageItem) -> Bool {
-        lhs.id == rhs.id
+        lhs.id == rhs.id && lhs.focusRegion == rhs.focusRegion
     }
 }
 
@@ -622,7 +631,10 @@ struct ImagesCarousel: View {
                         }
                         .overlay {
                             if isProcessing {
-                                AnalyzingMediaOverlay(kind: selectedMediaKind)
+                                AnalyzingMediaOverlay(
+                                    kind: selectedMediaKind,
+                                    focusRegion: selectedFocusRegion
+                                )
                                     .transition(.opacity)
                             }
                         }
@@ -668,6 +680,10 @@ struct ImagesCarousel: View {
         carouselPages[safe: selectedIndex]?.referenceAttributionLabel
     }
 
+    private var selectedFocusRegion: NormalizedImageFocusRegion? {
+        carouselPages[safe: selectedIndex]?.focusRegion
+    }
+
     // MARK: - Action Handlers
     private func handleCarouselTap(at location: CGPoint, containerSize: CGSize) {
         guard !InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
@@ -702,6 +718,7 @@ struct ImagesCarousel: View {
 // MARK: - Analyzing Overlay
 private struct AnalyzingMediaOverlay: View {
     let kind: CarouselMediaKind
+    let focusRegion: NormalizedImageFocusRegion?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sweepProgress: CGFloat = 0
@@ -716,7 +733,12 @@ private struct AnalyzingMediaOverlay: View {
                 tintLayer
 
                 switch kind {
-                case .visual, .video:
+                case .visual:
+                    if let focusRegion {
+                        LensFocusOverlay(region: focusRegion)
+                            .id(focusRegion)
+                    }
+                case .video:
                     visualScan(in: geometry.size)
                 case .audio:
                     audioSweep(in: geometry.size)
@@ -735,7 +757,11 @@ private struct AnalyzingMediaOverlay: View {
     @ViewBuilder
     private var tintLayer: some View {
         switch kind {
-        case .visual, .video:
+        case .visual:
+            if focusRegion == nil {
+                Color.black.opacity(0.14)
+            }
+        case .video:
             Color.black.opacity(0.14)
         case .audio:
             Color.cyan.opacity(pulse ? 0.11 : 0.05)
@@ -823,6 +849,8 @@ private struct AnalyzingMediaOverlay: View {
     }
 
     private func startAnimation() {
+        guard kind != .visual else { return }
+
         guard !reduceMotion else {
             pulse = true
             return
@@ -835,6 +863,148 @@ private struct AnalyzingMediaOverlay: View {
         withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
             pulse = true
         }
+    }
+}
+
+enum ImageFocusOverlayLayout {
+    static func rect(
+        for region: NormalizedImageFocusRegion,
+        in containerSize: CGSize,
+        imageAspectRatio: CGFloat = 1
+    ) -> CGRect {
+        guard containerSize.width > 0,
+              containerSize.height > 0,
+              imageAspectRatio.isFinite,
+              imageAspectRatio > 0 else { return .zero }
+
+        let containerAspectRatio = containerSize.width / containerSize.height
+        let renderedSize: CGSize
+        if imageAspectRatio > containerAspectRatio {
+            renderedSize = CGSize(
+                width: containerSize.height * imageAspectRatio,
+                height: containerSize.height
+            )
+        } else {
+            renderedSize = CGSize(
+                width: containerSize.width,
+                height: containerSize.width / imageAspectRatio
+            )
+        }
+        let origin = CGPoint(
+            x: (containerSize.width - renderedSize.width) / 2,
+            y: (containerSize.height - renderedSize.height) / 2
+        )
+        return CGRect(
+            x: origin.x + region.x * renderedSize.width,
+            y: origin.y + region.y * renderedSize.height,
+            width: region.width * renderedSize.width,
+            height: region.height * renderedSize.height
+        )
+    }
+}
+
+private struct LensFocusOverlay: View {
+    let region: NormalizedImageFocusRegion
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isResolved = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            let bounds = CGRect(origin: .zero, size: geometry.size)
+            let focusRect = ImageFocusOverlayLayout.rect(for: region, in: geometry.size)
+            let shortestSide = min(geometry.size.width, geometry.size.height)
+            let bracketArm = min(30, max(18, shortestSide * 0.075))
+            let strokeWidth = min(5, max(3, shortestSide * 0.0125))
+            let cornerRadius = min(12, max(8, shortestSide * 0.03))
+
+            ZStack {
+                Path { path in
+                    path.addRect(bounds)
+                    path.addRoundedRect(
+                        in: focusRect,
+                        cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
+                    )
+                }
+                .fill(.black.opacity(0.22), style: FillStyle(eoFill: true))
+                .opacity(isResolved ? 1 : 0)
+
+                LensFocusBracketShape(
+                    rect: focusRect,
+                    armLength: bracketArm,
+                    cornerRadius: cornerRadius
+                )
+                .stroke(
+                    .white,
+                    style: StrokeStyle(
+                        lineWidth: strokeWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+                .shadow(color: .black.opacity(0.22), radius: 1.5, y: 1)
+                .scaleEffect(reduceMotion || isResolved ? 1 : 0.985)
+                .opacity(isResolved ? 1 : 0)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear {
+            if reduceMotion {
+                isResolved = true
+            } else {
+                withAnimation(.easeOut(duration: 0.20)) {
+                    isResolved = true
+                }
+            }
+        }
+    }
+}
+
+private struct LensFocusBracketShape: Shape {
+    let rect: CGRect
+    let armLength: CGFloat
+    let cornerRadius: CGFloat
+
+    func path(in _: CGRect) -> Path {
+        let arm = min(armLength, rect.width / 2, rect.height / 2)
+        let radius = min(cornerRadius, arm)
+        var path = Path()
+
+        path.move(to: CGPoint(x: rect.minX + arm, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.minY + radius),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + arm))
+
+        path.move(to: CGPoint(x: rect.maxX - arm, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + arm))
+
+        path.move(to: CGPoint(x: rect.maxX, y: rect.maxY - arm))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - arm, y: rect.maxY))
+
+        path.move(to: CGPoint(x: rect.minX + arm, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.maxY - radius),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - arm))
+
+        return path
     }
 }
 

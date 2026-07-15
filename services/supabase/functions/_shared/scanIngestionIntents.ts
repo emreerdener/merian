@@ -90,18 +90,46 @@ function sanitizeObservationContexts(
     .filter((context) => Object.keys(context).length > 0);
 }
 
+function sanitizeFocusRegion(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const region = value as Record<string, unknown>;
+  const x = cleanNumber(region.x);
+  const y = cleanNumber(region.y);
+  const width = cleanNumber(region.width);
+  const height = cleanNumber(region.height);
+  const source = cleanString(region.source);
+  if (
+    x === undefined || y === undefined || width === undefined ||
+    height === undefined ||
+    source !== "vision_objectness" || x < 0 || y < 0 || width <= 0 ||
+    height <= 0 ||
+    x > 1 || y > 1 || x + width > 1 || y + height > 1
+  ) {
+    return undefined;
+  }
+  return { x, y, width, height, source };
+}
+
 function sanitizeVisualMediaItems(
   items: VisualMediaItemDTO[] | undefined,
 ): Record<string, unknown>[] {
   return (items ?? [])
-    .map((item) =>
-      stripUndefined({
-        kind: cleanString(item.kind),
+    .map((item) => {
+      const kind = cleanString(item.kind);
+      return stripUndefined({
+        kind,
         sourceIndex: cleanNumber(item.sourceIndex ?? item.source_index),
         clipIndex: cleanNumber(item.clipIndex ?? item.clip_index),
         frameIndex: cleanNumber(item.frameIndex ?? item.frame_index),
-      }) as Record<string, unknown>
-    )
+        focusRegion: kind === "image"
+          ? sanitizeFocusRegion(item.focusRegion ?? item.focus_region)
+          : undefined,
+      }) as Record<string, unknown>;
+    })
     .filter((item) => Object.keys(item).length > 0);
 }
 

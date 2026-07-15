@@ -3789,7 +3789,17 @@ ordered compositions of images, audio, and descriptive context.
   ],
   "videoFrameCount": 5,
   "visualMediaItems": [
-    { "kind": "image", "sourceIndex": 0 },
+    {
+      "kind": "image",
+      "sourceIndex": 0,
+      "focusRegion": {
+        "x": 0.125,
+        "y": 0.25,
+        "width": 0.5,
+        "height": 0.4,
+        "source": "vision_objectness"
+      }
+    },
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 0 },
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 1 },
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 2 },
@@ -3856,6 +3866,14 @@ ordered compositions of images, audio, and descriptive context.
   already have staged `scan_media_assets` rows; this endpoint links those rows
   to the scan as durable media, marks consumed extracted `video_audio` rows
   `deleted`, and marks failed finalization rows `failed`.
+- Still-photo descriptors may include `focusRegion` using top-left-normalized
+  coordinates for the same complete post-crop image. The edge accepts only
+  finite positive rectangles contained within `[0, 1]` with
+  `source = vision_objectness`; invalid regions and all video-frame regions are
+  stripped without rejecting the scan. Valid regions add a primary-subject hint
+  to that photo's prompt entry while the full image remains the only Gemini
+  visual part. The sanitized region survives `scan_ingestion_intents` replay;
+  no raw image bytes or completed-scan field are added.
 - Before inference work starts, the endpoint claims a `scan_ingestion_jobs` row
   for the authenticated user and `client_scan_id`. The claim records media
   counts, staged image/audio/video object keys, recovered upload-session ids,

@@ -157,6 +157,15 @@ type VisualMediaDescriptor = {
   sourceIndex?: number;
   clipIndex?: number;
   frameIndex?: number;
+  focusRegion?: NormalizedFocusRegion;
+};
+
+type NormalizedFocusRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  source: "vision_objectness";
 };
 
 type AudioMediaDescriptor = {
@@ -189,6 +198,30 @@ const optionalIndex = (value: unknown): number | undefined => {
   return Math.trunc(value);
 };
 
+function normalizeFocusRegion(
+  rawRegion: unknown,
+): NormalizedFocusRegion | undefined {
+  if (!rawRegion || typeof rawRegion !== "object" || Array.isArray(rawRegion)) {
+    return undefined;
+  }
+
+  const region = rawRegion as Record<string, unknown>;
+  const { x, y, width, height, source } = region;
+  if (
+    typeof x !== "number" || !Number.isFinite(x) ||
+    typeof y !== "number" || !Number.isFinite(y) ||
+    typeof width !== "number" || !Number.isFinite(width) ||
+    typeof height !== "number" || !Number.isFinite(height) ||
+    source !== "vision_objectness" ||
+    x < 0 || y < 0 || width <= 0 || height <= 0 ||
+    x > 1 || y > 1 || x + width > 1 || y + height > 1
+  ) {
+    return undefined;
+  }
+
+  return { x, y, width, height, source };
+}
+
 function normalizeVisualMediaItems(
   rawItems: unknown,
   resolvedImageCount: number,
@@ -213,6 +246,9 @@ function normalizeVisualMediaItems(
       sourceIndex: optionalIndex(item.sourceIndex ?? item.source_index),
       clipIndex: optionalIndex(item.clipIndex ?? item.clip_index),
       frameIndex: optionalIndex(item.frameIndex ?? item.frame_index),
+      focusRegion: item.kind === "image"
+        ? normalizeFocusRegion(item.focusRegion ?? item.focus_region)
+        : undefined,
     });
   }
 
@@ -336,7 +372,16 @@ function buildVisualMediaPrompt(
       }
 
       const sourceNumber = (item.sourceIndex ?? index) + 1;
-      return `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
+      const photoLabel =
+        `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
+      if (!item.focusRegion) return photoLabel;
+
+      const { x, y, width, height } = item.focusRegion;
+      return `${photoLabel} The likely primary subject is inside top-left-normalized bounds x=${
+        x.toFixed(4)
+      }, y=${y.toFixed(4)}, width=${width.toFixed(4)}, height=${
+        height.toFixed(4)
+      } in this same photo. Prioritize that region while treating everything outside it as environmental context.`;
     });
 
     const promptLines = includesVideo

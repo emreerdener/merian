@@ -61,19 +61,22 @@ struct PreparedStagedImage: Sendable {
     let historicalContext: HistoricalEnvironmentContextSnapshot?
     let previewCGImage: SendableCGImage
     let metrics: MediaPreparationMetrics?
+    let focusRegion: NormalizedImageFocusRegion?
 
     init(
         compressedData: Data,
         displayData: Data,
         historicalContext: HistoricalEnvironmentContextSnapshot?,
         previewCGImage: SendableCGImage,
-        metrics: MediaPreparationMetrics? = nil
+        metrics: MediaPreparationMetrics? = nil,
+        focusRegion: NormalizedImageFocusRegion? = nil
     ) {
         self.compressedData = compressedData
         self.displayData = displayData
         self.historicalContext = historicalContext
         self.previewCGImage = previewCGImage
         self.metrics = metrics
+        self.focusRegion = focusRegion
     }
 }
 
@@ -288,12 +291,14 @@ final class CaptureWorkspaceViewModel {
             fileURL: request.fileURL,
             isPro: request.isPro
         )
+        let focusRegion = await ImageFocusRegionDetector.detect(in: prepared.inferenceData)
         return PreparedStagedImage(
             compressedData: prepared.inferenceData,
             displayData: prepared.displayData,
             historicalContext: request.historicalContext,
             previewCGImage: SendableCGImage(image: prepared.previewImage.cgImage),
-            metrics: prepared.metrics
+            metrics: prepared.metrics,
+            focusRegion: focusRegion
         )
     }
     
@@ -494,7 +499,8 @@ final class CaptureWorkspaceViewModel {
                 compressedData: preparedImport.compressedData,
                 displayData: preparedImport.displayData,
                 uiImage: rawImage,
-                original: identifiable
+                original: identifiable,
+                focusRegion: preparedImport.focusRegion
             ))
         }
 

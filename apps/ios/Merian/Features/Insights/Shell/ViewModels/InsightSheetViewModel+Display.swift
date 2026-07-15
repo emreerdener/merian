@@ -173,7 +173,7 @@ extension InsightSheetViewModel {
     func resolvedMedia(for explicitQueuedScan: QueuedScanContext?) -> ActiveScanMedia {
         if let queued = explicitQueuedScan ?? queuedContext {
             if let cached = cachedActiveMedia { return displayMedia(cached) }
-            return displayMedia(queued.capturedMediaSnapshot.activeScanMedia)
+            return displayMedia(queued.activeScanMedia)
         }
         return displayMedia(activeMedia)
     }
