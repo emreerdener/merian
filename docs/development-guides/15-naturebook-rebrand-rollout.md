@@ -33,7 +33,7 @@ Do not show a forced rename modal.
 - Web environment template: `apps/web/.env.example`
 - Forward migration:
   `services/supabase/migrations/20260716012046_rebrand_public_surfaces_to_naturebook.sql`
-- App Store notes: `apps/ios/AppStore/ReleaseNotes/1.0.1.md`
+- App Store notes: `apps/ios/AppStore/ReleaseNotes/1.0.2.md`
 - In-app notes: `apps/ios/Merian/Resources/Changelog/changelog.json`
 
 ## Current Rollout Status
@@ -236,7 +236,7 @@ name when App Store Connect requires the account's legal identity.
 
 ### Release notes
 
-Use `apps/ios/AppStore/ReleaseNotes/1.0.1.md` as the reviewed source. Confirm
+Use `apps/ios/AppStore/ReleaseNotes/1.0.2.md` as the reviewed source. Confirm
 the exact transition sentence appears and does not imply a data migration or
 new account.
 

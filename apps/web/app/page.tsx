@@ -36,9 +36,11 @@ export default async function HomePage() {
                 Naturebook
               </Title>
               <Text className="splash-lede">
-                A field companion for curious naturalists: identify living
-                things, keep context with every observation, and help shape the
-                public Explore community before launch.
+                Your all-in-one ecological companion. Identify species through
+                photo, video, or audio, track complex multi-capture
+                observations, and join self-guided field trips. Connect with a
+                community of naturalists, unlock achievements, and learn on the
+                go with our AI field chat.
               </Text>
             </Stack>
 
