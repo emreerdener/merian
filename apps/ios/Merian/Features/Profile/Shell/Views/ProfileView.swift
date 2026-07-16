@@ -8,11 +8,14 @@ enum ProfileTab {
 struct ProfileView: View {
     // MARK: - Environment & State
     @Environment(\.dismiss) private var dismiss
+    @Environment(ProfileViewModel.self) private var viewModel
 
     var supabase = SupabaseManager.shared
-    @State private var viewModel = ProfileViewModel()
     @State private var showPaywall = false
     @State private var activeTab: ProfileTab = .profile
+    @State private var isShowingAvatarPicker = false
+    @State private var isShowingDisplayNameEditor = false
+    @State private var isShowingUsernameEditor = false
 
     /// Maps `ProfileTab` into the optional binding required by `.scrollPosition(id:)`.
     private var tabSelectionBinding: Binding<ProfileTab?> {
@@ -26,7 +29,12 @@ struct ProfileView: View {
         NavigationStack {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
-                    ProfileTabView(showPaywall: $showPaywall)
+                    ProfileTabView(
+                        showPaywall: $showPaywall,
+                        isShowingAvatarPicker: $isShowingAvatarPicker,
+                        isShowingDisplayNameEditor: $isShowingDisplayNameEditor,
+                        isShowingUsernameEditor: $isShowingUsernameEditor
+                    )
                         .id(ProfileTab.profile)
 
                     SettingsTabView(supabase: supabase, viewModel: viewModel)
@@ -65,5 +73,49 @@ struct ProfileView: View {
             .clipShape(Capsule())
             .frame(width: 200)
         }
+
+        if activeTab == .profile {
+            ToolbarItem(placement: .topBarTrailing) {
+                profileOptionsMenu
+            }
+        }
+    }
+
+    private var profileOptionsMenu: some View {
+        Menu {
+            Button {
+                isShowingAvatarPicker = true
+            } label: {
+                Label("Replace profile pic", systemImage: "person.crop.circle")
+            }
+            .disabled(viewModel.isUpdatingAvatar)
+
+            Button {
+                isShowingDisplayNameEditor = true
+            } label: {
+                Label("Edit name", systemImage: "person.text.rectangle")
+            }
+
+            Button {
+                isShowingUsernameEditor = true
+            } label: {
+                Label("Edit username", systemImage: "at")
+            }
+
+            if !viewModel.isGuestUser {
+                Button(role: .destructive) {
+                    Task {
+                        await viewModel.signOut()
+                    }
+                } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .tint(.primary)
+        .accessibilityLabel("Profile options")
+        .accessibilityIdentifier("ProfileToolbarOptions")
     }
 }

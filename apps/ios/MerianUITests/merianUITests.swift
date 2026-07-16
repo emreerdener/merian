@@ -47,6 +47,33 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testProfileOptionsMenuLivesInProfileToolbar() throws {
+        let app = UITestAppLauncher.launchConfiguredApp()
+
+        let profileButton = app.buttons["MainTabBar_Profile"]
+        XCTAssertTrue(profileButton.waitForExistence(timeout: 8.0), "Main profile tab button failed to appear")
+        profileButton.tap()
+
+        let profileOptions = app.navigationBars.buttons["ProfileToolbarOptions"]
+        XCTAssertTrue(profileOptions.waitForExistence(timeout: 8.0), "Profile options did not appear in the top toolbar")
+
+        let settingsTab = app.segmentedControls.buttons["Settings"]
+        XCTAssertTrue(settingsTab.waitForExistence(timeout: 4.0), "Settings tab did not appear")
+        settingsTab.tap()
+        XCTAssertTrue(profileOptions.waitForNonExistence(timeout: 4.0), "Profile options should be hidden on the Settings tab")
+
+        let profileTab = app.segmentedControls.buttons["Profile"]
+        XCTAssertTrue(profileTab.waitForExistence(timeout: 4.0), "Profile tab did not appear")
+        profileTab.tap()
+        XCTAssertTrue(profileOptions.waitForExistence(timeout: 4.0), "Profile options did not return on the Profile tab")
+        profileOptions.tap()
+
+        XCTAssertTrue(app.buttons["Replace profile pic"].waitForExistence(timeout: 4.0))
+        XCTAssertTrue(app.buttons["Edit name"].exists)
+        XCTAssertTrue(app.buttons["Edit username"].exists)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             UITestAppLauncher.makeConfiguredApp().launch()

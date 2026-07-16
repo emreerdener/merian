@@ -6,11 +6,11 @@ import UIKit
 /// and dynamically rendering high-fidelity Auth provider payloads seamlessly.
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
-    @State private var isShowingUsernameEditor = false
-    @State private var isShowingDisplayNameEditor = false
+    @Binding var isShowingAvatarPicker: Bool
+    @Binding var isShowingDisplayNameEditor: Bool
+    @Binding var isShowingUsernameEditor: Bool
     @State private var avatarImageToCrop: IdentifiableImage?
     @State private var selectedAvatarItem: PhotosPickerItem?
-    @State private var isShowingAvatarPicker = false
     @State private var isShowingAvatarError = false
     var totalScans: Int = 0
     var completedAchievements: Int = 0
@@ -103,55 +103,7 @@ struct UserProfile: View {
             }
 
             Spacer()
-
-            profileMenu
         }
-    }
-
-    private var profileMenu: some View {
-        Menu {
-            Button {
-                isShowingAvatarPicker = true
-            } label: {
-                Label("Replace profile pic", systemImage: "person.crop.circle")
-            }
-            .disabled(profileViewModel.isUpdatingAvatar)
-
-            Button {
-                isShowingDisplayNameEditor = true
-            } label: {
-                Label("Edit name", systemImage: "person.text.rectangle")
-            }
-
-            Button {
-                isShowingUsernameEditor = true
-            } label: {
-                Label("Edit username", systemImage: "at")
-            }
-
-            if !profileViewModel.isGuestUser {
-                Button(role: .destructive) {
-                    Task {
-                        await profileViewModel.signOut()
-                    }
-                } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.primary)
-                .frame(width: 36, height: 36)
-                .background(Color.secondary.opacity(0.15))
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-                )
-        }
-        .buttonStyle(BorderlessButtonStyle())
-        .accessibilityLabel("Profile options")
     }
 
     private var signInButtons: some View {

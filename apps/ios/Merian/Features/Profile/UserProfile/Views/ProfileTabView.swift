@@ -10,6 +10,9 @@ struct ProfileTabView: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(RevenueCatManager.self) private var revenueCatManager
     @Binding var showPaywall: Bool
+    @Binding var isShowingAvatarPicker: Bool
+    @Binding var isShowingDisplayNameEditor: Bool
+    @Binding var isShowingUsernameEditor: Bool
     
     // Natively isolated State variables dynamically mapped back from the background Actor mathematically.
     @State private var uniqueSpeciesCount: Int = 0
@@ -30,6 +33,9 @@ struct ProfileTabView: View {
                 VStack(spacing: 24) {
                     // MARK: - User Profile
                     UserProfile(
+                        isShowingAvatarPicker: $isShowingAvatarPicker,
+                        isShowingDisplayNameEditor: $isShowingDisplayNameEditor,
+                        isShowingUsernameEditor: $isShowingUsernameEditor,
                         totalScans: totalCaptures,
                         completedAchievements: awards.completedCount
                     )

@@ -660,8 +660,6 @@ private struct FieldTripTemplateCard: View {
                 FieldTripProgressBar(progress: activeProgress)
             }
 
-            FieldTripTagRow(tags: Array((template.regionTags + template.habitatTags).prefix(5)))
-
             HStack(spacing: 8) {
                 Image(systemName: template.activeProgress == nil ? "play.circle" : "checklist")
                     .foregroundStyle(.secondary)

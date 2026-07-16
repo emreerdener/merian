@@ -128,7 +128,7 @@ private struct AchievementProgressBar: View {
     let award: AwardPayload
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Progress: \(award.currentCount)/\(award.targetCount)")
                     .font(.system(size: 13, weight: .medium))
