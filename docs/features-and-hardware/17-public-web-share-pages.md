@@ -1,27 +1,35 @@
 # Public Web Share Pages
 
-Merian's public web surface lives in `apps/web/`. It is a Next.js + Mantine app for public, shareable Merian pages, starting with Explore post links on `merian.earth`.
+Naturebook's public web surface lives in `apps/web/`. It is a Next.js + Mantine app for public, shareable Naturebook pages, starting with Explore post links on `naturebook.earth`.
 
 The first shipped route is:
 
 ```text
-https://merian.earth/explore/post/{postId}
+https://naturebook.earth/explore/post/{postId}
 ```
 
 This URL is the long-term share target for Explore posts. It renders a useful
 web page for recipients without the app, provides Open Graph metadata for
 Messages/social previews, and is the Universal Link that opens the native iOS
-detail page when Merian is installed.
+detail page when Naturebook is installed.
+
+The permanent public-name and stable-identifier rules live in
+[`08-public-brand-compatibility.md`](../system-architecture/08-public-brand-compatibility.md).
+Use
+[`15-naturebook-rebrand-rollout.md`](../development-guides/15-naturebook-rebrand-rollout.md)
+for DNS, Vercel, AASA, mail, App Store, rollout, and rollback operations.
 
 ## Product Contract
 
-- Primary domain: `merian.earth`.
+- Canonical domain: `naturebook.earth`.
+- Redirect aliases: `naturebook.app`, both Naturebook `www` hosts, and the
+  legacy `merian.earth` hosts. Redirects preserve the path and query.
 - App location: `apps/web/`.
 - Frameworks: Next.js App Router, React, Mantine, and Supabase JS.
 - Initial route: `/explore/post/[postId]`.
 - Policy/support routes: `/privacy`, `/privacy-choices`, `/terms`, `/guidelines`,
   `/support`, and `/legal`.
-- Native fallback button: `merian://explore/post/{postId}` via the page's "Open in Merian" action.
+- Native fallback button: `naturebook://explore/post/{postId}` via the page's "Open in Naturebook" action.
 - Web page audience: anonymous recipients of shared Explore posts.
 - Metadata audience: iMessage, social crawlers, link unfurlers, and search previews.
 
@@ -35,7 +43,7 @@ authenticated in-product report write.
 
 ## Data Flow
 
-1. The iOS app shares `https://merian.earth/explore/post/{postId}` in the message text.
+1. The iOS app shares `https://naturebook.earth/explore/post/{postId}` in the message text.
 2. Next.js server-rendering handles `/explore/post/[postId]`.
 3. `apps/web/lib/explore.ts` creates a server Supabase client through `apps/web/lib/supabase.ts`.
 4. The page calls the `get_explore_post` RPC with:
@@ -89,7 +97,7 @@ Required server-side values:
 
 Optional public values:
 
-- `NEXT_PUBLIC_SITE_URL` — canonical site URL. Production should be `https://merian.earth`.
+- `NEXT_PUBLIC_SITE_URL` — canonical site URL. Production should be `https://naturebook.earth`.
 - `NEXT_PUBLIC_APP_STORE_URL` — optional App Store CTA target.
 - `NEXT_PUBLIC_SUPPORT_EMAIL` — public support contact shown on legal/support pages.
 - `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe
@@ -175,20 +183,20 @@ not the public species-detail content.
 For the best long-term user experience, iOS share payloads should use the HTTPS URL as the durable identifier:
 
 ```text
-https://merian.earth/explore/post/{postId}
+https://naturebook.earth/explore/post/{postId}
 ```
 
-The web page can include an "Open in Merian" button using:
+The web page can include an "Open in Naturebook" button using:
 
 ```text
-merian://explore/post/{postId}
+naturebook://explore/post/{postId}
 ```
 
 Custom schemes are useful as an explicit button target, but they should not be the primary shared link. They do not unfurl well, they fail for recipients without the app, and they cannot serve public web previews.
 
 ## Theme Preference Bridge
 
-Merian-owned web links opened by the signed-in iOS user may append a theme query
+Naturebook-owned web links opened by the signed-in iOS user may append a theme query
 parameter so the web surface follows the app's theme preference:
 
 ```text
@@ -208,24 +216,26 @@ system preference.
 
 ## Universal Links Configuration
 
-Universal Links are fully configured for `merian.earth`, allowing shared explore posts to open seamlessly in the native iOS app when installed, and falling back to the web preview for everyone else.
+Universal Links are fully configured for `naturebook.earth`, allowing shared explore posts to open seamlessly in the native iOS app when installed, and falling back to the web preview for everyone else.
 
 ### Implementation Details
 
 1. **Associated Domains Entitlement**:
    The iOS app is configured with the Associated Domains capability:
    ```text
-   applinks:merian.earth
+   applinks:naturebook.earth
    ```
    This is declared in the target entitlements (`apps/ios/Merian/Configuration/Merian.entitlements`) and defined within the XcodeGen spec `project.yml`.
 
 2. **Apple App Site Association (AASA)**:
    The Next.js application hosts the AASA file dynamically via a route handler. It is served with the required `application/json` content-type header at:
    ```text
-   https://merian.earth/.well-known/apple-app-site-association
-   https://merian.earth/apple-app-site-association
+   https://naturebook.earth/.well-known/apple-app-site-association
+   https://naturebook.earth/apple-app-site-association
    ```
    Both locations are routed using Next.js config rewrites mapping directly to the route handler.
+   The same two paths are served directly on `merian.earth` so old app builds
+   retain Universal Link compatibility; those requests must never redirect.
 
 3. **Active Path Mapping**:
    The AASA details are configured to route `/explore/post/*` path patterns directly to the app:
@@ -233,9 +243,11 @@ Universal Links are fully configured for `merian.earth`, allowing shared explore
    - Paths: `["/explore/post/*"]`
 
 4. **Deep Linking Route Handler**:
-   Incoming `NSUserActivityTypeBrowsingWeb` web links route through the same native Explore post router that handles `merian://explore/post/{postId}`. The native deep-link parser accepts `https://merian.earth/explore/post/{postId}` and ignores unrelated Merian web pages such as policy routes.
+   Incoming `NSUserActivityTypeBrowsingWeb` web links route through the same native Explore post router that handles `naturebook://explore/post/{postId}`. The native deep-link parser accepts both Naturebook and legacy Merian hosts/schemes and ignores unrelated policy routes.
 
-The iOS app continues to support both the custom scheme (`merian://`) and HTTPS Universal Links to handle older shared payloads, widgets, and push actions.
+The app emits `naturebook://` and `https://naturebook.earth` links. It continues
+to accept `merian://` and `https://merian.earth` indefinitely for older shared
+payloads, widgets, app versions, and push actions.
 
 ## Local Development
 
@@ -257,13 +269,14 @@ npm audit --audit-level=moderate
 
 ## Vercel Deployment
 
-The Vercel project for `merian.earth` must be configured as a monorepo app with:
+The Vercel project for `naturebook.earth` must be configured as a monorepo app with:
 
 - Root Directory: `apps/web`
 - Framework Preset: Next.js
 - Build Command: `npm run build`
 - Install Command: `npm install`
-- Production domains: `merian.earth` and `www.merian.earth`
+- Production domains: `naturebook.earth`, `www.naturebook.earth`,
+  `naturebook.app`, `www.naturebook.app`, `merian.earth`, and `www.merian.earth`
 
 A Vercel platform response body of:
 
@@ -273,7 +286,7 @@ Code: NOT_FOUND
 ```
 
 is not the app-level Explore not-found state. The app-level 404 renders
-`apps/web/app/not-found.tsx` with Merian styling. The plain Vercel response
+`apps/web/app/not-found.tsx` with Naturebook styling. The plain Vercel response
 indicates the domain is not attached to a valid production deployment or the
 project is building the wrong directory.
 
@@ -281,16 +294,16 @@ project is building the wrong directory.
 
 The public web app includes App Store-ready policy/support routes:
 
-- `https://merian.earth/privacy`
-- `https://merian.earth/privacy-choices`
-- `https://merian.earth/terms`
-- `https://merian.earth/guidelines`
-- `https://merian.earth/support`
-- `https://merian.earth/legal`
+- `https://naturebook.earth/privacy`
+- `https://naturebook.earth/privacy-choices`
+- `https://naturebook.earth/terms`
+- `https://naturebook.earth/guidelines`
+- `https://naturebook.earth/support`
+- `https://naturebook.earth/legal`
 
 `/community-guidelines` redirects to `/guidelines`, and `/data-deletion`
 redirects to `/privacy-choices`. Keep the iOS Settings community links pointed
-at the `merian.earth` versions of these URLs. In-app Settings links may include
+at the `naturebook.earth` versions of these URLs. In-app Settings links may include
 the `theme` query parameter; public share URLs should not.
 
 ## Maintenance Notes
@@ -304,5 +317,5 @@ the `theme` query parameter; public share URLs should not.
 - Keep `/api/explore/audio` exact-host and public-WAV-path only. Any expansion of
   its upstream allowlist requires a security review and matching proxy tests.
 - Prefer adding dedicated Supabase RPCs/views for web surfaces instead of querying broad private tables.
-- Use `NEXT_PUBLIC_SITE_URL=https://merian.earth` in production so canonical and Open Graph URLs point at the real domain.
+- Use `NEXT_PUBLIC_SITE_URL=https://naturebook.earth` in production so canonical and Open Graph URLs point at the real domain.
 - If an Explore post is unshared, blocked, removed, or privacy-filtered out for the public viewer, the route should resolve to not found rather than showing stale metadata.

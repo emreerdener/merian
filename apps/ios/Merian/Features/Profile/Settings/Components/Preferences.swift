@@ -220,7 +220,7 @@ struct Preferences: View {
             Button {
                 MilestoneToastPresenter.shared.previewNewToMerianMilestone()
             } label: {
-                Label("Preview New to Merian notification", systemImage: "sparkles")
+                Label("Preview New to Naturebook notification", systemImage: "sparkles")
             }
             .accessibilityIdentifier("Settings_PreviewNewToMerianNotification")
             
@@ -277,7 +277,7 @@ private struct ProSettingsBanner: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text("Merian")
+                    Text(PublicBrand.name)
                         .font(.system(.title2).weight(.bold))
                         .foregroundStyle(.white)
                     Text("PRO")
@@ -310,7 +310,7 @@ private struct ProSettingsBanner: View {
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(isProActive ? "Merian Pro active" : "Merian Pro")
+        .accessibilityLabel(isProActive ? "Naturebook Pro active" : "Naturebook Pro")
     }
 }
 

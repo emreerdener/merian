@@ -87,16 +87,16 @@ export async function generateMetadata({
 
   return {
     title,
-    description: `${description} shared on Merian.`,
+    description: `${description} shared on Naturebook.`,
     alternates: {
       canonical: canonicalPath,
     },
     openGraph: {
       type: "article",
       title,
-      description: `${description} shared on Merian.`,
+      description: `${description} shared on Naturebook.`,
       url: canonicalPath,
-      siteName: "Merian",
+      siteName: "Naturebook",
       ...(posterUrl
         ? { images: [{ url: posterUrl, alt: title }] }
         : {}),
@@ -104,7 +104,7 @@ export async function generateMetadata({
     twitter: {
       card: posterUrl ? "summary_large_image" : "summary",
       title,
-      description: `${description} shared on Merian.`,
+      description: `${description} shared on Naturebook.`,
       ...(posterUrl ? { images: [posterUrl] } : {}),
     },
   };

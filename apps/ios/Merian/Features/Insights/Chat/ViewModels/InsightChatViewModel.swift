@@ -792,7 +792,7 @@ final class InsightChatViewModel {
         if case let MerianError.httpError(statusCode, _) = error {
             switch statusCode {
             case 402:
-                return "Merian Pro is required."
+                return "Naturebook Pro is required."
             case 403:
                 return "This scan belongs to another account."
             case 429:

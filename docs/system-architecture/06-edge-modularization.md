@@ -1,6 +1,6 @@
 # Domain-Driven Edge Architecture
 
-Merian's proxy backend executes exclusively via Deno Edge Functions managed
+Naturebook's proxy backend executes exclusively via Deno Edge Functions managed
 locally by Supabase CLI. Because Deno isolates strict V8 256MB memory limits and
 10-second wall-clock API constraints, the functions must be built with
 aggressive scaling bounds.

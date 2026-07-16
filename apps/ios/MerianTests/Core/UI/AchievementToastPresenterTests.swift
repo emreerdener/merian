@@ -63,7 +63,7 @@ struct AchievementToastPresenterTests {
         MilestoneToastPresenter.shared.dismissActiveItem(id: firstID)
 
         guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
-            Issue.record("Expected New to Merian milestone to present second")
+            Issue.record("Expected New to Naturebook milestone to present second")
             return
         }
 
@@ -133,7 +133,7 @@ struct AchievementToastPresenterTests {
         MilestoneToastPresenter.shared.previewNewToMerianMilestone()
 
         guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
-            Issue.record("Expected New to Merian milestone")
+            Issue.record("Expected New to Naturebook milestone")
             return
         }
 

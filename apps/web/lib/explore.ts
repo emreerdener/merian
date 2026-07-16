@@ -182,7 +182,7 @@ export type ExplorePostMediaItem = {
 
 export type ExploreReferenceImage = {
   url: string;
-  source: "Merian" | "Wikipedia" | "GBIF";
+  source: "Naturebook" | "Wikipedia" | "GBIF";
 };
 
 export type ExplorePostDetail = {
@@ -408,7 +408,7 @@ function referenceImageSource(urlString: string, index: number, wikipediaUrl?: s
   }
 
   if (host === "media.merian.app" || host.endsWith(".merian.app")) {
-    return "Merian";
+    return "Naturebook";
   }
 
   if (host.includes("wikipedia") || host.includes("wikimedia")) {

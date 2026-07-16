@@ -1,6 +1,7 @@
-# Merian Web
+# Naturebook Web
 
-Next.js + Mantine web surface for public Merian pages.
+Next.js + Mantine web surface for public Naturebook pages. The package and
+repository continue to use Merian as their stable engineering identity.
 
 The first route is the public Explore share page:
 
@@ -26,7 +27,7 @@ uploading or changing the canonical recording.
 The production domain is:
 
 ```text
-https://merian.earth
+https://naturebook.earth
 ```
 
 ## Setup
@@ -53,9 +54,10 @@ Required server-side variables:
 
 Optional public variables:
 
-- `NEXT_PUBLIC_SITE_URL`
+- `NEXT_PUBLIC_SITE_URL` — set to `https://naturebook.earth` in production.
 - `NEXT_PUBLIC_APP_STORE_URL`
-- `NEXT_PUBLIC_SUPPORT_EMAIL`
+- `NEXT_PUBLIC_SUPPORT_EMAIL` — set to `support@naturebook.earth` in
+  production.
 - `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe web playback events
 
 Optional server/public fallback variables:
@@ -75,10 +77,18 @@ Configure the Vercel project as a monorepo app:
 - **Framework Preset**: Next.js
 - **Build Command**: `npm run build`
 - **Install Command**: `npm install`
-- **Production domains**: `merian.earth` and `www.merian.earth`
+- **Canonical production domain**: `naturebook.earth`
+- **Redirect aliases**: `naturebook.app`, `www.naturebook.app`,
+  `www.naturebook.earth`, `merian.earth`, and `www.merian.earth`
 
-Both `merian.earth` aliases must point at the same Vercel project that builds
-from `apps/web`. A plain Vercel response like:
+All aliases must be assigned to the same Vercel project that builds from
+`apps/web`; do not configure provider-level redirects in front of the app.
+`naturebook.earth` must be the project's primary production domain. `proxy.ts`
+issues permanent path- and query-preserving redirects to `naturebook.earth`.
+The two Apple App Site Association paths on the exact `naturebook.earth` and
+`merian.earth` hosts are served directly with HTTP 200. They must never pass
+through a host redirect. A plain
+Vercel response like:
 
 ```text
 404: NOT_FOUND
@@ -88,6 +98,27 @@ Code: NOT_FOUND
 means the request is not reaching this Next.js app. Check the Vercel project
 Root Directory, production deployment status, and domain assignment before
 debugging app routes.
+
+### Production Verification
+
+Run these checks after every domain or redirect change:
+
+```bash
+curl -I 'https://naturebook.earth/explore/post/example?source=docs'
+curl -I 'https://www.naturebook.earth/explore/post/example?source=docs'
+curl -I 'https://naturebook.app/explore/post/example?source=docs'
+curl -I 'https://www.naturebook.app/explore/post/example?source=docs'
+curl -I 'https://merian.earth/explore/post/example?source=docs'
+curl -I 'https://www.merian.earth/explore/post/example?source=docs'
+curl -I 'https://naturebook.earth/.well-known/apple-app-site-association'
+curl -I 'https://merian.earth/.well-known/apple-app-site-association'
+```
+
+The canonical host may return the route's normal status. Every alias must
+permanently redirect to the matching path and query on `naturebook.earth`.
+Both AASA checks must return HTTP 200 directly with JSON content and no redirect.
+The AASA payload must continue to use
+`TA8S64ST9W.app.merian.Merian`.
 
 ## Scripts
 
@@ -103,7 +134,7 @@ npm audit --audit-level=moderate
 Use this public URL in iOS share payloads:
 
 ```text
-https://merian.earth/explore/post/{postId}
+https://naturebook.earth/explore/post/{postId}
 ```
 
 Universal Links are active, meaning the HTTPS URL opens the native iOS app when installed, and gracefully falls back to the public web preview otherwise.
@@ -111,14 +142,14 @@ Universal Links are active, meaning the HTTPS URL opens the native iOS app when 
 The web page includes a native-app CTA using:
 
 ```text
-merian://explore/post/{postId}
+naturebook://explore/post/{postId}
 ```
 
 Keep the HTTPS URL as the primary shared link so recipients without the app still get a real page and a rich Open Graph preview.
 
 ## Theme Preference Bridge
 
-Merian-owned links opened from the iOS app may append:
+Naturebook-owned links opened from the iOS app may append:
 
 ```text
 ?theme=light
@@ -132,7 +163,7 @@ omit this parameter so recipients see their own browser/system preference.
 
 ## Public Routes
 
-- `/` — lightweight Merian public home.
+- `/` — lightweight Naturebook public home.
 - `/explore/post/[postId]` — public Explore share page. The MVP is read-only:
   anonymous visitors can view post context and send a support-email report from
   the centered action below the Taxonomy card, but
@@ -145,7 +176,8 @@ omit this parameter so recipients see their own browser/system preference.
   detail slides retain their spectrogram, bottom-anchored controls, and optional
   browser-local Boost Audio toggle.
 - `/api/explore/audio?url={canonicalWavUrl}` — range-capable same-origin stream
-  used only by Boost Audio. It accepts canonical public Merian WAV URLs, is not
+  used only by Boost Audio. It accepts canonical public Naturebook WAV URLs on
+  the stable `media.merian.app` infrastructure host, is not
   a general media proxy, and stores no derived audio.
 - `/apple-app-site-association` and `/.well-known/apple-app-site-association` — served Apple App Site Association file for iOS deep linking capabilities.
 - `/privacy` — App Store privacy policy URL.
@@ -171,5 +203,10 @@ raw scan telemetry, auth data, private email, or server credentials.
 The Explore share page intentionally uses default Mantine components and
 component props instead of route-specific CSS classes or custom page chrome.
 
-See `../../docs/features-and-hardware/17-public-web-share-pages.md` for the full
-contract and Universal Links roadmap.
+See
+`../../docs/system-architecture/08-public-brand-compatibility.md` for the
+permanent brand and compatibility contract,
+`../../docs/development-guides/15-naturebook-rebrand-rollout.md` for production
+rollout and rollback steps, and
+`../../docs/features-and-hardware/17-public-web-share-pages.md` for the full web
+and Universal Link implementation contract.

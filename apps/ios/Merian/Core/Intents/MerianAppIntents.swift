@@ -11,7 +11,7 @@ import os
 // MARK: - Primary Discovery Intent
 struct IdentifyNatureIntent: AppIntent {
     static var title: LocalizedStringResource = "Identify Nature"
-    static var description: IntentDescription = IntentDescription("Immediately triggers the Merian Instant-On Viewfinder and focuses the lens.")
+    static var description: IntentDescription = IntentDescription("Immediately triggers the Naturebook Instant-On Viewfinder and focuses the lens.")
     
     // Explicitly pops the user strictly into the App UI out of the background.
     static var openAppWhenRun: Bool = true

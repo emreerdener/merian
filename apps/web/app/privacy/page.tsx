@@ -9,20 +9,20 @@ import {
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How Merian collects, uses, shares, and protects information.",
+  description: "How Naturebook collects, uses, shares, and protects information.",
 };
 
 export default function PrivacyPolicyPage() {
   return (
     <LegalPage
-      eyebrow="Merian legal"
+      eyebrow="Naturebook legal"
       title="Privacy Policy"
-      description="This policy explains what Merian collects, how it is used, and the controls available to you."
+      description="This policy explains what Naturebook collects, how it is used, and the controls available to you."
     >
       <LegalSection title="Overview">
         <Text>
-          Merian helps people identify and document plants, animals, fungi,
-          insects, and other ecological observations. To provide the app, Merian
+          Naturebook helps people identify and document plants, animals, fungi,
+          insects, and other ecological observations. To provide the app, Naturebook
           may process observation media, account information, location context,
           device diagnostics, payments status, and community activity.
         </Text>
@@ -41,10 +41,10 @@ export default function PrivacyPolicyPage() {
           <li>
             <Text>
               <strong>Observation content:</strong>{" "}
-              photos you capture, select, or explicitly share to Merian, audio
+              photos you capture, select, or explicitly share to Naturebook, audio
               clips, descriptions, AI-generated species results, taxonomy,
               field notes, and scan metadata. Sharing one photo from iOS Photos
-              gives Merian access to that delivered file, not broad access to
+              gives Naturebook access to that delivered file, not broad access to
               your Photo Library.
             </Text>
           </li>
@@ -99,7 +99,7 @@ export default function PrivacyPolicyPage() {
             Enforce geoprivacy, moderation, anti-abuse, and account-safety
             rules. Audio selected for public Explore sharing may be sent to
             Google Gemini for transient speech and non-speech classification;
-            Merian does not persist the transcript or model description.
+            Naturebook does not persist the transcript or model description.
           </li>
           <li>
             Understand app reliability, usage, subscription status, and feature
@@ -111,7 +111,7 @@ export default function PrivacyPolicyPage() {
       <LegalSection title="Public Explore Sharing">
         <Text>
           Your personal scans are private unless you choose to share them to
-          Explore. When you share a scan, Merian may display the public image,
+          Explore. When you share a scan, Naturebook may display the public image,
           species labels, public author identity, privacy-filtered location
           label, coarse environmental context, engagement counts, comments, and
           any field notes you choose to publish. Exact coordinates and private
@@ -123,22 +123,22 @@ export default function PrivacyPolicyPage() {
         <Text>
           Location improves identification and helps build your personal
           ecological journal. You can control location permission in iOS and
-          configure Merian geoprivacy as open, obscured, or private. Public
-          Explore surfaces use Merian&apos;s filtered location projection, and
+          configure Naturebook geoprivacy as open, obscured, or private. Public
+          Explore surfaces use Naturebook&apos;s filtered location projection, and
           sensitive species handling may further reduce location precision. A
           photo selected or shared from Photos may include its embedded capture
           date and GPS coordinates. You can exclude Location in Photos&apos; share
-          Options; Merian does not invent missing coordinates or dates.
+          Options; Naturebook does not invent missing coordinates or dates.
         </Text>
       </LegalSection>
 
       <LegalSection title="Service Providers">
         <Text>
-          Merian uses trusted infrastructure and product providers to operate
+          Naturebook uses trusted infrastructure and product providers to operate
           the app, including Supabase, Cloudflare R2, Google Gemini, Apple
           platform services, Google sign-in, RevenueCat, PostHog, and Resend.
           These providers process information only as needed to provide, secure,
-          analyze, or support Merian.
+          analyze, or support Naturebook.
         </Text>
       </LegalSection>
 
@@ -150,9 +150,9 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>
             Exclude Location in the iOS Photos share Options before sending a
-            photo to Merian.
+            photo to Naturebook.
           </li>
-          <li>Change geoprivacy settings in Merian.</li>
+          <li>Change geoprivacy settings in Naturebook.</li>
           <li>Unshare Explore posts or delete scans in the app.</li>
           <li>
             Request a Darwin Core Archive export from the profile settings.
@@ -163,7 +163,7 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="Retention">
         <Text>
-          Merian keeps account, scan, subscription, and Explore data for as long
+          Naturebook keeps account, scan, subscription, and Explore data for as long
           as needed to provide the service, maintain records, prevent abuse,
           comply with legal obligations, and honor deletion requests. Some
           free-tier cloud media may be subject to lifecycle limits, while local
@@ -174,7 +174,7 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="Children">
         <Text>
-          Merian is not directed to children under 13. If you believe a child
+          Naturebook is not directed to children under 13. If you believe a child
           has provided personal information without appropriate consent, contact
           us so we can review and delete it where required.
         </Text>
@@ -182,7 +182,7 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="Changes and Contact">
         <Text>
-          We may update this policy as Merian changes. For privacy questions,
+          We may update this policy as Naturebook changes. For privacy questions,
           account requests, or support, contact <LegalEmailLink />.
         </Text>
       </LegalSection>

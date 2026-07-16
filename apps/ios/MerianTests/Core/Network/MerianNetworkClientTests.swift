@@ -475,7 +475,7 @@ struct MerianNetworkClientTests {
         #expect(response.data.alternativeCommonNames == ["Garden Rose", "Meadow Rose"])
         #expect(response.data.hazardType == "poisonous")
         #expect(response.data.referenceGalleryImages.map(\.source) == [.merian, .wikipedia])
-        #expect(response.data.referenceGalleryImages.first?.source.label == "Merian")
+        #expect(response.data.referenceGalleryImages.first?.source.label == "Naturebook")
         #expect(similar.entries.count == 1)
         #expect(similar.entries[0].speciesId == "species-rosa-minor")
         #expect(similar.entries[0].scientificName == "Rosa minor")

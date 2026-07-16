@@ -67,6 +67,6 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    message: "You are on the Merian beta list. We will be in touch soon."
+    message: "You are on the Naturebook beta list. We will be in touch soon."
   });
 }

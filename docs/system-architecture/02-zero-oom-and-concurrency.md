@@ -1,6 +1,6 @@
 # Zero-OOM & Concurrency Architecture
 
-Merian enforces a "Zero-OOM" (Out-Of-Memory), offline-first, and highly concurrent philosophy across its iOS client and serverless Deno Edge backend. This document captures the architectural decisions implemented to satisfy these constraints.
+Naturebook enforces a "Zero-OOM" (Out-Of-Memory), offline-first, and highly concurrent philosophy across its iOS client and serverless Deno Edge backend. This document captures the architectural decisions implemented to satisfy these constraints.
 
 ## 1. iOS Concurrency & Memory Constraints (P0)
 

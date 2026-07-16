@@ -1,6 +1,6 @@
 # Onboarding Flow
 
-Merian gates all hardware initialization, background sync, and lifecycle handlers behind a `hasCompletedOnboarding` flag in `UserDefaults`. This document explains the four-step permission flow, the state machine, and the completion gate.
+Naturebook gates all hardware initialization, background sync, and lifecycle handlers behind a `hasCompletedOnboarding` flag in `UserDefaults`. This document explains the four-step permission flow, the state machine, and the completion gate.
 
 ---
 

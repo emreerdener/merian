@@ -266,7 +266,7 @@ struct ScanLibraryEmptyStateCopy: Equatable {
         if startupStoreState == .safeMode && !hasLibraryContent {
             return ScanLibraryEmptyStateCopy(
                 title: "Local library unavailable",
-                message: "Merian is running in safe mode because the local database did not open. Your saved scans have not loaded in this session, and new local changes are temporary. Restart Merian to try reopening the library.",
+                message: "Naturebook is running in safe mode because the local database did not open. Your saved scans have not loaded in this session, and new local changes are temporary. Restart Naturebook to try reopening the library.",
                 actionTitle: "Back to camera",
                 action: .dismiss
             )

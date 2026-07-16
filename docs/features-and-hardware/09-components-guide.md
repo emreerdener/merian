@@ -1,6 +1,6 @@
 # Shared Components and Primitives
 
-Merian abstracts repetitive SwiftUI view structures into a dedicated components layer (`Core/UI/` and `Features/*/Components/`) to enforce DRY (Don't Repeat Yourself) principles and establish a unified aesthetic baseline.
+Naturebook abstracts repetitive SwiftUI view structures into a dedicated components layer (`Core/UI/` and `Features/*/Components/`) to enforce DRY (Don't Repeat Yourself) principles and establish a unified aesthetic baseline.
 
 ## 1. Zero-State Handling: `EmptyStateView`
 **Location**: `Features/Scans/Shared/Components/EmptyStateView.swift`
@@ -65,7 +65,7 @@ A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`,
 
 An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`), alongside a suite of dynamic biological `KeyValueRow` metrics, and a native Safari overlay button.
 - **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, `sex`, and `ecologicalInteractions` while safely omitting empty values. Note: The `individualCount` metric is captured via backend Edge Functions for DWCA telemetry but intentionally omitted from this front-end display to conserve UI space.
-- **Invasive status context**: Renders `isInvasive` as a compact `INVASIVE STATUS` summary rather than a native-status claim. When available, it adds a secondary assessed-region/confidence line and a muted `WHY MERIAN THINKS THIS` rationale from the original AI invasive-status assessment. Historical scans with only the boolean keep the simple `Invasive` / `Not invasive` value.
+- **Invasive status context**: Renders `isInvasive` as a compact `INVASIVE STATUS` summary rather than a native-status claim. When available, it adds a secondary assessed-region/confidence line and a muted `WHY NATUREBOOK THINKS THIS` rationale from the original AI invasive-status assessment. Historical scans with only the boolean keep the simple `Invasive` / `Not invasive` value.
 - **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. When valid, the extract is capped at an 8-line truncation limit to avoid walls of text, terminating gracefully into a "Read more on Wikipedia" pill that relies on injected parent `$isSafariPresented` bindings.
 - **Shared card chrome**: `OverviewCard` and `ExploreOverviewCard` keep separate data sourcing and visibility gates, but both render through focused helpers under `Features/Insights/Shared/Cards/Chrome/`: `InsightCardHeader.swift`, `WikipediaSummarySection.swift`, and `WikipediaReadMoreButton.swift`. Future Explore/Insights cards should reuse these presentational helpers instead of copying header typography or Wikipedia button styling.
 
@@ -155,7 +155,7 @@ A horizontally scrolling carousel of ecologically similar lookalike species, ren
 
 Displays public species reference images from `/species-dictionary`.
 
-- **Source label**: Each image keeps the existing source pill (`Merian`,
+- **Source label**: Each image keeps the existing source pill (`Naturebook`,
   `Wikipedia`, or `GBIF`) over the image. Unknown future source values decode as
   `Reference` so additive backend sources do not break the page.
 - **Attribution footer**: When the active `SpeciesDictionaryReferenceImage` has `attribution` or `license`, the gallery renders a compact caption below the carousel. Multi-image galleries update the caption as paging changes.
@@ -181,11 +181,11 @@ A high-end, Tinder-style gesture interface allowing users to rapidly review and 
 ## 16. Model Info Section: `ModelInfoSection`
 **Location**: `Features/Insights/IdentificationReview/Confidence/Views/ModelInfoSection.swift`
 
-An informational card rendered inside `ConfidenceExplanationSheet`, positioned between `ConfidenceSpectrum` and `AIMistakesBanner`. Communicates which Merian AI tier processed the scan — using Merian AI branding rather than raw model names to preserve the product abstraction layer and future-proof against model changes.
+An informational card rendered inside `ConfidenceExplanationSheet`, positioned between `ConfidenceSpectrum` and `AIMistakesBanner`. Communicates which Naturebook AI tier processed the scan — using Naturebook AI branding rather than raw model names to preserve the product abstraction layer and future-proof against model changes.
 
-- **Standard tier** (`inferenceTier == nil` or `"flash"`): Renders a blue `cpu` icon inside a circular fill, "Merian AI" headline in `.callout.bold`, a gray "Standard" capsule badge, and a footnote describing the speed-optimised standard model.
-- **Pro tier** (`inferenceTier == "pro"`): Renders an indigo `sparkles` icon, "Merian AI" headline, an indigo "Pro" capsule badge, a footnote describing the enhanced reasoning model, and a "Powered by Gemini 2.5 Pro" line in `.caption2` / `.tertiary` style as a trust signal for pro users.
-- **Branding rationale**: All user-facing copy uses "Merian AI" rather than "Gemini" to maintain product consistency with `ConfidenceHeader` ("Merian's AI") and to decouple the UI from any specific underlying model version. The "Powered by Gemini" attribution is surfaced only on the Pro tier where model provenance is a meaningful quality signal.
+- **Standard tier** (`inferenceTier == nil` or `"flash"`): Renders a blue `cpu` icon inside a circular fill, "Naturebook AI" headline in `.callout.bold`, a gray "Standard" capsule badge, and a footnote describing the speed-optimised standard model.
+- **Pro tier** (`inferenceTier == "pro"`): Renders an indigo `sparkles` icon, "Naturebook AI" headline, an indigo "Pro" capsule badge, a footnote describing the enhanced reasoning model, and a "Powered by Gemini 2.5 Pro" line in `.caption2` / `.tertiary` style as a trust signal for pro users.
+- **Branding rationale**: All user-facing copy uses "Naturebook AI" rather than "Gemini" to maintain product consistency with `ConfidenceHeader` ("Naturebook's AI") and to decouple the UI from any specific underlying model version. The "Powered by Gemini" attribution is surfaced only on the Pro tier where model provenance is a meaningful quality signal.
 - **Visual style**: Matches the full-section glass card aesthetic of the sheet — `Color(uiColor: .secondarySystemFill).opacity(0.5)` fill, `RoundedRectangle(cornerRadius: 32, style: .continuous)`, `.white.opacity(0.1)` border stroke, and 24 pt inner padding — identical to `ConfidenceSpectrum` and `ProTips`.
 
 ## 17. Image Carousel: `ImagesCarousel`

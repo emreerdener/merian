@@ -94,7 +94,7 @@ export function WaitlistForm() {
         </Alert>
       ) : (
         <Text size="sm" className="waitlist-signup__fineprint">
-          We will only use your email for Merian beta updates and invites.
+          We will only use your email for Naturebook beta updates and invites.
         </Text>
       )}
     </Stack>

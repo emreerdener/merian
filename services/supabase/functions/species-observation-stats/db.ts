@@ -8,7 +8,7 @@ const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const STALE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_DELAY_MS = 1000;
 const USER_AGENT =
-  "Merian/1.0 species-observation-stats (https://merian.app; public-cache)";
+  "Merian/1.0 species-observation-stats (https://naturebook.earth; public-cache)";
 
 export interface SpeciesObservationStatsRequestResult {
   speciesId?: string;

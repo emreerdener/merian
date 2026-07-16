@@ -9,7 +9,7 @@ export default function NotFound() {
           This Explore post may have been removed, unpublished, or made private.
         </Text>
         <Button component="a" href="/" w="fit-content">
-          Go to Merian
+          Go to Naturebook
         </Button>
       </Stack>
     </Container>

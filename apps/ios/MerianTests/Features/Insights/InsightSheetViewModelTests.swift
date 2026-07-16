@@ -145,7 +145,7 @@ struct InsightSheetViewModelTests {
         viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: engine)
 
         guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
-            Issue.record("Expected New to Merian milestone")
+            Issue.record("Expected New to Naturebook milestone")
             return
         }
 
@@ -194,7 +194,7 @@ struct InsightSheetViewModelTests {
             commonName: "Network timeout",
             scientificName: "Offline mode",
             insightData: InsightData(
-                aiReasoning: "Merian saved this scan and will retry automatically.",
+                aiReasoning: "Naturebook saved this scan and will retry automatically.",
                 hazardType: "none"
             ),
             confidenceScore: 0.0,
@@ -221,7 +221,7 @@ struct InsightSheetViewModelTests {
             commonName: "Network timeout",
             scientificName: "Offline mode",
             insightData: InsightData(
-                aiReasoning: "Merian saved this scan and will retry automatically.",
+                aiReasoning: "Naturebook saved this scan and will retry automatically.",
                 hazardType: "none"
             ),
             confidenceScore: 0.0,
@@ -313,7 +313,7 @@ struct InsightSheetViewModelTests {
             commonName: "Network timeout",
             scientificName: "Offline mode",
             insightData: InsightData(
-                aiReasoning: "Merian saved this scan and will retry automatically.",
+                aiReasoning: "Naturebook saved this scan and will retry automatically.",
                 hazardType: "none"
             ),
             confidenceScore: 0,
@@ -1090,7 +1090,7 @@ struct InsightSheetViewModelTests {
             onDescriptionTap: nil
         )
 
-        #expect(pages.map(\.referenceAttributionLabel) == ["Merian", "Wikipedia", "GBIF"])
+        #expect(pages.map(\.referenceAttributionLabel) == ["Naturebook", "Wikipedia", "GBIF"])
     }
 
     @Test func testNativeCarouselResetsDataSourceWhenReferencesAppendAfterAudioPage() {
@@ -1146,7 +1146,7 @@ struct InsightSheetViewModelTests {
             "reference-https://upload.wikimedia.org/species.jpg",
             "reference-https://static.inaturalist.org/photos/1/original.jpg"
         ])
-        #expect(items.map(\.referenceAttributionLabel) == [nil, nil, "Merian", "Wikipedia", "GBIF"])
+        #expect(items.map(\.referenceAttributionLabel) == [nil, nil, "Naturebook", "Wikipedia", "GBIF"])
     }
 
     @Test func testInsightImageGalleryExcludesReferenceLoadingPlaceholder() {

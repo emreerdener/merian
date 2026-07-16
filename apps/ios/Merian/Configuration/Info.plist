@@ -6,6 +6,8 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Naturebook</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -50,20 +52,22 @@
 	<string>$(AppIdentifierPrefix)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.reference</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>NSCameraUsageDescription</key>
-	<string>Merian needs camera access for instant AI-powered ecological identification.</string>
+	<string>Naturebook needs camera access for instant AI-powered ecological identification.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Merian requires your location to determine regional ecological context and coordinate mapping.</string>
+	<string>Naturebook requires your location to determine regional ecological context and coordinate mapping.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Merian needs microphone access for aviary and insect sound classification.</string>
+	<string>Naturebook needs microphone access for aviary and insect sound classification.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Merian uses speech recognition to quickly search your Scans using voice dictation.</string>
+	<string>Naturebook uses speech recognition to quickly search your Scans using voice dictation.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Merian saves new scan photos to your library when you turn on Save to camera roll.</string>
+	<string>Naturebook saves new scan photos to your library when you turn on Save to camera roll.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Merian lets you choose photos from your library for identification and profile pictures.</string>
+	<string>Naturebook lets you choose photos from your library for identification and profile pictures.</string>
 	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
 	<true/>
 	<key>POSTHOG_API_KEY</key>
@@ -102,6 +106,7 @@
 			<string>app.merian.Merian.deep-link</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>naturebook</string>
 				<string>merian</string>
 			</array>
 		</dict>

@@ -48,7 +48,7 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertEqual(copy.title, "Local library unavailable")
         XCTAssertEqual(
             copy.message,
-            "Merian is running in safe mode because the local database did not open. Your saved scans have not loaded in this session, and new local changes are temporary. Restart Merian to try reopening the library."
+            "Naturebook is running in safe mode because the local database did not open. Your saved scans have not loaded in this session, and new local changes are temporary. Restart Naturebook to try reopening the library."
         )
         XCTAssertEqual(copy.actionTitle, "Back to camera")
         XCTAssertEqual(copy.action, .dismiss)

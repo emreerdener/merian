@@ -18,7 +18,7 @@ struct ModelInfoSection: View {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text("Merian AI")
+                        Text(PublicBrand.aiName)
                             .font(.system(.title3, weight: .bold))
                             .foregroundStyle(.primary)
                         Text(isPro ? "Pro" : "Flash")

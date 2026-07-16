@@ -246,7 +246,7 @@ struct SpeciesObservationChartsCard: View {
         case .history:
             return "Local logs will appear here as this species is recorded."
         case .lifeStage:
-            return "Merian shows local life stages when the log includes them and public iNaturalist annotations when available."
+            return "Naturebook shows local life stages when the log includes them and public iNaturalist annotations when available."
         }
     }
 

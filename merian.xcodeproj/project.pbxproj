@@ -186,6 +186,8 @@
 		56C01ABF33FF2E437B98EAD7 /* ExplorePostDetailInsightSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6844411502F3E507DCB21792 /* ExplorePostDetailInsightSection.swift */; };
 		57513C66E6563954378FC742 /* CommunityIdentificationModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148A1A30D58523F417D0551A /* CommunityIdentificationModelsTests.swift */; };
 		576D0788C30AE29D987C9846 /* OfflineQueuedScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45DA40C0B4F568F640F7E771 /* OfflineQueuedScan.swift */; };
+		59878AD687B1F48199ACABB9 /* PublicBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27C3CEBA04378051256826D /* PublicBrand.swift */; };
+		59E03035739E3A12CA1B7DF6 /* PublicBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27C3CEBA04378051256826D /* PublicBrand.swift */; };
 		59F702671DEB24F3D928952B /* ExploreCommentMentionText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE6FDB5E1DE68B5CFB336D05 /* ExploreCommentMentionText.swift */; };
 		5B5215FC0D14CDCD47094677 /* ExploreAudioBoostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEB44FA38B08E86F0DD8DC5 /* ExploreAudioBoostTests.swift */; };
 		5B6FA41266434AD39CD414F5 /* FieldTripAPIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D809271BC92A42FACF2445E8 /* FieldTripAPIModelsTests.swift */; };
@@ -328,6 +330,7 @@
 		A97D46D06B8EBA886AF4FAF9 /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A60831D31A518F7D5DC11EE /* StatCard.swift */; };
 		A98C3C9FD1172F00FB757060 /* ExploreOverviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E1C596F0A46E262C7426AA0 /* ExploreOverviewCard.swift */; };
 		AA3BFCB03301A2D5AED15023 /* DeviceIdentityManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C21971EC5E2C1C883714DFC /* DeviceIdentityManagerTests.swift */; };
+		ABD91D9BE36930209A88507C /* PublicBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27C3CEBA04378051256826D /* PublicBrand.swift */; };
 		AC18C809A5A72AC0CB8F299B /* FlayedCandidateThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25ABFCD2A322064E96B019EC /* FlayedCandidateThumbnail.swift */; };
 		AC3E2D266D7A924298E84F2E /* MerianSystemFeedbackModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F451958EFCF13B67FEABBC65 /* MerianSystemFeedbackModifier.swift */; };
 		AC4C9BB0A49DEB2F6791EAEC /* AchievementsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E260BEDDA597BA404B9F5B1 /* AchievementsCalculator.swift */; };
@@ -359,6 +362,7 @@
 		BA78C2C67BF6607B3B020F2B /* PostHogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490F6B0A61D227C143DAF028 /* PostHogManager.swift */; };
 		BAF2A6E4555141F5C8FA4BD4 /* ScansSheetModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF730C7B49DF58F8099D9468 /* ScansSheetModifiers.swift */; };
 		BAF85B4C11E09D46CC596A55 /* Community.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B27B57846EBB7A64DCDBFF0 /* Community.swift */; };
+		BB4BEB1A33617A8707AF6A8C /* PublicBrandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1DC4F9F90E0B04BDBCCB95 /* PublicBrandTests.swift */; };
 		BB7AF02959D5AC5ED23942B3 /* CandidateImageExpandedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E0C3C75AAC0ADFA8316D39 /* CandidateImageExpandedView.swift */; };
 		BC01C5D3DCD86385C99F4AD4 /* DateUtilitiesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2FA1AA3DCAD0770B4D68FAA /* DateUtilitiesTests.swift */; };
 		BC392E1D86CB9FFAACF20B57 /* ExternalImageImportStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF598F43F76F8FE61BCAEFB7 /* ExternalImageImportStoreTests.swift */; };
@@ -450,6 +454,7 @@
 		E58F11C1455F64728945A4C1 /* CameraManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB3494165903F5203C7E3BD9 /* CameraManagerTests.swift */; };
 		E5BC15CCD7FEBEF03E821027 /* GBIFHeatmapMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBF74FBB8482B4A16271F799 /* GBIFHeatmapMapView.swift */; };
 		E604F83A2118D2B5C275DF40 /* InsightChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02169C2CA31C8A77886556C /* InsightChatViewModel.swift */; };
+		E6609A80E8065212630CAA30 /* PublicBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27C3CEBA04378051256826D /* PublicBrand.swift */; };
 		E78A065A348643AF00D86FE2 /* SchemaV33.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB2836CF9971A158163E293 /* SchemaV33.swift */; };
 		E8616C32E532306B75DB2BB6 /* SchemaV26.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B928112D44DE81D10CF1AD /* SchemaV26.swift */; };
 		E8A936F8E9412003F8006EF7 /* LiveCapturePageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2EEF20EBCB9603FD443564 /* LiveCapturePageView.swift */; };
@@ -1015,6 +1020,7 @@
 		DF10D4CB1ABD756807419719 /* InsightShareButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightShareButton.swift; sourceTree = "<group>"; };
 		E02169C2CA31C8A77886556C /* InsightChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightChatViewModel.swift; sourceTree = "<group>"; };
 		E1FA337457E0FD14F5BE6EFD /* SelectMultipleScansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectMultipleScansView.swift; sourceTree = "<group>"; };
+		E27C3CEBA04378051256826D /* PublicBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicBrand.swift; sourceTree = "<group>"; };
 		E327C6377502A88D4BC73345 /* CollectionPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionPayloadTests.swift; sourceTree = "<group>"; };
 		E3293982DC60CB04A1E097F4 /* ProfileAvatarImagePreparer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileAvatarImagePreparer.swift; sourceTree = "<group>"; };
 		E3756B4D60E4C35968CA90E5 /* ObservationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationContext.swift; sourceTree = "<group>"; };
@@ -1081,6 +1087,7 @@
 		FB4B3B507B4B44367C86185C /* ReportInsightViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportInsightViewModelTests.swift; sourceTree = "<group>"; };
 		FB5CB9CAAB621AF320412279 /* FieldNotesRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldNotesRepository.swift; sourceTree = "<group>"; };
 		FBD261D5565540F48C160DB7 /* SocialGuardManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGuardManagerTests.swift; sourceTree = "<group>"; };
+		FC1DC4F9F90E0B04BDBCCB95 /* PublicBrandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicBrandTests.swift; sourceTree = "<group>"; };
 		FC4600486E12E14AAA049FB5 /* InferenceProcessingActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceProcessingActor.swift; sourceTree = "<group>"; };
 		FD354E62E4700E6D935E412D /* CameraPermissionStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionStepView.swift; sourceTree = "<group>"; };
 		FDF33046BE74C0283284B8E7 /* ImageFileWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFileWrapper.swift; sourceTree = "<group>"; };
@@ -1408,6 +1415,7 @@
 				308715660288263F011F5589 /* AppDIContainerTests.swift */,
 				7F3EB7E98BDEB79A30786451 /* AI */,
 				A1653B3BDB763B1E010ADC67 /* Analytics */,
+				76B6F665E0F30125EA451F85 /* Branding */,
 				08A05C18246446F83E9E8CE6 /* Data */,
 				24B0340D768953877C8C919D /* Hardware */,
 				0FB06E13EDC8CA0F46203FB5 /* Intents */,
@@ -2391,6 +2399,14 @@
 			path = Capture;
 			sourceTree = "<group>";
 		};
+		76B6F665E0F30125EA451F85 /* Branding */ = {
+			isa = PBXGroup;
+			children = (
+				FC1DC4F9F90E0B04BDBCCB95 /* PublicBrandTests.swift */,
+			);
+			path = Branding;
+			sourceTree = "<group>";
+		};
 		772679F68935A9BCB092D669 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -3127,6 +3143,7 @@
 			isa = PBXGroup;
 			children = (
 				DA9A508E1F9A36FBC48C1E84 /* AppSupport */,
+				F40C7FEB2146645A5097C545 /* Branding */,
 				A073ED9A262582477010CCFF /* Explore */,
 				4614202F6465E0F5BE4F99BA /* merian */,
 				E7702D88B7F7A1860DCB8689 /* Merian */,
@@ -3446,6 +3463,15 @@
 				4835BB38552A9C9A15CA7101 /* CaptureWorkspaceViewModel.swift */,
 			);
 			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		F40C7FEB2146645A5097C545 /* Branding */ = {
+			isa = PBXGroup;
+			children = (
+				E27C3CEBA04378051256826D /* PublicBrand.swift */,
+			);
+			name = Branding;
+			path = apps/ios/Shared/Branding;
 			sourceTree = "<group>";
 		};
 		F420A3E8A335E1F061C6E39C /* Products */ = {
@@ -3874,6 +3900,7 @@
 			files = (
 				54982C8D7679D6433AF3603D /* ExploreWidgetCache.swift in Sources */,
 				C11CE071F69533F181638B96 /* MerianExploreWidget.swift in Sources */,
+				E6609A80E8065212630CAA30 /* PublicBrand.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3940,6 +3967,7 @@
 				764D540CBC0665CA1BC9A93F /* PostHogManagerTests.swift in Sources */,
 				FFE583C77E09F571F372CA35 /* ProfileDatabaseActorTests.swift in Sources */,
 				3E5E713644EDECBF1D55140A /* ProfileViewModelTests.swift in Sources */,
+				BB4BEB1A33617A8707AF6A8C /* PublicBrandTests.swift in Sources */,
 				B1A739408A256C9050FFB6F7 /* PushNotificationManagerTests.swift in Sources */,
 				70780A58606F47586C40674F /* PushNotificationRoutingTests.swift in Sources */,
 				8CDB84EA9D6DD5249E701C31 /* ReferralShareContentTests.swift in Sources */,
@@ -3979,6 +4007,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				80923B86E3B63DA5F4791FBC /* MerianWatchApp.swift in Sources */,
+				59E03035739E3A12CA1B7DF6 /* PublicBrand.swift in Sources */,
 				2BF1BEB4A71119405DD5F026 /* WatchAcousticManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -3990,6 +4019,7 @@
 				373460F7EB1A1D33D7ADA011 /* MessageScanLibraryExtensionView.swift in Sources */,
 				7754D2E1231D650AC412B16C /* MessageScanShareCache.swift in Sources */,
 				A1BB13183F07D2903662001F /* MessagesViewController.swift in Sources */,
+				59878AD687B1F48199ACABB9 /* PublicBrand.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4268,6 +4298,7 @@
 				FBC38592FDE7322129AF1FEF /* ProfileTabView.swift in Sources */,
 				56B585F116783F3969869B8C /* ProfileView.swift in Sources */,
 				E8EE7008972F9AABD87E3136 /* ProfileViewModel.swift in Sources */,
+				ABD91D9BE36930209A88507C /* PublicBrand.swift in Sources */,
 				C5397ABBE642A9EA43820EA6 /* PushNotificationManager.swift in Sources */,
 				BDE0CC80C935ADEF55AAC271 /* QueuedContentView.swift in Sources */,
 				2FBBC7E70E7041B4E87E4BA7 /* QueuedScanContext.swift in Sources */,
@@ -4487,6 +4518,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Naturebook;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)";
@@ -4513,6 +4545,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = apps/ios/Merian/Configuration/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Naturebook;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.reference";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -4682,6 +4716,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Naturebook;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)";
@@ -4811,6 +4846,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = apps/ios/Merian/Configuration/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Naturebook;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.reference";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(
         {
           error: parsedRequest.error ??
-            "Invalid Merian reference refresh request.",
+            "Invalid Naturebook reference refresh request.",
         },
         parsedRequest.status ?? 400,
       );

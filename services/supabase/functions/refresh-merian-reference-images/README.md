@@ -42,7 +42,7 @@ All fields are optional:
 - Promotes up to 8 Merian images per species by default.
 - Writes public rows with:
   - `source = "merian"`
-  - `license = "Used with permission via Merian"`
+  - `license = "Used with permission via Naturebook"`
   - `attribution = users.public_author_name` (`public_username` remains the
     handle and is not used as media attribution unless the user's default/alias
     display label is the username)

@@ -15,13 +15,15 @@ npm audit --audit-level=moderate
 ```
 
 Run these when changing Next.js routes, Mantine UI, public metadata, Supabase
-web access, or `merian.earth` share behavior. Open Graph routes should remain
+web access, canonical `naturebook.earth` sharing, or legacy `merian.earth`
+compatibility. Open Graph routes should remain
 server-rendered so link unfurlers can read metadata without client hydration.
 `lib/explorePoster.test.ts` locks detail/social spectrogram precedence and the
 grid-only species-reference policy. `lib/exploreVisualMedia.test.ts` locks
 canonical mixed-media ordering and deduplication. `lib/audioProxy.test.ts`
-locks the Boost Audio stream to exact-host public Merian WAV URLs and rejects
-arbitrary hosts, staging paths, credentials, and unsupported formats. Browser
+locks the Boost Audio stream to public Naturebook WAV URLs on the exact durable
+`media.merian.app` technical host and rejects arbitrary hosts, staging paths,
+credentials, and unsupported formats. Browser
 verification should cover Boost → Boosted → original transitions because Web
 Audio context activation cannot be proven by TypeScript alone.
 
@@ -511,7 +513,8 @@ MerianTests/
   Out-Of-Memory JetSam crashes.
 - **`MessageScanShareCacheTests.swift`**: Verifies the Messages App Group cache,
   generated description text, field-notes opt-in behavior, public Explore URL
-  inclusion, and `merian://scan/{id}` / `merian://scans` deep-link parsing.
+  inclusion, canonical `naturebook://` generation, and legacy `merian://`
+  deep-link parsing.
 - **`ExploreHashtagSuggestionTests.swift`**: Covers the share composer's
   AI-assisted hashtag suggestions, including
   species/taxonomy/location/field-note ranking, selected-tag exclusion, five-tag

@@ -1,7 +1,8 @@
 # Supabase Deployment Runbook
 
-Merian's long-term Supabase release path is GitHub Actions, not an interactive
-developer shell. Local `supabase login` is useful for emergency maintenance, but
+Naturebook's long-term Supabase release path is GitHub Actions, while backend
+function, RPC, migration, and storage identifiers retain their Merian technical
+identity. Local `supabase login` is useful for emergency maintenance, but
 production deploys should be repeatable from CI with explicit secrets and
 validation.
 
@@ -101,6 +102,47 @@ first; deploy readers/writers that understand both shapes; backfill or observe;
 then remove old columns, constraints, RPC signatures, or compatibility code in
 a later release. The workflow deliberately does not pretend migrations and
 Edge bundles switch atomically.
+
+### Naturebook Public Rebrand Release
+
+The rebrand is a forward-only data and response-copy change, not a backend
+rename. Deploy it through the normal CI path with:
+
+- `services/supabase/migrations/20260716012046_rebrand_public_surfaces_to_naturebook.sql`
+- the affected Edge Functions selected by the deployment planner;
+- the production Edge secret
+  `RESEND_FROM_EMAIL="Naturebook Data Exports <exports@naturebook.earth>"`.
+
+The migration updates current permission attribution, changes the existing
+`refresh_merian_reference_images` function's generated public attribution, and
+reserves `naturebook` plus `naturebookearth` usernames. It intentionally keeps
+the function name, `source = 'merian'`, database objects, storage paths, RPC
+names, and previous migration files unchanged. Never edit historical migrations
+to remove old public strings.
+
+After deployment, verify:
+
+```sql
+select candidate,
+       public.is_reserved_public_username(candidate) as is_reserved
+from unnest(array['merian', 'naturebook', 'naturebookearth']) as candidate;
+
+select count(*) as stale_permission_licenses
+from public.species_reference_images
+where license = 'Used with permission via Merian';
+
+select pg_get_functiondef(
+  'public.refresh_merian_reference_images(integer,integer,boolean,double precision)'::regprocedure
+)
+  like '%Used with permission via Naturebook%' as naturebook_license_active;
+```
+
+All three reserved-name results must be true, the stale count must be zero, and
+the function check must be true. Smoke-test user-facing response and
+export email copy, but continue to expect durable Merian values in internal
+logs, headers, analytics, source fields, and route names. See the
+[public brand compatibility contract](../system-architecture/08-public-brand-compatibility.md)
+and [rebrand rollout runbook](../development-guides/15-naturebook-rebrand-rollout.md).
 
 ## Manual Data Repair Utilities
 

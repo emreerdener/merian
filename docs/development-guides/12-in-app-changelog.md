@@ -1,8 +1,9 @@
 # In-App Changelog Workflow
 
-Merian ships a bundled, Settings-only changelog so users can see selected
+Naturebook ships a bundled, Settings-only changelog so users can see selected
 feature notes, improvements, and active development notes without requiring a backend
-feed. This file describes how to update it.
+feed. The source paths and Swift types retain the Merian engineering identity.
+This file describes how to update the public copy safely.
 
 ## Runtime Surface
 
@@ -77,6 +78,15 @@ xcodebuild test-without-building -scheme Merian -project Merian.xcodeproj -desti
 - Keep bullets short and scannable.
 - Do not include secret URLs, private infrastructure names, or anything that implies unavailable App Store features.
 - Do not advertise parked, retired, or de-shipped surfaces.
+- Use Naturebook, Naturebook Pro, and Naturebook AI for current public product
+  references. Do not expose Merian technical identifiers to users.
+- The only approved user-visible Merian occurrence is the transition note:
+
+  > Merian is now Naturebook. The name is new; your scans, account,
+  > subscriptions, and Explore content stay exactly where they are.
+
+  Keep this entry nonblocking. Do not add a forced rename modal or repeat the
+  old name in unrelated future entries.
 
 ## Agent Rule
 

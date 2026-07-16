@@ -168,25 +168,25 @@ struct QueuedContentView: View {
     private var helperText: String {
         switch queuedContext.queueState {
         case .pending, .uploading:
-            return "This scan is saved locally and will be uploaded to Merian in the background."
+            return "This scan is saved locally and will be uploaded to Naturebook in the background."
         case .staged:
             return "The scan media has uploaded and is waiting for identification."
         case .inferencing:
             switch serverJobStatus {
             case .finalizing:
                 return queuedScanHasVideo
-                    ? "Merian is saving the playable video and will show results automatically."
-                    : "Merian is finishing this scan and will show results automatically."
+                    ? "Naturebook is saving the playable video and will show results automatically."
+                    : "Naturebook is finishing this scan and will show results automatically."
             case .retrying, .failedRetryable:
-                return "Merian is waiting for the server retry window before trying this scan again."
+                return "Naturebook is waiting for the server retry window before trying this scan again."
             case .processing, .complete, .failed, nil:
                 break
             }
-            return "Merian is identifying this scan. Results will appear here automatically."
+            return "Naturebook is identifying this scan. Results will appear here automatically."
         case .externalImport:
             return "This scan is waiting for local recovery."
         case .failed:
-            return "Merian could not finish processing this scan."
+            return "Naturebook could not finish processing this scan."
         }
     }
 

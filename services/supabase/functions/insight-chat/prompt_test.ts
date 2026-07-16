@@ -93,7 +93,7 @@ Deno.test("scan context uses text evidence and excludes image URLs", () => {
   assertStringIncludes(block, "Individual Count: 2");
   assertStringIncludes(block, "[ECOLOGY]");
   assertStringIncludes(block, "Ecology Type: wild");
-  assertStringIncludes(block, "Merian Invasive Flag: Yes");
+  assertStringIncludes(block, "Naturebook Invasive Flag: Yes");
   assertStringIncludes(block, "Invasive Status Region: Central Texas");
   assertStringIncludes(
     block,
@@ -140,7 +140,7 @@ Deno.test("system instruction states raw image is unavailable", () => {
     instruction,
     "Do not provide edible or foraging certainty",
   );
-  assertStringIncludes(instruction, "Merian Invasive Flag: Yes");
+  assertStringIncludes(instruction, "Naturebook Invasive Flag: Yes");
   assertStringIncludes(
     instruction,
     "do not say the provided information does not indicate invasiveness",
@@ -169,7 +169,7 @@ Deno.test("conversation prompt appends current question after history", () => {
   }] satisfies InsightChatMessageRow[];
 
   const prompt = buildUserPrompt(messages, "What should I compare next?");
-  assertStringIncludes(prompt, "Merian: It is often found near milkweed.");
+  assertStringIncludes(prompt, "Naturebook: It is often found near milkweed.");
   assertStringIncludes(prompt, "[CURRENT USER QUESTION]");
   assertStringIncludes(prompt, "What should I compare next?");
 });

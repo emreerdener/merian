@@ -40,11 +40,11 @@ struct MessageScanShareCacheRecord: Codable, Equatable, Identifiable, Sendable {
               !publicExplorePostId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        return URL(string: "https://merian.earth/explore/post/\(publicExplorePostId)")
+        return PublicBrand.websiteURL(path: "explore/post/\(publicExplorePostId)")
     }
 
     var cardURL: URL {
-        publicExploreURL ?? URL(string: "https://merian.earth")!
+        publicExploreURL ?? PublicBrand.websiteURL
     }
 
     var scanDeepLinkURL: URL? {
@@ -214,7 +214,7 @@ enum MerianDeepLinkRoute: Equatable {
 
         let pathComponents = url.pathComponents.filter { $0 != "/" }
 
-        if scheme == "https", host == "merian.earth" {
+        if scheme == "https", PublicBrand.acceptedWebHosts.contains(host) {
             guard pathComponents.count == 3,
                   pathComponents[0] == "explore",
                   pathComponents[1] == "post",
@@ -225,7 +225,7 @@ enum MerianDeepLinkRoute: Equatable {
             return
         }
 
-        guard scheme == "merian" else {
+        guard PublicBrand.acceptedSchemes.contains(scheme) else {
             return nil
         }
 
@@ -255,7 +255,7 @@ enum MerianDeepLinkRoute: Equatable {
 
     var url: URL? {
         var components = URLComponents()
-        components.scheme = "merian"
+        components.scheme = PublicBrand.canonicalScheme
 
         switch self {
         case .explorePost(let postId):

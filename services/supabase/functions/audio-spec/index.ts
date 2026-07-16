@@ -404,7 +404,7 @@ Deno.serve((req: Request) =>
       parsedData.is_invasive = false;
       parsedData.invasive_status_region ??= "Unavailable";
       parsedData.invasive_rationale ??=
-        "Location context was unavailable, so Merian could not make a region-specific invasive assessment.";
+        "Location context was unavailable, so Naturebook could not make a region-specific invasive assessment.";
       parsedData.invasive_confidence = undefined;
     }
 

@@ -1,6 +1,6 @@
 # watchOS Integration
 
-Merian ships a companion watchOS target (`apps/watch/MerianWatch/`) that captures acoustic data from the Apple Watch microphone and delivers it to the iOS app for server-side identification.
+Naturebook ships a companion watchOS target (`apps/watch/MerianWatch/`) that captures acoustic data from the Apple Watch microphone and delivers it to the iOS app for server-side identification.
 
 > **Status**: The watchOS capture pipeline is fully implemented. The iOS `WCSessionDelegate` receiver is not yet implemented — payloads dispatched from the watch are not currently handled on the iPhone side. This document reflects the current code state.
 

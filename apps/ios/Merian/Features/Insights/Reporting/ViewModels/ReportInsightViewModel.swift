@@ -34,14 +34,14 @@ final class ReportInsightViewModel {
                 userId: userId
             )
             
-            alertMessage = "Thank you! Your feedback helps us improve Merian's AI."
+            alertMessage = "Thank you! Your feedback helps us improve Naturebook's AI."
             showAlert = true
             isSubmitting = false
             
         } catch {
             // If the scan is pending offline upload, `flagged_reviews` FK insertion fails natively.
             // Safely surface success because `isFlagged` is now toggled on `LocalScanRecord` and will sync its True state via `OfflineQueueManager` shortly.
-            alertMessage = "Thank you! Your feedback helps us improve Merian's AI."
+            alertMessage = "Thank you! Your feedback helps us improve Naturebook's AI."
             showAlert = true
             isSubmitting = false
         }

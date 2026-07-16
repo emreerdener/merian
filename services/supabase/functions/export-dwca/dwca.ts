@@ -82,13 +82,13 @@ export async function generateDwcARow(
   const species = scan.species_dictionary;
   const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
   const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
-  let recordedBy = "Merian Citizen Scientist";
+  let recordedBy = "Naturebook Citizen Scientist";
 
   if (!isTombstoned) {
     if (export_scope === "global") {
       const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
       const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
-      recordedBy = `merian_user_${
+      recordedBy = `naturebook_user_${
         encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)
       }`;
     } else {

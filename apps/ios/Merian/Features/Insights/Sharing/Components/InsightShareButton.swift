@@ -106,7 +106,7 @@ struct InsightShareButton: View {
 
         switch shareRecommendation {
         case .askCommunity:
-            return "Get help from other Merian explorers before adding this discovery to Explore observations."
+            return "Get help from other Naturebook explorers before adding this discovery to Explore observations."
         case .communityPending:
             return "This scan is public in Identify while the community reviews the ID."
         case .communityResolvedNeedsPublish:

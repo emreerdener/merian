@@ -58,7 +58,7 @@ test("appends references and removes duplicate URLs", () => {
     ],
     heroImageUrl: "https://media.merian.app/photo.webp",
     referenceImages: [
-      { url: "https://media.merian.app/photo.webp", source: "Merian" },
+      { url: "https://media.merian.app/photo.webp", source: "Naturebook" },
       { url: "https://wikipedia.org/reference.webp", source: "Wikipedia" },
     ],
   }), [

@@ -20,9 +20,9 @@ enum CommunityIdentificationMode: Hashable, CaseIterable {
     var description: String {
         switch self {
         case .requests:
-            "Help identify open requests from Merian explorers."
+            "Help identify open requests from Naturebook explorers."
         case .activity:
-            "See recent consensus decisions from Merian explorers."
+            "See recent consensus decisions from Naturebook explorers."
         }
     }
 
@@ -1073,9 +1073,9 @@ private struct CommunityAIIdentificationCard: View {
     private var modelLabel: String {
         switch detail.inferenceTier?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "pro":
-            "Merian Pro"
+            "Naturebook Pro"
         default:
-            "Merian Flash"
+            "Naturebook Flash"
         }
     }
 

@@ -400,7 +400,7 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
             case .gbif:
                 return "GBIF"
             case .merian:
-                return "Merian"
+                return "Naturebook"
             case .unknown:
                 return "Reference"
             }

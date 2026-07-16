@@ -397,7 +397,7 @@ struct InsightChatSheet: View {
 
     private var composerInput: some View {
         HStack(alignment: .center, spacing: 10) {
-                TextField("Ask Merian AI", text: Binding(
+                TextField("Ask Naturebook AI", text: Binding(
                     get: { viewModel.draftText },
                     set: { viewModel.setDraftText($0) }
                 ), axis: .vertical)
@@ -615,7 +615,7 @@ private struct InsightChatBubble: View {
                 )
 
                 if isLastMessage {
-                    Text("Merian AI can make mistakes.")
+                    Text("Naturebook AI can make mistakes.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

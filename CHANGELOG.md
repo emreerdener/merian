@@ -6,10 +6,15 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Brand
+
+- Merian is now Naturebook. The name is new; your scans, account,
+  subscriptions, and Explore content stay exactly where they are.
+
 ### Media & Performance
 
 - Added single-photo import from the iOS share sheet. Sharing an image from
-  Photos to Merian now opens the app and routes the file through the existing
+  Photos to Naturebook now opens the app and routes the file through the existing
   gallery crop, confirmation, quota, metadata, analysis, and offline-queue flow.
   Included EXIF date/location is preserved online and offline; excluded Location
   never falls back to the device's current coordinates.
@@ -103,7 +108,7 @@ TestFlight, App Store, support, and QA.
   appears as one synchronized transition while optional reference enrichment
   continues progressively in the background.
 - Replaced the still-image laser sweep with a fast native focus treatment. When
-  Merian isolates a clear subject, the analyzing image now uses Lens-style
+  Naturebook isolates a clear subject, the analyzing image now uses Lens-style
   corner brackets, a dimmed exterior, and a subtle scanning highlight contained
   inside the selected area. Broad or ambiguous scenes show no fallback box and
   retain the original full-image scan animation. The two scan treatments never
@@ -134,7 +139,7 @@ TestFlight, App Store, support, and QA.
 - Fixed logout so signing out on one simulator or device clears only that local
   session instead of revoking the same account everywhere, and linked RevenueCat
   customers with Supabase/public identity attributes so Test Store support
-  lookups can match Pro status back to Merian accounts.
+  lookups can match Pro status back to Naturebook accounts.
 
 ### Scans
 
@@ -199,7 +204,7 @@ TestFlight, App Store, support, and QA.
 - Added clearer haptic feedback for video recording start, finish, successful
   staging, and recording failures.
 - Fixed a crash that could happen after tapping stop on a Pro video recording
-  while Merian extracted the clip's audio.
+  while Naturebook extracted the clip's audio.
 - Pro video clips now prefer compression for lighter scan-library playback,
   Explore sharing, and cloud storage while keeping AI analysis frames sampled
   from the original recording.
@@ -451,7 +456,7 @@ TestFlight, App Store, support, and QA.
 - Fixed Overview interactions so longer ecological interaction notes wrap fully
   instead of truncating.
 - Improved Insight overviews with a compact, location-aware invasive status
-  summary that can show the assessed region, confidence, and Merian's rationale
+  summary that can show the assessed region, confidence, and Naturebook's rationale
   when available.
 - Hid the upgrade plan card from the confidence details sheet for Pro users.
 
@@ -540,7 +545,7 @@ TestFlight, App Store, support, and QA.
   sheet, matching the Insight image presentation.
 - Updated open Identify request cards and loading skeletons to hide AI-derived
   names and show only the scan image with a compact submitted-ID count overlay.
-- Rebuilt Community identification around versioned Merian taxonomy, queued
+- Rebuilt Community identification around versioned Naturebook taxonomy, queued
   consensus processing, and projection-driven Explore graduation so unresolved
   requests stay out of normal Explore until verified.
 - Removed the unused identification-review action from Insight and candidate
@@ -553,7 +558,7 @@ TestFlight, App Store, support, and QA.
 ### Profile & Guest Account Polish
 
 - Added an Invite a friend card on Profile and a matching Settings resource so
-  sharing Merian is ready for a future referral link.
+  sharing Naturebook is ready for a future referral link.
 - Added cat and dog scan achievements that unlock when you document your first
   domestic cat or dog.
 - Added the cat and dog achievements to public Explore author profile sheets.
@@ -586,8 +591,8 @@ TestFlight, App Store, support, and QA.
 ### Explore Feed & Map Refinements
 
 - Fixed Explore post web links so Universal Links open the matching native
-  Explore post when Merian is installed.
-- Updated Explore post sharing copy so shared links introduce the Merian public
+  Explore post when Naturebook is installed.
+- Updated Explore post sharing copy so shared links introduce the Naturebook public
   web preview more clearly.
 - Added dynamic species-type filters to Explore Map, with horizontal filter
   pills, a detailed filter sheet, and backend-backed category counts for the
@@ -714,8 +719,8 @@ TestFlight, App Store, support, and QA.
   while buckets refresh.
 - Fixed similar species so lookalike suggestions load reliably in insight
   sheets.
-- Species dictionary galleries now admit more published Merian photos by
-  lowering the Merian reference-image quality gate while keeping the species
+- Species dictionary galleries now admit more published Naturebook photos by
+  lowering the Naturebook reference-image quality gate while keeping the species
   confidence gate in place.
 - Explore Dictionary now uses already-granted location access to improve the
   Your Region category, while falling back to the device locale without showing
@@ -724,20 +729,20 @@ TestFlight, App Store, support, and QA.
 ### Community Taxonomy Indexing & Enrichment
 
 - Added a GBIF-backed Community Taxonomy Index so Ask the Community search can
-  suggest taxa that are not yet enriched in Merian's Dictionary, plus
+  suggest taxa that are not yet enriched in Naturebook's Dictionary, plus
   first-class species enrichment jobs and the first Birds coverage target for
   future Dictionary-completeness progress.
 - Added an internal Community Taxonomy status endpoint so taxonomy coverage,
   GBIF import runs, and species enrichment queue health can be checked during
   rollout.
-- Added a bounded GBIF Birds import worker so Merian can seed Community ID
+- Added a bounded GBIF Birds import worker so Naturebook can seed Community ID
   suggestions and future Dictionary coverage metrics without mirroring all of
   GBIF.
 - Added safer Community Taxonomy import operations with database cursor
   tracking, lightweight coverage status checks, an operator script, and
   production deploy smoke checks.
 - Added smarter dog and cat scan labels so pet results can show a likely breed,
-  mix, coat pattern, or body type while keeping Merian's species taxonomy
+  mix, coat pattern, or body type while keeping Naturebook's species taxonomy
   unchanged.
 
 ### Web Scaffolds & Legal Hub
@@ -745,8 +750,8 @@ TestFlight, App Store, support, and QA.
 - Added the initial Next.js + Mantine web app scaffold for public Explore share
   pages.
 - Added public Terms, Privacy Policy, Community Guidelines, Privacy Choices,
-  Support, and Legal hub pages for `merian.earth`.
-- Added an iOS-to-web theme bridge so Merian-opened web pages can follow the
+  Support, and Legal hub pages for `naturebook.earth`.
+- Added an iOS-to-web theme bridge so Naturebook-opened web pages can follow the
   app's theme preference.
 
 ### Offline Sync, Geoprivacy & Edge Functions

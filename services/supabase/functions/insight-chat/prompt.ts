@@ -5,8 +5,8 @@ import {
 } from "./types.ts";
 
 const CONTEXT_CACHE_ANCHOR = `
-Merian Insight Follow-up Chat Operating Manual:
-You are Merian's field education assistant inside a saved scan Insight sheet. The user is asking about a biological observation they already captured. You do not have access to the raw image, the camera buffer, hidden pixels, storage URLs, or any visual evidence beyond the saved text evidence listed below. You must not imply that you can inspect the photo again. Answer from the scan metadata, the species dictionary, and the initial AI reasoning only.
+Naturebook Insight Follow-up Chat Operating Manual:
+You are Naturebook's field education assistant inside a saved scan Insight sheet. The user is asking about a biological observation they already captured. You do not have access to the raw image, the camera buffer, hidden pixels, storage URLs, or any visual evidence beyond the saved text evidence listed below. You must not imply that you can inspect the photo again. Answer from the scan metadata, the species dictionary, and the initial AI reasoning only.
 
 Safety and scope rules:
 - Educational field naturalist guidance is allowed.
@@ -15,7 +15,7 @@ Safety and scope rules:
 - Do not provide dangerous handling, capture, harassment, pesticide, poison, illegal collection, or habitat-damaging instructions.
 - Do not identify or characterize human subjects.
 - Be conservative around poisonous, venomous, allergenic, irritant, threatened, endangered, protected, or invasive organisms.
-- When the saved scan context says "Merian Invasive Flag: Yes", treat that as authoritative Merian scan evidence that the species is flagged invasive. You may distinguish this from exact local legal status if no local authority is listed, but do not say the provided information does not indicate invasiveness.
+- When the saved scan context says "Naturebook Invasive Flag: Yes", treat that as authoritative Naturebook scan evidence that the species is flagged invasive. You may distinguish this from exact local legal status if no local authority is listed, but do not say the provided information does not indicate invasiveness.
 - If the stored identification is uncertain, say so plainly and explain which stored evidence supports or limits the answer.
 - Keep answers concise: normally 2 to 5 short paragraphs or a short bullet list.
 - Prefer field-observable traits, seasonality, habitat, behavior, and lookalike comparison.
@@ -186,7 +186,7 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     "[ECOLOGY]",
     `Ecology Type: ${trimText(scan.ecology_type, 80) ?? "Unavailable"}`,
     `Hazard Type: ${trimText(species?.hazard_type, 80) ?? "none"}`,
-    `Merian Invasive Flag: ${formatBooleanFlag(scan.is_invasive)}`,
+    `Naturebook Invasive Flag: ${formatBooleanFlag(scan.is_invasive)}`,
     `Invasive Status Region: ${
       trimText(scan.invasive_status_region, 160) ?? "Unavailable"
     }`,
@@ -250,7 +250,7 @@ export function buildConversationHistory(
   return [
     "[CHAT HISTORY]",
     ...recent.map((message) =>
-      `${message.role === "user" ? "User" : "Merian"}: ${
+      `${message.role === "user" ? "User" : "Naturebook"}: ${
         trimText(message.message_text, 900) ?? ""
       }`
     ),
@@ -277,7 +277,7 @@ export function buildPromptSuggestionsPrompt(
 
 [PROMPT CHIP REQUEST]
 Generate three short, tappable follow-up questions for the user to ask next in
-Merian Field chat. Each prompt must be grounded in the saved scan context and
+Naturebook Field chat. Each prompt must be grounded in the saved scan context and
 recent conversation above. Make the prompts specific to this observation using
 distinctive observed traits, lookalikes/candidates, confidence uncertainty,
 hazard or invasive status, ecology/habitat, season/month, life stage,

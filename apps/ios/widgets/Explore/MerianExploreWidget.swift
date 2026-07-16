@@ -127,7 +127,7 @@ struct ExploreImageWidgetView: View {
                                     .minimumScaleFactor(0.8)
                             }
                         } else {
-                            Text("Explore Merian")
+                            Text("Explore Naturebook")
                                 .font(.system(.headline))
                                 .fontWeight(.bold)
                                 .foregroundColor(.primary)

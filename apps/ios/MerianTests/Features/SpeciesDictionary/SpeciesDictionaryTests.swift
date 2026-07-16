@@ -43,7 +43,7 @@ struct SpeciesDictionaryTests {
                     {
                         "url": "https://media.merian.app/public_uploads/pro/test.webp",
                         "source": "merian",
-                        "license": "Used with permission via Merian",
+                        "license": "Used with permission via Naturebook",
                         "attribution": "Explorer ABC123"
                     },
                     {
@@ -85,8 +85,8 @@ struct SpeciesDictionaryTests {
         #expect(response.data.contentQuality == .complete)
         #expect(response.data.effectiveContentQuality == .complete)
         #expect(response.data.referenceImages.map(\.source) == [.merian, .wikipedia, .gbif])
-        #expect(response.data.referenceImages[0].source.label == "Merian")
-        #expect(response.data.referenceImages[0].attributionCaption == "Explorer ABC123 - Used with permission via Merian")
+        #expect(response.data.referenceImages[0].source.label == "Naturebook")
+        #expect(response.data.referenceImages[0].attributionCaption == "Explorer ABC123 - Used with permission via Naturebook")
         #expect(response.data.referenceImages[1].license == "CC BY-SA 4.0")
         #expect(response.data.referenceImages[1].attribution == "Example Photographer")
         #expect(response.data.referenceImages[1].attributionCaption == "Example Photographer - CC BY-SA 4.0")

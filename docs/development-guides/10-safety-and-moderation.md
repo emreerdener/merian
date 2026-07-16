@@ -1,6 +1,6 @@
 # Safety & Moderation Pipeline
 
-Merian runs all user-submitted media through a two-layer moderation system
+Naturebook runs all user-submitted media through a two-layer moderation system
 before persisting any scan to the database. The shared implementation lives in
 `_shared/identify/moderation.ts` and is used by both `/identify` and
 `/identify-multimodal`. It never blocks the HTTP response.

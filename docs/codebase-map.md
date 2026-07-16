@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-07-07.
+Last reviewed: 2026-07-15.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -14,10 +14,10 @@ after target, package, entitlement, build setting, or source-list changes.
 
 | Target                    | Type                    | Source                                                                                           | Deployment   |
 | ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ | ------------ |
-| `Merian`                  | iOS application         | `apps/ios/Merian/`                                                                               | iOS 17.2     |
-| `MerianExploreWidget`     | WidgetKit app extension | `apps/ios/widgets/Explore/`, `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCache.swift` | iOS 17.2     |
-| `MerianMessagesExtension` | Messages app extension  | `apps/ios/messages/MerianMessagesExtension/`, `apps/ios/messages/ScanSharing/Shared/`            | iOS 17.2     |
-| `MerianWatch`             | watchOS companion app   | `apps/watch/MerianWatch/`                                                                        | watchOS 10.0 |
+| `Merian`                  | iOS application         | `apps/ios/Merian/`, `apps/ios/Shared/Branding/`                                                  | iOS 17.2     |
+| `MerianExploreWidget`     | WidgetKit app extension | `apps/ios/widgets/Explore/`, `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCache.swift`, shared branding | iOS 17.2     |
+| `MerianMessagesExtension` | Messages app extension  | `apps/ios/messages/MerianMessagesExtension/`, `apps/ios/messages/ScanSharing/Shared/`, shared branding | iOS 17.2     |
+| `MerianWatch`             | watchOS companion app   | `apps/watch/MerianWatch/`, shared branding                                                       | watchOS 10.0 |
 | `merianTests`             | Unit tests              | `apps/ios/MerianTests/`                                                                          | iOS 17.2     |
 | `merianUITests`           | UI tests                | `apps/ios/MerianUITests/`                                                                        | iOS 17.2     |
 | `@merian/web`             | Next.js public web app  | `apps/web/`                                                                                      | Node/Next.js |
@@ -35,15 +35,34 @@ Tracked build config:
 Web runtime config:
 
 - `apps/web/.env.example` documents the public web environment.
-- `NEXT_PUBLIC_SITE_URL` should be `https://merian.earth` in production.
+- `NEXT_PUBLIC_SITE_URL` should be `https://naturebook.earth` in production.
+- `NEXT_PUBLIC_SUPPORT_EMAIL` should be `support@naturebook.earth` in
+  production.
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never expose it through a
   `NEXT_PUBLIC_` variable or client component.
+
+## Public Brand and Compatibility
+
+Naturebook is the public product and Merian is the permanent technical
+identity. The iOS/extension source of truth is
+`apps/ios/Shared/Branding/PublicBrand.swift`; the web source is
+`apps/web/lib/site.ts` plus the production environment. Host redirects and the
+legacy AASA exception live in `apps/web/proxy.ts` and
+`apps/web/lib/canonicalHost.ts`.
+
+New links emit `https://naturebook.earth` or `naturebook://`. The app continues
+accepting `https://merian.earth` and `merian://`. Bundle IDs, targets, modules,
+App Groups, SwiftData, backend names, `source = 'merian'`, RevenueCat product
+IDs, analytics, and `media.merian.app` remain unchanged. See
+`docs/system-architecture/08-public-brand-compatibility.md` for the complete
+contract and `docs/development-guides/15-naturebook-rebrand-rollout.md` for the
+release checklist.
 
 ## App Entry And Dependency Injection
 
 | Area                         | File                                                                                                        | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SwiftUI app entry            | `apps/ios/Merian/App/MerianApp.swift`                                                                       | Builds the `ModelContainer` from `CurrentSchema` using store-aware migration selection, delegates duplicate-checksum fallback, corruption quarantine, and legacy migration rescue to `Core/Data/StoreRecovery/`, configures `ScanRepository`, migrates species display preferences, initializes app analytics outside tests, applies global theme to `UIWindow`, handles `merian://explore/post/<id>`, `merian://scan/<id>`, and `merian://scans` deep links, and classifies file URLs for the Photos document-import inbox before Supabase auth handling. |
+| SwiftUI app entry            | `apps/ios/Merian/App/MerianApp.swift`                                                                       | Builds the `ModelContainer` from `CurrentSchema` using store-aware migration selection, delegates duplicate-checksum fallback, corruption quarantine, and legacy migration rescue to `Core/Data/StoreRecovery/`, configures `ScanRepository`, migrates species display preferences, initializes app analytics outside tests, applies global theme to `UIWindow`, handles canonical `naturebook://` and legacy `merian://` Explore/scan/library deep links plus Naturebook/Merian Universal Links, and classifies file URLs for the Photos document-import inbox before Supabase auth handling. |
 | App delegate bridge          | `apps/ios/Merian/App/MerianApp.swift`                                                                       | Owns background `URLSession` completion handoff and push token callbacks.                                                                                                                                                                                                                                                                                                                                                                     |
 | Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`, `apps/ios/Merian/Configuration/Merian-Bridging-Header.h` | Converts launch-time SwiftData/Core Data Objective-C exceptions into Swift errors so store recovery can run.                                                                                                                                                                                                                                                                                                                                  |
 | Dependency container         | `apps/ios/Merian/Core/AppDIContainer.swift`                                                                 | Injects hardware, AI, sync, network, analytics, security, settings, and profile dependencies through SwiftUI `@Environment`.                                                                                                                                                                                                                                                                                                                  |
@@ -151,11 +170,11 @@ the native iOS source tree.
 | App shell                  | `apps/web/app/layout.tsx`, `apps/web/app/theme.ts`, `apps/web/app/globals.css`                                                                                                              | Mantine provider, global metadata defaults, theme, pre-hydration color-scheme bridge, and responsive page chrome.      |
 | Marketing/home placeholder | `apps/web/app/page.tsx`, `apps/web/lib/exploreMedia.ts` | Lightweight landing surface with a public Explore grid that keeps visual heroes and uses species reference thumbnails for audio posts. |
 | Explore share page | `apps/web/app/explore/post/[postId]/page.tsx`, `apps/web/components/ExploreMediaCarousel.tsx`, `apps/web/components/ExploreBoostedAudio.tsx` | Server-rendered public post page with square ordered media, looping muted video, spectrogram-backed audio, optional local Boost Audio, metadata, and support reporting. |
-| Web audio boost stream | `apps/web/app/api/explore/audio/route.ts`, `apps/web/lib/audioProxy.ts` | Range-capable same-origin WAV stream restricted to canonical public Merian media; used only when a visitor activates browser-local Boost Audio. |
+| Web audio boost stream | `apps/web/app/api/explore/audio/route.ts`, `apps/web/lib/audioProxy.ts` | Range-capable same-origin WAV stream restricted to public Naturebook media on the durable `media.merian.app` technical host; used only when a visitor activates browser-local Boost Audio. |
 | Policy/support pages       | `apps/web/app/privacy/`, `apps/web/app/privacy-choices/`, `apps/web/app/terms/`, `apps/web/app/guidelines/`, `apps/web/app/support/`, `apps/web/app/legal/`                                 | App Store-friendly public policy, data-choice, community, support, and legal hub pages.                                |
 | Legal/public components    | `apps/web/components/PublicPageShell.tsx`, `apps/web/components/LegalPage.tsx`, `apps/web/components/ThemePreferenceBridge.tsx`, `apps/web/lib/site.ts`, `apps/web/lib/theme-preference.ts` | Shared public page chrome, legal document layout, iOS-to-Mantine theme preference sync, support email/site URL config. |
 | Supabase access            | `apps/web/lib/supabase.ts`, `apps/web/lib/explore.ts`                                                                                                                                       | Server-side Supabase client creation plus public feed/post/detail RPC mapping, including ordered media and persisted thumbnails. |
-| Formatting helpers         | `apps/web/lib/formatting.ts`                                                                                                                                                                | Shared web copy/URL formatting, including `merian://explore/post/{postId}` button URLs.                                |
+| Formatting helpers         | `apps/web/lib/formatting.ts`                                                                                                                                                                | Shared Naturebook web copy and URL formatting.                                                                         |
 | Local setup                | `apps/web/README.md`, `apps/web/.env.example`, `apps/web/package.json`                                                                                                                      | Web setup, env variable contract, npm scripts, and dependency manifest.                                                |
 
 ## Core Modules
@@ -356,8 +375,8 @@ When changing the codebase, update docs in the same change if any of these move:
 - Feature module names, file paths, or view-model/actor ownership.
 - Public Explore surfaces, notification behavior, widget cache shape, or privacy
   contracts.
-- Public web routes, metadata, env variables, Universal Link behavior, or
-  `merian.earth` share URL shape.
+- Public web routes, metadata, env variables, canonical `naturebook.earth`
+  generation, or legacy `merian.earth` Universal Link compatibility.
 - Native extension targets, App Group boundaries, or shipped/de-shipped
   extension source ownership.
 - Asset catalog groups, reusable artwork names, app icons, brand marks, persona

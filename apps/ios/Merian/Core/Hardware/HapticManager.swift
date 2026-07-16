@@ -416,7 +416,7 @@ struct HapticDiagnosticSnapshot: Equatable {
 
     var displaySummary: String {
         [
-            isHapticsEnabled ? "Merian haptics: on" : "Merian haptics: off",
+            isHapticsEnabled ? "Naturebook haptics: on" : "Naturebook haptics: off",
             isExpeditionModeActive ? "Expedition mode: on" : "Expedition mode: off",
             supportsCoreHaptics ? "Core Haptics: supported" : "Core Haptics: unavailable",
             "Audio: \(audioCategory) / \(audioMode)"

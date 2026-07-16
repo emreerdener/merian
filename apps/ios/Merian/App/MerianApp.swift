@@ -868,7 +868,7 @@ struct MerianApp: App {
                         startupStoreState: .recovered,
                         startupNotice: StartupRecoveryNotice(
                             title: "Library Repaired",
-                            message: "Merian recovered from a corrupted local store and rebuilt the library safely.",
+                            message: "Naturebook recovered from a corrupted local store and rebuilt the library safely.",
                             diagnosticText: ModelStoreRecoveryCoordinator.startupDiagnosticText(diagnostic)
                         ),
                         telemetryEvent: StartupRecoveryTelemetryEvent(
@@ -883,7 +883,7 @@ struct MerianApp: App {
                     )
                     diagnostic.recordAttempt(name: "post-quarantine-recovery", outcome: "failure", error: recoveryError)
                     return fallbackInMemoryBootstrap(
-                        reason: "Merian started in safe mode because the local library could not be recovered. New work in this session is temporary until the app restarts with a healthy store.",
+                        reason: "Naturebook started in safe mode because the local library could not be recovered. New work in this session is temporary until the app restarts with a healthy store.",
                         telemetryReason: "persistent_store_recovery_failed",
                         startupDiagnostic: diagnostic
                     )
@@ -921,7 +921,7 @@ struct MerianApp: App {
                         startupStoreState: .recovered,
                         startupNotice: StartupRecoveryNotice(
                             title: "Library Rebuilt",
-                            message: "Merian archived an older local library that could not be upgraded and started with a fresh library. Cloud sync can restore saved scans where available.",
+                            message: "Naturebook archived an older local library that could not be upgraded and started with a fresh library. Cloud sync can restore saved scans where available.",
                             diagnosticText: ModelStoreRecoveryCoordinator.startupDiagnosticText(diagnostic)
                         ),
                         telemetryEvent: StartupRecoveryTelemetryEvent(
@@ -944,7 +944,7 @@ struct MerianApp: App {
                         rescuePerformed: rescuePerformed
                     )
                     return fallbackInMemoryBootstrap(
-                        reason: "Merian started in safe mode because an older local library could not be archived and rebuilt. New work in this session is temporary until the app restarts with a healthy store.",
+                        reason: "Naturebook started in safe mode because an older local library could not be archived and rebuilt. New work in this session is temporary until the app restarts with a healthy store.",
                         telemetryReason: "persistent_store_rescue_failed",
                         startupDiagnostic: diagnostic
                     )
@@ -1004,7 +1004,7 @@ struct MerianApp: App {
                 startupStoreState: .safeMode,
                 startupNotice: StartupRecoveryNotice(
                     title: "Startup Blocked",
-                    message: "Merian could not open either the persistent library or the safe-mode in-memory store. Restart the app after freeing storage or reinstalling if the issue persists.",
+                    message: "Naturebook could not open either the persistent library or the safe-mode in-memory store. Restart the app after freeing storage or reinstalling if the issue persists.",
                     diagnosticText: diagnostic.flatMap(ModelStoreRecoveryCoordinator.startupDiagnosticText)
                 ),
                 telemetryEvent: StartupRecoveryTelemetryEvent(
@@ -1062,7 +1062,7 @@ struct MerianApp: App {
                     StartupRecoveryNoticeView(
                         notice: startupRecoveryNotice ?? StartupRecoveryNotice(
                             title: "Startup Blocked",
-                            message: "Merian could not initialize its local library."
+                            message: "Naturebook could not initialize its local library."
                         )
                     )
                     .padding(16)

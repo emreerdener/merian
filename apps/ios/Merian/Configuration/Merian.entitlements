@@ -18,6 +18,7 @@
 	<true/>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:naturebook.earth</string>
 		<string>applinks:merian.earth</string>
 	</array>
 </dict>

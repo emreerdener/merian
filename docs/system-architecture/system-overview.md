@@ -1,8 +1,8 @@
-# Merian System Architecture Overview
+# Naturebook System Architecture Overview
 
-Merian is a biological field identification app for iOS. Point the camera at any plant, insect, fungus, or animal — or describe a subject by voice in the Describe mode — and Merian identifies it using Gemini AI, records GPS telemetry and weather context, and builds a personal species journal that works fully offline.
+Naturebook is a biological field identification app for iOS. Point the camera at any plant, insect, fungus, or animal — or describe a subject by voice in the Describe mode — and Naturebook identifies it using Gemini AI, records GPS telemetry and weather context, and builds a personal species journal that works fully offline. The repository, Xcode project, targets, modules, and stable service identifiers retain the Merian engineering identity.
 
-Merian is built around a "Zero-OOM" (Out Of Memory) design philosophy targeting stable, native performance on iOS hardware. Expensive machine learning work is offloaded to Supabase Serverless Edge infrastructure to protect device battery and memory.
+Naturebook is built around a "Zero-OOM" (Out Of Memory) design philosophy targeting stable, native performance on iOS hardware. Expensive machine learning work is offloaded to Supabase Serverless Edge infrastructure to protect device battery and memory.
 
 ## High-Level Pipeline
 
@@ -28,8 +28,8 @@ budgets, image resolution, output limits, or the one-model-call contract.
 
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
 
-Merian also has a small public web frontend in `apps/web/`.
-`https://merian.earth/explore/post/{postId}` server-renders a public Explore post
+Naturebook also has a small public web frontend in `apps/web/`.
+`https://naturebook.earth/explore/post/{postId}` server-renders a public Explore post
 from the `get_explore_post` RPC, emits Open Graph metadata, and hydrates a square
 ordered image/video/audio carousel. Public video autoplays muted and loops only
 while selected; audio uses the persisted spectrogram, native controls, and an
@@ -42,7 +42,7 @@ scan telemetry, or server credentials.
 
 ## Core Decoupling (AppDIContainer)
 
-Merian does not use `@EnvironmentObject` for its core architectural engines. All complex business logic is bound using `@Observable` macros and `@Environment()` injection to keep the `View` lifecycle free from recursive updates or `EXC_BAD_ACCESS` warnings.
+The Merian app module does not use `@EnvironmentObject` for its core architectural engines. All complex business logic is bound using `@Observable` macros and `@Environment()` injection to keep the `View` lifecycle free from recursive updates or `EXC_BAD_ACCESS` warnings.
 
 Everything is wired in `AppDIContainer.swift`:
 
@@ -57,7 +57,7 @@ Everything is wired in `AppDIContainer.swift`:
 A structured schema built on native SwiftData migrations:
 
 - `LocalScanRecord` models map their UUIDs **1-to-1 with Postgres `/scans` rows**. An earlier architecture attempted to merge multiple scans of the same species into an `additionalImagePaths` array locally, which caused the background `ScanRepository` synchronizer to spawn duplicate tiles because the cloud ID didn't match the local random UUID.
-- *Grid Rendering Rule*: Every shutter press generates a distinct tile in the `Scans` view, matching the iOS Photos app pattern and preventing cloud duplication. Gamification telemetry hashes against `scientificName` to prevent duplicate local unique-species progress for the same biological subject, while global "New to Merian" milestones use the explicit `is_new_to_merian_dictionary` identify response flag and are suppressed for non-biological or processed-material results.
+- *Grid Rendering Rule*: Every shutter press generates a distinct tile in the `Scans` view, matching the iOS Photos app pattern and preventing cloud duplication. Gamification telemetry hashes against `scientificName` to prevent duplicate local unique-species progress for the same biological subject, while global "New to Naturebook" milestones use the technically stable `is_new_to_merian_dictionary` identify response flag and are suppressed for non-biological or processed-material results.
 - Schema versioning handles migrations cleanly.
 - `#Predicate` constraints use `.localizedStandardContains()` for robust case-insensitive SQLite matches across `ScanRepository`.
 - Keeps biological scan media durable in cloud storage; `ArchiveManager.swift` is limited to generated dataset archive downloads rather than timed scan-media rescue.

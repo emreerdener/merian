@@ -111,7 +111,7 @@ Dictionary rows and Tree species preview actions still push
 
 Community request details use `ExploreCommunityIdentificationDetailView`, which
 loads `/get-community-identification-detail`, frames the starting name as
-Merian's AI identification in a compact card backed by the scan's stored model
+Naturebook's AI identification in a compact card backed by the scan's stored model
 tier, optional confidence, and collapsed AI reasoning row, renders the
 community identification timeline with its ID count, and pins a **Suggest ID**
 action at the bottom. The
@@ -136,7 +136,7 @@ scans continue to use the sheet in create mode and call
 `/request-community-identification`.
 
 The detail sheet intentionally leaves the image toolbar title empty. The image
-is the visual context, while the first body card names Merian's AI
+is the visual context, while the first body card names Naturebook's AI
 identification and lets explorers expand the scan-derived reasoning when
 needed. Community IDs then live below in the timeline so the AI starting point
 and human identification evidence stay visually distinct.
@@ -163,7 +163,7 @@ audio choices live in the full Map filters sheet.
 Dictionary and Tree use species-level public data only. The Dictionary overview
 returns featured, group, and region summaries, while pushed catalog pages return
 compact species rows with taxonomy, content quality, tags, status fields, and a
-single reference image URL. Promoted Merian community photos rank before
+single reference image URL. Promoted Naturebook community photos rank before
 external reference images when available. The tree mode requires auth only to
 choose the species represented by the current user's non-deleted biological scans; it then
 returns public taxonomy nodes, edges, species counts, representative species,

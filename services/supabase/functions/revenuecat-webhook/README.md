@@ -1,6 +1,6 @@
 # RevenueCat Webhook
 
-The purchase-event bridge for paid Merian Pro access. Configured directly in
+The purchase-event bridge for paid Naturebook Pro access. Configured directly in
 the RevenueCat dashboard. When Apple processes a subscription renewal,
 cancellation, upgrade, or verified non-renewing purchase, RevenueCat fires an
 authenticated POST to this function. It maps standard subscription entitlement

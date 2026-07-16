@@ -600,7 +600,8 @@ Reference image attribution:
 
 - `license` and `attribution` come from normalized `species_reference_images`
   rows.
-- Merian-sourced rows use `license = "Used with permission via Merian"` and the
+- Rows with the stable technical `source = "merian"` use
+  `license = "Used with permission via Naturebook"` and the
   source author's public Explore label as attribution.
 - `SpeciesDictionaryReferenceGallery` shows the current image's
   attribution/license below the carousel when either value exists.

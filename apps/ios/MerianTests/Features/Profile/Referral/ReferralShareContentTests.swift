@@ -5,9 +5,9 @@ import Testing
 @Suite("Referral Share Content Tests")
 struct ReferralShareContentTests {
     @Test func placeholderURLUsesSingleInviteConstant() {
-        #expect(ReferralShareContent.url.absoluteString == "https://merian.earth/invite")
+        #expect(ReferralShareContent.url.absoluteString == "https://naturebook.earth/invite")
         #expect(ReferralShareContent.url.scheme == "https")
-        #expect(ReferralShareContent.url.host == "merian.earth")
+        #expect(ReferralShareContent.url.host == "naturebook.earth")
         #expect(ReferralShareContent.url.path == "/invite")
     }
 

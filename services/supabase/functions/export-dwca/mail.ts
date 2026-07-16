@@ -10,19 +10,20 @@ export async function sendExportEmail(email: string, signedUrl: string) {
   const resend = new Resend(resendKey);
 
   const { error } = await resend.emails.send({
-    // TODO: PRODUCTION - Remove onboarding fallback once merian.earth is verified in Resend.
-    // Set RESEND_FROM_EMAIL to 'exports@merian.earth' in Supabase Edge Secrets.
-    from: Deno.env.get("RESEND_FROM_EMAIL") || "Merian Data Exports <onboarding@resend.dev>",
+    // TODO: PRODUCTION - Remove onboarding fallback once naturebook.earth is verified in Resend.
+    // Set RESEND_FROM_EMAIL to 'Naturebook Data Exports <exports@naturebook.earth>' in Supabase Edge Secrets.
+    from: Deno.env.get("RESEND_FROM_EMAIL") ||
+      "Naturebook Data Exports <onboarding@resend.dev>",
     to: [email],
-    subject: "Your Merian Darwin Core Archive is Ready",
+    subject: "Your Naturebook Darwin Core Archive is Ready",
     html: `
       <h2>Your Export is Ready</h2>
       <p>Your Darwin Core Archive (DwC-A) containing your scans has finished processing.</p>
       <p>This secure link will expire in 24 hours.</p>
       <a href="${signedUrl}" style="display:inline-block;padding:12px 24px;background-color:#007AFF;color:white;text-decoration:none;border-radius:8px;">Download Archive</a>
       <br><br>
-      <p>Thank you for contributing to Merian!</p>
-    `
+      <p>Thank you for contributing to Naturebook!</p>
+    `,
   });
 
   if (error) {

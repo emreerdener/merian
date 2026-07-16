@@ -46,13 +46,17 @@ struct ExternalImageImportStoreTests {
 
     @Test func routesIncomingURLsWithoutChangingExistingHandlerPrecedence() {
         let fileURL = URL(fileURLWithPath: "/tmp/shared-photo.jpg")
-        let deepLink = URL(string: "merian://scan/example")!
-        let universalLink = URL(string: "https://merian.earth/explore/post/example")!
+        let deepLink = URL(string: "naturebook://scan/example")!
+        let universalLink = URL(string: "https://naturebook.earth/explore/post/example")!
+        let legacyDeepLink = URL(string: "merian://scan/example")!
+        let legacyUniversalLink = URL(string: "https://merian.earth/explore/post/example")!
         let authURL = URL(string: "https://example.supabase.co/auth/v1/callback?code=abc")!
 
         #expect(MerianOpenURLRoute.classify(authURL, googleHandled: true) == .handledByGoogle)
         #expect(MerianOpenURLRoute.classify(deepLink, googleHandled: false) == .merianDeepLink)
         #expect(MerianOpenURLRoute.classify(universalLink, googleHandled: false) == .merianDeepLink)
+        #expect(MerianOpenURLRoute.classify(legacyDeepLink, googleHandled: false) == .merianDeepLink)
+        #expect(MerianOpenURLRoute.classify(legacyUniversalLink, googleHandled: false) == .merianDeepLink)
         #expect(MerianOpenURLRoute.classify(fileURL, googleHandled: false) == .externalImageImport)
         #expect(MerianOpenURLRoute.classify(authURL, googleHandled: false) == .supabaseAuthentication)
     }
@@ -69,10 +73,10 @@ struct ExternalImageImportStoreTests {
         #expect(ExternalImageImportURLClassifier.isSupportedImageFileURL(imageURL))
         #expect(!ExternalImageImportURLClassifier.isSupportedImageFileURL(textURL))
         #expect(!ExternalImageImportURLClassifier.isSupportedImageFileURL(
-            URL(string: "merian://scan/example")!
+            URL(string: "naturebook://scan/example")!
         ))
         #expect(!ExternalImageImportURLClassifier.isSupportedImageFileURL(
-            URL(string: "https://merian.earth/explore/post/example")!
+            URL(string: "https://naturebook.earth/explore/post/example")!
         ))
     }
 

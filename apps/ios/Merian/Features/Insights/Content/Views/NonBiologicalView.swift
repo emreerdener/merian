@@ -73,7 +73,7 @@ struct NonBiologicalView: View {
                 .foregroundStyle(.orange)
                 .padding(.top, 1)
 
-            Text("You can find this scan in the Non-biological collection. Merian automatically deletes non-biological scans after \(MerianConfig.nonBiologicalRetentionDays) days.")
+            Text("You can find this scan in the Non-biological collection. Naturebook automatically deletes non-biological scans after \(MerianConfig.nonBiologicalRetentionDays) days.")
                 .font(.footnote)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.leading)

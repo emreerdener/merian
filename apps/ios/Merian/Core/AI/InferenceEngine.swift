@@ -1111,7 +1111,7 @@ private struct GBIFMedia: Decodable {
     // MARK: - Error State Factory
 
     private static let networkTimeoutRecoveryReason =
-        "Merian saved this scan and will retry automatically when your connection is back. " +
+        "Naturebook saved this scan and will retry automatically when your connection is back. " +
         "You can leave this screen and check Scans later, or try again after reconnecting."
 
     /// Builds an error-placeholder `SpeciesData` for the two failure paths in `analyze()`.

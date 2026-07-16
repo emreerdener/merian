@@ -4,13 +4,13 @@ import { LegalEmailLink, LegalList, LegalPage, LegalSection } from "@/components
 
 export const metadata: Metadata = {
   title: "Community Guidelines",
-  description: "Guidelines for sharing, commenting, and participating in Merian Explore."
+  description: "Guidelines for sharing, commenting, and participating in Naturebook Explore."
 };
 
 export default function GuidelinesPage() {
   return (
     <LegalPage
-      eyebrow="Merian community"
+      eyebrow="Naturebook community"
       title="Community Guidelines"
       description="These guidelines keep Explore useful, respectful, and safe for people and wildlife."
     >
@@ -33,7 +33,7 @@ export default function GuidelinesPage() {
 
       <LegalSection title="Keep Content Useful">
         <LegalList>
-          <li>Post observations that are relevant to Merian&apos;s ecological focus.</li>
+          <li>Post observations that are relevant to Naturebook&apos;s ecological focus.</li>
           <li>Use comments for identification help, ecological context, questions, and corrections.</li>
           <li>Do not post deceptive, unrelated, explicit, graphic, illegal, or promotional content.</li>
           <li>Do not manipulate likes, comments, follows, reports, or rankings.</li>
@@ -42,7 +42,7 @@ export default function GuidelinesPage() {
 
       <LegalSection title="Moderation">
         <Text>
-          Merian may remove content, hide posts, limit distribution, disable comments,
+          Naturebook may remove content, hide posts, limit distribution, disable comments,
           shadow-limit abusive activity, or suspend accounts when needed to protect users,
           wildlife, and the integrity of Explore. Reports and blocks help us review
           problems faster.

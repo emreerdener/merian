@@ -30,7 +30,7 @@ enum ProPlanValueProps {
         PaywallHeroSlide(
             imageName: "hawk",
             title: "Advanced AI analysis",
-            subtitle: "Use Merian's most capable model for deeper analysis.",
+            subtitle: "Use Naturebook's most capable model for deeper analysis.",
             glowColor: .orange
         ),
         PaywallHeroSlide(
@@ -77,7 +77,7 @@ private let paywallReviews = [
     PaywallReview(
         title: "Essential field tool",
         rating: 5,
-        body: "Merian Pro has completely transformed my weekend hikes. The expedition mode saves so much battery, and the Pro AI offline capabilities are insanely accurate.",
+        body: "Naturebook Pro has completely transformed my weekend hikes. The expedition mode saves so much battery, and the Pro AI offline capabilities are insanely accurate.",
         author: "ForestPathfinder"
     ),
     PaywallReview(
@@ -155,7 +155,7 @@ struct PaywallView: View {
                     purchaseBar(isCompact: isCompact)
                 }
             }
-            .navigationTitle("Merian Pro")
+            .navigationTitle(PublicBrand.proName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -339,7 +339,7 @@ struct PaywallView: View {
                 .frame(maxWidth: .infinity)
                 .shadow(color: .mint.opacity(0.26), radius: 28, y: 16)
 
-            Text("Pro keeps Merian moving: better models, richer ecological context, and field tools that work where discovery happens.")
+            Text("Pro keeps Naturebook moving: better models, richer ecological context, and field tools that work where discovery happens.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -415,15 +415,11 @@ struct PaywallView: View {
 
     private var paywallActionLinks: some View {
         HStack(spacing: 24) {
-            if let termsUrl = URL(string: "https://merian.earth/terms") {
-                Link("Terms", destination: termsUrl)
-                    .foregroundStyle(.secondary)
-            }
+            Link("Terms", destination: PublicBrand.websiteURL(path: "terms"))
+                .foregroundStyle(.secondary)
             
-            if let privacyUrl = URL(string: "https://merian.earth/privacy") {
-                Link("Privacy", destination: privacyUrl)
-                    .foregroundStyle(.secondary)
-            }
+            Link("Privacy", destination: PublicBrand.websiteURL(path: "privacy"))
+                .foregroundStyle(.secondary)
             
             Button {
                 Task { await tryRestore() }
@@ -452,7 +448,7 @@ struct PaywallView: View {
         switch selectedPackage.packageType {
         case .lifetime: return "Get Pro Lifetime"
         case .weekly: return "Start 7-Day Pass"
-        default: return "Start Merian Pro"
+        default: return "Start Naturebook Pro"
         }
     }
 
@@ -754,16 +750,19 @@ private struct PaywallPlanCard: View {
         case .monthly: return "Monthly"
         case .weekly: return "Weekly"
         case .lifetime: return "Lifetime"
-        default: return package.storeProduct.localizedTitle.replacingOccurrences(of: "Merian", with: "")
+        default:
+            return package.storeProduct.localizedTitle
+                .replacingOccurrences(of: "Naturebook", with: "")
+                .replacingOccurrences(of: "Merian", with: "")
         }
     }
 
     private var planDescription: String {
         if package.isSevenDayPassPlan {
-            return "Full Merian Pro access for 7 days."
+            return "Full Naturebook Pro access for 7 days."
         }
         if package.isAnnualPlan {
-            return "The full Merian Pro experience for a year."
+            return "The full Naturebook Pro experience for a year."
         }
 
         switch package.packageType {

@@ -313,7 +313,7 @@ Deno.serve((req: Request) =>
       );
       return jsonResponse({
         code: "pro_required",
-        error: "Insight chat requires Merian Pro.",
+        error: "Insight chat requires Naturebook Pro.",
       }, 402);
     }
 

@@ -11,7 +11,7 @@ struct Community: View {
     
     var body: some View {
         Section {
-            Button("Rate Merian") {
+            Button("Rate Naturebook") {
                 if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                     SKStoreReviewController.requestReview(in: scene)
                 }
@@ -45,12 +45,12 @@ struct Community: View {
 }
 
 private enum MerianWebURL {
-    static let supportEmail = URL(string: "mailto:support@merian.earth")
+    static let supportEmail = URL(string: "mailto:\(PublicBrand.supportEmail)")
 
     static func url(path: String, themeMode: ThemeMode) -> URL? {
         var components = URLComponents()
         components.scheme = "https"
-        components.host = "merian.earth"
+        components.host = PublicBrand.websiteURL.host
         components.path = path.hasPrefix("/") ? path : "/\(path)"
         components.queryItems = [
             URLQueryItem(name: "theme", value: themeMode.webThemePreferenceValue)

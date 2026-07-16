@@ -1,6 +1,6 @@
 # Revenue and Identity Management
 
-Merian implements an onboarding funnel by combining Supabase Anonymous
+Naturebook implements an onboarding funnel by combining Supabase Anonymous
 Authentication with RevenueCat SDK bindings for entitlement checking.
 
 ## Contents

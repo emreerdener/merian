@@ -45,9 +45,9 @@ struct PhotoLibraryPermissionSheetView: View {
         var message: String {
             switch self {
             case .importPhotos:
-                return "Merian needs access to your Photo Library to upload your images to be analyzed."
+                return "Naturebook needs access to your Photo Library to upload your images to be analyzed."
             case .saveToCameraRoll:
-                return "Merian can save new scan photos to your library without seeing your existing photos."
+                return "Naturebook can save new scan photos to your library without seeing your existing photos."
             }
         }
 

@@ -35,7 +35,7 @@ enum ExploreWidgetConstants {
 
     static func deepLinkURL(postId: String) -> URL? {
         var components = URLComponents()
-        components.scheme = "merian"
+        components.scheme = PublicBrand.canonicalScheme
         components.host = "explore"
         components.path = "/post/\(postId)"
         return components.url

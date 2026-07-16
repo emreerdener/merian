@@ -64,7 +64,7 @@ Deno.test("public species projection - reference image rows normalize and preser
       {
         url: "https://media.merian.app/public_uploads/pro/photo.webp",
         source: "merian",
-        license: "Used with permission via Merian",
+        license: "Used with permission via Naturebook",
         attribution: "Explorer ABC123",
         sort_order: 0,
       },
@@ -76,7 +76,7 @@ Deno.test("public species projection - reference image rows normalize and preser
     {
       url: "https://media.merian.app/public_uploads/pro/photo.webp",
       source: "merian",
-      license: "Used with permission via Merian",
+      license: "Used with permission via Naturebook",
       attribution: "Explorer ABC123",
     },
     {
@@ -153,7 +153,7 @@ Deno.test("public species projection - web attribution audit flags incomplete re
       {
         url: "https://media.merian.app/reference.jpg",
         source: "merian",
-        license: "Used with permission via Merian",
+        license: "Used with permission via Naturebook",
         attribution: "Explorer ABC123",
       },
     ]),

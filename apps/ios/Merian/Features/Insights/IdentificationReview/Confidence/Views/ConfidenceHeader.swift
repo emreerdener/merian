@@ -10,7 +10,7 @@ struct ConfidenceHeader: View {
                     .font(.system(.title, design: .serif).weight(.bold))
                     .foregroundStyle(.primary)
                 
-                Text("Merian evaluates your capture alongside GPS coordinates, topographic elevation, and weather conditions to power its reasoning models and calculate a precise confidence score.")
+                Text("Naturebook evaluates your capture alongside GPS coordinates, topographic elevation, and weather conditions to power its reasoning models and calculate a precise confidence score.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

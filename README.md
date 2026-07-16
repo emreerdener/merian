@@ -1,8 +1,14 @@
-# Merian
+# Naturebook
 
 **Native AI-Powered Ecological Identification for iOS**
 
-Merian is a field-ready biological identification app built around zero-friction capture and scientific-grade accuracy. Point the camera at any plant, animal, insect, fungus, or other organism, describe it in text, or capture a short sound clip and receive a structured identification in seconds — including taxonomy, ecology, conservation status, and diagnostic comparisons against lookalike species.
+Naturebook is a field-ready biological identification app built around zero-friction capture and scientific-grade accuracy. Point the camera at any plant, animal, insect, fungus, or other organism, describe it in text, or capture a short sound clip and receive a structured identification in seconds — including taxonomy, ecology, conservation status, and diagnostic comparisons against lookalike species. Merian remains the repository, target, and module codename.
+
+Public branding and compatibility are governed by the
+[Naturebook public-brand contract](docs/system-architecture/08-public-brand-compatibility.md).
+Production domain, AASA, email, backend, App Store, verification, and rollback
+steps are tracked in the
+[Naturebook rebrand rollout runbook](docs/development-guides/15-naturebook-rebrand-rollout.md).
 
 ---
 
@@ -14,12 +20,12 @@ Merian is a field-ready biological identification app built around zero-friction
 - Tap-to-focus, tap-to-expose, pinch zoom, vertical swipe zoom, and direct drag on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume buttons, Action button, iPhone 16 Camera Control).
 - Mixed-media staging mode — queue up to 2 total photos, short Pro video clips, audio clips, or descriptions before submitting to inference.
-- Share one photo from iOS Photos directly to Merian. The app opens through its
+- Share one photo from iOS Photos directly to Naturebook. The app opens through its
   image document association, preserves included EXIF date/location context,
   requires the normal gallery crop, and continues through the existing quota,
   confirmation, inference, and offline-queue flow without a Share Extension or
   broad Photo Library access.
-- Pro video scans let users briefly hold the visual shutter for a short stabilized clip, with an active countdown, cancel control, staged playback review, and image-based thumbnail; Merian analyzes five ordered sampled frames plus accompanying audio when available, then stores an upload-bounded playback clip for library review and Explore sharing while keeping sampled frames out of the user-visible media carousel.
+- Pro video scans let users briefly hold the visual shutter for a short stabilized clip, with an active countdown, cancel control, staged playback review, and image-based thumbnail; Naturebook analyzes five ordered sampled frames plus accompanying audio when available, then stores an upload-bounded playback clip for library review and Explore sharing while keeping sampled frames out of the user-visible media carousel.
 - Audio Listen Mode records a 15-second WAV clip with live spectrogram and SNR feedback.
 - Describe Mode supports typed observations and live voice dictation through `SpeechManager`.
 - Real-time viewfinder intelligence hints (brightness, distance, motion blur) powered by on-device luma analysis at 3fps.
@@ -115,7 +121,7 @@ Merian is a field-ready biological identification app built around zero-friction
   shared App Group, renders video posts as clean still thumbnails, and excludes
   audio-only posts.
 - Public Explore share pages render visual posts at
-  `https://merian.earth/explore/post/{postId}` through the Next.js web app.
+  `https://naturebook.earth/explore/post/{postId}` through the Next.js web app.
   Detail pages use a square ordered image/video/audio carousel: videos autoplay
   muted on a loop while selected, and WAV audio fills the frame with its
   persisted spectrogram plus user-initiated controls and optional browser-local
@@ -125,9 +131,9 @@ Merian is a field-ready biological identification app built around zero-friction
   from Home Screen widgets.
 
 ### Native Share Extensions
-- Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Merian card, or text description into the compose field.
+- Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Naturebook card, or text description into the compose field.
 - Shared App Group cache files keep shipped extensions lightweight while the main app owns SwiftData and scan reconciliation.
-- Photos-to-Merian import is not an extension: the `public.image` document
+- Photos-to-Naturebook import is not an extension: the `public.image` document
   association opens the containing app and copies one shared file into its
   private pending-import inbox.
 
@@ -283,10 +289,15 @@ share page with Open Graph metadata, and the allowlisted
 plus public policy/support pages at `/privacy`, `/terms`, `/guidelines`,
 `/privacy-choices`, `/support`, and `/legal`.
 
-See `apps/web/README.md` and `docs/features-and-hardware/17-public-web-share-pages.md` for the web env contract, share URL strategy, and Universal Links roadmap.
+See `apps/web/README.md`,
+`docs/features-and-hardware/17-public-web-share-pages.md`, and
+`docs/development-guides/15-naturebook-rebrand-rollout.md` for the web env
+contract, share URL strategy, Universal Links, production verification, and
+rollout steps.
 
 For Vercel production, configure the project Root Directory as `apps/web` and
-attach both `merian.earth` and `www.merian.earth` to that project. A plain Vercel
+attach `naturebook.earth`, `naturebook.app`, their `www` aliases, and the legacy
+`merian.earth` aliases to that project. A plain Vercel
 `404: NOT_FOUND` response means the request has not reached the Next.js app.
 
 ### Local Backend
@@ -326,7 +337,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/codebase-map.md` | Current target/module/function/schema map generated from this repo state |
 | `docs/system-architecture/` | Data flow, concurrency model, zero-OOM patterns, AI engineering |
 | `docs/features-and-hardware/` | Camera pipeline, hardware orchestration, feature module breakdowns |
-| `docs/features-and-hardware/17-public-web-share-pages.md` | Public `merian.earth` share page contract and Universal Links roadmap |
+| `docs/features-and-hardware/17-public-web-share-pages.md` | Public `naturebook.earth` share page contract and Universal Links compatibility |
 | `docs/backend-and-data/` | Edge function contracts, database schema, offline sync, API contracts |
 | `docs/development-guides/` | Core managers reference, app lifecycle, testing strategy |
 
@@ -334,4 +345,4 @@ Extended architecture documentation lives in `docs/`:
 
 ## Legal
 
-Merian is a tool for education, discovery, and conservation. Usage is subject to the terms of the Google Gemini API, Supabase, and Apple platform guidelines.
+Naturebook is a tool for education, discovery, and conservation. Usage is subject to the terms of the Google Gemini API, Supabase, and Apple platform guidelines.

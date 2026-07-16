@@ -40,6 +40,6 @@ struct ReportInsightViewModelTests {
         
         #expect(viewModel.isSubmitting == false)
         #expect(viewModel.showAlert == true)
-        #expect(viewModel.alertMessage == "Thank you! Your feedback helps us improve Merian's AI.")
+        #expect(viewModel.alertMessage == "Thank you! Your feedback helps us improve Naturebook's AI.")
     }
 }

@@ -1,6 +1,6 @@
 # 17. AI Engineering & LLMOps
 
-Merian's inference engine uses `gemini-2.5-flash` (free tier) and
+Naturebook's inference engine uses `gemini-2.5-flash` (free tier) and
 `gemini-2.5-pro` (Pro tier) running inside serverless Deno Edge functions to
 protect API keys and enforce structured output.
 

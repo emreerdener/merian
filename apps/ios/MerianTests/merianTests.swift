@@ -626,7 +626,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         viewModel.importPendingExternalImageIfPossible()
         try await waitUntil {
-            viewModel.offlineToastMessage == "Merian couldn’t import that photo."
+            viewModel.offlineToastMessage == "Naturebook couldn’t import that photo."
         }
 
         XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
@@ -1700,7 +1700,7 @@ final class ExploreShareMessageFormatterTests: XCTestCase {
                     postId: "post-123",
                     primaryMediaKind: mediaKind
                 ),
-                "Check out this Northern Cardinal\nhttps://merian.earth/explore/post/post-123"
+                "Check out this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
             )
         }
     }
@@ -1712,7 +1712,7 @@ final class ExploreShareMessageFormatterTests: XCTestCase {
                 postId: "post-123",
                 primaryMediaKind: .audio
             ),
-            "Listen to this Northern Cardinal\nhttps://merian.earth/explore/post/post-123"
+            "Listen to this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
         )
     }
 
@@ -1723,7 +1723,7 @@ final class ExploreShareMessageFormatterTests: XCTestCase {
                 postId: "post-123",
                 primaryMediaKind: nil
             ),
-            "Check out this Northern Cardinal\nhttps://merian.earth/explore/post/post-123"
+            "Check out this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
         )
     }
 
@@ -1753,7 +1753,7 @@ final class ExploreShareMessageFormatterTests: XCTestCase {
                 postId: "post-123",
                 primaryMediaKind: mediaItems.first?.kind
             ),
-            "Check out this Northern Cardinal\nhttps://merian.earth/explore/post/post-123"
+            "Check out this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
         )
     }
 

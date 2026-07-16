@@ -137,7 +137,7 @@ struct CommunityFeedbackSheet: View {
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.primary)
 
-                Text("Your feedback has been saved and shared with the Merian team.")
+                Text("Your feedback has been saved and shared with the Naturebook team.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

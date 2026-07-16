@@ -558,7 +558,7 @@ private enum CarouselReferenceImageSource {
         case .gbif:
             return "GBIF"
         case .merian:
-            return "Merian"
+            return "Naturebook"
         }
     }
 

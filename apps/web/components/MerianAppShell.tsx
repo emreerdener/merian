@@ -66,7 +66,7 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
                 underline="never"
                 className="header-logo-container"
               >
-                Merian Earth
+                Naturebook
               </Anchor>
 
               <Group gap="xs" wrap="nowrap" className="header-actions-container">
@@ -116,7 +116,7 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
       <Modal
         opened={modalOpened}
         onClose={closeModal}
-        title="Join the Merian Beta"
+        title="Join the Naturebook Beta"
         centered
         radius="lg"
         size="md"

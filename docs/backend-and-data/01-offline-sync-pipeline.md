@@ -1,6 +1,6 @@
 # The Offline Synchronization Pipeline
 
-Merian's core differentiator is treating off-grid nature encounters as a
+Naturebook's core differentiator is treating off-grid nature encounters as a
 first-class citizen using native Apple offline architecture.
 
 ## How the Queue Works

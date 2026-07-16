@@ -107,7 +107,7 @@ Deno.test("moderation media fetch enforces exact host and preserves video MIME",
         () => Promise.resolve(new Response()),
       ),
     Error,
-    "not an approved Merian media URL",
+    "not an approved Naturebook media URL",
   );
 
   const result = await fetchBoundedModerationMedia(

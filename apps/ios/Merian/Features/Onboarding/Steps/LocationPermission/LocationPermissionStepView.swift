@@ -12,7 +12,7 @@ struct LocationPermissionStepView: View {
         OnboardingStepWrapper(
             imageName: "location",
             title: "Context is\neverything",
-            subtitle: "Merian uses your environment to cross-reference local habitats, instantly boosting AI accuracy. Your exact coordinates always remain strictly private.",
+            subtitle: "Naturebook uses your environment to cross-reference local habitats, instantly boosting AI accuracy. Your exact coordinates always remain strictly private.",
             primaryButtonTitle: "Enable location",
             primaryButtonTextColor: Color.black,
             primaryButtonColor: Color.green.opacity(0.8),

@@ -165,7 +165,7 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
       assert(
         publicRows.rows.every((row) =>
           row.source === "merian" &&
-          row.license === "Used with permission via Merian" &&
+          row.license === "Used with permission via Naturebook" &&
           row.attribution === "Gallery Owner"
         ),
       );

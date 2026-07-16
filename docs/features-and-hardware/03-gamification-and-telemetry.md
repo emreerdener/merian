@@ -1,6 +1,6 @@
 # Gamification and Zero-PII Telemetry
 
-Merian gamifies exploration while respecting user privacy through analytics
+Naturebook gamifies exploration while respecting user privacy through analytics
 environments decoupled from Apple ecosystem identifiers.
 
 ## Gamification Architecture (`GamificationManager`)
@@ -16,13 +16,13 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
 - **Local vs. global discovery split**: `isNewDiscovery` means "new to this
   user" and is intentionally not the user-facing celebration signal.
   `is_new_to_merian_dictionary` comes from the identify Edge payload when a
-  biological scan adds a species that was not already in Merian's shared
+  biological scan adds a species that was not already in Naturebook's shared
   `species_dictionary`. Non-biological results, including processed-material
   demotions such as wool rugs or leather goods, cannot set this flag.
 - Drives the shared `MilestoneToastPresenter` for in-app milestone UX.
   Achievement unlocks enter from
   `GamificationManager.evaluateAchievementsForNotifications(awards:)`.
-  `New to Merian` dictionary milestones enter from
+  `New to Naturebook` dictionary milestones enter from
   `InsightSheetViewModel.evaluateVoiceOverAndCelebration` only when
   `SpeciesData.isNewToMerianDictionary == true` for a valid biological subject.
   The old local `CelebrationBanner` confetti overlay has been removed.

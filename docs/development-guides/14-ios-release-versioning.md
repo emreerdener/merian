@@ -1,7 +1,8 @@
 # iOS Release Versioning
 
-Merian uses semantic app versions and globally increasing TestFlight build
-numbers:
+Naturebook uses semantic app versions and globally increasing TestFlight build
+numbers. The Xcode project, scheme, targets, and build artifacts intentionally
+retain the Merian engineering identity:
 
 - `MARKETING_VERSION` is the public app version, for example `1.0.1`.
 - `CURRENT_PROJECT_VERSION` is the build number uploaded to App Store Connect.
@@ -140,3 +141,34 @@ The exported `.ipa`, `exportOptions.plist`, and Xcode export log are written to
 
 After uploading, confirm App Store Connect places the processed build under the
 expected semantic version and build number.
+
+## Naturebook Apple Distribution Metadata Gate
+
+For the public rebrand release, update the existing app listing; do not create a
+new App Store Connect app record or bundle identifier. In Apple Developer
+Certificates, Identifiers & Profiles, ensure there is exactly one explicit App
+ID for `app.merian.Merian`, with description `Naturebook iOS (Merian)`. Register
+it if it does not exist; otherwise edit only its description. The description
+is not an App Store Connect metadata field.
+
+Confirm these App Store Connect values before submitting:
+
+| Field | Required value |
+|---|---|
+| Public app name | Naturebook |
+| Bundle ID | `app.merian.Merian` |
+| Primary category | Reference |
+| Secondary category | Education |
+| Marketing URL | `https://naturebook.earth` |
+| Support URL | `https://naturebook.earth/support` |
+| Privacy policy URL | `https://naturebook.earth/privacy` |
+| Subscription/IAP localization | Naturebook Pro |
+
+Do not change product IDs, entitlement IDs, RevenueCat offering identifiers, or
+the App Store Connect app record. Confirm the canonical domains, direct AASA
+responses, support mailbox, and export sender are live before releasing the
+renamed binary. Use
+[`15-naturebook-rebrand-rollout.md`](./15-naturebook-rebrand-rollout.md) as the
+release checklist and
+[`08-public-brand-compatibility.md`](../system-architecture/08-public-brand-compatibility.md)
+as the permanent identifier contract.

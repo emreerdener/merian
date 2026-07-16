@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-15-naturebook-rebrand",
+      "version": "1.0.1",
+      "build": "200",
+      "date": "2026-07-15",
+      "title": "Merian is now Naturebook",
+      "sections": [
+        {
+          "title": "New name, same library",
+          "items": [
+            "Merian is now Naturebook. The name is new; your scans, account, subscriptions, and Explore content stay exactly where they are."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-15-explore-feed-filters",
       "date": "2026-07-15",
       "title": "Explore feed filters",
@@ -17,12 +32,12 @@
     {
       "id": "2026-07-15-photos-share-import",
       "date": "2026-07-15",
-      "title": "Share photos to Merian",
+      "title": "Share photos to Naturebook",
       "sections": [
         {
           "title": "New",
           "items": [
-            "Share a photo from Photos directly to Merian for identification."
+            "Share a photo from Photos directly to Naturebook for identification."
           ]
         }
       ]
@@ -174,7 +189,7 @@
         {
           "title": "Improved",
           "items": [
-            "Audio posts now show their playable recording spectrogram on the public Merian web post page instead of a generic speaker placeholder."
+            "Audio posts now show their playable recording spectrogram on the public Naturebook web post page instead of a generic speaker placeholder."
           ]
         }
       ]
@@ -319,7 +334,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Signing out now clears only the current simulator or device session, and RevenueCat customers carry Supabase/public identity details so support can match Test Store Pro status back to Merian accounts."
+            "Signing out now clears only the current simulator or device session, and RevenueCat customers carry Supabase/public identity details so support can match Test Store Pro status back to Naturebook accounts."
           ]
         }
       ]
@@ -332,7 +347,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Startup recovery now repairs devices carrying the accidental optional-queue V48 store by migrating forward to V49, routes V42 stores directly to V49 instead of through the older V42-to-V43 bridge, routes V43-V47 stores through source-isolated V49 repair plans, archives legacy stores that still cannot migrate so Merian can rebuild a fresh persistent library, and TestFlight/debug safe-mode cards include redacted copy/share diagnostics."
+            "Startup recovery now repairs devices carrying the accidental optional-queue V48 store by migrating forward to V49, routes V42 stores directly to V49 instead of through the older V42-to-V43 bridge, routes V43-V47 stores through source-isolated V49 repair plans, archives legacy stores that still cannot migrate so Naturebook can rebuild a fresh persistent library, and TestFlight/debug safe-mode cards include redacted copy/share diagnostics."
           ]
         }
       ]
@@ -349,7 +364,7 @@
             "Field Trips now include guided detail pages, explicit Start, curated checklist tips, a Field Trips-only Community segment with For You, Following, and Recent filters, and up to 3 pinned published trips on profiles.",
             "Seasonal Challenges add curated, non-competitive Field Trip goals with explicit Join, challenge progress, completion badges, and challenge entry pages.",
             "Published Field Trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map.",
-            "Eligible challenge hashtags can appear as optional Explore sharing suggestions, but Merian never auto-posts or auto-tags a scan for a challenge.",
+            "Eligible challenge hashtags can appear as optional Explore sharing suggestions, but Naturebook never auto-posts or auto-tags a scan for a challenge.",
             "Field Trip comments, replies, and followed-author publications can now appear in the in-app activity bell without sending push notifications."
           ]
         }
@@ -389,7 +404,7 @@
         {
           "title": "Improved",
           "items": [
-            "Pro video recordings now use native iOS stabilization when available, and Merian resets the camera connection afterward so still photos keep their normal resolution and latency."
+            "Pro video recordings now use native iOS stabilization when available, and Naturebook resets the camera connection afterward so still photos keep their normal resolution and latency."
           ]
         }
       ]
@@ -773,7 +788,7 @@
         {
           "title": "Added",
           "items": [
-            "Profile and Settings now include an Invite a friend action so sharing Merian is ready for a future referral link."
+            "Profile and Settings now include an Invite a friend action so sharing Naturebook is ready for a future referral link."
           ]
         }
       ]
@@ -781,12 +796,12 @@
     {
       "id": "2026-07-04-new-to-merian-milestone",
       "date": "2026-07-04",
-      "title": "New to Merian milestones",
+      "title": "New to Naturebook milestones",
       "sections": [
         {
           "title": "Improved",
           "items": [
-            "Insight now uses a richer bottom milestone banner when a scan adds a species to Merian's shared species dictionary.",
+            "Insight now uses a richer bottom milestone banner when a scan adds a species to Naturebook's shared species dictionary.",
             "Achievement unlock banners now avoid stacking with foreground iOS notifications.",
             "Older domestic cat and dog scans can unlock the new achievements silently without showing surprise retroactive banners."
           ]
@@ -801,7 +816,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio.",
+            "Fixed a crash that could happen after tapping stop on a Pro video recording while Naturebook extracted the clip's audio.",
             "Upload-safe Pro video clips now still stage when playback compression is slow or unavailable.",
             "Video scans now keep identifying when optional video audio is unusable, and background retry keeps the staged video clip attached."
           ]
@@ -993,7 +1008,7 @@
         {
           "title": "Added",
           "items": [
-            "Insight overviews now present invasive status as a compact, location-aware summary with the assessed region, confidence, and Merian's rationale when available."
+            "Insight overviews now present invasive status as a compact, location-aware summary with the assessed region, confidence, and Naturebook's rationale when available."
           ]
         }
       ]
@@ -1130,8 +1145,8 @@
         {
           "title": "Changed",
           "items": [
-            "Explore post shares now use clearer Merian copy before the public web preview link.",
-            "Explore post web links now open the matching native Explore post when Merian is installed."
+            "Explore post shares now use clearer Naturebook copy before the public web preview link.",
+            "Explore post web links now open the matching native Explore post when Naturebook is installed."
           ]
         }
       ]
@@ -1207,23 +1222,23 @@
         {
           "title": "Changed",
           "items": [
-            "Ask the Community search can now find GBIF-backed taxa that are not yet enriched in Merian's Dictionary.",
+            "Ask the Community search can now find GBIF-backed taxa that are not yet enriched in Naturebook's Dictionary.",
             "Newly materialized Dictionary species can now hydrate habitat, lookalikes, and group tags in the background.",
-            "Merian's Community ID taxonomy and enrichment systems now have stronger backend monitoring for rollout health.",
-            "Merian can now safely seed bird taxonomy coverage in the background for future Dictionary completeness progress.",
+            "Naturebook's Community ID taxonomy and enrichment systems now have stronger backend monitoring for rollout health.",
+            "Naturebook can now safely seed bird taxonomy coverage in the background for future Dictionary completeness progress.",
             "Smart Collection cards now use varied matching scan covers, except Recent finds, instead of always reusing the newest scan thumbnail.",
-            "Dog and cat scans can now show a likely breed, mix, coat pattern, or body type while Merian keeps the underlying species taxonomy unchanged.",
+            "Dog and cat scans can now show a likely breed, mix, coat pattern, or body type while Naturebook keeps the underlying species taxonomy unchanged.",
             "The main camera tab bar now matches the Explore bottom navigation icon size, label size, and item spacing.",
             "Identify requests now have organism filters for Plants, Birds, Insects, Fungi, Mammals, and Herps while keeping Yours near the start of the filter row.",
-            "Community request details now frame the starting name as Merian's AI identification with the stored scan model tier, an optional confidence pill, and collapsed reasoning, while the ID count lives with the Identifications section.",
+            "Community request details now frame the starting name as Naturebook's AI identification with the stored scan model tier, an optional confidence pill, and collapsed reasoning, while the ID count lives with the Identifications section.",
             "Explore Tree now opens in a top-down taxonomy layout instead of the earlier sideways orientation.",
             "Explore Dictionary and Tree controls now provide haptic feedback on button actions.",
-            "Explore Tree now has All species and My scans filter pills so you can switch between Merian's public taxonomy and your scanned-species tree.",
+            "Explore Tree now has All species and My scans filter pills so you can switch between Naturebook's public taxonomy and your scanned-species tree.",
             "Explore Dictionary cards, rows, thumbnails, loading skeletons, and the featured Recently Added card now use the softer rounded corners and roomier image-first layout from Identify request surfaces.",
             "Explore Dictionary Catalog now opens directly into the browse overview without a top-level search bar, while subcategory catalog pages keep their own search.",
             "The Explore Dictionary Recently Added feature card now opens that species' dictionary page, while a separate Recently Added row opens the full newest species list.",
-            "Explore Dictionary previews now prefer promoted Merian community photos over external reference images when available.",
-            "Notifications settings now include a single action to turn off every Merian notification category at once.",
+            "Explore Dictionary previews now prefer promoted Naturebook community photos over external reference images when available.",
+            "Notifications settings now include a single action to turn off every Naturebook notification category at once.",
             "Open Identify request cards and loading skeletons now hide AI-derived names and show only the scan image with a compact submitted-ID count overlay.",
             "Guests can now choose a public profile picture, display name, and username before signing in, and those choices carry into Apple or Google sign-in.",
             "Profile now starts with identity and stats, followed by published scans, the non-Pro plan card, persona progress, the scan heatmap, and achievements."
@@ -1355,7 +1370,7 @@
         {
           "title": "Added",
           "items": [
-            "A one-time beta feedback survey now asks how Merian is working for testers after meaningful use.",
+            "A one-time beta feedback survey now asks how Naturebook is working for testers after meaningful use.",
             "You can also open the survey from Settings in the Resources section.",
             "Survey responses are saved privately so the team can review polish, performance, bugs, and feature requests.",
             "After submitting, the thank-you state resets after 24 hours so you can send fresh feedback again from Settings."
@@ -1389,8 +1404,8 @@
           "title": "Changed",
           "items": [
             "Candidate review prompts now appear only for non-strong identifications or strong IDs with a competitive alternative, while stored candidates remain available for recovery and future review flows. The Needs review smart collection follows the same non-strong and competitive-alternative thresholds.",
-            "Biological scan images are now durable for Free and Pro users; Merian no longer auto-purges successful sighting evidence based on age or tier.",
-            "Species dictionary galleries can now include more published Merian photos while still requiring strong species confidence."
+            "Biological scan images are now durable for Free and Pro users; Naturebook no longer auto-purges successful sighting evidence based on age or tier.",
+            "Species dictionary galleries can now include more published Naturebook photos while still requiring strong species confidence."
           ]
         },
         {
@@ -1415,7 +1430,7 @@
         {
           "title": "Added",
           "items": [
-            "7-day Pro passes now use verified RevenueCat purchases with a Merian-owned expiration window so access ends reliably after the pass period."
+            "7-day Pro passes now use verified RevenueCat purchases with a Naturebook-owned expiration window so access ends reliably after the pass period."
           ]
         }
       ]
@@ -1605,8 +1620,8 @@
           "title": "Added",
           "items": [
             "Initial web app scaffold for public Explore share pages.",
-            "Public Terms, Privacy Policy, Community Guidelines, Privacy Choices, Support, and Legal hub pages for merian.earth.",
-            "An iOS-to-web theme bridge so Merian-opened web pages can follow your app theme preference."
+            "Public Terms, Privacy Policy, Community Guidelines, Privacy Choices, Support, and Legal hub pages for naturebook.earth.",
+            "An iOS-to-web theme bridge so Naturebook-opened web pages can follow your app theme preference."
           ]
         },
         {

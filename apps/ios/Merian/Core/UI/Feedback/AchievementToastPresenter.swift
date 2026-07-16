@@ -12,7 +12,7 @@ struct DictionaryMilestonePayload: Sendable, Equatable {
     let imageName: String
 
     static let newToMerian = DictionaryMilestonePayload(
-        title: "New to Merian",
+        title: "New to Naturebook",
         subtitle: "Added to the species dictionary",
         imageName: "star"
     )

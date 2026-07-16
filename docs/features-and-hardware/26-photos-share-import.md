@@ -1,6 +1,6 @@
 # Photos Share Import
 
-Merian can receive one image from the iOS Photos share sheet and route it into
+Naturebook can receive one image from the iOS Photos share sheet and route it into
 the normal visual-identification workflow. This is an app-owned document import,
 not a Share Extension: selecting Merian opens the containing app, the app copies
 the incoming file into its own durable inbox, and the Capture workspace stages
@@ -30,14 +30,14 @@ The user-facing release-note wording is:
 | Key | Value | Reason |
 |---|---|---|
 | `LSItemContentTypes` | `public.image` | Advertises support for image files. |
-| `CFBundleTypeRole` | `Viewer` | Merian consumes the file without editing the source. |
-| `LSHandlerRank` | `Alternate` | Merian is an optional handler, not the default image viewer. |
+| `CFBundleTypeRole` | `Viewer` | Naturebook consumes the file without editing the source. |
+| `LSHandlerRank` | `Alternate` | Naturebook is an optional handler, not the default image viewer. |
 | `LSSupportsOpeningDocumentsInPlace` | `false` | The app owns an imported copy and never writes to the Photos original. |
 
 `MerianApp.onOpenURL` preserves the existing routing precedence:
 
 1. Google Sign-In receives the URL first.
-2. Supported `merian://` deep links are handled next.
+2. Supported `naturebook://` and legacy `merian://` deep links are handled next.
 3. File URLs are handed to the document-import store.
 4. Remaining URLs continue to Supabase authentication.
 
@@ -158,7 +158,7 @@ coordinates, capture dates, asset identifiers, scan IDs, or user IDs.
 |---|---|---|
 | Free quota exhausted | Present the existing paywall. | Retain and retry after entitlement changes. |
 | Capture tray full | Show "Finish your current capture to import the shared photo." | Retain and retry after staged media clears. |
-| Unsupported or unreadable image | Trigger error haptics and show "Merian couldn’t import that photo." | Remove as a terminal failure. |
+| Unsupported or unreadable image | Trigger error haptics and show "Naturebook couldn’t import that photo." | Remove as a terminal failure. |
 | Preparation succeeds | Present the required crop. | Remove after the staged item is committed. |
 
 Blocking feedback is de-duplicated per pending import so foreground and

@@ -56,7 +56,7 @@ final class MessageScanShareCacheTests: XCTestCase {
         XCTAssertEqual(text, "Check out this Monarch Butterfly (Danaus plexippus) I discovered!")
         XCTAssertFalse(text.contains("Private garden note"))
         XCTAssertFalse(text.contains("Austin, TX"))
-        XCTAssertFalse(text.contains("https://merian.earth/explore/post/post-1"))
+        XCTAssertFalse(text.contains("https://naturebook.earth/explore/post/post-1"))
     }
 
     func testDescriptionDoesNotIncludeFieldNotesWhenRequested() {
@@ -120,7 +120,23 @@ final class MessageScanShareCacheTests: XCTestCase {
         XCTAssertEqual(attachmentImage.size.width, attachmentImage.size.height)
     }
 
-    func testMerianDeepLinkParsing() {
+    func testMerianDeepLinkParsingAcceptsNaturebookAndLegacyLinks() {
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "naturebook://scan/abc-123")!),
+            .scan("abc-123")
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "naturebook://scans")!),
+            .scansLibrary
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "naturebook://explore/post/post-123")!),
+            .explorePost("post-123")
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "https://naturebook.earth/explore/post/post-123")!),
+            .explorePost("post-123")
+        )
         XCTAssertEqual(
             MerianDeepLinkRoute(url: URL(string: "merian://scan/abc-123")!),
             .scan("abc-123")
@@ -140,6 +156,19 @@ final class MessageScanShareCacheTests: XCTestCase {
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "merian://scan")!))
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://merian.earth")!))
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://merian.earth/privacy")!))
+        XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://naturebook.app/explore/post/post-123")!))
+        XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://example.com/explore/post/post-123")!))
+    }
+
+    func testMerianDeepLinkGenerationUsesCanonicalNaturebookScheme() {
+        XCTAssertEqual(
+            MerianDeepLinkRoute.scan("abc-123").url?.absoluteString,
+            "naturebook://scan/abc-123"
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute.scansLibrary.url?.absoluteString,
+            "naturebook://scans"
+        )
     }
 
     private func makeRecord(

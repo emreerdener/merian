@@ -1,6 +1,6 @@
 # Supabase Edge and PostgreSQL Engine
 
-Merian uses Supabase as its backend platform. API keys are kept in `.xcconfig`
+Naturebook uses Supabase as its backend platform. API keys are kept in `.xcconfig`
 files and never bundled into the client binary. All LLM and database operations
 execute server-side in Deno Edge Functions.
 
@@ -682,8 +682,8 @@ Key rules:
   `ai_confidence_score >= 0.95` unless `confirmed_species_id` is present,
   species resolution through `COALESCE(confirmed_species_id, species_id)`, and
   up to 8 promoted images per species.
-- Public rows store only `url`, `source = "merian"`,
-  `license = "Used with permission via Merian"`, and the public author label in
+- Public rows store only `url`, the stable technical `source = "merian"`,
+  `license = "Used with permission via Naturebook"`, and the public author label in
   `attribution`. This uses `public_author_name`, not the username handle unless
   the display label itself is the default username. Source scan/post/user IDs
   remain in the private `species_reference_image_merian_sources` table along
@@ -858,7 +858,7 @@ removed, a follow is removed, or either user blocks the other.
 
 `get-explore-post` is an important routing helper for the iOS client and the
 public Next.js web app: it returns a single privacy-safe feed-card projection so
-notification taps, deep links, and `https://merian.earth/explore/post/{postId}`
+notification taps, deep links, and `https://naturebook.earth/explore/post/{postId}`
 pages do not depend on the target post already existing in the currently paged
 `ExploreFeedViewModel.posts` array. Public web consumers must treat this as the
 maximum public projection and avoid querying private scan/auth tables directly.
@@ -1593,8 +1593,8 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
   webhook triggers originate from RevenueCat.
 - **`RESEND_API_KEY`**: The API Key from Resend for sending transactional emails
   (like DwC-A exports).
-- **`RESEND_FROM_EMAIL`**: The verified sender domain (e.g.,
-  `exports@merian.earth`). If absent, it falls back to Resend's testing domain
+- **`RESEND_FROM_EMAIL`**: The verified sender identity
+  `Naturebook Data Exports <exports@naturebook.earth>`. If absent, it falls back to Resend's testing domain
   `onboarding@resend.dev` which will FAIL unless sending to the developer's
   registered account.
 - **`DWC_A_SECRET_SALT`**: A high-entropy salt used to generate stable but

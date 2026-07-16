@@ -5,6 +5,8 @@ const RESERVED_USERNAMES = new Set([
   "explore",
   "help",
   "merian",
+  "naturebook",
+  "naturebookearth",
   "moderator",
   "null",
   "official",

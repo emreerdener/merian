@@ -1,6 +1,6 @@
 # App Intents & OS Integration
 
-Merian deeply integrates with Apple's `AppIntents` framework to surface core camera and discovery capabilities to Siri, Spotlight, and the Shortcuts app without requiring the user to manually launch the application.
+Naturebook deeply integrates with Apple's `AppIntents` framework to surface core camera and discovery capabilities to Siri, Spotlight, and the Shortcuts app without requiring the user to manually launch the application.
 
 ## 1. Intent Routing
 
@@ -11,13 +11,13 @@ When an Intent fires, it executes `AppState.shared.navigateTo(...)` or equivalen
 ## 2. Supported Intents
 
 ### `IdentifyNatureIntent`
-**Phrase**: "Identify Nature", "Open Merian camera", "Scan biology with Merian"  
+**Phrase**: "Identify Nature", "Open Naturebook camera", "Scan biology with Naturebook"
 **Behavior**: Immediately launches the application, prioritizes the `CaptureWorkspaceView`, and prepares the `AVCaptureSession` layer.
 - By setting `openAppWhenRun = true`, the Intent explicitly forces the OS to pull the app out of the background to provide a visual viewfinder.
 - Triggers a tactile `HapticManager.shared.triggerFocusSnap()` upon execution.
 
 ### `RecallLastFindIntent`
-**Phrase**: "Look Up My Last Find", "What was the last thing I scanned in Merian?"  
+**Phrase**: "Look Up My Last Find", "What was the last thing I scanned in Naturebook?"
 **Behavior**: Bypasses the camera and navigates directly to the user's most recent scan.
 - Leverages `AppState.shared.navigateToLastScan()`.
 - Provides an immediate transition into the `InsightSheetView` taxonomy readout.
@@ -27,5 +27,5 @@ When an Intent fires, it executes `AppState.shared.navigateTo(...)` or equivalen
 
 Merian uses `AppShortcutsProvider` (`MerianShortcuts`) to automatically register these intents with Siri upon installation, requiring no manual shortcut construction by the user.
 
-- **Tile Color**: The Shortcuts app uses Merian's `.teal` accent color for generating the shortcut visual tiles.
+- **Tile Color**: The Shortcuts app uses Naturebook's `.teal` accent color for generating the shortcut visual tiles.
 - **System Icons**: Integrates native SF Symbols (`leaf.fill` and `clock.arrow.circlepath`) for deep OS consistency.

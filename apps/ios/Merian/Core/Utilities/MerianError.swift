@@ -35,7 +35,7 @@ public enum MerianError: LocalizedError, Equatable {
         case .networkTimeout:
             return String(localized: "The network request timed out. Please check your connection and try again.")
         case .proRequiredForOfflineTracking:
-            return String(localized: "Merian Pro is required to track captures offline.")
+            return String(localized: "Naturebook Pro is required to track captures offline.")
         case .hardwareUnavailable:
             return String(localized: "A required hardware component (like the LiDAR scanner or Camera) is unavailable.")
         }

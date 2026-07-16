@@ -67,7 +67,7 @@ struct UserProfile: View {
         .alert("Profile picture update failed", isPresented: $isShowingAvatarError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(profileViewModel.avatarUpdateErrorMessage ?? "Merian could not update your profile picture.")
+            Text(profileViewModel.avatarUpdateErrorMessage ?? "Naturebook could not update your profile picture.")
         }
     }
 
@@ -269,7 +269,7 @@ struct UserProfile: View {
         Task {
             do {
                 guard let wrapper = try await item.loadTransferable(type: ImageFileWrapper.self) else {
-                    profileViewModel.avatarUpdateErrorMessage = "Merian could not load that image."
+                    profileViewModel.avatarUpdateErrorMessage = "Naturebook could not load that image."
                     isShowingAvatarError = true
                     return
                 }
@@ -292,7 +292,7 @@ struct UserProfile: View {
 
     private func uploadConfirmedAvatarCrop(_ croppedData: Data) {
         guard !croppedData.isEmpty else {
-            profileViewModel.avatarUpdateErrorMessage = "Merian could not crop that image."
+            profileViewModel.avatarUpdateErrorMessage = "Naturebook could not crop that image."
             isShowingAvatarError = true
             return
         }
@@ -750,6 +750,8 @@ private struct PublicUsernameEditSheet: View {
         "explore",
         "help",
         "merian",
+        "naturebook",
+        "naturebookearth",
         "moderator",
         "null",
         "official",

@@ -5,19 +5,19 @@ import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Legal",
-  description: "Merian legal, privacy, community, and support pages."
+  description: "Naturebook legal, privacy, community, and support pages."
 };
 
 const links = [
   {
     href: "/privacy",
     title: "Privacy Policy",
-    description: "How Merian collects, uses, shares, and protects information."
+    description: "How Naturebook collects, uses, shares, and protects information."
   },
   {
     href: "/terms",
     title: "Terms of Service",
-    description: "Rules and terms for using Merian and public web pages."
+    description: "Rules and terms for using Naturebook and public web pages."
   },
   {
     href: "/guidelines",
@@ -32,7 +32,7 @@ const links = [
   {
     href: "/support",
     title: "Support",
-    description: "Contact Merian for bugs, feature ideas, and account help."
+    description: "Contact Naturebook for bugs, feature ideas, and account help."
   }
 ];
 
@@ -43,11 +43,11 @@ export default function LegalIndexPage() {
         <Stack gap="xl">
           <Stack gap="xs">
             <Text fw={700} c="dimmed" tt="uppercase" size="sm">
-              Merian legal
+              Naturebook legal
             </Text>
             <Title order={1}>Legal and support</Title>
             <Text size="lg" c="dimmed">
-              Public policies for Merian. Last updated {siteConfig.legalUpdatedAt}.
+              Public policies for Naturebook. Last updated {siteConfig.legalUpdatedAt}.
             </Text>
           </Stack>
 

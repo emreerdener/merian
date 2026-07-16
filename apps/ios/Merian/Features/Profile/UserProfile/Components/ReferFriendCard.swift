@@ -31,7 +31,7 @@ struct ReferFriendCard: View {
                     .frame(width: 56, height: 56)
             }
 
-            Text("Share Merian with someone who would love identifying what they find outside.")
+            Text("Share Naturebook with someone who would love identifying what they find outside.")
                 .font(.system(.subheadline))
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

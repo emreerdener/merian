@@ -190,7 +190,7 @@ final class ProfileViewModel {
             ]
             let urls = try await MerianNetworkClient.shared.generateUploadURLs(uploadFiles: uploadFiles)
             guard let presignedURL = urls.first else {
-                avatarUpdateErrorMessage = "Merian could not prepare that upload."
+                avatarUpdateErrorMessage = "Naturebook could not prepare that upload."
                 return false
             }
 

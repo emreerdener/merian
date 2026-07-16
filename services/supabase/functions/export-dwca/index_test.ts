@@ -49,7 +49,7 @@ Deno.test("generateDwcARow masking UUID successfully on global exports", async (
   const parts = splitCsvRow(result.occurrenceRow).map(unquote);
   const recordedBy = parts[2];
 
-  assertEquals(recordedBy.startsWith("merian_user_"), true);
+  assertEquals(recordedBy.startsWith("naturebook_user_"), true);
   assertEquals(recordedBy.includes("emre_uuid_0001"), false);
 });
 

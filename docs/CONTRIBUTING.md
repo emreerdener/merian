@@ -1,15 +1,28 @@
-# Contributing to Merian 🦋
+# Contributing to Naturebook 🦋
 
-Thank you for your interest in contributing to Merian! Our goal is to build the world's fastest, most resilient native iOS ecological identification engine. Because Merian sits at the intersection of heavy edge-compute API inference, hardware-accelerated LiDAR processing, and robust GDPR compliance, we enforce stringent contribution guidelines.
+Thank you for your interest in contributing to Naturebook. Naturebook is the
+public product; Merian remains the repository, Xcode project, target, module,
+bundle, persistence, and backend engineering identity. Our goal is to build the
+world's fastest, most resilient native iOS ecological identification engine.
+Because Naturebook sits at the intersection of heavy edge-compute API inference,
+hardware-accelerated LiDAR processing, and robust GDPR compliance, we enforce
+stringent contribution guidelines.
 
 ## Code Architecture & Philosophy
 
 Before contributing, please review our core architectural tenets. Refactoring code that violates these principles will not be merged.
 
 1.  **Thermal Management is King**: iOS is hostile to apps that run the GPU and CPU concurrently at full load. Any feature added to the viewfinder MUST interface with `HardwareOrchestrator`. Frame rates must dynamically drop behind modals or when the device hits `.fair` or `.serious` thermal states.
-2.  **Zero-OOM Edge Infrastructure**: Deno Edge Functions crash violently when handed 20MB Base64 strings. Merian processes media _exclusively_ via Gemini File URIs or Cloudflare R2 pointers. Do not attempt to reintroduce Base64 image bloat into the network payload arrays.
+2.  **Zero-OOM Edge Infrastructure**: Deno Edge Functions crash violently when handed 20MB Base64 strings. Naturebook processes media _exclusively_ via Gemini File URIs or Cloudflare R2 pointers. Do not attempt to reintroduce Base64 image bloat into the network payload arrays.
 3.  **Offline-First Paradigm**: Network availability in the field is chaotic. Any user-generated action (e.g., snapping a photo) must first natively write to the `NWPathMonitor` SwiftData queue rather than awaiting network validations globally. Extension targets must stay lightweight: they may read explicit App Group snapshots, but must not open the app's SwiftData store or run scan reconciliation work.
 4.  **Accessibility (a11y)**: If a feature presents visual data natively, it must possess native SwiftUI `.accessibilityLabel` arrays explicitly reading components in a human-friendly format (e.g., using `.combine` on Grid tables).
+5.  **Public Brand Compatibility**: User-facing work must use Naturebook,
+    Naturebook Pro, Naturebook AI, `naturebook.earth`, and `naturebook://`.
+    Preserve stable Merian identifiers and indefinitely accept the documented
+    legacy links. Read
+    [`system-architecture/08-public-brand-compatibility.md`](./system-architecture/08-public-brand-compatibility.md)
+    before changing display names, links, domains, identifiers, exports,
+    attribution, support/legal copy, or release metadata.
 
 ## Setting Up the Development Environment
 

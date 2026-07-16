@@ -1,6 +1,8 @@
-# Merian AI Code Conventions & Guidelines
+# Naturebook Repository AI Code Conventions & Guidelines
 
-When generating or modifying code for Merian, follow these constraints to ensure optimal performance, hardware safety, and architectural consistency.
+When generating or modifying code for Naturebook in the Merian repository,
+follow these constraints to ensure optimal performance, hardware safety, and
+architectural consistency.
 
 ## 0. The Documentation Directory
 The `docs/` folder contains the master reference for the application:
@@ -12,10 +14,21 @@ The `docs/` folder contains the master reference for the application:
 - Refer to `docs/backend-and-data/01-offline-sync-pipeline.md` for offline queue, sync state machine, and deletion architecture.
 - Refer to `docs/development-guides/02-app-lifecycle.md` for `AppLifecycleManager` phase contracts and trigger ordering.
 - Refer to `docs/development-guides/12-in-app-changelog.md` before adding release notes or user-facing changelog entries.
+- Refer to `docs/system-architecture/08-public-brand-compatibility.md` before
+  changing product names, display names, URLs, email addresses, deep links,
+  App Store metadata, legal copy, or stable Merian identifiers.
+- Refer to `docs/development-guides/15-naturebook-rebrand-rollout.md` for domain,
+  AASA, email, Supabase, App Store, and release verification.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk → cache → display image flow.
-- Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before changing `apps/web/`, `merian.earth` routes, Open Graph metadata, or Explore share URL behavior.
+- Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before changing `apps/web/`, canonical `naturebook.earth` routes, legacy `merian.earth` compatibility, Open Graph metadata, or Explore share URL behavior.
 
 ## 1. Project Generation (XcodeGen)
+- **Public brand boundary**: Use `PublicBrand` from
+  `apps/ios/Shared/Branding/PublicBrand.swift` for public iOS and extension
+  values. Use Naturebook for user-facing copy and keep Merian for existing
+  project, target, module, bundle, app-group, persistence, backend, analytics,
+  and product identifiers. New links emit only `naturebook.earth` or the
+  `naturebook` scheme; parsers retain documented Merian compatibility aliases.
 - **NEVER** directly modify `Merian.xcodeproj`.
 - **ALWAYS** update `project.yml` when adding new packages, frameworks, scopes, or entitlements.
 - Run `xcodegen generate` before attempting to build.

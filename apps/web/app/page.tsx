@@ -18,9 +18,9 @@ import { fetchExploreFeedPosts } from "@/lib/explore";
 import { exploreGridPosterUrl } from "@/lib/exploreMedia";
 
 export const metadata: Metadata = {
-  title: "Merian Beta Waitlist",
+  title: "Naturebook Beta Waitlist",
   description:
-    "Join the Merian beta group for early access to ecological discovery tools built for the field.",
+    "Join the Naturebook beta group for early access to ecological discovery tools built for the field.",
 };
 
 export default async function HomePage() {
@@ -33,7 +33,7 @@ export default async function HomePage() {
           <Stack gap="xl" className="splash-page__copy">
             <Stack gap="md">
               <Title order={1} className="splash-title">
-                Merian Earth
+                Naturebook
               </Title>
               <Text className="splash-lede">
                 A field companion for curious naturalists: identify living
@@ -48,7 +48,7 @@ export default async function HomePage() {
           <Box className="splash-art" aria-hidden="true">
             <Image
               src="/assets/waitlist/sweet-acacia-mockup.png"
-              alt="Merian app mockup showing sweet acacia observation details"
+              alt="Naturebook app mockup showing sweet acacia observation details"
               width={1000}
               height={2000}
               priority

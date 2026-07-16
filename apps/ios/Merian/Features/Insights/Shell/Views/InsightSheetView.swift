@@ -123,7 +123,7 @@ struct InsightSheetView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
 	                .onChange(of: chatViewModel.errorMessage) { _, errorMessage in
-	                    if errorMessage == "Merian Pro is required." {
+	                    if errorMessage == "Naturebook Pro is required." {
 	                        viewModel.state.isInsightChatSheetPresented = false
 	                        viewModel.state.showPaywall = true
 	                        chatViewModel.errorMessage = nil

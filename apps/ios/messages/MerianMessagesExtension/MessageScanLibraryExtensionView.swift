@@ -36,7 +36,7 @@ struct MessageScanLibraryExtensionView: View {
                     scanList
                 }
             }
-            .navigationTitle("Merian")
+            .navigationTitle(PublicBrand.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -152,7 +152,7 @@ struct MessageScanLibraryExtensionView: View {
                 Text("No cached scans")
                     .font(.headline)
 
-                Text("Open Merian once to prepare your recent scan library for Messages.")
+                Text("Open Naturebook once to prepare your recent scan library for Messages.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -162,7 +162,7 @@ struct MessageScanLibraryExtensionView: View {
                 Button {
                     onOpenMerian(url)
                 } label: {
-                    Label("Open Merian", systemImage: "arrow.up.forward.app")
+                    Label("Open Naturebook", systemImage: "arrow.up.forward.app")
                 }
                 .buttonStyle(.borderedProminent)
             }

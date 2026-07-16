@@ -6,16 +6,17 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { MantineProvider } from "@mantine/core";
 import { MerianAppShell } from "@/components/MerianAppShell";
+import { siteConfig } from "@/lib/site";
 import { theme } from "./theme";
 import Script from "next/script";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://merian.earth"),
+  metadataBase: new URL(siteConfig.siteUrl),
   title: {
-    default: "Merian",
-    template: "%s | Merian"
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.name}`
   },
-  description: "Discover and share ecological observations with Merian."
+  description: "Discover and share ecological observations with Naturebook."
 };
 
 export const viewport: Viewport = {

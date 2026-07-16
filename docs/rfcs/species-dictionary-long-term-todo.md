@@ -283,7 +283,7 @@ Current rules:
 - The scheduled run uses
   `{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 - Public rows use `source = "merian"`,
-  `license = "Used with permission via Merian"`, and the author's public Explore
+  `license = "Used with permission via Naturebook"`, and the author's public Explore
   label as `attribution`.
 - External `/refresh-species-content` image refreshes preserve Merian rows and
   cannot delete or demote them.

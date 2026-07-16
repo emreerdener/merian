@@ -134,7 +134,7 @@ export function refusalAnswer(reason: string): string {
     case "dangerous_handling":
       return "I cannot give instructions for dangerous handling, capture, killing, poisoning, or removal. Observe from a safe distance and follow local guidance. I can help describe safer field-observation cues from the saved scan context.";
     case "legal_or_collection":
-      return "I cannot determine whether collection, harvest, or removal is legal from this scan. Rules vary by location, land manager, and species status. Check local regulations or a qualified authority before acting. I can help summarize the conservation and identification context Merian has saved.";
+      return "I cannot determine whether collection, harvest, or removal is legal from this scan. Rules vary by location, land manager, and species status. Check local regulations or a qualified authority before acting. I can help summarize the conservation and identification context Naturebook has saved.";
     default:
       return "I cannot help with that request, but I can answer educational questions about the saved observation, visible traits, habitat, seasonality, or lookalikes.";
   }

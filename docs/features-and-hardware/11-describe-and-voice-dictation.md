@@ -410,8 +410,8 @@ Both required `Info.plist` strings are already present:
 
 | Key                                   | Value                                                                                |
 | ------------------------------------- | ------------------------------------------------------------------------------------ |
-| `NSMicrophoneUsageDescription`        | "Merian needs microphone access for aviary and insect sound classification."         |
-| `NSSpeechRecognitionUsageDescription` | "Merian uses speech recognition to quickly search your Scans using voice dictation." |
+| `NSMicrophoneUsageDescription`        | "Naturebook needs microphone access for aviary and insect sound classification."         |
+| `NSSpeechRecognitionUsageDescription` | "Naturebook uses speech recognition to quickly search your Scans using voice dictation." |
 
 Permission requests happen inside `startDictation` — not at app launch or
 onboarding. First-time users see both iOS system permission dialogs on their

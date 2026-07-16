@@ -52,7 +52,7 @@ final class InsightMediaExportManager {
     // MARK: - Single Item Sharing
     func shareDiscovery(commonName: String, scientificName: String, liveData: Data?, historicPath: String?, referenceImageUrl: String?, presentShareSheet: @escaping ([Any]) -> Void) {
         var items: [Any] = [
-            "Check out this \(commonName) (\(scientificName)) I discovered using Merian!"
+            "Check out this \(commonName) (\(scientificName)) I discovered using Naturebook!"
         ]
         let historicRemoteURLs = ApprovedRemoteMedia.urls(from: historicPath)
         let historicLocalPath = historicRemoteURLs.isEmpty ? historicPath : nil
@@ -131,9 +131,9 @@ final class InsightMediaExportManager {
             
             if payloads.count == 1 {
                 let p = payloads[0]
-                items.append("Check out this \(p.commonName) (\(p.scientificName)) I discovered using Merian!\nhttps://merian.earth")
+                items.append("Check out this \(p.commonName) (\(p.scientificName)) I discovered using Naturebook!\n\(PublicBrand.websiteURL.absoluteString)")
             } else if payloads.count > 1 {
-                var message = "Check out these \(payloads.count) discoveries I made using Merian!\n"
+                var message = "Check out these \(payloads.count) discoveries I made using Naturebook!\n"
                 let displayLimit = 10
                 for (index, p) in payloads.enumerated() {
                     if index < displayLimit {
@@ -143,7 +143,7 @@ final class InsightMediaExportManager {
                         break
                     }
                 }
-                message += "\nhttps://merian.earth"
+                message += "\n\(PublicBrand.websiteURL.absoluteString)"
                 items.append(message)
             }
             

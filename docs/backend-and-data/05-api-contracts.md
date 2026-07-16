@@ -1,6 +1,6 @@
 # API Contracts and Network Mappings
 
-Merian operates decoupled. The iOS application exclusively hits Supabase Edge
+Naturebook operates through a decoupled backend. The iOS application exclusively hits Supabase Edge
 Functions, abstracting its networking away from 3rd-party providers like Google
 Gemini.
 
@@ -1004,8 +1004,8 @@ filtered out server-side. Identification timeline rows include a computed
 internal consensus/audit behavior; clients should not expose these labels as
 user-facing copy. The response also includes additive `suggested_taxa` for the
 Suggest ID sheet and the detail header card. The top-level `inference_tier`
-mirrors `scans.inference_tier` so clients can label the card as Merian Pro or
-Merian Flash; missing or unknown tiers should display as Flash. The first
+mirrors `scans.inference_tier` so clients can label the card as Naturebook Pro or
+Naturebook Flash; missing or unknown tiers should display as Flash. The first
 suggestion is the request's `ai_initial` taxon, hydrated from the backing scan's
 `ai_confidence_score` and `ai_reasoning` so clients can frame it as Merian's
 starting identification without borrowing human consensus or alternative
@@ -1328,10 +1328,11 @@ return this boolean in the client payload. It is `true` only when the scan is a
 biological subject and the initial `species_dictionary` lookup found no existing
 row for the normalized scientific name. iOS decodes the field as
 `SpeciesData.isNewToMerianDictionary` and uses it to show the bottom in-app
-`New to Merian` milestone notification. Do not infer global dictionary novelty
+`New to Naturebook` milestone notification. Do not infer global dictionary novelty
 from missing enrichment fields such as `alternative_common_names`; cache gaps,
 GBIF gaps, and partial rows are not milestone signals. Existing dictionary rows
-with incomplete taxonomy/enrichment are still treated as not new to Merian.
+with incomplete taxonomy/enrichment are still treated as not new to the
+Naturebook dictionary.
 
 **Processed-material guardrail**: The identify routes demote manufactured or
 processed objects to `is_biological_subject=false` before cache lookup,
@@ -2286,7 +2287,7 @@ single post:
 
 This endpoint exists for notification routing, native deep links, and the
 privacy-safe projection behind public web share pages such as
-`https://merian.earth/explore/post/{postId}`. It solves the case where the
+`https://naturebook.earth/explore/post/{postId}`. It solves the case where the
 tapped or shared post is not already present in the currently loaded in-memory
 feed page. The Next.js web route may call the underlying `get_explore_post` SQL
 RPC directly from the server, but it must preserve this response boundary rather
@@ -5351,8 +5352,8 @@ Manual service-role calls may also include:
    unless `confirmed_species_id` is present, dedupes by
    `(species_id, image_url)`, and promotes up to 8 images per species. Public
    videos are intentionally excluded from Dictionary/reference galleries.
-4. Public rows use `source = "merian"`,
-   `license = "Used with permission via Merian"`, and
+4. Public rows use the stable technical `source = "merian"`,
+   `license = "Used with permission via Naturebook"`, and
    `attribution = users.public_author_name`. This intentionally preserves the
    public display label rather than switching attribution to the username
    handle.

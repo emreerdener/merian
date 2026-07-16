@@ -4,7 +4,7 @@ The Explore widget remains thumbnail-first. It caches still image thumbnails in
 the shared App Group and keeps video posts visually identical to photo posts in
 the widget; widgets do not load, badge, or play public videos inline.
 
-Merian ships a small iOS Home Screen widget that behaves like a thumbnail carousel for Recent Explore posts. The widget is intentionally static: a full-bleed square thumbnail with no playback controls or video badge. Tapping the image opens the matching Explore post inside the main app.
+Naturebook ships a small iOS Home Screen widget that behaves like a thumbnail carousel for Recent Explore posts. The widget is intentionally static: a full-bleed square thumbnail with no playback controls or video badge. Tapping the image opens the matching Explore post inside the main app.
 
 ## Product Contract
 
@@ -14,7 +14,7 @@ Merian ships a small iOS Home Screen widget that behaves like a thumbnail carous
   - **Medium Widget (`.systemMedium`):** horizontal card displaying a 1:1 square photo of the discovery on the left, and an elegant description panel on the right displaying the species' common name. Blends seamlessly with system Light & Dark modes.
   - **Large Widget (`.systemLarge`):** full-fill image, edge to edge, featuring a beautiful bottom-anchored dark gradient overlay containing the species' common name.
 - Content source: Recent Explore feed, not Following, Trending, or Nearby.
-- Tap behavior: `merian://explore/post/{postId}` opens `ExploreView` and routes to `ExplorePostDetailView`.
+- Tap behavior: `naturebook://explore/post/{postId}` opens `ExploreView` and routes to `ExplorePostDetailView`; `merian://` remains accepted for legacy links.
 - Carousel behavior: WidgetKit timeline entries rotate through cached images. This is not a swipeable carousel; iOS controls when timeline snapshots actually advance.
 - Empty state: bundled image-only flower photo fallback. The app populates the cache after Recent Explore successfully loads.
 
@@ -55,10 +55,10 @@ Do not add user-private scan metadata, exact coordinates, auth tokens, comments,
 
 ## Deep Linking
 
-The app declares the `merian` URL scheme in `apps/ios/Merian/Configuration/Info.plist`. `MerianApp.handleMerianDeepLink(_:)` accepts only:
+The app declares both `naturebook` and legacy `merian` URL schemes in `apps/ios/Merian/Configuration/Info.plist`. `MerianApp.handleMerianDeepLink(_:)` accepts only the documented Naturebook and legacy routes:
 
 ```text
-merian://explore/post/{postId}
+naturebook://explore/post/{postId}
 ```
 
 Accepted URLs publish `AppEvent.appDidEnterActivePhaseWithExplorePost(postId:)`. `CaptureWorkspaceViewModel` handles that event by:
@@ -74,20 +74,20 @@ Accepted URLs publish `AppEvent.appDidEnterActivePhaseWithExplorePost(postId:)`.
 Widget taps continue to use the custom native URL scheme because they originate on the same iOS device:
 
 ```text
-merian://explore/post/{postId}
+naturebook://explore/post/{postId}
 ```
 
 External Explore shares should use the durable public HTTPS URL instead:
 
 ```text
-https://merian.earth/explore/post/{postId}
+https://naturebook.earth/explore/post/{postId}
 ```
 
-The public web route lives in `apps/web/app/explore/post/[postId]/page.tsx` and renders a privacy-filtered post page plus Open Graph metadata. When Universal Links are enabled for `merian.earth`, the same HTTPS URL should open `ExplorePostDetailView` in the installed app and fall back to the web page for recipients without Merian.
+The public web route lives in `apps/web/app/explore/post/[postId]/page.tsx` and renders a privacy-filtered post page plus Open Graph metadata. Universal Links for `naturebook.earth` open `ExplorePostDetailView` in the installed app and fall back to the web page for recipients without Naturebook; `merian.earth` remains accepted for legacy links.
 
 ### Session Timeout Race Guard
 
-Widget taps often happen after Merian has been backgrounded for more than the 5-minute session timeout. On foreground, iOS can deliver the widget URL and Merian's `.appDidResumeAfterTimeout` reset in either order. If the URL route wins first, the timeout reset would otherwise clear `activeSheet` immediately and return the user to the camera.
+Widget taps often happen after Naturebook has been backgrounded for more than the 5-minute session timeout. On foreground, iOS can deliver the widget URL and the app's `.appDidResumeAfterTimeout` reset in either order. If the URL route wins first, the timeout reset would otherwise clear `activeSheet` immediately and return the user to the camera.
 
 To prevent that, `CaptureWorkspaceViewModel` calls `protectExternalRouteFromImmediateSessionTimeoutReset()` for Explore and scan deep links. This creates a short one-shot suppression window for the next session-timeout reset only. Ordinary stale sheets still clear on timeout, and `resetModalsForSessionTimeout()` also clears `pendingExplorePostId` so old widget routes cannot leak into later Explore launches.
 

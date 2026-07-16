@@ -1,9 +1,9 @@
 export const siteConfig = {
-  name: "Merian",
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://merian.earth",
-  supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@merian.earth",
+  name: "Naturebook",
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://naturebook.earth",
+  supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@naturebook.earth",
   appStoreUrl: process.env.NEXT_PUBLIC_APP_STORE_URL,
-  legalUpdatedAt: "May 17, 2026"
+  legalUpdatedAt: "July 15, 2026"
 };
 
 export function supportMailto(subject?: string) {

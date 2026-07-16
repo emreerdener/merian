@@ -10,7 +10,7 @@ struct CameraPermissionStepView: View {
         OnboardingStepWrapper(
             imageName: "camera",
             title: "Lens for\ndiscovery",
-            subtitle: "Enable camera access so Merian can identify the natural world right in front of you. We never record without your permission.",
+            subtitle: "Enable camera access so Naturebook can identify the natural world right in front of you. We never record without your permission.",
             primaryButtonTitle: "Enable camera",
             primaryButtonTextColor: Color.white,
             primaryButtonColor: Color.blue,

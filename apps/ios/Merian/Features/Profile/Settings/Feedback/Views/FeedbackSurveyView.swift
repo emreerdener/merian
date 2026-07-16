@@ -61,7 +61,7 @@ struct FeedbackSurveyView: View {
         RecommendationOption(
             rating: 0,
             title: "Not right now",
-            detail: "I would not recommend Merian in its current state."
+            detail: "I would not recommend Naturebook in its current state."
         ),
         RecommendationOption(
             rating: 4,
@@ -71,12 +71,12 @@ struct FeedbackSurveyView: View {
         RecommendationOption(
             rating: 7,
             title: "To the right person",
-            detail: "I would recommend Merian to fellow nature enthusiasts."
+            detail: "I would recommend Naturebook to fellow nature enthusiasts."
         ),
         RecommendationOption(
             rating: 10,
             title: "Yes, definitely",
-            detail: "I would comfortably recommend Merian now."
+            detail: "I would comfortably recommend Naturebook now."
         )
     ]
 
@@ -167,7 +167,7 @@ struct FeedbackSurveyView: View {
                     .font(.largeTitle.weight(.bold))
                     .multilineTextAlignment(.center)
 
-                Text("We're polishing Merian's experience, performance, and reliability, and we'd love to hear what's working, what's confusing, and what you'd like next!")
+                Text("We're polishing Naturebook's experience, performance, and reliability, and we'd love to hear what's working, what's confusing, and what you'd like next!")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -270,7 +270,7 @@ struct FeedbackSurveyView: View {
             }
 
         case 2:
-            Section("What have you used Merian for so far?") {
+            Section("What have you used Naturebook for so far?") {
                 ForEach(FeedbackSurveyFeatureUse.allCases) { feature in
                     Button {
                         toggleFeature(feature)
@@ -306,7 +306,7 @@ struct FeedbackSurveyView: View {
             }
 
         case 5:
-            Section("What is one thing you wish Merian did better next?") {
+            Section("What is one thing you wish Naturebook did better next?") {
                 TextEditor(text: $wishedNext)
                     .frame(minHeight: 160)
             }
@@ -337,7 +337,7 @@ struct FeedbackSurveyView: View {
                 .accessibilityHidden(true)
             Text("Thanks for the feedback")
                 .font(.title2.weight(.semibold))
-            Text("Your notes are saved for the Merian team to review as we polish the beta.")
+            Text("Your notes are saved for the Naturebook team to review as we polish the beta.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -355,7 +355,7 @@ struct FeedbackSurveyView: View {
 
     private var satisfactionSpectrum: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Overall, how satisfied are you with Merian right now?")
+            Text("Overall, how satisfied are you with Naturebook right now?")
                 .font(.headline)
 
             HStack(spacing: 8) {
@@ -399,7 +399,7 @@ struct FeedbackSurveyView: View {
 
     private var recommendationChoices: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("How likely would you be to recommend Merian to another nature-curious person?")
+            Text("How likely would you be to recommend Naturebook to another nature-curious person?")
                 .font(.headline)
 
             VStack(spacing: 10) {
@@ -582,7 +582,7 @@ struct FeedbackSurveyView: View {
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    submissionErrorMessage = "Merian could not send your feedback. Please check your connection and try again."
+                    submissionErrorMessage = "Naturebook could not send your feedback. Please check your connection and try again."
                 }
             }
         }

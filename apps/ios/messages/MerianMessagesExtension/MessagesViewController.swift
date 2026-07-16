@@ -109,7 +109,7 @@ final class MessagesViewController: MSMessagesAppViewController {
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
             .joined(separator: "-")
-        let basename = normalizedName.isEmpty ? "Merian-scan" : normalizedName
+        let basename = normalizedName.isEmpty ? "Naturebook-scan" : normalizedName
         let pathExtension = imageURL.pathExtension.isEmpty ? "jpg" : imageURL.pathExtension
         return "\(basename).\(pathExtension)"
     }

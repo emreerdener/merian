@@ -1,6 +1,6 @@
 # Startup Store Recovery
 
-Merian must never turn a damaged local SwiftData store into account loss. This
+Naturebook must never turn a damaged local SwiftData store into account loss. This
 document defines the startup recovery contract for `ModelContainer` failures,
 quarantined local store files, legacy-store rescue archives, telemetry, and
 verification.

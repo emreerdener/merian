@@ -1,6 +1,6 @@
 # Merian System Architecture
 
-Merian is a biological classification and gamification platform built for iOS
+Naturebook is a biological classification and gamification platform built for iOS
 and watchOS. The architecture relies on decoupled modules connecting onboard
 Apple hardware to a Supabase PostgreSQL backend, bridging LLM inferences via
 Cloudflare R2 and Gemini models.
@@ -204,21 +204,22 @@ single-responsibility functions under `/services/supabase/functions/`.
     promotes high-quality published Explore media into Merian-sourced species
     reference images and mirrors source visibility.
 - **Public Web & Sharing**
-  - `apps/web/`: Next.js + Mantine frontend for public Merian pages on
-    `merian.earth`.
+  - `apps/web/`: Next.js + Mantine frontend for public Naturebook pages on the
+    canonical `naturebook.earth` origin.
   - `/explore/post/[postId]`: Server-rendered public Explore share route. It
     calls the `get_explore_post` RPC from the Next.js server, renders the square
     ordered image/video/audio carousel, emits Open Graph metadata, and links
-    back into the native app with `merian://explore/post/{postId}`.
+    back into the native app with `naturebook://explore/post/{postId}` while the
+    app continues accepting `merian://` as a legacy alias.
   - `/api/explore/audio`: Exact-host/public-path WAV stream used only for
     browser-local Boost Audio. Web Audio applies gain, a 35 Hz high-pass filter,
     and peak limiting without storing or uploading a derived recording.
   - `MerianMessagesExtension` reads the App Group scan cache and inserts image,
     card, or description content into Messages without sending automatically.
-  - Universal Links should eventually bind
-    `https://merian.earth/explore/post/{postId}` to the same native Explore
-    detail router while preserving the web page as the fallback for users
-    without the app.
+  - Universal Links bind `https://naturebook.earth/explore/post/{postId}` to the
+    same native Explore detail router while preserving the web page as the
+    fallback for users without the app. `https://merian.earth` remains a legacy
+    redirect and associated-domain compatibility host.
 - **Moderation & Social**
   - `/get-filtered-discovery-feed`: Paginates public discovery queries from
     post-owned sharing fields, handles blocking mechanisms, and uses scrubbed or

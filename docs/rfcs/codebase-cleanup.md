@@ -25,8 +25,9 @@ architecture rewrite.
 ## Phase 0: Commit Current Product Work
 
 Before cleanup begins, land the current public web/legal work as its own commit.
-That keeps the Next.js app scaffold, `merian.earth` link updates, and policy
-pages reviewable without unrelated file movement.
+That keeps the Next.js app scaffold, canonical `naturebook.earth` links,
+legacy-domain compatibility, and policy pages reviewable without unrelated file
+movement.
 
 Expected verification:
 

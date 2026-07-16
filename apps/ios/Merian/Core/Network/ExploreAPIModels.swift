@@ -1526,7 +1526,7 @@ struct ExploreReferenceGalleryImage: Identifiable, Equatable {
             case .gbif:
                 return "GBIF"
             case .merian:
-                return "Merian"
+                return "Naturebook"
             }
         }
 
@@ -1548,7 +1548,7 @@ struct ExploreReferenceGalleryImage: Identifiable, Equatable {
             case .gbif:
                 return "Field observation"
             case .merian:
-                return "Merian observation"
+                return "Naturebook observation"
             }
         }
     }

@@ -282,13 +282,13 @@ enum ModelStoreRecoveryCoordinator {
     static func safeModeFallback(for error: Error) -> ModelStoreSafeModeFallback {
         if isLikelyMigrationFailure(error) {
             return ModelStoreSafeModeFallback(
-                message: "Merian started in safe mode because the local library could not finish upgrading. Your saved scans are still on disk, and local changes in this session are temporary until the app restarts with a healthy library.",
+                message: "Naturebook started in safe mode because the local library could not finish upgrading. Your saved scans are still on disk, and local changes in this session are temporary until the app restarts with a healthy library.",
                 telemetryReason: "persistent_store_migration_failed"
             )
         }
 
         return ModelStoreSafeModeFallback(
-            message: "Merian started in safe mode after the persistent store failed to open. The app remains usable, but local changes in this session are temporary.",
+            message: "Naturebook started in safe mode after the persistent store failed to open. The app remains usable, but local changes in this session are temporary.",
             telemetryReason: "persistent_store_unavailable"
         )
     }

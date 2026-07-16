@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { proxiedExploreAudioUrl, webAudioProxyPath } from "./audioProxy.ts";
 
-test("accepts only canonical public Merian WAV recordings", () => {
+test("accepts only canonical public technical-media WAV recordings", () => {
   const valid = "https://media.merian.app/public_uploads/pro/user/clip.wav";
   assert.equal(proxiedExploreAudioUrl(valid)?.href, valid);
   assert.equal(webAudioProxyPath(valid), `/api/explore/audio?url=${encodeURIComponent(valid)}`);

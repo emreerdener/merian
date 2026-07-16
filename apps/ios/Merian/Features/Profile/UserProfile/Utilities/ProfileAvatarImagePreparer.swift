@@ -22,9 +22,9 @@ enum ProfileAvatarImagePreparationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unreadableImage:
-            return "Merian could not read that image."
+            return "Naturebook could not read that image."
         case .encodingFailed:
-            return "Merian could not prepare that image."
+            return "Naturebook could not prepare that image."
         }
     }
 }

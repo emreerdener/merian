@@ -491,14 +491,14 @@ final class CaptureWorkspaceViewModel {
             guard let self else { return }
             defer { self.externalImageImportTask = nil }
             if await self.externalImageImportStore.consumeTerminalFailure() {
-                self.offlineToastMessage = "Merian couldn’t import that photo."
+                self.offlineToastMessage = "Naturebook couldn’t import that photo."
             }
             _ = await self.importNextPendingExternalImage()
         }
     }
 
     private func presentExternalImageImportFailure() {
-        offlineToastMessage = "Merian couldn’t import that photo."
+        offlineToastMessage = "Naturebook couldn’t import that photo."
         Task { [externalImageImportStore] in
             _ = await externalImageImportStore.consumeTerminalFailure()
         }
@@ -609,7 +609,7 @@ final class CaptureWorkspaceViewModel {
         paywallPresentedExternalImportIds.remove(pendingImport.id)
         AppTelemetry.trackExternalImageImport(outcome: outcome)
         HapticManager.shared.triggerErrorThump()
-        offlineToastMessage = "Merian couldn’t import that photo."
+        offlineToastMessage = "Naturebook couldn’t import that photo."
     }
 
     private func prepareGalleryImportBudget(isPro: Bool) -> GalleryImportBudget {

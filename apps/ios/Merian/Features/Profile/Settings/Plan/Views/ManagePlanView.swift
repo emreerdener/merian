@@ -47,17 +47,13 @@ struct ManagePlanView: View {
                 }
                 .padding(.vertical, 8)
                 
-                if let termsUrl = URL(string: "https://merian.earth/terms") {
-                    Link("Terms of service", destination: termsUrl)
-                        .foregroundColor(.primary)
-                        .padding(.vertical, 8)
-                }
+                Link("Terms of service", destination: PublicBrand.websiteURL(path: "terms"))
+                    .foregroundColor(.primary)
+                    .padding(.vertical, 8)
                 
-                if let privacyUrl = URL(string: "https://merian.earth/privacy") {
-                    Link("Privacy policy", destination: privacyUrl)
-                        .foregroundColor(.primary)
-                        .padding(.vertical, 8)
-                }
+                Link("Privacy policy", destination: PublicBrand.websiteURL(path: "privacy"))
+                    .foregroundColor(.primary)
+                    .padding(.vertical, 8)
             }
         }
         .navigationTitle(revenueCatManager.isProActive ? "Plan" : "Upgrade")

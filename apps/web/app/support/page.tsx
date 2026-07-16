@@ -6,7 +6,7 @@ import { siteConfig, supportMailto } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Support",
-  description: "Contact Merian support and find policy links."
+  description: "Contact Naturebook support and find policy links."
 };
 
 export default function SupportPage() {
@@ -16,19 +16,19 @@ export default function SupportPage() {
         <Stack gap="xl">
           <Stack gap="xs">
             <Text fw={700} c="dimmed" tt="uppercase" size="sm">
-              Merian support
+              Naturebook support
             </Text>
             <Title order={1}>How can we help?</Title>
             <Text size="lg" c="dimmed">
               Send bug reports, feature ideas, account questions, and privacy requests to
-              the Merian support inbox.
+              the Naturebook support inbox.
             </Text>
           </Stack>
 
           <Group>
             <Button
               component="a"
-              href={supportMailto("Merian support request")}
+              href={supportMailto("Naturebook support request")}
               leftSection={<IconMail size={18} />}
             >
               Email support
@@ -48,9 +48,9 @@ export default function SupportPage() {
               Share a photo from Photos
             </Title>
             <Text>
-              Open one photo in the iOS Photos app, tap Share, then choose Merian in
-              the app row. Merian opens the photo in its normal crop and identification
-              flow. If Merian is not immediately visible, scroll the app row and tap More.
+              Open one photo in the iOS Photos app, tap Share, then choose Naturebook in
+              the app row. Naturebook opens the photo in its normal crop and identification
+              flow. If Naturebook is not immediately visible, scroll the app row and tap More.
             </Text>
             <Text c="dimmed" size="sm">
               You can exclude Location from Photos&apos; share Options before sending.

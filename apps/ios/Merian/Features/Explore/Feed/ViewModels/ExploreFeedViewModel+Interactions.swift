@@ -7,7 +7,7 @@ enum ExploreShareMessageFormatter {
         primaryMediaKind: ExploreMediaKind?
     ) -> String {
         let introduction = primaryMediaKind == .audio ? "Listen to" : "Check out"
-        return "\(introduction) this \(commonName)\nhttps://merian.earth/explore/post/\(postId)"
+        return "\(introduction) this \(commonName)\n\(PublicBrand.websiteURL(path: "explore/post/\(postId)").absoluteString)"
     }
 }
 

@@ -1,8 +1,10 @@
-# Merian Documentation
+# Naturebook Documentation
 
-This directory is the technical master reference for the native iOS application,
-public web frontend, Supabase PostgreSQL backend, Cloudflare R2 ephemeral
-networking, and hardware orchestration logic.
+This directory is the technical master reference for Naturebook's native iOS
+application, public web frontend, Supabase PostgreSQL backend, Cloudflare R2
+networking, and hardware orchestration logic. The repository, Xcode project,
+targets, modules, bundle IDs, persistence, and backend identifiers retain Merian
+as their permanent engineering identity.
 
 ## Current Snapshot
 
@@ -10,8 +12,9 @@ networking, and hardware orchestration logic.
   (`apps/watch/MerianWatch/`), Explore WidgetKit extension
   (`apps/ios/widgets/Explore/`), Messages extension
   (`apps/ios/messages/MerianMessagesExtension/`), unit tests, and UI tests.
-- **Web frontend**: Next.js + Mantine app in `apps/web/`, initially serving
-  public Explore share pages on `merian.earth`.
+- **Web frontend**: Next.js + Mantine app in `apps/web/`, serving public Explore
+  share pages on the canonical `naturebook.earth` origin while retaining
+  `merian.earth` as a legacy redirect and AASA compatibility host.
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the
   companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is
@@ -107,6 +110,10 @@ networking, and hardware orchestration logic.
 - **[`/system-architecture/06-edge-modularization.md`](./system-architecture/06-edge-modularization.md)**
   — Domain-driven modular architecture for Supabase Edge Functions: `index.ts` /
   `db.ts` / `types.ts` separation rules and shared utility conventions.
+- **[`/system-architecture/08-public-brand-compatibility.md`](./system-architecture/08-public-brand-compatibility.md)**
+  — Canonical Naturebook public values, permanent Merian technical identifiers,
+  link/domain compatibility, AASA exceptions, and the allowed-branding audit
+  classification.
 
 ### Backend & Data
 
@@ -201,9 +208,9 @@ networking, and hardware orchestration logic.
   points from Insight and Explore detail, cache rules, content quality, media
   attribution, enrichment queue/backfill, and refresh provenance.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**
-  — Next.js public web share pages for `merian.earth`, including Explore post
-  links, Supabase server reads, metadata, privacy boundaries, and the Universal
-  Links roadmap.
+  — Next.js public web share pages for `naturebook.earth`, including Explore
+  post links, legacy-domain compatibility, Supabase server reads, metadata,
+  privacy boundaries, and Universal Links.
 - **[`/features-and-hardware/18-species-observation-charts.md`](./features-and-hardware/18-species-observation-charts.md)**
   — Reusable species observation charts, local-on-device aggregation, public
   iNaturalist stats cache, annotation mappings, privacy boundaries, and
@@ -291,11 +298,15 @@ networking, and hardware orchestration logic.
 - **[`/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md)**
   — Semantic app versions, TestFlight build-number prep, and Xcode archive
   preflight rules.
+- **[`/development-guides/15-naturebook-rebrand-rollout.md`](./development-guides/15-naturebook-rebrand-rollout.md)**
+  — Ordered domain, AASA, email, Supabase, App Store, update-continuity, link,
+  verification, rollback, and completion checklist for the public rebrand.
 
-## About Merian
+## About Naturebook
 
-Merian is a native iOS application that identifies plants, animals, insects,
-fungi, and indoor ecology with scientific-grade accuracy across visual, audio,
-and text-described observations. It uses dynamic routing between the Gemini 2.5
-Flash and Pro APIs via Supabase Edge Functions, with a full offline-first
-architecture backed by SwiftData and Cloudflare R2.
+Naturebook is a native iOS application that identifies plants, animals,
+insects, fungi, and indoor ecology with scientific-grade accuracy across visual,
+audio, and text-described observations. It uses dynamic routing between the
+Gemini 2.5 Flash and Pro APIs via Supabase Edge Functions, with a full
+offline-first architecture backed by SwiftData and Cloudflare R2. Merian is the
+stable technical identity underneath the Naturebook product.

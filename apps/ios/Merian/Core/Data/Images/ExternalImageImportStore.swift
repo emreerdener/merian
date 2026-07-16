@@ -16,11 +16,11 @@ enum ExternalImageImportError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedURL:
-            return "Merian can only import image files."
+            return "Naturebook can only import image files."
         case .unavailableApplicationSupportDirectory:
-            return "Merian could not prepare its image import inbox."
+            return "Naturebook could not prepare its image import inbox."
         case .inboxFull:
-            return "Merian's image import inbox is full."
+            return "Naturebook's image import inbox is full."
         }
     }
 }

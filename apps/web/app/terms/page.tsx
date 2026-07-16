@@ -4,31 +4,31 @@ import { LegalEmailLink, LegalList, LegalPage, LegalSection } from "@/components
 
 export const metadata: Metadata = {
   title: "Terms of Service",
-  description: "Terms for using Merian and Merian public web pages."
+  description: "Terms for using Naturebook and Naturebook public web pages."
 };
 
 export default function TermsPage() {
   return (
     <LegalPage
-      eyebrow="Merian legal"
+      eyebrow="Naturebook legal"
       title="Terms of Service"
-      description="These terms describe the rules for using Merian, Explore, and Merian public web pages."
+      description="These terms describe the rules for using Naturebook, Explore, and Naturebook public web pages."
     >
-      <LegalSection title="Using Merian">
+      <LegalSection title="Using Naturebook">
         <Text>
-          By using Merian, you agree to these terms. If you do not agree, do not use the
-          app or public web pages. Merian is provided for ecological discovery, education,
+          By using Naturebook, you agree to these terms. If you do not agree, do not use the
+          app or public web pages. Naturebook is provided for ecological discovery, education,
           journaling, and community sharing.
         </Text>
       </LegalSection>
 
       <LegalSection title="Identification Results">
         <Text>
-          Merian uses AI and public ecological data to suggest identifications. Results may
+          Naturebook uses AI and public ecological data to suggest identifications. Results may
           be incomplete, incorrect, outdated, or unsuitable for a particular situation. Do
-          not rely on Merian for medical, veterinary, legal, emergency, toxicity,
+          not rely on Naturebook for medical, veterinary, legal, emergency, toxicity,
           edibility, invasive-species enforcement, or safety-critical decisions. Do not
-          touch, eat, handle, or approach organisms based only on Merian output.
+          touch, eat, handle, or approach organisms based only on Naturebook output.
         </Text>
       </LegalSection>
 
@@ -44,7 +44,7 @@ export default function TermsPage() {
       <LegalSection title="Your Content">
         <Text>
           You keep ownership of your photos, audio, descriptions, field notes, comments,
-          and other content. You grant Merian a limited license to host, process, transform,
+          and other content. You grant Naturebook a limited license to host, process, transform,
           display, transmit, and analyze that content as needed to operate the service,
           provide AI identification, sync your library, generate exports, prevent abuse,
           and support Explore sharing.
@@ -55,7 +55,7 @@ export default function TermsPage() {
         <Text>
           If you share content to Explore, it may be visible to other people and on public
           web pages. You are responsible for the content you publish and must have the
-          rights needed to share it. Merian may remove, limit, or moderate content or
+          rights needed to share it. Naturebook may remove, limit, or moderate content or
           accounts that violate these terms, community guidelines, privacy expectations, or
           applicable law.
         </Text>
@@ -66,22 +66,22 @@ export default function TermsPage() {
           <li>Do not upload content you do not own or have permission to share.</li>
           <li>Do not harass, threaten, impersonate, spam, scrape, or abuse others.</li>
           <li>Do not attempt to bypass security, rate limits, moderation, or geoprivacy.</li>
-          <li>Do not use Merian to locate, harm, poach, or exploit sensitive species.</li>
+          <li>Do not use Naturebook to locate, harm, poach, or exploit sensitive species.</li>
           <li>Do not submit unlawful, deceptive, hateful, explicit, or harmful content.</li>
         </LegalList>
       </LegalSection>
 
       <LegalSection title="Third-Party Services">
         <Text>
-          Merian depends on third-party services including Apple, Supabase, Cloudflare,
+          Naturebook depends on third-party services including Apple, Supabase, Cloudflare,
           Google, RevenueCat, PostHog, and Resend. Your use of those
-          services through Merian may also be subject to their own terms and policies.
+          services through Naturebook may also be subject to their own terms and policies.
         </Text>
       </LegalSection>
 
       <LegalSection title="Service Changes">
         <Text>
-          Merian may change, suspend, or discontinue features, limits, pricing, public
+          Naturebook may change, suspend, or discontinue features, limits, pricing, public
           routes, or integrations. We may also suspend or terminate access when needed to
           protect users, the service, wildlife, or legal compliance.
         </Text>
@@ -89,8 +89,8 @@ export default function TermsPage() {
 
       <LegalSection title="Disclaimers and Liability">
         <Text>
-          Merian is provided as available and without warranties to the fullest extent
-          permitted by law. To the fullest extent permitted by law, Merian is not liable
+          Naturebook is provided as available and without warranties to the fullest extent
+          permitted by law. To the fullest extent permitted by law, Naturebook is not liable
           for indirect, incidental, consequential, special, exemplary, or punitive damages,
           or for decisions made from identification results.
         </Text>

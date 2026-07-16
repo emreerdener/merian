@@ -1,6 +1,7 @@
-# Merian Watch
+# Naturebook Watch
 
-The watchOS companion app for Merian.
+The watchOS companion app for Naturebook. Its technical target remains
+`MerianWatch`.
 
 This target (`MerianWatch`) is built for watchOS 10.0+ and focuses on acoustic capture. It allows users to record audio directly from their Apple Watch and securely dispatch it to the iOS app for identification.
 

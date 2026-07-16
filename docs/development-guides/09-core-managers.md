@@ -1267,7 +1267,7 @@ and `KeychainManager` migration logic. Do not inline
   `.dictionary(.newToMerian)` for species-dictionary contribution milestones.
 - Production achievement unlocks enter through
   `GamificationManager.evaluateAchievementsForNotifications(awards:)`.
-  `New to Merian` enters through `InsightSheetViewModel` when
+  `New to Naturebook` enters through `InsightSheetViewModel` when
   `SpeciesData.isNewToMerianDictionary == true`.
 - The presenter controls only in-app banner presentation. It does not mutate
   achievement progress, dictionary state, analytics, or native notification

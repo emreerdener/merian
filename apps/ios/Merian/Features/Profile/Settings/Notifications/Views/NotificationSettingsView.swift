@@ -108,7 +108,7 @@ struct NotificationSettingsView: View {
                                     .foregroundStyle(.red)
                                 Spacer()
                             }
-                            Text("Stop Merian from sending notification alerts.")
+                            Text("Stop Naturebook from sending notification alerts.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .padding(.leading, 36)
@@ -117,7 +117,7 @@ struct NotificationSettingsView: View {
                     }
                     .buttonStyle(.plain)
                 } footer: {
-                    Text("Your in-app activity and Explore notifications will still be available when you open Merian.")
+                    Text("Your in-app activity and Explore notifications will still be available when you open Naturebook.")
                 }
             }
         }

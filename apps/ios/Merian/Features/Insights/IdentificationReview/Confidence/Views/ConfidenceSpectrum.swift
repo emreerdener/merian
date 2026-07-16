@@ -59,7 +59,7 @@ private struct AIMistakesBanner: View {
                     .foregroundColor(.primary)
             }
             
-            Text("While Merian uses advanced models, consider verifying critical identifications with experts, especially regarding toxicity or foraging.")
+            Text("While Naturebook uses advanced models, consider verifying critical identifications with experts, especially regarding toxicity or foraging.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

@@ -32,8 +32,8 @@ enum OfflineQueueRetryPolicy {
 
     static func automaticRetryLimitMessage() -> String {
         [
-            "Merian retried this scan several times and paused automatic retry.",
-            "You can retry manually when the connection or Merian service is stable."
+            "Naturebook retried this scan several times and paused automatic retry.",
+            "You can retry manually when the connection or Naturebook service is stable."
         ].joined(separator: " ")
     }
 

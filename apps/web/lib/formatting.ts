@@ -3,19 +3,19 @@ export function compactSpeciesTitle(commonName: string, scientificName: string) 
   const trimmedScientific = scientificName.trim();
 
   if (!trimmedScientific || trimmedScientific === trimmedCommon) {
-    return trimmedCommon || "Merian discovery";
+    return trimmedCommon || "Naturebook discovery";
   }
 
-  return `${trimmedCommon || "Merian discovery"} (${trimmedScientific})`;
+  return `${trimmedCommon || "Naturebook discovery"} (${trimmedScientific})`;
 }
 
 export function postTitle(commonName: string, location?: string | null) {
-  const trimmedCommon = commonName.trim() || "Merian discovery";
+  const trimmedCommon = commonName.trim() || "Naturebook discovery";
   const trimmedLocation = location?.trim();
 
   return trimmedLocation ? `${trimmedCommon} in ${trimmedLocation}` : trimmedCommon;
 }
 
 export function nativeExplorePostUrl(postId: string) {
-  return `merian://explore/post/${postId}`;
+  return `naturebook://explore/post/${postId}`;
 }

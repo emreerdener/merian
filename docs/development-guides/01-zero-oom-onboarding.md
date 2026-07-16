@@ -2,7 +2,7 @@
 
 Welcome to the Merian core architecture. If you are used to building standard SwiftUI applications with high-level APIs like `UIImage(data:)`, standard `@EnvironmentObject`, or implicit `Task { }` blocks — **stop**.
 
-Merian is engineered like a realtime low-level camera engine wrapped in SwiftUI. We ingest massive, uncompressed 12MP RAW buffer data locally on isolated NVMe SSDs to bypass iOS thermal throttling and Memory Pressure kills (JetSam OOMs).
+Naturebook is engineered like a realtime low-level camera engine wrapped in SwiftUI. We ingest massive, uncompressed 12MP RAW buffer data locally on isolated NVMe SSDs to bypass iOS thermal throttling and Memory Pressure kills (JetSam OOMs).
 
 This document is the source of truth for all Swift 6 concurrency bounds and memory pipelines. **Failure to adhere to these rules guarantees a memory leak or a silent iOS Watchdog crash.**
 

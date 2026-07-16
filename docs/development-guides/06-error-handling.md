@@ -125,7 +125,7 @@ memory.
 | JWT expiry (authenticated OAuth user)                     | `MerianError.invalidResponse` thrown; callers surface a re-auth prompt                                                                                                                                        |
 | Photos import blocked by quota                            | Existing paywall opens; the durable inbox receipt remains pending for an entitlement retry                                                                                                                   |
 | Photos import blocked by capture capacity                 | Capture shows "Finish your current capture to import the shared photo." and retains the receipt until staged media clears                                                                                    |
-| Photos import unsupported, missing, or unreadable         | Error haptic plus "Merian couldn’t import that photo."; any durable receipt is removed as terminal                                                                                                          |
+| Photos import unsupported, missing, or unreadable         | Error haptic plus "Naturebook couldn’t import that photo."; any durable receipt is removed as terminal                                                                                                      |
 
 Photos document-import failures use `ExternalImageImportError` and capture
 feedback rather than broadening `MerianError`, because they occur before a scan

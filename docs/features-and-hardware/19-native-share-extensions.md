@@ -1,9 +1,10 @@
 # Native Extensions and Photos Import
 
-Merian currently ships two lightweight iOS extension surfaces:
+Naturebook currently ships two lightweight iOS extension surfaces while the
+targets retain their Merian engineering names:
 
 - `MerianMessagesExtension`: an iMessage app that reads a cached scan library
-  from the shared App Group and lets the user insert an image, Merian card, or
+  from the shared App Group and lets the user insert an image, Naturebook card, or
   text description into the current conversation.
 - `MerianExploreWidget`: a WidgetKit extension that reads cached Explore
   snapshots from the shared App Group and deep-links back into the app.
@@ -13,7 +14,7 @@ writing. Extensions read explicit snapshots only; they must not open the app's
 SwiftData store, run scan inference, mutate scans directly, or assume the
 containing app process is alive.
 
-Photos share-sheet import is deliberately not a third extension. Merian
+Photos share-sheet import is deliberately not a third extension. Naturebook
 registers `public.image` as an alternate document type, so iOS opens the main
 app and passes one selected file to `MerianApp.onOpenURL`. The containing app
 copies that file into `ExternalImageImportStore` and routes it through Capture.
@@ -76,4 +77,4 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<simulator-
 For release archives, confirm `Payload/Merian.app/PlugIns/` contains the shipped
 Messages and widget extensions and does not contain any Photos import extension.
 On a physical iPhone, separately confirm that a single Photos item offers
-Merian in the app row and opens the containing app.
+Naturebook in the app row and opens the containing app.

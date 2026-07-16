@@ -45,7 +45,7 @@ export function Footer() {
             >
               <Image
                 src="/assets/logo.png"
-                alt="Merian Logo"
+                alt="Naturebook Logo"
                 width={80}
                 height={80}
                 style={{ borderRadius: "50%" }}
@@ -215,7 +215,7 @@ export function Footer() {
 
         <Group justify="space-between" align="center">
           <Text size="xs" c="dimmed">
-            &copy; {new Date().getFullYear()} Merian Earth. All rights reserved.
+            &copy; {new Date().getFullYear()} Naturebook. All rights reserved.
           </Text>
           <Group gap="md">
             <Text size="xs" c="dimmed">
