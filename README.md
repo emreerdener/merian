@@ -14,6 +14,11 @@ Merian is a field-ready biological identification app built around zero-friction
 - Tap-to-focus, tap-to-expose, pinch zoom, vertical swipe zoom, and direct drag on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume buttons, Action button, iPhone 16 Camera Control).
 - Mixed-media staging mode — queue up to 2 total photos, short Pro video clips, audio clips, or descriptions before submitting to inference.
+- Share one photo from iOS Photos directly to Merian. The app opens through its
+  image document association, preserves included EXIF date/location context,
+  requires the normal gallery crop, and continues through the existing quota,
+  confirmation, inference, and offline-queue flow without a Share Extension or
+  broad Photo Library access.
 - Pro video scans let users briefly hold the visual shutter for a short stabilized clip, with an active countdown, cancel control, staged playback review, and image-based thumbnail; Merian analyzes five ordered sampled frames plus accompanying audio when available, then stores an upload-bounded playback clip for library review and Explore sharing while keeping sampled frames out of the user-visible media carousel.
 - Audio Listen Mode records a 15-second WAV clip with live spectrogram and SNR feedback.
 - Describe Mode supports typed observations and live voice dictation through `SpeechManager`.
@@ -122,6 +127,9 @@ Merian is a field-ready biological identification app built around zero-friction
 ### Native Share Extensions
 - Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Merian card, or text description into the compose field.
 - Shared App Group cache files keep shipped extensions lightweight while the main app owns SwiftData and scan reconciliation.
+- Photos-to-Merian import is not an extension: the `public.image` document
+  association opens the containing app and copies one shared file into its
+  private pending-import inbox.
 
 ### Profile & Gamification
 - Running species count, current scan streak, and longest streak.

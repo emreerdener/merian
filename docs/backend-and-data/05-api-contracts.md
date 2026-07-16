@@ -2175,8 +2175,19 @@ Nearby feed:
   "filter": "nearby",
   "latitude": 30.2672,
   "longitude": -97.7431,
+  "nearby_radius_miles": 25,
   "before_shared_at": "2026-05-03T11:22:00.000Z",
   "before_post_id": "uuid"
+}
+```
+
+Optional advanced filters for every mode:
+
+```json
+{
+  "species_categories": ["birds", "insects"],
+  "media_types": ["audio", "video"],
+  "shared_since": "2026-06-26T12:00:00.000Z"
 }
 ```
 
@@ -2190,11 +2201,22 @@ Validation rules:
   cursor is only valid when `before_ranking_value`, `before_shared_at`, and
   `before_post_id` are all supplied together.
 - `nearby` requires both `latitude` and `longitude`.
+- `nearby_radius_miles` is used only by `nearby`, defaults to `50`, and must be
+  between `1` and `100`.
+- `species_categories` accepts the same taxonomy groups as Explore Map:
+  `plants`, `fungi`, `birds`, `mammals`, `reptiles`, `amphibians`, `fish`,
+  `insects`, `arachnids`, and `other`.
+- `media_types` accepts `image`, `audio`, and `video`; mixed-media posts match
+  when any saved public media item has a selected kind.
+- `shared_since` is an inclusive ISO-8601 cutoff over `shared_at`.
+- Values are OR-ed within species/media groups and AND-ed across all populated
+  groups. The SQL RPCs apply them before ordering and `LIMIT`; clients must not
+  fetch a page and discard non-matching rows locally.
 - `before_ranking_value` is rejected for `recent`, `following`, and `nearby`.
 - `trending` is freshness-biased rather than all-time top. The ranking value is
   the post's like activity from the trailing 30 days.
 - `nearby` reads `explore_posts.public_latitude` / `public_longitude` and limits
-  non-owned coordinate-bearing posts to roughly 50 miles around the supplied
+  non-owned coordinate-bearing posts to the requested radius around the supplied
   viewer location before applying recency sort. `obscured` and `private` posts
   remain visible in non-spatial feeds but do not expose coordinates for Nearby.
 

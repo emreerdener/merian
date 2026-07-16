@@ -909,10 +909,23 @@ and `KeychainManager` migration logic. Do not inline
 
 ## Media & Image Processing
 
+### `ExternalImageImportStore`
+
+- Actor-owned Application Support inbox for one-photo iOS document imports.
+- Validates local URLs as `UTType.image`, scopes access only for the source-copy
+  window, records an atomic manifest, and exposes FIFO pending receipts across
+  cold launch and onboarding.
+- The inbox is not SwiftData and does not use the Messages/widget App Group.
+  `CaptureWorkspaceViewModel` retains receipts through quota or staging-capacity
+  blocks and acknowledges them only after staging or terminal decode failure.
+- `ImportedImageMetadataExtractor` reads embedded capture date and a complete
+  signed GPS pair before image preparation. Missing or partial metadata remains
+  missing; it is never synthesized.
+
 ### `MediaPreparationActor`
 
 - Actor-owned Zero-OOM boundary for file-backed still-image preparation.
-- Gallery imports and refinement staging call
+- Gallery, Photos document imports, and refinement staging call
   `prepareStillImage(fileURL:isPro:)`, receiving only bounded inference bytes,
   bounded display bytes, a sendable preview `CGImage`, and
   `MediaPreparationMetrics`.

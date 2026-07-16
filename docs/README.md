@@ -45,6 +45,14 @@ networking, and hardware orchestration logic.
   context without a second AI request. Model IDs and all inference-quality and
   unit-economics settings remain unchanged. Gallery, audio-bearing, and video
   submissions are instrumented but retain their existing behavior in this pass.
+- **Photos share import contract**: A single image shared from iOS Photos opens
+  the containing app through its alternate `public.image` document association.
+  `ExternalImageImportStore` copies the file into a durable Application Support
+  inbox before Capture observes it, so cold launch, onboarding, quota, and tray
+  capacity cannot lose the receipt. Embedded date/GPS is read before bounded
+  preparation; the normal required crop, confirmation preference, inference,
+  and offline queue then apply. This path has no Share Extension, App Group
+  handoff, backend import endpoint, or new Photo Library permission.
 - **Media durability safety net**: Backend deploys run a media-ingestion
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident
@@ -202,7 +210,8 @@ networking, and hardware orchestration logic.
   verification.
 - **[`/features-and-hardware/19-native-share-extensions.md`](./features-and-hardware/19-native-share-extensions.md)**
   — Native iOS extensions: shipped Messages scan library, Explore widget cache
-  ownership, App Group boundaries, privacy rules, and QA.
+  ownership, App Group boundaries, privacy rules, QA, and the boundary between
+  extensions and the app-owned Photos document import.
 - **[`/features-and-hardware/20-explore-hashtags.md`](./features-and-hardware/20-explore-hashtags.md)**
   — Explore hashtag publishing, composer suggestions, feed/detail chip behavior,
   tagged-post collections, API paths, event/BioBlitz groundwork, and Field Trip
@@ -225,6 +234,10 @@ networking, and hardware orchestration logic.
   matching, seasonal challenges, challenge badges, publication snapshots,
   profile pins, access gating, in-app activity, and deferred leaderboard/prize
   scope.
+- **[`/features-and-hardware/26-photos-share-import.md`](./features-and-hardware/26-photos-share-import.md)**
+  — Single-photo document import from the iOS Photos share sheet, including URL
+  routing, durable inbox ownership, EXIF context, capture staging, privacy,
+  blocking/retry behavior, and physical-device QA.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

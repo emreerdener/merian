@@ -33,6 +33,19 @@ struct HistoricalEnvironmentContextSnapshot: Sendable, Equatable {
         self.captureDate = captureDate
     }
 
+    init(
+        latitude: CLLocationDegrees?,
+        longitude: CLLocationDegrees?,
+        captureDate: Date?
+    ) {
+        self.latitude = latitude
+        self.longitude = longitude
+        locationName = nil
+        weatherCondition = nil
+        weatherTemperature = nil
+        self.captureDate = captureDate
+    }
+
     func makeEnvironmentContext() -> EnvironmentContext {
         let location: CLLocation?
         if let latitude, let longitude {
@@ -80,6 +93,13 @@ struct PreparedStagedImage: Sendable {
     }
 }
 
+enum ExternalImageImportAttemptResult: Equatable {
+    case staged
+    case temporarilyBlocked
+    case terminalFailure
+    case noPendingImport
+}
+
 struct RefinementScanContext: Equatable {
     let scanId: String
     let subjectId: String?
@@ -122,8 +142,12 @@ final class CaptureWorkspaceViewModel {
     // MARK: - Dependencies
     @ObservationIgnored let diContainer: AppDIContainer
     @ObservationIgnored private let preparedImageLoader: PreparedStagedImageLoader
+    @ObservationIgnored private let externalImageImportStore: ExternalImageImportStore
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var externalRouteSessionResetSuppressionDeadline: Date?
+    @ObservationIgnored private var externalImageImportTask: Task<Void, Never>?
+    @ObservationIgnored private var slotBlockedExternalImportIds = Set<UUID>()
+    @ObservationIgnored private var paywallPresentedExternalImportIds = Set<UUID>()
     
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet?
@@ -232,10 +256,12 @@ final class CaptureWorkspaceViewModel {
     init(
         diContainer: AppDIContainer,
         preparedImageLoader: @escaping PreparedStagedImageLoader,
-        prewarmHeadersOnInit: Bool = true
+        prewarmHeadersOnInit: Bool = true,
+        externalImageImportStore: ExternalImageImportStore? = nil
     ) {
         self.diContainer = diContainer
         self.preparedImageLoader = preparedImageLoader
+        self.externalImageImportStore = externalImageImportStore ?? diContainer.externalImageImportStore
 
         // Pre-warm both connection pools while the user composes their shot: Supabase Auth
         // owns one session, while live inference uses MerianNetworkClient's pinned session.
@@ -282,6 +308,10 @@ final class CaptureWorkspaceViewModel {
                     self?.activeSheet = .scans
                 case .requestOpenScansLibraryIntent:
                     self?.activeSheet = .scans
+                case .externalImageImportAvailable:
+                    self?.importPendingExternalImageIfPossible()
+                case .externalImageImportFailed:
+                    self?.presentExternalImageImportFailure()
                 default:
                     break
                 }
@@ -440,12 +470,11 @@ final class CaptureWorkspaceViewModel {
                     defer { try? FileManager.default.removeItem(at: validUrl) }
 
                     let historicalContext = await self.historicalContextSnapshot(for: newItem.itemIdentifier)
-                    let request = PreparedStagedImageRequest(
+                    guard let preparedImport = try? await self.prepareFileBackedStagedImage(
                         fileURL: validUrl,
                         isPro: isPro,
                         historicalContext: historicalContext
-                    )
-                    guard let preparedImport = try? await self.preparedImageLoader(request) else { continue }
+                    ) else { continue }
                     preparedImports.append(preparedImport)
                 }
             }
@@ -453,6 +482,134 @@ final class CaptureWorkspaceViewModel {
             guard !Task.isCancelled, !preparedImports.isEmpty else { return }
             await self.commitPreparedStagedImages(preparedImports, requiresCrop: true)
         }
+    }
+
+    func importPendingExternalImageIfPossible() {
+        guard externalImageImportTask == nil else { return }
+
+        externalImageImportTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.externalImageImportTask = nil }
+            if await self.externalImageImportStore.consumeTerminalFailure() {
+                self.offlineToastMessage = "Merian couldn’t import that photo."
+            }
+            _ = await self.importNextPendingExternalImage()
+        }
+    }
+
+    private func presentExternalImageImportFailure() {
+        offlineToastMessage = "Merian couldn’t import that photo."
+        Task { [externalImageImportStore] in
+            _ = await externalImageImportStore.consumeTerminalFailure()
+        }
+    }
+
+    func importNextPendingExternalImage() async -> ExternalImageImportAttemptResult {
+        guard let pendingImport = await externalImageImportStore.pendingImports().first else {
+            return .noPendingImport
+        }
+
+        let isPro = diContainer.revenueCatManager.isProActive
+        let importBudget = prepareGalleryImportBudget(isPro: isPro)
+        guard importBudget.availableSlots > 0 else {
+            presentExternalImportSlotBlock(for: pendingImport)
+            return .temporarilyBlocked
+        }
+        guard importBudget.canPerformScan else {
+            presentExternalImportQuotaBlock(for: pendingImport)
+            return .temporarilyBlocked
+        }
+        guard let fileURL = await externalImageImportStore.fileURL(for: pendingImport) else {
+            await failExternalImageImport(pendingImport, outcome: "failed_missing_file")
+            return .terminalFailure
+        }
+
+        do {
+            let metadata = try await DetachedWork.value(
+                priority: .userInitiated,
+                category: .imagePreparation
+            ) {
+                ImportedImageMetadataExtractor.extract(from: fileURL)
+            }
+            let historicalContext = await historicalContextSnapshot(for: metadata)
+            guard let preparedImport = try await prepareFileBackedStagedImage(
+                fileURL: fileURL,
+                isPro: isPro,
+                historicalContext: historicalContext
+            ) else {
+                throw MediaPreparationError.unreadableImage
+            }
+
+            let refreshedIsPro = diContainer.revenueCatManager.isProActive
+            let refreshedBudget = prepareGalleryImportBudget(isPro: refreshedIsPro)
+            guard refreshedBudget.availableSlots > 0 else {
+                presentExternalImportSlotBlock(for: pendingImport)
+                return .temporarilyBlocked
+            }
+            guard refreshedBudget.canPerformScan else {
+                presentExternalImportQuotaBlock(for: pendingImport)
+                return .temporarilyBlocked
+            }
+
+            let committedCount = commitPreparedStagedImages([preparedImport], requiresCrop: true)
+            guard committedCount == 1 else {
+                presentExternalImportSlotBlock(for: pendingImport)
+                return .temporarilyBlocked
+            }
+
+            await externalImageImportStore.remove(pendingImport)
+            slotBlockedExternalImportIds.remove(pendingImport.id)
+            paywallPresentedExternalImportIds.remove(pendingImport.id)
+            AppTelemetry.trackExternalImageImport(outcome: "staged")
+            return .staged
+        } catch is CancellationError {
+            return .temporarilyBlocked
+        } catch {
+            MerianLog.data.error(
+                "External image import preparation failed: \(error, privacy: .private)"
+            )
+            await failExternalImageImport(pendingImport, outcome: "failed_preparation")
+            return .terminalFailure
+        }
+    }
+
+    private func prepareFileBackedStagedImage(
+        fileURL: URL,
+        isPro: Bool,
+        historicalContext: HistoricalEnvironmentContextSnapshot?
+    ) async throws -> PreparedStagedImage? {
+        let request = PreparedStagedImageRequest(
+            fileURL: fileURL,
+            isPro: isPro,
+            historicalContext: historicalContext
+        )
+        return try await preparedImageLoader(request)
+    }
+
+    private func presentExternalImportSlotBlock(for pendingImport: PendingExternalImageImport) {
+        if slotBlockedExternalImportIds.insert(pendingImport.id).inserted {
+            AppTelemetry.trackExternalImageImport(outcome: "blocked_staging_capacity")
+            offlineToastMessage = "Finish your current capture to import the shared photo."
+        }
+    }
+
+    private func presentExternalImportQuotaBlock(for pendingImport: PendingExternalImageImport) {
+        guard paywallPresentedExternalImportIds.insert(pendingImport.id).inserted else { return }
+        AppTelemetry.trackExternalImageImport(outcome: "blocked_quota")
+        AppTelemetry.trackPaywallImpression()
+        activeSheet = .paywall
+    }
+
+    private func failExternalImageImport(
+        _ pendingImport: PendingExternalImageImport,
+        outcome: String
+    ) async {
+        await externalImageImportStore.remove(pendingImport)
+        slotBlockedExternalImportIds.remove(pendingImport.id)
+        paywallPresentedExternalImportIds.remove(pendingImport.id)
+        AppTelemetry.trackExternalImageImport(outcome: outcome)
+        HapticManager.shared.triggerErrorThump()
+        offlineToastMessage = "Merian couldn’t import that photo."
     }
 
     private func prepareGalleryImportBudget(isPro: Bool) -> GalleryImportBudget {
@@ -483,9 +640,36 @@ final class CaptureWorkspaceViewModel {
         return nil
     }
 
-    func commitPreparedStagedImages(_ preparedImports: [PreparedStagedImage], requiresCrop: Bool = false) {
+    private func historicalContextSnapshot(
+        for metadata: ImportedImageMetadata
+    ) async -> HistoricalEnvironmentContextSnapshot? {
+        if let latitude = metadata.latitude,
+           let longitude = metadata.longitude,
+           let captureDate = metadata.captureDate {
+            let historicalContext = await diContainer.environmentContextManager.fetchHistoricalContext(
+                location: CLLocation(latitude: latitude, longitude: longitude),
+                date: captureDate
+            )
+            return HistoricalEnvironmentContextSnapshot(context: historicalContext)
+        }
+
+        guard metadata.captureDate != nil || metadata.hasCoordinate else { return nil }
+        return HistoricalEnvironmentContextSnapshot(
+            latitude: metadata.latitude,
+            longitude: metadata.longitude,
+            captureDate: metadata.captureDate
+        )
+    }
+
+    @discardableResult
+    func commitPreparedStagedImages(
+        _ preparedImports: [PreparedStagedImage],
+        requiresCrop: Bool = false
+    ) -> Int {
         let availableSlots = availableStagedCaptureSlots
-        guard availableSlots > 0 else { return }
+        guard availableSlots > 0 else { return 0 }
+
+        var committedCount = 0
 
         for preparedImport in preparedImports.prefix(availableSlots) {
             let rawImage = UIImage(cgImage: preparedImport.previewCGImage.image)
@@ -505,11 +689,13 @@ final class CaptureWorkspaceViewModel {
                 original: identifiable,
                 focusRegion: preparedImport.focusRegion
             ))
+            committedCount += 1
         }
 
-        if requiresCrop {
+        if requiresCrop, committedCount > 0 {
             presentNextRequiredGalleryCrop()
         }
+        return committedCount
     }
     
     // MARK: - Manual Crop Routing

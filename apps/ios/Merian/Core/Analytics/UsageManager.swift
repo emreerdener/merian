@@ -33,15 +33,17 @@ import Observation
     }
 
     private var isFreeScanLimitOverrideEnabled: Bool {
+#if DEBUG
+        if let debugFreeScanLimitOverride = Self.debugFreeScanLimitOverride {
+            return debugFreeScanLimitOverride
+        }
+#endif
+
         if MerianConfig.alphaUnlimitedFreeScansEnabled {
             return true
         }
 
 #if DEBUG
-        if let debugFreeScanLimitOverride = Self.debugFreeScanLimitOverride {
-            return debugFreeScanLimitOverride
-        }
-
         return ProcessInfo.processInfo.environment[Self.freeScanLimitOverrideEnvironmentKey] == "1"
 #else
         return false

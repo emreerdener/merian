@@ -17,6 +17,7 @@ export default function PrivacyChoicesPage() {
       <LegalSection title="In-App Controls">
         <LegalList>
           <li>Use iOS Settings to manage camera, microphone, speech, photo library, and location permissions.</li>
+          <li>Exclude Location in Photos&apos; share Options before sending a photo to Merian.</li>
           <li>Use Merian geoprivacy settings to choose open, obscured, or private location sharing behavior.</li>
           <li>Unshare Explore posts to remove them from public Explore surfaces.</li>
           <li>Delete individual scans from your library when you no longer want them stored.</li>

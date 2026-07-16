@@ -87,10 +87,16 @@ Each permission step presents the rationale for the request before triggering th
 - **Location**: Required for GPS telemetry that improves AI accuracy (regional species ranges, invasive tracking) and populates the scan location metadata.
 
 > [!NOTE]
-> **Progressive Disclosure**: Push Notification and Photo Library permissions are deliberately omitted from the initial onboarding flow to reduce drop-off. Notifications are conditionally requested via a half-sheet after the first successful scan resolve, or if the user actively flips the Discovery/Achievement toggles in Settings. Photo Library permissions are conditionally requested via a half-sheet when the user specifically toggles "Save to camera roll" or taps the gallery import button.
+> **Progressive Disclosure**: Push Notification and Photo Library permissions are deliberately omitted from the initial onboarding flow to reduce drop-off. Notifications are conditionally requested via a half-sheet after the first successful scan resolve, or if the user actively flips the Discovery/Achievement toggles in Settings. Photo Library permissions are conditionally requested via a half-sheet when the user specifically toggles "Save to camera roll" or taps the gallery import button. Receiving a file explicitly shared from Photos is a document import and adds no Photo Library permission request.
 
 ---
 
 ## Re-entering from a Deep Link
 
-If the app receives a deep link (e.g. a push notification tap routing to an `InsightSheet`) while onboarding is incomplete, the deep link is discarded. `CaptureWorkspaceViewModel` observes `NSNotification.Name("AppDidEnterActivePhaseWithScan")` but its handler checks `diContainer.offlineQueueManager.modelContext` — which is nil until `ScanRepository.configure(with:)` runs during post-onboarding startup.
+Most transient navigation events cannot present Capture sheets until onboarding
+is complete. Photos document imports are the deliberate exception: the file is
+copied into `ExternalImageImportStore` before the event is published, so an
+unfinished onboarding flow may ignore the transient event without losing the
+photo. `CaptureWorkspaceView` checks the durable inbox after onboarding and
+routes the item through the normal quota, crop, confirmation, and submission
+flow.

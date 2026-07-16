@@ -143,6 +143,68 @@ struct OfflineQueueManagerTests {
         )
     }
 
+    @Test func galleryQueueReplayOmitsBookkeepingTimestampWhenPhotoHasNoEmbeddedDate() throws {
+        let context = try createIsolatedContext()
+        defer { OfflineQueueManager.shared.modelContext = nil }
+        let queueTimestamp = try #require(
+            ISO8601DateFormatter().date(from: "2026-07-15T22:05:04Z")
+        )
+        let galleryItem = IdentifyVisualMediaItem.image(
+            sourceIndex: 0,
+            captureSource: .gallery,
+            hasEmbeddedCaptureDate: false
+        )
+        let visualMediaItemsJSON = try #require(
+            String(data: JSONEncoder().encode([galleryItem]), encoding: .utf8)
+        )
+        let scan = OfflineQueuedScan(
+            timestamp: queueTimestamp,
+            gpsLatitude: 33.45,
+            gpsLongitude: 18.42,
+            visualMediaItemsJSON: visualMediaItemsJSON
+        )
+
+        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+            from: scan,
+            container: context.container
+        )
+
+        #expect(extracted.telemetry.gpsLatitude == 33.45)
+        #expect(extracted.telemetry.gpsLongitude == 18.42)
+        #expect(extracted.telemetry.timestamp == nil)
+        #expect(galleryItem.jsonObject["captureSource"] == nil)
+        #expect(galleryItem.jsonObject["hasEmbeddedCaptureDate"] == nil)
+    }
+
+    @Test func galleryQueueReplayUsesEmbeddedCaptureDateWhenPresent() throws {
+        let context = try createIsolatedContext()
+        defer { OfflineQueueManager.shared.modelContext = nil }
+        let captureDate = try #require(
+            ISO8601DateFormatter().date(from: "2026-07-15T22:05:04Z")
+        )
+        let galleryItem = IdentifyVisualMediaItem.image(
+            sourceIndex: 0,
+            captureSource: .gallery,
+            hasEmbeddedCaptureDate: true
+        )
+        let visualMediaItemsJSON = try #require(
+            String(data: JSONEncoder().encode([galleryItem]), encoding: .utf8)
+        )
+        let scan = OfflineQueuedScan(
+            timestamp: captureDate,
+            gpsLatitude: 41.8781,
+            gpsLongitude: -87.6298,
+            visualMediaItemsJSON: visualMediaItemsJSON
+        )
+
+        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+            from: scan,
+            container: context.container
+        )
+
+        #expect(extracted.telemetry.timestamp == DateUtilities.iso8601Formatter.string(from: captureDate))
+    }
+
     @Test func testScanStatusRecoveryActionRespectsServerIngestionState() throws {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

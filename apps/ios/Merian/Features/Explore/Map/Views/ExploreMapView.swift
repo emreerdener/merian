@@ -507,7 +507,7 @@ struct ExploreMapView: View {
                         HapticManager.shared.triggerSelectionPulse()
                         Task { await viewModel.clearSpeciesFilters() }
                     } label: {
-                        ExploreMapFilterSheetRow(
+                        FilterSheetSelectionRow(
                             title: "All species",
                             subtitle: discoveriesInViewLabel(count: totalAvailableDiscoveryCount),
                             systemImage: "map",
@@ -521,7 +521,7 @@ struct ExploreMapView: View {
                             HapticManager.shared.triggerSelectionPulse()
                             Task { await viewModel.toggleSpeciesFilter(categoryCount.category) }
                         } label: {
-                            ExploreMapFilterSheetRow(
+                            FilterSheetSelectionRow(
                                 title: categoryCount.category.title,
                                 subtitle: categoryCount.count >= 1
                                     ? discoveriesInViewLabel(count: categoryCount.count)
@@ -540,7 +540,7 @@ struct ExploreMapView: View {
                         HapticManager.shared.triggerSelectionPulse()
                         Task { await viewModel.clearMediaTypeFilters() }
                     } label: {
-                        ExploreMapFilterSheetRow(
+                        FilterSheetSelectionRow(
                             title: "All media",
                             subtitle: viewModel.hasActiveMediaTypeFilters
                                 ? "Show every media type"
@@ -556,12 +556,12 @@ struct ExploreMapView: View {
                             HapticManager.shared.triggerSelectionPulse()
                             Task { await viewModel.toggleMediaTypeFilter(mediaTypeCount.mediaType) }
                         } label: {
-                            ExploreMapFilterSheetRow(
-                                title: mediaTypeCount.mediaType.mapFilterTitle,
+                            FilterSheetSelectionRow(
+                                title: mediaTypeCount.mediaType.filterTitle,
                                 subtitle: mediaTypeCount.count >= 1
                                     ? discoveriesInViewLabel(count: mediaTypeCount.count)
                                     : "Filter map",
-                                systemImage: mediaTypeCount.mediaType.mapFilterSymbolName,
+                                systemImage: mediaTypeCount.mediaType.filterSymbolName,
                                 isSelected: viewModel.selectedMediaTypes.contains(mediaTypeCount.mediaType)
                             )
                         }
@@ -860,24 +860,6 @@ struct ExploreMapView: View {
     }
 }
 
-private extension ExploreMediaKind {
-    var mapFilterTitle: String {
-        switch self {
-        case .image: "Images"
-        case .video: "Videos"
-        case .audio: "Audio"
-        }
-    }
-
-    var mapFilterSymbolName: String {
-        switch self {
-        case .image: "photo"
-        case .video: "video.fill"
-        case .audio: "waveform"
-        }
-    }
-}
-
 private struct ExploreMapWaypoint: View {
     let imageUrl: String
     let reloadGeneration: UInt64
@@ -1000,45 +982,6 @@ private struct ExploreMapClusterBubble: View {
     }
 }
 
-private struct ExploreMapFilterSheetRow: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let isSelected: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(isSelected ? Color.white : Color.accentColor)
-                .frame(width: 38, height: 38)
-                .background(isSelected ? Color.accentColor : Color.accentColor.opacity(0.12))
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
-
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 12)
-
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.45))
-        }
-        .padding(14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
 private struct ExploreMapPreviewCard: View {
     let post: ExplorePost
     let speciesDisplayName: String
@@ -1157,7 +1100,7 @@ private struct ExploreMapPreviewCard: View {
                 HapticManager.shared.triggerSelectionPulse()
                 onOpen()
             }) {
-                Text("View discovery")
+                Text(post.hasAudioMedia && !post.hasVideoMedia ? "Listen to discovery" : "View discovery")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 .frame(maxWidth: .infinity)

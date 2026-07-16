@@ -428,6 +428,30 @@ MerianTests/
   metrics stay within byte and dimension limits, avatar/crop previews return
   bounded sendable `CGImage` values, and invalid files are rejected before any
   staged media is produced.
+- **`ExternalImageImportStoreTests.swift`**: Covers the Photos document-import
+  boundary without UI automation. Tests lock Google/deep-link/file/Supabase URL
+  precedence, prove security scope begins before validation, verify the inbox
+  survives a new store instance, recover committed orphan copies, remove
+  interrupted copies, persist onboarding-safe terminal feedback, and exercise
+  real ImageIO plus dictionary fixtures for date/GPS, date-only,
+  coordinate-only, absent, incomplete, and malformed metadata. Telemetry tests
+  prove a gallery item never falls back to the current device location.
+- **`OfflineQueueManagerTests` gallery replay cases**: Persist gallery provenance
+  in the existing visual-media manifest and prove offline replay keeps embedded
+  dates while omitting a queue bookkeeping timestamp when the photo contained
+  coordinates only or no date. Local-only provenance must remain absent from
+  the edge request JSON.
+- **`CaptureWorkspaceViewModelRefinementTests` external-import cases**: Inject a
+  temporary `ExternalImageImportStore` and prepared-image loader to prove a
+  pending image is staged with the required crop and acknowledged only after
+  commit. Separate cases prove a full tray retains the receipt until capacity
+  clears, an exhausted free quota retains the receipt until Pro entitlement is
+  active, and an unreadable file is removed with terminal feedback.
+  Confirmation and crop cancellation continue to be owned by the shared
+  gallery staging tests rather than a second import-only pipeline.
+- **`AppTelemetryTests.testExternalImageImportEventContainsOnlyOutcomeAndClientSource`**:
+  Guards the privacy boundary by asserting the event contains only `outcome`
+  and `event_source`.
 - **`HardwareOrchestratorTests.swift`**: Mocks
   `ProcessInfo.processInfo.thermalState` boundaries to verify the camera
   throttles FPS dynamically without restarting instances. Verifies the

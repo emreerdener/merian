@@ -8,6 +8,26 @@ enum StartupStoreState: Equatable {
     case safeMode
 }
 
+enum MerianOpenURLRoute: Equatable {
+    case handledByGoogle
+    case merianDeepLink
+    case externalImageImport
+    case supabaseAuthentication
+
+    static func classify(_ url: URL, googleHandled: Bool) -> MerianOpenURLRoute {
+        if googleHandled {
+            return .handledByGoogle
+        }
+        if MerianDeepLinkRoute(url: url) != nil {
+            return .merianDeepLink
+        }
+        if url.isFileURL {
+            return .externalImageImport
+        }
+        return .supabaseAuthentication
+    }
+}
+
 private struct StartupStoreStateKey: EnvironmentKey {
     static let defaultValue: StartupStoreState = .normal
 }
@@ -1063,17 +1083,23 @@ struct MerianApp: App {
                 applyTheme(newTheme)
             }
             .onOpenURL { url in
-                if GIDSignIn.sharedInstance.handle(url) {
+                switch MerianOpenURLRoute.classify(
+                    url,
+                    googleHandled: GIDSignIn.sharedInstance.handle(url)
+                ) {
+                case .handledByGoogle:
                     return
-                }
-                if handleMerianDeepLink(url) {
-                    return
-                }
-                Task {
-                    do {
-                        try await diContainer.supabaseManager.client.auth.session(from: url)
-                    } catch {
-                        MerianLog.auth.error("Supabase auth session URL handler failed: \(error, privacy: .private)")
+                case .merianDeepLink:
+                    _ = handleMerianDeepLink(url)
+                case .externalImageImport:
+                    handleExternalImageImportURL(url)
+                case .supabaseAuthentication:
+                    Task {
+                        do {
+                            try await diContainer.supabaseManager.client.auth.session(from: url)
+                        } catch {
+                            MerianLog.auth.error("Supabase auth session URL handler failed: \(error, privacy: .private)")
+                        }
                     }
                 }
             }
@@ -1108,6 +1134,29 @@ struct MerianApp: App {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             for window in windowScene.windows {
                 window.overrideUserInterfaceStyle = themeMode.userInterfaceStyle
+            }
+        }
+    }
+
+    private func handleExternalImageImportURL(_ url: URL) {
+        Task { @MainActor in
+            do {
+                let pendingImport = try await diContainer.externalImageImportStore.stageIncomingImage(at: url)
+                AppTelemetry.trackExternalImageImport(outcome: "received")
+                diContainer.appEventPublisher.send(
+                    .externalImageImportAvailable(importId: pendingImport.id)
+                )
+            } catch {
+                MerianLog.data.error(
+                    "External image import could not be copied into the pending inbox: \(error, privacy: .private)"
+                )
+                let outcome = (error as? ExternalImageImportError) == .unsupportedURL
+                    ? "failed_unsupported_type"
+                    : "failed_inbox"
+                AppTelemetry.trackExternalImageImport(outcome: outcome)
+                await diContainer.externalImageImportStore.recordTerminalFailure()
+                HapticManager.shared.triggerErrorThump()
+                diContainer.appEventPublisher.send(.externalImageImportFailed)
             }
         }
     }

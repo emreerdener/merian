@@ -1,4 +1,4 @@
-# Native Extensions
+# Native Extensions and Photos Import
 
 Merian currently ships two lightweight iOS extension surfaces:
 
@@ -12,6 +12,12 @@ The iOS app owns SwiftData, scan reconciliation, uploads, inference, and cache
 writing. Extensions read explicit snapshots only; they must not open the app's
 SwiftData store, run scan inference, mutate scans directly, or assume the
 containing app process is alive.
+
+Photos share-sheet import is deliberately not a third extension. Merian
+registers `public.image` as an alternate document type, so iOS opens the main
+app and passes one selected file to `MerianApp.onOpenURL`. The containing app
+copies that file into `ExternalImageImportStore` and routes it through Capture.
+See [Photos Share Import](./26-photos-share-import.md) for the complete contract.
 
 ## Messages Extension
 
@@ -44,17 +50,18 @@ Widget snapshots may include public Explore imagery and scrubbed display text.
 They must not include raw private scan telemetry, exact private coordinates, raw
 Supabase tokens, or private field notes.
 
-## Retired Photos Share Import
+## Photos Share Import History
 
-The old Photos share-sheet import prototype has been removed from the current
-repo source and project configuration. Its client target, App Group receipt
-helpers, shared keychain handoff, `/share-import-scan` Edge Function, and
-`scan_import_jobs` table were retired because the feature was not shipped.
+An older Share Extension prototype was removed before this feature shipped. Its
+client target, App Group receipt helpers, shared keychain handoff,
+`/share-import-scan` Edge Function, and `scan_import_jobs` table remain retired.
+Do not restore those components: the current Photos import is intentionally an
+app-owned document-import flow with no backend-specific import contract.
 
-If Photos import returns later, treat it as a new product surface. Rebuild it
-with a fresh feature plan, real-device Photos share-sheet QA, current app
-privacy rules, and explicit extension memory limits rather than reviving the old
-parked scaffold.
+The current implementation still requires real-device Photos share-sheet QA,
+but it is not subject to extension memory limits because no Photos Share
+Extension process exists. The ordinary app image-preparation, quota, inference,
+and offline-queue limits remain authoritative.
 
 ## Verification
 
@@ -67,5 +74,6 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<simulator-
 ```
 
 For release archives, confirm `Payload/Merian.app/PlugIns/` contains the shipped
-Messages and widget extensions and does not contain any retired Photos import
-extension.
+Messages and widget extensions and does not contain any Photos import extension.
+On a physical iPhone, separately confirm that a single Photos item offers
+Merian in the app row and opens the containing app.

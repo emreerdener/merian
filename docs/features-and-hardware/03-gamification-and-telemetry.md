@@ -140,9 +140,10 @@ Thin enum wrapper around app product events. All sends go through a private
 | -------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `ClientScanCompleted`            | `trackScan(isPro:isSubscribed:inferenceTier:)`             | `tier: "Pro"/"Free"`, `plan: "pro_paid"/"pro_trial"/"free"`, `inferenceTier: "pro"/"flash"` | Successful client-side parse/save after inference                                                |
 | `NewSpeciesDiscovered`           | `trackNewDiscovery(isPro:)`                                | `tier: "Pro"/"Free"`                                                                        | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires) |
-| `PaywallViewed`                  | `trackPaywallImpression()`                                 | —                                                                                           | Camera shutter or gallery picker hits free scan cap                                              |
+| `PaywallViewed`                  | `trackPaywallImpression()`                                 | —                                                                                           | Camera shutter, gallery picker, or pending Photos import hits the free scan cap                   |
 | `CaptureThermalThrottled`        | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                                           | Capture throttles frame rate after device thermal state reaches critical                         |
 | `ScanQueuedForSync`              | `trackOfflineQueued()`                                     | —                                                                                           | Scan successfully written to offline queue after `context.save()`                                |
+| `ExternalImageImport`            | `trackExternalImageImport(outcome:)`                       | `outcome`, `event_source`                                                                   | Photos document import is received, staged, temporarily blocked, or terminally rejected           |
 | `OnboardingCompleted`            | `trackOnboardingCompleted()`                               | —                                                                                           | User taps Continue on the `.ready` onboarding step                                               |
 | `SpeciesDictionaryOpened`        | `trackSpeciesDictionaryOpened(entryPoint:)`                | `entryPoint`                                                                                | Species dictionary sheet opens                                                                   |
 | `SpeciesDictionaryPageLoaded`    | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"`                      | Species dictionary page loads a public dictionary row                                            |
@@ -169,6 +170,13 @@ Allowed diagnostic keys are `diagnostic_schema`, `selected_strategy`,
 `current_schema_major`, `stored_schema_major`, `attempt_count`, `attempts`,
 `final_outcome`, `final_reason`, `quarantine_attempted`,
 `quarantine_performed`, `rescue_attempted`, and `rescue_performed`.
+
+External image-import telemetry is intentionally receipt-level and coarse.
+Allowed outcomes describe received, staged, quota-blocked,
+staging-capacity-blocked, unsupported, missing-file, inbox-copy, or preparation
+failure states. Never attach filenames, paths, image bytes, `UTType` strings,
+EXIF dictionaries, coordinates, capture dates, Photos asset identifiers, scan
+IDs, or user IDs.
 
 ### Pro Paywall Feature Copy
 

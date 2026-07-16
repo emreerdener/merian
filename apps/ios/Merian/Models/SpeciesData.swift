@@ -39,10 +39,19 @@ extension CaptureTelemetry {
         )
     }
 
-    init(from context: EnvironmentContext, distance: Float?, zoom: CGFloat? = nil, estimatedSizeCm: Double? = nil) {
+    init(
+        from context: EnvironmentContext,
+        distance: Float?,
+        zoom: CGFloat? = nil,
+        estimatedSizeCm: Double? = nil,
+        requiresExplicitCaptureDate: Bool = false
+    ) {
         let reliableElevation: Double? = context.location.flatMap { loc in
             (loc.verticalAccuracy >= 0 && loc.verticalAccuracy <= 25) ? loc.altitude : nil
         }
+        let timestampDate = requiresExplicitCaptureDate
+            ? context.captureDate
+            : context.captureDate ?? context.location?.timestamp ?? Date()
 
         var t = CaptureTelemetry(
             subjectDistanceInMeters: distance,
@@ -53,7 +62,7 @@ extension CaptureTelemetry {
             weatherCondition: context.weatherCondition,
             weatherTemperatureF: context.weatherTemperature,
             timeOfDay: nil,
-            timestamp: DateUtilities.iso8601Formatter.string(from: context.captureDate ?? context.location?.timestamp ?? Date()),
+            timestamp: timestampDate.map { DateUtilities.iso8601Formatter.string(from: $0) },
             estimatedSizeCm: estimatedSizeCm
         )
         t.zoomFactor = zoom

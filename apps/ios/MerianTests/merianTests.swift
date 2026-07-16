@@ -534,6 +534,148 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertNil(viewModel.imageToCrop)
     }
 
+    func testPendingExternalImageImportStagesThroughGalleryCropFlowAndCleansInbox() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-external-import-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let sourceURL = rootURL.appendingPathComponent("shared-photo.png")
+        try makePNGData().write(to: sourceURL)
+        let store = ExternalImageImportStore(rootURL: rootURL.appendingPathComponent("Inbox"))
+        _ = try await store.stageIncomingImage(at: sourceURL)
+        let preparedImage = makePreparedStagedImage()
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in preparedImage },
+            prewarmHeadersOnInit: false,
+            externalImageImportStore: store
+        )
+
+        viewModel.importPendingExternalImageIfPossible()
+        try await waitUntil { viewModel.stagedCapture.images.count == 1 }
+
+        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
+        XCTAssertEqual(viewModel.imageToCrop?.id, viewModel.stagedCapture.images.first?.original.id)
+        let remainingImports = await store.pendingImports()
+        XCTAssertTrue(remainingImports.isEmpty)
+    }
+
+    func testPendingExternalImageImportRemainsQueuedUntilCaptureCapacityIsAvailable() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-external-import-capacity-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let sourceURL = rootURL.appendingPathComponent("shared-photo.png")
+        try makePNGData().write(to: sourceURL)
+        let store = ExternalImageImportStore(rootURL: rootURL.appendingPathComponent("Inbox"))
+        _ = try await store.stageIncomingImage(at: sourceURL)
+        let preparedImage = makePreparedStagedImage()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in preparedImage },
+            prewarmHeadersOnInit: false,
+            externalImageImportStore: store
+        )
+        viewModel.stagedCapture.observationContexts = [
+            StagedObservationContext(context: ObservationContext(freeText: "Existing capture"))
+        ]
+
+        viewModel.importPendingExternalImageIfPossible()
+        try await waitUntil {
+            viewModel.offlineToastMessage == "Finish your current capture to import the shared photo."
+        }
+        let blockedImports = await store.pendingImports()
+        XCTAssertEqual(blockedImports.count, 1)
+
+        viewModel.stagedCapture.observationContexts.removeAll()
+        viewModel.importPendingExternalImageIfPossible()
+        try await waitUntil { viewModel.stagedCapture.images.count == 1 }
+
+        let remainingImports = await store.pendingImports()
+        XCTAssertTrue(remainingImports.isEmpty)
+    }
+
+    func testUnreadablePendingExternalImageImportIsDiscardedWithUserFeedback() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-external-import-failure-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let sourceURL = rootURL.appendingPathComponent("shared-photo.jpg")
+        try Data("invalid image".utf8).write(to: sourceURL)
+        let store = ExternalImageImportStore(rootURL: rootURL.appendingPathComponent("Inbox"))
+        _ = try await store.stageIncomingImage(at: sourceURL)
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in throw MediaPreparationError.unreadableImage },
+            prewarmHeadersOnInit: false,
+            externalImageImportStore: store
+        )
+
+        viewModel.importPendingExternalImageIfPossible()
+        try await waitUntil {
+            viewModel.offlineToastMessage == "Merian couldn’t import that photo."
+        }
+
+        XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
+        let remainingImports = await store.pendingImports()
+        XCTAssertTrue(remainingImports.isEmpty)
+    }
+
+    func testQuotaBlockedExternalImportIsRetainedAndProEntitlementRetriesIt() async throws {
+        let previousProState = RevenueCatManager.shared.isProActive
+        defer {
+            RevenueCatManager.shared.isProActive = previousProState
+            restoreFreeScanLimitForTest()
+        }
+        UsageManager.debugFreeScanLimitOverride = false
+        UsageManager.shared.freeScansRemaining = 0
+        RevenueCatManager.shared.isProActive = false
+
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-external-import-quota-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let sourceURL = rootURL.appendingPathComponent("shared-photo.png")
+        try makePNGData().write(to: sourceURL)
+        let store = ExternalImageImportStore(rootURL: rootURL.appendingPathComponent("Inbox"))
+        _ = try await store.stageIncomingImage(at: sourceURL)
+        let preparedImage = makePreparedStagedImage()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in preparedImage },
+            prewarmHeadersOnInit: false,
+            externalImageImportStore: store
+        )
+
+        let blockedResult = await viewModel.importNextPendingExternalImage()
+
+        XCTAssertEqual(blockedResult, .temporarilyBlocked)
+        XCTAssertEqual(viewModel.activeSheet, .paywall)
+        let blockedImports = await store.pendingImports()
+        XCTAssertEqual(blockedImports.count, 1)
+
+        RevenueCatManager.shared.isProActive = true
+        let retriedResult = await viewModel.importNextPendingExternalImage()
+
+        XCTAssertEqual(retriedResult, .staged)
+        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        let remainingImports = await store.pendingImports()
+        XCTAssertTrue(remainingImports.isEmpty)
+    }
+
     func testCancelingRequiredGalleryCropRemovesImageAndClearsCropState() {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,

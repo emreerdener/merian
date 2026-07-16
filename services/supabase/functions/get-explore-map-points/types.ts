@@ -1,19 +1,13 @@
 import type { PetIdentification } from "../_shared/identify/types.ts";
 import type { ExplorePostMediaItem } from "../_shared/explore.ts";
+import type {
+  ExploreMediaType,
+  ExploreSpeciesCategory,
+} from "../_shared/exploreFeedFilters.ts";
 
 export type ExploreCoordinateVisibility = "exact" | "obscured";
-export type ExploreMapMediaType = "image" | "video" | "audio";
-export type ExploreMapSpeciesCategory =
-  | "plants"
-  | "fungi"
-  | "birds"
-  | "mammals"
-  | "reptiles"
-  | "amphibians"
-  | "fish"
-  | "insects"
-  | "arachnids"
-  | "other";
+export type ExploreMapMediaType = ExploreMediaType;
+export type ExploreMapSpeciesCategory = ExploreSpeciesCategory;
 
 export interface ExploreMapPostRow {
   post_id: string;

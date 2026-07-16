@@ -42,6 +42,11 @@ enum AppEvent {
     /// Dispatched from external integrations to open the main scan library sheet.
     case requestOpenScansLibraryIntent
 
+    /// Dispatched after the app has durably copied an image received through document import.
+    case externalImageImportAvailable(importId: UUID)
+    /// Dispatched when an incoming file cannot be accepted into the document-import inbox.
+    case externalImageImportFailed
+
     /// Dispatched after a scan review changes data that Explore renders through the scan join.
     case explorePostNeedsRefresh(postId: String)
     /// Dispatched after a local scan's Explore publication state changes.

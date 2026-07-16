@@ -12,6 +12,7 @@ struct CaptureWorkspaceView: View {
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AudioCaptureManager.self) var audioCaptureManager
+    @Environment(RevenueCatManager.self) private var revenueCatManager
     @Environment(AppSettings.self) private var appSettings
     @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(\.modelContext) private var modelContext
@@ -282,6 +283,12 @@ struct CaptureWorkspaceView: View {
         )
         .environment(\.controlBarHeight, controlBarHeight)
         .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
+        .modifier(ExternalImageImportRetryModifier(
+            viewModel: viewModel,
+            stagedItemCount: viewModel.stagedCapture.totalItemCount,
+            stagedCaptureLimit: viewModel.stagedCaptureLimit,
+            isProActive: revenueCatManager.isProActive
+        ))
         .onPreferenceChange(CaptureBarHeightPreferenceKey.self) { newHeight in
             updateControlBarHeight(newHeight)
         }
@@ -377,6 +384,7 @@ struct CaptureWorkspaceView: View {
             photoLibraryManager.startObservingAndFetch()
             AppDIContainer.shared.environmentContextManager.validatePermissions()
             AppDIContainer.shared.environmentContextManager.startLiveLocationTracking()
+            viewModel.importPendingExternalImageIfPossible()
         }
         .onDisappear {
             if viewModel.isVideoRecording {
@@ -424,6 +432,9 @@ struct CaptureWorkspaceView: View {
                 cameraManager: cameraManager,
                 audioCaptureManager: audioCaptureManager
             )
+            if newPhase == .active {
+                viewModel.importPendingExternalImageIfPossible()
+            }
         }
         .onChange(of: captureMode) { _, newMode in
             if newMode != .describe {
@@ -786,6 +797,30 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
                 }
             }
         }
+    }
+}
+
+private struct ExternalImageImportRetryModifier: ViewModifier {
+    let viewModel: CaptureWorkspaceViewModel
+    let stagedItemCount: Int
+    let stagedCaptureLimit: Int
+    let isProActive: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: stagedItemCount) { oldCount, newCount in
+                if newCount < oldCount {
+                    viewModel.importPendingExternalImageIfPossible()
+                }
+            }
+            .onChange(of: stagedCaptureLimit) { oldLimit, newLimit in
+                if newLimit > oldLimit {
+                    viewModel.importPendingExternalImageIfPossible()
+                }
+            }
+            .onChange(of: isProActive) { _, _ in
+                viewModel.importPendingExternalImageIfPossible()
+            }
     }
 }
 

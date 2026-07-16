@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-15-explore-feed-filters",
+      "date": "2026-07-15",
+      "title": "Explore feed filters",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Filter the Explore feed by species, image/audio/video media, shared date, and Nearby distance from one sheet."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-15-photos-share-import",
+      "date": "2026-07-15",
+      "title": "Share photos to Merian",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Share a photo from Photos directly to Merian for identification."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-15-faster-image-analysis",
       "date": "2026-07-15",
       "title": "Faster image analysis",

@@ -211,6 +211,7 @@ final class ExploreFeedViewModel {
 
     let store = ExplorePostStore()
     var activeFilter: ExploreFeedFilter = .recent
+    var advancedFilters = ExploreFeedAdvancedFilters()
     var isLoadingInitialFeed = false
     var isLoadingMore = false
     var errorMessage: String?
@@ -286,13 +287,30 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var currentInitialFeedRequestId: UUID?
     @ObservationIgnored var currentLoadMoreRequestId: UUID?
     @ObservationIgnored var nearbyLocationSnapshot: ExploreNearbyLocationSnapshot?
+    @ObservationIgnored var activeSharedSince: Date?
+
+    var activeAdvancedFilterCount: Int {
+        advancedFilters.activeFilterCount(for: activeFilter)
+    }
+
+    var hasActiveAdvancedFilters: Bool {
+        advancedFilters.hasActiveFilters(for: activeFilter)
+    }
+
+    var hasStoredAdvancedFilters: Bool {
+        advancedFilters.hasStoredSelections
+    }
+
+    var isCanonicalRecentFeed: Bool {
+        activeFilter == .recent && !advancedFilters.hasObservationFilters
+    }
 
     func bindSettings(_ appSettings: AppSettings) {
         self.appSettings = appSettings
     }
 
     func markRecentFeedSeen(latestSharedAt: String?) {
-        guard activeFilter == .recent else { return }
+        guard isCanonicalRecentFeed else { return }
         appSettings.hasUnseenExplorePost = false
 
         if let latestSharedAt {

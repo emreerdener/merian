@@ -34,23 +34,39 @@ enum IdentifyVisualMediaKind: String, Codable, Sendable {
     case videoFrame = "video_frame"
 }
 
+/// Local-only provenance persisted with queued visual media.
+///
+/// These values are intentionally omitted from `jsonObject`, which is the payload sent to
+/// `/identify-multimodal`. They exist so an offline replay can distinguish a queue bookkeeping
+/// timestamp from an embedded gallery capture date without adding a SwiftData column.
+enum IdentifyVisualCaptureSource: String, Codable, Sendable, Equatable {
+    case camera
+    case gallery
+}
+
 struct IdentifyVisualMediaItem: Codable, Sendable, Equatable {
     let kind: IdentifyVisualMediaKind
     let sourceIndex: Int?
     let clipIndex: Int?
     let frameIndex: Int?
     let focusRegion: NormalizedImageFocusRegion?
+    let captureSource: IdentifyVisualCaptureSource?
+    let hasEmbeddedCaptureDate: Bool?
 
     static func image(
         sourceIndex: Int,
-        focusRegion: NormalizedImageFocusRegion? = nil
+        focusRegion: NormalizedImageFocusRegion? = nil,
+        captureSource: IdentifyVisualCaptureSource? = nil,
+        hasEmbeddedCaptureDate: Bool? = nil
     ) -> IdentifyVisualMediaItem {
         IdentifyVisualMediaItem(
             kind: .image,
             sourceIndex: sourceIndex,
             clipIndex: nil,
             frameIndex: nil,
-            focusRegion: focusRegion
+            focusRegion: focusRegion,
+            captureSource: captureSource,
+            hasEmbeddedCaptureDate: hasEmbeddedCaptureDate
         )
     }
 
@@ -60,7 +76,9 @@ struct IdentifyVisualMediaItem: Codable, Sendable, Equatable {
             sourceIndex: nil,
             clipIndex: clipIndex,
             frameIndex: frameIndex,
-            focusRegion: nil
+            focusRegion: nil,
+            captureSource: nil,
+            hasEmbeddedCaptureDate: nil
         )
     }
 

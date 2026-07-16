@@ -29,6 +29,12 @@ Field Trips, and Dictionary.
   leaderboards. Challenge hashtags are optional composer suggestions only.
   Field Trip comment/reply/followed-publication activity may appear in the
   Explore activity sheet and unread badge, but it is in-app only.
+- **Observations Feed** keeps `Recent`, `Following`, `Trending`, and `Nearby` as
+  dedicated server-backed modes. Its leading Filters pill opens a sheet for
+  feed mode, species groups, image/audio/video media, shared-date range, and a
+  Nearby-only 10/25/50/100-mile distance. Species and media are multi-select;
+  selections are OR-ed within a section and AND-ed across sections before
+  cursor pagination. Reset clears advanced filters without changing feed mode.
 - **Map** lives inside Observations and shows open-location public discoveries.
   Its horizontal quick-filter row remains species-focused. The filter button
   opens a sheet with separate Species and Media type sections, where image,

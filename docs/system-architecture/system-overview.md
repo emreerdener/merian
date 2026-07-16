@@ -6,9 +6,17 @@ Merian is built around a "Zero-OOM" (Out Of Memory) design philosophy targeting 
 
 ## High-Level Pipeline
 
-When the user captures an image, the architecture triggers a coordinated sequence of singletons:
+When the user captures an image or imports one from Photos, the architecture
+triggers a coordinated sequence of singletons. A shared Photos image first
+passes through `MerianApp.onOpenURL` and `ExternalImageImportStore`, which owns a
+durable app-sandbox copy before Capture begins this pipeline:
 
-1. **Hardware Abstraction**: `HardwareOrchestrator` governs `CameraManager`, locking white balance and reading the shutter-time coordinates (`CLLocationCoordinate2D`, elevation, and LiDAR `subjectDistanceInMeters`). WeatherKit and reverse geocoding are prefetched concurrently.
+1. **Capture Context**: Live camera input uses `HardwareOrchestrator` and
+   `CameraManager` to lock white balance and read shutter-time coordinates,
+   elevation, and LiDAR distance while WeatherKit and reverse geocoding are
+   prefetched. PhotosPicker and shared-file imports use their embedded historical
+   context instead; shared files preserve only valid EXIF date/GPS values and do
+   not invent missing metadata.
 2. **Durable Acceptance**: `OfflineQueueManager` persists the ordered media timeline and one stable `scan_id` before live inference. An eligible live-camera still scan is temporarily excluded from background upload so it does not compete with the inline request.
 3. **Biological Inference (`InferenceEngine.swift`)**: For that live-camera still path, after at most 150 ms of environmental-context grace, the pinned network client sends inline media and `CaptureTelemetry` to `/identify-multimodal`, keeping `GEMINI_API_KEY` off the client. The request-body completion callback then releases the durable queue for R2/background recovery. Late context is applied through `/update-scan-context` without a second model call. Gallery, audio-bearing, and video submissions retain their existing behavior while receiving pipeline instrumentation.
 4. **First Result**: The Edge route verifies cached ES256 claims, performs one atomic ingestion-setup RPC, calls the unchanged tier model once, and uses at most one combined cached dictionary-hydration RPC for eligible biological results. Parsed and locally persisted `speciesData` renders before awards, Field Trips, and cache-miss enrichment.

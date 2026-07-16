@@ -922,6 +922,24 @@ Deno.test("Explore nearby feed DB - filters to the nearby radius and keeps recen
       rows.rows.map((row) => row.post_id),
       [nearbyNewerPostId, nearbyOlderPostId],
     );
+
+    const oneMileRows = await client.queryObject<ExploreFeedRow>(
+      `
+        SELECT post_id, shared_at::text AS shared_at
+        FROM public.get_explore_feed_nearby(
+          self_id => $1,
+          viewer_latitude => 30.2672,
+          viewer_longitude => -97.7431,
+          nearby_radius_miles => 1
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(
+      oneMileRows.rows.map((row) => row.post_id),
+      [nearbyOlderPostId],
+    );
   });
 });
 
@@ -983,5 +1001,93 @@ Deno.test("Explore nearby feed DB - uses post-level public coordinates", async (
       rows.rows.map((row) => row.post_id),
       [privateScanOpenPostId],
     );
+  });
+});
+
+Deno.test("Explore feed DB - advanced filters compose before pagination", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const plantSpeciesId = crypto.randomUUID();
+    const birdSpeciesId = crypto.randomUUID();
+    const plantScanId = crypto.randomUUID();
+    const recentBirdScanId = crypto.randomUUID();
+    const oldBirdScanId = crypto.randomUUID();
+    const plantPostId = crypto.randomUUID();
+    const recentBirdPostId = crypto.randomUUID();
+    const oldBirdPostId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Advanced Filter Owner");
+    await insertUser(client, viewerId, "Advanced Filter Viewer");
+    await insertSpecies(client, plantSpeciesId, "Rosa filteris");
+    await insertSpecies(client, birdSpeciesId, "Avis filteris");
+    await client.queryArray(
+      `
+        UPDATE public.species_dictionary
+        SET kingdom = 'Animalia', class = 'Aves'
+        WHERE id = $1
+      `,
+      [birdSpeciesId],
+    );
+
+    for (
+      const [scanId, speciesId] of [
+        [plantScanId, plantSpeciesId],
+        [recentBirdScanId, birdSpeciesId],
+        [oldBirdScanId, birdSpeciesId],
+      ]
+    ) {
+      await insertScan(client, {
+        id: scanId,
+        userId: ownerId,
+        speciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+      });
+    }
+
+    await insertExplorePost(client, {
+      id: plantPostId,
+      userId: ownerId,
+      scanId: plantScanId,
+      sharedAt: "2026-07-12T12:00:00.000Z",
+    });
+    await insertExplorePost(client, {
+      id: recentBirdPostId,
+      userId: ownerId,
+      scanId: recentBirdScanId,
+      sharedAt: "2026-07-10T12:00:00.000Z",
+    });
+    await insertExplorePost(client, {
+      id: oldBirdPostId,
+      userId: ownerId,
+      scanId: oldBirdScanId,
+      sharedAt: "2026-05-10T12:00:00.000Z",
+    });
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_media
+        SET kind = 'video', has_audio = TRUE
+        WHERE post_id IN ($1, $2)
+      `,
+      [recentBirdPostId, oldBirdPostId],
+    );
+
+    const rows = await client.queryObject<ExploreFeedRow>(
+      `
+        SELECT post_id, shared_at::text AS shared_at
+        FROM public.get_explore_feed(
+          self_id => $1,
+          requested_species_categories => ARRAY['birds']::text[],
+          requested_media_types => ARRAY['video']::text[],
+          shared_since => '2026-07-01T00:00:00.000Z'::timestamptz
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(rows.rows.map((row) => row.post_id), [recentBirdPostId]);
   });
 });

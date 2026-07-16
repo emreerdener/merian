@@ -356,6 +356,13 @@ extension OfflineQueueManager {
     /// Maps a queued scan record to a Sendable `ExtractedScanData` snapshot.
     /// Must be called while `scan` is accessible on the main actor.
     func buildExtractedScanData(from scan: OfflineQueuedScan, container: ModelContainer) -> ExtractedScanData {
+        let visualMediaItems: [IdentifyVisualMediaItem]? = scan.visualMediaItemsJSON.flatMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode([IdentifyVisualMediaItem].self, from: data)
+        }
+        let firstImage = visualMediaItems?.first { $0.kind == .image }
+        let shouldOmitQueueTimestamp = firstImage?.captureSource == .gallery
+            && firstImage?.hasEmbeddedCaptureDate != true
         var telemetry = CaptureTelemetry(
             subjectDistanceInMeters: scan.subjectDistanceInMeters,
             gpsLatitude: scan.gpsLatitude,
@@ -365,7 +372,9 @@ extension OfflineQueueManager {
             weatherCondition: scan.weatherCondition,
             weatherTemperatureF: scan.weatherTemperatureF,
             timeOfDay: nil,
-            timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
+            timestamp: shouldOmitQueueTimestamp
+                ? nil
+                : DateUtilities.iso8601Formatter.string(from: scan.timestamp)
         )
         telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
 

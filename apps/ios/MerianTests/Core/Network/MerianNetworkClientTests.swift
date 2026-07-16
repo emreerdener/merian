@@ -971,6 +971,7 @@ struct MerianNetworkClientTests {
             #expect(payload["filter"] as? String == "nearby")
             #expect(payload["latitude"] as? Double == 41.8781)
             #expect(payload["longitude"] as? Double == -87.6298)
+            #expect(payload["nearby_radius_miles"] as? Int == 50)
             return (mockResponse, testData)
         }
 
@@ -983,6 +984,51 @@ struct MerianNetworkClientTests {
         #expect(posts.count == 1)
         #expect(posts[0].id == "post-nearby-123")
         #expect(posts[0].rankingValue == nil)
+    }
+
+    @Test func testGetExploreFeedConstructsAdvancedFilterPayload() async throws {
+        let testData = Data("""
+        {
+            "data": []
+        }
+        """.utf8)
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let referenceDate = try #require(
+            DateUtilities.iso8601Formatter.date(from: "2026-07-15T18:00:00Z")
+        )
+        var filters = ExploreFeedAdvancedFilters()
+        filters.speciesCategories = [.mammals, .birds]
+        filters.mediaTypes = [.video, .audio]
+        filters.dateRange = .pastWeek
+        filters.nearbyRadius = .twentyFive
+        let sharedSince = try #require(filters.dateRange.sharedSince(referenceDate: referenceDate))
+
+        MockURLProtocol.mockEndpoints["/get-explore-feed"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["species_categories"] as? [String] == ["birds", "mammals"])
+            #expect(payload["media_types"] as? [String] == ["audio", "video"])
+            #expect(payload["shared_since"] as? String == "2026-07-08T18:00:00Z")
+            #expect(payload["nearby_radius_miles"] as? Int == 25)
+            return (mockResponse, testData)
+        }
+
+        let posts = try await MerianNetworkClient.shared.getExploreFeed(
+            filter: .nearby,
+            latitude: 30.2672,
+            longitude: -97.7431,
+            advancedFilters: filters,
+            sharedSince: sharedSince
+        )
+
+        #expect(posts.isEmpty)
+        #expect(filters.activeFilterCount(for: .recent) == 5)
+        #expect(filters.activeFilterCount(for: .nearby) == 6)
     }
 
     @Test func testGetExploreFeedFollowingConstructsPayload() async throws {

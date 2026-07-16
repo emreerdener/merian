@@ -1676,15 +1676,17 @@ coordinates to the client contract.
   activity, then breaks ties on `(shared_at DESC, post_id DESC)`. The response
   populates `ranking_value` with the recent-like count used for pagination, and
   the cursor is stable on `(ranking_value DESC, shared_at DESC, post_id DESC)`.
-- `public.get_explore_feed_nearby(self_id UUID, target_latitude DOUBLE PRECISION, target_longitude DOUBLE PRECISION, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
+- `public.get_explore_feed_nearby(self_id UUID, viewer_latitude DOUBLE PRECISION, viewer_longitude DOUBLE PRECISION, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID, nearby_radius_miles DOUBLE PRECISION, requested_species_categories TEXT[], requested_media_types TEXT[], shared_since TIMESTAMPTZ)`:
   The shipped `nearby` feed projection. It reads `explore_posts.public_latitude`
   / `public_longitude`, which are populated only from the post's saved
   `location_sharing` and the protected-species / uncertainty safety rules.
   Non-owned posts therefore need post-level `location_sharing = 'open'` and a
   stored public coordinate to match the radius query; `obscured` and `private`
   posts remain visible in non-spatial Explore feeds but cannot be discovered by
-  Nearby. The RPC filters matches to roughly 50 miles around the viewer, then
-  sorts surviving rows by `(shared_at DESC, post_id DESC)`. This keeps the
+  Nearby. The RPC filters matches to the requested 1–100-mile radius (50 miles
+  by default), then sorts surviving rows by `(shared_at DESC, post_id DESC)`.
+  Species, media, and shared-date filters run before ordering and `LIMIT`, as
+  they do in the other three feed RPCs. This keeps the
   client feed feeling like Explore rather than a pure nearest-neighbor list
   while preserving the same coordinate boundary used by the map.
 - `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same

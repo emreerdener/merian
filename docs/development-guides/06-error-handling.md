@@ -123,6 +123,15 @@ memory.
 | SwiftData schema migration failure at startup             | Legacy store artifacts are archived under `store-rescue/`, a fresh persistent current-schema store opens, and the user sees "Library Rebuilt" with `legacy_store_rescued` telemetry; safe mode is only used if rescue fails |
 | Non-corruption `ModelContainer` startup failure           | Local store files are not moved; app boots in in-memory safe mode with a startup notice                                                                                                                       |
 | JWT expiry (authenticated OAuth user)                     | `MerianError.invalidResponse` thrown; callers surface a re-auth prompt                                                                                                                                        |
+| Photos import blocked by quota                            | Existing paywall opens; the durable inbox receipt remains pending for an entitlement retry                                                                                                                   |
+| Photos import blocked by capture capacity                 | Capture shows "Finish your current capture to import the shared photo." and retains the receipt until staged media clears                                                                                    |
+| Photos import unsupported, missing, or unreadable         | Error haptic plus "Merian couldn’t import that photo."; any durable receipt is removed as terminal                                                                                                          |
+
+Photos document-import failures use `ExternalImageImportError` and capture
+feedback rather than broadening `MerianError`, because they occur before a scan
+or network request exists. Temporary quota/capacity states are not errors and
+must not delete the Application Support inbox copy. See
+`docs/features-and-hardware/26-photos-share-import.md`.
 
 ---
 

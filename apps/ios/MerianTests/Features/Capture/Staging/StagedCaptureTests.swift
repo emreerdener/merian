@@ -1,3 +1,4 @@
+import CoreLocation
 import Testing
 import UIKit
 
@@ -266,7 +267,18 @@ struct StagedCaptureTests {
 
     @Test func stagedImageReplacingPreservesChronologicalInsertionTime() {
         let originalAddedAt = Date(timeIntervalSince1970: 20)
-        var originalImage = IdentifiableImage(image: UIImage())
+        let historicalCaptureDate = Date(timeIntervalSince1970: 10)
+        var originalImage = IdentifiableImage(
+            image: UIImage(),
+            environmentContext: EnvironmentContext(
+                location: CLLocation(latitude: 41.8781, longitude: -87.6298),
+                locationName: nil,
+                weatherCondition: nil,
+                weatherTemperature: nil,
+                captureDate: historicalCaptureDate
+            ),
+            isFromGallery: true
+        )
         originalImage.lastCropScale = 1.2
         let stagedImage = StagedImage(
             compressedData: Data([0x01]),
@@ -289,6 +301,10 @@ struct StagedCaptureTests {
         #expect(replacement.compressedData == Data([0x03]))
         #expect(replacement.displayData == Data([0x04]))
         #expect(replacement.original.lastCropScale == 2.0)
+        #expect(replacement.original.isFromGallery)
+        #expect(replacement.original.environmentContext?.captureDate == historicalCaptureDate)
+        #expect(replacement.original.environmentContext?.location?.coordinate.latitude == 41.8781)
+        #expect(replacement.original.environmentContext?.location?.coordinate.longitude == -87.6298)
     }
 
     @Test func submissionMediaTimelineSupportsAllowedCombinationMatrix() {

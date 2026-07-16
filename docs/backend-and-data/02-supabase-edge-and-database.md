@@ -935,8 +935,14 @@ contract:
 - `nearby`: a location-gated feed backed by
   `public.get_explore_feed_nearby(...)`, requiring viewer coordinates, reading
   post-owned public coordinates from `explore_posts.public_latitude` /
-  `public_longitude`, filtering non-owned coordinate-bearing posts to a roughly
-  50-mile radius, and then sorting the resulting posts by recency
+  `public_longitude`, filtering non-owned coordinate-bearing posts to the
+  selected 1–100-mile radius (50 miles by default), and then sorting the
+  resulting posts by recency
+
+Every mode also accepts shared species-category, media-kind, and inclusive
+`shared_since` filters. Values are OR-ed within each group and AND-ed across
+groups. The dedicated SQL RPCs apply these constraints before mode ordering and
+cursor limits; the Edge Function does not thin an already paginated result.
 
 Explore hashtags are normalized public metadata, not parsed captions. Publishing
 through `share-scan-to-explore` replaces up to five

@@ -68,6 +68,13 @@ flowchart TD
 - **Native Camera Roll Integration (`PhotoLibraryManager`):** Persists
   unmodified `12MP` output into the user's local iOS `PHPhotoLibrary` on
   capture, avoiding iCloud sync delays.
+- **Photos Document Import (`ExternalImageImportStore`):** The app advertises
+  `public.image` as an alternate viewer. `MerianApp.onOpenURL` copies a shared
+  Photos file out of its security-scoped or temporary source into an
+  Application Support inbox before publishing a typed `AppEvent`. This is an
+  app-owned document import, not an extension or App Group handoff, and the
+  pending copy survives cold launch and onboarding until Capture stages it or
+  rejects it as terminally unreadable.
 - **Pre-warmed Tactile Shutter (`HapticManager`):** The app `.prepare()`s Taptic
   Engine instances (e.g. `UIImpactFeedbackGenerator(style: .medium)`) on app
   boot inside a global `HapticManager`. Centralizing haptics removes the ~20ms
@@ -83,8 +90,9 @@ flowchart TD
   used for Camera Roll EXIF and deferred weather/geocode context, while stale
   cached coordinates remain a fallback if GPS cannot settle within the timeout.
   It also backfills historical edge metadata (GPS and past WeatherKit
-  conditions) by mapping `PHAsset` EXIF data for library imports prior to
-  inference.
+  conditions) from `PHAsset` context for in-app gallery picks or embedded
+  ImageIO metadata for Photos document imports prior to inference. Date-only
+  and coordinate-only imports preserve only the fields actually present.
 
 ### 3. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
 
@@ -258,9 +266,10 @@ single-responsibility functions under `/services/supabase/functions/`.
   crashes and micro-stutters by capping at ~100 thumbnail entries, with iOS
   memory pressure controlling eviction.
 - **Still-Image Preparation (`MediaPreparationActor`):** File-backed gallery,
-  refinement, and avatar imports enter a dedicated actor before UI staging. The
-  actor owns bounded ImageIO downsampling, WebP/JPEG encoding, and payload
-  metrics so SwiftUI never retains full original PhotosPicker files.
+  Photos document imports, refinement, and avatar imports enter a dedicated
+  actor before UI staging. The actor owns bounded ImageIO downsampling,
+  WebP/JPEG encoding, and payload metrics so SwiftUI never retains full original
+  PhotosPicker or shared files.
 - **Asynchronous Grid Downsampling:** Image-heavy views (`ScansSheetView`,
   `ScansGrid`, `InsightSheetView`, and the insight carousel) offload decoding
   onto a CPU pool using `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex`,

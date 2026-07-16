@@ -45,6 +45,21 @@ export default function SupportPage() {
 
           <Stack gap="sm">
             <Title order={2} size="h3">
+              Share a photo from Photos
+            </Title>
+            <Text>
+              Open one photo in the iOS Photos app, tap Share, then choose Merian in
+              the app row. Merian opens the photo in its normal crop and identification
+              flow. If Merian is not immediately visible, scroll the app row and tap More.
+            </Text>
+            <Text c="dimmed" size="sm">
+              You can exclude Location from Photos&apos; share Options before sending.
+              Multi-photo sharing is not supported in this version.
+            </Text>
+          </Stack>
+
+          <Stack gap="sm">
+            <Title order={2} size="h3">
               Contact
             </Title>
             <Text>

@@ -35,6 +35,7 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackThermalThrottling(fpsLimit: 15)
         AppTelemetry.trackError("UnitTestTrigger")
         AppTelemetry.trackOfflineQueued()
+        AppTelemetry.trackExternalImageImport(outcome: "staged")
         AppTelemetry.trackOnboardingCompleted()
         AppTelemetry.trackExploreNotificationsFetchFailed(context: "sheet_load")
         AppTelemetry.trackAchievementDetailOpened(type: "fungi", state: "in_progress")
@@ -60,6 +61,7 @@ final class AppTelemetryTests: XCTestCase {
             "CaptureThermalThrottled",
             "ClientErrorCaptured",
             "ScanQueuedForSync",
+            "ExternalImageImport",
             "OnboardingCompleted",
             "ExploreNotificationsFetchFailed",
             "AchievementDetailOpened",
@@ -141,5 +143,14 @@ final class AppTelemetryTests: XCTestCase {
             XCTAssertEqual(Set(event.properties.keys), ["surface", "event_source"])
             XCTAssertEqual(event.properties["event_source"] as? String, "ios_client")
         }
+    }
+
+    func testExternalImageImportEventContainsOnlyOutcomeAndClientSource() {
+        AppTelemetry.trackExternalImageImport(outcome: "blocked_quota")
+
+        let event = capturedEvents.first
+        XCTAssertEqual(event?.name, "ExternalImageImport")
+        XCTAssertEqual(event?.properties["outcome"] as? String, "blocked_quota")
+        XCTAssertEqual(Set(event?.properties.keys.map { $0 } ?? []), ["outcome", "event_source"])
     }
 }

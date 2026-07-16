@@ -9,6 +9,12 @@ This area orchestrates the `AVCaptureSession`. It handles complex hardware integ
 - Real-time viewfinder intelligence (analyzing luma for brightness/motion blur at 3fps).
 - The logarithmic zoom meter, manual exposure/focus, and physical hardware button events (Action Button / Camera Control).
 
+In-app `PhotosPicker` selection lives with Scan controls, while a photo received
+from the iOS Photos share sheet enters through the Capture shell and
+`ExternalImageImportStore`. Both sources converge on the same file-backed image
+preparation and required-crop behavior. The document-import contract is
+documented in `docs/features-and-hardware/26-photos-share-import.md`.
+
 ## Automatic still-image focus
 
 After the final square crop is encoded, `ImageFocusRegionDetector` runs Vision's

@@ -15,7 +15,7 @@ To maintain strict bounds against the 2GB iPhone memory ceiling, **you may never
 | BANNED API / PATTERN | MERIAN APPROVED ALTERNATIVE | WHY IT'S FATAL |
 | :--- | :--- | :--- |
 | `UIImage(data:)` / `UIImage(contentsOfFile:)` on user-selected originals | `MediaPreparationActor.prepareStillImage(...)` / `preparePreviewImage(...)` for file-backed scan, refinement, and avatar paths; `ImageDownsampler.downsample(data:maxSize:)` only for already-bounded bytes | `UIImage` initialization decompresses the entire 12MP–48MP payload into raw RAM (often 50MB–300MB per image). Four frames loaded sequentially will crash the host process. |
-| `NSItemProvider.loadDataRepresentation` for image imports | `loadFileRepresentation` / `loadInPlaceFileRepresentation` + file-size validation | Share extensions have tiny memory ceilings. Materializing an arbitrary HEIC/PNG/TIFF into extension RAM can terminate the extension before downsampling starts. |
+| `Data(contentsOf:)`, `UIImage(...)`, or `NSItemProvider.loadDataRepresentation` on an incoming image document | App-owned `CFBundleDocumentTypes` routing → `ExternalImageImportStore` durable file copy → `MediaPreparationActor` | The delivered URL may be temporary or security scoped, and decoding an arbitrary HEIC/PNG/TIFF before bounded ImageIO preparation can terminate the app. Merian does not use a Photos Share Extension. |
 | Edge `req.json()` / `response.arrayBuffer()` on media-bearing bodies | `_shared/mediaBudgets.ts` capped readers | `Content-Length` can be absent or forged by chunked transfer. Stream-count bytes first, cancel on overflow, then assemble the bounded buffer. |
 | Unbounded Edge `Promise.all(...)` over user-scaled rows | `_shared/concurrency.ts` `mapWithConcurrencyLimit` | Fanout over devices, R2 objects, or DB writes can spike sockets, V8 heap, provider throttles, and Postgres load from one isolate. |
 | `@EnvironmentObject` | `AppDIContainer.shared` + `@Observable` | Massive environment objects cause entire view graphs to recompute uncontrollably ("View Graph Tearing") when state mutates. We isolate dependencies using iOS 17's macro. |
@@ -73,9 +73,11 @@ If you suspect an issue:
 - Never call `fatalError` from auth, configuration, or persistence bootstrap paths. `MerianEnvironment.load()` returns typed diagnostics, optional SDKs skip missing-key setup, Supabase endpoint construction throws, and `ModelContainer` recovery must log, quarantine or rescue legacy stores, fall back to in-memory safe mode, or show startup-blocked UI.
 - Camera shutter ImageIO work must run through `DetachedWork.value(category: .imagePreparation)`. `Task {}` inside a `@MainActor` view model is orchestration only; it must not synchronously downsample, crop, or encode 12MP buffers.
 - File-backed still-image imports must enter through `MediaPreparationActor`.
-  Gallery staging, refinement staging, and avatar crop previews use bounded
-  ImageIO passes before any SwiftUI `UIImage` is created. `StagedImage.displayData`
-  is a display-sized payload only, never a full original file mapping.
+  Gallery staging, Photos document imports, refinement staging, and avatar crop
+  previews use bounded ImageIO passes before any SwiftUI `UIImage` is created.
+  Shared Photos files must first be copied through `ExternalImageImportStore`
+  while security-scoped access is active. `StagedImage.displayData` is a
+  display-sized payload only, never a full original file mapping.
 - Offline queued-only submissions must not call `InferenceEngine.prepareForNewScan()`. Prepare the live engine only after online live inference is confirmed, otherwise `isProcessing` can stay true with no active request.
 - Queued audio must stage through R2 and replay as `audioR2ObjectKeys`; only live foreground audio may use inline `audioBase64s`, and only after byte-size preflight.
 - Media-bearing Edge requests must use `readRequestJsonWithinBudget`; R2/media

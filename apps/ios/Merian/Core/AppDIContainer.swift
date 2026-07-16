@@ -31,6 +31,7 @@ import SwiftUI
     var syncStateManager = SyncStateManager.shared
     var archiveManager = ArchiveManager.shared
     var photoLibraryManager = PhotoLibraryManager.shared
+    var externalImageImportStore = ExternalImageImportStore.shared
 
     // MARK: - Dependencies (Network & Backend)
     var supabaseManager = SupabaseManager.shared

@@ -1502,7 +1502,9 @@ final class MerianNetworkClient {
         filter: ExploreFeedFilter = .recent,
         latitude: Double? = nil,
         longitude: Double? = nil,
-        cursor: ExploreFeedCursor? = nil
+        cursor: ExploreFeedCursor? = nil,
+        advancedFilters: ExploreFeedAdvancedFilters = ExploreFeedAdvancedFilters(),
+        sharedSince: Date? = nil
     ) async throws -> [ExplorePost] {
         let functionUrl = try endpointURL("get-explore-feed")
         var payload: [String: Any] = [
@@ -1516,6 +1518,26 @@ final class MerianNetworkClient {
 
         if let longitude {
             payload["longitude"] = longitude
+        }
+
+        if !advancedFilters.speciesCategories.isEmpty {
+            payload["species_categories"] = advancedFilters.speciesCategories
+                .sorted { $0.sortPriority < $1.sortPriority }
+                .map(\.rawValue)
+        }
+
+        if !advancedFilters.mediaTypes.isEmpty {
+            payload["media_types"] = advancedFilters.mediaTypes
+                .map(\.rawValue)
+                .sorted()
+        }
+
+        if let sharedSince {
+            payload["shared_since"] = DateUtilities.iso8601Formatter.string(from: sharedSince)
+        }
+
+        if filter == .nearby {
+            payload["nearby_radius_miles"] = advancedFilters.nearbyRadius.rawValue
         }
 
         if let cursor {

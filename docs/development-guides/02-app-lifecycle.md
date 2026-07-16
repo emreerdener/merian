@@ -25,6 +25,17 @@ Camera session startup is owned by `CaptureWorkspaceView` / `CaptureWorkspaceVie
 **Deep links and intents:**
 `MerianApp.handleMerianDeepLink(_:)`, `PushNotificationManager.handleNotificationAction(...)`, and App Intents publish typed `AppEventPublisher` events. `CaptureWorkspaceViewModel` consumes scan and Explore events to present the appropriate sheet. `CaptureWorkspaceView` consumes identify/recall intent events that need to modify the pager or reuse current insight state.
 
+**Photos document import:**
+`MerianApp.onOpenURL` handles Google Sign-In and Merian deep links before
+classifying file URLs, and leaves remaining URLs for Supabase authentication.
+An accepted image is copied immediately into `ExternalImageImportStore`; only
+then does the app publish `.externalImageImportAvailable`. The durable inbox,
+not the transient `AppEvent`, is authoritative. `CaptureWorkspaceView` checks it
+on appearance and every active transition so cold launch, onboarding, or an
+event sent before the workspace subscribes cannot lose the photo. Capacity and
+quota blocks retain the receipt. See
+`docs/features-and-hardware/26-photos-share-import.md`.
+
 **Internal Cross-Sheet Routing:**
 `AppEventPublisher` is also utilized for decoupled internal routing. For example, toast actions originating from the `InsightSheetViewModel` can dispatch specific intents (e.g., `.requestOpenNonBiologicalScansIntent`) that are captured by the `CaptureWorkspaceViewModel` and `ScansSheetView` to mutate root presentation states and push nested navigation views, completely avoiding tight coupling between sibling modal sheets.
 
@@ -80,6 +91,11 @@ To add new interrupt-sensitive states in the future, add a condition to `shouldP
 #### External route timeout suppression
 
 External routes can arrive at the same time as the foreground timeout reset. Widget taps, Explore activity pushes, and scan-result pushes should win over a stale camera reset when they are the direct reason the app opened.
+
+Photos document imports do not use this short route-suppression deadline. Their
+durable inbox copy is independent of sheet state and is retried after the
+Capture workspace becomes active, so timeout cleanup cannot destroy the source
+receipt.
 
 `CaptureWorkspaceViewModel.protectExternalRouteFromImmediateSessionTimeoutReset()` creates a short one-shot suppression deadline when a scan or Explore deep link is handled. If `.appDidResumeAfterTimeout` arrives during that window, `handleSessionTimeoutReset()` consumes the suppression and skips the reset. This prevents the sequence `widget URL -> activeSheet = .explore -> timeout reset -> activeSheet = nil`.
 

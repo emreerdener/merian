@@ -41,8 +41,11 @@ export default function PrivacyPolicyPage() {
           <li>
             <Text>
               <strong>Observation content:</strong>{" "}
-              photos, audio clips, descriptions, AI-generated species results,
-              taxonomy, field notes, and scan metadata.
+              photos you capture, select, or explicitly share to Merian, audio
+              clips, descriptions, AI-generated species results, taxonomy,
+              field notes, and scan metadata. Sharing one photo from iOS Photos
+              gives Merian access to that delivered file, not broad access to
+              your Photo Library.
             </Text>
           </li>
           <li>
@@ -122,7 +125,10 @@ export default function PrivacyPolicyPage() {
           ecological journal. You can control location permission in iOS and
           configure Merian geoprivacy as open, obscured, or private. Public
           Explore surfaces use Merian&apos;s filtered location projection, and
-          sensitive species handling may further reduce location precision.
+          sensitive species handling may further reduce location precision. A
+          photo selected or shared from Photos may include its embedded capture
+          date and GPS coordinates. You can exclude Location in Photos&apos; share
+          Options; Merian does not invent missing coordinates or dates.
         </Text>
       </LegalSection>
 
@@ -141,6 +147,10 @@ export default function PrivacyPolicyPage() {
           <li>
             Disable camera, microphone, photo library, speech, or location
             permissions in iOS.
+          </li>
+          <li>
+            Exclude Location in the iOS Photos share Options before sending a
+            photo to Merian.
           </li>
           <li>Change geoprivacy settings in Merian.</li>
           <li>Unshare Explore posts or delete scans in the app.</li>

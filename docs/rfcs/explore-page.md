@@ -98,11 +98,11 @@ The Explore feed and map shell are now live. The current shipped implementation 
   Native clients may show its label on cards/detail/share text, while dictionary
   links, species stats, and taxonomy routing continue to use
   `species_scientific_name`.
-- The feed tab now ships a filter row with `Recent`, `Following`, `Trending`, and `Nearby`.
+- The feed tab now ships a leading `Filters` pill before `Recent`, `Following`, `Trending`, and `Nearby`. The pill opens a sheet for feed mode, species groups, image/audio/video media, shared-date range, and a Nearby-only 10/25/50/100-mile distance.
 - `Recent` remains the default mode and still uses the canonical `(shared_at, post_id)` cursor.
 - `Following` is an asymmetric-follow feed backed by followed authors' visible Explore posts. It uses the same `(shared_at, post_id)` cursor as `Recent` and does not change `Recent`, `Trending`, `Nearby`, or map results.
 - `Trending` is freshness-biased rather than all-time top. It uses recent like activity from the trailing 30 days and paginates on `(ranking_value, shared_at, post_id)`.
-- `Nearby` requires viewer location, reads the same post-owned public coordinates as the map, filters non-owned coordinate-bearing posts to a roughly 50-mile radius, and then sorts the surviving posts by recency rather than raw distance.
+- `Nearby` requires viewer location, reads the same post-owned public coordinates as the map, filters non-owned coordinate-bearing posts to the selected 10–100-mile radius (50 miles by default), and then sorts the surviving posts by recency rather than raw distance.
 - The Explore-tab unread badge and "last seen" bookkeeping remain tied to the `Recent` feed only so browsing alternate modes does not mutate recency tracking.
 
 ## Public Author Profile Extension (2026-05-11)
@@ -541,7 +541,9 @@ webhook trigger. Follow notifications and Field Trip activity stay in-app only.
 - Exclude blocked users
 - Exclude shadowbanned users
 - Exclude unshared posts
-- Exclude posts whose scan no longer has active image media
+- Exclude posts with no remaining saved public image, video, or audio media
+- Apply optional species-category, media-kind, and inclusive shared-date filters
+  before mode ordering and `LIMIT`
 - Order by the selected feed mode:
   - `Recent`: `shared_at DESC`
   - `Following`: followed authors only, then `shared_at DESC`
@@ -556,12 +558,22 @@ Pagination:
 - `Trending` should use `(ranking_value, shared_at, post_id)` so ranking ties do not skip or duplicate rows
 - Recommended request fields:
   - `filter`
+  - `species_categories`
+  - `media_types`
+  - `shared_since`
   - `before_shared_at`
   - `before_post_id`
   - `before_ranking_value` for `Trending`
   - `latitude` and `longitude` for `Nearby`
+  - `nearby_radius_miles` for `Nearby` (1–100, default 50)
   - `limit`
 - Current shipped note: both cursor models are now canonical server and client paths.
+
+Advanced selections are OR-ed within a group and AND-ed across groups. Media
+matching is existential over a post's ordered public media, so a mixed-media
+post matches when any item has a selected kind. Clients snapshot `shared_since`
+when loading page 1 and reuse it for later pages so relative date windows do not
+drift during a browsing session.
 
 Recommended response fields:
 
@@ -1029,6 +1041,8 @@ Client behavior:
 - Likes/comments/shares do not use the offline queue
 - `Recent`, `Following`, and `Nearby` pagination are cursor-based on `(shared_at, post_id)`
 - `Trending` pagination is cursor-based on `(ranking_value, shared_at, post_id)`
+- Feed species, media, date, and Nearby-distance constraints execute server-side
+  before cursor pagination; the client does not trim pages after receipt
 - Comments pagination is cursor-based on `(created_at, comment_id)`
 - Notifications pagination is cursor-based on `(updated_at, notification_id)`
 - Like and comment counts should update optimistically
@@ -1041,6 +1055,9 @@ Client behavior:
 - Map filters should keep species shortcuts in the horizontal pill row and put
   image, video, and audio multi-select controls in the full filter sheet. The
   generic Filters count and All/Reset actions include both groups.
+- Feed filters should keep the four modes in the horizontal row and add a
+  leading Filters pill. Its sheet owns mode, species, media, shared date, and
+  Nearby-only distance; Reset clears advanced constraints but preserves mode.
 - Marker selection should open a preview card first and only then open full detail
 - The map should emit lightweight telemetry for tab open, explicit area search, cluster tap, waypoint preview open, and detail open
 - Feed comment taps present `ExploreCommentsSheet`; detail-page comments render inline with the thread

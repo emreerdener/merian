@@ -49,10 +49,35 @@ Nearby:
   "filter": "nearby",
   "latitude": 30.2672,
   "longitude": -97.7431,
+  "nearby_radius_miles": 25,
   "before_shared_at": "2026-05-03T12:00:00.000Z",
   "before_post_id": "uuid"
 }
 ```
+
+Every mode also accepts optional advanced filters:
+
+```json
+{
+  "filter": "recent",
+  "species_categories": ["birds", "insects"],
+  "media_types": ["audio", "video"],
+  "shared_since": "2026-06-26T12:00:00.000Z"
+}
+```
+
+- `species_categories` supports the same taxonomy groups as Explore Map:
+  `plants`, `fungi`, `birds`, `mammals`, `reptiles`, `amphibians`, `fish`,
+  `insects`, `arachnids`, and `other`.
+- `media_types` supports `image`, `audio`, and `video`. A mixed-media post
+  matches when any saved public media item has a selected kind.
+- `shared_since` is an inclusive ISO-8601 cutoff over `shared_at`.
+- `nearby_radius_miles` is used only by `nearby`, defaults to `50`, and must be
+  between `1` and `100`.
+
+Selections are OR-ed within each group and AND-ed across groups. All advanced
+filters execute in SQL before ordering and `LIMIT`, so a page never becomes
+sparse because the client discarded non-matching rows after pagination.
 
 ## Pagination
 
@@ -60,6 +85,8 @@ Nearby:
 - `trending` pages on `(ranking_value DESC, shared_at DESC, post_id DESC)`.
 - Cursor fields must be omitted for the first page.
 - `nearby` requires both `latitude` and `longitude`.
+- Clients should keep the same `shared_since` snapshot while paging a date
+  window so the result boundary does not drift between pages.
 - `nearby` reads post-owned public coordinates from `explore_posts`. For
   non-owned posts, only saved `location_sharing = "open"` posts with stored
   public coordinates can match the radius query.
@@ -150,6 +177,7 @@ grant access to private scans.
 deno fmt --check services/supabase/functions/get-explore-feed
 deno lint --config services/supabase/functions/deno.json services/supabase/functions/get-explore-feed
 deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-feed/index.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/exploreFeedFilters.test.ts services/supabase/functions/get-explore-feed/db.test.ts
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts
 ```
 

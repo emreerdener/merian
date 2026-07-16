@@ -8,6 +8,11 @@ TestFlight, App Store, support, and QA.
 
 ### Media & Performance
 
+- Added single-photo import from the iOS share sheet. Sharing an image from
+  Photos to Merian now opens the app and routes the file through the existing
+  gallery crop, confirmation, quota, metadata, analysis, and offline-queue flow.
+  Included EXIF date/location is preserved online and offline; excluded Location
+  never falls back to the device's current coordinates.
 - Reduced live-camera still-image analysis wait time by starting inference after
   a bounded environmental-context grace period, avoiding duplicate live/background
   uploads and duplicate inference dispatch, and moving optional enrichment,
@@ -25,6 +30,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added a Filters pill and sheet to the Explore feed. Species groups,
+  image/audio/video media, shared date, and Nearby distance can now be combined
+  without thinning paginated pages on the device.
 - Separated Explore post reports from identification flags. Reporting public
   content now enters its own moderation queue without marking the underlying
   species identification for review; existing misrouted reports are repaired,

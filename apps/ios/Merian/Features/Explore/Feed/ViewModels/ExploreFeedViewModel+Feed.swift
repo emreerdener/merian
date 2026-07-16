@@ -17,6 +17,8 @@ private struct ExploreFeedRequestContext {
     let latitude: Double?
     let longitude: Double?
     let cursor: ExploreFeedCursor
+    let advancedFilters: ExploreFeedAdvancedFilters
+    let sharedSince: Date?
 }
 
 extension ExploreFeedViewModel {
@@ -42,6 +44,18 @@ extension ExploreFeedViewModel {
         await loadInitialFeed(force: true)
     }
 
+    func applyAdvancedFilters(_ filters: ExploreFeedAdvancedFilters) async {
+        guard filters != advancedFilters else { return }
+
+        advancedFilters = filters
+        resetFeedStateForFilterChange()
+        await loadInitialFeed(force: true)
+    }
+
+    func resetAdvancedFilters() async {
+        await applyAdvancedFilters(ExploreFeedAdvancedFilters())
+    }
+
     func refreshFeed(latitude: Double? = nil, longitude: Double? = nil) async {
         if activeFilter == .nearby {
             setNearbyLocationSnapshot(
@@ -52,6 +66,8 @@ extension ExploreFeedViewModel {
                 )
             )
         }
+
+        activeSharedSince = advancedFilters.dateRange.sharedSince(referenceDate: Date())
 
         await loadInitialFeed(force: true)
     }
@@ -85,7 +101,9 @@ extension ExploreFeedViewModel {
                 filter: request.filter,
                 latitude: request.latitude,
                 longitude: request.longitude,
-                cursor: request.cursor
+                cursor: request.cursor,
+                advancedFilters: request.advancedFilters,
+                sharedSince: request.sharedSince
             )
             let freshFieldTripPublications = FieldTripsAvailability.isEnabled
                 ? await loadFieldTripPublicationsForActiveFilter()
@@ -102,7 +120,7 @@ extension ExploreFeedViewModel {
             reconcileActiveCommentsPost()
 
             markRecentFeedSeen(latestSharedAt: freshPosts.first?.sharedAt)
-            if activeFilter == .recent {
+            if isCanonicalRecentFeed {
                 ExploreWidgetSnapshotWriter.refreshRecentFeedSnapshot(from: freshPosts)
             }
         } catch is CancellationError {
@@ -148,7 +166,9 @@ extension ExploreFeedViewModel {
                 filter: request.filter,
                 latitude: request.latitude,
                 longitude: request.longitude,
-                cursor: request.cursor
+                cursor: request.cursor,
+                advancedFilters: request.advancedFilters,
+                sharedSince: request.sharedSince
             )
 
             guard activeFeedRequestId == requestId else { return }
@@ -210,6 +230,7 @@ extension ExploreFeedViewModel {
         hasLoadedFeedOnce = false
         hasReachedEndOfFeed = false
         nextFeedCursor = .empty
+        activeSharedSince = advancedFilters.dateRange.sharedSince(referenceDate: Date())
         store.setFeedPosts([])
         fieldTripPublications = []
         dismissComments()
@@ -226,7 +247,9 @@ extension ExploreFeedViewModel {
                 filter: .nearby,
                 latitude: currentNearbyLatitude,
                 longitude: currentNearbyLongitude,
-                cursor: .empty
+                cursor: .empty,
+                advancedFilters: advancedFilters,
+                sharedSince: activeSharedSince
             )
         }
 
@@ -234,7 +257,9 @@ extension ExploreFeedViewModel {
             filter: activeFilter,
             latitude: nil,
             longitude: nil,
-            cursor: .empty
+            cursor: .empty,
+            advancedFilters: advancedFilters,
+            sharedSince: activeSharedSince
         )
     }
 
@@ -244,12 +269,15 @@ extension ExploreFeedViewModel {
             filter: request.filter,
             latitude: request.latitude,
             longitude: request.longitude,
-            cursor: nextFeedCursor
+            cursor: nextFeedCursor,
+            advancedFilters: request.advancedFilters,
+            sharedSince: request.sharedSince
         )
     }
 
     private func loadFieldTripPublicationsForActiveFilter() async -> [FieldTripRecentPublication] {
         guard FieldTripsAvailability.isEnabled else { return [] }
+        guard !advancedFilters.hasObservationFilters else { return [] }
 
         let mode: FieldTripCommunityMode
         switch activeFilter {

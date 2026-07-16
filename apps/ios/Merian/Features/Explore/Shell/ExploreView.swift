@@ -724,6 +724,7 @@ private struct ExploreFeedTabContent: View {
     @Environment(\.openURL) private var openURL
     @State private var isLocationSettingsAlertPresented = false
     @State private var isResolvingNearbyLocation = false
+    @State private var isShowingFilterSheet = false
     @State private var editingPost: ExplorePost?
     @State private var editingPostDetail: ExplorePostDetail?
     @State private var editingPostMediaItems: [ExplorePostComposerMediaDraft] = []
@@ -756,8 +757,8 @@ private struct ExploreFeedTabContent: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
         .exploreVideoOverlayLifecycle(
-            isPresented: editingPost != nil,
-            reason: "explore-feed-edit-post"
+            isPresented: editingPost != nil || isShowingFilterSheet,
+            reason: "explore-feed-overlay"
         )
         .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
             Button("Not Now", role: .cancel) {}
@@ -767,7 +768,10 @@ private struct ExploreFeedTabContent: View {
                 }
             }
         } message: {
-            Text("Nearby uses your current location to show discoveries shared within \(ExploreFeedFilter.nearbyRadiusMiles) miles.")
+            Text("Nearby uses your current location to show discoveries shared within \(viewModel.advancedFilters.nearbyRadius.rawValue) miles.")
+        }
+        .sheet(isPresented: $isShowingFilterSheet) {
+            feedFilterSheet
         }
         .sheet(item: $editingPost, onDismiss: {
             clearPostEditor()
@@ -911,6 +915,10 @@ private struct ExploreFeedTabContent: View {
     }
 
     private var emptyStateTitle: String {
+        if viewModel.hasActiveAdvancedFilters {
+            return "No matching discoveries"
+        }
+
         switch viewModel.activeFilter {
         case .recent:
             return "Nothing shared yet"
@@ -924,6 +932,10 @@ private struct ExploreFeedTabContent: View {
     }
 
     private var emptyStateMessage: String {
+        if viewModel.hasActiveAdvancedFilters {
+            return "Try removing one or more filters to broaden the feed."
+        }
+
         switch viewModel.activeFilter {
         case .recent:
             return "Shared discoveries will show up here once people publish scans to Explore."
@@ -932,7 +944,7 @@ private struct ExploreFeedTabContent: View {
         case .trending:
             return "Freshly liked discoveries will appear here as the community reacts."
         case .nearby:
-            return "We couldn’t find shared discoveries within \(ExploreFeedFilter.nearbyRadiusMiles) miles of your current location."
+            return "We couldn’t find shared discoveries within \(viewModel.advancedFilters.nearbyRadius.rawValue) miles of your current location."
         }
     }
 
@@ -1096,10 +1108,18 @@ private struct ExploreFeedTabContent: View {
             items: ExploreFeedFilter.allCases,
             activeItem: viewModel.activeFilter,
             title: { $0.title },
+            leadingTitle: viewModel.hasActiveAdvancedFilters
+                ? "Filters \(viewModel.activeAdvancedFilterCount.formatted())"
+                : "Filters",
+            isLeadingSelected: viewModel.hasActiveAdvancedFilters,
             onSelection: { filter in
                 Task {
                     await selectFilter(filter)
                 }
+            },
+            onLeadingSelection: {
+                HapticManager.shared.triggerSelectionPulse()
+                isShowingFilterSheet = true
             }
         )
         .disabled(isResolvingNearbyLocation)
@@ -1111,6 +1131,226 @@ private struct ExploreFeedTabContent: View {
                     .padding(.trailing, 16)
             }
         }
+    }
+
+    private var feedFilterSheet: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    filterSectionTitle("Feed")
+
+                    ForEach(ExploreFeedFilter.allCases) { filter in
+                        Button {
+                            HapticManager.shared.triggerSelectionPulse()
+                            Task { await selectFilter(filter) }
+                        } label: {
+                            FilterSheetSelectionRow(
+                                title: filter.title,
+                                subtitle: feedFilterSubtitle(filter),
+                                systemImage: feedFilterSymbol(filter),
+                                isSelected: viewModel.activeFilter == filter
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isResolvingNearbyLocation)
+                    }
+
+                    filterSectionTitle("Media type")
+                        .padding(.top, 8)
+
+                    Button {
+                        updateMediaTypes([])
+                    } label: {
+                        FilterSheetSelectionRow(
+                            title: "All media",
+                            subtitle: "Show every media type",
+                            systemImage: "rectangle.stack",
+                            isSelected: viewModel.advancedFilters.mediaTypes.isEmpty
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(ExploreMediaKind.feedFilterCases) { mediaType in
+                        Button {
+                            toggleMediaType(mediaType)
+                        } label: {
+                            FilterSheetSelectionRow(
+                                title: mediaType.filterTitle,
+                                subtitle: "Show posts containing \(mediaType.filterTitle.lowercased())",
+                                systemImage: mediaType.filterSymbolName,
+                                isSelected: viewModel.advancedFilters.mediaTypes.contains(mediaType)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    filterSectionTitle("Date shared")
+                        .padding(.top, 8)
+
+                    ForEach(ExploreFeedDateRange.allCases) { dateRange in
+                        Button {
+                            updateDateRange(dateRange)
+                        } label: {
+                            FilterSheetSelectionRow(
+                                title: dateRange.title,
+                                subtitle: dateRange.subtitle,
+                                systemImage: "calendar",
+                                isSelected: viewModel.advancedFilters.dateRange == dateRange
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if viewModel.activeFilter == .nearby {
+                        filterSectionTitle("Distance")
+                            .padding(.top, 8)
+
+                        ForEach(ExploreFeedNearbyRadius.allCases) { radius in
+                            Button {
+                                updateNearbyRadius(radius)
+                            } label: {
+                                FilterSheetSelectionRow(
+                                    title: radius.title,
+                                    subtitle: "Search within \(radius.rawValue) miles of your current location",
+                                    systemImage: "location.circle",
+                                    isSelected: viewModel.advancedFilters.nearbyRadius == radius
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    filterSectionTitle("Species")
+                        .padding(.top, 8)
+
+                    Button {
+                        updateSpeciesCategories([])
+                    } label: {
+                        FilterSheetSelectionRow(
+                            title: "All species",
+                            subtitle: "Show every species group",
+                            systemImage: "map",
+                            isSelected: viewModel.advancedFilters.speciesCategories.isEmpty
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(ExploreMapSpeciesCategory.defaultFilters) { category in
+                        Button {
+                            toggleSpeciesCategory(category)
+                        } label: {
+                            FilterSheetSelectionRow(
+                                title: category.title,
+                                subtitle: "Show discoveries in this species group",
+                                systemImage: category.symbolName,
+                                isSelected: viewModel.advancedFilters.speciesCategories.contains(category)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Feed filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Reset") {
+                        HapticManager.shared.triggerSelectionPulse()
+                        Task { await viewModel.resetAdvancedFilters() }
+                    }
+                    .disabled(!viewModel.hasStoredAdvancedFilters)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        HapticManager.shared.triggerSelectionPulse()
+                        isShowingFilterSheet = false
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+        }
+        .presentationDragIndicator(.visible)
+        .presentationDetents([.medium, .large])
+    }
+
+    private func filterSectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.footnote)
+            .fontWeight(.semibold)
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+    }
+
+    private func feedFilterSubtitle(_ filter: ExploreFeedFilter) -> String {
+        switch filter {
+        case .recent: "Newest discoveries first"
+        case .following: "Discoveries from people you follow"
+        case .trending: "Discoveries getting attention now"
+        case .nearby: "Discoveries near your current location"
+        }
+    }
+
+    private func feedFilterSymbol(_ filter: ExploreFeedFilter) -> String {
+        switch filter {
+        case .recent: "clock.arrow.circlepath"
+        case .following: "person.2"
+        case .trending: "flame"
+        case .nearby: "location"
+        }
+    }
+
+    private func updateSpeciesCategories(_ categories: Set<ExploreMapSpeciesCategory>) {
+        var filters = viewModel.advancedFilters
+        filters.speciesCategories = categories
+        applyAdvancedFilters(filters)
+    }
+
+    private func toggleSpeciesCategory(_ category: ExploreMapSpeciesCategory) {
+        var categories = viewModel.advancedFilters.speciesCategories
+        if categories.contains(category) {
+            categories.remove(category)
+        } else {
+            categories.insert(category)
+        }
+        updateSpeciesCategories(categories)
+    }
+
+    private func updateMediaTypes(_ mediaTypes: Set<ExploreMediaKind>) {
+        var filters = viewModel.advancedFilters
+        filters.mediaTypes = mediaTypes
+        applyAdvancedFilters(filters)
+    }
+
+    private func toggleMediaType(_ mediaType: ExploreMediaKind) {
+        var mediaTypes = viewModel.advancedFilters.mediaTypes
+        if mediaTypes.contains(mediaType) {
+            mediaTypes.remove(mediaType)
+        } else {
+            mediaTypes.insert(mediaType)
+        }
+        updateMediaTypes(mediaTypes)
+    }
+
+    private func updateDateRange(_ dateRange: ExploreFeedDateRange) {
+        var filters = viewModel.advancedFilters
+        filters.dateRange = dateRange
+        applyAdvancedFilters(filters)
+    }
+
+    private func updateNearbyRadius(_ radius: ExploreFeedNearbyRadius) {
+        var filters = viewModel.advancedFilters
+        filters.nearbyRadius = radius
+        applyAdvancedFilters(filters)
+    }
+
+    private func applyAdvancedFilters(_ filters: ExploreFeedAdvancedFilters) {
+        HapticManager.shared.triggerSelectionPulse()
+        Task { await viewModel.applyAdvancedFilters(filters) }
     }
 }
 

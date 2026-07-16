@@ -59,6 +59,24 @@ enum ExploreMediaKind: String, Codable, CaseIterable, Hashable, Identifiable {
     case audio
 
     var id: Self { self }
+
+    static let feedFilterCases: [Self] = [.image, .audio, .video]
+
+    var filterTitle: String {
+        switch self {
+        case .image: "Images"
+        case .video: "Videos"
+        case .audio: "Audio"
+        }
+    }
+
+    var filterSymbolName: String {
+        switch self {
+        case .image: "photo"
+        case .video: "video.fill"
+        case .audio: "waveform"
+        }
+    }
 }
 
 struct ExploreMediaItem: Decodable, Equatable {
@@ -399,7 +417,7 @@ enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
     case trending
     case nearby
 
-    static let nearbyRadiusMiles = 50
+    static let nearbyRadiusMiles = ExploreFeedNearbyRadius.default.rawValue
 
     var id: String { rawValue }
 
@@ -418,6 +436,87 @@ enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
 
     var requiresLocation: Bool {
         self == .nearby
+    }
+}
+
+enum ExploreFeedDateRange: String, CaseIterable, Hashable, Identifiable {
+    case anyTime = "any_time"
+    case today
+    case pastWeek = "past_week"
+    case pastMonth = "past_month"
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .anyTime: "Any time"
+        case .today: "Today"
+        case .pastWeek: "Past 7 days"
+        case .pastMonth: "Past 30 days"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .anyTime: "Show discoveries regardless of when they were shared"
+        case .today: "Shared since the start of today"
+        case .pastWeek: "Shared during the past seven days"
+        case .pastMonth: "Shared during the past thirty days"
+        }
+    }
+
+    func sharedSince(referenceDate: Date, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case .anyTime:
+            nil
+        case .today:
+            calendar.startOfDay(for: referenceDate)
+        case .pastWeek:
+            calendar.date(byAdding: .day, value: -7, to: referenceDate)
+        case .pastMonth:
+            calendar.date(byAdding: .day, value: -30, to: referenceDate)
+        }
+    }
+}
+
+enum ExploreFeedNearbyRadius: Int, CaseIterable, Hashable, Identifiable {
+    case ten = 10
+    case twentyFive = 25
+    case fifty = 50
+    case oneHundred = 100
+
+    static let `default`: Self = .fifty
+
+    var id: Int { rawValue }
+
+    var title: String {
+        "\(rawValue) miles"
+    }
+}
+
+struct ExploreFeedAdvancedFilters: Equatable {
+    var speciesCategories: Set<ExploreMapSpeciesCategory> = []
+    var mediaTypes: Set<ExploreMediaKind> = []
+    var dateRange: ExploreFeedDateRange = .anyTime
+    var nearbyRadius: ExploreFeedNearbyRadius = .default
+
+    func activeFilterCount(for feedFilter: ExploreFeedFilter) -> Int {
+        speciesCategories.count
+            + mediaTypes.count
+            + (dateRange == .anyTime ? 0 : 1)
+            + (feedFilter == .nearby && nearbyRadius != .default ? 1 : 0)
+    }
+
+    func hasActiveFilters(for feedFilter: ExploreFeedFilter) -> Bool {
+        activeFilterCount(for: feedFilter) > 0
+    }
+
+    var hasStoredSelections: Bool {
+        hasObservationFilters || nearbyRadius != .default
+    }
+
+    var hasObservationFilters: Bool {
+        !speciesCategories.isEmpty || !mediaTypes.isEmpty || dateRange != .anyTime
     }
 }
 

@@ -82,6 +82,12 @@ enum AppTelemetry {
         send("ScanQueuedForSync")
     }
 
+    // MARK: - External Image Import Events
+
+    static func trackExternalImageImport(outcome: String) {
+        send("ExternalImageImport", with: ["outcome": outcome])
+    }
+
     // MARK: - Activation Events
 
     /// Records the user completing onboarding.

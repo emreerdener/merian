@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -39,9 +40,11 @@ extension CaptureWorkspaceViewModel {
     /// 1. Reset `InferenceEngine` display state and open the insight sheet immediately.
     /// 2. Snapshot the staging buffers, then clear them to prevent double-submit.
     /// 3. Generate a stable `scanId` shared by the queue record and live inference task.
-    /// 4. **Enqueue immediately** (still in foreground) with cached GPS and the
-    ///    serialized observation context when present. For an eligible live-camera
-    ///    still scan, hold its duplicate queue upload until the inline body is sent.
+    /// 4. **Enqueue immediately** (still in foreground) with a source-aware context
+    ///    snapshot and the serialized observation context when present. Gallery media
+    ///    uses only its embedded historical context; live media can use cached device
+    ///    context. For an eligible live-camera still scan, hold its duplicate queue
+    ///    upload until the inline body is sent.
     /// 5. Give shutter-prefetched context a 150 ms grace period for that live still
     ///    path, then fire `InferenceEngine.analyze`. Gallery, video, and audio-bearing
     ///    visual submissions retain their full-context wait and existing upload race.
@@ -63,9 +66,14 @@ extension CaptureWorkspaceViewModel {
                 let imageIndex = capturedDisplayImages.count
                 capturedDisplayImages.append(stagedImage)
                 capturedInferenceImages.append(stagedImage)
+                let isGalleryImage = stagedImage.original.isFromGallery
                 capturedVisualMediaItems.append(.image(
                     sourceIndex: stillImageSourceIndex,
-                    focusRegion: stagedImage.focusRegion
+                    focusRegion: stagedImage.focusRegion,
+                    captureSource: isGalleryImage ? .gallery : .camera,
+                    hasEmbeddedCaptureDate: isGalleryImage
+                        ? stagedImage.original.environmentContext?.captureDate != nil
+                        : nil
                 ))
                 stillImageSourceIndex += 1
                 capturedMediaTimeline.append(.image(index: imageIndex))
@@ -119,11 +127,14 @@ extension CaptureWorkspaceViewModel {
         }
 
         // 2. Capture the context needed for inference before clearing the staging buffers.
-        let capturedPreFetchTask       = preFetchTask
+        let primaryImageIsGalleryPhoto = capturedDisplayImages.first?.original.isFromGallery == true
+        let capturedPreFetchTask       = primaryImageIsGalleryPhoto ? nil : preFetchTask
         let targetEradicationScanId    = baseRefinementContext?.scanId
         let capturedZoomFactor         = diContainer.cameraManager.zoomFactor
         let defaultZoomFactor          = diContainer.cameraManager.nativeZoomFactor
-        let primaryImageIsGalleryPhoto = capturedDisplayImages.first?.original.isFromGallery == true
+        let primaryHistoricalContext   = primaryImageIsGalleryPhoto
+            ? capturedDisplayImages.first?.original.environmentContext
+            : nil
         let shouldOptimizeLiveImageAnalysis = Self.shouldOptimizeLiveImageAnalysis(
             hasStillImage: stillImageSourceIndex > 0,
             hasAudio: !capturedAudioFilePaths.isEmpty,
@@ -146,22 +157,14 @@ extension CaptureWorkspaceViewModel {
         // 5. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
         //    before any async boundary is crossed. Carries the observation context JSON so
         //    the offline-retry path can reconstruct the full combined payload.
-        let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
         let immediateDistance = diContainer.cameraManager.subjectDistanceInMeters
-        let immediateTelemetry = CaptureTelemetry(
-            subjectDistanceInMeters: immediateDistance,
-            gpsLatitude: cachedLocation?.coordinate.latitude,
-            gpsLongitude: cachedLocation?.coordinate.longitude,
-            gpsElevation: cachedLocation?.altitude,
-            locationName: nil,
-            weatherCondition: nil,
-            weatherTemperatureF: nil,
-            timeOfDay: nil,
-            timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
-            zoomFactor: primaryImageIsGalleryPhoto
-                ? nil
-                : CaptureTelemetry.nonDefaultZoomFactor(capturedZoomFactor, defaultZoomFactor: defaultZoomFactor),
-            estimatedSizeCm: nil
+        let immediateTelemetry = CaptureTelemetry.immediateForActiveScan(
+            historicalContext: primaryHistoricalContext,
+            isGalleryPhoto: primaryImageIsGalleryPhoto,
+            cachedLocation: diContainer.environmentContextManager.lastKnownLocation,
+            distanceMeters: immediateDistance,
+            zoomFactor: capturedZoomFactor,
+            defaultZoomFactor: defaultZoomFactor
         )
         diContainer.offlineQueueManager.enqueueCapture(
             imageDatas: capturedInferenceImages.map(\.compressedData),
@@ -174,6 +177,7 @@ extension CaptureWorkspaceViewModel {
             observationContexts: capturedObservationContexts,
             mediaTimeline: capturedMediaTimeline,
             visualMediaItems: capturedVisualMediaItems,
+            captureDate: primaryHistoricalContext?.captureDate ?? Date(),
             startSyncImmediately: !shouldOptimizeLiveImageAnalysis,
             onQueued: { [weak self] didQueue in
                 guard let self else { return }
@@ -248,7 +252,7 @@ extension CaptureWorkspaceViewModel {
                     } else {
                         telemetry = await CaptureTelemetry.resolveForActiveScan(
                             resolvedContext: graceResult.context,
-                            historicalContext: capturedDisplayImages.first?.original.environmentContext,
+                            historicalContext: primaryHistoricalContext,
                             isGalleryPhoto: primaryImageIsGalleryPhoto,
                             firstImageData: capturedDisplayImages.first?.compressedData,
                             distanceMeters: immediateDistance,
@@ -295,7 +299,7 @@ extension CaptureWorkspaceViewModel {
                             let lateContext = await capturedPreFetchTask.value
                             let lateTelemetry = await CaptureTelemetry.resolveForActiveScan(
                                 resolvedContext: lateContext,
-                                historicalContext: capturedDisplayImages.first?.original.environmentContext,
+                                historicalContext: primaryHistoricalContext,
                                 isGalleryPhoto: primaryImageIsGalleryPhoto,
                                 firstImageData: capturedDisplayImages.first?.compressedData,
                                 distanceMeters: immediateDistance,
@@ -375,6 +379,52 @@ extension CaptureWorkspaceViewModel {
 // MARK: - CaptureTelemetry Extension
 
 extension CaptureTelemetry {
+    static func immediateForActiveScan(
+        historicalContext: EnvironmentContext?,
+        isGalleryPhoto: Bool,
+        cachedLocation: CLLocation?,
+        distanceMeters: Float?,
+        zoomFactor: CGFloat?,
+        defaultZoomFactor: CGFloat = 1.0
+    ) -> CaptureTelemetry {
+        if isGalleryPhoto {
+            guard let historicalContext else {
+                return CaptureTelemetry(
+                    subjectDistanceInMeters: nil,
+                    gpsLatitude: nil,
+                    gpsLongitude: nil,
+                    gpsElevation: nil,
+                    locationName: nil,
+                    weatherCondition: nil,
+                    weatherTemperatureF: nil,
+                    timeOfDay: nil,
+                    timestamp: nil,
+                    zoomFactor: nil,
+                    estimatedSizeCm: nil
+                )
+            }
+            return CaptureTelemetry(
+                from: historicalContext,
+                distance: nil,
+                requiresExplicitCaptureDate: true
+            )
+        }
+
+        return CaptureTelemetry(
+            subjectDistanceInMeters: distanceMeters,
+            gpsLatitude: cachedLocation?.coordinate.latitude,
+            gpsLongitude: cachedLocation?.coordinate.longitude,
+            gpsElevation: cachedLocation?.altitude,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
+            zoomFactor: nonDefaultZoomFactor(zoomFactor, defaultZoomFactor: defaultZoomFactor),
+            estimatedSizeCm: nil
+        )
+    }
+
     static func resolveForActiveScan(
         resolvedContext: EnvironmentContext?,
         historicalContext: EnvironmentContext?,
@@ -386,7 +436,20 @@ extension CaptureTelemetry {
     ) async -> CaptureTelemetry {
         let zoomToUse = nonDefaultZoomFactor(zoomFactor, defaultZoomFactor: defaultZoomFactor)
 
-        if let context = resolvedContext {
+        if isGalleryPhoto {
+            guard let historicalContext else {
+                return CaptureTelemetry(
+                    subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil, gpsElevation: nil,
+                    locationName: nil, weatherCondition: nil, weatherTemperatureF: nil, timeOfDay: nil,
+                    timestamp: nil, zoomFactor: nil, estimatedSizeCm: nil
+                )
+            }
+            return CaptureTelemetry(
+                from: historicalContext,
+                distance: nil,
+                requiresExplicitCaptureDate: true
+            )
+        } else if let context = resolvedContext {
             var estimatedSizeCm: Double?
             if let d = distanceMeters, let fd = firstImageData {
                 estimatedSizeCm = await SizeEstimator.estimateSize(imageData: fd, distanceMeters: d)
@@ -394,12 +457,6 @@ extension CaptureTelemetry {
             return CaptureTelemetry(from: context, distance: distanceMeters, zoom: zoomToUse, estimatedSizeCm: estimatedSizeCm)
         } else if let hc = historicalContext {
             return CaptureTelemetry(from: hc, distance: nil)
-        } else if isGalleryPhoto {
-            return CaptureTelemetry(
-                subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil, gpsElevation: nil,
-                locationName: nil, weatherCondition: nil, weatherTemperatureF: nil, timeOfDay: nil,
-                timestamp: nil, zoomFactor: nil, estimatedSizeCm: nil
-            )
         } else {
             var estimatedSizeCm: Double?
             if let d = distanceMeters, let fd = firstImageData {

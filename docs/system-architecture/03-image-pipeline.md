@@ -73,6 +73,27 @@ The camera shutter path explicitly separates orchestration from ImageIO work. `e
 
 The gallery picker now uses a bounded snapshot pipeline. `CaptureWorkspaceViewModel.handlePhotoPickerSelection` snapshots the staged-image budget (`availableSlots`) and paywall gate once on `@MainActor`, clears `selectedPhotoItems`, and then performs all file-backed preparation through `MediaPreparationActor`. Historical GPS/weather metadata is converted into a `HistoricalEnvironmentContextSnapshot: Sendable` before leaving the main actor, and the detached task returns only `PreparedStagedImage` values (`Data` + sendable metadata + budget metrics). A single main-actor commit then appends the final `StagedImage` array entries. For user-selected photo-library imports, that commit passes `requiresCrop: true`; the view model tracks the staged image IDs in `requiredGalleryCropImageIds` and presents the square crop editor before any analysis submission can start. This preserves Swift 6 isolation rules while removing repeated `MainActor.run` hops during gallery imports.
 
+Photos share-sheet files join the same preparation seam through a separate
+durability boundary. `MerianApp.onOpenURL` validates that the incoming file's
+resolved `UTType` conforms to `public.image`, then
+`ExternalImageImportStore` copies it into an Application Support inbox while
+security-scoped access is active. The inbox manifest survives cold launch and
+onboarding. Before preparation strips source metadata,
+`ImportedImageMetadataExtractor` reads EXIF capture date and a complete signed
+GPS pair. Date plus GPS uses the existing historical WeatherKit/reverse-geocode
+path; date-only and coordinate-only files preserve only the available values.
+If Photos share Options excludes Location, the delivered file contains no
+usable GPS pair and no coordinates are added.
+
+`CaptureWorkspaceViewModel.importPendingExternalImageIfPossible()` applies the
+normal gallery quota and capacity checks before and after asynchronous
+preparation, calls the shared file-backed `PreparedStagedImageLoader`, and
+commits one image with `requiresCrop: true`. Quota- or capacity-blocked files
+remain in the inbox and retry when entitlement or staging state changes.
+Successful staging or terminal decode failure acknowledges and removes the
+durable receipt. From the crop onward, confirmation preferences, live inference,
+and offline queuing are identical to an in-app gallery pick.
+
 The refinement path now shares that same actor-backed prepared-image staging helper instead of issuing an eager `Data(contentsOf:)` copy of the stored scan image. `startRefinementScan(from:)` builds a `PreparedStagedImageRequest`, sends it through the injected async `PreparedStagedImageLoader`, and then commits the result on the main actor without `requiresCrop`. In production the loader delegates to `MediaPreparationActor.prepareStillImage(fileURL:isPro:)`, so both the tier-sized inference payload and the 2048 px display payload pass the same dimension/byte-budget contract as gallery imports. Tests stub the same seam to verify request routing and staging state transitions without UI automation, while `MediaPreparationActorTests` pins the production budgets directly. Refinement staging must never retain the original full-size file bytes in `StagedImage.displayData`.
 
 `PreparedStagedImage` now also carries a sendable preview `CGImage`, so `commitPreparedStagedImages` can build the toolbar thumbnail from an already-decoded image instead of calling `UIImage(data:)` on the main actor during the final commit step.
@@ -268,6 +289,7 @@ The same file-backed rule now applies to explore-media restore. `MerianNetworkCl
 | Component | Location | Responsibility |
 |---|---|---|
 | `ImageDownsampler` | `Core/Utilities/` | CGImageSource thumbnail decoding; `public enum` with `static func` — no actor overhead; autoreleasepool |
+| `ExternalImageImportStore` | `Core/Data/Images/` | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and pre-preparation EXIF extraction |
 | `MediaPreparationActor` | `Core/Data/Images/` | File-backed still-image preparation; owns inference/display encoding and budget metrics |
 | `FileIOActor` | `Core/Data/Database/` | Disk reads/writes; isolated from Main and SwiftData actors |
 | `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; RAM cache hits; request coalescing; local/remote routing |

@@ -1,5 +1,12 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { ExploreFeedFilter, type ExplorePostMediaItem } from "../_shared/explore.ts";
+import {
+  ExploreFeedFilter,
+  type ExplorePostMediaItem,
+} from "../_shared/explore.ts";
+import type {
+  ExploreMediaType,
+  ExploreSpeciesCategory,
+} from "../_shared/exploreFeedFilters.ts";
 import type { PetIdentification } from "../_shared/identify/types.ts";
 
 export interface ExploreFeedRow {
@@ -41,18 +48,29 @@ interface ExploreFeedLocation {
   longitude: number | null;
 }
 
+export interface ExploreFeedAdvancedFilters {
+  speciesCategories: ExploreSpeciesCategory[];
+  mediaTypes: ExploreMediaType[];
+  sharedSince: string | null;
+  nearbyRadiusMiles: number;
+}
+
 export async function fetchExploreFeed(
   userId: string,
   limit: number,
   filter: ExploreFeedFilter,
   cursor: ExploreFeedCursor,
   location: ExploreFeedLocation,
+  advancedFilters: ExploreFeedAdvancedFilters,
   supabaseAdmin: SupabaseClient,
 ): Promise<ExploreFeedRow[]> {
   let rpcName = "get_explore_feed";
   const rpcArgs: Record<string, unknown> = {
     self_id: userId,
     max_limit: limit,
+    requested_species_categories: advancedFilters.speciesCategories,
+    requested_media_types: advancedFilters.mediaTypes,
+    shared_since: advancedFilters.sharedSince,
   };
 
   switch (filter) {
@@ -75,6 +93,7 @@ export async function fetchExploreFeed(
       rpcName = "get_explore_feed_nearby";
       rpcArgs.viewer_latitude = location.latitude;
       rpcArgs.viewer_longitude = location.longitude;
+      rpcArgs.nearby_radius_miles = advancedFilters.nearbyRadiusMiles;
       rpcArgs.before_shared_at = cursor.beforeSharedAt;
       rpcArgs.before_post_id = cursor.beforePostId;
       break;

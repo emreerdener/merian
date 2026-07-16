@@ -10,9 +10,14 @@ import {
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
-  withExplorePostMediaItems,
   withExplorePostHashtags,
+  withExplorePostMediaItems,
 } from "../_shared/explore.ts";
+import {
+  normalizeExploreMediaTypes,
+  normalizeExploreNearbyRadiusMiles,
+  normalizeExploreSpeciesCategories,
+} from "../_shared/exploreFeedFilters.ts";
 import { fetchExploreFeed } from "./db.ts";
 
 function makeHttpError(
@@ -48,6 +53,17 @@ Deno.serve((req: Request) =>
     );
     const latitude = normalizeLatitude(body.latitude, "latitude");
     const longitude = normalizeLongitude(body.longitude, "longitude");
+    const speciesCategories = normalizeExploreSpeciesCategories(
+      body.species_categories,
+    );
+    const mediaTypes = normalizeExploreMediaTypes(body.media_types);
+    const sharedSince = normalizeCursorTimestamp(
+      body.shared_since,
+      "shared_since",
+    );
+    const nearbyRadiusMiles = normalizeExploreNearbyRadiusMiles(
+      body.nearby_radius_miles,
+    );
 
     if (filter === "trending") {
       const hasAnyCursor = beforeRankingValue != null ||
@@ -107,6 +123,12 @@ Deno.serve((req: Request) =>
               {
                 latitude,
                 longitude,
+              },
+              {
+                speciesCategories,
+                mediaTypes,
+                sharedSince,
+                nearbyRadiusMiles,
               },
               supabaseAdmin,
             ),
