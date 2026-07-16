@@ -392,6 +392,65 @@ struct FieldTripAPIModelsTests {
         #expect(response.data.challengeBadges[0].challengeTitle == "Summer Pollinator Watch")
     }
 
+    @Test func difficultyNormalizesKnownValuesAndPreservesUnknownValues() {
+        #expect(FieldTripDifficulty(apiValue: "starter") == .starter)
+        #expect(FieldTripDifficulty(apiValue: " EASY ") == .easy)
+        #expect(FieldTripDifficulty(apiValue: "Moderate") == .moderate)
+        #expect(FieldTripDifficulty(apiValue: "HARD\n") == .hard)
+        #expect(FieldTripDifficulty(apiValue: "expert") == nil)
+
+        let unknownTemplate = makeTemplate(id: "expert", difficulty: "expert_level")
+        #expect(unknownTemplate.resolvedDifficulty == nil)
+        #expect(unknownTemplate.difficultyTitle == "Expert Level")
+    }
+
+    @Test func difficultyFilteringPreservesCatalogOrderAndKeepsUnknownValuesInAll() {
+        let templates = [
+            makeTemplate(id: "starter", difficulty: " STARTER "),
+            makeTemplate(id: "unknown", difficulty: "expert"),
+            makeTemplate(id: "easy", difficulty: "easy"),
+            makeTemplate(id: "moderate", difficulty: "moderate"),
+            makeTemplate(id: "hard", difficulty: "hard")
+        ]
+
+        #expect(templates.filtering(by: nil).map(\.templateId) == [
+            "starter",
+            "unknown",
+            "easy",
+            "moderate",
+            "hard"
+        ])
+        #expect(templates.filtering(by: .starter).map(\.templateId) == ["starter"])
+        #expect(templates.filtering(by: .easy).map(\.templateId) == ["easy"])
+        #expect(templates.filtering(by: .moderate).map(\.templateId) == ["moderate"])
+        #expect(templates.filtering(by: .hard).map(\.templateId) == ["hard"])
+    }
+
+    private func makeTemplate(id: String, difficulty: String) -> FieldTripTemplate {
+        FieldTripTemplate(
+            templateId: id,
+            slug: id,
+            title: id.capitalized,
+            subtitle: nil,
+            description: nil,
+            coverImageUrl: nil,
+            estimatedDurationMinutes: nil,
+            guideWhereToLook: nil,
+            guideWhyItMatters: nil,
+            guideSafetyEthics: nil,
+            regionTags: [],
+            seasonTags: [],
+            habitatTags: [],
+            difficulty: difficulty,
+            isProOnly: false,
+            isRotatingFree: false,
+            viewerHasAccess: true,
+            accessKind: "free",
+            activeProgress: nil,
+            levels: []
+        )
+    }
+
     private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

@@ -75,6 +75,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
                 .foregroundColor(isSelected ? Color(UIColor.systemBackground) : .primary)
                 .clipShape(Capsule())
         }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

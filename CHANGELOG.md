@@ -38,6 +38,17 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added `All`, `Starter`, `Easy`, `Moderate`, and `Hard` difficulty filters to
+  the Field Trips catalog, including an illustrated empty state for levels
+  without a current trip.
+- Moved Objectives and Tips into pinned toolbar tabs on standard Field Trip and
+  Seasonal Challenge detail pages. Objectives now owns the trip overview,
+  progress, actions, checklist, and Community content, while Tips opens directly
+  to the curated guide.
+- Refined standard and Seasonal Field Trip card and detail-image rounding, moved
+  template badges onto the cover image, allowed full-width card text, and
+  removed the redundant Open guide row and active-trip Continue Scanning
+  actions. Loading skeletons now mirror the updated card layouts.
 - Added a Filters pill and sheet to the Explore feed. Species groups,
   image/audio/video media, shared date, and Nearby distance can now be combined
   without thinning paginated pages on the device.

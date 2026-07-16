@@ -7,6 +7,7 @@ struct FieldTripsView: View {
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
     @State private var viewModel = FieldTripsViewModel()
+    @State private var selectedDifficultyFilter: FieldTripDifficultyFilter = .all
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,35 +47,83 @@ struct FieldTripsView: View {
     }
 
     private var fieldTripsContent: some View {
-        ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 12) {
-                if viewModel.isLoading && viewModel.templates.isEmpty {
-                    ForEach(0..<4, id: \.self) { _ in
-                        FieldTripTemplateSkeletonCard()
-                    }
-                } else if let errorMessage = viewModel.errorMessage, viewModel.templates.isEmpty {
-                    FieldTripUnavailableCard(message: errorMessage) {
-                        Task { await viewModel.refresh(userRegion: userRegion) }
-                    }
-                } else if viewModel.templates.isEmpty {
-                    FieldTripUnavailableCard(message: "Field Trips are not available right now.") {
-                        Task { await viewModel.refresh(userRegion: userRegion) }
-                    }
-                } else {
-                    ForEach(viewModel.templates) { template in
-                        NavigationLink(value: FieldTripTemplateRoute(templateId: template.templateId)) {
-                            FieldTripTemplateCard(template: template)
+        GeometryReader { geometry in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    difficultyFilterBar
+
+                    LazyVStack(spacing: 12) {
+                        if viewModel.isLoading && viewModel.templates.isEmpty {
+                            ForEach(0..<4, id: \.self) { _ in
+                                FieldTripTemplateSkeletonCard()
+                            }
+                        } else if let errorMessage = viewModel.errorMessage, viewModel.templates.isEmpty {
+                            FieldTripUnavailableCard(message: errorMessage) {
+                                Task { await viewModel.refresh(userRegion: userRegion) }
+                            }
+                        } else if viewModel.templates.isEmpty {
+                            FieldTripUnavailableCard(message: "Field trips are not available right now.") {
+                                Task { await viewModel.refresh(userRegion: userRegion) }
+                            }
+                        } else if filteredTemplates.isEmpty {
+                            filteredEmptyState
+                                .frame(
+                                    minHeight: max(360, geometry.size.height - 96)
+                                )
+                        } else {
+                            ForEach(filteredTemplates) { template in
+                                NavigationLink(value: FieldTripTemplateRoute(templateId: template.templateId)) {
+                                    FieldTripTemplateCard(template: template)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
+            .refreshable {
+                await viewModel.refresh(userRegion: userRegion)
+            }
         }
-        .refreshable {
-            await viewModel.refresh(userRegion: userRegion)
+    }
+
+    private var filteredTemplates: [FieldTripTemplate] {
+        viewModel.templates.filtering(by: selectedDifficultyFilter.difficulty)
+    }
+
+    private var difficultyFilterBar: some View {
+        CategoryFilterBar(
+            items: FieldTripDifficultyFilter.allCases,
+            activeItem: selectedDifficultyFilter,
+            title: { $0.title },
+            onSelection: { filter in
+                guard filter != selectedDifficultyFilter else { return }
+                selectedDifficultyFilter = filter
+                HapticManager.shared.triggerSelectionPulse()
+            }
+        )
+        .accessibilityLabel("Field trip difficulty")
+    }
+
+    private var filteredEmptyState: some View {
+        EmptyStateView(
+            imageName: "fireflies",
+            title: "No \(selectedDifficultyFilter.title) Field Trips yet",
+            message: "Try another difficulty to find your next Field Trip."
+        ) {
+            Button {
+                selectedDifficultyFilter = .all
+                HapticManager.shared.triggerSelectionPulse()
+            } label: {
+                Text("Show all")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
         }
     }
 
@@ -92,14 +141,14 @@ struct FieldTripsView: View {
             LazyVStack(spacing: 12) {
                 if viewModel.isLoading && viewModel.challenges.isEmpty {
                     ForEach(0..<4, id: \.self) { _ in
-                        FieldTripRecentSkeletonCard()
+                        FieldTripChallengeSkeletonCard()
                     }
                 } else if let challengeErrorMessage = viewModel.challengeErrorMessage, visibleChallenges.isEmpty {
                     FieldTripUnavailableCard(message: challengeErrorMessage) {
                         Task { await viewModel.refresh(userRegion: userRegion) }
                     }
                 } else if visibleChallenges.isEmpty {
-                    FieldTripUnavailableCard(message: "Seasonal Field Trips are not available right now.") {
+                    FieldTripUnavailableCard(message: "Seasonal field trips are not available right now.") {
                         Task { await viewModel.refresh(userRegion: userRegion) }
                     }
                 } else {
@@ -156,6 +205,7 @@ struct FieldTripTemplateDetailView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle(template?.title ?? "Field Trip")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { detailToolbar }
         .task {
             await load(force: false)
         }
@@ -180,48 +230,39 @@ struct FieldTripTemplateDetailView: View {
 
     @ViewBuilder
     private func detailContent(_ template: FieldTripTemplate) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            FieldTripCoverImage(urlString: template.coverImageUrl)
-                .frame(maxWidth: .infinity)
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        switch selectedDetailSection {
+        case .objectives:
+            VStack(alignment: .leading, spacing: 16) {
+                FieldTripCoverImage(urlString: template.coverImageUrl)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 8) {
                 Text(template.title)
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let subtitle = template.subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                if let description = template.description {
+                    Text(description)
+                        .font(.body)
+                        .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
 
-            FieldTripMetadataRow(template: template)
+                FieldTripMetadataRow(template: template)
 
-            if let progress = template.activeProgress {
-                FieldTripProgressBar(progress: progress)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
-            }
-
-            actionButton(template)
-
-            Picker("Field Trip details", selection: $selectedDetailSection) {
-                ForEach(FieldTripDetailSection.allCases) { section in
-                    Text(section.title).tag(section)
+                if let progress = template.activeProgress {
+                    FieldTripProgressBar(progress: progress)
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                        )
                 }
-            }
-            .pickerStyle(.segmented)
 
-            switch selectedDetailSection {
-            case .objectives:
+                actionButton(template)
+
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(template.levels) { level in
                         FieldTripLevelSection(
@@ -230,25 +271,28 @@ struct FieldTripTemplateDetailView: View {
                         )
                     }
                 }
-            case .tips:
-                VStack(alignment: .leading, spacing: 16) {
-                    if let description = template.description {
-                        Text(description)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
 
-                    FieldTripGuideSections(template: template)
-                }
+                FieldTripCommunityPreviewSection(
+                    publications: communityPreview,
+                    isLoading: isLoadingCommunityPreview,
+                    onOpenPublication: onOpenPublication,
+                    onOpenAuthorProfile: onOpenAuthorProfile
+                )
             }
+        case .tips:
+            FieldTripGuideSections(template: template)
+        }
+    }
 
-            FieldTripCommunityPreviewSection(
-                publications: communityPreview,
-                isLoading: isLoadingCommunityPreview,
-                onOpenPublication: onOpenPublication,
-                onOpenAuthorProfile: onOpenAuthorProfile
-            )
+    @ToolbarContentBuilder
+    private var detailToolbar: some ToolbarContent {
+        if template != nil {
+            ToolbarItem(placement: .principal) {
+                FieldTripDetailToolbarPicker(
+                    label: "Field Trip details",
+                    selection: $selectedDetailSection
+                )
+            }
         }
     }
 
@@ -278,7 +322,7 @@ struct FieldTripTemplateDetailView: View {
                     } else {
                         Image(systemName: "play.fill")
                     }
-                    Text("Start Field Trip")
+                    Text("Start field trip")
                 }
                 .font(.headline)
                 .foregroundStyle(Color(uiColor: .systemBackground))
@@ -292,31 +336,12 @@ struct FieldTripTemplateDetailView: View {
             Button {
                 publishingTemplate = template
             } label: {
-                Label("Publish Field Trip", systemImage: "square.and.arrow.up")
+                Label("Publish field trip", systemImage: "square.and.arrow.up")
                     .font(.headline)
                     .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
                     .background(Capsule(style: .continuous).fill(Color.primary))
-            }
-            .buttonStyle(.plain)
-        } else {
-            Button {
-                toastMessage = "Keep scanning matching species to make progress."
-            } label: {
-                Label("Continue Scanning", systemImage: "sparkle.magnifyingglass")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
             }
             .buttonStyle(.plain)
         }
@@ -346,7 +371,7 @@ struct FieldTripTemplateDetailView: View {
         do {
             self.template = try await MerianNetworkClient.shared.startFieldTrip(templateId: template.templateId)
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Field Trip started."
+            toastMessage = "Field trip started."
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
@@ -406,6 +431,7 @@ struct FieldTripChallengeDetailView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle(viewModel.challenge?.title ?? "Challenge")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { detailToolbar }
         .task {
             await viewModel.load()
         }
@@ -432,31 +458,55 @@ struct FieldTripChallengeDetailView: View {
         )
     }
 
+    @ViewBuilder
     private func detailContent(_ challenge: FieldTripChallenge) -> some View {
+        if let template = challenge.template {
+            switch selectedDetailSection {
+            case .objectives:
+                VStack(alignment: .leading, spacing: 16) {
+                    challengeOverview(challenge)
+
+                    FieldTripChallengeLevelsSection(
+                        template: template,
+                        currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1
+                    )
+
+                    challengeEntriesSection
+                }
+            case .tips:
+                FieldTripGuideSections(template: template)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                challengeOverview(challenge)
+                challengeEntriesSection
+            }
+        }
+    }
+
+    private func challengeOverview(_ challenge: FieldTripChallenge) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             FieldTripCoverImage(urlString: challenge.coverImageUrl)
                 .frame(maxWidth: .infinity)
                 .aspectRatio(16 / 9, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 10) {
-                    Text(challenge.title)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 10) {
+                Text(challenge.title)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-                    FieldTripChallengeStatusBadge(status: challenge.status)
-                }
+                FieldTripChallengeStatusBadge(status: challenge.status)
+            }
 
-                if let subtitle = challenge.subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            if let description = challenge.description {
+                Text(description)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             FieldTripChallengeStatsRow(challenge: challenge)
@@ -465,51 +515,37 @@ struct FieldTripChallengeDetailView: View {
                 FieldTripChallengeProgressBar(participation: participation)
                     .padding(12)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(Color(uiColor: .secondarySystemGroupedBackground))
                     )
             }
 
             actionButton(challenge)
+        }
+    }
 
-            if let template = challenge.template {
-                Picker("Challenge details", selection: $selectedDetailSection) {
-                    ForEach(FieldTripDetailSection.allCases) { section in
-                        Text(section.title).tag(section)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                switch selectedDetailSection {
-                case .objectives:
-                    FieldTripChallengeLevelsSection(
-                        template: template,
-                        currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1
-                    )
-                case .tips:
-                    VStack(alignment: .leading, spacing: 16) {
-                        if let description = challenge.description {
-                            Text(description)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        FieldTripGuideSections(template: template)
-                    }
-                }
+    private var challengeEntriesSection: some View {
+        FieldTripChallengeEntriesSection(
+            entries: viewModel.entries,
+            hasMoreEntries: viewModel.hasMoreEntries,
+            isLoadingMore: viewModel.isLoadingMoreEntries,
+            onOpenEntry: onOpenEntry,
+            onOpenAuthorProfile: onOpenAuthorProfile,
+            onLoadMore: {
+                Task { await viewModel.loadMoreEntries() }
             }
+        )
+    }
 
-            FieldTripChallengeEntriesSection(
-                entries: viewModel.entries,
-                hasMoreEntries: viewModel.hasMoreEntries,
-                isLoadingMore: viewModel.isLoadingMoreEntries,
-                onOpenEntry: onOpenEntry,
-                onOpenAuthorProfile: onOpenAuthorProfile,
-                onLoadMore: {
-                    Task { await viewModel.loadMoreEntries() }
-                }
-            )
+    @ToolbarContentBuilder
+    private var detailToolbar: some ToolbarContent {
+        if viewModel.challenge?.template != nil {
+            ToolbarItem(placement: .principal) {
+                FieldTripDetailToolbarPicker(
+                    label: "Challenge details",
+                    selection: $selectedDetailSection
+                )
+            }
         }
     }
 
@@ -549,7 +585,7 @@ struct FieldTripChallengeDetailView: View {
                     } else {
                         Image(systemName: "plus.circle.fill")
                     }
-                    Text(challenge.isEnded ? "Challenge Ended" : "Join Challenge")
+                    Text(challenge.isEnded ? "Challenge ended" : "Join challenge")
                 }
                 .font(.headline)
                 .foregroundStyle(Color(uiColor: .systemBackground))
@@ -563,7 +599,7 @@ struct FieldTripChallengeDetailView: View {
             Button {
                 publishingChallenge = challenge
             } label: {
-                Label("Publish Challenge Entry", systemImage: "square.and.arrow.up")
+                Label("Publish field trip entry", systemImage: "square.and.arrow.up")
                     .font(.headline)
                     .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity)
@@ -571,26 +607,25 @@ struct FieldTripChallengeDetailView: View {
                     .background(Capsule(style: .continuous).fill(Color.primary))
             }
             .buttonStyle(.plain)
-        } else {
-            Button {
-                viewModel.toastMessage = "Keep scanning during the challenge window."
-            } label: {
-                Label("Continue Scanning", systemImage: "sparkle.magnifyingglass")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
         }
+    }
+}
+
+private struct FieldTripDetailToolbarPicker: View {
+    let label: String
+    @Binding var selection: FieldTripDetailSection
+
+    var body: some View {
+        Picker(label, selection: $selection) {
+            ForEach(FieldTripDetailSection.allCases) { section in
+                Text(section.title).tag(section)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.bottom, 1)
+        .background(Capsule().fill(.regularMaterial))
+        .clipShape(Capsule())
+        .frame(width: 200)
     }
 }
 
@@ -607,6 +642,22 @@ private enum FieldTripDetailSection: String, CaseIterable, Identifiable {
         case .tips:
             "Tips"
         }
+    }
+}
+
+private enum FieldTripDifficultyFilter: String, CaseIterable, Identifiable {
+    case all
+    case starter
+    case easy
+    case moderate
+    case hard
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    var difficulty: FieldTripDifficulty? {
+        guard self != .all else { return nil }
+        return FieldTripDifficulty(rawValue: rawValue)
     }
 }
 
@@ -631,70 +682,44 @@ private struct FieldTripTemplateCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            FieldTripCoverImage(urlString: template.coverImageUrl)
-                .frame(maxWidth: .infinity)
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(template.title)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-
-                    if let subtitle = template.subtitle {
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-
-                Spacer(minLength: 8)
+            ZStack(alignment: .topTrailing) {
+                FieldTripCoverImage(urlString: template.coverImageUrl)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 FieldTripAccessBadge(template: template)
+                    .padding(12)
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(template.title)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+
+                if let subtitle = template.subtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if let activeProgress = template.activeProgress {
                 FieldTripProgressBar(progress: activeProgress)
             }
-
-            HStack(spacing: 8) {
-                Image(systemName: template.activeProgress == nil ? "play.circle" : "checklist")
-                    .foregroundStyle(.secondary)
-                Text(statusText)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
-            }
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
-    }
-
-    private var statusText: String {
-        if let progress = template.activeProgress, progress.isComplete {
-            return "Ready to publish"
-        }
-        if template.activeProgress != nil {
-            return "In progress"
-        }
-        if template.viewerHasAccess {
-            return "Open guide"
-        }
-        return "Pro trip"
     }
 }
 
@@ -705,7 +730,7 @@ private struct FieldTripChallengeCard: View {
         HStack(spacing: 12) {
             FieldTripCoverImage(urlString: challenge.coverImageUrl)
                 .frame(width: 94, height: 94)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top, spacing: 8) {
@@ -751,11 +776,11 @@ private struct FieldTripChallengeCard: View {
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
@@ -928,7 +953,7 @@ private struct FieldTripChallengeEntriesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Challenge Entries")
+            Text("Challenge entries")
                 .font(.headline.weight(.bold))
 
             if entries.isEmpty {
@@ -990,7 +1015,7 @@ private struct FieldTripChallengeEntryCard: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 5) {
-                Label("Field Trip", systemImage: "map")
+                Label("Field trip", systemImage: "map")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.secondary)
 
@@ -1291,7 +1316,7 @@ private struct FieldTripMetadataRow: View {
             }
 
             FieldTripMetadataPill(
-                title: template.difficulty.capitalized,
+                title: template.difficultyTitle,
                 systemImage: "speedometer"
             )
 
@@ -1336,7 +1361,7 @@ private struct FieldTripAccessBadge: View {
 
     var body: some View {
         if template.viewerHasAccess {
-            Text(template.difficulty.capitalized)
+            Text(template.difficultyTitle)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
@@ -1710,26 +1735,107 @@ private struct FieldTripUnavailableCard: View {
 private struct FieldTripTemplateSkeletonCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.12))
-                .aspectRatio(16 / 9, contentMode: .fit)
+            ZStack(alignment: .topTrailing) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .aspectRatio(16 / 9, contentMode: .fit)
 
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.secondary.opacity(0.16))
-                .frame(width: 180, height: 18)
+                Capsule()
+                    .fill(Color.secondary.opacity(0.18))
+                    .frame(width: 68, height: 25)
+                    .padding(12)
+            }
 
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.secondary.opacity(0.12))
-                .frame(height: 14)
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+                    .frame(width: 180, height: 18)
 
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.secondary.opacity(0.12))
-                .frame(width: 220, height: 14)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 14)
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(width: 220, height: 14)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .redacted(reason: .placeholder)
+    }
+}
+
+private struct FieldTripChallengeSkeletonCard: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(width: 94, height: 94)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.secondary.opacity(0.16))
+                            .frame(width: 118, height: 14)
+
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.secondary.opacity(0.12))
+                            .frame(width: 86, height: 10)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.16))
+                        .frame(width: 44, height: 18)
+                }
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 10)
+
+                HStack(spacing: 6) {
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(width: 48, height: 18)
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(width: 58, height: 18)
+                }
+
+                HStack(spacing: 10) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(Color.secondary.opacity(0.1))
+                            .frame(width: 38, height: 9)
+                    }
+                }
+            }
+
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(width: 7, height: 13)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .redacted(reason: .placeholder)
     }
@@ -1738,27 +1844,51 @@ private struct FieldTripTemplateSkeletonCard: View {
 private struct FieldTripRecentSkeletonCard: View {
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
                 .frame(width: 92, height: 92)
 
-            VStack(alignment: .leading, spacing: 10) {
-                RoundedRectangle(cornerRadius: 4)
+            VStack(alignment: .leading, spacing: 5) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color.secondary.opacity(0.16))
-                    .frame(width: 180, height: 16)
-                RoundedRectangle(cornerRadius: 4)
+                    .frame(width: 160, height: 16)
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color.secondary.opacity(0.12))
-                    .frame(width: 120, height: 12)
-                RoundedRectangle(cornerRadius: 4)
+                    .frame(width: 110, height: 11)
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color.secondary.opacity(0.1))
-                    .frame(width: 160, height: 12)
+                    .frame(width: 90, height: 11)
+
+                HStack(spacing: 6) {
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(width: 48, height: 18)
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(width: 58, height: 18)
+                }
+
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+                    .frame(width: 138, height: 9)
             }
-            Spacer()
+
+            Spacer(minLength: 0)
+
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(width: 7, height: 13)
         }
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .redacted(reason: .placeholder)
     }

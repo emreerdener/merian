@@ -11,6 +11,10 @@ only a camera/performance setting.
 - The Field Trips surface has two page-header segments: `Field Trips` first by
   default for the base template catalog and `Seasonal` second for live and
   upcoming curated challenges.
+- Standard Field Trip and Seasonal Challenge detail pages pin `Objectives` and
+  `Tips` in the sheet toolbar. `Objectives` is selected by default and owns the
+  trip overview, progress, actions, checklist, and Community content; `Tips`
+  shows only the curated guide.
 - Seasonal challenges are curated/admin-created only, live inside Field Trips,
   and require an explicit Join.
 - Challenges link to existing Field Trip templates but keep separate
@@ -40,6 +44,22 @@ only a camera/performance setting.
   It does not create Explore feed posts, map points, public web share pages,
   APNs, widgets, leaderboards, prizes, rankings, contest windows, or
   sponsored-trip eligibility.
+
+## Difficulty
+
+Difficulty is manually curated template metadata rather than a value calculated
+from duration, checklist size, completion data, user behavior, or access tier:
+
+- `Starter`: onboarding-oriented with familiar, commonly available targets.
+- `Easy`: a focused trip reasonably completed in one ordinary outing.
+- `Moderate`: requires a specific habitat, longer effort, or subtler targets.
+- `Hard`: specialized, time-dependent, or likely to require multiple outings.
+
+The standard Field Trips catalog shows single-select `All`, `Starter`, `Easy`,
+`Moderate`, and `Hard` pills and filters the loaded catalog locally without
+changing server ordering or refetching. All levels remain available even when a
+level has no current trips. Seasonal Challenges are not difficulty-filtered.
+Rotating-free and Pro access rules never affect a template's difficulty.
 
 ## Product Flow
 

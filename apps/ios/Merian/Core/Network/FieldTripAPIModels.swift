@@ -97,6 +97,24 @@ struct FieldTripCreateCommentResponse: Decodable {
     let commentCount: Int
 }
 
+enum FieldTripDifficulty: String, CaseIterable, Identifiable {
+    case starter
+    case easy
+    case moderate
+    case hard
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    init?(apiValue: String) {
+        self.init(
+            rawValue: apiValue
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+        )
+    }
+}
+
 struct FieldTripLikeResponse: Decodable, Equatable {
     let publicationId: String
     let viewerHasLiked: Bool
@@ -138,6 +156,27 @@ struct FieldTripTemplate: Decodable, Identifiable, Equatable {
     let levels: [FieldTripLevel]
 
     var id: String { templateId }
+    var resolvedDifficulty: FieldTripDifficulty? {
+        FieldTripDifficulty(apiValue: difficulty)
+    }
+
+    var difficultyTitle: String {
+        if let resolvedDifficulty {
+            return resolvedDifficulty.title
+        }
+
+        let normalized = difficulty
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: " ")
+        return normalized.isEmpty ? "Unknown" : normalized.capitalized
+    }
+}
+
+extension Array where Element == FieldTripTemplate {
+    func filtering(by difficulty: FieldTripDifficulty?) -> [FieldTripTemplate] {
+        guard let difficulty else { return self }
+        return filter { $0.resolvedDifficulty == difficulty }
+    }
 }
 
 struct FieldTripLevel: Decodable, Identifiable, Equatable {
