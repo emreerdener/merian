@@ -13,6 +13,9 @@ TestFlight, App Store, support, and QA.
 
 ### Media & Performance
 
+- Hid third-party reference images for domestic cat and dog identifications
+  across Insight and shared Explore pages, while keeping the user's captured
+  media and retaining reference galleries for wild felids and canids.
 - Added single-photo import from the iOS share sheet. Sharing an image from
   Photos to Naturebook now opens the app and routes the file through the existing
   gallery crop, confirmation, quota, metadata, analysis, and offline-queue flow.

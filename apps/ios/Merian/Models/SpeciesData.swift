@@ -231,6 +231,21 @@ struct SpeciesData {
 
 // MARK: - Subject Classification
 
+enum ReferenceImageVisibilityPolicy {
+    static func shouldSuppress(
+        isHumanSubject: Bool,
+        scientificName: String
+    ) -> Bool {
+        if isHumanSubject { return true }
+
+        let normalizedScientificName = scientificName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return normalizedScientificName == "felis catus"
+            || normalizedScientificName == "canis lupus familiaris"
+    }
+}
+
 extension SpeciesData {
     /// True for local, non-persisted inference fallback rows such as network timeouts.
     /// These placeholders use `isBiological == false` only to avoid biological result UI;
@@ -255,6 +270,15 @@ extension SpeciesData {
     var isHumanSubject: Bool {
         commonName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "human"
             || scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "homo sapiens"
+    }
+
+    /// Third-party reference photos are not shown for people, domestic cats, or
+    /// domestic dogs. Wild felids and canids retain their reference galleries.
+    var shouldSuppressReferenceImages: Bool {
+        ReferenceImageVisibilityPolicy.shouldSuppress(
+            isHumanSubject: isHumanSubject,
+            scientificName: scientificName
+        )
     }
 }
 

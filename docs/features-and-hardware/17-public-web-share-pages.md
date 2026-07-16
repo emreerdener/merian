@@ -72,10 +72,13 @@ Visual media on the detail route is rendered in canonical `order_index` order.
 The active video slide autoplays muted and inline with native browser controls;
 it loops continuously while selected, and leaving the slide pauses and rewinds
 it. Autoplay failure leaves the poster and controls available for user-initiated playback.
-Species reference images follow the post-owned visual media. The public Explore
-grid remains poster-only so browsing it does not fetch or autoplay video. The
-detail carousel uses one responsive square frame for post-owned images, videos,
-audio spectrograms, posters, and species reference images.
+Species reference images follow the post-owned visual media, except for human,
+`Felis catus`, and `Canis lupus familiaris` identifications, where third-party
+references are suppressed and only post-owned media remains. Wild felids and
+canids retain their reference galleries. The public Explore grid remains
+poster-only so browsing it does not fetch or autoplay video. The detail carousel
+uses one responsive square frame for post-owned images, videos, audio spectrograms,
+posters, and eligible species reference images.
 
 If the RPC returns no visible row, the route returns a not-found page and marks
 metadata as non-indexable. Approved audio-only posts are public and indexable:

@@ -5,7 +5,7 @@ extension InsightSheetViewModel {
 
     private func exportReferenceImageUrl(for inferenceEngine: InferenceEngine) -> String? {
         guard !shouldSuppressReferenceImages,
-              inferenceEngine.speciesData?.isHumanSubject != true else {
+              inferenceEngine.speciesData?.shouldSuppressReferenceImages != true else {
             return nil
         }
         return inferenceEngine.speciesData?.referenceImageUrl

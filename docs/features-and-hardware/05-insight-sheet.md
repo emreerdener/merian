@@ -100,9 +100,10 @@ var allNamesForPicker: [String] {
 var hazardType: String { inferenceEngine?.speciesData?.insightData.hazardType ?? "none" }
 var isHazardous: Bool { hazardType != "none" }
 var refUrls: [String] {
-    // Returns [] when speciesData.isHumanSubject — blocks Wikipedia/GBIF reference
-    // images for human subjects. totalImages derives from refUrls, so the carousel
-    // page count drops automatically with no additional call sites to update.
+    // Returns [] when speciesData.shouldSuppressReferenceImages — blocks Wikipedia/GBIF
+    // reference images for humans, Felis catus, and Canis lupus familiaris.
+    // totalImages derives from refUrls, so the carousel page count drops
+    // automatically with no additional call sites to update.
     // Historical unresolved biological placeholders also suppress reference-loading
     // pages until they have a resolved biological identification.
 }
@@ -307,7 +308,7 @@ Playback taps use the shared Merian haptic vocabulary: medium feedback for play
 or enabling boost, light feedback for pause, mute, or disabling boost, and a
 single begin/commit pair for a scrub gesture. Timer updates, playhead movement,
 silent preference restoration, and carousel hydration do not generate haptics.
-3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF occurrence hydration. **Suppressed for human subjects**: `viewModel.refUrls` returns `[]` when `speciesData.isHumanSubject` is true, preventing third-party photos of people from appearing in the carousel regardless of what the server populates.
+3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF occurrence hydration. **Suppressed for humans and domestic cats/dogs**: `viewModel.refUrls` returns `[]` when `speciesData.shouldSuppressReferenceImages` is true. Beyond the existing human rule, suppression matches only the normalized scientific names `Felis catus` and `Canis lupus familiaris`; wild felids and canids retain their reference galleries. The user's captured media remains visible in every case.
 
 **Seamless user-media handoff**: On a live scan, the saved on-disk media is rebuilt into `ActiveScanMedia` before `speciesData` is assigned and before the transient live image is cleared. On queued scans, `InsightSheetViewModel` seeds `cachedActiveMedia` directly from `queuedContext.capturedMediaSnapshot.activeScanMedia`. On completed records, `fetchLocalRecord` hydrates the same structure from `record.capturedMediaSnapshot.activeScanMedia`. That shared read path is what keeps the playback video clip, standalone audio clip, or mixed-media order intact while the sheet transitions from queued/analyzing state to results. Pending video paths may move from temporary capture storage into Documents during queue persistence, so the resolver falls back by filename before declaring video unavailable.
 

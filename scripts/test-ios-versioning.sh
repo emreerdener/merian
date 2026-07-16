@@ -119,13 +119,13 @@ assert_fails_with "error: Release archive blocked: REVENUECAT_API_KEY is a Reven
 rm -f "$tmp_dir/Config.local.xcconfig"
 printf 'REVENUECAT_API_KEY = test_store_key\n' > "$tmp_dir/Config.xcconfig"
 assert_succeeds_with "warning: Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key" \
-  env VERSION=1.2.6 BUILD=44 PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.6 BUILD=44 PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 assert_fails_with "Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key" \
-  env VERSION=1.2.7 BUILD=45 MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.7 BUILD=45 MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 assert_fails_with "Release REVENUECAT_API_KEY from REVENUECAT_API_KEY must be a RevenueCat iOS production key" \
-  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=rc_unknown_key PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=rc_unknown_key PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 assert_fails_with "Release REVENUECAT_API_KEY from REVENUECAT_API_KEY is still a placeholder" \
-  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=appl_... PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=appl_... PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 
 write_project_yml "1.2.5" "43"
 assert_fails env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"

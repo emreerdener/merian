@@ -2,9 +2,22 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-15-cat-dog-reference-images",
+      "date": "2026-07-15",
+      "title": "Safer domestic pet media",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Domestic cat and dog identifications now hide third-party reference images in Insight and shared Explore pages while keeping your captured media and retaining galleries for wild species."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-15-naturebook-rebrand",
-      "version": "1.0.1",
-      "build": "200",
+      "version": "1.0.0",
+      "build": "232",
       "date": "2026-07-15",
       "title": "Merian is now Naturebook",
       "sections": [

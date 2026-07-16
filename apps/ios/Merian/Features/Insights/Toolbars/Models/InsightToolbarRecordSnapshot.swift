@@ -19,6 +19,7 @@ struct InsightToolbarRecordSnapshot: Equatable {
     let exploreMediaItems: [ExplorePostComposerMediaDraft]
     let isExploreShareEligible: Bool
     let isHumanSubject: Bool
+    let shouldSuppressReferenceImages: Bool
 
     init(record: LocalScanRecord) {
         self.scanId = record.id
@@ -42,5 +43,6 @@ struct InsightToolbarRecordSnapshot: Equatable {
         )
         self.isExploreShareEligible = record.isExploreShareEligible
         self.isHumanSubject = record.isHumanSubject
+        self.shouldSuppressReferenceImages = record.shouldSuppressReferenceImages
     }
 }

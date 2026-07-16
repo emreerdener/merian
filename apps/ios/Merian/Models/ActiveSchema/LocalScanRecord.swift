@@ -288,6 +288,13 @@ extension LocalScanRecord {
             || scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "homo sapiens"
     }
 
+    var shouldSuppressReferenceImages: Bool {
+        ReferenceImageVisibilityPolicy.shouldSuppress(
+            isHumanSubject: isHumanSubject,
+            scientificName: scientificName
+        )
+    }
+
     private static func isResolvedBiologicalName(_ value: String) -> Bool {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalized.isEmpty else { return false }

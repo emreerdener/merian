@@ -29,6 +29,12 @@ tracked XcodeGen source.
 
 ## TestFlight Release Prep
 
+While external testing remains on the approved `1.0.0` version train, keep
+`MARKETING_VERSION` at `1.0.0` and increase only `CURRENT_PROJECT_VERSION` for
+each upload. Changing the marketing version (for example, to `1.0.1`) starts a
+new TestFlight version train whose first external build requires Beta App Review.
+Move to a new semantic version only when that new train is intentional.
+
 Before archiving for TestFlight, choose the next semantic version and prepare a
 fresh build number from the repo root:
 

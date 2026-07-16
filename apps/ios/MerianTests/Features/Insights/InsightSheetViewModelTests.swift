@@ -98,6 +98,7 @@ struct InsightSheetViewModelTests {
 
         #expect(viewModel.resolvedHeaderTitle == "Australian Cattle Dog")
         #expect(viewModel.headerSubtitle == "Canis lupus familiaris")
+        #expect(engine.speciesData?.shouldSuppressReferenceImages == true)
 
         engine.speciesData = SpeciesData(
             scanId: "cat_header",
@@ -116,6 +117,7 @@ struct InsightSheetViewModelTests {
 
         #expect(viewModel.resolvedHeaderTitle == "Tuxedo Cat")
         #expect(viewModel.headerSubtitle == "Felis catus")
+        #expect(engine.speciesData?.shouldSuppressReferenceImages == true)
     }
 
     @Test func localNewDiscoveryDoesNotShowNewToMerianMilestone() {
@@ -983,6 +985,66 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.refUrls.isEmpty)
         #expect(viewModel.activeMedia.items == [.image("documents/human-capture.webp"), .audio("documents/context.m4a")])
         #expect(viewModel.activeMedia.referenceState == .empty)
+        #expect(viewModel.totalImages == 2)
+    }
+
+    @Test func testDomesticCatAndDogSubjectsSuppressReferenceImagesButKeepUserMedia() {
+        let subjects = [
+            (commonName: "Domestic cat", scientificName: "Felis catus"),
+            (commonName: "Domestic dog", scientificName: "Canis lupus familiaris")
+        ]
+
+        for subject in subjects {
+            let viewModel = InsightSheetViewModel()
+            let engine = InferenceEngine()
+            viewModel.inferenceEngine = engine
+            engine.activeMedia = ActiveScanMedia(
+                items: [.image("documents/user-capture.webp")],
+                referenceState: .loaded(["https://example.com/unsuitable-reference.jpg"])
+            )
+            engine.speciesData = SpeciesData(
+                scanId: "domestic_reference_suppression",
+                commonName: subject.commonName,
+                scientificName: subject.scientificName,
+                insightData: InsightData(aiReasoning: "", hazardType: "none"),
+                confidenceScore: 0.96,
+                referenceImageUrl: "https://example.com/unsuitable-reference.jpg"
+            )
+
+            #expect(viewModel.refUrls.isEmpty)
+            #expect(viewModel.activeMedia.items == [.image("documents/user-capture.webp")])
+            #expect(viewModel.activeMedia.referenceState == .empty)
+            #expect(viewModel.totalImages == 1)
+        }
+    }
+
+    @Test func testWildCatKeepsReferenceImages() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        viewModel.inferenceEngine = engine
+        engine.activeMedia = ActiveScanMedia(
+            items: [.image("documents/user-capture.webp")],
+            referenceState: .loaded(["https://example.com/wildcat-reference.jpg"])
+        )
+        engine.speciesData = SpeciesData(
+            scanId: "wildcat_reference_gallery",
+            commonName: "European wildcat",
+            scientificName: "Felis silvestris",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.96,
+            referenceImageUrl: "https://example.com/wildcat-reference.jpg",
+            taxonomy: TaxonomyData(
+                kingdom: "Animalia",
+                phylum: "Chordata",
+                className: "Mammalia",
+                order: "Carnivora",
+                family: "Felidae",
+                genus: "Felis"
+            )
+        )
+
+        #expect(viewModel.refUrls == ["https://example.com/wildcat-reference.jpg"])
+        #expect(viewModel.activeMedia.referenceState == .loaded(["https://example.com/wildcat-reference.jpg"]))
         #expect(viewModel.totalImages == 2)
     }
 

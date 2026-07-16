@@ -49,9 +49,7 @@ extension InsightSheetViewModel {
 
     var refUrls: [String] {
         guard let data = inferenceEngine?.speciesData else { return [] }
-        // Block Wikipedia/GBIF reference images for human subjects — surfacing
-        // third-party photos of people is inappropriate regardless of source.
-        guard !data.isHumanSubject else { return [] }
+        guard !data.shouldSuppressReferenceImages else { return [] }
         return data.referenceImageUrl?
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -59,9 +57,9 @@ extension InsightSheetViewModel {
     }
 
     var shouldSuppressReferenceImages: Bool {
-        if inferenceEngine?.speciesData?.isHumanSubject == true { return true }
-        if toolbarRecordSnapshot?.isHumanSubject == true { return true }
-        if activeLocalRecord?.isHumanSubject == true { return true }
+        if inferenceEngine?.speciesData?.shouldSuppressReferenceImages == true { return true }
+        if toolbarRecordSnapshot?.shouldSuppressReferenceImages == true { return true }
+        if activeLocalRecord?.shouldSuppressReferenceImages == true { return true }
         return false
     }
 

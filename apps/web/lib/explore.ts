@@ -399,6 +399,15 @@ function isHumanSubject(commonName?: string | null, scientificName?: string | nu
     scientificName?.trim().toLowerCase() === "homo sapiens";
 }
 
+function shouldSuppressReferenceImages(post: ExplorePost) {
+  if (isHumanSubject(post.speciesCommonName, post.speciesScientificName)) {
+    return true;
+  }
+
+  const scientificName = post.speciesScientificName.trim().toLowerCase();
+  return scientificName === "felis catus" || scientificName === "canis lupus familiaris";
+}
+
 function referenceImageSource(urlString: string, index: number, wikipediaUrl?: string | null): ExploreReferenceImage["source"] {
   let host = "";
   try {
@@ -594,7 +603,7 @@ function detailForPostSubject(
   detail: ExplorePostDetail | null,
   post: ExplorePost,
 ): ExplorePostDetail | null {
-  if (!detail || !isHumanSubject(post.speciesCommonName, post.speciesScientificName)) {
+  if (!detail || !shouldSuppressReferenceImages(post)) {
     return detail;
   }
 
