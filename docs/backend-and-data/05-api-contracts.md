@@ -155,8 +155,11 @@ Response:
 This is a narrow read model for the idle visual Scan surface. It returns only
 active, incomplete, non-hidden standard Field Trips that the caller can access.
 For each outing it returns unfinished targets from the current unlocked level;
-completed targets and later levels are absent. Seasonal Challenge-linked
-`user_field_trips` rows are excluded.
+completed targets and later levels are absent. Seasonal Challenge participation,
+labels, and challenge-specific completions are not projected. Joining a
+challenge reuses the underlying standard `user_field_trips` row, so that
+standard outing remains eligible and continues to show only its normal Field
+Trip progress.
 
 Outings order by `last_engaged_at DESC`, where engagement is the later of the
 trip start and any item completion. `user_field_trip_id` is the stable tie
@@ -564,9 +567,11 @@ Compatibility request:
 `recent_publications` is a compatibility alias for
 `community_publications` with `mode: "recent"`.
 
-Community Publications is Field Trips-native. It does not extend Explore
-Recent, Following, Trending, Nearby, map, widgets, public web share surfaces, or
-Explore post rows.
+Community Publications is Field Trips-native and never creates Explore post
+rows. The iOS client also reuses this action to mix typed Field Trip cards into
+unfiltered Explore Recent and Following. Those cards retain Field Trip identity
+and interactions. Field Trips remain absent from Trending, Nearby, map, widgets,
+APNs, and public web share surfaces.
 
 ### Publication Detail, Likes, and Comments
 

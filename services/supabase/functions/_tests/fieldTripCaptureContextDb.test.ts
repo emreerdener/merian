@@ -34,7 +34,7 @@ type CaptureOuting = {
   }>;
 };
 
-Deno.test("Field Trip capture context filters, orders, and excludes evidence", async () => {
+Deno.test("Field Trip capture context preserves standard outings and excludes evidence", async () => {
   await withExploreDbTest(
     "fieldTripCaptureContextDb.test",
     async (client: Client) => {
@@ -102,36 +102,11 @@ Deno.test("Field Trip capture context filters, orders, and excludes evidence", a
         ],
       );
 
-      const seasonalTemplateId = crypto.randomUUID();
-      const seasonalLevelId = crypto.randomUUID();
-      const seasonalItemId = crypto.randomUUID();
-      const seasonalTripId = crypto.randomUUID();
       const seasonalChallengeId = crypto.randomUUID();
-      const seasonalSlug = `capture_seasonal_${seasonalTemplateId.slice(0, 8)}`;
-      await client.queryArray(
-        `INSERT INTO public.field_trip_templates (id, slug, title)
-         VALUES ($1, $2, 'Seasonal capture fixture')`,
-        [seasonalTemplateId, seasonalSlug],
-      );
-      await client.queryArray(
-        `INSERT INTO public.field_trip_levels (id, template_id, level_number, title)
-         VALUES ($1, $2, 1, 'Level 1')`,
-        [seasonalLevelId, seasonalTemplateId],
-      );
-      await client.queryArray(
-        `INSERT INTO public.field_trip_checklist_items (
-          id, level_id, prompt, match_type, semantic_tag, sort_order
-        )
-        VALUES ($1, $2, 'Seasonal target', 'semantic_tag', 'seasonal_target', 10)`,
-        [seasonalItemId, seasonalLevelId],
-      );
-      await client.queryArray(
-        `INSERT INTO public.user_field_trips (
-          id, user_id, template_id, started_at, current_level_number
-        )
-        VALUES ($1, $2, $3, '2026-07-17T14:00:00Z', 1)`,
-        [seasonalTripId, viewerId, seasonalTemplateId],
-      );
+      const seasonalParticipationId = crypto.randomUUID();
+      const seasonalSlug = `capture_seasonal_${
+        seasonalChallengeId.slice(0, 8)
+      }`;
       await client.queryArray(
         `INSERT INTO public.field_trip_challenges (
           id, template_id, slug, title, starts_at, ends_at
@@ -140,14 +115,19 @@ Deno.test("Field Trip capture context filters, orders, and excludes evidence", a
           $1, $2, $3 || '_challenge', 'Seasonal capture challenge',
           '2026-07-01T00:00:00Z', '2026-07-31T23:59:59Z'
         )`,
-        [seasonalChallengeId, seasonalTemplateId, seasonalSlug],
+        [seasonalChallengeId, backyard.template_id, seasonalSlug],
       );
       await client.queryArray(
         `INSERT INTO public.field_trip_challenge_participants (
-          challenge_id, user_id, user_field_trip_id
+          id, challenge_id, user_id, user_field_trip_id
         )
-        VALUES ($1, $2, $3)`,
-        [seasonalChallengeId, viewerId, seasonalTripId],
+        VALUES ($1, $2, $3, $4)`,
+        [
+          seasonalParticipationId,
+          seasonalChallengeId,
+          viewerId,
+          backyardTripId,
+        ],
       );
 
       const currentItems = await client.queryObject<{
@@ -182,6 +162,21 @@ Deno.test("Field Trip capture context filters, orders, and excludes evidence", a
         `,
         [backyardTripId, currentItems.rows[0].item_id, scanId, speciesId],
       );
+      await client.queryArray(
+        `
+        INSERT INTO public.field_trip_challenge_item_completions (
+          participation_id, item_id, scan_id, species_id,
+          common_name, scientific_name, completed_at
+        )
+        VALUES ($1, $2, $3, $4, 'Challenge-only Rose', 'Rosa captura', '2026-07-17T13:30:00Z')
+        `,
+        [
+          seasonalParticipationId,
+          currentItems.rows[1].item_id,
+          scanId,
+          speciesId,
+        ],
+      );
 
       const result = await client.queryObject<{ data: CaptureOuting[] }>(
         `SELECT public.get_field_trip_capture_context($1)::jsonb AS data`,
@@ -205,6 +200,7 @@ Deno.test("Field Trip capture context filters, orders, and excludes evidence", a
       );
       assert(!JSON.stringify(outings).includes(scanId));
       assert(!JSON.stringify(outings).includes("Private Rose"));
+      assert(!JSON.stringify(outings).includes("Challenge-only Rose"));
       assert(!JSON.stringify(outings).includes("Rosa captura"));
 
       const emptyResult = await client.queryObject<{ data: CaptureOuting[] }>(

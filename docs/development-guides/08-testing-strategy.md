@@ -672,8 +672,9 @@ identification model call.
 
 Field Trip capture guidance has focused coverage on both sides of the Edge
 boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private
-RPC grants, verified-user Edge call, filtering/order clauses, Seasonal Challenge
-exclusion, and evidence-free projection.
+RPC grants, verified-user Edge call, filtering/order clauses, preservation of a
+standard outing after a Seasonal Challenge join, exclusion of challenge-specific
+progress, and the evidence-free projection.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.

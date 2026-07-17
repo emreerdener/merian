@@ -85,8 +85,10 @@ steps are tracked in the
   following-weighted Community discovery, seasonal non-competitive challenges,
   completion badges, optional challenge hashtag suggestions, and a compact
   account-cached visual Scan target that opens the relevant outing guide.
-  Published pages and challenge entries stay separate from Explore feeds and
-  maps; Seasonal Challenge targets are not included in the Scan indicator.
+  Publication storage stays separate from Explore posts; typed Field Trip cards
+  can appear in unfiltered Recent and Following, but not in Explore maps or the
+  other post-only surfaces. Seasonal Challenge-specific targets are not included
+  in the Scan indicator, while their linked standard outing remains eligible.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support image, short-video, and standalone-audio media snapshots.
 - Compact Explore/profile grids render standalone-audio posts with the species

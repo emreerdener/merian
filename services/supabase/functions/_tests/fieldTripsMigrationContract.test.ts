@@ -183,7 +183,7 @@ Deno.test("Contextual Outing guides add structured reviewed content without remo
   );
 });
 
-Deno.test("Field Trip capture context is focused, ordered, and service-role only", async () => {
+Deno.test("Initial Field Trip capture context is focused, ordered, and service-role only", async () => {
   const sql = normalized(
     await migrationSql("20260717195751_active_outing_capture_context.sql"),
   );
@@ -197,7 +197,6 @@ Deno.test("Field Trip capture context is focused, ordered, and service-role only
       "CREATE INDEX IF NOT EXISTS idx_field_trip_challenge_participants_outing ON public.field_trip_challenge_participants(user_field_trip_id)",
       "uft.completed_at IS NULL",
       "uft.hidden_at IS NULL",
-      "NOT EXISTS ( SELECT 1 FROM public.field_trip_challenge_participants participant WHERE participant.user_field_trip_id = uft.id )",
       "fl.level_number = uft.current_level_number",
       "t.is_pro_only = FALSE OR viewer.is_pro OR t.is_rotating_free = TRUE",
       "FILTER (WHERE completion.id IS NULL)",
@@ -227,6 +226,36 @@ Deno.test("Field Trip capture context is focused, ordered, and service-role only
       `Capture context must not return private evidence: ${privateEvidence}`,
     );
   }
+});
+
+Deno.test("Capture context keeps a standard outing after Seasonal Challenge join", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260717213641_preserve_standard_outings_in_capture_context.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_capture_context( self_id UUID )",
+      "SECURITY INVOKER",
+      "SET search_path = ''",
+      "FROM public.user_field_trips uft",
+      "LEFT JOIN public.user_field_trip_item_completions completion ON completion.user_field_trip_id = uft.id",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_capture_context(UUID) FROM PUBLIC",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_capture_context(UUID) FROM anon",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_capture_context(UUID) FROM authenticated",
+      "GRANT EXECUTE ON FUNCTION public.get_field_trip_capture_context(UUID) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("field_trip_challenge_participants") &&
+      !sql.includes("field_trip_challenge_item_completions"),
+    "Capture context must keep the standard outing and ignore challenge-specific progress",
+  );
 });
 
 Deno.test("Field Trip capture context Edge action always uses the verified user", async () => {

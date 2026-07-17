@@ -219,7 +219,8 @@ Field Trips releases are migration-plus-function releases too. Deploy
 `20260708042713_field_trips_v3_community.sql` before
 `20260708051414_field_trips_v4_challenges.sql` before
 `20260717150222_contextual_outing_objective_guides.sql` before
-`20260717195751_active_outing_capture_context.sql`, then deploy the
+`20260717195751_active_outing_capture_context.sql` before
+`20260717213641_preserve_standard_outings_in_capture_context.sql`, then deploy the
 `field-trips` Edge Function and the updated Explore/profile activity bundles
 together. V1
 creates the Field Trip tables, progress/publication/comment storage, profile
@@ -232,7 +233,9 @@ challenge entry snapshots, challenge entry comments/likes, and scan-scoped
 hashtag suggestion helpers. The contextual-guide migration supplies the
 structured Tips content used by focused target navigation. The capture-context
 migration adds the private service-role RPC and its active-outing/challenge
-lookup indexes consumed by the Scan indicator. A
+lookup indexes consumed by the Scan indicator. The preservation migration keeps
+the shared standard outing eligible after a Seasonal Challenge join while
+leaving challenge-specific progress out of the capture payload. A
 function-only deploy cannot serve `capture_context` or V4 actions until all
 migrations are applied; a database-only deploy leaves the app without the
 Field Trips action router. Do not release the indicator-enabled iOS client until
@@ -740,9 +743,10 @@ After deployment:
   `profile_summaries` after the V1, V2, V3, V4, contextual-guide, and
   capture-context migrations. Verify `capture_context` returns only accessible
   incomplete standard outings and current-level unfinished targets, orders
-  outings by recent engagement, excludes Seasonal Challenge participation, and
-  returns no scan IDs, media, locations, field notes, species completion data,
-  or other evidence. Confirm `PUBLIC`, `anon`, and `authenticated` cannot execute
+  outings by recent engagement, ignores Seasonal Challenge-specific completions
+  without hiding the shared standard outing, and returns no scan IDs, media,
+  locations, field notes, species completion data, or other evidence. Confirm
+  `PUBLIC`, `anon`, and `authenticated` cannot execute
   `public.get_field_trip_capture_context(uuid)` while `service_role` can.
   Publishing a Field Trip or challenge entry must not write `explore_posts`, map points,
   normal Explore post notification rows, APNs, widgets, public web share pages,

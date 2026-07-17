@@ -1860,15 +1860,16 @@ coordinates to the client contract.
   Private service-role read model for the visual Scan indicator. Returns only
   accessible active, incomplete, non-hidden standard outings and unfinished
   targets from each current unlocked level. Outings order by latest start or
-  item completion, targets use curated checklist order, and Seasonal
-  Challenge-linked progress rows are excluded. The payload contains aggregate
-  progress and prompt metadata only—never scan IDs, media, location, notes,
-  completed species labels, or evidence. Execute is revoked from `PUBLIC`,
-  `anon`, and `authenticated` and granted only to `service_role`; the
-  authenticated `/field-trips` Edge action supplies the verified user ID. The
-  function uses an empty search path with fully qualified objects. Partial
-  active-outing and challenge-participation lookup indexes keep the read bounded
-  as progress history grows.
+  item completion, and targets use curated checklist order. It reads standard
+  Field Trip completions only; Seasonal labels and challenge-specific
+  completions are excluded, but joining a challenge does not hide the shared
+  underlying standard outing. The payload contains aggregate progress and
+  prompt metadata only—never scan IDs, media, location, notes, completed species
+  labels, or evidence. Execute is revoked from `PUBLIC`, `anon`, and
+  `authenticated` and granted only to `service_role`; the authenticated
+  `/field-trips` Edge action supplies the verified user ID. The function uses an
+  empty search path with fully qualified objects. The final behavior is defined
+  by `20260717213641_preserve_standard_outings_in_capture_context.sql`.
 - `public.start_field_trip(self_id UUID, target_template_id UUID)`:
   Explicitly starts or unhides the caller's progress row for an accessible
   Field Trip template.

@@ -28,8 +28,9 @@ only a camera/performance setting.
   pre-trip guidance with AI.
 - While the idle visual Scan page is visible, a compact active-target indicator
   can surface unfinished objectives from every active standard Field Trip.
-  Seasonal Challenge targets are intentionally excluded from this first capture
-  integration.
+  Seasonal Challenge labels and challenge-specific progress are intentionally
+  excluded from this first capture integration. Joining a challenge does not
+  hide the linked standard outing or its normal Field Trip progress.
 - Users can explicitly start a Field Trip from the template detail page before
   their first matching scan.
 - Levels unlock sequentially. A scan can complete an item only after the user
@@ -233,8 +234,8 @@ The Scan capture-context payload is even narrower: it contains only outing and
 template identifiers, title/slug, current-level metadata, aggregate counts, and
 unfinished item identifiers/prompts/order/guide availability. It must never
 return scan IDs, media, coordinates, location labels, field notes, completed
-species names, or completion evidence. Seasonal Challenge participation is
-excluded.
+species names, or completion evidence. Seasonal Challenge-specific progress is
+excluded; the shared underlying standard outing remains eligible.
 
 Published Field Trip pages are explicit snapshots stored separately from
 Explore posts. Publication items may include species names, taxonomy, reference
@@ -268,7 +269,9 @@ Seasonal challenges are added by
 Structured objective guidance is added by
 `services/supabase/migrations/20260717150222_contextual_outing_objective_guides.sql`.
 The private capture read model is added by
-`services/supabase/migrations/20260717195751_active_outing_capture_context.sql`.
+`services/supabase/migrations/20260717195751_active_outing_capture_context.sql`,
+and its standard-outing behavior after a challenge join is finalized by
+`services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`.
 
 Core tables:
 
@@ -516,12 +519,13 @@ Deploy in this order:
 4. `20260708051414_field_trips_v4_challenges.sql`
 5. `20260717150222_contextual_outing_objective_guides.sql`
 6. `20260717195751_active_outing_capture_context.sql`
-7. `field-trips` Edge Function
-8. `get-explore-author-profile` so public profiles include Field Trip
+7. `20260717213641_preserve_standard_outings_in_capture_context.sql`
+8. `field-trips` Edge Function
+9. `get-explore-author-profile` so public profiles include Field Trip
    summaries and pins
-9. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+10. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-10. iOS client update
+11. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.

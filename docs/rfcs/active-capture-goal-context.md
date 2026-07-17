@@ -100,6 +100,7 @@ Primary implementation files:
 - `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsView.swift`
 - `services/supabase/functions/field-trips/`
 - `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`
+- `services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`
 
 ## Capture-facing domain contract
 
@@ -138,6 +139,11 @@ The response is documented canonically in
 [`05-api-contracts.md`](../backend-and-data/05-api-contracts.md). It includes
 only accessible, incomplete, non-hidden standard outings and unfinished targets
 from each current unlocked level.
+
+Seasonal Challenge presentation and challenge-specific completion rows are not
+part of this contract. Challenge joins reuse the linked standard
+`user_field_trips` row, so the standard outing and its normal progress remain
+eligible; joining an event must not make an existing Scan target disappear.
 
 Ordering is stable and server-owned:
 
@@ -342,9 +348,10 @@ sufficient for user-driven progress. Realtime should be considered only if
 progress can be mutated concurrently on another device often enough that the
 staleness is demonstrably harmful.
 
-Seasonal Challenges remain excluded until their independent participation,
-timing, and completion semantics receive a dedicated product decision. Adding
-them is not a data-filter toggle.
+Seasonal Challenge labels and challenge-specific progress remain excluded until
+their independent participation, timing, and completion semantics receive a
+dedicated product decision. The linked standard outing remains eligible.
+Adding Seasonal presentation is not a data-filter toggle.
 
 ## Deployment and rollback
 
@@ -352,10 +359,11 @@ Release order is mandatory:
 
 1. apply `20260717150222_contextual_outing_objective_guides.sql`;
 2. apply `20260717195751_active_outing_capture_context.sql`;
-3. deploy the updated `field-trips` Edge Function;
-4. verify authenticated success, unauthenticated `401`, filtering, order, and
+3. apply `20260717213641_preserve_standard_outings_in_capture_context.sql`;
+4. deploy the updated `field-trips` Edge Function;
+5. verify authenticated success, unauthenticated `401`, filtering, order, and
    absence of private evidence; and
-5. release the indicator-enabled iOS client.
+6. release the indicator-enabled iOS client.
 
 Existing clients remain compatible because the action and RPC are additive.
 

@@ -52,6 +52,9 @@ TestFlight, App Store, support, and QA.
   refinement, video recording, other capture modes, and Seasonal Challenges.
   Its shared goal context is source-agnostic, so future guided experiences can
   integrate without coupling their API models or ranking rules to the camera.
+- Kept a linked standard outing available in the Scan target indicator after
+  joining a Seasonal Challenge. Challenge-specific progress remains separate
+  and does not enter the standard outing indicator.
 - Refined standard and Seasonal Field Trip card and detail-image rounding, moved
   template badges onto the cover image, allowed full-width card text, and
   removed the redundant Open guide row and active-trip Continue Scanning
@@ -337,8 +340,9 @@ TestFlight, App Store, support, and QA.
   badges, challenge-specific published entries, and optional Explore hashtag
   suggestions without auto-posting or auto-tagging.
 - Added in-app Field Trip activity for comments, replies, and followed-author
-  publications without sending APNs or adding Field Trips to Explore feeds,
-  maps, or widgets.
+  publications without sending APNs or creating Explore post rows, map points,
+  or widgets. Typed Field Trip cards can appear in unfiltered Explore Recent and
+  Following.
 - Added public video Explore posts: shared video scans can now appear in Explore
   and Ask the Community with muted playback in feed/detail and in-app thumbnail
   play indicators on compact surfaces.

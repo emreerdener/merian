@@ -9,8 +9,9 @@ The backing SQL lives in
 `services/supabase/migrations/20260708042713_field_trips_v3_community.sql` and
 `services/supabase/migrations/20260708051414_field_trips_v4_challenges.sql`,
 `services/supabase/migrations/20260717150222_contextual_outing_objective_guides.sql`,
+`services/supabase/migrations/20260717195751_active_outing_capture_context.sql`,
 and
-`services/supabase/migrations/20260717195751_active_outing_capture_context.sql`.
+`services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`.
 Deploy the migrations before deploying this function.
 
 ## Privacy Contract
@@ -22,9 +23,10 @@ Deploy the migrations before deploying this function.
 - Publishing a Field Trip must not create Explore feed posts, Explore map
   points, normal Explore post notifications, APNs, widgets, or public web share
   pages.
-- Published Field Trips appear on public profiles and the Field Trips
-  `Community` segment only, not in Explore Recent, Following, Trending, Nearby,
-  map, APNs, or widgets.
+- Published Field Trips appear on public profiles, the Field Trips `Community`
+  segment, and as typed cards in unfiltered Explore Recent and Following. They
+  remain absent from Trending, Nearby, map, APNs, widgets, and public web, and
+  they never create duplicate `explore_posts` rows.
 - Field Trip comments, replies, and followed-author publications can create
   Field Trip-only in-app activity rows. They appear in Explore activity and may
   increment the bell, but never fan out to push delivery.
@@ -54,10 +56,12 @@ targets from each current level, ordered by recent engagement and curated
 checklist order. This capture-only contract contains aggregate progress and
 prompts, never scan IDs, media, field notes, location, or completion evidence.
 The backing RPC is executable only by `service_role`; `withEdgeHandler` supplies
-the verified user ID. Rows linked to `field_trip_challenge_participants` are
-excluded so Seasonal Challenges cannot enter this first capture integration.
-The cross-client ownership, cache, navigation, and future-source decision lives
-in `docs/rfcs/active-capture-goal-context.md`.
+the verified user ID. It reads only standard Field Trip item completions and
+never challenge-specific completions or Seasonal labels. Because joining a
+challenge starts or continues the same underlying standard outing, that outing
+remains eligible for the indicator. The cross-client ownership, cache,
+navigation, and future-source decision lives in
+`docs/rfcs/active-capture-goal-context.md`.
 
 Response:
 
@@ -322,13 +326,14 @@ not fail scan persistence.
 4. Apply `20260708051414_field_trips_v4_challenges.sql`.
 5. Apply `20260717150222_contextual_outing_objective_guides.sql`.
 6. Apply `20260717195751_active_outing_capture_context.sql`.
-7. Deploy this function.
-8. Deploy `get-explore-author-profile` so profile responses include
+7. Apply `20260717213641_preserve_standard_outings_in_capture_context.sql`.
+8. Deploy this function.
+9. Deploy `get-explore-author-profile` so profile responses include
    `field_trips`.
-9. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
-   and `mark-explore-notifications-read` so Field Trip activity appears in the
-   in-app activity sheet and bell.
-10. Ship the iOS client.
+10. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+    and `mark-explore-notifications-read` so Field Trip activity appears in the
+    in-app activity sheet and bell.
+11. Ship the iOS client.
 
 ## Verification
 
