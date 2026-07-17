@@ -194,12 +194,46 @@ struct FieldTripChecklistItem: Decodable, Identifiable, Equatable {
     let prompt: String
     let matchType: String
     let guideTip: String?
+    let guide: FieldTripChecklistItemGuide?
     let isCompleted: Bool
     let completedAt: String?
     let completedCommonName: String?
     let completedScientificName: String?
 
     var id: String { itemId }
+
+    var hasGuide: Bool {
+        guide?.hasContent == true || guideTip?.fieldTripNonBlank != nil
+    }
+
+    var guidePreview: String? {
+        guide?.preview ?? guideTip?.fieldTripNonBlank
+    }
+}
+
+struct FieldTripChecklistItemGuide: Decodable, Equatable {
+    let whereToLook: String?
+    let bestConditions: String?
+    let whatToNotice: String?
+    let scanSafely: String?
+
+    var hasContent: Bool {
+        preview != nil
+    }
+
+    var preview: String? {
+        whereToLook?.fieldTripNonBlank
+            ?? bestConditions?.fieldTripNonBlank
+            ?? whatToNotice?.fieldTripNonBlank
+            ?? scanSafely?.fieldTripNonBlank
+    }
+}
+
+private extension String {
+    var fieldTripNonBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 struct FieldTripProgress: Decodable, Equatable {

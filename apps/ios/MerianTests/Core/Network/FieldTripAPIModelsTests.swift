@@ -47,6 +47,12 @@ struct FieldTripAPIModelsTests {
                       "prompt": "Bird",
                       "match_type": "taxonomy",
                       "guide_tip": "Listen before scanning.",
+                      "guide": {
+                        "where_to_look": "Check shrubs, feeders, and tree canopies.",
+                        "best_conditions": "Pause quietly in early morning.",
+                        "what_to_notice": "Listen for calls and watch for movement.",
+                        "scan_safely": "Use zoom and stay away from nests."
+                      },
                       "is_completed": true,
                       "completed_at": "2026-07-08T00:10:00Z",
                       "completed_common_name": "Northern Cardinal",
@@ -69,7 +75,28 @@ struct FieldTripAPIModelsTests {
         #expect(response.data[0].activeProgress?.completedCount == 1)
         #expect(response.data[0].activeProgress?.fractionComplete == 0.25)
         #expect(response.data[0].levels[0].items[0].guideTip == "Listen before scanning.")
+        #expect(response.data[0].levels[0].items[0].guide?.whereToLook == "Check shrubs, feeders, and tree canopies.")
+        #expect(response.data[0].levels[0].items[0].guide?.scanSafely == "Use zoom and stay away from nests.")
+        #expect(response.data[0].levels[0].items[0].hasGuide)
+        #expect(response.data[0].levels[0].items[0].guidePreview == "Check shrubs, feeders, and tree canopies.")
         #expect(response.data[0].levels[0].items[0].completedCommonName == "Northern Cardinal")
+    }
+
+    @Test func checklistItemUsesLegacyGuideTipAsFallback() {
+        let item = FieldTripChecklistItem(
+            itemId: "item-legacy",
+            prompt: "Butterfly",
+            matchType: "taxonomy",
+            guideTip: "Look near sunny flowers.",
+            guide: nil,
+            isCompleted: false,
+            completedAt: nil,
+            completedCommonName: nil,
+            completedScientificName: nil
+        )
+
+        #expect(item.hasGuide)
+        #expect(item.guidePreview == "Look near sunny flowers.")
     }
 
     @Test func communityPublicationsDecodeAuthorRankingAndCursorFields() throws {

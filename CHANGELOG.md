@@ -123,7 +123,7 @@ TestFlight, App Store, support, and QA.
   continues progressively in the background.
 - Replaced the still-image laser sweep with a fast native focus treatment. When
   Naturebook isolates a clear subject, the analyzing image now uses Lens-style
-  corner brackets, a dimmed exterior, and a subtle scanning highlight contained
+  corner brackets, a dimmed exterior, and the full-strength laser sweep contained
   inside the selected area. Broad or ambiguous scenes show no fallback box and
   retain the original full-image scan animation. The two scan treatments never
   appear together, and the full cropped image is still analyzed.

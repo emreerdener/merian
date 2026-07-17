@@ -11,35 +11,39 @@ struct SpeciesObservationChartsCard: View {
     @State private var selectedTab: SpeciesObservationChartTab = .seasonality
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center) {
-                InsightCardHeader(systemImage: "chart.xyaxis.line", title: "Observation patterns")
+        Group {
+            if viewModel.hasAnyData {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .center) {
+                        InsightCardHeader(systemImage: "chart.xyaxis.line", title: "Observation patterns")
 
-                Spacer(minLength: 12)
+                        Spacer(minLength: 12)
 
-                if viewModel.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+
+                    Picker("Chart", selection: $selectedTab) {
+                        ForEach(SpeciesObservationChartTab.allCases) { tab in
+                            Text(tab.title).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    chartContent
+                        .frame(height: 230)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(accessibilitySummary)
+
+                    if selectedTab != .seasonality || viewModel.publicErrorMessage != nil {
+                        footer
+                    }
                 }
-            }
-
-            Picker("Chart", selection: $selectedTab) {
-                ForEach(SpeciesObservationChartTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            chartContent
-                .frame(height: 230)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(accessibilitySummary)
-
-            if selectedTab != .seasonality || viewModel.publicErrorMessage != nil {
-                footer
+                .card()
             }
         }
-        .card()
         .task(id: loadKey) {
             await viewModel.load(
                 speciesId: speciesId?.validStatsSpeciesId,

@@ -148,6 +148,40 @@ Deno.test("Field Trips v2 migration adds guided detail, start, recent trips, and
   }
 });
 
+Deno.test("Contextual Outing guides add structured reviewed content without removing legacy tips", async () => {
+  const sql = normalized(
+    await migrationSql("20260717150222_contextual_outing_objective_guides.sql"),
+  );
+
+  for (
+    const fragment of [
+      "ADD COLUMN IF NOT EXISTS guide_where_to_look TEXT",
+      "ADD COLUMN IF NOT EXISTS guide_best_conditions TEXT",
+      "ADD COLUMN IF NOT EXISTS guide_what_to_notice TEXT",
+      "ADD COLUMN IF NOT EXISTS guide_scan_safely TEXT",
+      "'backyard_safari'",
+      "'park_pollinators'",
+      "'forest_edges'",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_catalog",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_template_detail",
+      "'guide_tip', fci.guide_tip",
+      "'guide', CASE",
+      "'where_to_look', fci.guide_where_to_look",
+      "'best_conditions', fci.guide_best_conditions",
+      "'what_to_notice', fci.guide_what_to_notice",
+      "'scan_safely', fci.guide_scan_safely",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("openai") && !sql.includes("anthropic") &&
+      !sql.includes("generate_content"),
+    "Objective guides must remain reviewed static content with no runtime AI calls",
+  );
+});
+
 Deno.test("Field Trips v2 keeps published trips out of Explore feed infrastructure", async () => {
   const sql = normalized(
     await migrationSql("20260708033451_field_trips_v2.sql"),

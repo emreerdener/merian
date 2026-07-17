@@ -224,67 +224,75 @@ struct FieldTripTemplateDetailView: View {
     @State private var publishingTemplate: FieldTripTemplate?
     @State private var toastMessage: String?
     @State private var selectedDetailSection: FieldTripDetailSection = .objectives
+    @State private var expandedGuideItemId: String?
+    @State private var pendingGuideItemId: String?
+    @State private var highlightedGuideItemId: String?
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            if isLoading && template == nil {
-                FieldTripTemplateDetailSkeleton(showsCoverImage: false)
+        ScrollViewReader { scrollProxy in
+            ScrollView(showsIndicators: false) {
+                if isLoading && template == nil {
+                    FieldTripTemplateDetailSkeleton(showsCoverImage: false)
+                        .padding(16)
+                } else if let errorMessage, template == nil {
+                    FieldTripUnavailableCard(message: errorMessage) {
+                        Task { await load(force: true) }
+                    }
                     .padding(16)
-            } else if let errorMessage, template == nil {
-                FieldTripUnavailableCard(message: errorMessage) {
-                    Task { await load(force: true) }
+                } else if let template {
+                    detailContent(template, scrollProxy: scrollProxy)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 32)
                 }
-                .padding(16)
-            } else if let template {
-                detailContent(template)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 32)
             }
-        }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let template {
-                primaryActionBar(template)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let template {
+                    primaryActionBar(template)
+                }
             }
-        }
-        .navigationTitle(
-            template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
-                ?? "Outing"
-        )
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { detailToolbar }
-        .task {
-            await load(force: false)
-        }
-        .refreshable {
-            await load(force: true)
-        }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
-            guard case .fieldTripProgressUpdated(let updates) = event,
-                  updates.contains(where: { $0.templateId == templateId }) else {
-                return
+            .navigationTitle(
+                template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
+                    ?? "Outing"
+            )
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { detailToolbar }
+            .task {
+                await load(force: false)
             }
-            Task { await load(force: true) }
-        }
-        .sheet(item: $publishingTemplate) { template in
-            FieldTripPublishSheet(template: template) { publication in
-                publishingTemplate = nil
-                onOpenPublication(publication.publicationId)
+            .refreshable {
+                await load(force: true)
+            }
+            .onReceive(AppEventPublisher.shared.publisher) { event in
+                guard case .fieldTripProgressUpdated(let updates) = event,
+                      updates.contains(where: { $0.templateId == templateId }) else {
+                    return
+                }
                 Task { await load(force: true) }
             }
+            .sheet(item: $publishingTemplate) { template in
+                FieldTripPublishSheet(template: template) { publication in
+                    publishingTemplate = nil
+                    onOpenPublication(publication.publicationId)
+                    Task { await load(force: true) }
+                }
+            }
+            .merianSystemFeedback(
+                toastMessage: Binding(
+                    get: { toastMessage },
+                    set: { toastMessage = $0 }
+                ),
+                toastAlignment: .top
+            )
         }
-        .merianSystemFeedback(
-            toastMessage: Binding(
-                get: { toastMessage },
-                set: { toastMessage = $0 }
-            ),
-            toastAlignment: .top
-        )
     }
 
     @ViewBuilder
-    private func detailContent(_ template: FieldTripTemplate) -> some View {
+    private func detailContent(
+        _ template: FieldTripTemplate,
+        scrollProxy: ScrollViewProxy
+    ) -> some View {
         switch selectedDetailSection {
         case .objectives:
             VStack(alignment: .leading, spacing: 24) {
@@ -306,7 +314,8 @@ struct FieldTripTemplateDetailView: View {
                     template: template,
                     currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1,
                     isTripComplete: template.activeProgress?.isComplete ?? false,
-                    progress: template.activeProgress.map(FieldTripLevelProgressPresentation.init)
+                    progress: template.activeProgress.map(FieldTripLevelProgressPresentation.init),
+                    onOpenGuide: openGuide
                 )
 
                 FieldTripCommunityPreviewSection(
@@ -317,7 +326,44 @@ struct FieldTripTemplateDetailView: View {
                 )
             }
         case .tips:
-            FieldTripGuideSections(template: template)
+            FieldTripGuideSections(
+                template: template,
+                currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1,
+                isTripComplete: template.activeProgress?.isComplete ?? false,
+                expandedItemId: $expandedGuideItemId,
+                highlightedItemId: highlightedGuideItemId
+            )
+            .onAppear {
+                consumePendingGuideScroll(with: scrollProxy)
+            }
+        }
+    }
+
+    private func openGuide(_ item: FieldTripChecklistItem) {
+        guard item.hasGuide else { return }
+        HapticManager.shared.triggerSelectionPulse()
+        expandedGuideItemId = item.id
+        pendingGuideItemId = item.id
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedDetailSection = .tips
+        }
+    }
+
+    private func consumePendingGuideScroll(with scrollProxy: ScrollViewProxy) {
+        guard let itemId = pendingGuideItemId else { return }
+        pendingGuideItemId = nil
+        highlightedGuideItemId = itemId
+
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(.easeInOut(duration: 0.3)) {
+                scrollProxy.scrollTo(itemId, anchor: .top)
+            }
+            try? await Task.sleep(for: .seconds(1.2))
+            guard highlightedGuideItemId == itemId else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                highlightedGuideItemId = nil
+            }
         }
     }
 
@@ -428,6 +474,9 @@ struct FieldTripChallengeDetailView: View {
     @State private var viewModel: FieldTripChallengeDetailViewModel
     @State private var publishingChallenge: FieldTripChallenge?
     @State private var selectedDetailSection: FieldTripDetailSection = .objectives
+    @State private var expandedGuideItemId: String?
+    @State private var pendingGuideItemId: String?
+    @State private var highlightedGuideItemId: String?
 
     init(
         challengeId: String,
@@ -441,62 +490,67 @@ struct FieldTripChallengeDetailView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            if viewModel.isLoading && viewModel.challenge == nil {
-                FieldTripTemplateDetailSkeleton(showsCoverImage: true)
+        ScrollViewReader { scrollProxy in
+            ScrollView(showsIndicators: false) {
+                if viewModel.isLoading && viewModel.challenge == nil {
+                    FieldTripTemplateDetailSkeleton(showsCoverImage: true)
+                        .padding(16)
+                } else if let errorMessage = viewModel.errorMessage, viewModel.challenge == nil {
+                    FieldTripUnavailableCard(message: errorMessage) {
+                        Task { await viewModel.refresh() }
+                    }
                     .padding(16)
-            } else if let errorMessage = viewModel.errorMessage, viewModel.challenge == nil {
-                FieldTripUnavailableCard(message: errorMessage) {
-                    Task { await viewModel.refresh() }
+                } else if let challenge = viewModel.challenge {
+                    detailContent(challenge, scrollProxy: scrollProxy)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 32)
                 }
-                .padding(16)
-            } else if let challenge = viewModel.challenge {
-                detailContent(challenge)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 32)
             }
-        }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let challenge = viewModel.challenge {
-                primaryActionBar(challenge)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let challenge = viewModel.challenge {
+                    primaryActionBar(challenge)
+                }
             }
-        }
-        .navigationTitle(viewModel.challenge?.title ?? "Challenge")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { detailToolbar }
-        .task {
-            await viewModel.load()
-        }
-        .refreshable {
-            await viewModel.refresh()
-        }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
-            guard case .fieldTripChallengeProgressUpdated(let updates) = event,
-                  updates.contains(where: { $0.challengeId == challengeId }) else {
-                return
+            .navigationTitle(viewModel.challenge?.title ?? "Challenge")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { detailToolbar }
+            .task {
+                await viewModel.load()
             }
-            Task { await viewModel.refresh() }
-        }
-        .sheet(item: $publishingChallenge) { challenge in
-            FieldTripChallengePublishSheet(challenge: challenge) { entry in
-                publishingChallenge = nil
-                onOpenEntry(entry.entryId)
+            .refreshable {
+                await viewModel.refresh()
+            }
+            .onReceive(AppEventPublisher.shared.publisher) { event in
+                guard case .fieldTripChallengeProgressUpdated(let updates) = event,
+                      updates.contains(where: { $0.challengeId == challengeId }) else {
+                    return
+                }
                 Task { await viewModel.refresh() }
             }
+            .sheet(item: $publishingChallenge) { challenge in
+                FieldTripChallengePublishSheet(challenge: challenge) { entry in
+                    publishingChallenge = nil
+                    onOpenEntry(entry.entryId)
+                    Task { await viewModel.refresh() }
+                }
+            }
+            .merianSystemFeedback(
+                toastMessage: Binding(
+                    get: { viewModel.toastMessage },
+                    set: { viewModel.toastMessage = $0 }
+                ),
+                toastAlignment: .top
+            )
         }
-        .merianSystemFeedback(
-            toastMessage: Binding(
-                get: { viewModel.toastMessage },
-                set: { viewModel.toastMessage = $0 }
-            ),
-            toastAlignment: .top
-        )
     }
 
     @ViewBuilder
-    private func detailContent(_ challenge: FieldTripChallenge) -> some View {
+    private func detailContent(
+        _ challenge: FieldTripChallenge,
+        scrollProxy: ScrollViewProxy
+    ) -> some View {
         if let template = challenge.template {
             switch selectedDetailSection {
             case .objectives:
@@ -507,18 +561,56 @@ struct FieldTripChallengeDetailView: View {
                         template: template,
                         currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1,
                         isTripComplete: challenge.viewerParticipation?.isComplete ?? false,
-                        progress: challenge.viewerParticipation.map(FieldTripLevelProgressPresentation.init)
+                        progress: challenge.viewerParticipation.map(FieldTripLevelProgressPresentation.init),
+                        onOpenGuide: openGuide
                     )
 
                     challengeEntriesSection
                 }
             case .tips:
-                FieldTripGuideSections(template: template)
+                FieldTripGuideSections(
+                    template: template,
+                    currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1,
+                    isTripComplete: challenge.viewerParticipation?.isComplete ?? false,
+                    expandedItemId: $expandedGuideItemId,
+                    highlightedItemId: highlightedGuideItemId
+                )
+                .onAppear {
+                    consumePendingGuideScroll(with: scrollProxy)
+                }
             }
         } else {
             VStack(alignment: .leading, spacing: 24) {
                 challengeOverview(challenge)
                 challengeEntriesSection
+            }
+        }
+    }
+
+    private func openGuide(_ item: FieldTripChecklistItem) {
+        guard item.hasGuide else { return }
+        HapticManager.shared.triggerSelectionPulse()
+        expandedGuideItemId = item.id
+        pendingGuideItemId = item.id
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedDetailSection = .tips
+        }
+    }
+
+    private func consumePendingGuideScroll(with scrollProxy: ScrollViewProxy) {
+        guard let itemId = pendingGuideItemId else { return }
+        pendingGuideItemId = nil
+        highlightedGuideItemId = itemId
+
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(.easeInOut(duration: 0.3)) {
+                scrollProxy.scrollTo(itemId, anchor: .top)
+            }
+            try? await Task.sleep(for: .seconds(1.2))
+            guard highlightedGuideItemId == itemId else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                highlightedGuideItemId = nil
             }
         }
     }
@@ -1208,6 +1300,7 @@ private struct FieldTripLevelsSection: View {
     let currentLevelNumber: Int
     let isTripComplete: Bool
     let progress: FieldTripLevelProgressPresentation?
+    let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -1220,7 +1313,8 @@ private struct FieldTripLevelsSection: View {
                         currentLevelNumber: currentLevelNumber,
                         isTripComplete: isTripComplete
                     ),
-                    progress: level.levelNumber == currentLevelNumber ? progress : nil
+                    progress: level.levelNumber == currentLevelNumber ? progress : nil,
+                    onOpenGuide: onOpenGuide
                 )
             }
         }
@@ -1500,22 +1594,291 @@ private struct FieldTripCommunityPreviewSection: View {
 
 private struct FieldTripGuideSections: View {
     let template: FieldTripTemplate
+    let currentLevelNumber: Int
+    let isTripComplete: Bool
+    @Binding var expandedItemId: String?
+    let highlightedItemId: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let whereToLook = template.guideWhereToLook {
-                FieldTripGuideRow(title: "Where to look", systemImage: "binoculars", bodyText: whereToLook)
+        VStack(alignment: .leading, spacing: 24) {
+            if hasAvailableObjectiveGuides {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Objective tips")
+                        .font(.title3.weight(.bold))
+
+                    Text("Open an objective for practical guidance before you scan.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ForEach(template.levels) { level in
+                    if isLevelAvailable(level), !guidedItems(in: level).isEmpty {
+                        objectiveGuideLevel(level)
+                    }
+                }
             }
 
-            if let whyItMatters = template.guideWhyItMatters {
-                FieldTripGuideRow(title: "Why it matters", systemImage: "leaf", bodyText: whyItMatters)
-            }
+            if hasAboutGuidance {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("About this outing")
+                        .font(.title3.weight(.bold))
 
-            if let safety = template.guideSafetyEthics {
-                FieldTripGuideRow(title: "Safety", systemImage: "hand.raised", bodyText: safety)
+                    if let whereToLook = template.guideWhereToLook {
+                        FieldTripGuideRow(
+                            title: "Where to look",
+                            systemImage: "binoculars",
+                            bodyText: whereToLook
+                        )
+                    }
+
+                    if let whyItMatters = template.guideWhyItMatters {
+                        FieldTripGuideRow(
+                            title: "Why it matters",
+                            systemImage: "leaf",
+                            bodyText: whyItMatters
+                        )
+                    }
+
+                    if let safety = template.guideSafetyEthics {
+                        FieldTripGuideRow(
+                            title: "Safety",
+                            systemImage: "hand.raised",
+                            bodyText: safety
+                        )
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func objectiveGuideLevel(_ level: FieldTripLevel) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(level.title)
+                    .font(.headline.weight(.bold))
+
+                if presentationState(for: level) == .completed {
+                    Text("Completed")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            ForEach(Array(level.items.enumerated()), id: \.element.id) { index, item in
+                if item.hasGuide {
+                    FieldTripObjectiveGuideCard(
+                        item: item,
+                        imageName: FieldTripMockScanArtwork.imageName(
+                            for: item.prompt,
+                            templateSlug: template.slug,
+                            fallbackIndex: index
+                        ),
+                        isExpanded: expandedItemId == item.id,
+                        isHighlighted: highlightedItemId == item.id,
+                        onToggle: {
+                            HapticManager.shared.triggerSelectionPulse()
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                expandedItemId = expandedItemId == item.id ? nil : item.id
+                            }
+                        }
+                    )
+                    .id(item.id)
+                }
+            }
+        }
+    }
+
+    private var hasAvailableObjectiveGuides: Bool {
+        template.levels.contains { level in
+            isLevelAvailable(level) && !guidedItems(in: level).isEmpty
+        }
+    }
+
+    private var hasAboutGuidance: Bool {
+        template.guideWhereToLook != nil
+            || template.guideWhyItMatters != nil
+            || template.guideSafetyEthics != nil
+    }
+
+    private func guidedItems(in level: FieldTripLevel) -> [FieldTripChecklistItem] {
+        level.items.filter(\.hasGuide)
+    }
+
+    private func isLevelAvailable(_ level: FieldTripLevel) -> Bool {
+        presentationState(for: level) != .locked
+    }
+
+    private func presentationState(for level: FieldTripLevel) -> FieldTripLevelPresentationState {
+        .resolve(
+            levelNumber: level.levelNumber,
+            currentLevelNumber: currentLevelNumber,
+            isTripComplete: isTripComplete
+        )
+    }
+}
+
+private struct FieldTripObjectiveGuideCard: View {
+    let item: FieldTripChecklistItem
+    let imageName: String
+    let isExpanded: Bool
+    let isHighlighted: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: onToggle) {
+                HStack(spacing: 12) {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(5)
+                        .frame(width: 58, height: 58)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+                        )
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.prompt)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+
+                        if let preview = item.guidePreview {
+                            Text(preview)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(isExpanded ? 1 : 2)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .accessibilityHidden(true)
+                }
+                .padding(12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(item.prompt)
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint(isExpanded ? "Collapse tips." : "Expand tips.")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider()
+
+                    ForEach(guideSections) { section in
+                        FieldTripObjectiveGuideContentRow(section: section)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 14)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    isHighlighted ? Color.accentColor : Color.primary.opacity(0.08),
+                    lineWidth: isHighlighted ? 2 : 1
+                )
+        }
+        .animation(.easeInOut(duration: 0.25), value: isHighlighted)
+    }
+
+    private var guideSections: [FieldTripObjectiveGuideContentSection] {
+        if let guide = item.guide {
+            let sections = [
+                FieldTripObjectiveGuideContentSection(
+                    title: "Where to look",
+                    systemImage: "binoculars",
+                    bodyText: guide.whereToLook
+                ),
+                FieldTripObjectiveGuideContentSection(
+                    title: "Best conditions",
+                    systemImage: "cloud.sun",
+                    bodyText: guide.bestConditions
+                ),
+                FieldTripObjectiveGuideContentSection(
+                    title: "What to notice",
+                    systemImage: "eye",
+                    bodyText: guide.whatToNotice
+                ),
+                FieldTripObjectiveGuideContentSection(
+                    title: "Scan safely",
+                    systemImage: "hand.raised",
+                    bodyText: guide.scanSafely
+                )
+            ].compactMap { $0.nonEmpty }
+
+            if !sections.isEmpty {
+                return sections
+            }
+        }
+
+        return [
+            FieldTripObjectiveGuideContentSection(
+                title: "Tip",
+                systemImage: "lightbulb",
+                bodyText: item.guideTip
+            )
+        ].compactMap { $0.nonEmpty }
+    }
+}
+
+private struct FieldTripObjectiveGuideContentSection: Identifiable {
+    let title: String
+    let systemImage: String
+    let bodyText: String?
+
+    var id: String { title }
+
+    var nonEmpty: Self? {
+        guard let bodyText,
+              !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return self
+    }
+}
+
+private struct FieldTripObjectiveGuideContentRow: View {
+    let section: FieldTripObjectiveGuideContentSection
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: section.systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(section.title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+
+                if let bodyText = section.bodyText {
+                    Text(bodyText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -1557,6 +1920,7 @@ private struct FieldTripLevelSection: View {
     let templateSlug: String
     let presentationState: FieldTripLevelPresentationState
     let progress: FieldTripLevelProgressPresentation?
+    let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     private var rowStartIndices: [Int] {
         Array(stride(from: 0, to: level.items.count, by: 2))
@@ -1611,7 +1975,8 @@ private struct FieldTripLevelSection: View {
                                 ]
                             ),
                             templateSlug: templateSlug,
-                            fallbackStartIndex: startIndex
+                            fallbackStartIndex: startIndex,
+                            onOpenGuide: onOpenGuide
                         )
                     }
                 }
@@ -1619,7 +1984,8 @@ private struct FieldTripLevelSection: View {
                 FieldTripCompactLevelStrip(
                     items: level.items,
                     templateSlug: templateSlug,
-                    presentationState: presentationState
+                    presentationState: presentationState,
+                    onOpenGuide: onOpenGuide
                 )
             }
         }
@@ -1640,6 +2006,7 @@ private struct FieldTripChecklistGridRow: View {
     let items: [FieldTripChecklistItem]
     let templateSlug: String
     let fallbackStartIndex: Int
+    let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -1650,7 +2017,8 @@ private struct FieldTripChecklistGridRow: View {
                         for: item.prompt,
                         templateSlug: templateSlug,
                         fallbackIndex: fallbackStartIndex + offset
-                    )
+                    ),
+                    onOpenGuide: onOpenGuide
                 )
             }
 
@@ -1667,8 +2035,30 @@ private struct FieldTripChecklistGridRow: View {
 private struct FieldTripChecklistGridTile: View {
     let item: FieldTripChecklistItem
     let imageName: String
+    let onOpenGuide: (FieldTripChecklistItem) -> Void
 
+    @ViewBuilder
     var body: some View {
+        if item.hasGuide {
+            Button {
+                onOpenGuide(item)
+            } label: {
+                tileContent
+            }
+            .buttonStyle(FieldTripObjectiveTipButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityValue(accessibilityValue)
+            .accessibilityHint("View tips for this objective.")
+        } else {
+            tileContent
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(accessibilityValue)
+        }
+    }
+
+    private var tileContent: some View {
         VStack(alignment: .center, spacing: 6) {
             Image(imageName)
                 .resizable()
@@ -1676,13 +2066,22 @@ private struct FieldTripChecklistGridTile: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(8)
 
-            Text(item.prompt)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(item.prompt)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if item.hasGuide {
+                    Image(systemName: "info.circle")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
 
             if let completedName = item.completedCommonName {
                 Text(completedName)
@@ -1707,10 +2106,6 @@ private struct FieldTripChecklistGridTile: View {
                 lineWidth: item.isCompleted ? 2 : 1
             )
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue(accessibilityValue)
-        .accessibilityHint(item.guideTip ?? "")
     }
 
     private var tileShape: RoundedRectangle {
@@ -1734,6 +2129,7 @@ private struct FieldTripCompactLevelStrip: View {
     let items: [FieldTripChecklistItem]
     let templateSlug: String
     let presentationState: FieldTripLevelPresentationState
+    let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -1748,7 +2144,29 @@ private struct FieldTripCompactLevelStrip: View {
         .padding(.horizontal, -12)
     }
 
+    @ViewBuilder
     private func compactTile(item: FieldTripChecklistItem, index: Int) -> some View {
+        if presentationState == .completed, item.hasGuide {
+            Button {
+                onOpenGuide(item)
+            } label: {
+                compactTileContent(item: item, index: index)
+            }
+            .buttonStyle(FieldTripObjectiveTipButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel(for: item))
+            .accessibilityValue(accessibilityValue)
+            .accessibilityHint("View tips for this objective.")
+        } else {
+            compactTileContent(item: item, index: index)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityLabel(for: item))
+                .accessibilityValue(accessibilityValue)
+                .accessibilityHint(accessibilityHint)
+        }
+    }
+
+    private func compactTileContent(item: FieldTripChecklistItem, index: Int) -> some View {
         let shape = RoundedRectangle(
             cornerRadius: FieldTripScanPreviewLayout.cornerRadius,
             style: .continuous
@@ -1776,10 +2194,6 @@ private struct FieldTripCompactLevelStrip: View {
         .overlay {
             shape.strokeBorder(compactBorderColor, lineWidth: 1)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel(for: item))
-        .accessibilityValue(accessibilityValue)
-        .accessibilityHint(accessibilityHint(for: item))
     }
 
     private var compactBorderColor: Color {
@@ -1789,6 +2203,9 @@ private struct FieldTripCompactLevelStrip: View {
     }
 
     private func accessibilityLabel(for item: FieldTripChecklistItem) -> String {
+        if presentationState == .locked {
+            return "Locked objective"
+        }
         if let completedName = item.completedCommonName {
             return "\(item.prompt), \(completedName)"
         }
@@ -1799,11 +2216,19 @@ private struct FieldTripCompactLevelStrip: View {
         presentationState == .locked ? "Locked" : "Completed"
     }
 
-    private func accessibilityHint(for item: FieldTripChecklistItem) -> String {
-        if presentationState == .locked {
-            return "Complete the current level to unlock."
-        }
-        return item.guideTip ?? ""
+    private var accessibilityHint: String {
+        presentationState == .locked
+            ? "Complete the current level to unlock."
+            : ""
+    }
+}
+
+private struct FieldTripObjectiveTipButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

@@ -128,6 +128,28 @@ struct SpeciesObservationStatsViewModelTests {
         #expect(SpeciesObservationStatsReducer.emptyHistoryCounts(now: date(year: 2026, month: 5, day: 17)).count == 77)
     }
 
+    @Test func testObservationCardRequiresChartDataRatherThanOnlyAPublicTotal() {
+        let publicStatsWithoutChartData = publicStats(
+            totalObservations: 7_791,
+            seasonality: SpeciesObservationStatsReducer.emptyMonthCounts()
+        )
+
+        #expect(!SpeciesObservationStatsViewModel.hasAnyData(
+            localStats: .empty(),
+            publicStats: publicStatsWithoutChartData
+        ))
+
+        let publicStatsWithHistory = publicStats(
+            totalObservations: 7_791,
+            history: [SpeciesObservationHistoryCount(year: 2026, month: 7, count: 1)]
+        )
+
+        #expect(SpeciesObservationStatsViewModel.hasAnyData(
+            localStats: .empty(),
+            publicStats: publicStatsWithHistory
+        ))
+    }
+
     @Test func testSeasonalityHeatmapDerivesSparseAvailableMonths() {
         let model = SpeciesSeasonalityHeatmapModel.make(
             localValues: monthCounts([5: 1]),
@@ -244,6 +266,32 @@ struct SpeciesObservationStatsViewModelTests {
         (1...12).map { month in
             SpeciesObservationMonthCount(month: month, count: countsByMonth[month, default: 0])
         }
+    }
+
+    private func publicStats(
+        totalObservations: Int,
+        seasonality: [SpeciesObservationMonthCount] = [],
+        history: [SpeciesObservationHistoryCount] = [],
+        lifeStage: [SpeciesObservationCategorySeries] = []
+    ) -> SpeciesObservationStatsEntry {
+        SpeciesObservationStatsEntry(
+            speciesId: "species-id",
+            scientificName: "Muntiacus reevesi",
+            source: SpeciesObservationStatsSource(
+                provider: "inaturalist",
+                scope: "global",
+                inaturalistTaxonId: nil,
+                fetchedAt: "2026-07-17T00:00:00Z"
+            ),
+            status: .partial,
+            totalObservations: totalObservations,
+            lastObservationDate: nil,
+            fetchedAt: "2026-07-17T00:00:00Z",
+            providerErrors: [],
+            seasonality: seasonality,
+            history: history,
+            lifeStage: lifeStage
+        )
     }
 
     private func date(year: Int, month: Int, day: Int) -> Date {

@@ -737,7 +737,6 @@ private struct AnalyzingMediaOverlay: View {
     @State private var sweepProgress: CGFloat = 0
     @State private var pulse = false
 
-    private let visualBandHeight: CGFloat = 109.6
     private let descriptionBandHeight: CGFloat = 89.2
 
     var body: some View {
@@ -788,8 +787,9 @@ private struct AnalyzingMediaOverlay: View {
     }
 
     private func visualScan(in size: CGSize) -> some View {
-        horizontalScanBand(color: .cyan, coreHeight: 1.6, glowHeight: 54)
-            .offset(y: verticalOffset(in: size, bandHeight: visualBandHeight))
+        VisualLaserScanBand()
+            .frame(width: size.width)
+            .offset(y: verticalOffset(in: size, bandHeight: VisualLaserScanBand.height))
             .blendMode(.plusLighter)
     }
 
@@ -876,11 +876,48 @@ private struct AnalyzingMediaOverlay: View {
         }
 
         sweepProgress = 0
-        withAnimation(.easeInOut(duration: 2.15).repeatForever(autoreverses: true)) {
+        withAnimation(
+            .easeInOut(duration: VisualLaserScanBand.sweepDuration)
+                .repeatForever(autoreverses: true)
+        ) {
             sweepProgress = 1
         }
         withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
             pulse = true
+        }
+    }
+}
+
+private struct VisualLaserScanBand: View {
+    static let sweepDuration: TimeInterval = 2.15
+
+    private static let coreHeight: CGFloat = 1.6
+    private static let glowHeight: CGFloat = 54
+
+    static var height: CGFloat {
+        (glowHeight * 2) + coreHeight
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [.clear, Color.cyan.opacity(0.36)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: Self.glowHeight)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.95))
+                .frame(height: Self.coreHeight)
+                .shadow(color: Color.cyan.opacity(0.9), radius: 7)
+
+            LinearGradient(
+                colors: [Color.cyan.opacity(0.36), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: Self.glowHeight)
         }
     }
 }
@@ -949,14 +986,12 @@ private struct LensFocusOverlay: View {
                 .fill(.black.opacity(0.22), style: FillStyle(eoFill: true))
                 .opacity(isResolved ? 1 : 0)
 
-                if !reduceMotion {
-                    LensFocusScanHighlight(
-                        focusRect: focusRect,
-                        cornerRadius: cornerRadius,
-                        progress: scanProgress
-                    )
-                    .opacity(isResolved ? 1 : 0)
-                }
+                LensFocusScanHighlight(
+                    focusRect: focusRect,
+                    cornerRadius: cornerRadius,
+                    progress: reduceMotion ? 0.5 : scanProgress
+                )
+                .opacity(isResolved ? 1 : 0)
 
                 LensFocusBracketShape(
                     rect: focusRect,
@@ -986,7 +1021,10 @@ private struct LensFocusOverlay: View {
                 withAnimation(.easeOut(duration: 0.20)) {
                     isResolved = true
                 }
-                withAnimation(.easeInOut(duration: 1.9).repeatForever(autoreverses: true)) {
+                withAnimation(
+                    .easeInOut(duration: VisualLaserScanBand.sweepDuration)
+                        .repeatForever(autoreverses: true)
+                ) {
                     scanProgress = 1
                 }
             }
@@ -1000,27 +1038,17 @@ private struct LensFocusScanHighlight: View {
     let progress: CGFloat
 
     var body: some View {
-        let bandHeight = min(46, max(26, focusRect.height * 0.14))
+        let bandHeight = VisualLaserScanBand.height
         let travelDistance = focusRect.height + bandHeight
 
-        LinearGradient(
-            colors: [
-                .clear,
-                .cyan.opacity(0.035),
-                .white.opacity(0.13),
-                .cyan.opacity(0.035),
-                .clear
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(width: focusRect.width, height: bandHeight)
-        .offset(y: -travelDistance / 2 + travelDistance * progress)
-        .frame(width: focusRect.width, height: focusRect.height)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .position(x: focusRect.midX, y: focusRect.midY)
-        .blendMode(.screen)
-        .allowsHitTesting(false)
+        VisualLaserScanBand()
+            .frame(width: focusRect.width, height: bandHeight)
+            .offset(y: -travelDistance / 2 + travelDistance * progress)
+            .frame(width: focusRect.width, height: focusRect.height)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .position(x: focusRect.midX, y: focusRect.midY)
+            .blendMode(.plusLighter)
+            .allowsHitTesting(false)
     }
 }
 

@@ -103,8 +103,18 @@ final class SpeciesObservationStatsViewModel {
     private var activeLoadId: UUID?
 
     var hasAnyData: Bool {
-        localStats.totalObservations > 0 ||
-            (publicStats?.totalObservations ?? 0) > 0 ||
+        Self.hasAnyData(localStats: localStats, publicStats: publicStats)
+    }
+
+    nonisolated static func hasAnyData(
+        localStats: SpeciesObservationLocalStats,
+        publicStats: SpeciesObservationStatsEntry?
+    ) -> Bool {
+        localStats.seasonality.contains(where: \.hasObservations) ||
+            localStats.history.contains(where: \.hasObservations) ||
+            localStats.lifeStage.contains(where: { series in
+                series.values.contains(where: \.hasObservations)
+            }) ||
             publicStats?.seasonality.contains(where: \.hasObservations) == true ||
             publicStats?.history.contains(where: \.hasObservations) == true ||
             publicStats?.lifeStage.contains(where: { series in
