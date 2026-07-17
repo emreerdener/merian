@@ -404,6 +404,26 @@ struct FieldTripAPIModelsTests {
         #expect(unknownTemplate.difficultyTitle == "Expert Level")
     }
 
+    @Test func backyardSafariPresentationUsesSentenceCaseAndBundledCover() {
+        #expect(
+            FieldTripTemplatePresentation.title(
+                "Backyard Safari",
+                slug: "backyard_safari"
+            ) == "Backyard safari"
+        )
+        #expect(
+            FieldTripTemplatePresentation.title(
+                "My backyard discoveries",
+                slug: "backyard_safari"
+            ) == "My backyard discoveries"
+        )
+        #expect(
+            FieldTripTemplatePresentation.bundledCoverImageName(for: "backyard_safari")
+                == "fieldtrip-backyard-safari"
+        )
+        #expect(FieldTripTemplatePresentation.bundledCoverImageName(for: "park_pollinators") == nil)
+    }
+
     @Test func difficultyFilteringPreservesCatalogOrderAndKeepsUnknownValuesInAll() {
         let templates = [
             makeTemplate(id: "starter", difficulty: " STARTER "),

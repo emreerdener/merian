@@ -212,16 +212,16 @@ struct NotificationRowView: View {
             return "Your ID helped resolve a request."
         case .fieldTripComment:
             let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
-            return "\(actorName) commented on your Field Trip."
+            return "\(actorName) commented on your outing."
         case .fieldTripReply:
             let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
             if notification.isReplyToViewerComment == true {
-                return "\(actorName) replied to your Field Trip comment."
+                return "\(actorName) replied to your outing comment."
             }
-            return "\(actorName) replied on a Field Trip."
+            return "\(actorName) replied on an outing."
         case .fieldTripFollowedPublication:
             let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
-            return "\(actorName) published a Field Trip."
+            return "\(actorName) published an outing."
         }
     }
 

@@ -122,7 +122,7 @@ Returns:
       "user_field_trip_id": "uuid",
       "template_id": "uuid",
       "slug": "backyard_safari",
-      "title": "Backyard Safari",
+      "title": "Backyard safari",
       "current_level_number": 1,
       "current_level_title": "Level 1",
       "completed_count": 3,

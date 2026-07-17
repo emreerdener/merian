@@ -89,6 +89,24 @@ Deno.test("Field Trips seed catalog keeps starter and Pro access distinct", asyn
   }
 });
 
+Deno.test("Field Trips catalog keeps Backyard safari in sentence case", async () => {
+  const sql = normalized(
+    await migrationSql("20260717032701_rename_backyard_safari.sql"),
+  );
+
+  for (
+    const fragment of [
+      "UPDATE public.field_trip_templates",
+      "SET title = 'Backyard safari'",
+      "WHERE slug = 'backyard_safari'",
+      "UPDATE public.field_trip_publications AS publication",
+      "AND publication.title = 'Backyard Safari'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("Field Trips migration avoids reserved SQL parameter names", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),

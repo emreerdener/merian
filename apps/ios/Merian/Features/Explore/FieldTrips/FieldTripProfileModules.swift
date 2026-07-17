@@ -66,7 +66,7 @@ struct CurrentUserFieldTripProfilePreview: View {
             pinnedPublicationIds.removeAll { $0 == trip.publicationId }
         } else {
             guard pinnedPublicationIds.count < 3 else {
-                toastMessage = "You can pin up to 3 Field Trips."
+                toastMessage = "You can pin up to 3 outings."
                 HapticManager.shared.triggerErrorThump()
                 return
             }
@@ -98,7 +98,7 @@ struct FieldTripProfilePreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Field Trips")
+                Text("Outings")
                     .font(.title3.weight(.bold))
 
                 Spacer()
@@ -179,7 +179,7 @@ struct FieldTripProfilePreview: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isUpdatingPins)
-                .accessibilityLabel(trip.isPinned ? "Unpin Field Trip" : "Pin Field Trip")
+                .accessibilityLabel(trip.isPinned ? "Unpin outing" : "Pin outing")
             }
         }
     }
@@ -267,7 +267,7 @@ private struct FieldTripActiveProfileRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(trip.title)
+                    Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
@@ -312,12 +312,15 @@ private struct FieldTripPublishedProfileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            FieldTripProfileCover(urlString: trip.coverImageUrl)
+            FieldTripProfileCover(
+                urlString: trip.coverImageUrl,
+                templateSlug: trip.slug
+            )
                 .frame(width: 58, height: 58)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(trip.title)
+                Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -355,9 +358,20 @@ private struct FieldTripPublishedProfileRow: View {
 
 private struct FieldTripProfileCover: View {
     let urlString: String?
+    let templateSlug: String?
+
+    init(urlString: String?, templateSlug: String? = nil) {
+        self.urlString = urlString
+        self.templateSlug = templateSlug
+    }
 
     var body: some View {
-        if let urlString, let url = URL(string: urlString) {
+        if let imageName = FieldTripTemplatePresentation.bundledCoverImageName(for: templateSlug) {
+            Image(imageName)
+                .resizable()
+                .scaledToFill()
+                .clipped()
+        } else if let urlString, let url = URL(string: urlString) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
