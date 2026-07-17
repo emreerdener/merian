@@ -265,7 +265,7 @@ struct CaptureWorkspaceView: View {
                                 onNext: { activeCaptureGoalStore.selectNext() },
                                 onPrevious: { activeCaptureGoalStore.selectPrevious() }
                             )
-                            .padding(.horizontal, 48)
+                            .padding(.horizontal, 32)
                             .transition(.move(edge: .top).combined(with: .opacity))
                         }
 
@@ -766,24 +766,26 @@ private struct ActiveCaptureGoalIndicator: View {
             AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: goal.source.kind)
             onOpen()
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 artwork
+                    .frame(width: 40, height: 40)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .center, spacing: 2) {
                     Text(goal.prompt)
                         .font(.subheadline.weight(.bold))
                         .lineLimit(1)
 
-                    Text("\(goal.source.title) · \(goal.progress.completedCount)/\(goal.progress.targetCount) complete")
+                    Text(goal.source.title)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
 
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.bold))
+                ActiveCaptureGoalProgressRing(progress: goal.progress)
+                    .frame(width: 40, height: 40)
                     .accessibilityHidden(true)
             }
             .foregroundStyle(.primary)
@@ -869,6 +871,41 @@ private struct ActiveCaptureGoalIndicator: View {
                 }
             }
         }
+    }
+}
+
+private struct ActiveCaptureGoalProgressRing: View {
+    let progress: CaptureGoalProgress
+
+    private var fractionComplete: CGFloat {
+        guard progress.targetCount > 0 else { return 0 }
+        return min(
+            max(CGFloat(progress.completedCount) / CGFloat(progress.targetCount), 0),
+            1
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(.secondary.opacity(0.28), lineWidth: 3.5)
+
+            Circle()
+                .trim(from: 0, to: fractionComplete)
+                .stroke(
+                    .primary,
+                    style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+
+            Text("\(progress.completedCount)/\(progress.targetCount)")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .padding(5)
+        }
+        .padding(2)
     }
 }
 

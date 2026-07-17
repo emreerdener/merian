@@ -207,18 +207,19 @@ The pill appears only when all of the following are true:
 - video is not recording.
 
 With no cache, initial loading renders nothing. The pill sits below the existing
-mode picker, uses the same horizontal margins, has a minimum 56-point height,
-and shows 36-point artwork. It uses untinted interactive native Liquid Glass on
-iOS 26 and later, with a neutral material fallback on earlier supported
-versions. Text and symbols use semantic foreground styles rather than a fixed
-brand color so the system can maintain contrast over the live camera scene.
+mode picker, matches its visual width, has a minimum 56-point height, and shows
+36-point artwork. It uses untinted interactive native Liquid Glass on iOS 26 and
+later, with a neutral material fallback on earlier supported versions. Text and
+symbols use semantic foreground styles rather than a fixed brand color so the
+system can maintain contrast over the live camera scene.
 
-The primary line is the target prompt. The secondary line is
-`Outing title · completed/target complete`. Swipe left selects the next target;
-swipe right selects the previous target; both directions wrap. A drag commits
-only after 36 points and when horizontal motion is at least 1.25 times vertical
-motion, avoiding conflict with vertical camera gestures and capture-mode
-paging.
+The target prompt and outing title are centered between symmetric artwork and
+progress slots. The trailing circular progress ring shows
+`completed/target`, replacing the disclosure caret and avoiding a duplicate
+progress subtitle. Swipe left selects the next target; swipe right selects the
+previous target; both directions wrap. A drag commits only after 36 points and
+when horizontal motion is at least 1.25 times vertical motion, avoiding conflict
+with vertical camera gestures and capture-mode paging.
 
 Selection provides haptic feedback. Reduce Motion removes selection animation.
 VoiceOver exposes the current target and progress plus adjustable previous/next

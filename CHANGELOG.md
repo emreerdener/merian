@@ -46,7 +46,8 @@ TestFlight, App Store, support, and QA.
   progress, actions, checklist, and Community content, while Tips opens directly
   to the curated guide.
 - Added a compact active Field Trip target beneath the visual Scan mode picker.
-  It shows the objective, outing name, and level progress; swiping cycles through
+  It matches the picker width and centers the objective and outing name between
+  artwork and an AirPods-inspired circular progress ring. Swiping cycles through
   unfinished targets across active standard outings, and tapping opens and
   highlights the matching guide. The indicator stays out of staged captures,
   refinement, video recording, other capture modes, and Seasonal Challenges.

@@ -28,9 +28,11 @@ rules, and alternatives are documented in
 `docs/rfcs/active-capture-goal-context.md`.
 
 The pill shows exact bundled objective artwork when mapped, otherwise a neutral
-binoculars symbol, plus the objective prompt and
-`Outing title · completed/target complete`. A horizontally dominant swipe moves
-through every unfinished target across active standard outings and wraps in both
+binoculars symbol. Centered objective and outing text sit between equal-width
+artwork and progress slots; the trailing circular ring shows
+`completed/target` and replaces the disclosure caret. The capsule matches the
+visual width of `MediaModeToggle`. A horizontally dominant swipe moves through
+every unfinished target across active standard outings and wraps in both
 directions. Selection changes support haptics, Reduced Motion, and VoiceOver
 adjustable actions.
 

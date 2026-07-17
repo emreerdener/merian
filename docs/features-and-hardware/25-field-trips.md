@@ -114,16 +114,18 @@ Presentation contract:
   video is not recording.
 - Show no loading placeholder when there is no cached context. Camera startup
   and capture remain independent from this request.
-- Render beneath `MediaModeToggle` with the same 48-point horizontal margins, a
-  minimum 56-point height, and 36-point bundled objective artwork. On iOS 26
-  and later the untinted capsule uses interactive native Liquid Glass; earlier
-  supported versions use a neutral material fallback. Foreground styles remain
-  semantic so system contrast adapts to the camera scene and accessibility
-  settings. Unknown objectives use a neutral binoculars symbol; they must not
-  borrow semantically incorrect art.
-- The bold primary line is the objective prompt. The secondary line is
-  `Outing title · completed/target complete`, which keeps progress changes
-  understandable when the selection crosses outing boundaries.
+- Render beneath `MediaModeToggle` at the same visual width, with a minimum
+  56-point height and 36-point bundled objective artwork. On iOS 26 and later
+  the untinted capsule uses interactive native Liquid Glass; earlier supported
+  versions use a neutral material fallback. Foreground styles remain semantic
+  so system contrast adapts to the camera scene and accessibility settings.
+  Unknown objectives use a neutral binoculars symbol; they must not borrow
+  semantically incorrect art.
+- Center the objective prompt and outing title between equal 40-point edge
+  slots. The leading slot contains the artwork; the trailing slot contains a
+  circular `completed/target` progress ring. This keeps the text optically
+  centered while making progress changes understandable when the selection
+  crosses outing boundaries.
 - Swipe left for the next unfinished target and right for the previous target.
   Selection wraps across every active standard outing. The gesture commits only
   after 36 points of translation and only when horizontal movement is at least
