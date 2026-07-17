@@ -115,9 +115,12 @@ Presentation contract:
 - Show no loading placeholder when there is no cached context. Camera startup
   and capture remain independent from this request.
 - Render beneath `MediaModeToggle` with the same 48-point horizontal margins, a
-  minimum 56-point height, 36-point bundled objective artwork, white content,
-  and the named `OutingTargetTint` color (`#1C8547`). Unknown objectives use a
-  neutral binoculars symbol; they must not borrow semantically incorrect art.
+  minimum 56-point height, and 36-point bundled objective artwork. On iOS 26
+  and later the untinted capsule uses interactive native Liquid Glass; earlier
+  supported versions use a neutral material fallback. Foreground styles remain
+  semantic so system contrast adapts to the camera scene and accessibility
+  settings. Unknown objectives use a neutral binoculars symbol; they must not
+  borrow semantically incorrect art.
 - The bold primary line is the objective prompt. The secondary line is
   `Outing title · completed/target complete`, which keeps progress changes
   understandable when the selection crosses outing boundaries.

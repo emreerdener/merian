@@ -34,6 +34,11 @@ through every unfinished target across active standard outings and wraps in both
 directions. Selection changes support haptics, Reduced Motion, and VoiceOver
 adjustable actions.
 
+The capsule is untinted interactive native Liquid Glass on iOS 26 and later.
+Earlier supported versions use a neutral material fallback, and semantic
+foreground styles preserve adaptive contrast without reintroducing a branded
+fill.
+
 `ActiveCaptureGoalStore` preserves the last successful generic payload and
 selected goal in a versioned cache per Supabase account. Capture force-refreshes
 on first appearance and

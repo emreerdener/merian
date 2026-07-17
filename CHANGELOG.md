@@ -50,6 +50,8 @@ TestFlight, App Store, support, and QA.
   unfinished targets across active standard outings, and tapping opens and
   highlights the matching guide. The indicator stays out of staged captures,
   refinement, video recording, other capture modes, and Seasonal Challenges.
+  Its capsule uses untinted interactive Liquid Glass on iOS 26 and a neutral
+  material fallback on earlier supported versions.
   Its shared goal context is source-agnostic, so future guided experiences can
   integrate without coupling their API models or ranking rules to the camera.
 - Kept a linked standard outing available in the Scan target indicator after

@@ -776,7 +776,7 @@ private struct ActiveCaptureGoalIndicator: View {
 
                     Text("\(goal.source.title) · \(goal.progress.completedCount)/\(goal.progress.targetCount) complete")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.82))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -786,11 +786,11 @@ private struct ActiveCaptureGoalIndicator: View {
                     .font(.subheadline.weight(.bold))
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(.primary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .background(Color("OutingTargetTint"), in: Capsule())
+            .modifier(ActiveCaptureGoalGlassModifier())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -843,7 +843,7 @@ private struct ActiveCaptureGoalIndicator: View {
             Image(systemName: symbolName)
                 .font(.system(size: 19, weight: .semibold))
                 .frame(width: 36, height: 36)
-                .background(.white.opacity(0.14), in: Circle())
+                .background(.primary.opacity(0.08), in: Circle())
                 .accessibilityHidden(true)
         }
     }
@@ -868,6 +868,23 @@ private struct ActiveCaptureGoalIndicator: View {
                     onPrevious()
                 }
             }
+        }
+    }
+}
+
+private struct ActiveCaptureGoalGlassModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(.white.opacity(0.18), lineWidth: 0.5)
+                }
         }
     }
 }

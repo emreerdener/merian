@@ -208,8 +208,10 @@ The pill appears only when all of the following are true:
 
 With no cache, initial loading renders nothing. The pill sits below the existing
 mode picker, uses the same horizontal margins, has a minimum 56-point height,
-shows 36-point artwork, and uses the named `OutingTargetTint` color
-(`#1C8547`) with white content.
+and shows 36-point artwork. It uses untinted interactive native Liquid Glass on
+iOS 26 and later, with a neutral material fallback on earlier supported
+versions. Text and symbols use semantic foreground styles rather than a fixed
+brand color so the system can maintain contrast over the live camera scene.
 
 The primary line is the target prompt. The secondary line is
 `Outing title · completed/target complete`. Swipe left selects the next target;
