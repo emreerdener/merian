@@ -78,9 +78,9 @@ Rotating-free and Pro access rules never affect a template's difficulty.
 4. Tapping Start calls `action: "start"`. Auto-start from matching scans remains
    as a fallback.
 5. The idle visual Scan page loads `action: "capture_context"` without blocking
-   the camera. When unfinished standard objectives exist, the current target is
-   shown beneath the capture-mode picker with its outing title and aggregate
-   level progress.
+   the camera. When unfinished standard objectives exist, an instructional
+   `Look for: {target}` label is shown beneath the capture-mode picker with its
+   outing title and aggregate level progress.
 6. Swiping the indicator cycles through all unfinished targets in server order;
    tapping it opens the owning outing and focuses that objective's guide.
 7. A new scan or later confirmed/corrected identification calls
@@ -110,8 +110,9 @@ future-source decision is
 Presentation contract:
 
 - Show only when Field Trips are enabled, Scan/visual mode is selected, a real
-  target exists, the staged-capture tray is empty, refinement is inactive, and
-  video is not recording.
+  target exists, the local `showsCaptureGoalProgress` preference is enabled, the
+  staged-capture tray is empty, refinement is inactive, and video is not
+  recording.
 - Show no loading placeholder when there is no cached context. Camera startup
   and capture remain independent from this request.
 - Render beneath `MediaModeToggle` at the same visual width, with a minimum
@@ -121,17 +122,25 @@ Presentation contract:
   so system contrast adapts to the camera scene and accessibility settings.
   Unknown objectives use a neutral binoculars symbol; they must not borrow
   semantically incorrect art.
-- Center the objective prompt and outing title between equal 40-point edge
-  slots. The leading slot contains the artwork; the trailing slot contains a
-  circular `completed/target` progress ring. This keeps the text optically
-  centered while making progress changes understandable when the selection
-  crosses outing boundaries.
+- Center the instructional `Look for: {target}` prompt and outing title between
+  equal 40-point edge slots. Preserve the curated target text exactly; the
+  colon avoids article and plurality errors for composite or mass-noun prompts.
+  The leading slot contains the artwork; the trailing slot contains a circular
+  `completed/target` progress ring. This keeps the text optically centered while
+  making progress changes understandable when the selection crosses outing
+  boundaries.
 - Swipe left for the next unfinished target and right for the previous target.
   Selection wraps across every active standard outing. The gesture commits only
   after 36 points of translation and only when horizontal movement is at least
   1.25 times vertical movement, preserving camera and capture-page gestures.
-- Selection changes use selection haptics. Reduced Motion removes the selection
-  animation, and VoiceOver exposes adjustable previous/next actions.
+- Tapping the capsule uses a light sheet-opening haptic; selection changes use
+  selection haptics. Both respect the global haptics and Expedition mode gates.
+  Reduced Motion removes the selection animation, and VoiceOver exposes
+  `Outing target. Look for {target}.`, the outing title and progress, plus
+  adjustable previous/next actions.
+- Settings > Capture exposes an on-by-default **Outing progress** toggle. Turning
+  it off removes the entire target capsule from Scan without changing outing
+  progress, cached goal context, or server state.
 
 Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
 flattens the server-ordered outing response into `CaptureGoal` values containing
@@ -277,6 +286,8 @@ The private capture read model is added by
 `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`,
 and its standard-outing behavior after a challenge join is finalized by
 `services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`.
+The Forest Edges placeholder is retired without deleting historical data by
+`services/supabase/migrations/20260717224544_retire_forest_edges_outing.sql`.
 
 Core tables:
 
@@ -525,19 +536,22 @@ Deploy in this order:
 5. `20260717150222_contextual_outing_objective_guides.sql`
 6. `20260717195751_active_outing_capture_context.sql`
 7. `20260717213641_preserve_standard_outings_in_capture_context.sql`
-8. `field-trips` Edge Function
-9. `get-explore-author-profile` so public profiles include Field Trip
+8. `20260717224544_retire_forest_edges_outing.sql`
+9. `field-trips` Edge Function
+10. `get-explore-author-profile` so public profiles include Field Trip
    summaries and pins
-10. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+11. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-11. iOS client update
+12. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
 
 Rollback should disable the Explore Field Trips tab before removing backend
 state. Existing `user_field_trips` and publication rows are user data and
-should not be dropped casually after release.
+should not be dropped casually after release. Placeholder outings should be
+retired through `field_trip_templates.is_active`, as Forest Edges is, rather
+than deleting their template graph.
 
 ## Verification
 

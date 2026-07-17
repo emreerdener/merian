@@ -108,6 +108,27 @@ Deno.test("Field Trips catalog keeps Backyard safari in sentence case", async ()
   }
 });
 
+Deno.test("Forest Edges placeholder is retired without deleting user history", async () => {
+  const sql = normalized(
+    await migrationSql("20260717224544_retire_forest_edges_outing.sql"),
+  );
+
+  for (
+    const fragment of [
+      "UPDATE public.field_trip_templates",
+      "SET is_active = FALSE",
+      "WHERE slug = 'forest_edges'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("DELETE FROM"),
+    "Retiring a placeholder must preserve user progress and evidence",
+  );
+});
+
 Deno.test("Field Trips migration avoids reserved SQL parameter names", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),

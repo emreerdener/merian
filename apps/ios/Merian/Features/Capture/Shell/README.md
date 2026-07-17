@@ -11,10 +11,12 @@ Following the Merian architecture guidelines, the `Shell` orchestrates the trans
 `CaptureWorkspaceView` owns the compact active-outing target indicator because
 it is fixed capture chrome beneath `MediaModeToggle`, not part of the camera
 preview. It reads app-injected `ActiveCaptureGoalStore` state and appears only
-when Field Trips are enabled, visual Scan is selected, a real unfinished target
-exists, the staging tray is empty, refinement is inactive, and video is not
-recording. Loading with no cache renders nothing and never blocks camera startup
-or capture.
+when Field Trips are enabled, the on-by-default
+`AppSettings.showsCaptureGoalProgress` preference is enabled, visual Scan is
+selected, a real unfinished target exists, the staging tray is empty, refinement
+is inactive, and video is not recording. Turning the setting off hides the
+entire capsule without deleting cached context or changing outing progress.
+Loading with no cache renders nothing and never blocks camera startup or capture.
 
 Capture consumes only the generic `CaptureGoal` read model. The first provider,
 `FieldTripCaptureGoalProvider`, owns conversion from Field Trip API DTOs,
@@ -28,13 +30,15 @@ rules, and alternatives are documented in
 `docs/rfcs/active-capture-goal-context.md`.
 
 The pill shows exact bundled objective artwork when mapped, otherwise a neutral
-binoculars symbol. Centered objective and outing text sit between equal-width
-artwork and progress slots; the trailing circular ring shows
-`completed/target` and replaces the disclosure caret. The capsule matches the
-visual width of `MediaModeToggle`. A horizontally dominant swipe moves through
-every unfinished target across active standard outings and wraps in both
-directions. Selection changes support haptics, Reduced Motion, and VoiceOver
-adjustable actions.
+binoculars symbol. A centered `Look for: {target}` instruction and the outing
+title sit between equal-width artwork and progress slots; the trailing circular
+ring shows `completed/target` and replaces the disclosure caret. The capsule
+matches the visual width of `MediaModeToggle`. A horizontally dominant swipe
+moves through every unfinished target across active standard outings and wraps
+in both directions. Tapping uses the shared light sheet-opening haptic, while
+selection changes use selection feedback. Both respect the global haptics and
+Expedition mode settings. Reduced Motion and VoiceOver adjustable actions remain
+supported.
 
 The capsule is untinted interactive native Liquid Glass on iOS 26 and later.
 Earlier supported versions use a neutral material fallback, and semantic

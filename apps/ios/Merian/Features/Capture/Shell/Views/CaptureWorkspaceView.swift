@@ -20,6 +20,7 @@ enum ActiveCaptureGoalSwipeDirection: Equatable {
 enum ActiveCaptureGoalPresentationPolicy {
     static func shouldShow(
         goalsEnabled: Bool,
+        isUserVisible: Bool,
         isVisualMode: Bool,
         hasTarget: Bool,
         stagedCaptureIsEmpty: Bool,
@@ -27,6 +28,7 @@ enum ActiveCaptureGoalPresentationPolicy {
         isVideoRecording: Bool
     ) -> Bool {
         goalsEnabled
+            && isUserVisible
             && isVisualMode
             && hasTarget
             && stagedCaptureIsEmpty
@@ -132,6 +134,7 @@ struct CaptureWorkspaceView: View {
     private var shouldShowActiveCaptureGoal: Bool {
         ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: FieldTripsAvailability.isEnabled,
+            isUserVisible: appSettings.showsCaptureGoalProgress,
             isVisualMode: captureMode == .visual,
             hasTarget: activeCaptureGoalStore.selectedGoal != nil,
             stagedCaptureIsEmpty: viewModel.stagedCapture.isEmpty,
@@ -753,6 +756,16 @@ struct CaptureWorkspaceView: View {
     }
 }
 
+enum ActiveCaptureGoalIndicatorCopy {
+    static func instruction(for prompt: String) -> String {
+        "Look for: \(prompt)"
+    }
+
+    static func accessibilityLabel(for prompt: String) -> String {
+        "Outing target. Look for \(prompt)."
+    }
+}
+
 private struct ActiveCaptureGoalIndicator: View {
     let goal: CaptureGoal
     let onOpen: () -> Void
@@ -763,6 +776,7 @@ private struct ActiveCaptureGoalIndicator: View {
 
     var body: some View {
         Button {
+            HapticManager.shared.triggerSheetSpring(source: "capture.activeGoal.open")
             AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: goal.source.kind)
             onOpen()
         } label: {
@@ -771,9 +785,13 @@ private struct ActiveCaptureGoalIndicator: View {
                     .frame(width: 40, height: 40)
 
                 VStack(alignment: .center, spacing: 2) {
-                    Text(goal.prompt)
+                    Text(
+                        ActiveCaptureGoalIndicatorCopy.instruction(for: goal.prompt)
+                    )
                         .font(.subheadline.weight(.bold))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .allowsTightening(true)
 
                     Text(goal.source.title)
                         .font(.caption)
@@ -809,11 +827,15 @@ private struct ActiveCaptureGoalIndicator: View {
                 }
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(goal.prompt)
+        .accessibilityLabel(
+            ActiveCaptureGoalIndicatorCopy.accessibilityLabel(for: goal.prompt)
+        )
         .accessibilityValue(
             "\(goal.source.title), \(goal.progress.completedCount) of \(goal.progress.targetCount) complete"
         )
-        .accessibilityHint("Opens goal details. Swipe up or down to change target.")
+        .accessibilityHint(
+            "Opens outing details for this target. Swipe up or down to change target."
+        )
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("activeCaptureGoalIndicator")
         .accessibilityAdjustableAction { direction in

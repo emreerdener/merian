@@ -643,6 +643,7 @@ struct ActiveCaptureGoalStoreTests {
     @Test func captureIndicatorPolicyRequiresIdleVisualScanningAndRealData() {
         let visible = ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
+            isUserVisible: true,
             isVisualMode: true,
             hasTarget: true,
             stagedCaptureIsEmpty: true,
@@ -653,6 +654,7 @@ struct ActiveCaptureGoalStoreTests {
 
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
+            isUserVisible: true,
             isVisualMode: true,
             hasTarget: false,
             stagedCaptureIsEmpty: true,
@@ -661,6 +663,7 @@ struct ActiveCaptureGoalStoreTests {
         ))
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
+            isUserVisible: true,
             isVisualMode: false,
             hasTarget: true,
             stagedCaptureIsEmpty: true,
@@ -669,6 +672,7 @@ struct ActiveCaptureGoalStoreTests {
         ))
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
+            isUserVisible: true,
             isVisualMode: true,
             hasTarget: true,
             stagedCaptureIsEmpty: false,
@@ -677,6 +681,7 @@ struct ActiveCaptureGoalStoreTests {
         ))
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
+            isUserVisible: true,
             isVisualMode: true,
             hasTarget: true,
             stagedCaptureIsEmpty: true,
@@ -685,11 +690,21 @@ struct ActiveCaptureGoalStoreTests {
         ))
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
+            isUserVisible: true,
             isVisualMode: true,
             hasTarget: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
             isVideoRecording: true
+        ))
+        #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
+            goalsEnabled: true,
+            isUserVisible: false,
+            isVisualMode: true,
+            hasTarget: true,
+            stagedCaptureIsEmpty: true,
+            isRefining: false,
+            isVideoRecording: false
         ))
     }
 
@@ -712,6 +727,22 @@ struct ActiveCaptureGoalStoreTests {
                 for: "Unknown future target",
                 templateSlug: "backyard_safari"
             ) == nil
+        )
+    }
+
+    @Test func captureIndicatorFramesExactPromptsAsOutingInstructions() {
+        #expect(
+            ["Bird", "Butterfly or moth", "Moss or lichen"].map(
+                ActiveCaptureGoalIndicatorCopy.instruction(for:)
+            ) == [
+                "Look for: Bird",
+                "Look for: Butterfly or moth",
+                "Look for: Moss or lichen"
+            ]
+        )
+        #expect(
+            ActiveCaptureGoalIndicatorCopy.accessibilityLabel(for: "Fungus") ==
+                "Outing target. Look for Fungus."
         )
     }
 

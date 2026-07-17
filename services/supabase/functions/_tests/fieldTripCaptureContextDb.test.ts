@@ -14,6 +14,7 @@ type TemplateFixture = {
   template_id: string;
   slug: string;
   level_id: string;
+  is_active: boolean;
 };
 
 type CaptureOuting = {
@@ -51,7 +52,8 @@ Deno.test("Field Trip capture context preserves standard outings and excludes ev
         SELECT
           template.id AS template_id,
           template.slug,
-          level.id AS level_id
+          level.id AS level_id,
+          template.is_active
         FROM public.field_trip_templates template
         JOIN public.field_trip_levels level
           ON level.template_id = template.id
@@ -66,20 +68,57 @@ Deno.test("Field Trip capture context preserves standard outings and excludes ev
       const park = bySlug.get("park_pollinators");
       const forest = bySlug.get("forest_edges");
       assert(backyard && park && forest);
+      assertEquals(forest.is_active, false);
 
       await client.queryArray(
         `
         UPDATE public.field_trip_templates
         SET is_active = TRUE,
-            is_pro_only = CASE WHEN slug = 'forest_edges' THEN TRUE ELSE FALSE END,
+            is_pro_only = FALSE,
             is_rotating_free = FALSE
-        WHERE id IN ($1, $2, $3)
+        WHERE id IN ($1, $2)
         `,
-        [backyard.template_id, park.template_id, forest.template_id],
+        [backyard.template_id, park.template_id],
+      );
+
+      const inaccessibleTemplateId = crypto.randomUUID();
+      const inaccessibleLevelId = crypto.randomUUID();
+      const inaccessibleItemId = crypto.randomUUID();
+      const inaccessibleSlug = `capture_pro_${
+        inaccessibleTemplateId.slice(0, 8)
+      }`;
+      await client.queryArray(
+        `
+        INSERT INTO public.field_trip_templates (
+          id, slug, title, difficulty, is_pro_only, is_rotating_free,
+          is_active, sort_order
+        )
+        VALUES ($1, $2, 'Capture Pro fixture', 'starter', TRUE, FALSE, TRUE, 999)
+        `,
+        [inaccessibleTemplateId, inaccessibleSlug],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.field_trip_levels (
+          id, template_id, level_number, title
+        )
+        VALUES ($1, $2, 1, 'Fixture level')
+        `,
+        [inaccessibleLevelId, inaccessibleTemplateId],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.field_trip_checklist_items (
+          id, level_id, prompt, match_type, semantic_tag, sort_order
+        )
+        VALUES ($1, $2, 'Fixture target', 'semantic_tag', 'fixture', 10)
+        `,
+        [inaccessibleItemId, inaccessibleLevelId],
       );
 
       const backyardTripId = crypto.randomUUID();
       const parkTripId = crypto.randomUUID();
+      const inactiveTripId = crypto.randomUUID();
       const inaccessibleTripId = crypto.randomUUID();
       await client.queryArray(
         `
@@ -89,7 +128,8 @@ Deno.test("Field Trip capture context preserves standard outings and excludes ev
         VALUES
           ($1, $2, $3, '2026-07-17T10:00:00Z', 1),
           ($4, $2, $5, '2026-07-17T11:00:00Z', 1),
-          ($6, $2, $7, '2026-07-17T12:00:00Z', 1)
+          ($6, $2, $7, '2026-07-17T12:00:00Z', 1),
+          ($8, $2, $9, '2026-07-17T13:00:00Z', 1)
         `,
         [
           backyardTripId,
@@ -97,8 +137,10 @@ Deno.test("Field Trip capture context preserves standard outings and excludes ev
           backyard.template_id,
           parkTripId,
           park.template_id,
-          inaccessibleTripId,
+          inactiveTripId,
           forest.template_id,
+          inaccessibleTripId,
+          inaccessibleTemplateId,
         ],
       );
 

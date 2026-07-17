@@ -1,8 +1,8 @@
-import Testing
 import Foundation
+@testable import Merian
 import SwiftData
 import SwiftUI
-@testable import Merian
+import Testing
 
 @MainActor
 struct AppDIContainerTests {
@@ -24,7 +24,6 @@ struct AppDIContainerTests {
         return try modelContext.fetch(descriptor).first
     }
 
-    
     @Test func testSharedInstanceUnification() {
         let sharedContainerA = AppDIContainer.shared
         let sharedContainerB = AppDIContainer.shared
@@ -99,6 +98,22 @@ struct AppDIContainerTests {
         settings.refreshFromDefaults()
 
         #expect(settings.isAchievementNotificationsEnabled == false)
+    }
+
+    @Test func testCaptureGoalProgressDefaultsOnAndPersistsExplicitOff() {
+        let suiteName = "merian.tests.capture-goal-progress.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+        #expect(settings.showsCaptureGoalProgress)
+
+        settings.showsCaptureGoalProgress = false
+        #expect(!defaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress))
+
+        let restored = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+        #expect(!restored.showsCaptureGoalProgress)
     }
 
     @Test func testExploreNotificationDefaultsStartOn() {

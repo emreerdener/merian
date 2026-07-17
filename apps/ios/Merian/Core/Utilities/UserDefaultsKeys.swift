@@ -20,6 +20,8 @@ enum UserDefaultsKeys {
     static let isMultiCaptureEnabled = "isMultiCaptureEnabled"
     /// Whether scans should wait for explicit user confirmation before submission.
     static let requiresScanConfirmation = "requiresScanConfirmation"
+    /// Whether the active capture-goal indicator is visible over the Scan camera.
+    static let showsCaptureGoalProgress = "showsCaptureGoalProgress"
     /// Legacy pre-migration key for the old multi-image scan mode toggle.
     static let legacyMultiImageScanMode = "multiImageScanMode"
     /// Whether expedition mode is active for low-power field capture sessions.
@@ -1108,6 +1110,15 @@ final class AppSettings {
             persistBool(requiresScanConfirmation, oldValue: oldValue, key: UserDefaultsKeys.requiresScanConfirmation)
         }
     }
+    var showsCaptureGoalProgress: Bool {
+        didSet {
+            persistBool(
+                showsCaptureGoalProgress,
+                oldValue: oldValue,
+                key: UserDefaultsKeys.showsCaptureGoalProgress
+            )
+        }
+    }
     var isExpeditionModeActive: Bool {
         didSet { persistBool(isExpeditionModeActive, oldValue: oldValue, key: UserDefaultsKeys.isExpeditionModeActive) }
     }
@@ -1231,6 +1242,7 @@ final class AppSettings {
             UserDefaultsKeys.themeMode: ThemeMode.system.rawValue,
             UserDefaultsKeys.isMultiCaptureEnabled: false,
             UserDefaultsKeys.requiresScanConfirmation: false,
+            UserDefaultsKeys.showsCaptureGoalProgress: true,
             UserDefaultsKeys.isExpeditionModeActive: false,
             UserDefaultsKeys.isHapticsEnabled: true,
             UserDefaultsKeys.hasUnseenScan: false,
@@ -1264,6 +1276,7 @@ final class AppSettings {
         ) ?? .system
         isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
         requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
+        showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
         hasUnseenScan = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenScan)
@@ -1332,6 +1345,7 @@ final class AppSettings {
         ) ?? .system
         isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
         requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
+        showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
         hasUnseenScan = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenScan)

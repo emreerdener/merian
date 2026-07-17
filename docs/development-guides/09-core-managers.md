@@ -786,6 +786,7 @@ triggering excessive SwiftUI view rebuilds.
 | `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                        |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors. |
 | `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                               |
+| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. Settings controls whether `CaptureWorkspaceView` presents the active outing target capsule; default `true`.                                           |
 | `legacyMultiImageScanMode`             | `"multiImageScanMode"`                   | one-time migration in `MerianApp`                                                                                                                                                   |
 | `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"` | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                         |
 | `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`             | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                              |
@@ -878,7 +879,8 @@ and `KeychainManager` migration logic. Do not inline
   `Core/Utilities`.
 - Owns the typed, in-memory representation of high-churn persisted settings such
   as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`,
-  `gridColumns`, `saveToCameraRoll`, and notification toggles.
+  `showsCaptureGoalProgress`, `gridColumns`, `saveToCameraRoll`, and notification
+  toggles.
 - Writes through to `UserDefaults` on mutation, reloads from
   `UserDefaults.didChangeNotification`, and exposes `refreshFromDefaults()` for
   foreground reconciliation after background delegates or extensions mutate

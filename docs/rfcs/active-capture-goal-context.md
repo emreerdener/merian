@@ -200,6 +200,7 @@ transport state.
 The pill appears only when all of the following are true:
 
 - Field Trips is enabled;
+- the device-local `showsCaptureGoalProgress` preference is enabled;
 - visual Scan is selected;
 - a real target exists;
 - no staged capture is present;
@@ -213,21 +214,30 @@ later, with a neutral material fallback on earlier supported versions. Text and
 symbols use semantic foreground styles rather than a fixed brand color so the
 system can maintain contrast over the live camera scene.
 
-The target prompt and outing title are centered between symmetric artwork and
-progress slots. The trailing circular progress ring shows
+The on-by-default **Outing progress** setting controls only presentation of the
+capsule. Disabling it does not clear the account cache, alter selection, stop
+normal refreshes, or mutate outing progress, so re-enabling is immediate and
+does not create a separate server preference contract.
+
+The target is rendered as the instructional `Look for: {target}` while the
+outing title remains centered beneath it between symmetric artwork and progress
+slots. The curated prompt is preserved exactly instead of adding grammar-aware
+articles. The trailing circular progress ring shows
 `completed/target`, replacing the disclosure caret and avoiding a duplicate
 progress subtitle. Swipe left selects the next target; swipe right selects the
 previous target; both directions wrap. A drag commits only after 36 points and
 when horizontal motion is at least 1.25 times vertical motion, avoiding conflict
 with vertical camera gestures and capture-mode paging.
 
-Selection provides haptic feedback. Reduce Motion removes selection animation.
-VoiceOver exposes the current target and progress plus adjustable previous/next
-actions. The current compact treatment keeps both text rows to one line;
-Dynamic Type QA must confirm the prompt and outing context remain intelligible
-without covering camera controls. If accessibility sizes do not meet that bar,
-prefer bounded vertical growth over shrinking the tap target or hiding the
-outing context.
+Opening the capsule provides a light sheet-opening haptic, while target changes
+provide selection feedback; both use the shared app haptics policy. Reduce
+Motion removes selection animation. VoiceOver announces the element as an
+outing target, then exposes the current target and progress plus adjustable
+previous/next actions. The current compact treatment keeps both text rows to one
+line; Dynamic Type QA must confirm the prompt and outing context remain
+intelligible without covering camera controls. If accessibility sizes do not
+meet that bar, prefer bounded vertical growth over shrinking the tap target or
+hiding the outing context.
 
 ## Navigation
 

@@ -46,18 +46,25 @@ TestFlight, App Store, support, and QA.
   progress, actions, checklist, and Community content, while Tips opens directly
   to the curated guide.
 - Added a compact active Field Trip target beneath the visual Scan mode picker.
-  It matches the picker width and centers the objective and outing name between
-  artwork and an AirPods-inspired circular progress ring. Swiping cycles through
-  unfinished targets across active standard outings, and tapping opens and
-  highlights the matching guide. The indicator stays out of staged captures,
-  refinement, video recording, other capture modes, and Seasonal Challenges.
+  It matches the picker width and centers an instructional `Look for: {target}`
+  label and outing name between artwork and an AirPods-inspired circular
+  progress ring. Swiping cycles through unfinished targets across active
+  standard outings, and tapping opens and highlights the matching guide. The
+  indicator stays out of staged captures, refinement, video recording, other
+  capture modes, and Seasonal Challenges.
   Its capsule uses untinted interactive Liquid Glass on iOS 26 and a neutral
   material fallback on earlier supported versions.
+  An on-by-default Outing progress setting can hide the capsule without changing
+  outing data or progress, and tapping the capsule now provides light haptic
+  confirmation before opening its guide.
   Its shared goal context is source-agnostic, so future guided experiences can
   integrate without coupling their API models or ranking rules to the camera.
 - Kept a linked standard outing available in the Scan target indicator after
   joining a Seasonal Challenge. Challenge-specific progress remains separate
   and does not enter the standard outing indicator.
+- Retired the placeholder Forest Edges outing from catalogs, detail/start
+  routes, and the Scan target indicator while preserving existing progress,
+  scans, publications, and evidence.
 - Refined standard and Seasonal Field Trip card and detail-image rounding, moved
   template badges onto the cover image, allowed full-width card text, and
   removed the redundant Open guide row and active-trip Continue Scanning

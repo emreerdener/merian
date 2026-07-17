@@ -99,7 +99,9 @@ suggestions. The contextual objective-guide migration supplies structured Tips,
 capture read model, and
 `20260717213641_preserve_standard_outings_in_capture_context.sql` keeps the
 underlying standard outing visible after a Seasonal Challenge join while still
-ignoring challenge-specific progress. The contract suite verifies caller
+ignoring challenge-specific progress, and
+`20260717224544_retire_forest_edges_outing.sql` deactivates the Forest Edges
+placeholder without deleting historical user data. The contract suite verifies caller
 identity, role grants, ordering/filtering clauses, and the absence of private
 evidence. `fieldTripCaptureContextDb.test.ts` additionally
 executes the filtering/order/privacy contract when the local Postgres stack is

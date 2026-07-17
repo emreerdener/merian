@@ -674,7 +674,8 @@ Field Trip capture guidance has focused coverage on both sides of the Edge
 boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private
 RPC grants, verified-user Edge call, filtering/order clauses, preservation of a
 standard outing after a Seasonal Challenge join, exclusion of challenge-specific
-progress, and the evidence-free projection.
+progress, the non-destructive retirement of placeholder templates, and the
+evidence-free projection.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
@@ -683,9 +684,11 @@ available, and that skip must not be counted as database validation.
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
 refresh-failure retention, indicator presentation/gesture policy, exact-art
-fallback, and focused Explore route compatibility. `AppTelemetryTests` locks the
-coarse action/source-only event shape and prevents goal content or identifiers
-from entering analytics. UI/device QA must also confirm Dynamic Type, VoiceOver
+fallback, user-visibility gating, and focused Explore route compatibility.
+`AppDIContainerTests` verifies the presentation preference defaults on and
+persists an explicit opt-out. `AppTelemetryTests` locks the coarse
+action/source-only event shape and prevents goal content or identifiers from
+entering analytics. UI/device QA must also confirm Dynamic Type, VoiceOver
 adjustable actions, Reduce Motion, light/dark appearance, idle visual-only
 visibility, and that target swipes do not page capture modes. The architectural
 test obligations for future sources are recorded in

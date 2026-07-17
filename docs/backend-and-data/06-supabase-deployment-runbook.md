@@ -220,7 +220,8 @@ Field Trips releases are migration-plus-function releases too. Deploy
 `20260708051414_field_trips_v4_challenges.sql` before
 `20260717150222_contextual_outing_objective_guides.sql` before
 `20260717195751_active_outing_capture_context.sql` before
-`20260717213641_preserve_standard_outings_in_capture_context.sql`, then deploy the
+`20260717213641_preserve_standard_outings_in_capture_context.sql` before
+`20260717224544_retire_forest_edges_outing.sql`, then deploy the
 `field-trips` Edge Function and the updated Explore/profile activity bundles
 together. V1
 creates the Field Trip tables, progress/publication/comment storage, profile
@@ -235,7 +236,9 @@ structured Tips content used by focused target navigation. The capture-context
 migration adds the private service-role RPC and its active-outing/challenge
 lookup indexes consumed by the Scan indicator. The preservation migration keeps
 the shared standard outing eligible after a Seasonal Challenge join while
-leaving challenge-specific progress out of the capture payload. A
+leaving challenge-specific progress out of the capture payload. The final
+data-only migration deactivates the Forest Edges placeholder while retaining
+existing progress and evidence. A
 function-only deploy cannot serve `capture_context` or V4 actions until all
 migrations are applied; a database-only deploy leaves the app without the
 Field Trips action router. Do not release the indicator-enabled iOS client until

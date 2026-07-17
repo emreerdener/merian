@@ -160,6 +160,16 @@ struct Preferences: View {
                     iconColor: .yellow
                 )
             }
+
+            if FieldTripsAvailability.isEnabled {
+                SettingsToggleRow(
+                    title: "Outing progress",
+                    description: "Show your active outing target and progress on the Scan camera.",
+                    isOn: $appSettings.showsCaptureGoalProgress,
+                    icon: "chart.pie.fill",
+                    iconColor: .indigo
+                )
+            }
             
             // MARK: - Confirm Submissions
             SettingsToggleRow(

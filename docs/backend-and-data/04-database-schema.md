@@ -1870,6 +1870,9 @@ coordinates to the client contract.
   `/field-trips` Edge action supplies the verified user ID. The function uses an
   empty search path with fully qualified objects. The final behavior is defined
   by `20260717213641_preserve_standard_outings_in_capture_context.sql`.
+  `20260717224544_retire_forest_edges_outing.sql` deactivates the placeholder
+  Forest Edges template, so this read model and other active-template RPCs omit
+  it without deleting historical user rows.
 - `public.start_field_trip(self_id UUID, target_template_id UUID)`:
   Explicitly starts or unhides the caller's progress row for an accessible
   Field Trip template.
