@@ -2,6 +2,7 @@ import SwiftUI
 
 enum FieldTripTemplatePresentation {
     static let backyardSafariSlug = "backyard_safari"
+    static let parkPollinatorsSlug = "park_pollinators"
 
     static func title(_ title: String, slug: String) -> String {
         guard slug == backyardSafariSlug, title == "Backyard Safari" else {
@@ -87,7 +88,7 @@ struct FieldTripsView: View {
                                 Task { await viewModel.refresh(userRegion: userRegion) }
                             }
                         } else if viewModel.templates.isEmpty {
-                            FieldTripUnavailableCard(message: "Outings are not available right now.") {
+                            FieldTripUnavailableCard(message: "Challenges are not available right now.") {
                                 Task { await viewModel.refresh(userRegion: userRegion) }
                             }
                         } else if filteredTemplates.isEmpty {
@@ -143,8 +144,8 @@ struct FieldTripsView: View {
     private var filteredEmptyState: some View {
         EmptyStateView(
             imageName: "fireflies",
-            title: "No \(selectedDifficultyFilter.title) outings yet",
-            message: "Try another difficulty to find your next outing."
+            title: "No \(selectedDifficultyFilter.title) challenges yet",
+            message: "Try another difficulty to find your next challenge."
         ) {
             Button {
                 selectedDifficultyFilter = .all
@@ -180,7 +181,7 @@ struct FieldTripsView: View {
                         Task { await viewModel.refresh(userRegion: userRegion) }
                     }
                 } else if visibleChallenges.isEmpty {
-                    FieldTripUnavailableCard(message: "Seasonal outings are not available right now.") {
+                    FieldTripUnavailableCard(message: "Events are not available right now.") {
                         Task { await viewModel.refresh(userRegion: userRegion) }
                     }
                 } else {
@@ -227,7 +228,7 @@ struct FieldTripTemplateDetailView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             if isLoading && template == nil {
-                FieldTripTemplateDetailSkeleton()
+                FieldTripTemplateDetailSkeleton(showsCoverImage: false)
                     .padding(16)
             } else if let errorMessage, template == nil {
                 FieldTripUnavailableCard(message: errorMessage) {
@@ -242,6 +243,11 @@ struct FieldTripTemplateDetailView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let template {
+                primaryActionBar(template)
+            }
+        }
         .navigationTitle(
             template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
                 ?? "Outing"
@@ -282,14 +288,6 @@ struct FieldTripTemplateDetailView: View {
         switch selectedDetailSection {
         case .objectives:
             VStack(alignment: .leading, spacing: 24) {
-                FieldTripCoverImage(
-                    urlString: template.coverImageUrl,
-                    templateSlug: template.slug
-                )
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
                 VStack(alignment: .leading, spacing: 12) {
                     Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
                         .font(.title2.weight(.bold))
@@ -303,8 +301,6 @@ struct FieldTripTemplateDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-
-                actionButton(template)
 
                 FieldTripLevelsSection(
                     template: template,
@@ -338,54 +334,46 @@ struct FieldTripTemplateDetailView: View {
     }
 
     @ViewBuilder
-    private func actionButton(_ template: FieldTripTemplate) -> some View {
+    private func primaryActionBar(_ template: FieldTripTemplate) -> some View {
         if !template.viewerHasAccess {
-            Button {
+            FieldTripDetailPrimaryActionBar(
+                title: "Unlock with Pro",
+                systemImage: "lock.fill"
+            ) {
                 AppEventPublisher.shared.send(.triggerPaywall)
-            } label: {
-                Label("Unlock with Pro", systemImage: "lock.fill")
-                    .font(.headline)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
-            .buttonStyle(.plain)
         } else if template.activeProgress == nil {
-            Button {
+            FieldTripDetailPrimaryActionBar(
+                title: "Start challenge",
+                systemImage: "play.fill",
+                isLoading: isStarting,
+                isEnabled: !isStarting
+            ) {
                 Task { await start(template) }
-            } label: {
-                HStack(spacing: 8) {
-                    if isStarting {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(Color(uiColor: .systemBackground))
-                    } else {
-                        Image(systemName: "play.fill")
-                    }
-                    Text("Start outing")
-                }
-                .font(.headline)
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
-                .background(Capsule(style: .continuous).fill(Color.primary))
             }
-            .buttonStyle(.plain)
-            .disabled(isStarting)
         } else if let progress = template.activeProgress, progress.isComplete {
-            Button {
+            FieldTripDetailPrimaryActionBar(
+                title: "Publish challenge",
+                systemImage: "square.and.arrow.up"
+            ) {
                 publishingTemplate = template
-            } label: {
-                Label("Publish outing", systemImage: "square.and.arrow.up")
-                    .font(.headline)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
-            .buttonStyle(.plain)
+        } else {
+            FieldTripDetailPrimaryActionBar(
+                title: "Go scan",
+                systemImage: "viewfinder"
+            ) {
+                openScanner()
+            }
         }
+    }
+
+    private func openScanner() {
+        HapticManager.shared.triggerLightImpact(
+            intensity: 0.45,
+            source: "fieldTrips.challenge.goScan"
+        )
+        AppEventPublisher.shared.send(.requestOpenScanner)
     }
 
     private func load(force: Bool) async {
@@ -455,7 +443,7 @@ struct FieldTripChallengeDetailView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             if viewModel.isLoading && viewModel.challenge == nil {
-                FieldTripTemplateDetailSkeleton()
+                FieldTripTemplateDetailSkeleton(showsCoverImage: true)
                     .padding(16)
             } else if let errorMessage = viewModel.errorMessage, viewModel.challenge == nil {
                 FieldTripUnavailableCard(message: errorMessage) {
@@ -470,6 +458,11 @@ struct FieldTripChallengeDetailView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let challenge = viewModel.challenge {
+                primaryActionBar(challenge)
+            }
+        }
         .navigationTitle(viewModel.challenge?.title ?? "Challenge")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { detailToolbar }
@@ -570,7 +563,6 @@ struct FieldTripChallengeDetailView: View {
                     )
             }
 
-            actionButton(challenge)
         }
     }
 
@@ -600,63 +592,122 @@ struct FieldTripChallengeDetailView: View {
     }
 
     @ViewBuilder
-    private func actionButton(_ challenge: FieldTripChallenge) -> some View {
+    private func primaryActionBar(_ challenge: FieldTripChallenge) -> some View {
         if !challenge.viewerHasAccess {
-            Button {
+            FieldTripDetailPrimaryActionBar(
+                title: "Unlock with Pro",
+                systemImage: "lock.fill"
+            ) {
                 AppEventPublisher.shared.send(.triggerPaywall)
-            } label: {
-                Label("Unlock with Pro", systemImage: "lock.fill")
-                    .font(.headline)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
-            .buttonStyle(.plain)
-        } else if challenge.isUpcoming {
-            Label("Starts \(FieldTripDisplayDate.shortDate(challenge.startsAt))", systemImage: "calendar")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                )
-        } else if challenge.viewerParticipation == nil {
-            Button {
-                Task { await viewModel.join() }
-            } label: {
-                HStack(spacing: 8) {
-                    if viewModel.isJoining {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(Color(uiColor: .systemBackground))
-                    } else {
-                        Image(systemName: "plus.circle.fill")
-                    }
-                    Text(challenge.isEnded ? "Challenge ended" : "Join challenge")
-                }
-                .font(.headline)
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
-                .background(Capsule(style: .continuous).fill(challenge.isEnded ? Color.secondary : Color.primary))
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isJoining || challenge.isEnded)
         } else if let participation = challenge.viewerParticipation, participation.isComplete {
-            Button {
+            FieldTripDetailPrimaryActionBar(
+                title: "Publish event entry",
+                systemImage: "square.and.arrow.up"
+            ) {
                 publishingChallenge = challenge
-            } label: {
-                Label("Publish outing entry", systemImage: "square.and.arrow.up")
-                    .font(.headline)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(Capsule(style: .continuous).fill(Color.primary))
             }
-            .buttonStyle(.plain)
+        } else if challenge.isUpcoming {
+            FieldTripDetailPrimaryActionBar(
+                title: "Starts \(FieldTripDisplayDate.shortDate(challenge.startsAt))",
+                systemImage: "calendar",
+                isEnabled: false,
+                style: .status
+            ) {}
+        } else if challenge.isEnded {
+            FieldTripDetailPrimaryActionBar(
+                title: "Event ended",
+                systemImage: "clock.fill",
+                isEnabled: false,
+                style: .status
+            ) {}
+        } else if challenge.viewerParticipation == nil {
+            FieldTripDetailPrimaryActionBar(
+                title: "Join event",
+                systemImage: "plus.circle.fill",
+                isLoading: viewModel.isJoining,
+                isEnabled: !viewModel.isJoining
+            ) {
+                Task { await viewModel.join() }
+            }
+        } else {
+            FieldTripDetailPrimaryActionBar(
+                title: "Go scan",
+                systemImage: "viewfinder"
+            ) {
+                openScanner()
+            }
+        }
+    }
+
+    private func openScanner() {
+        HapticManager.shared.triggerLightImpact(
+            intensity: 0.45,
+            source: "fieldTrips.event.goScan"
+        )
+        AppEventPublisher.shared.send(.requestOpenScanner)
+    }
+}
+
+private struct FieldTripDetailPrimaryActionBar: View {
+    enum Style {
+        case primary
+        case status
+    }
+
+    let title: String
+    let systemImage: String
+    var isLoading = false
+    var isEnabled = true
+    var style: Style = .primary
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(foregroundColor)
+                } else {
+                    Image(systemName: systemImage)
+                }
+
+                Text(title)
+            }
+            .font(.headline)
+            .foregroundStyle(foregroundColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(backgroundColor)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled || isLoading)
+        .accessibilityLabel(title)
+        .accessibilityValue(isLoading ? "In progress" : "")
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, ignoresSafeAreaEdges: .bottom)
+    }
+
+    private var foregroundColor: Color {
+        switch style {
+        case .primary:
+            Color(uiColor: .systemBackground)
+        case .status:
+            .secondary
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch style {
+        case .primary:
+            .primary
+        case .status:
+            Color(uiColor: .secondarySystemGroupedBackground)
         }
     }
 }
@@ -725,9 +776,9 @@ enum FieldTripsSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .fieldTrips:
-            "Outings"
+            "Challenges"
         case .seasonal:
-            "Seasonal"
+            "Events"
         }
     }
 }
@@ -764,6 +815,19 @@ private enum FieldTripMockScanArtwork {
         "moss or lichen": "fieldtrip-backyard-moss"
     ]
 
+    private static let parkPollinatorsImageNames = [
+        "flowering plant": "fieldtrip-park-flowering-plant",
+        "butterfly or moth": "fieldtrip-park-butterfly",
+        "bee or wasp": "fieldtrip-park-bee",
+        "fly": "fieldtrip-park-fly",
+        "beetle": "fieldtrip-park-beetle",
+        "spider near flowers": "fieldtrip-park-spider",
+        "seed or fruiting plant": "fieldtrip-park-seedpod",
+        "bird near flowers": "fieldtrip-park-hummingbird",
+        "wild plant": "fieldtrip-park-dandelion",
+        "pollinator habitat": "fieldtrip-park-habitat"
+    ]
+
     static func imageName(
         for prompt: String,
         templateSlug: String?,
@@ -776,6 +840,11 @@ private enum FieldTripMockScanArtwork {
         if templateSlug == FieldTripTemplatePresentation.backyardSafariSlug,
            let backyardSafariImageName = backyardSafariImageNames[normalizedPrompt] {
             return backyardSafariImageName
+        }
+
+        if templateSlug == FieldTripTemplatePresentation.parkPollinatorsSlug,
+           let parkPollinatorsImageName = parkPollinatorsImageNames[normalizedPrompt] {
+            return parkPollinatorsImageName
         }
 
         if normalizedPrompt.contains("butterfly") { return "butterfly-monarch" }
@@ -832,7 +901,7 @@ private struct FieldTripTemplateCard: View {
                     Spacer(minLength: 16)
 
                     Image(systemName: "chevron.right")
-                        .font(.title2.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
                         .accessibilityHidden(true)
                 }
@@ -994,7 +1063,7 @@ private struct FieldTripChallengeCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     Image(systemName: "chevron.right")
-                        .font(.title2.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
                         .accessibilityHidden(true)
                 }
@@ -1777,19 +1846,11 @@ private struct FieldTripAccessBadge: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 99, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 99, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0.5), .white.opacity(0), .white.opacity(0.2)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.5
-                )
-        )
-        .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(.primary.opacity(0.12), lineWidth: 0.75)
+        }
     }
 }
 
@@ -2352,11 +2413,15 @@ private struct FieldTripRecentSkeletonCard: View {
 }
 
 private struct FieldTripTemplateDetailSkeleton: View {
+    let showsCoverImage: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.12))
-                .aspectRatio(16 / 9, contentMode: .fit)
+            if showsCoverImage {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.12))
+                    .aspectRatio(16 / 9, contentMode: .fit)
+            }
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.secondary.opacity(0.16))
                 .frame(width: 220, height: 24)

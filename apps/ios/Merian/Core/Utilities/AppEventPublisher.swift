@@ -25,6 +25,8 @@ enum AppEvent {
     case appDidResumeAfterTimeout
     /// Dispatched by Siri/OS intents to immediately jump the user to the lens viewfinder.
     case requestIdentifyNatureIntent
+    /// Dispatched by in-app actions to close presented sheets and return to the visual scanner.
+    case requestOpenScanner
     
     /// Dispatched by Siri/OS intents to immediately open the historical scans insight page.
     case requestRecallLastFindIntent

@@ -474,8 +474,8 @@ struct CaptureWorkspaceView: View {
         #endif
         .onReceive(AppEventPublisher.shared.publisher) { event in
             switch event {
-            case .requestIdentifyNatureIntent:
-                // Close any open modals and shift pager strictly to visual scanning
+            case .requestIdentifyNatureIntent, .requestOpenScanner:
+                // Close the complete sheet stack and restore visual scanning.
                 viewModel.activeSheet = nil
                 captureMode = .visual
             case .requestRecallLastFindIntent:
