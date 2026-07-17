@@ -84,11 +84,17 @@ struct FieldTripsView: View {
                                 FieldTripTemplateSkeletonCard()
                             }
                         } else if let errorMessage = viewModel.errorMessage, viewModel.templates.isEmpty {
-                            FieldTripUnavailableCard(message: errorMessage) {
+                            FieldTripUnavailableCard(
+                                title: "Outings unavailable",
+                                message: errorMessage
+                            ) {
                                 Task { await viewModel.refresh(userRegion: userRegion) }
                             }
                         } else if viewModel.templates.isEmpty {
-                            FieldTripUnavailableCard(message: "Challenges are not available right now.") {
+                            FieldTripUnavailableCard(
+                                title: "Outings unavailable",
+                                message: "Challenges are not available right now."
+                            ) {
                                 Task { await viewModel.refresh(userRegion: userRegion) }
                             }
                         } else if filteredTemplates.isEmpty {
@@ -177,11 +183,17 @@ struct FieldTripsView: View {
                         FieldTripChallengeSkeletonCard()
                     }
                 } else if let challengeErrorMessage = viewModel.challengeErrorMessage, visibleChallenges.isEmpty {
-                    FieldTripUnavailableCard(message: challengeErrorMessage) {
+                    FieldTripUnavailableCard(
+                        title: "Events unavailable",
+                        message: challengeErrorMessage
+                    ) {
                         Task { await viewModel.refresh(userRegion: userRegion) }
                     }
                 } else if visibleChallenges.isEmpty {
-                    FieldTripUnavailableCard(message: "Events are not available right now.") {
+                    FieldTripUnavailableCard(
+                        title: "Events unavailable",
+                        message: "Events are not available right now."
+                    ) {
                         Task { await viewModel.refresh(userRegion: userRegion) }
                     }
                 } else {
@@ -235,7 +247,10 @@ struct FieldTripTemplateDetailView: View {
                     FieldTripTemplateDetailSkeleton(showsCoverImage: false)
                         .padding(16)
                 } else if let errorMessage, template == nil {
-                    FieldTripUnavailableCard(message: errorMessage) {
+                    FieldTripUnavailableCard(
+                        title: "Outing unavailable",
+                        message: errorMessage
+                    ) {
                         Task { await load(force: true) }
                     }
                     .padding(16)
@@ -247,11 +262,6 @@ struct FieldTripTemplateDetailView: View {
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let template {
-                    primaryActionBar(template)
-                }
-            }
             .navigationTitle(
                 template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
                     ?? "Outing"
@@ -377,6 +387,12 @@ struct FieldTripTemplateDetailView: View {
                 )
             }
         }
+
+        if let template {
+            ToolbarItem(placement: .bottomBar) {
+                primaryActionBar(template)
+            }
+        }
     }
 
     @ViewBuilder
@@ -407,7 +423,7 @@ struct FieldTripTemplateDetailView: View {
         } else {
             FieldTripDetailPrimaryActionBar(
                 title: "Go scan",
-                systemImage: "viewfinder"
+                systemImage: nil
             ) {
                 openScanner()
             }
@@ -496,7 +512,10 @@ struct FieldTripChallengeDetailView: View {
                     FieldTripTemplateDetailSkeleton(showsCoverImage: true)
                         .padding(16)
                 } else if let errorMessage = viewModel.errorMessage, viewModel.challenge == nil {
-                    FieldTripUnavailableCard(message: errorMessage) {
+                    FieldTripUnavailableCard(
+                        title: "Event unavailable",
+                        message: errorMessage
+                    ) {
                         Task { await viewModel.refresh() }
                     }
                     .padding(16)
@@ -508,11 +527,6 @@ struct FieldTripChallengeDetailView: View {
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let challenge = viewModel.challenge {
-                    primaryActionBar(challenge)
-                }
-            }
             .navigationTitle(viewModel.challenge?.title ?? "Challenge")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
@@ -681,6 +695,12 @@ struct FieldTripChallengeDetailView: View {
                 )
             }
         }
+
+        if let challenge = viewModel.challenge {
+            ToolbarItem(placement: .bottomBar) {
+                primaryActionBar(challenge)
+            }
+        }
     }
 
     @ViewBuilder
@@ -725,7 +745,7 @@ struct FieldTripChallengeDetailView: View {
         } else {
             FieldTripDetailPrimaryActionBar(
                 title: "Go scan",
-                systemImage: "viewfinder"
+                systemImage: nil
             ) {
                 openScanner()
             }
@@ -748,7 +768,7 @@ private struct FieldTripDetailPrimaryActionBar: View {
     }
 
     let title: String
-    let systemImage: String
+    let systemImage: String?
     var isLoading = false
     var isEnabled = true
     var style: Style = .primary
@@ -761,7 +781,7 @@ private struct FieldTripDetailPrimaryActionBar: View {
                     ProgressView()
                         .controlSize(.small)
                         .tint(foregroundColor)
-                } else {
+                } else if let systemImage {
                     Image(systemName: systemImage)
                 }
 
@@ -770,25 +790,21 @@ private struct FieldTripDetailPrimaryActionBar: View {
             .font(.headline)
             .foregroundStyle(foregroundColor)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(backgroundColor)
-            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
+        .tint(backgroundColor)
+        .frame(maxWidth: .infinity)
         .disabled(!isEnabled || isLoading)
         .accessibilityLabel(title)
         .accessibilityValue(isLoading ? "In progress" : "")
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, ignoresSafeAreaEdges: .bottom)
     }
 
     private var foregroundColor: Color {
         switch style {
         case .primary:
-            Color(uiColor: .systemBackground)
+            .white
         case .status:
             .secondary
         }
@@ -797,7 +813,7 @@ private struct FieldTripDetailPrimaryActionBar: View {
     private var backgroundColor: Color {
         switch style {
         case .primary:
-            .primary
+            .accentColor
         case .status:
             Color(uiColor: .secondarySystemGroupedBackground)
         }
@@ -1602,16 +1618,6 @@ private struct FieldTripGuideSections: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             if hasAvailableObjectiveGuides {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Objective tips")
-                        .font(.title3.weight(.bold))
-
-                    Text("Open an objective for practical guidance before you scan.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 ForEach(template.levels) { level in
                     if isLevelAvailable(level), !guidedItems(in: level).isEmpty {
                         objectiveGuideLevel(level)
@@ -1744,7 +1750,7 @@ private struct FieldTripObjectiveGuideCard: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.prompt)
-                            .font(.subheadline.weight(.bold))
+                            .font(.headline.weight(.bold))
                             .foregroundStyle(.primary)
                             .multilineTextAlignment(.leading)
 
@@ -1867,7 +1873,7 @@ private struct FieldTripObjectiveGuideContentRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(section.title)
-                    .font(.caption.weight(.bold))
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(.primary)
 
                 if let bodyText = section.bodyText {
@@ -1946,7 +1952,7 @@ private struct FieldTripLevelSection: View {
                             .foregroundStyle(.secondary)
                     case .locked:
                         Image(systemName: "lock")
-                            .font(.caption.weight(.bold))
+                            .font(.title3.weight(.bold))
                             .foregroundStyle(.secondary)
                             .accessibilityLabel("Locked")
                     }
@@ -2603,32 +2609,22 @@ private struct FieldTripChallengePublishSheet: View {
 }
 
 private struct FieldTripUnavailableCard: View {
+    let title: String
     let message: String
     let retry: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "map")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            Button(action: retry) {
-                Label("Retry", systemImage: "arrow.clockwise")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .buttonStyle(.bordered)
+        EmptyStateView(
+            imageName: "fireflies",
+            imageHeight: 160,
+            title: title,
+            message: message
+        ) {
+            Button("Retry", action: retry)
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
         }
-        .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-        )
     }
 }
 
