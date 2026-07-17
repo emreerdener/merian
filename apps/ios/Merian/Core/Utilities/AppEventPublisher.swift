@@ -59,6 +59,9 @@ enum AppEvent {
     case fieldTripProgressUpdated([FieldTripProgressUpdate])
     /// Dispatched after a scan completes one or more seasonal challenge items.
     case fieldTripChallengeProgressUpdated([FieldTripChallengeProgressUpdate])
+    /// Dispatched when a goal-producing feature changes eligibility or progress and
+    /// Capture should refresh its source-agnostic goal context.
+    case captureGoalContextInvalidated(source: CaptureGoalSourceKind)
     /// Dispatched after OAuth sign-in/linking or session restore refreshes the public Explore author identity.
     case publicAuthorIdentityChanged(previousUserId: String?, currentUserId: String)
 }

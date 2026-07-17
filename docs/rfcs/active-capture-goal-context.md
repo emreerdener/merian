@@ -1,0 +1,432 @@
+# Active Capture Goal Context
+
+Status: Accepted and implemented  
+Decision date: 2026-07-17  
+Backend status: capture-context migration and `field-trips` action deployed  
+Client status: implemented; release remains gated on the normal iOS release
+process
+
+## Decision
+
+Capture surfaces consume a small, source-agnostic `CaptureGoal` read model.
+Features that own goals remain responsible for eligibility, ordering,
+completion, artwork mapping, and destination construction. Capture owns only
+presentation, local selection, account-scoped caching, refresh timing, and the
+typed hand-off to the destination feature.
+
+Field Trips is the first source. It exposes a private, authenticated
+`capture_context` action backed by
+`public.get_field_trip_capture_context(self_id)`. The Edge Function supplies the
+verified caller ID; the database RPC is not callable by direct client roles.
+
+This is the long-term integration boundary. Future goal-producing features must
+plug into the same generic provider and destination contracts instead of
+placing their API models, ranking logic, or routes inside the camera feature.
+
+## Context
+
+The visual Scan page needs lightweight motivation and orientation without
+becoming a second Field Trips screen. A user may have several unfinished
+targets across multiple outings, and progress values can change when the user
+swipes between them. The indicator therefore needs enough source context to
+explain the current target while remaining small, non-blocking, and safe to
+show over a live camera.
+
+The first implementation could have passed Field Trip DTOs directly into
+`CaptureWorkspaceView`. That would have made the camera responsible for outing
+access rules, current-level filtering, target ordering, and Explore routes. It
+would also have made later integrations, such as a curated event goal, require
+another source-specific branch throughout Capture.
+
+The chosen design establishes one stable capture-facing domain before a second
+source exists, while keeping source aggregation deliberately small until it is
+needed.
+
+## Goals
+
+- Keep camera startup and capture independent from goal-context networking.
+- Explain the selected target and its owning experience in compact UI.
+- Preserve a useful last-successful state through intermittent field
+  connectivity.
+- Keep account state isolated across sign-in, ghost-account, and sign-out
+  transitions.
+- Make routing compiler-checked and owned at the receiving feature boundary.
+- Let future goal sources integrate without importing their DTOs into Capture.
+- Return no private scan evidence merely to render a motivational indicator.
+
+## Non-goals
+
+- Selecting which outing receives scan progress. Progress remains
+  server-authoritative and evaluates every eligible active outing.
+- Showing Seasonal Challenge targets in the first release.
+- Supporting Record, Describe, staged capture, refinement, or active video
+  recording.
+- Realtime subscriptions, background fetch, push-driven refresh, or camera
+  startup blocking.
+- User-generated checklists, unlimited target catalogs, or a universal goal
+  service shared by every product area.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["Authenticated iOS account"] --> B["field-trips Edge Function"]
+    B -->|"verified user.id"| C["Private capture-context RPC"]
+    C --> D["Field Trip capture DTOs"]
+    D --> E["FieldTripCaptureGoalProvider"]
+    E --> F["CaptureGoal list in presentation order"]
+    F --> G["ActiveCaptureGoalStore"]
+    G --> H["Compact Scan indicator"]
+    H -->|"typed destination"| I["Explore routing boundary"]
+    I --> J["Focused Tips card or Objectives fallback"]
+```
+
+The dependency direction is intentional:
+
+- the source feature may depend on the generic capture-goal contract;
+- Capture may depend on the generic contract, but not on source DTOs;
+- the app composition root injects one provider into one observable store; and
+- Explore converts a generic typed destination into its internal route.
+
+Primary implementation files:
+
+- `apps/ios/Merian/Core/Models/CaptureGoalContext.swift`
+- `apps/ios/Merian/Core/AppDIContainer.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsViewModel.swift`
+- `apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift`
+- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
+- `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
+- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsView.swift`
+- `services/supabase/functions/field-trips/`
+- `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`
+
+## Capture-facing domain contract
+
+`CaptureGoal` carries only what compact capture chrome needs:
+
+- a stable namespaced goal ID;
+- source kind, source ID, and source title;
+- a short prompt;
+- aggregate completed and target counts;
+- a bundled image or neutral system-symbol reference; and
+- a typed destination.
+
+The contract intentionally excludes source response objects, entitlements,
+unlock rules, scan IDs, media, coordinates, field notes, and completion
+evidence.
+
+`CaptureGoalContextProviding` returns a flat array in final presentation order.
+`ActiveCaptureGoalStore` must not re-rank that array. This makes ordering an
+explicit source/product policy rather than an accidental client sort.
+
+`CaptureGoalDestination` is an enum rather than an untyped dictionary or URL.
+Adding a destination therefore creates compiler errors at every routing switch
+that must decide how to handle it.
+
+## Field Trip source contract
+
+The authenticated Edge request is:
+
+```json
+{
+  "action": "capture_context"
+}
+```
+
+The response is documented canonically in
+[`05-api-contracts.md`](../backend-and-data/05-api-contracts.md). It includes
+only accessible, incomplete, non-hidden standard outings and unfinished targets
+from each current unlocked level.
+
+Ordering is stable and server-owned:
+
+1. outings by the latest of start or item completion, descending;
+2. `user_field_trip_id` as the outing tie breaker;
+3. targets by curated `sort_order`; and
+4. `item_id` as the target tie breaker.
+
+The provider preserves that order while flattening outings into generic goals.
+The source title is retained so a progress change such as `8/10` to `4/6` is
+understandable when a swipe crosses outing boundaries.
+
+Exact bundled artwork is used only when the source adapter has a semantic
+mapping. Unknown targets use `binoculars.fill`; they must never borrow an image
+from an unrelated target.
+
+## State, caching, and refresh
+
+`ActiveCaptureGoalStore` is app-injected `@Observable` state. It owns:
+
+- current goals and selection;
+- previous/next wraparound;
+- selection preservation across a refresh;
+- advancement to the next surviving target after completion;
+- a five-minute freshness window;
+- coalescing overlapping forced invalidations into one follow-up refresh; and
+- silent retention of the last successful snapshot on request failure.
+
+The cache is a versioned `Codable` envelope in `UserDefaults`, keyed by the
+normalized Supabase account ID. It stores only generic goals, the selected goal
+ID, and the successful refresh date. It does not cache source DTOs or evidence.
+Activating a different account clears in-memory state before loading that
+account's key. Signing out clears the in-memory state.
+
+The current key prefix is `captureGoalContext.v1.`. Any incompatible Codable,
+identity, ordering, or privacy change must increment the cache version instead
+of trying to decode the old shape opportunistically.
+
+Refresh policy:
+
+- force asynchronously on Capture appearance;
+- refresh when stale after foregrounding or returning to visual Scan;
+- force after Field Trip start/join and standard progress events;
+- force after account changes and explicit scanner-routing events; and
+- never await the request before starting the camera or accepting a capture.
+
+An empty successful response replaces old content and hides the indicator. A
+failed response preserves the last successful content. This distinction is
+important: “no current goals” is data, while “could not refresh” is a transient
+transport state.
+
+## Presentation and interaction
+
+The pill appears only when all of the following are true:
+
+- Field Trips is enabled;
+- visual Scan is selected;
+- a real target exists;
+- no staged capture is present;
+- refinement is inactive; and
+- video is not recording.
+
+With no cache, initial loading renders nothing. The pill sits below the existing
+mode picker, uses the same horizontal margins, has a minimum 56-point height,
+shows 36-point artwork, and uses the named `OutingTargetTint` color
+(`#1C8547`) with white content.
+
+The primary line is the target prompt. The secondary line is
+`Outing title · completed/target complete`. Swipe left selects the next target;
+swipe right selects the previous target; both directions wrap. A drag commits
+only after 36 points and when horizontal motion is at least 1.25 times vertical
+motion, avoiding conflict with vertical camera gestures and capture-mode
+paging.
+
+Selection provides haptic feedback. Reduce Motion removes selection animation.
+VoiceOver exposes the current target and progress plus adjustable previous/next
+actions. The current compact treatment keeps both text rows to one line;
+Dynamic Type QA must confirm the prompt and outing context remain intelligible
+without covering camera controls. If accessibility sizes do not meet that bar,
+prefer bounded vertical growth over shrinking the tap target or hiding the
+outing context.
+
+## Navigation
+
+Tapping the pill sends `CaptureGoalDestination` through
+`CaptureWorkspaceViewModel` and `CameraSheetRouter` to `ExploreView`. Capture
+does not build a `FieldTripTemplateRoute`.
+
+Explore owns the conversion and then:
+
+1. presents the Field Trips tab;
+2. opens the owning standard outing;
+3. selects Tips;
+4. expands and scrolls to the matching target;
+5. briefly highlights the focused card; and
+6. falls back to the highlighted Objectives tile when the target has no guide.
+
+The focused checklist-item ID remains optional so all existing outing routes
+retain their original behavior.
+
+## Privacy and authorization
+
+The client request accepts no account identifier. The repository's authenticated
+Edge boundary verifies the session with `withEdgeHandler`, and only the verified
+`user.id` is passed to the database helper. `field-trips` retains the repository's
+documented `verify_jwt = false` gateway compatibility policy; this does not make
+the action anonymous because the handler still requires authentication.
+
+`public.get_field_trip_capture_context(uuid)` is `SECURITY INVOKER`, uses an
+empty search path with qualified objects, and has execute permission revoked
+from `PUBLIC`, `anon`, and `authenticated`. Only `service_role` can call it.
+This prevents a client from supplying another account ID directly.
+
+The response and cache must never include:
+
+- scan IDs or client scan IDs;
+- media or storage URLs;
+- coordinates, place labels, or field notes;
+- completed common or scientific names;
+- evidence timestamps or evidence metadata; or
+- account identifiers other than the local cache namespace.
+
+The locally cached prompt, outing title, and aggregate progress are
+account-related but deliberately low-sensitivity. If a future source needs
+sensitive or regulated context, it must not reuse this `UserDefaults` posture
+without a new storage and lock-screen exposure review.
+
+Supabase implementation guidance remains aligned with the repository's shared
+auth wrapper and least-privilege function grants. Any future migration to a
+different Edge auth wrapper is a separate decision and must preserve verified
+caller identity, the unauthenticated `401` contract, and the service-only RPC
+boundary. See the official Supabase guidance for
+[Edge Function authentication](https://supabase.com/docs/guides/functions/auth)
+and [database function privileges](https://supabase.com/docs/guides/database/functions).
+
+## Telemetry and observability
+
+The UI emits one `CaptureGoalIndicator` event with:
+
+- `action`: `shown`, `opened`, `next`, or `previous`; and
+- `source`: the coarse `CaptureGoalSourceKind` value.
+
+The standard `event_source = ios_client` property is added by `AppTelemetry`.
+Prompts, IDs, titles, progress values, destination fields, and account identity
+are prohibited.
+
+Operational monitoring should distinguish authentication failures, RPC
+failures, empty success, and decode failures without logging returned target
+content. A refresh error remains invisible over the camera; diagnostics belong
+in privacy-safe logs and aggregate backend monitoring.
+
+## Adding another goal source
+
+Do not add another conditional branch directly to the Scan view. A new source
+must complete this checklist:
+
+1. Define a stable `CaptureGoalSourceKind` case.
+2. Add a source-owned narrow authenticated read contract that performs access,
+   completion, and ordering checks before returning data.
+3. Add a `CaptureGoalContextProviding` adapter that maps source DTOs into
+   `CaptureGoal` without leaking them to Capture.
+4. Add a typed `CaptureGoalDestination` case and handle it at the receiving
+   feature boundary.
+5. Choose exact artwork mappings or the neutral fallback.
+6. Publish source invalidation events after start/join/progress mutations.
+7. Extend privacy-safe telemetry source values without adding content or IDs.
+8. Add decode, mapping, order, caching, completion-advancement, routing,
+   presentation, accessibility, and backend authorization tests.
+9. Update this RFC, the source feature documentation, API contract, deployment
+   runbook, codebase map, test strategy, and release notes.
+
+When the second source is ready, introduce a
+`CompositeCaptureGoalContextProvider` at the app composition root. It should
+fetch source providers concurrently and apply an explicit, deterministic
+product-owned cross-source priority policy before returning one flat list. The
+store and Scan view should remain unaware of provider count.
+
+The first composite implementation should preserve snapshot consistency: if a
+required provider fails, throw and let the store retain the last complete
+snapshot. If independent partial freshness later becomes a product requirement,
+redesign the store around source-keyed snapshots and timestamps explicitly;
+do not silently mix fresh results from one source with missing results from
+another.
+
+Do not create a global backend goal service merely because a second source
+exists. Source backends should continue to own authorization and ranking. A
+backend-for-frontend aggregator is justified only when measured request fan-out,
+latency, or cross-source ranking requirements cannot be handled cleanly by the
+client provider boundary.
+
+## Capacity and evolution guardrails
+
+The current response is intentionally unpaginated because the active curated
+Field Trip catalog is bounded and the indicator cycles through the full set. If
+active outings or target counts can grow materially, add a hard server-side
+limit and payload-size telemetry before broad rollout. Do not allow an
+unbounded user-generated checklist to feed the camera contract.
+
+Realtime is not the default refresh mechanism. Event invalidation plus a
+five-minute stale window is cheaper, more predictable in poor connectivity, and
+sufficient for user-driven progress. Realtime should be considered only if
+progress can be mutated concurrently on another device often enough that the
+staleness is demonstrably harmful.
+
+Seasonal Challenges remain excluded until their independent participation,
+timing, and completion semantics receive a dedicated product decision. Adding
+them is not a data-filter toggle.
+
+## Deployment and rollback
+
+Release order is mandatory:
+
+1. apply `20260717150222_contextual_outing_objective_guides.sql`;
+2. apply `20260717195751_active_outing_capture_context.sql`;
+3. deploy the updated `field-trips` Edge Function;
+4. verify authenticated success, unauthenticated `401`, filtering, order, and
+   absence of private evidence; and
+5. release the indicator-enabled iOS client.
+
+Existing clients remain compatible because the action and RPC are additive.
+
+For rollback, disable the client surface through the Field Trips availability
+gate or ship a client rollback first. Leaving the additive endpoint and RPC in
+place is safer than dropping database objects during an incident. If the
+backend contract itself must be disabled, undeploy or reject only
+`capture_context`; do not delete Field Trip progress or publication data.
+
+## Verification
+
+Required automated coverage:
+
+- migration contract tests for privileges, verified-user forwarding, filters,
+  order, and evidence-free projection;
+- local database integration tests for access, level, completion, Seasonal
+  Challenge exclusion, stable order, and empty results;
+- Swift decode and provider-mapping tests;
+- store tests for order, wraparound, completion advancement, account isolation,
+  versioned cache persistence, refresh coalescing, and stale retention;
+- navigation tests for focused Tips and no-guide Objectives fallback;
+- presentation and gesture-policy tests;
+- privacy-shape telemetry tests; and
+- a simulator build.
+
+Required manual coverage:
+
+- visual Scan only, including no-cache loading and cached offline behavior;
+- Dynamic Type, VoiceOver adjustable actions, Reduce Motion, and light/dark
+  appearance;
+- vertical camera gestures and horizontal capture-mode paging near the pill;
+- staged image/video, refinement, and active-recording suppression;
+- account switching and sign-out; and
+- tap-through to the correct outing and target.
+
+The exact commands and current test inventory live in
+[`25-field-trips.md`](../features-and-hardware/25-field-trips.md) and
+[`08-testing-strategy.md`](../development-guides/08-testing-strategy.md).
+
+## Alternatives considered
+
+### Put Field Trip DTOs in Capture
+
+Rejected because it couples camera UI to one feature's access rules, ranking,
+network schema, and navigation.
+
+### Rank outings and targets on-device
+
+Rejected because server and client could disagree about engagement, access,
+current level, or curated order. It would also make old clients retain outdated
+ranking rules.
+
+### Use an untyped deep-link dictionary
+
+Rejected because missing destination fields would become runtime failures and
+future route changes would not be compiler-checked.
+
+### Fetch on every appearance without a cache
+
+Rejected because field connectivity is unreliable and the indicator is
+motivational enrichment, not a reason to flash, block, or show errors over the
+camera.
+
+### Add Realtime immediately
+
+Rejected because progress changes already originate from known app events and a
+short stale window covers foreground drift. Realtime adds connection lifecycle,
+battery, and authorization complexity without a demonstrated need.
+
+### Build a universal goal backend now
+
+Rejected because one source does not justify a new cross-domain service. The
+generic client boundary preserves the option without moving source
+authorization out of its owner prematurely.

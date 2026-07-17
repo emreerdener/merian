@@ -670,6 +670,26 @@ successful build or state assignment as latency proof. Run one Free and one Pro
 scan and verify the expected model/configuration and exactly one primary
 identification model call.
 
+Field Trip capture guidance has focused coverage on both sides of the Edge
+boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private
+RPC grants, verified-user Edge call, filtering/order clauses, Seasonal Challenge
+exclusion, and evidence-free projection.
+`_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
+Postgres, including empty results; it reports a skip when the local stack is not
+available, and that skip must not be counted as database validation.
+`FieldTripCaptureContextModelsTests` covers decoding, while
+`ActiveCaptureGoalStoreTests` covers the Field Trip-to-`CaptureGoal` provider
+mapping, server-order preservation, typed destinations, bidirectional
+wraparound, completion advancement, account-isolated versioned caching,
+refresh-failure retention, indicator presentation/gesture policy, exact-art
+fallback, and focused Explore route compatibility. `AppTelemetryTests` locks the
+coarse action/source-only event shape and prevents goal content or identifiers
+from entering analytics. UI/device QA must also confirm Dynamic Type, VoiceOver
+adjustable actions, Reduce Motion, light/dark appearance, idle visual-only
+visibility, and that target swipes do not page capture modes. The architectural
+test obligations for future sources are recorded in
+`docs/rfcs/active-capture-goal-context.md`.
+
 Explore audio poster coverage is split by contract seam:
 `_shared/audioSpectrogram_test.ts` validates PCM WAV decoding, iOS-compatible
 FFT raster dimensions, PNG decompression, deterministic R2 keys, cache reuse,

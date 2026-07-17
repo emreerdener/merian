@@ -224,6 +224,7 @@ struct FieldTripsView: View {
 
 struct FieldTripTemplateDetailView: View {
     let templateId: String
+    let focusedChecklistItemId: String?
     let onOpenPublication: (String) -> Void
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
@@ -239,6 +240,21 @@ struct FieldTripTemplateDetailView: View {
     @State private var expandedGuideItemId: String?
     @State private var pendingGuideItemId: String?
     @State private var highlightedGuideItemId: String?
+    @State private var pendingObjectiveItemId: String?
+    @State private var highlightedObjectiveItemId: String?
+    @State private var didApplyInitialFocus = false
+
+    init(
+        templateId: String,
+        focusedChecklistItemId: String? = nil,
+        onOpenPublication: @escaping (String) -> Void,
+        onOpenAuthorProfile: @escaping (FieldTripRecentPublication) -> Void
+    ) {
+        self.templateId = templateId
+        self.focusedChecklistItemId = focusedChecklistItemId
+        self.onOpenPublication = onOpenPublication
+        self.onOpenAuthorProfile = onOpenAuthorProfile
+    }
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -325,8 +341,12 @@ struct FieldTripTemplateDetailView: View {
                     currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1,
                     isTripComplete: template.activeProgress?.isComplete ?? false,
                     progress: template.activeProgress.map(FieldTripLevelProgressPresentation.init),
+                    highlightedItemId: highlightedObjectiveItemId,
                     onOpenGuide: openGuide
                 )
+                .onAppear {
+                    consumePendingObjectiveScroll(with: scrollProxy)
+                }
 
                 FieldTripCommunityPreviewSection(
                     publications: communityPreview,
@@ -374,6 +394,45 @@ struct FieldTripTemplateDetailView: View {
             withAnimation(.easeOut(duration: 0.25)) {
                 highlightedGuideItemId = nil
             }
+        }
+    }
+
+    private func consumePendingObjectiveScroll(with scrollProxy: ScrollViewProxy) {
+        guard let itemId = pendingObjectiveItemId else { return }
+        pendingObjectiveItemId = nil
+        highlightedObjectiveItemId = itemId
+
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(.easeInOut(duration: 0.3)) {
+                scrollProxy.scrollTo(itemId, anchor: .center)
+            }
+            try? await Task.sleep(for: .seconds(1.2))
+            guard highlightedObjectiveItemId == itemId else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                highlightedObjectiveItemId = nil
+            }
+        }
+    }
+
+    private func applyInitialFocusIfNeeded(to template: FieldTripTemplate) {
+        guard !didApplyInitialFocus,
+              let focusedChecklistItemId,
+              let item = template.levels
+                .flatMap(\.items)
+                .first(where: { $0.id == focusedChecklistItemId }) else {
+            return
+        }
+        didApplyInitialFocus = true
+
+        switch FieldTripFocusedTargetPresentation.resolve(hasGuide: item.hasGuide) {
+        case .tips:
+            expandedGuideItemId = item.id
+            pendingGuideItemId = item.id
+            selectedDetailSection = .tips
+        case .objectives:
+            pendingObjectiveItemId = item.id
+            selectedDetailSection = .objectives
         }
     }
 
@@ -447,6 +506,7 @@ struct FieldTripTemplateDetailView: View {
         do {
             let loadedTemplate = try await MerianNetworkClient.shared.getFieldTripTemplate(templateId: templateId)
             template = loadedTemplate
+            applyInitialFocusIfNeeded(to: loadedTemplate)
             await loadCommunityPreview(templateId: loadedTemplate.templateId)
         } catch {
             errorMessage = ExploreErrorFormatter.message(for: error)
@@ -463,6 +523,7 @@ struct FieldTripTemplateDetailView: View {
             self.template = try await MerianNetworkClient.shared.startFieldTrip(templateId: template.templateId)
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Outing started."
+            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
@@ -576,6 +637,7 @@ struct FieldTripChallengeDetailView: View {
                         currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1,
                         isTripComplete: challenge.viewerParticipation?.isComplete ?? false,
                         progress: challenge.viewerParticipation.map(FieldTripLevelProgressPresentation.init),
+                        highlightedItemId: nil,
                         onOpenGuide: openGuide
                     )
 
@@ -843,6 +905,15 @@ private struct FieldTripDetailToolbarPicker: View {
     }
 }
 
+enum FieldTripFocusedTargetPresentation: Equatable {
+    case tips
+    case objectives
+
+    static func resolve(hasGuide: Bool) -> Self {
+        hasGuide ? .tips : .objectives
+    }
+}
+
 private enum FieldTripDetailSection: String, CaseIterable, Identifiable {
     case objectives
     case tips
@@ -898,9 +969,9 @@ private enum FieldTripScanPreviewLayout {
     static let imagePadding: CGFloat = 12
 }
 
-// Mock-only artwork: replace this resolver with qualifying scan thumbnail
-// sources once checklist items expose their completed scan media.
-private enum FieldTripMockScanArtwork {
+// Bundled objective artwork. Capture surfaces intentionally use only exact
+// template mappings; richer Field Trip grids may use semantic fallback art.
+enum FieldTripObjectiveArtwork {
     static let imageNames = [
         "butterfly-monarch",
         "bird-cardinal",
@@ -945,14 +1016,8 @@ private enum FieldTripMockScanArtwork {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        if templateSlug == FieldTripTemplatePresentation.backyardSafariSlug,
-           let backyardSafariImageName = backyardSafariImageNames[normalizedPrompt] {
-            return backyardSafariImageName
-        }
-
-        if templateSlug == FieldTripTemplatePresentation.parkPollinatorsSlug,
-           let parkPollinatorsImageName = parkPollinatorsImageNames[normalizedPrompt] {
-            return parkPollinatorsImageName
+        if let exactImageName = exactImageName(for: prompt, templateSlug: templateSlug) {
+            return exactImageName
         }
 
         if normalizedPrompt.contains("butterfly") { return "butterfly-monarch" }
@@ -965,6 +1030,20 @@ private enum FieldTripMockScanArtwork {
         }
 
         return imageNames[fallbackIndex % imageNames.count]
+    }
+
+    static func exactImageName(for prompt: String, templateSlug: String?) -> String? {
+        let normalizedPrompt = prompt
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if templateSlug == FieldTripTemplatePresentation.backyardSafariSlug {
+            return backyardSafariImageNames[normalizedPrompt]
+        }
+        if templateSlug == FieldTripTemplatePresentation.parkPollinatorsSlug {
+            return parkPollinatorsImageNames[normalizedPrompt]
+        }
+        return nil
     }
 }
 
@@ -1092,7 +1171,7 @@ private struct FieldTripScanPreviewStrip: View {
             Color(uiColor: .tertiarySystemGroupedBackground)
 
             Image(
-                FieldTripMockScanArtwork.imageName(
+                FieldTripObjectiveArtwork.imageName(
                     for: items.indices.contains(index) ? items[index].prompt : "",
                     templateSlug: templateSlug,
                     fallbackIndex: index
@@ -1316,6 +1395,7 @@ private struct FieldTripLevelsSection: View {
     let currentLevelNumber: Int
     let isTripComplete: Bool
     let progress: FieldTripLevelProgressPresentation?
+    let highlightedItemId: String?
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
@@ -1330,6 +1410,7 @@ private struct FieldTripLevelsSection: View {
                         isTripComplete: isTripComplete
                     ),
                     progress: level.levelNumber == currentLevelNumber ? progress : nil,
+                    highlightedItemId: highlightedItemId,
                     onOpenGuide: onOpenGuide
                 )
             }
@@ -1677,7 +1758,7 @@ private struct FieldTripGuideSections: View {
                 if item.hasGuide {
                     FieldTripObjectiveGuideCard(
                         item: item,
-                        imageName: FieldTripMockScanArtwork.imageName(
+                        imageName: FieldTripObjectiveArtwork.imageName(
                             for: item.prompt,
                             templateSlug: template.slug,
                             fallbackIndex: index
@@ -1926,6 +2007,7 @@ private struct FieldTripLevelSection: View {
     let templateSlug: String
     let presentationState: FieldTripLevelPresentationState
     let progress: FieldTripLevelProgressPresentation?
+    let highlightedItemId: String?
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     private var rowStartIndices: [Int] {
@@ -1982,6 +2064,7 @@ private struct FieldTripLevelSection: View {
                             ),
                             templateSlug: templateSlug,
                             fallbackStartIndex: startIndex,
+                            highlightedItemId: highlightedItemId,
                             onOpenGuide: onOpenGuide
                         )
                     }
@@ -2012,6 +2095,7 @@ private struct FieldTripChecklistGridRow: View {
     let items: [FieldTripChecklistItem]
     let templateSlug: String
     let fallbackStartIndex: Int
+    let highlightedItemId: String?
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
@@ -2019,13 +2103,15 @@ private struct FieldTripChecklistGridRow: View {
             ForEach(Array(items.enumerated()), id: \.element.id) { offset, item in
                 FieldTripChecklistGridTile(
                     item: item,
-                    imageName: FieldTripMockScanArtwork.imageName(
+                    imageName: FieldTripObjectiveArtwork.imageName(
                         for: item.prompt,
                         templateSlug: templateSlug,
                         fallbackIndex: fallbackStartIndex + offset
                     ),
+                    isHighlighted: highlightedItemId == item.id,
                     onOpenGuide: onOpenGuide
                 )
+                .id(item.id)
             }
 
             if items.count == 1 {
@@ -2041,6 +2127,7 @@ private struct FieldTripChecklistGridRow: View {
 private struct FieldTripChecklistGridTile: View {
     let item: FieldTripChecklistItem
     let imageName: String
+    let isHighlighted: Bool
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     @ViewBuilder
@@ -2106,12 +2193,18 @@ private struct FieldTripChecklistGridTile: View {
         )
         .overlay {
             tileShape.strokeBorder(
-                item.isCompleted
-                    ? Color.accentColor.opacity(0.65)
-                    : Color.secondary.opacity(0.35),
-                lineWidth: item.isCompleted ? 2 : 1
+                isHighlighted
+                    ? Color.accentColor
+                    : item.isCompleted
+                        ? Color.accentColor.opacity(0.65)
+                        : Color.secondary.opacity(0.35),
+                lineWidth: isHighlighted || item.isCompleted ? 2 : 1
             )
         }
+        .shadow(
+            color: isHighlighted ? Color.accentColor.opacity(0.28) : .clear,
+            radius: 8
+        )
     }
 
     private var tileShape: RoundedRectangle {
@@ -2182,7 +2275,7 @@ private struct FieldTripCompactLevelStrip: View {
             Color(uiColor: .tertiarySystemGroupedBackground)
 
             Image(
-                FieldTripMockScanArtwork.imageName(
+                FieldTripObjectiveArtwork.imageName(
                     for: item.prompt,
                     templateSlug: templateSlug,
                     fallbackIndex: index

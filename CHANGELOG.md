@@ -45,6 +45,13 @@ TestFlight, App Store, support, and QA.
   Seasonal Challenge detail pages. Objectives now owns the trip overview,
   progress, actions, checklist, and Community content, while Tips opens directly
   to the curated guide.
+- Added a compact active Field Trip target beneath the visual Scan mode picker.
+  It shows the objective, outing name, and level progress; swiping cycles through
+  unfinished targets across active standard outings, and tapping opens and
+  highlights the matching guide. The indicator stays out of staged captures,
+  refinement, video recording, other capture modes, and Seasonal Challenges.
+  Its shared goal context is source-agnostic, so future guided experiences can
+  integrate without coupling their API models or ranking rules to the camera.
 - Refined standard and Seasonal Field Trip card and detail-image rounding, moved
   template badges onto the cover image, allowed full-width card text, and
   removed the redundant Open guide row and active-trip Continue Scanning

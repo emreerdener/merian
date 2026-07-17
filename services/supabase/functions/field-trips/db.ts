@@ -78,6 +78,24 @@ export async function fetchFieldTripCatalog(
   return Array.isArray(data) ? data : [];
 }
 
+export async function fetchFieldTripCaptureContext(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_capture_context",
+    { self_id: userId },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field Trip capture context: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
 export async function fetchFieldTripTemplateDetail(
   userId: string,
   templateId: string | null,

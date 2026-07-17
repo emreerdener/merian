@@ -70,7 +70,12 @@ comments, notifications, Field Trips, or profile libraries push into this
 same Explore navigation stack rather than presenting a second sheet over the
 active surface. Profile-library scans carry an author-profile depth so the app
 allows `profile -> scan` but blocks another author-profile hop from that nested
-detail.
+detail. The visual Scan goal indicator initializes this stack with a typed
+`CaptureGoalDestination`. Explore converts the Field Trip case into a
+`FieldTripTemplateRoute` carrying an optional focused checklist-item ID. The
+destination opens Tips and focuses the matching guide, or falls back to the
+Objectives tile when no guide exists. Ordinary route callers omit the optional
+focus ID and keep their prior behavior.
 
 ## iOS File Ownership
 
@@ -92,7 +97,8 @@ for the surface they are changing:
   Available/Community segments, Seasonal Challenges cards/detail, Community
   filters, guided template detail, progress cards, publication and challenge
   entry detail pages, profile modules, challenge badges, pin controls, and Field
-  Trip comment presentation.
+  Trip comment presentation. `FieldTripsViewModel.swift` also contains the
+  app-injected, account-cached active-target store consumed by Capture.
 - `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
   rows, sheet UI, and notification fetch/read state.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author

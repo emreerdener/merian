@@ -155,6 +155,7 @@ final class CaptureWorkspaceViewModel {
     var pendingCommunityIdentificationRequestId: String?
     var pendingExploreTargetCommentId: String?
     var pendingExploreTargetReplyParentCommentId: String?
+    var pendingCaptureGoalDestination: CaptureGoalDestination?
     var explorePresentationIdentity = UUID()
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
@@ -370,6 +371,7 @@ final class CaptureWorkspaceViewModel {
         pendingExplorePostId = nil
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
+        pendingCaptureGoalDestination = nil
         imageToCrop = nil
         editingCropIndex = nil
 
@@ -418,6 +420,7 @@ final class CaptureWorkspaceViewModel {
         pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = targetCommentId
         pendingExploreTargetReplyParentCommentId = targetReplyParentCommentId
+        pendingCaptureGoalDestination = nil
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }
@@ -428,6 +431,17 @@ final class CaptureWorkspaceViewModel {
         pendingCommunityIdentificationRequestId = requestId
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
+        pendingCaptureGoalDestination = nil
+        explorePresentationIdentity = UUID()
+        activeSheet = .explore
+    }
+
+    func openCaptureGoal(_ goal: CaptureGoal) {
+        pendingExplorePostId = nil
+        pendingCommunityIdentificationRequestId = nil
+        pendingExploreTargetCommentId = nil
+        pendingExploreTargetReplyParentCommentId = nil
+        pendingCaptureGoalDestination = goal.destination
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }

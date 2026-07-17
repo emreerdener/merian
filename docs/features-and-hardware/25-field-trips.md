@@ -5,7 +5,7 @@ ecological categories in a neighborhood, park, state, national park, or other
 regional environment. They are separate from low-power Expedition Mode, which is
 only a camera/performance setting.
 
-## V4 Scope
+## Current Scope
 
 - Field Trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
 - The Field Trips surface has two page-header segments: `Field Trips` first by
@@ -26,6 +26,10 @@ only a camera/performance setting.
   guide sections.
 - Checklist items can include curated item-level tips. V4 does not generate
   pre-trip guidance with AI.
+- While the idle visual Scan page is visible, a compact active-target indicator
+  can surface unfinished objectives from every active standard Field Trip.
+  Seasonal Challenge targets are intentionally excluded from this first capture
+  integration.
 - Users can explicitly start a Field Trip from the template detail page before
   their first matching scan.
 - Levels unlock sequentially. A scan can complete an item only after the user
@@ -72,19 +76,95 @@ Rotating-free and Pro access rules never affect a template's difficulty.
    state.
 4. Tapping Start calls `action: "start"`. Auto-start from matching scans remains
    as a fallback.
-5. A new scan or later confirmed/corrected identification calls
+5. The idle visual Scan page loads `action: "capture_context"` without blocking
+   the camera. When unfinished standard objectives exist, the current target is
+   shown beneath the capture-mode picker with its outing title and aggregate
+   level progress.
+6. Swiping the indicator cycles through all unfinished targets in server order;
+   tapping it opens the owning outing and focuses that objective's guide.
+7. A new scan or later confirmed/corrected identification calls
    `action: "apply_scan_progress"` with the saved scan ID.
-6. The backend verifies scan ownership, compares the scan against the current
+8. The backend verifies scan ownership, compares the scan against the current
    unlocked level, writes item completions, advances levels when needed, and
    returns newly completed items.
-7. iOS shows a short progress toast and refreshes catalog/profile modules on
-   the next load.
-8. Once all levels are complete, the user may publish a Field Trip snapshot
+9. iOS shows a short progress toast and immediately invalidates the capture
+   target context so a completed selection advances naturally.
+10. Once all levels are complete, the user may publish a Field Trip snapshot
    with an editable title and optional description or AI summary.
-9. Published Field Trips appear on public profiles and template Community
+11. Published Field Trips appear on public profiles and template Community
    previews. They open `FieldTripPublicationDetailView` with item cards,
    likes, comments, and author identity. Author taps open the existing Explore
    author-profile route.
+
+## Active Target on Scan
+
+The capture indicator is orientation and motivation, not a scan requirement.
+It never changes which Field Trip receives progress; the backend still matches
+every saved scan against eligible active trips.
+
+The canonical source-agnostic ownership, caching, navigation, security, and
+future-source decision is
+[`active-capture-goal-context.md`](../rfcs/active-capture-goal-context.md).
+
+Presentation contract:
+
+- Show only when Field Trips are enabled, Scan/visual mode is selected, a real
+  target exists, the staged-capture tray is empty, refinement is inactive, and
+  video is not recording.
+- Show no loading placeholder when there is no cached context. Camera startup
+  and capture remain independent from this request.
+- Render beneath `MediaModeToggle` with the same 48-point horizontal margins, a
+  minimum 56-point height, 36-point bundled objective artwork, white content,
+  and the named `OutingTargetTint` color (`#1C8547`). Unknown objectives use a
+  neutral binoculars symbol; they must not borrow semantically incorrect art.
+- The bold primary line is the objective prompt. The secondary line is
+  `Outing title · completed/target complete`, which keeps progress changes
+  understandable when the selection crosses outing boundaries.
+- Swipe left for the next unfinished target and right for the previous target.
+  Selection wraps across every active standard outing. The gesture commits only
+  after 36 points of translation and only when horizontal movement is at least
+  1.25 times vertical movement, preserving camera and capture-page gestures.
+- Selection changes use selection haptics. Reduced Motion removes the selection
+  animation, and VoiceOver exposes adjustable previous/next actions.
+
+Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
+flattens the server-ordered outing response into `CaptureGoal` values containing
+only prompt, source label, aggregate progress, safe artwork, and a typed
+destination. `ActiveCaptureGoalStore` is app-injected observable state; it
+preserves a surviving selection after refresh, chooses the next surviving goal
+when the current item completes, and wraps in both directions. The last
+successful generic payload, selection, and refresh date are stored in a
+versioned `UserDefaults` cache under an account-specific key. Switching Supabase
+accounts clears the in-memory state before reading that account's cache.
+
+Capture must not import Field Trip response DTOs, reconstruct access/unlock
+rules, or know Explore's internal route fields. New goal-producing features add
+an explicit `CaptureGoalSourceKind`, a `CaptureGoalContextProviding` adapter,
+and a compiler-checked `CaptureGoalDestination` case. The backend or provider
+continues to own eligibility and presentation order.
+
+Indicator impressions, opens, and previous/next actions are measured with a
+single `CaptureGoalIndicator` telemetry event. Its only feature properties are
+the coarse `action` and `source` kind. It must never include prompts, goal or
+outing IDs/titles, progress values, route IDs, or account identifiers.
+
+Refresh behavior:
+
+- force refresh asynchronously when Capture first appears;
+- refresh after five stale minutes when the app returns to the foreground or
+  the user returns to visual Scan;
+- force refresh after Field Trip start/join, standard progress events, account
+  changes, and explicit scanner-routing events;
+- coalesce overlapping invalidations into one follow-up refresh; and
+- retain cached content without surfacing an error if refresh fails.
+
+Tapping the indicator passes its typed `CaptureGoalDestination` into Explore.
+Explore presents the Field Trips tab, opens the owning standard outing, selects
+Tips, expands the matching objective, scrolls it into view, and briefly
+highlights it. A future objective without guide content falls back to the
+highlighted Objectives tile. The destination is converted at the Explore
+boundary into `FieldTripTemplateRoute`, whose focused checklist-item identifier
+remains optional for ordinary outing navigation.
 
 ## Challenge Flow
 
@@ -149,6 +229,13 @@ status-only:
 Active profile summaries must not expose scan IDs, media URLs, field notes,
 exact coordinates, public location labels, or private evidence details.
 
+The Scan capture-context payload is even narrower: it contains only outing and
+template identifiers, title/slug, current-level metadata, aggregate counts, and
+unfinished item identifiers/prompts/order/guide availability. It must never
+return scan IDs, media, coordinates, location labels, field notes, completed
+species names, or completion evidence. Seasonal Challenge participation is
+excluded.
+
 Published Field Trip pages are explicit snapshots stored separately from
 Explore posts. Publication items may include species names, taxonomy, reference
 images, and selected scan media snapshots, but publishing a Field Trip does not
@@ -178,6 +265,10 @@ for Community discovery by
 `services/supabase/migrations/20260708042713_field_trips_v3_community.sql`.
 Seasonal challenges are added by
 `services/supabase/migrations/20260708051414_field_trips_v4_challenges.sql`.
+Structured objective guidance is added by
+`services/supabase/migrations/20260717150222_contextual_outing_objective_guides.sql`.
+The private capture read model is added by
+`services/supabase/migrations/20260717195751_active_outing_capture_context.sql`.
 
 Core tables:
 
@@ -204,6 +295,7 @@ Core RPCs and helpers:
 
 - `public.get_field_trip_catalog(...)`
 - `public.get_field_trip_template_detail(...)`
+- `public.get_field_trip_capture_context(...)`
 - `public.start_field_trip(...)`
 - `public.get_field_trip_community_publications(...)`
 - `public.get_recent_field_trip_publications(...)`
@@ -238,6 +330,12 @@ fields.
 
 Actions:
 
+- `capture_context`: returns the caller's incomplete, non-hidden, accessible
+  standard outings and unfinished current-level targets. Outings order by most
+  recent start or item completion; targets retain curated checklist order. The
+  RPC is revoked from `PUBLIC`, `anon`, and `authenticated`, and granted only to
+  `service_role`; the authenticated Edge Function supplies the verified user
+  ID.
 - `catalog`: returns active templates, gated access state, levels, checklist
   items, and the viewer's progress.
 - `template_detail`: returns one template with guide fields, levels, checklist
@@ -304,6 +402,11 @@ Primary files:
 
 - `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsView.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsViewModel.swift`
+- `apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift`
+- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
+- `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
+- `apps/ios/Merian/Core/AppDIContainer.swift`
+- `apps/ios/Merian/Core/Models/CaptureGoalContext.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripPublicationDetailView.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripProfileModules.swift`
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
@@ -318,6 +421,13 @@ Primary files:
 Important model types:
 
 - `FieldTripTemplate`
+- `FieldTripCaptureContextResponse`
+- `FieldTripCaptureOuting`
+- `FieldTripCaptureTarget`
+- `FieldTripCaptureGoalProvider`
+- `CaptureGoal`
+- `CaptureGoalDestination`
+- `ActiveCaptureGoalStore`
 - `FieldTripLevel`
 - `FieldTripChecklistItem`
 - `FieldTripProgress`
@@ -336,6 +446,7 @@ Important model types:
 Client methods:
 
 ```swift
+MerianNetworkClient.shared.getFieldTripCaptureContext()
 MerianNetworkClient.shared.getFieldTrips(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripTemplate(templateId:)
 MerianNetworkClient.shared.startFieldTrip(templateId:)
@@ -403,12 +514,14 @@ Deploy in this order:
 2. `20260708033451_field_trips_v2.sql`
 3. `20260708042713_field_trips_v3_community.sql`
 4. `20260708051414_field_trips_v4_challenges.sql`
-5. `field-trips` Edge Function
-6. `get-explore-author-profile` so public profiles include Field Trip
+5. `20260717150222_contextual_outing_objective_guides.sql`
+6. `20260717195751_active_outing_capture_context.sql`
+7. `field-trips` Edge Function
+8. `get-explore-author-profile` so public profiles include Field Trip
    summaries and pins
-7. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+9. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-8. iOS client update
+10. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
@@ -422,9 +535,10 @@ should not be dropped casually after release.
 Backend:
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/get-explore-notifications services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
-deno check --config services/supabase/functions/deno.json services/supabase/functions/field-trips/index.ts services/supabase/functions/get-explore-notifications/index.ts
-deno test --config services/supabase/functions/deno.json --allow-read=services/supabase/migrations services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
+deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
+deno test --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 supabase db lint --workdir services
 ```
 
@@ -433,7 +547,16 @@ iOS:
 ```sh
 make xcodegen
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -scheme Merian -project Merian.xcodeproj \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+  -only-testing:merianTests/FieldTripCaptureContextModelsTests \
+  -only-testing:merianTests/ActiveCaptureGoalStoreTests \
+  -only-testing:merianTests/AppTelemetryTests test
 ```
+
+The database integration test requires the local Supabase/Postgres stack. It
+reports a skip when `127.0.0.1:54322` is unavailable; a skip is not production
+database validation.
 
 Also verify that publishing a Field Trip appears on profiles, Field Trip-native
 preview/detail surfaces, and typed Observations Recent/Following cards without

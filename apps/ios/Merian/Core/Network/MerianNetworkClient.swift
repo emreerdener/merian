@@ -2199,6 +2199,15 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripsCatalogResponse.self, from: data).data
     }
 
+    func getFieldTripCaptureContext() async throws -> [FieldTripCaptureOuting] {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "capture_context"
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(FieldTripCaptureContextResponse.self, from: data).data
+    }
+
     func getFieldTripTemplate(templateId: String) async throws -> FieldTripTemplate {
         let functionUrl = try endpointURL("field-trips")
         let bodyData = try JSONSerialization.data(withJSONObject: [

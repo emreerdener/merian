@@ -10,6 +10,8 @@ import UIKit
 /// Using these constants prevents silent key mismatches across sites that
 /// read and write the same preference value.
 enum UserDefaultsKeys {
+    /// Versioned prefix for account-isolated, source-agnostic capture goal caches.
+    static let captureGoalContextPrefix = "captureGoalContext.v1."
     /// Whether onboarding has completed and the full app lifecycle may start.
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     /// The current theme mode selection persisted via AppStorage.

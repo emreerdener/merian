@@ -1788,7 +1788,8 @@ coordinates to the client contract.
 - `public.field_trip_checklist_items`:
   Curated checklist prompts for each level. Items support species,
   scientific-name, taxonomy/group, habitat/ecology, prompt-text matching, and
-  optional curated item-level tips.
+  optional curated item-level tips. Structured guides may provide Where to
+  look, Best conditions, What to notice, and Scan safely sections.
 - `public.user_field_trips`:
   Per-user progress rows with start time, current level, profile visibility,
   completion time, and denormalized progress counts.
@@ -1855,6 +1856,19 @@ coordinates to the client contract.
 - `public.get_field_trip_template_detail(self_id UUID, target_template_id UUID, target_slug TEXT)`:
   Returns one catalog-shaped template payload with guide fields, item tips,
   access state, and viewer progress.
+- `public.get_field_trip_capture_context(self_id UUID)`:
+  Private service-role read model for the visual Scan indicator. Returns only
+  accessible active, incomplete, non-hidden standard outings and unfinished
+  targets from each current unlocked level. Outings order by latest start or
+  item completion, targets use curated checklist order, and Seasonal
+  Challenge-linked progress rows are excluded. The payload contains aggregate
+  progress and prompt metadata only—never scan IDs, media, location, notes,
+  completed species labels, or evidence. Execute is revoked from `PUBLIC`,
+  `anon`, and `authenticated` and granted only to `service_role`; the
+  authenticated `/field-trips` Edge action supplies the verified user ID. The
+  function uses an empty search path with fully qualified objects. Partial
+  active-outing and challenge-participation lookup indexes keep the read bounded
+  as progress history grows.
 - `public.start_field_trip(self_id UUID, target_template_id UUID)`:
   Explicitly starts or unhides the caller's progress row for an accessible
   Field Trip template.

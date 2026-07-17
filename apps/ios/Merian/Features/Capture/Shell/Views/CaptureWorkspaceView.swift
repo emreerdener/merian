@@ -4,6 +4,37 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
+enum ActiveCaptureGoalSwipeDirection: Equatable {
+    case next
+    case previous
+
+    static func resolve(horizontal: CGFloat, vertical: CGFloat) -> Self? {
+        guard abs(horizontal) > 36,
+              abs(horizontal) > abs(vertical) * 1.25 else {
+            return nil
+        }
+        return horizontal < 0 ? .next : .previous
+    }
+}
+
+enum ActiveCaptureGoalPresentationPolicy {
+    static func shouldShow(
+        goalsEnabled: Bool,
+        isVisualMode: Bool,
+        hasTarget: Bool,
+        stagedCaptureIsEmpty: Bool,
+        isRefining: Bool,
+        isVideoRecording: Bool
+    ) -> Bool {
+        goalsEnabled
+            && isVisualMode
+            && hasTarget
+            && stagedCaptureIsEmpty
+            && !isRefining
+            && !isVideoRecording
+    }
+}
+
 struct CaptureWorkspaceView: View {
     // MARK: - Environment & Dependencies
     @Environment(CameraManager.self) var cameraManager
@@ -15,6 +46,8 @@ struct CaptureWorkspaceView: View {
     @Environment(RevenueCatManager.self) private var revenueCatManager
     @Environment(AppSettings.self) private var appSettings
     @Environment(ProfileViewModel.self) private var profileViewModel
+    @Environment(SupabaseManager.self) private var supabaseManager
+    @Environment(ActiveCaptureGoalStore.self) private var activeCaptureGoalStore
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(
@@ -90,6 +123,21 @@ struct CaptureWorkspaceView: View {
                 ].joined(separator: "|")
             }
             .joined(separator: "\n")
+    }
+
+    private var currentAccountId: String? {
+        supabaseManager.currentUser?.id.uuidString
+    }
+
+    private var shouldShowActiveCaptureGoal: Bool {
+        ActiveCaptureGoalPresentationPolicy.shouldShow(
+            goalsEnabled: FieldTripsAvailability.isEnabled,
+            isVisualMode: captureMode == .visual,
+            hasTarget: activeCaptureGoalStore.selectedGoal != nil,
+            stagedCaptureIsEmpty: viewModel.stagedCapture.isEmpty,
+            isRefining: viewModel.baseRefinementContext != nil,
+            isVideoRecording: viewModel.isVideoRecording
+        )
     }
 
     // MARK: - View Hierarchy
@@ -201,17 +249,30 @@ struct CaptureWorkspaceView: View {
 
                 // MARK: Fixed Overlay — Mode Toggle (top)
                 if viewModel.shouldShowMediaModeToggle {
-                    VStack {
+                    VStack(spacing: 12) {
                         MediaModeToggle(
                             activeMode: $captureMode, 
                             isDragging: $isToggleDragging, 
                             orderedModes: orderedModes, 
                             onModeChange: {}
                         )
-                            .padding(.top, 16)
-                            .opacity(viewModel.offlineToastMessage != nil ? 0 : 1)
+
+                        if shouldShowActiveCaptureGoal,
+                           let goal = activeCaptureGoalStore.selectedGoal {
+                            ActiveCaptureGoalIndicator(
+                                goal: goal,
+                                onOpen: { viewModel.openCaptureGoal(goal) },
+                                onNext: { activeCaptureGoalStore.selectNext() },
+                                onPrevious: { activeCaptureGoalStore.selectPrevious() }
+                            )
+                            .padding(.horizontal, 48)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+
                         Spacer()
                     }
+                    .padding(.top, 16)
+                    .opacity(viewModel.offlineToastMessage != nil ? 0 : 1)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.shouldShowMediaModeToggle)
                 }
@@ -385,6 +446,15 @@ struct CaptureWorkspaceView: View {
             AppDIContainer.shared.environmentContextManager.validatePermissions()
             AppDIContainer.shared.environmentContextManager.startLiveLocationTracking()
             viewModel.importPendingExternalImageIfPossible()
+            activeCaptureGoalStore.activate(accountId: currentAccountId)
+            if FieldTripsAvailability.isEnabled {
+                Task {
+                    await activeCaptureGoalStore.refresh(
+                        accountId: currentAccountId,
+                        force: true
+                    )
+                }
+            }
         }
         .onDisappear {
             if viewModel.isVideoRecording {
@@ -434,6 +504,13 @@ struct CaptureWorkspaceView: View {
             )
             if newPhase == .active {
                 viewModel.importPendingExternalImageIfPossible()
+                if FieldTripsAvailability.isEnabled {
+                    Task {
+                        await activeCaptureGoalStore.refreshIfStale(
+                            accountId: currentAccountId
+                        )
+                    }
+                }
             }
         }
         .onChange(of: captureMode) { _, newMode in
@@ -446,6 +523,24 @@ struct CaptureWorkspaceView: View {
                 cameraManager: cameraManager,
                 audioCaptureManager: audioCaptureManager
             )
+            if newMode == .visual, FieldTripsAvailability.isEnabled {
+                Task {
+                    await activeCaptureGoalStore.refreshIfStale(
+                        accountId: currentAccountId
+                    )
+                }
+            }
+        }
+
+        .onChange(of: supabaseManager.currentUser?.id) { _, _ in
+            activeCaptureGoalStore.activate(accountId: currentAccountId)
+            guard FieldTripsAvailability.isEnabled else { return }
+            Task {
+                await activeCaptureGoalStore.refresh(
+                    accountId: currentAccountId,
+                    force: true
+                )
+            }
         }
 
         .onChange(of: viewModel.activeSheet) { _, newSheet in
@@ -478,6 +573,22 @@ struct CaptureWorkspaceView: View {
                 // Close the complete sheet stack and restore visual scanning.
                 viewModel.activeSheet = nil
                 captureMode = .visual
+                if FieldTripsAvailability.isEnabled {
+                    Task {
+                        await activeCaptureGoalStore.refresh(
+                            accountId: currentAccountId,
+                            force: true
+                        )
+                    }
+                }
+            case .fieldTripProgressUpdated, .captureGoalContextInvalidated:
+                guard FieldTripsAvailability.isEnabled else { break }
+                Task {
+                    await activeCaptureGoalStore.refresh(
+                        accountId: currentAccountId,
+                        force: true
+                    )
+                }
             case .requestRecallLastFindIntent:
                 // If there's an active or historical cache for a scan, open the modal natively
                 if inferenceEngine.historicHydrationTask != nil || inferenceEngine.speciesData != nil {
@@ -639,6 +750,125 @@ struct CaptureWorkspaceView: View {
         feedbackSurveyPromptPending = false
         feedbackSurveyPresentedProactively = true
         showFeedbackSurvey = true
+    }
+}
+
+private struct ActiveCaptureGoalIndicator: View {
+    let goal: CaptureGoal
+    let onOpen: () -> Void
+    let onNext: () -> Void
+    let onPrevious: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: goal.source.kind)
+            onOpen()
+        } label: {
+            HStack(spacing: 10) {
+                artwork
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(goal.prompt)
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(1)
+
+                    Text("\(goal.source.title) · \(goal.progress.completedCount)/\(goal.progress.targetCount) complete")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.82))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.bold))
+                    .accessibilityHidden(true)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(Color("OutingTargetTint"), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 20)
+                .onEnded { value in
+                    guard let direction = ActiveCaptureGoalSwipeDirection.resolve(
+                        horizontal: value.translation.width,
+                        vertical: value.translation.height
+                    ) else {
+                        return
+                    }
+                    changeSelection(next: direction == .next)
+                }
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(goal.prompt)
+        .accessibilityValue(
+            "\(goal.source.title), \(goal.progress.completedCount) of \(goal.progress.targetCount) complete"
+        )
+        .accessibilityHint("Opens goal details. Swipe up or down to change target.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("activeCaptureGoalIndicator")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                changeSelection(next: true)
+            case .decrement:
+                changeSelection(next: false)
+            @unknown default:
+                break
+            }
+        }
+        .task(id: goal.id) {
+            AppTelemetry.trackCaptureGoalIndicator(action: .shown, source: goal.source.kind)
+        }
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        switch goal.artwork {
+        case .bundledImage(let imageName):
+            Image(imageName)
+                .resizable()
+                .scaledToFit()
+                .padding(2)
+                .frame(width: 36, height: 36)
+                .accessibilityHidden(true)
+        case .systemSymbol(let symbolName):
+            Image(systemName: symbolName)
+                .font(.system(size: 19, weight: .semibold))
+                .frame(width: 36, height: 36)
+                .background(.white.opacity(0.14), in: Circle())
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func changeSelection(next: Bool) {
+        HapticManager.shared.triggerSelectionPulse(source: "capture.activeGoal")
+        AppTelemetry.trackCaptureGoalIndicator(
+            action: next ? .next : .previous,
+            source: goal.source.kind
+        )
+        if reduceMotion {
+            if next {
+                onNext()
+            } else {
+                onPrevious()
+            }
+        } else {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                if next {
+                    onNext()
+                } else {
+                    onPrevious()
+                }
+            }
+        }
     }
 }
 

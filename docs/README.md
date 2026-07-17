@@ -238,9 +238,10 @@ as their permanent engineering identity.
   Tree of Life canvas routing/data boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Field Trips Available/Community segments, guided template detail, progress
-  matching, seasonal challenges, challenge badges, publication snapshots,
-  profile pins, access gating, in-app activity, and deferred leaderboard/prize
-  scope.
+  matching, the account-cached active target indicator on visual Scan, focused
+  Tips/Objectives routing, seasonal challenges, challenge badges, publication
+  snapshots, profile pins, access gating, in-app activity, and deferred
+  leaderboard/prize scope.
 - **[`/features-and-hardware/26-photos-share-import.md`](./features-and-hardware/26-photos-share-import.md)**
   — Single-photo document import from the iOS Photos share sheet, including URL
   routing, durable inbox ownership, EXIF context, capture staging, privacy,
@@ -248,6 +249,10 @@ as their permanent engineering identity.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.
+- **[`/rfcs/active-capture-goal-context.md`](./rfcs/active-capture-goal-context.md)**
+  — Accepted long-term architecture for source-agnostic goals on Capture,
+  account-scoped stale-data retention, typed navigation, private source reads,
+  and adding future goal providers without coupling them to the camera.
 - **[`/rfcs/codebase-cleanup.md`](./rfcs/codebase-cleanup.md)** — Phased cleanup
   plan for repo hygiene, behavior-preserving file splits, and ownership cleanup.
 - **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)**

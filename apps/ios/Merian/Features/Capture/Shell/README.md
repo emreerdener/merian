@@ -3,7 +3,56 @@
 The `Shell` directory acts as the root container for the entire Capture feature.
 
 ## Purpose
+
 Following the Merian architecture guidelines, the `Shell` orchestrates the transitions between the different capture modes (`Scan`, `Record`, `Describe`). It acts as the routing layer, keeping the individual capture modes isolated and focused entirely on their specific hardware/input logic.
+
+## Active capture goal
+
+`CaptureWorkspaceView` owns the compact active-outing target indicator because
+it is fixed capture chrome beneath `MediaModeToggle`, not part of the camera
+preview. It reads app-injected `ActiveCaptureGoalStore` state and appears only
+when Field Trips are enabled, visual Scan is selected, a real unfinished target
+exists, the staging tray is empty, refinement is inactive, and video is not
+recording. Loading with no cache renders nothing and never blocks camera startup
+or capture.
+
+Capture consumes only the generic `CaptureGoal` read model. The first provider,
+`FieldTripCaptureGoalProvider`, owns conversion from Field Trip API DTOs,
+including exact artwork selection and the typed `CaptureGoalDestination`.
+Adding another source must happen through that provider/destination boundary;
+the camera must not import the source's network models or reproduce its
+eligibility and ranking rules.
+
+The accepted long-term boundary, second-source integration path, cache-version
+rules, and alternatives are documented in
+`docs/rfcs/active-capture-goal-context.md`.
+
+The pill shows exact bundled objective artwork when mapped, otherwise a neutral
+binoculars symbol, plus the objective prompt and
+`Outing title · completed/target complete`. A horizontally dominant swipe moves
+through every unfinished target across active standard outings and wraps in both
+directions. Selection changes support haptics, Reduced Motion, and VoiceOver
+adjustable actions.
+
+`ActiveCaptureGoalStore` preserves the last successful generic payload and
+selected goal in a versioned cache per Supabase account. Capture force-refreshes
+on first appearance and
+relevant invalidation events, and refreshes after five stale minutes on
+foreground/visual-mode return. Failures keep cached state without placing an
+error over the viewfinder.
+
+Tapping the pill calls `CaptureWorkspaceViewModel.openCaptureGoal`, then
+`CameraSheetRouter` passes one typed destination to `ExploreView`. Explore owns
+converting the Field Trip destination into its optional focused checklist-item
+route, selecting Field Trips, opening the outing, expanding and highlighting
+the matching Tips card, or highlighting the Objectives tile when guide content
+is absent. The complete data, privacy, interaction, and deployment contract
+lives in `docs/features-and-hardware/25-field-trips.md`.
+
+The indicator emits privacy-safe `shown`, `opened`, `next`, and `previous`
+telemetry through `AppTelemetry`. Events include only the coarse source kind;
+goal IDs, prompts, outing IDs/titles, progress, and account identity are
+excluded.
 
 ## External image imports
 

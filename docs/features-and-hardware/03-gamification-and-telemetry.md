@@ -144,6 +144,7 @@ Thin enum wrapper around app product events. All sends go through a private
 | `CaptureThermalThrottled`        | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                                           | Capture throttles frame rate after device thermal state reaches critical                         |
 | `ScanQueuedForSync`              | `trackOfflineQueued()`                                     | —                                                                                           | Scan successfully written to offline queue after `context.save()`                                |
 | `ExternalImageImport`            | `trackExternalImageImport(outcome:)`                       | `outcome`, `event_source`                                                                   | Photos document import is received, staged, temporarily blocked, or terminally rejected           |
+| `CaptureGoalIndicator`           | `trackCaptureGoalIndicator(action:source:)`                | `action: "shown"/"opened"/"next"/"previous"`, `source: "field_trip"`                  | Active capture goal is presented, opened, or changed                                              |
 | `OnboardingCompleted`            | `trackOnboardingCompleted()`                               | —                                                                                           | User taps Continue on the `.ready` onboarding step                                               |
 | `SpeciesDictionaryOpened`        | `trackSpeciesDictionaryOpened(entryPoint:)`                | `entryPoint`                                                                                | Species dictionary sheet opens                                                                   |
 | `SpeciesDictionaryPageLoaded`    | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"`                      | Species dictionary page loads a public dictionary row                                            |
@@ -177,6 +178,12 @@ staging-capacity-blocked, unsupported, missing-file, inbox-copy, or preparation
 failure states. Never attach filenames, paths, image bytes, `UTType` strings,
 EXIF dictionaries, coordinates, capture dates, Photos asset identifiers, scan
 IDs, or user IDs.
+
+Capture-goal telemetry measures the usefulness of the source-agnostic Scan
+indicator without identifying its content. Its only feature properties are the
+coarse action and goal source kind. Never attach target prompts, goal IDs,
+source instance IDs/titles, completion counts, route identifiers, or account
+identifiers.
 
 ### Pro Paywall Feature Copy
 

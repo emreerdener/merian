@@ -18,6 +18,25 @@ network client. Durable background uploads and replay scheduling live under
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 
+## Field Trip capture context
+
+`getFieldTripCaptureContext()` posts `{"action":"capture_context"}` to the
+authenticated `/field-trips` Edge Function and decodes the narrow
+`FieldTripCaptureContextResponse`. The response contains standard outing/current
+level metadata, aggregate progress, and unfinished target prompts only. It must
+not contain scan evidence, media, location, or field notes.
+
+`MerianNetworkClient` performs the request. `FieldTripCaptureGoalProvider` maps
+the source DTOs into generic `CaptureGoal` values, and
+`ActiveCaptureGoalStore` owns the five-minute freshness policy, per-account
+cache, selected-goal persistence, refresh coalescing, and silent stale-data
+retention. Capture never imports these Field Trip DTOs. Callers must never await
+this request before starting the camera or accepting a capture. See
+`docs/backend-and-data/05-api-contracts.md` and
+`docs/features-and-hardware/25-field-trips.md`. The source-agnostic ownership
+decision and future provider aggregation rules live in
+`docs/rfcs/active-capture-goal-context.md`.
+
 ## Request-Body Completion
 
 `performAuthenticatedRequest` accepts an optional, idempotent body-upload-

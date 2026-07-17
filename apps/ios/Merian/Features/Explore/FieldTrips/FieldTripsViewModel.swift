@@ -1,6 +1,56 @@
 import Foundation
 import Observation
 
+struct FieldTripCaptureGoalProvider: CaptureGoalContextProviding {
+    typealias FetchContext = @Sendable () async throws -> [FieldTripCaptureOuting]
+
+    init(
+        fetchContext: @escaping FetchContext = {
+            try await MerianNetworkClient.shared.getFieldTripCaptureContext()
+        }
+    ) {
+        self.fetchContext = fetchContext
+    }
+
+    private let fetchContext: FetchContext
+
+    func fetchCaptureGoals() async throws -> [CaptureGoal] {
+        let outings = try await fetchContext()
+        return outings.flatMap { outing in
+            outing.targets.map { target in
+                let artwork: CaptureGoalArtwork
+                if let imageName = FieldTripObjectiveArtwork.exactImageName(
+                    for: target.prompt,
+                    templateSlug: outing.templateSlug
+                ) {
+                    artwork = .bundledImage(name: imageName)
+                } else {
+                    artwork = .systemSymbol(name: "binoculars.fill")
+                }
+
+                return CaptureGoal(
+                    id: "field_trip:\(target.itemId)",
+                    source: CaptureGoalSource(
+                        kind: .fieldTrip,
+                        id: outing.userFieldTripId,
+                        title: outing.outingTitle
+                    ),
+                    prompt: target.prompt,
+                    progress: CaptureGoalProgress(
+                        completedCount: outing.completedCount,
+                        targetCount: outing.targetCount
+                    ),
+                    artwork: artwork,
+                    destination: .fieldTrip(
+                        templateId: outing.templateId,
+                        checklistItemId: target.itemId
+                    )
+                )
+            }
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class FieldTripsViewModel {
@@ -140,6 +190,7 @@ final class FieldTripChallengeDetailViewModel {
             hasMoreEntries = loaded.entries.count >= entriesPageSize
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Challenge joined."
+            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)

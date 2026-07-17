@@ -70,12 +70,25 @@ struct ExploreView: View {
         initialCommunityRequestId: String? = nil,
         initialTargetCommentId: String? = nil,
         initialTargetReplyParentCommentId: String? = nil,
+        initialCaptureGoalDestination: CaptureGoalDestination? = nil,
         allowsInsightPresentation: Bool = true,
         onOpenOwnedPostInsight: ((String) -> Bool)? = nil
     ) {
         self.allowsInsightPresentation = allowsInsightPresentation
         self.onOpenOwnedPostInsight = onOpenOwnedPostInsight
-        if let requestId = initialCommunityRequestId {
+        if let initialCaptureGoalDestination {
+            var initialPath = NavigationPath()
+            switch initialCaptureGoalDestination {
+            case .fieldTrip(let templateId, let checklistItemId):
+                initialPath.append(FieldTripTemplateRoute(
+                    templateId: templateId,
+                    focusedChecklistItemId: checklistItemId
+                ))
+                _navigationPath = State(initialValue: initialPath)
+                _activeTab = State(initialValue: .fieldTrips)
+                _activeFieldTripsSection = State(initialValue: .fieldTrips)
+            }
+        } else if let requestId = initialCommunityRequestId {
             var initialPath = NavigationPath()
             initialPath.append(ExploreCommunityRequestRoute(requestId: requestId))
             _navigationPath = State(initialValue: initialPath)
@@ -239,6 +252,7 @@ struct ExploreView: View {
             .navigationDestination(for: FieldTripTemplateRoute.self) { route in
                 FieldTripTemplateDetailView(
                     templateId: route.templateId,
+                    focusedChecklistItemId: route.focusedChecklistItemId,
                     onOpenPublication: { publicationId in
                         navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
                     },
@@ -1450,6 +1464,12 @@ struct FieldTripPublicationRoute: Hashable {
 
 struct FieldTripTemplateRoute: Hashable {
     let templateId: String
+    let focusedChecklistItemId: String?
+
+    init(templateId: String, focusedChecklistItemId: String? = nil) {
+        self.templateId = templateId
+        self.focusedChecklistItemId = focusedChecklistItemId
+    }
 }
 
 struct FieldTripChallengeRoute: Hashable {

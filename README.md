@@ -83,8 +83,10 @@ steps are tracked in the
   `erdener.emre@gmail.com` and simulator builds. The preview adds guided regional checklist quests beside Explore, with
   Available and Community segments, explicit start, curated tips, profile pins,
   following-weighted Community discovery, seasonal non-competitive challenges,
-  completion badges, optional challenge hashtag suggestions, and published pages
-  or challenge entries that stay separate from Explore feeds and maps.
+  completion badges, optional challenge hashtag suggestions, and a compact
+  account-cached visual Scan target that opens the relevant outing guide.
+  Published pages and challenge entries stay separate from Explore feeds and
+  maps; Seasonal Challenge targets are not included in the Scan indicator.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support image, short-video, and standalone-audio media snapshots.
 - Compact Explore/profile grids render standalone-audio posts with the species
@@ -340,6 +342,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/features-and-hardware/17-public-web-share-pages.md` | Public `naturebook.earth` share page contract and Universal Links compatibility |
 | `docs/backend-and-data/` | Edge function contracts, database schema, offline sync, API contracts |
 | `docs/development-guides/` | Core managers reference, app lifecycle, testing strategy |
+| `docs/rfcs/active-capture-goal-context.md` | Long-term source-agnostic Capture goal architecture and extension contract |
 
 ---
 

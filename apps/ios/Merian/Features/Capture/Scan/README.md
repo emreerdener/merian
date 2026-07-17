@@ -3,7 +3,9 @@
 The `Scan` directory drives the core visual camera experience.
 
 ## Purpose
+
 This area orchestrates the `AVCaptureSession`. It handles complex hardware integrations such as:
+
 - Device priority (preferring the Triple Camera for the full 0.5×–15× optical zoom range).
 - LiDAR depth harvesting (`AVCaptureDepthDataOutput`) to provide absolute scale to the AI model.
 - Real-time viewfinder intelligence (analyzing luma for brightness/motion blur at 3fps).
@@ -14,6 +16,17 @@ from the iOS Photos share sheet enters through the Capture shell and
 `ExternalImageImportStore`. Both sources converge on the same file-backed image
 preparation and required-crop behavior. The document-import contract is
 documented in `docs/features-and-hardware/26-photos-share-import.md`.
+
+## Active goal orientation
+
+The active goal shown while visual Scan is idle is owned by
+`Features/Capture/Shell`, because it is fixed mode-level chrome and routes into
+Explore. `Scan` does not fetch source DTOs, award progress, or alter camera
+gesture handling. Field Trips currently provide the goals through the generic
+capture-goal provider boundary. The indicator accepts only horizontally
+dominant completed drags so vertical camera interactions and the capture-mode
+pager keep their existing ownership. See `../Shell/README.md` and
+`docs/features-and-hardware/25-field-trips.md`.
 
 ## Automatic still-image focus
 

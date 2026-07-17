@@ -13,6 +13,7 @@ import {
   assertCanViewFieldTripChallengeEntry,
   assertCanViewFieldTripPublication,
   fetchCommunityFieldTripPublications,
+  fetchFieldTripCaptureContext,
   fetchFieldTripCatalog,
   fetchFieldTripChallengeCommentParent,
   fetchFieldTripChallengeDetail,
@@ -42,6 +43,7 @@ import {
 
 type FieldTripAction =
   | "catalog"
+  | "capture_context"
   | "challenges_catalog"
   | "template_detail"
   | "start"
@@ -81,6 +83,7 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
 
   switch (rawAction) {
     case "catalog":
+    case "capture_context":
     case "challenges_catalog":
     case "template_detail":
     case "start":
@@ -224,6 +227,14 @@ Deno.serve((req: Request) =>
     const action = normalizeAction(body.action);
 
     switch (action) {
+      case "capture_context": {
+        const data = await fetchFieldTripCaptureContext(
+          user.id,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
       case "catalog": {
         const limit = normalizeLimit(body.limit, 40, 80);
         const userRegion = nullableTrimmedString(body.user_region, 80);

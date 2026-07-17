@@ -36,6 +36,10 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackError("UnitTestTrigger")
         AppTelemetry.trackOfflineQueued()
         AppTelemetry.trackExternalImageImport(outcome: "staged")
+        AppTelemetry.trackCaptureGoalIndicator(action: .shown, source: .fieldTrip)
+        AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: .fieldTrip)
+        AppTelemetry.trackCaptureGoalIndicator(action: .next, source: .fieldTrip)
+        AppTelemetry.trackCaptureGoalIndicator(action: .previous, source: .fieldTrip)
         AppTelemetry.trackOnboardingCompleted()
         AppTelemetry.trackExploreNotificationsFetchFailed(context: "sheet_load")
         AppTelemetry.trackAchievementDetailOpened(type: "fungi", state: "in_progress")
@@ -62,6 +66,10 @@ final class AppTelemetryTests: XCTestCase {
             "ClientErrorCaptured",
             "ScanQueuedForSync",
             "ExternalImageImport",
+            "CaptureGoalIndicator",
+            "CaptureGoalIndicator",
+            "CaptureGoalIndicator",
+            "CaptureGoalIndicator",
             "OnboardingCompleted",
             "ExploreNotificationsFetchFailed",
             "AchievementDetailOpened",
@@ -152,5 +160,18 @@ final class AppTelemetryTests: XCTestCase {
         XCTAssertEqual(event?.name, "ExternalImageImport")
         XCTAssertEqual(event?.properties["outcome"] as? String, "blocked_quota")
         XCTAssertEqual(Set(event?.properties.keys.map { $0 } ?? []), ["outcome", "event_source"])
+    }
+
+    func testCaptureGoalIndicatorContainsOnlyCoarseActionSourceAndClientSource() {
+        AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: .fieldTrip)
+
+        let event = capturedEvents.first
+        XCTAssertEqual(event?.name, "CaptureGoalIndicator")
+        XCTAssertEqual(event?.properties["action"] as? String, "opened")
+        XCTAssertEqual(event?.properties["source"] as? String, "field_trip")
+        XCTAssertEqual(
+            Set(event?.properties.keys.map { $0 } ?? []),
+            ["action", "source", "event_source"]
+        )
     }
 }

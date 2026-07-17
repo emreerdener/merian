@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
+const fieldTripsFunctionDir = new URL("../field-trips/", import.meta.url);
 
 async function migrationSql(fileName: string): Promise<string> {
   return await Deno.readTextFile(new URL(fileName, migrationsDir));
@@ -179,6 +180,75 @@ Deno.test("Contextual Outing guides add structured reviewed content without remo
     !sql.includes("openai") && !sql.includes("anthropic") &&
       !sql.includes("generate_content"),
     "Objective guides must remain reviewed static content with no runtime AI calls",
+  );
+});
+
+Deno.test("Field Trip capture context is focused, ordered, and service-role only", async () => {
+  const sql = normalized(
+    await migrationSql("20260717195751_active_outing_capture_context.sql"),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_capture_context( self_id UUID )",
+      "SECURITY INVOKER",
+      "SET search_path = ''",
+      "CREATE INDEX IF NOT EXISTS idx_user_field_trips_capture_context ON public.user_field_trips(user_id, started_at DESC) WHERE completed_at IS NULL AND hidden_at IS NULL",
+      "CREATE INDEX IF NOT EXISTS idx_field_trip_challenge_participants_outing ON public.field_trip_challenge_participants(user_field_trip_id)",
+      "uft.completed_at IS NULL",
+      "uft.hidden_at IS NULL",
+      "NOT EXISTS ( SELECT 1 FROM public.field_trip_challenge_participants participant WHERE participant.user_field_trip_id = uft.id )",
+      "fl.level_number = uft.current_level_number",
+      "t.is_pro_only = FALSE OR viewer.is_pro OR t.is_rotating_free = TRUE",
+      "FILTER (WHERE completion.id IS NULL)",
+      "ORDER BY item.sort_order, item.id",
+      "ORDER BY row.last_engaged_at DESC, row.user_field_trip_id",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_capture_context(UUID) FROM PUBLIC",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_capture_context(UUID) FROM anon",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_capture_context(UUID) FROM authenticated",
+      "GRANT EXECUTE ON FUNCTION public.get_field_trip_capture_context(UUID) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  for (
+    const privateEvidence of [
+      "'scan_id'",
+      "'media'",
+      "'location'",
+      "'field_notes'",
+      "'common_name'",
+      "'scientific_name'",
+    ]
+  ) {
+    assert(
+      !sql.includes(privateEvidence),
+      `Capture context must not return private evidence: ${privateEvidence}`,
+    );
+  }
+});
+
+Deno.test("Field Trip capture context Edge action always uses the verified user", async () => {
+  const index = normalized(
+    await Deno.readTextFile(new URL("index.ts", fieldTripsFunctionDir)),
+  );
+  const db = normalized(
+    await Deno.readTextFile(new URL("db.ts", fieldTripsFunctionDir)),
+  );
+
+  assertStringIncludes(index, '| "capture_context"');
+  assertStringIncludes(
+    index,
+    'case "capture_context": { const data = await fetchFieldTripCaptureContext( user.id, supabaseAdmin',
+  );
+  assertStringIncludes(
+    db,
+    'supabaseAdmin.rpc( "get_field_trip_capture_context", { self_id: userId }',
+  );
+  assert(
+    !index.includes("body.self_id") && !index.includes("body.user_id"),
+    "Capture context must not accept an account id from the request body",
   );
 });
 

@@ -4,6 +4,34 @@ struct FieldTripsCatalogResponse: Decodable {
     let data: [FieldTripTemplate]
 }
 
+struct FieldTripCaptureContextResponse: Codable, Equatable, Sendable {
+    let data: [FieldTripCaptureOuting]
+}
+
+struct FieldTripCaptureOuting: Codable, Equatable, Identifiable, Sendable {
+    let userFieldTripId: String
+    let templateId: String
+    let templateSlug: String
+    let outingTitle: String
+    let lastEngagedAt: String
+    let levelNumber: Int
+    let levelTitle: String
+    let completedCount: Int
+    let targetCount: Int
+    let targets: [FieldTripCaptureTarget]
+
+    var id: String { userFieldTripId }
+}
+
+struct FieldTripCaptureTarget: Codable, Equatable, Identifiable, Sendable {
+    let itemId: String
+    let prompt: String
+    let sortOrder: Int
+    let hasGuide: Bool
+
+    var id: String { itemId }
+}
+
 struct FieldTripTemplateDetailResponse: Decodable {
     let data: FieldTripTemplate
 }

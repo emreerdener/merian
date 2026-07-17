@@ -40,7 +40,8 @@ struct CameraSheetRouter: ViewModifier {
                             initialPostId: viewModel.pendingExplorePostId,
                             initialCommunityRequestId: viewModel.pendingCommunityIdentificationRequestId,
                             initialTargetCommentId: viewModel.pendingExploreTargetCommentId,
-                            initialTargetReplyParentCommentId: viewModel.pendingExploreTargetReplyParentCommentId
+                            initialTargetReplyParentCommentId: viewModel.pendingExploreTargetReplyParentCommentId,
+                            initialCaptureGoalDestination: viewModel.pendingCaptureGoalDestination
                         )
                             .id(viewModel.explorePresentationIdentity)
                             .onDisappear {
@@ -48,6 +49,7 @@ struct CameraSheetRouter: ViewModifier {
                                 viewModel.pendingCommunityIdentificationRequestId = nil
                                 viewModel.pendingExploreTargetCommentId = nil
                                 viewModel.pendingExploreTargetReplyParentCommentId = nil
+                                viewModel.pendingCaptureGoalDestination = nil
                             }
                     case .scans:
                         ScansSheetView()

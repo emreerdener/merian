@@ -16,3 +16,11 @@ Never attach filenames, file paths, image bytes, EXIF values, coordinates,
 capture dates, Photos asset identifiers, scan IDs, or user IDs. The authoritative
 event inventory and privacy boundary live in
 `docs/features-and-hardware/03-gamification-and-telemetry.md`.
+
+## Capture Goals
+
+`AppTelemetry.trackCaptureGoalIndicator(action:source:)` emits one
+`CaptureGoalIndicator` event for a shown indicator, an open, or a previous/next
+selection. Only the source kind and coarse action are included. Do not attach
+the goal prompt, goal ID, source instance ID/title, progress counts, route IDs,
+or account identifiers.

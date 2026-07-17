@@ -217,8 +217,11 @@ Field Trips releases are migration-plus-function releases too. Deploy
 `20260708021110_field_trips_v1.sql` before
 `20260708033451_field_trips_v2.sql` before
 `20260708042713_field_trips_v3_community.sql` before
-`20260708051414_field_trips_v4_challenges.sql`, then deploy the `field-trips`
-Edge Function and the updated Explore/profile activity bundles together. V1
+`20260708051414_field_trips_v4_challenges.sql` before
+`20260717150222_contextual_outing_objective_guides.sql` before
+`20260717195751_active_outing_capture_context.sql`, then deploy the
+`field-trips` Edge Function and the updated Explore/profile activity bundles
+together. V1
 creates the Field Trip tables, progress/publication/comment storage, profile
 visibility helpers, and publication snapshots. V2 adds guided template detail,
 explicit starts, Recent compatibility pagination, and profile pins. V3 adds
@@ -226,9 +229,14 @@ the Community publication RPC, Field Trip in-app activity storage, and Explore
 activity union/read/count RPC updates. V4 adds curated seasonal challenge
 storage, explicit joins, challenge-specific item completions, completion badges,
 challenge entry snapshots, challenge entry comments/likes, and scan-scoped
-hashtag suggestion helpers. A function-only deploy cannot serve V4 actions
-until all migrations are applied; a database-only deploy leaves the app without
-the Field Trips action router.
+hashtag suggestion helpers. The contextual-guide migration supplies the
+structured Tips content used by focused target navigation. The capture-context
+migration adds the private service-role RPC and its active-outing/challenge
+lookup indexes consumed by the Scan indicator. A
+function-only deploy cannot serve `capture_context` or V4 actions until all
+migrations are applied; a database-only deploy leaves the app without the
+Field Trips action router. Do not release the indicator-enabled iOS client until
+both the capture-context migration and updated function are live.
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
@@ -726,11 +734,17 @@ After deployment:
   duplicate foreground/background upload contention. Confirm a delayed context
   update survives both the pre-insert staged path and the completed-scan path.
 - For Field Trips releases, confirm `field-trips` serves `catalog`,
-  `template_detail`, `start`, `community_publications`, `recent_publications`,
-  `challenges_catalog`, `challenge_detail`, `join_challenge`,
-  `challenge_publications`, `scan_challenge_hashtags`, and
-  `profile_summaries` after the V1, V2, V3, and V4 migrations. Publishing a
-  Field Trip or challenge entry must not write `explore_posts`, map points,
+  `template_detail`, `capture_context`, `start`, `community_publications`,
+  `recent_publications`, `challenges_catalog`, `challenge_detail`,
+  `join_challenge`, `challenge_publications`, `scan_challenge_hashtags`, and
+  `profile_summaries` after the V1, V2, V3, V4, contextual-guide, and
+  capture-context migrations. Verify `capture_context` returns only accessible
+  incomplete standard outings and current-level unfinished targets, orders
+  outings by recent engagement, excludes Seasonal Challenge participation, and
+  returns no scan IDs, media, locations, field notes, species completion data,
+  or other evidence. Confirm `PUBLIC`, `anon`, and `authenticated` cannot execute
+  `public.get_field_trip_capture_context(uuid)` while `service_role` can.
+  Publishing a Field Trip or challenge entry must not write `explore_posts`, map points,
   normal Explore post notification rows, APNs, widgets, public web share pages,
   prize rows, or leaderboard rows. Field Trip comment/reply/followed-publication
   activity may appear in `field_trip_activity_notifications` and the in-app

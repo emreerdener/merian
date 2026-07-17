@@ -32,6 +32,9 @@ import SwiftUI
     var archiveManager = ArchiveManager.shared
     var photoLibraryManager = PhotoLibraryManager.shared
     var externalImageImportStore = ExternalImageImportStore.shared
+    var activeCaptureGoalStore = ActiveCaptureGoalStore(
+        provider: FieldTripCaptureGoalProvider()
+    )
 
     // MARK: - Dependencies (Network & Backend)
     var supabaseManager = SupabaseManager.shared
@@ -91,6 +94,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.profileViewModel)
             .environment(container.speechManager)
             .environment(container.audioCaptureManager)
+            .environment(container.activeCaptureGoalStore)
     }
 }
 

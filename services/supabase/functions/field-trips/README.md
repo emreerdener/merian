@@ -7,8 +7,11 @@ The backing SQL lives in
 `services/supabase/migrations/20260708021110_field_trips_v1.sql` and
 `services/supabase/migrations/20260708033451_field_trips_v2.sql`, plus
 `services/supabase/migrations/20260708042713_field_trips_v3_community.sql` and
-`services/supabase/migrations/20260708051414_field_trips_v4_challenges.sql`.
-Deploy all four migrations before deploying this function.
+`services/supabase/migrations/20260708051414_field_trips_v4_challenges.sql`,
+`services/supabase/migrations/20260717150222_contextual_outing_objective_guides.sql`,
+and
+`services/supabase/migrations/20260717195751_active_outing_capture_context.sql`.
+Deploy the migrations before deploying this function.
 
 ## Privacy Contract
 
@@ -41,6 +44,54 @@ Deploy all four migrations before deploying this function.
 - Visibility checks must reject shadowbanned authors and mutual blocks.
 
 ## Actions
+
+```json
+{ "action": "capture_context" }
+```
+
+Returns the caller's accessible, incomplete standard outings and unfinished
+targets from each current level, ordered by recent engagement and curated
+checklist order. This capture-only contract contains aggregate progress and
+prompts, never scan IDs, media, field notes, location, or completion evidence.
+The backing RPC is executable only by `service_role`; `withEdgeHandler` supplies
+the verified user ID. Rows linked to `field_trip_challenge_participants` are
+excluded so Seasonal Challenges cannot enter this first capture integration.
+The cross-client ownership, cache, navigation, and future-source decision lives
+in `docs/rfcs/active-capture-goal-context.md`.
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "user_field_trip_id": "uuid",
+      "template_id": "uuid",
+      "template_slug": "backyard_safari",
+      "outing_title": "Backyard safari",
+      "last_engaged_at": "2026-07-17T18:00:00.000Z",
+      "level_number": 1,
+      "level_title": "Level 1",
+      "completed_count": 1,
+      "target_count": 4,
+      "targets": [
+        {
+          "item_id": "uuid",
+          "prompt": "Butterfly",
+          "sort_order": 10,
+          "has_guide": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+`last_engaged_at` is the later of the outing start and its most recent item
+completion. Outings order by `(last_engaged_at DESC, user_field_trip_id)` and
+targets order by `(sort_order, item_id)`. Only unfinished targets from the
+current unlocked level are returned. An eligible account with no remaining
+targets receives `{ "data": [] }`.
 
 ```json
 { "action": "catalog", "user_region": "optional", "limit": 40 }
@@ -234,6 +285,7 @@ and limits body text to 500 characters.
 The iOS client maps this endpoint through:
 
 ```swift
+MerianNetworkClient.shared.getFieldTripCaptureContext()
 MerianNetworkClient.shared.getFieldTrips(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripTemplate(templateId:)
 MerianNetworkClient.shared.startFieldTrip(templateId:)
@@ -268,19 +320,27 @@ not fail scan persistence.
 2. Apply `20260708033451_field_trips_v2.sql`.
 3. Apply `20260708042713_field_trips_v3_community.sql`.
 4. Apply `20260708051414_field_trips_v4_challenges.sql`.
-5. Deploy this function.
-6. Deploy `get-explore-author-profile` so profile responses include
+5. Apply `20260717150222_contextual_outing_objective_guides.sql`.
+6. Apply `20260717195751_active_outing_capture_context.sql`.
+7. Deploy this function.
+8. Deploy `get-explore-author-profile` so profile responses include
    `field_trips`.
-7. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+9. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
    and `mark-explore-notifications-read` so Field Trip activity appears in the
    in-app activity sheet and bell.
-8. Ship the iOS client.
+10. Ship the iOS client.
 
 ## Verification
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/get-explore-notifications services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
-deno check --config services/supabase/functions/deno.json services/supabase/functions/field-trips/index.ts services/supabase/functions/get-explore-notifications/index.ts
-deno test --config services/supabase/functions/deno.json --allow-read=services/supabase/migrations services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
+deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
+deno test --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 supabase db lint --workdir services
 ```
+
+The capture-context database integration test requires a running local
+Supabase/Postgres stack. A reported skip because port `54322` is unavailable is
+not a successful database execution and must be covered before release or by the
+linked deployment validation path.

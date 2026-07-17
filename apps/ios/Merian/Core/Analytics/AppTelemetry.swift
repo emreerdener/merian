@@ -5,6 +5,13 @@ import os
 enum AppTelemetry {
     typealias CaptureHandler = (_ event: String, _ properties: [String: Any]) -> Void
 
+    enum CaptureGoalIndicatorAction: String {
+        case shown
+        case opened
+        case next
+        case previous
+    }
+
     // MARK: - State
 
     private static let lock = NSLock()
@@ -86,6 +93,19 @@ enum AppTelemetry {
 
     static func trackExternalImageImport(outcome: String) {
         send("ExternalImageImport", with: ["outcome": outcome])
+    }
+
+    // MARK: - Capture Goal Events
+
+    /// Records coarse indicator engagement without goal, outing, or account identity.
+    static func trackCaptureGoalIndicator(
+        action: CaptureGoalIndicatorAction,
+        source: CaptureGoalSourceKind
+    ) {
+        send("CaptureGoalIndicator", with: [
+            "action": action.rawValue,
+            "source": source.rawValue
+        ])
     }
 
     // MARK: - Activation Events

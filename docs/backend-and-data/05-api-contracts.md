@@ -114,6 +114,71 @@ caller's `user_field_trips` row for an accessible template and returns the
 refreshed template detail. Auto-start from matching scans remains supported as a
 fallback.
 
+### Capture Context
+
+Request:
+
+```json
+{
+  "action": "capture_context"
+}
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "user_field_trip_id": "uuid",
+      "template_id": "uuid",
+      "template_slug": "backyard_safari",
+      "outing_title": "Backyard safari",
+      "last_engaged_at": "2026-07-17T18:00:00.000Z",
+      "level_number": 1,
+      "level_title": "Level 1",
+      "completed_count": 1,
+      "target_count": 4,
+      "targets": [
+        {
+          "item_id": "uuid",
+          "prompt": "Butterfly",
+          "sort_order": 10,
+          "has_guide": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+This is a narrow read model for the idle visual Scan surface. It returns only
+active, incomplete, non-hidden standard Field Trips that the caller can access.
+For each outing it returns unfinished targets from the current unlocked level;
+completed targets and later levels are absent. Seasonal Challenge-linked
+`user_field_trips` rows are excluded.
+
+Outings order by `last_engaged_at DESC`, where engagement is the later of the
+trip start and any item completion. `user_field_trip_id` is the stable tie
+breaker. Targets order by curated `(sort_order, item_id)`. Outings with no
+unfinished target are omitted, and an account with no eligible outings receives
+`{ "data": [] }`.
+
+Privacy and authorization are deliberately stricter than the catalog contract:
+
+- The request accepts no user identifier. `withEdgeHandler` verifies the
+  caller, and the Edge action passes only `user.id` to the database helper.
+- `public.get_field_trip_capture_context(uuid)` is `SECURITY INVOKER`, with an
+  empty search path and fully qualified database objects. Execute access is revoked from `PUBLIC`, `anon`,
+  and `authenticated`, then granted only to `service_role`.
+- The response contains no scan ID, media URL, location, field note, completed
+  common/scientific name, or other evidence.
+
+The iOS mapping is
+`MerianNetworkClient.shared.getFieldTripCaptureContext()`. Capture treats the
+request as non-blocking enrichment: it may retain the last successful
+account-scoped result and must not show a request error over the camera.
+
 ### Scan Progress
 
 Request:
