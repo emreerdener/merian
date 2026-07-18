@@ -395,7 +395,6 @@
 		C66941780830ABD3B8474CBF /* InsightScientificNameStyler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 528E410397316EE6E412047D /* InsightScientificNameStyler.swift */; };
 		C68E1DEEF4B031DA0C9F3E8C /* EnvironmentContextManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */; };
 		C770795EBF77E87106D007E3 /* OfflineQueuedScanDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247171728988816AB2292EA6 /* OfflineQueuedScanDeletionTests.swift */; };
-		C7AA31ECCE527E151CF6C39C /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 8AF45E48D940462F64FF38E6 /* RiveRuntime */; };
 		CA400ACC1E1B13AEF7F8F332 /* VisualCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A439F63A5EECBD5ECFD5EE26 /* VisualCaptureView.swift */; };
 		CA672046EEC1120C9EF87041 /* MainTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6963D372E7F7B17BB7B0DB3 /* MainTabBar.swift */; };
 		CBC02F40D84BA8F4BAA3195A /* ScanThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AFE7419ADA1409D5287CB4 /* ScanThumbnail.swift */; };
@@ -1113,7 +1112,6 @@
 				8F655442A6D196335FD58F8B /* RevenueCat in Frameworks */,
 				CE394152F5071221586CE196 /* PostHog in Frameworks */,
 				4D44E3680C7B0A2827090B7C /* Supabase in Frameworks */,
-				C7AA31ECCE527E151CF6C39C /* RiveRuntime in Frameworks */,
 				9664363BC59C58EF6717049F /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -3728,7 +3726,6 @@
 				B4F36BE3B0243F44D0C1A93C /* RevenueCat */,
 				A0635D9DFE936BD480B327EA /* PostHog */,
 				D6636FC58125D5F4C5ECEDDF /* Supabase */,
-				8AF45E48D940462F64FF38E6 /* RiveRuntime */,
 				02945D0A38D824A984B84430 /* GoogleSignIn */,
 			);
 			productName = Merian;
@@ -3802,7 +3799,6 @@
 				5E9451763959D79A395E750A /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				E3129842C30F4CED63055F81 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				CE261A90057CF93D57C2B7CE /* XCRemoteSwiftPackageReference "purchases-ios" */,
-				F00F1D918B7D9520625EA31D /* XCRemoteSwiftPackageReference "rive-ios" */,
 				A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -4969,14 +4965,6 @@
 				minimumVersion = 3.47.0;
 			};
 		};
-		F00F1D918B7D9520625EA31D /* XCRemoteSwiftPackageReference "rive-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/rive-app/rive-ios.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 6.16.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -4984,11 +4972,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5E9451763959D79A395E750A /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
-		};
-		8AF45E48D940462F64FF38E6 /* RiveRuntime */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F00F1D918B7D9520625EA31D /* XCRemoteSwiftPackageReference "rive-ios" */;
-			productName = RiveRuntime;
 		};
 		A0635D9DFE936BD480B327EA /* PostHog */ = {
 			isa = XCSwiftPackageProductDependency;

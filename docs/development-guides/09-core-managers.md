@@ -1245,8 +1245,8 @@ and `KeychainManager` migration logic. Do not inline
   singleton that persists lightweight gamification state in `UserDefaults`.
 - `unlockedSpeciesCount` — incremented each time `recordNewSpeciesDiscovered()`
   is called (by `InferenceEngine` when `isNewDiscovery == true`).
-- `hasFireflyBadge` — unlocked when `unlockedSpeciesCount >= 5`; drives the
-  Terrarium Rive model firefly animation.
+- `hasFireflyBadge` — unlocked when `unlockedSpeciesCount >= 5`; persists the
+  discovery milestone and triggers a selection haptic when first unlocked.
 - `unlockedAchievements: Set<String>` — type keys of all completed awards,
   persisted across sessions.
 - `evaluateAchievementsForNotifications(awards:enqueueToasts:)` — called after

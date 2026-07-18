@@ -87,7 +87,7 @@ when changing web routes.
 ## 5. UI and Glassmorphism (Aesthetics)
 - **Stunning UIs are mandatory**: The user should be wowed at first glance.
 - Implement `.ultraThinMaterial` backgrounds to merge UI elements over camera viewfinders.
-- Avoid large opaque black or white overlay panes. Make components dynamic, animated with `.spring()` transitions, and highly responsive. Use `RiveRuntime` (`.riv` files) for complex interactive states.
+- Avoid large opaque black or white overlay panes. Make components dynamic, animated with native SwiftUI transitions such as `.spring()`, and highly responsive.
 - DO NOT use XIBs or custom rigid Storyboards. Write SwiftUI exclusively.
 
 ## 6. Supabase & Deno Edge

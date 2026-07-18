@@ -1,6 +1,5 @@
 import AVFoundation
 import CoreLocation
-import RiveRuntime
 import SwiftUI
 
 struct OnboardingView: View {

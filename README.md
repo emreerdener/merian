@@ -211,7 +211,6 @@ steps are tracked in the
 |---|---|
 | iOS client | Swift 6, SwiftUI, SwiftData, AVFoundation, CoreLocation, Vision, MapKit |
 | Web frontend | Next.js, React, Mantine |
-| Animation | RiveRuntime |
 | Backend | Supabase (PostgreSQL, Deno Edge Functions) |
 | Cloud storage | Cloudflare R2 (S3-compatible) |
 | AI model | Google Gemini 2.5 Flash / Pro |

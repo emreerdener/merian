@@ -238,11 +238,10 @@ single-responsibility functions under `/services/supabase/functions/`.
     transitions, stamping user tiers natively into Postgres bounds without
     client-side polling.
 
-### 5. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)
+### 5. Continuous Gamification Ecosystem (`GamificationManager`)
 
 - Tracks device-native state (`UserDefaults`), tying species identifications
-  into `.riv` visual triggers inside interactive glassmorphic view modifiers
-  (`Terrarium`).
+  to profile persona progression and achievement milestones.
 - Binds global haptics to success triggers and interactions.
 
 ### 6. Private Analytics (`AppTelemetry`, `PostHog`)

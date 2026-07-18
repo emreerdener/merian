@@ -25,9 +25,6 @@ packages:
   Supabase:
     url: https://github.com/supabase-community/supabase-swift.git
     from: 2.41.1
-  RiveRuntime:
-    url: https://github.com/rive-app/rive-ios.git
-    from: 6.16.0
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS.git
     from: 9.1.0
@@ -79,7 +76,6 @@ targets:
       - package: RevenueCat
       - package: PostHog
       - package: Supabase
-      - package: RiveRuntime
       - package: GoogleSignIn
     preBuildScripts:
       - name: Release Versioning Preflight

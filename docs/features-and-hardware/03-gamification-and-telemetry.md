@@ -5,7 +5,7 @@ environments decoupled from Apple ecosystem identifiers.
 
 ## Gamification Architecture (`GamificationManager`)
 
-Powers the interactive `.riv` Rive model rendered by `Terrarium`.
+Tracks device-local discovery milestones and achievement notification state.
 
 - Logs species discoveries into `$unlockedSpeciesCount`, persistently updating
   `.set(unlocked, forKey:)`.
@@ -30,10 +30,8 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
   removed.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
-- Consumed via `AppDIContainer.shared.gamificationManager` inside
-  `GamificationManager`-aware views (e.g., `Terrarium`), which calls
-  `.setInput("TotalSpeciesCount")` to animate 3D model foliage, fireflies, and
-  natural artifacts using `RiveViewModel` states.
+- The profile `Terrarium` presents bundled asset-catalog artwork selected by
+  `UserPersona` for the user's current unique-species count.
 - **Erasure Mechanics (`decrement_user_species_count`)**: When a user
   permanently deletes a scan that was their last documented capture of a
   specific biological species, a PostgreSQL PL/pgSQL database trigger intercepts
