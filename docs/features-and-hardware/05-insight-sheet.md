@@ -37,7 +37,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `SpeciesObservationChartsCard` | Reusable Swift Charts card rendered after Habitat & Distribution for known biological species. `SpeciesObservationStatsViewModel` coordinates loading, `SpeciesObservationStatsDatabaseActor` fetches local SwiftData projections off the main actor, and `SpeciesObservationStatsReducer` computes on-device aggregates before combining them with cached global public iNaturalist stats from `/species-observation-stats`. Tabs are Seasonality, History, and Life Stage; per-scan sex is shown in `OverviewCard` instead. |
 | `ToxicityBanner` | Glassmorphic hazard warning banner shown when `insightData.hazardType != "none"`. Implements a premium liquid-glass design using `.regularMaterial` and dynamic tinting (`.red` for severe threats like venomous/poisonous, `.yellow` for allergens/irritants), explicitly constrained using `maxWidth: .infinity` full-bleed bounds. Displays hazard-specific copy. |
 | `ConservationBanner` | IUCN Red List status banner |
-| `MilestoneToastBanner` / `MilestoneToastPresenter` | Shared bottom in-app milestone notification. Insight enqueues `New to Naturebook` only when the edge response marks the scan as a global species-dictionary contribution. Achievement unlocks reuse the same queue and banner styling from Profile/Settings. |
+| `MilestoneToastBanner` / `MilestoneToastPresenter` | Shared bottom in-app milestone notification for Field trip progress, achievement unlocks, and `New to Naturebook`. `ScanMilestoneCoordinator`, not the Insight lifecycle, batches scan milestones after remote progress finishes. |
 
 ---
 
@@ -81,13 +81,15 @@ response-to-first-render p95 at or below 300 ms tied to user-visible output.
 stats, persona, firefly progress, and achievement calculations. It no longer
 drives a user-facing Insight celebration. `SpeciesData.isNewToMerianDictionary`
 is the separate global dictionary contribution signal returned by the identify
-Edge payload. On first sheet appearance,
-`InsightSheetViewModel.evaluateVoiceOverAndCelebration` enqueues
-`MilestoneToastPresenter.shared.enqueueNewToMerianMilestone()` once per
-presentation when that flag is true for a valid biological subject. Error
-placeholders created by local fallback handling have no scan ID, preserve their
-sentence-case title such as `Network timeout`, and never show non-biological
-collection or retention messaging.
+Edge payload. `ScanMilestoneCoordinator` evaluates that flag for the final saved
+scan after the Field trip progress attempt and appends **New to Naturebook**
+after any standard outing progress, Seasonal Challenge progress, and newly
+unlocked achievements. The Insight lifecycle retains VoiceOver/result haptic
+work but does not enqueue the dictionary milestone, preventing repeated sheet
+appearances from duplicating it. Error placeholders created by local fallback
+handling have no scan ID, preserve their sentence-case title such as
+`Network timeout`, and never show non-biological collection or retention
+messaging.
 
 ```swift
 var resolvedHeaderTitle: String {
@@ -620,24 +622,33 @@ Extended ecological media data is loaded in three passes:
 
 ---
 
-## Milestone Notification (New to Naturebook)
+## Scan milestone notification
 
-On sheet `.onAppear`, `InsightSheetViewModel.evaluateVoiceOverAndCelebration`
-checks the global dictionary contribution flag, not the local "new to me" flag:
+After a foreground or background scan reaches a final saved scan ID,
+`ScanMilestoneCoordinator` checks the global dictionary contribution flag, not
+the local "new to me" flag:
 
 ```swift
 if data.isNewToMerianDictionary && data.isBiological
     && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object" {
-    MilestoneToastPresenter.shared.enqueueNewToMerianMilestone()
+    includesNewToNaturebook = true
 }
 ```
 
+The coordinator waits for the existing remote-persistence/progress attempt,
+collects newly unlocked achievements without presenting them immediately, and
+atomically enqueues standard Field trips, Seasonal Challenges, achievements,
+then **New to Naturebook**. The final scan ID deduplicates foreground and
+background completion races. Progress failure or an empty match result does not
+suppress the achievement/dictionary milestones; it only delays them until the
+attempt has finished.
+
 The old local `CelebrationBanner` pill is removed. The shared
 `MilestoneToastBanner` appears at the bottom of the app with the same queue,
-haptics, swipe-down dismiss, close button, timeout, and VoiceOver announcement as
-achievement unlocks. Tapping the `New to Naturebook` body dismisses the banner in
-v1 because the user is already viewing the scan Insight; achievement milestone
-taps still open their achievement detail sheet directly.
+haptics, swipe-down dismiss, close button, 3.5-second timeout, and VoiceOver
+announcement. Tapping the `New to Naturebook` body dismisses the banner because
+the user is already viewing the scan Insight; achievement taps open achievement
+detail, and Field trip taps route to the credited outing goal or challenge.
 
 VoiceOver users continue to receive the Insight accessibility announcement,
 including a hazard-specific warning (venomous / allergenic / irritant / toxic)

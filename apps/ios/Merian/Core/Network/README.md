@@ -39,6 +39,23 @@ derives Published from a non-null publication ID; completion and Community
 results are not substitutes. Missing fields remain backward-compatible and
 render Private during a staged backend/client rollout.
 
+## Field trip scan progress
+
+`applyFieldTripProgress(scanId:)` keeps the existing
+`{"action":"apply_scan_progress","scan_id":"..."}` request and decodes
+standard updates from `data` plus Seasonal Challenge updates from
+`challenge_updates`. Both update models optionally decode
+`creditedLevelNumber`, `creditedLevelTitle`, `creditedCompletedCount`, and
+`creditedTargetCount`. These fields describe the level changed by the scan;
+when a completion advances immediately, current counts describe the next level
+while credited counts preserve the just-completed full ring. Toast accessors
+fall back to current counts against the legacy response shape.
+
+Only updates with nonempty `newlyCompletedItems` represent a new credit. The
+first item is in server checklist order and supplies the toast label/focus
+target, with its prompt as the common-name fallback. Reapplying an already
+credited scan is idempotent and yields no progress toast.
+
 ## Field trip capture context
 
 `getFieldTripCaptureContext()` posts `{"action":"capture_context"}` to the

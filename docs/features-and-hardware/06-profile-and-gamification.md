@@ -147,15 +147,19 @@ LocalScanRecord[] (SwiftData)
         → calculateAwardsProjection()
         → AchievementsCalculator.calculate(from:)
             → [AwardPayload]
-    → GamificationManager.evaluateAchievementsForNotifications(awards:)
+    → GamificationManager.evaluateAchievementsForNotifications(awards:enqueueToasts:)
+        → default callers enqueue immediately
+        → ScanMilestoneCoordinator collects without early presentation
 ```
 
 `ProfileDatabaseActor` is instantiated in `ProfileTabView.body` inside a `.task` modifier. `calculateAll()` is the primary profile render entry point: it loads one `ProfileStatsProjection`, derives species count, streak, heatmap, and awards from that projection, then dispatches the flat `Sendable` result back to `@MainActor` in a single `MainActor.run` block.
 
-`ProfileDatabaseActor.calculateAwards()` is also called by `InferenceEngine`
-after **every** successful inference — not just new discoveries. The call runs in
-follow-up work after parsed/persisted `speciesData` is committed, so award
-projection and notification evaluation cannot delay the first result frame.
+`ProfileDatabaseActor.calculateAwards()` is also called by the shared scan
+milestone coordinator after **every** successful inference — not just new
+discoveries. The call runs in follow-up work after parsed/persisted
+`speciesData` is committed and the Field trip progress attempt finishes, so
+award projection and notification evaluation cannot delay the first result
+frame or overtake progress notifications from the same scan.
 This is intentional: awards can trigger on conditions unrelated to species
 novelty (time-of-day, elevation, temperature, IUCN status, etc.).
 
@@ -261,15 +265,15 @@ The public SQL projection must return progress only. Do not add qualifying scan 
 
 `recordNewSpeciesDiscovered()` is called by `InferenceEngine` when `isNewDiscovery == true`. It increments `unlockedSpeciesCount`, persists it, and checks the firefly badge threshold.
 
-`evaluateAchievementsForNotifications(awards:)` is called after `calculateAwards()` completes. It iterates `[AwardPayload]`, checks if any award's type is newly absent from `unlockedAchievements` but now `isCompleted`, adds it to the set, persists the set, enqueues the shared in-app achievement milestone toast through `MilestoneToastPresenter`, and queues a native local push notification via `PushNotificationManager.shared.sendAchievementUnlockedNotification` if the `isAchievementNotificationsEnabled` `UserDefaults` flag is set.
+`evaluateAchievementsForNotifications(awards:enqueueToasts:)` is called after `calculateAwards()` completes. It iterates `[AwardPayload]`, checks if any award's type is newly absent from `unlockedAchievements` but now `isCompleted`, adds it to the set, persists the set, returns the toast-eligible awards, and queues a native local push notification via `PushNotificationManager.shared.sendAchievementUnlockedNotification` if the `isAchievementNotificationsEnabled` `UserDefaults` flag is set. `enqueueToasts` defaults to `true` for existing non-scan callers. The scan milestone coordinator passes `false` so achievements can be placed after Field trip progress without delaying persistence or push behavior.
 
 Achievements introduced after users already have local scan history can define a notification cutoff in `GamificationManager`. The domestic cat and dog achievements use the July 4, 2026 rollout cutoff so qualifying legacy scans are persisted as unlocked without showing a retroactive toast, while fresh qualifying scans still notify normally.
 
 ## Milestone Toasts
 
-`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by achievement unlocks and the Insight `New to Naturebook` dictionary-contribution banner. Achievement payloads enter from `GamificationManager`; dictionary milestones enter from `InsightSheetViewModel` when `SpeciesData.isNewToMerianDictionary` is true. The presenter controls only visual presentation, haptics, timeout, swipe/close dismissal, VoiceOver announcements, and achievement detail routing. It does not mutate achievement progress, analytics, scan data, dictionary state, or native iOS notification authorization.
+`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by Field trip progress, achievement unlocks, and the `New to Naturebook` dictionary-contribution banner. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard outings in server order, Seasonal Challenges in server order, achievements in their existing order, then the dictionary milestone. Foreground and background completion paths share the coordinator and are deduplicated by final saved scan ID. The presenter controls visual presentation, haptics, the 3.5-second timeout, swipe/close dismissal, VoiceOver announcements, queue transitions, achievement detail routing, and typed Field trip/challenge routing. It does not mutate achievement progress, Field trip progress, analytics, scan data, dictionary state, or native iOS notification authorization.
 
-DEBUG Settings includes preview controls for achievement toasts and `Preview New to Naturebook notification` (`Settings_PreviewNewToMerianNotification`). These controls enqueue representative payloads through the same presenter path so styling can be tested without completing a scan or unlocking an award.
+DEBUG Settings includes preview controls for achievement toasts, `Preview New to Naturebook notification` (`Settings_PreviewNewToMerianNotification`), and `Preview Field trip progress toast` (`Settings_PreviewFieldTripProgressToast`). These controls enqueue representative payloads through the same presenter path so styling can be tested without completing a scan, changing outing progress, contributing a dictionary species, or unlocking an award.
 
 ---
 

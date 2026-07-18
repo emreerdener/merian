@@ -239,12 +239,16 @@ Response:
       "user_field_trip_id": "uuid",
       "template_id": "uuid",
       "slug": "backyard_safari",
-      "title": "Backyard Safari",
-      "current_level_number": 1,
-      "current_level_title": "Level 1",
-      "completed_count": 3,
-      "target_count": 4,
+      "title": "Backyard safari",
+      "current_level_number": 2,
+      "current_level_title": "Level 2",
+      "completed_count": 0,
+      "target_count": 6,
       "is_complete": false,
+      "credited_level_number": 1,
+      "credited_level_title": "Level 1",
+      "credited_completed_count": 4,
+      "credited_target_count": 4,
       "newly_completed_items": [
         {
           "item_id": "uuid",
@@ -269,7 +273,19 @@ Response:
       "is_complete": false,
       "badge_awarded_at": null,
       "suggested_hashtags": ["summerpollinators"],
-      "newly_completed_items": []
+      "credited_level_number": 1,
+      "credited_level_title": "Level 1",
+      "credited_completed_count": 2,
+      "credited_target_count": 4,
+      "newly_completed_items": [
+        {
+          "item_id": "uuid",
+          "prompt": "Bee or wasp",
+          "common_name": "Common Eastern Bumble Bee",
+          "scientific_name": "Bombus impatiens",
+          "completed_at": "2026-07-08T12:07:00.000Z"
+        }
+      ]
     }
   ]
 }
@@ -289,6 +305,26 @@ also record matching current-level completions for that scan.
 V4 clients should continue reading `data` for normal Field trip progress and
 may read `challenge_updates` for joined live challenge progress. Older clients
 can ignore `challenge_updates`.
+
+Both arrays add four backward-compatible credited-level fields:
+`credited_level_number`, `credited_level_title`,
+`credited_completed_count`, and `credited_target_count`. They describe the
+level that accepted this scan's newly completed item. If the write finishes a
+level and advances immediately, the existing `current_*`, `completed_count`,
+and `target_count` fields describe the newly active level while `credited_*`
+retains the completed level and therefore reports a full ring instead of the
+next level's `0/N`. During a staged database/client rollout, iOS decodes these
+fields optionally and falls back to the existing counts when they are absent.
+Credited counts and `newly_completed_items` are scoped to completion rows
+inserted by the current application attempt. If an older scan is re-identified
+after level advancement, its historical completion rows cannot duplicate a
+destination or replace the new level's ring.
+
+Only updates with a nonempty `newly_completed_items` array are eligible for a
+scan progress toast. Reapplying a scan whose completion rows already exist is
+idempotent and returns no updates, so it cannot generate a duplicate toast.
+The `apply_scan_progress` request body and Edge Function action shape are
+unchanged by the credited-level extension.
 
 ### Seasonal Challenges
 

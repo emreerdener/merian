@@ -874,6 +874,18 @@ the Private/Published badge. This addition is defined by
 `20260718051748_expose_field_trip_publication_status.sql` and does not expand
 catalog or public/capture projections.
 
+The scan-progress response is extended by
+`20260718150932_add_credited_field_trip_progress.sql` and hardened by
+`20260718162409_scope_credited_progress_to_current_attempt.sql`. Both the standard and
+Seasonal Challenge progress RPCs retain their signatures, security-definer
+search paths, execute permissions, and existing response fields. They add the
+level number/title and completed/target counts credited by the scan so a client
+can distinguish a just-completed level from the next active level. The
+`/field-trips` `apply_scan_progress` request body is unchanged, and iOS decodes
+the additions optionally during staged rollout. The follow-up scope prevents a
+re-identified scan with historical completions in an earlier level from
+duplicating a response destination or supplying the wrong progress ring.
+
 `get-explore-post` is an important routing helper for the iOS client and the
 public Next.js web app: it returns a single privacy-safe feed-card projection so
 notification taps, deep links, and `https://naturebook.earth/explore/post/{postId}`

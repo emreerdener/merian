@@ -223,7 +223,9 @@ Field trips releases are migration-plus-function releases too. Deploy
 `20260717213641_preserve_standard_outings_in_capture_context.sql` before
 `20260717224544_retire_forest_edges_outing.sql` before
 `20260718043218_expose_field_trip_completion_scan_ids.sql` before
-`20260718051748_expose_field_trip_publication_status.sql`, then deploy the
+`20260718051748_expose_field_trip_publication_status.sql` before
+`20260718150932_add_credited_field_trip_progress.sql` before
+`20260718162409_scope_credited_progress_to_current_attempt.sql`, then deploy the
 `field-trips` Edge Function and the updated Explore/profile activity bundles
 together. V1
 creates the Field trip tables, progress/publication/comment storage, profile
@@ -244,7 +246,13 @@ existing progress and evidence. The completion-evidence migration redefines
 the private catalog/detail projections to expose the exact completing scan ID
 without a media URL and restricts both RPCs to `service_role`. The publication-
 status migration keeps template detail private and adds only the owner's active,
-non-deleted publication ID/timestamp for the Private/Published badge. A
+non-deleted publication ID/timestamp for the Private/Published badge. The
+credited-progress migrations replace the standard/challenge progress RPC bodies
+without changing their signatures or permissions and adds optional credited
+level/count fields for scan-completion feedback. Those values preserve the
+just-completed level when the existing current-level fields have already
+advanced to the next level and stay scoped to checklist items matched by the
+current attempt when an older scan is re-identified. A
 function-only deploy cannot serve `capture_context` or V4 actions until all
 migrations are applied; a database-only deploy leaves the app without the
 Field trips action router. Do not release the indicator-enabled iOS client until
@@ -253,6 +261,14 @@ the completed-goal thumbnail route until the completion-evidence migration is
 live; its optional decode keeps older database responses compatible during a
 staged rollout. Release the status badge only after the publication-status
 migration; its optional fields render Private against the older payload.
+Deploy both credited-progress migrations, in order, before the progress-toast
+iOS client.
+The client can decode the legacy shape and fall back to current counts during a
+staged rollout, and no Edge Function request-shape change is required, but level
+completion will otherwise show the next level's `0/N` instead of a full ring.
+If the current V4 `field-trips` function is already deployed, this incremental
+release needs the two new migrations and iOS client only; the function does not
+need to be redeployed solely for the response additions.
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most

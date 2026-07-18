@@ -51,6 +51,12 @@ only a camera/performance setting.
 - The active level header uses the shared circular `GoalProgressRing` at its
   trailing edge, showing completed/total outing progress consistently with
   the Scan target capsule.
+- A saved scan that completes at least one current-level goal queues one
+  progress toast for every matching standard outing and joined live Seasonal
+  Challenge. Each toast shows **Field trip progress**, contextual species/trip
+  copy, and the credited level's progress ring. Standard outings are queued
+  before Seasonal Challenges, then achievement unlocks, then
+  **New to Naturebook** for that scan.
 - Tapping a completed goal with locally available evidence opens that scan's
   Insight view in the existing Explore navigation stack. Back returns to the
   outing without presenting another sheet.
@@ -121,19 +127,29 @@ Rotating-free and Pro access rules never affect a template's difficulty.
 8. The backend verifies scan ownership, compares the scan against the current
    unlocked level, writes item completions, advances levels when needed, and
    returns newly completed items.
-9. iOS shows a short progress toast and immediately invalidates the capture
-   target context so a completed selection advances naturally.
-10. Catalog and detail reloads associate each completed checklist item with the
+9. The shared `ScanMilestoneCoordinator` waits for that progress attempt,
+   publishes refresh events, evaluates newly unlocked achievements without
+   presenting them early, and batches the scan's notifications in strict order:
+   standard outings in server order, Seasonal Challenges in server order,
+   achievements in their existing order, then **New to Naturebook**. A progress
+   failure or no-match response still releases later milestones after the
+   attempt finishes.
+10. iOS shows each qualifying progress toast for 3.5 seconds with the credited
+    level's ring. Tapping a standard toast opens its outing focused on the first
+    credited goal; tapping a challenge toast opens that challenge detail. The
+    same progress events immediately invalidate affected Field trips data and
+    the standard capture target context without creating a second plain toast.
+11. Catalog and detail reloads associate each completed checklist item with the
     exact saved scan that completed it. iOS replaces that item's artwork with
     the scan thumbnail; completion order never determines which slot changes.
-11. Tapping a completed goal whose scan still exists on the device pushes the
+12. Tapping a completed goal whose scan still exists on the device pushes the
     existing Insight view inside Explore. The back arrow and swipe-back gesture
     return to the same outing sheet.
-12. Once all levels are complete, **Publish outing** creates a Field trip snapshot
+13. Once all levels are complete, **Publish outing** creates a Field trip snapshot
    with an editable title and optional description or AI summary.
-13. After the detail refreshes, its title badge changes from **Private** to
+14. After the detail refreshes, its title badge changes from **Private** to
     **Published**. Deleting the publication returns it to **Private**.
-14. Published Field trips appear on public profiles and template Community
+15. Published Field trips appear on public profiles and template Community
    previews. They open `FieldTripPublicationDetailView` with item cards,
    likes, comments, and author identity. Author taps open the existing Explore
    author-profile route.
@@ -261,6 +277,13 @@ remains optional for ordinary outing navigation.
 - A checklist item can complete once. Reprocessing the same scan is idempotent.
 - A level unlocks only when all items in the current level are complete.
 - A trip completes when all levels and checklist items are complete.
+- Progress responses retain the existing current-level fields and add optional
+  `credited_*` fields for the level changed by the scan. When completion advances
+  to another level, the credited counts describe the just-completed level so
+  scan feedback shows a full ring rather than the next level's `0/N`.
+- A progress toast requires a nonempty `newly_completed_items` array. The first
+  item in curated checklist order supplies its common name, with the checklist
+  prompt as the empty/missing-name fallback and as the focused standard route.
 - The progress updater is best effort from iOS. If the toast fails, the scan
   still saves; catalog reloads can reconcile server progress.
 
@@ -363,6 +386,14 @@ That migration also restricts both RPCs to `service_role`; authenticated iOS
 clients continue to access them only through `/field-trips`.
 Private detail publication status is added by
 `services/supabase/migrations/20260718051748_expose_field_trip_publication_status.sql`.
+Credited-level scan progress for standard outings and Seasonal Challenges is
+added by
+`services/supabase/migrations/20260718150932_add_credited_field_trip_progress.sql`.
+It replaces the two progress RPC bodies without changing their signatures,
+security-definer/search-path contract, or existing execute permissions.
+`services/supabase/migrations/20260718162409_scope_credited_progress_to_current_attempt.sql`
+then scopes the credited level to checklist items matched by the current
+application attempt, including re-identification after level advancement.
 
 Core tables:
 
@@ -446,7 +477,10 @@ Actions:
   `mode: "recent"`.
 - `apply_scan_progress`: applies progress for one saved scan owned by the
   caller. V4 keeps the existing `data` payload for normal Field trip progress
-  and adds optional `challenge_updates` for joined live challenges.
+  and adds optional `challenge_updates` for joined live challenges. Both update
+  arrays may include optional `credited_level_number`, `credited_level_title`,
+  `credited_completed_count`, and `credited_target_count`; the request shape is
+  unchanged.
 - `challenges_catalog`: returns curated seasonal challenges with viewer
   participation summary and aggregate counts.
 - `challenge_detail`: returns one challenge, linked template guide context,
@@ -513,6 +547,8 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripProfileModules.swift`
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift`
+- `apps/ios/Merian/Core/UI/Feedback/AchievementToastBanner.swift`
 - `apps/ios/Merian/Core/Utilities/AppEventPublisher.swift`
 - `apps/ios/Merian/Core/AI/InferenceEngine.swift`
 - `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`
@@ -534,6 +570,8 @@ Important model types:
 - `FieldTripChecklistItem`
 - `FieldTripProgress`
 - `FieldTripProgressUpdate`
+- `FieldTripMilestonePayload`
+- `ScanMilestoneCoordinator`
 - `FieldTripProfileSummaries`
 - `FieldTripPublicationDetail`
 - `FieldTripPublicationItem`
@@ -582,9 +620,33 @@ so a completed third slot replaces only the third slot rather than the first
 `completed_count` slots.
 
 `GoalProgressRing` is a Core UI primitive shared by the Scan target capsule and
-the active standard-outing level header. The level header passes the outing's
-completed and total counts; locked and non-active levels do not display the
-ring.
+the active standard-outing level header and scan-progress milestone banner. The
+level header passes the outing's current counts; a progress toast prefers the
+optional credited counts and falls back to current counts while older backend
+responses remain in circulation. Locked and non-active detail levels do not
+display the ring.
+
+`ScanMilestoneCoordinator` is the single scan-completion notification boundary
+for both `InferenceEngine` foreground completion and
+`OfflineQueueManager` background completion. It is main-actor isolated and
+keys in-flight/recently completed work by the final saved scan ID so live and
+background races cannot enqueue the same batch twice. It intentionally waits
+through the existing remote-persistence retry window before resolving progress,
+then collects achievement unlock payloads with
+`enqueueToasts: false`, evaluates the dictionary-contribution flag, and makes
+one synchronous presenter enqueue pass. An unrelated banner already on screen
+is not preempted; strict ordering applies only within milestones from the same
+scan.
+
+`FieldTripMilestonePayload` stores the display title, the first newly completed
+item's label, credited counts, and a typed destination. Standard destinations
+use `.fieldTrip(templateId:checklistItemId:)`; Seasonal Challenge destinations
+use `.fieldTripChallenge(challengeId:)`. `MilestoneToastBanner` renders
+**Field trip progress** and `{species} counts toward {trip}` beside a 56-point
+ring, preserves the shared 3.5-second timeout, haptics, manual dismissal, queue
+transition, and VoiceOver announcement, and publishes
+`requestOpenCaptureGoal` when tapped. Explore converts the destination into the
+standard focused outing route or Seasonal Challenge detail route.
 
 Completed goal tiles render the captured scan full-bleed with a bottom metadata
 overlay and the ordinary neutral one-point border. Incomplete focused goals may
@@ -654,15 +716,24 @@ Deploy in this order:
 8. `20260717224544_retire_forest_edges_outing.sql`
 9. `20260718043218_expose_field_trip_completion_scan_ids.sql`
 10. `20260718051748_expose_field_trip_publication_status.sql`
-11. `field-trips` Edge Function
-12. `get-explore-author-profile` so public profiles include Field trip
+11. `20260718150932_add_credited_field_trip_progress.sql`
+12. `20260718162409_scope_credited_progress_to_current_attempt.sql`
+13. `field-trips` Edge Function
+14. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-13. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+15. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-14. iOS client update
+16. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
+The credited-progress migration must precede the new iOS client so completed
+levels can render a full ring, although optional decoding allows the client to
+operate safely against the legacy response during a staged rollout. No
+`field-trips` Edge Function request-shape change is required for this migration.
+When steps 1-10 and the current V4 function are already live, the incremental
+toast release requires steps 11-12 before the iOS update; do not redeploy the
+function solely for the credited response fields.
 
 Rollback should revert the iOS thumbnail route before rolling back the evidence
 link migration. Because `completed_scan_id` is optional, older clients tolerate
@@ -674,15 +745,21 @@ Placeholder field trips should be retired through
 `field_trip_templates.is_active`, as Forest Edges is, rather than deleting their
 template graph.
 
+Rolling back credited progress is response-compatible: older fields remain the
+source of truth and the iOS fallback continues to render them. Preserve both
+progress functions' existing execute permissions and security contract during
+any rollback; do not drop completion rows or rewrite scan history.
+
 ## Verification
 
 Backend:
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
 deno test --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
+deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 supabase db lint --workdir services
 ```
 
@@ -696,12 +773,28 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/FieldTripAPIModelsTests \
   -only-testing:merianTests/FieldTripCaptureContextModelsTests \
   -only-testing:merianTests/ActiveCaptureGoalStoreTests \
+  -only-testing:merianTests/AchievementToastPresenterTests \
+  -only-testing:merianTests/InsightSheetViewModelTests \
   -only-testing:merianTests/AppTelemetryTests test
 ```
 
-The database integration test requires the local Supabase/Postgres stack. It
-reports a skip when `127.0.0.1:54322` is unavailable; a skip is not production
-database validation.
+The database integration tests require the local Supabase/Postgres stack. They
+report a skip when `127.0.0.1:54322` is unavailable; a skip is not production
+database validation. The progress test covers standard and challenge level
+advancement, re-identification of the same scan, and idempotent reapplication.
+
+For progress-toast QA, cover partial progress, level advancement, final
+completion, multiple standard/challenge matches, re-identification after level
+advancement, and idempotent reapplication.
+Confirm the response exposes credited counts for the changed level and that
+legacy responses still decode through the current-count fallback. For one scan,
+verify the visible order is standard outings, Seasonal Challenges,
+achievements, then **New to Naturebook**; a failed/no-match progress attempt
+must release the later milestones only after it finishes, and foreground plus
+background completion must enqueue once. Tap a standard toast to open its
+focused first credited goal and a challenge toast to open challenge detail.
+Use DEBUG Settings -> **Preview Field trip progress toast** for compact and
+large-width, long-name, timeout, swipe/close, haptic, and VoiceOver inspection.
 
 For completion-evidence QA, complete a non-leading goal such as Cat and confirm
 that only Cat changes in both the catalog card and detail grid. Test both photo

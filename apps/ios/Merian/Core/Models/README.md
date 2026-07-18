@@ -17,6 +17,10 @@ or source-specific API DTOs.
 `CaptureGoalContextProviding` keeps source eligibility and ordering outside the
 camera. `FieldTripCaptureGoalProvider` is the first adapter. It converts the
 private Field trip capture-context response into generic goals in server order.
+`CaptureGoalDestination` is also used by progress toasts: standard outings carry
+the template and first credited checklist-item IDs, while Seasonal Challenges
+carry the challenge ID. Capture only opens the Explore sheet; Explore owns the
+conversion into its feature-local route types.
 
 `ActiveCaptureGoalStore` owns selection, bidirectional wrapping, five-minute
 freshness, refresh coalescing, and a versioned cache isolated by Supabase account.

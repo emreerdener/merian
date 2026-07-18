@@ -271,7 +271,7 @@ Deno.test("Private field trip detail exposes active publication status", async (
 Deno.test("Field trip progress responses preserve the level credited by a scan", async () => {
   const sql = normalized(
     await migrationSql(
-      "20260718150932_add_credited_field_trip_progress.sql",
+      "20260718162409_scope_credited_progress_to_current_attempt.sql",
     ),
   );
 
@@ -279,7 +279,10 @@ Deno.test("Field trip progress responses preserve the level credited by a scan",
     const fragment of [
       "CREATE OR REPLACE FUNCTION public.apply_field_trip_scan_progress",
       "CREATE OR REPLACE FUNCTION public.apply_field_trip_challenge_scan_progress",
-      "credited_completion.scan_id = target_scan_id",
+      "CREATE TEMP TABLE field_trip_new_completions",
+      "CREATE TEMP TABLE field_trip_challenge_new_completions",
+      "INSERT INTO pg_temp.field_trip_new_completions",
+      "INSERT INTO pg_temp.field_trip_challenge_new_completions",
       "'credited_level_number', cp.level_number",
       "'credited_level_title', cp.level_title",
       "'credited_completed_count', cp.completed_count",
@@ -295,6 +298,13 @@ Deno.test("Field trip progress responses preserve the level credited by a scan",
     (sql.match(/'credited_level_number', cp\.level_number/g) ?? []).length ===
       2,
     "standard and challenge updates must both expose credited-level progress",
+  );
+  assert(
+    (sql.match(/JOIN pg_temp\.field_trip_new_completions/g) ?? []).length ===
+        3 &&
+      (sql.match(/JOIN pg_temp\.field_trip_challenge_new_completions/g) ?? [])
+          .length === 3,
+    "responses must stay scoped to completion rows inserted by this application attempt",
   );
 });
 

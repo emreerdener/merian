@@ -60,6 +60,15 @@ the matching Tips card, or highlighting the Goals tile when guide content
 is absent. The complete data, privacy, interaction, and deployment contract
 lives in `docs/features-and-hardware/25-field-trips.md`.
 
+The shared milestone banner reuses the same routing boundary. A Field trip
+progress tap publishes `requestOpenCaptureGoal`; `CaptureWorkspaceViewModel`
+clears conflicting Explore destinations and opens the Explore sheet with the
+typed route. `.fieldTrip(templateId:checklistItemId:)` selects Outings and
+focuses the credited goal, while `.fieldTripChallenge(challengeId:)` selects
+Events and opens Seasonal Challenge detail. The refresh events emitted after
+progress remain data invalidations only and must not create another Capture or
+Explore toast.
+
 The indicator emits privacy-safe `shown`, `opened`, `next`, and `previous`
 telemetry through `AppTelemetry`. Events include only the coarse source kind;
 goal IDs, prompts, outing IDs/titles, progress, and account identity are

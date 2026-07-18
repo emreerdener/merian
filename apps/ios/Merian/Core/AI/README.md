@@ -24,9 +24,15 @@ measured separately. The engine rebuilds `ActiveScanMedia`, commits
 `speciesData`, and ends processing immediately after those required operations
 succeed.
 
-Award calculation and Field trips start in follow-up work. Field trips first
-polls the existing `/check-scan-status` ingestion ledger, so remote-persistence
-tools remain unavailable until the server confirms the scan. Cache-miss
+Scan milestones and Field trips start in follow-up work through
+`ScanMilestoneCoordinator`. It first polls the existing `/check-scan-status`
+ingestion ledger, so remote-persistence tools remain unavailable until the
+server confirms the final saved scan ID. After the progress attempt it gathers
+new achievement unlocks without presenting them early, evaluates the
+`New to Naturebook` eligibility flag, and batches standard outing progress,
+Seasonal Challenge progress, achievements, then the dictionary milestone. The
+background completion path uses the same coordinator; scan-ID deduplication
+prevents a live/background race from presenting the batch twice. Cache-miss
 Wikipedia/GBIF enrichment is also outside first render.
 
 `InsightSheetView` closes the user-perceived measurement with a one-shot UIKit

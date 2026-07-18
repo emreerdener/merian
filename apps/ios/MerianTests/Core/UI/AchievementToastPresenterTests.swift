@@ -309,6 +309,16 @@ struct AchievementToastPresenterTests {
         #expect(milestones[1].destination == .fieldTripChallenge(challengeId: "challenge-1"))
     }
 
+    @Test func progressMappingIgnoresUpdatesWithoutNewlyCompletedItems() {
+        let result = progressResult(standardIncludesNewItem: false)
+
+        let milestones = ScanMilestoneCoordinator.milestones(from: result)
+
+        #expect(milestones.count == 1)
+        #expect(milestones[0].tripTitle == "Summer pollinators")
+        #expect(milestones[0].destination == .fieldTripChallenge(challengeId: "challenge-1"))
+    }
+
     private var legacyDomesticPetScanDate: Date {
         Date(timeIntervalSince1970: 1_783_119_600)
     }
@@ -346,7 +356,8 @@ struct AchievementToastPresenterTests {
 
     private func progressResult(
         challengeCommonName: String? = "Bumble Bee",
-        challengePrompt: String = "Bee"
+        challengePrompt: String = "Bee",
+        standardIncludesNewItem: Bool = true
     ) -> FieldTripProgressResult {
         let standardItem = FieldTripProgressCompletedItem(
             itemId: "item-1",
@@ -379,7 +390,7 @@ struct AchievementToastPresenterTests {
                     creditedLevelTitle: "Level 1",
                     creditedCompletedCount: 4,
                     creditedTargetCount: 4,
-                    newlyCompletedItems: [standardItem]
+                    newlyCompletedItems: standardIncludesNewItem ? [standardItem] : []
                 )
             ],
             challengeUpdates: [

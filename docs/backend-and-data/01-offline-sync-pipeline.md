@@ -623,8 +623,8 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
   (`OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`) used by upload
   staging, rather than a separate process-local attempt counter.
 
-  **InferenceEngine hydration (background-wins race)**: After the awards
-  debounce task is set up, if `processingResult.speciesData` is non-nil,
+  **InferenceEngine hydration (background-wins race)**: After the shared scan
+  milestone coordinator task is started, if `processingResult.speciesData` is non-nil,
   `processInferenceDownloadResult` checks whether `InferenceEngine` is still
   mid-flight for the same scan
   (`engine.isProcessing == true && engine.activeScanId == scanId`). When this is
@@ -657,13 +657,19 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
   so this is a no-op; in tests each suite creates a fresh in-memory container,
   and the identity check ensures a stale actor bound to a previous test's
   already-deallocated store is never returned.
-- **Step F**: `GamificationManager.shared.recordNewSpeciesDiscovered()` and push
-  notification fire immediately per completion.
-  `ProfileDatabaseActor.calculateAwards()` and
-  `GamificationManager.shared.evaluateAchievementsForNotifications(awards:)` are
-  **debounced** — a `awardsDebounceTask` is cancelled and rescheduled 0.5 s
-  after each completion. For a 5-scan burst this collapses five
-  `calculateAwards()` passes (each a full scan history read) into one. The
+- **Step F**: `GamificationManager.shared.recordNewSpeciesDiscovered()` and the
+  inference-complete push notification fire immediately per completion. The
+  final database scan ID, decoded `SpeciesData`, and model container then enter
+  `ScanMilestoneCoordinator`, the same boundary used by foreground inference.
+  The coordinator deduplicates foreground/background races by final scan ID,
+  waits for remote persistence and the Field trip progress attempt, publishes
+  progress refresh events, calculates newly eligible achievements without
+  immediately presenting them, and atomically enqueues standard outing
+  progress, Seasonal Challenge progress, achievements, then
+  **New to Naturebook**. A failed or no-match progress attempt releases the
+  later milestones only after it finishes. Award calculation is per final scan
+  rather than process-lifetime burst-debounced, because strict notification
+  ordering and scan-level deduplication are now the contract. The
   `UserDefaultsKeys.hasUnseenScan` flag is set to trigger the MainTabBar red
   dot, **unless** `suppressInferenceBanners` is `true` (the insight sheet is
   open and the user is watching the transition to results — setting the badge in

@@ -1907,7 +1907,15 @@ coordinates to the client contract.
   level. A saved biological photo or video can qualify. The scan is evaluated
   against every matching current-level item across every eligible active
   standard outing, so one scan may create multiple completion rows that all
-  retain the same `scan_id`.
+  retain the same `scan_id`. The response preserves current-level fields and
+  adds the optional credited level number/title and completed/target counts for
+  the level changed by this scan. If completion advances the trip, credited
+  counts retain the just-completed full level while current counts describe the
+  next level. Reapplication is idempotent and returns no update when no new
+  completion row is inserted. The response contract is introduced by
+  `20260718150932_add_credited_field_trip_progress.sql` and scoped to items
+  matched by the current attempt in
+  `20260718162409_scope_credited_progress_to_current_attempt.sql`.
 - `public.get_field_trip_profile_summaries(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
   Returns active status-only, pinned published, and general published Field trip
   summaries visible to the requester. Pinned publications are omitted from the
@@ -1941,7 +1949,10 @@ coordinates to the client contract.
 - `public.apply_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
   Applies challenge progress for a caller-owned scan when the user joined the
   live challenge before the scan and the scan falls before the challenge ends.
-  It returns `challenge_updates` payloads for V4 clients.
+  It returns `challenge_updates` payloads for V4 clients and the same optional
+  credited-level/count fields as standard progress. Its signature, security
+  context, and execute permissions remain unchanged by the credited-progress
+  migrations.
 - `public.get_field_trip_challenge_hashtags_for_scan(self_id UUID, target_scan_id UUID)`:
   Returns normalized suggested hashtags for challenge items completed by a scan,
   for optional Explore composer suggestions only.

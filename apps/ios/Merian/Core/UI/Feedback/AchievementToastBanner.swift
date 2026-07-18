@@ -69,7 +69,10 @@ struct MilestoneToastBanner: View {
         .accessibilityHint(display.accessibilityHint)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier(display.accessibilityIdentifier)
-        .onAppear(perform: firePresentationEffectsIfNeeded)
+        .onChange(of: item.id, initial: true) { _, _ in
+            hasFiredPresentationEffects = false
+            firePresentationEffectsIfNeeded()
+        }
         .task(id: item.id) {
             try? await Task.sleep(nanoseconds: 3_500_000_000)
             guard !Task.isCancelled else { return }

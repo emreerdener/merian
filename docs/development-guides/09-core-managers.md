@@ -322,10 +322,11 @@ triggering excessive SwiftUI view rebuilds.
   Analyze-tap timestamp, commits persisted media and parsed `speciesData`
   immediately, and measures the response-to-state boundary. A one-shot UIKit
   draw probe in `InsightSheetView` closes tap-to-first-render timing on the first
-  actual result frame. Award calculation and Field trips run in a follow-up task. Field
-  Trips polls `/check-scan-status` before invoking its remote progress endpoint,
-  so tools requiring server persistence stay disabled until the existing
-  ingestion ledger confirms the scan.
+  actual result frame. `ScanMilestoneCoordinator` runs in follow-up work, polls
+  `/check-scan-status` before invoking Field trip progress, then calculates
+  awards and batches standard outings, Seasonal Challenges, achievements, and
+  **New to Naturebook**. Tools requiring server persistence stay disabled until
+  the existing ingestion ledger confirms the final scan ID.
 - **Inline/background upload handoff**: `analyze()` installs a two-second
   fail-safe, then asks `MerianNetworkClient` to release the live scan's deferred
   queue row when request-body upload completes. Network failure releases the row
@@ -1248,13 +1249,15 @@ and `KeychainManager` migration logic. Do not inline
   Terrarium Rive model firefly animation.
 - `unlockedAchievements: Set<String>` — type keys of all completed awards,
   persisted across sessions.
-- `evaluateAchievementsForNotifications(awards:)` — called after
+- `evaluateAchievementsForNotifications(awards:enqueueToasts:)` — called after
   `ProfileDatabaseActor.calculateAwards()` completes after every inference.
-  Checks for newly completed awards, persists `unlockedAchievements`, enqueues
-  the shared in-app achievement milestone toast, and queues native local push
-  notifications via `PushNotificationManager` when the achievement notification
-  setting allows it. Cat and dog achievements use a July 4, 2026 notification
-  cutoff so historical qualifying scans are seeded silently instead of showing
+  Checks for newly completed awards, persists `unlockedAchievements`, returns
+  toast-eligible awards, and queues native local push notifications via
+  `PushNotificationManager` when the achievement notification setting allows
+  it. `enqueueToasts` defaults to `true` for existing callers; scan completion
+  passes `false` so the coordinator can batch the returned awards after Field
+  trip progress. Cat and dog achievements use a July 4, 2026 notification cutoff
+  so historical qualifying scans are seeded silently instead of showing
   retroactive unlock banners.
 - Full architecture documented in
   [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
@@ -1266,16 +1269,22 @@ and `KeychainManager` migration logic. Do not inline
   `@MainActor @Observable` singleton that owns a FIFO bottom in-app milestone
   queue.
 - Supports `.achievement(AwardPayload)` for achievement unlocks and
-  `.dictionary(.newToMerian)` for species-dictionary contribution milestones.
-- Production achievement unlocks enter through
-  `GamificationManager.evaluateAchievementsForNotifications(awards:)`.
-  `New to Naturebook` enters through `InsightSheetViewModel` when
-  `SpeciesData.isNewToMerianDictionary == true`.
+  `.dictionary(.newToMerian)` for species-dictionary contribution milestones,
+  plus `.fieldTrip(FieldTripMilestonePayload)` for standard outing and Seasonal
+  Challenge progress.
+- `ScanMilestoneCoordinator` is the production scan-completion boundary shared
+  by foreground `InferenceEngine` and background `OfflineQueueManager` paths.
+  It deduplicates by final scan ID, awaits the existing persistence/progress
+  attempt, gathers achievements without presenting them immediately, evaluates
+  `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
+  Field trips, Seasonal Challenges, achievements, then **New to Naturebook**.
+  Identification corrections reapply progress through the same coordinator but
+  do not replay the original achievement/dictionary batch.
 - The presenter controls only in-app banner presentation. It does not mutate
-  achievement progress, dictionary state, analytics, or native notification
-  authorization. DEBUG Settings preview entry points enqueue representative
-  payloads through the same queue while bypassing persistence and OS
-  notifications.
+  Field trip progress, achievement progress, dictionary state, analytics, or
+  native notification authorization. DEBUG Settings preview entry points
+  enqueue representative achievement, dictionary, and Field trip payloads
+  through the same queue while bypassing persistence and OS notifications.
 
 ### `PostHogManager`
 

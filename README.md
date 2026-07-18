@@ -70,7 +70,8 @@ steps are tracked in the
 - Scan Information Card: location name, elevation, zoom factor, weather, date, time, and a MapKit snapshot.
 - Toxicity warning banner, IUCN conservation status, and species badges (invasive, ecology type).
 - Diagnostic comparison: primary match rationale, confusing lookalike, and key visual differentiators.
-- New species discovery celebration banner.
+- Shared scan milestone queue for Field trip progress, achievement unlocks, and
+  global **New to Naturebook** dictionary contributions.
 - Private field notes persist on `LocalScanRecord` / `OfflineQueuedScan` and can optionally be published to Explore posts.
 - Pro-only Field chat lets users ask saved follow-up questions from completed biological insights without resending raw images, with AI-generated quick prompts grounded in the saved scan context.
 
@@ -88,6 +89,9 @@ steps are tracked in the
   relevant field trip guide. The active level shows a circular progress ring;
   completed standard goals use the exact device-local scan thumbnail and open
   that Insight inside the same Explore sheet when the record is available.
+  Saved scans that advance an outing or Event show contextual progress toasts
+  with a credited ring and tap-through navigation before any achievement or
+  New to Naturebook notification from the same scan.
   Publication storage stays separate from Explore posts; typed Field trip cards
   can appear in unfiltered Recent and Following, but not in Explore maps or the
   other post-only surfaces. Seasonal Challenge-specific targets are not included

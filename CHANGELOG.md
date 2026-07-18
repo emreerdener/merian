@@ -54,6 +54,13 @@ TestFlight, App Store, support, and QA.
   or video thumbnail in both outing cards and detail, keep the standard neutral
   border, and open that scan's Insight within the current Explore sheet with a
   back arrow.
+- Added Field trip progress notifications after a saved scan counts toward an
+  outing or Seasonal Challenge. Each notification names the species and trip,
+  shows the credited level's progress ring, and opens the matching outing goal
+  or challenge when tapped. Notifications from one scan now appear in a stable
+  order: outings, Seasonal Challenges, achievements, then New to Naturebook.
+  Re-identifying an older scan scopes feedback to completion rows added by that
+  attempt, preventing a prior level or destination from being announced again.
 - Added a left-aligned, above-title **Private** / **Published** badge to standard outing detail.
   Published is shown only when the owner has an active public outing snapshot;
   completion alone remains Private.

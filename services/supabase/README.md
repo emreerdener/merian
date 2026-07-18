@@ -107,12 +107,23 @@ scan ID to the private catalog/detail projections while restricting both RPCs
 to `service_role`.
 `20260718051748_expose_field_trip_publication_status.sql` adds the owner's
 active non-deleted publication ID/timestamp to private template detail only.
+`20260718150932_add_credited_field_trip_progress.sql` extends both standard and
+Seasonal Challenge scan-progress responses with the level number/title and
+completed/target counts credited by the scan. It preserves the existing RPC
+signatures, permissions, and response fields; the added fields let a level-
+completion toast show the completed level rather than the newly active level.
+`20260718162409_scope_credited_progress_to_current_attempt.sql` scopes those
+credited counts to checklist items matched by the current application attempt,
+so re-identifying an older scan cannot duplicate a destination or reuse a
+previous level's ring.
 The contract suite verifies caller identity, role grants, ordering/filtering
-clauses, private completion links/status, and the absence of evidence from
-public/capture projections.
-`fieldTripCaptureContextDb.test.ts` additionally
-executes the filtering/order/privacy contract when the local Postgres stack is
-running; a connection skip is not database validation.
+clauses, private completion links/status, credited progress in both RPCs, and
+the absence of evidence from public/capture projections.
+`fieldTripCaptureContextDb.test.ts` additionally executes the
+filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
+standard/challenge credited counts, level advancement, re-identification, and
+idempotent reapplication. Both require the local Postgres stack; a connection
+skip is not database validation.
 
 From the repo root:
 
@@ -211,3 +222,13 @@ For the Private/Published detail badge, apply
 iOS surface. Verify only private template detail receives the requesting
 owner's active publication ID/timestamp and that direct client roles remain
 unable to execute the RPC.
+
+For credited scan-progress notifications, apply
+`20260718150932_add_credited_field_trip_progress.sql` and then
+`20260718162409_scope_credited_progress_to_current_attempt.sql` before releasing
+the iOS toast surface. Verify partial progress, level advancement, final
+completion, multiple standard/challenge destinations, re-identification after
+level advancement, and idempotent reapplication. The existing
+`apply_scan_progress` request does not change; legacy clients ignore the
+additional response fields and the new iOS client falls back to current counts
+until the migrations are live.

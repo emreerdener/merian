@@ -15,8 +15,12 @@ The backing SQL lives in this ordered migration chain:
 8. `20260717224544_retire_forest_edges_outing.sql`
 9. `20260718043218_expose_field_trip_completion_scan_ids.sql`
 10. `20260718051748_expose_field_trip_publication_status.sql`
+11. `20260718150932_add_credited_field_trip_progress.sql`
+12. `20260718162409_scope_credited_progress_to_current_attempt.sql`
 
-Deploy the migrations before deploying this function.
+Deploy the migrations before deploying this function. Existing installations
+with the current V4 function do not require a function redeploy because the two
+credited-progress migrations change only database responses.
 
 ## Privacy Contract
 
@@ -204,7 +208,15 @@ Returns:
       "credited_level_title": "Level 1",
       "credited_completed_count": 3,
       "credited_target_count": 4,
-      "newly_completed_items": []
+      "newly_completed_items": [
+        {
+          "item_id": "uuid",
+          "prompt": "Butterfly or moth",
+          "common_name": "Vine Sphinx",
+          "scientific_name": "Eumorpha vitis",
+          "completed_at": "2026-07-18T14:00:00Z"
+        }
+      ]
     }
   ],
   "challenge_updates": []
@@ -216,7 +228,16 @@ Both standard `data` entries and `challenge_updates` include the optional
 finishes a level and immediately unlocks the next one, `current_*` and the
 existing counts describe the new active level while `credited_*` retains the
 completed level and its full progress for scan-completion feedback. Older
-clients can continue using the existing fields.
+clients can continue using the existing fields. The response is scoped to rows
+inserted by the current application attempt so re-identifying an older scan
+cannot return its historical level again alongside a newly credited item.
+
+The `apply_scan_progress` request is unchanged. Clients should treat a progress
+update as newly credited only when `newly_completed_items` is nonempty; an
+idempotent reapplication returns no update. Within each update, that array keeps
+curated checklist order, so its first item is the canonical label/focus target
+for scan-completion UI. The credited fields are response additions only and do
+not change the Edge Function request contract.
 
 ```json
 { "action": "challenges_catalog", "user_region": "optional", "limit": 20 }
@@ -358,28 +379,33 @@ not fail scan persistence.
 8. Apply `20260717224544_retire_forest_edges_outing.sql`.
 9. Apply `20260718043218_expose_field_trip_completion_scan_ids.sql`.
 10. Apply `20260718051748_expose_field_trip_publication_status.sql`.
-11. Deploy this function.
-12. Deploy `get-explore-author-profile` so profile responses include
-   `field_trips`.
-13. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+11. Apply `20260718150932_add_credited_field_trip_progress.sql`.
+12. Apply `20260718162409_scope_credited_progress_to_current_attempt.sql`.
+13. Deploy this function.
+14. Deploy `get-explore-author-profile` so profile responses include
+    `field_trips`.
+15. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-14. Ship the iOS client.
+16. Ship the iOS client.
 
 ## Verification
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
 deno test --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
+deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 supabase db lint --workdir services
 ```
 
-The capture-context database integration test requires a running local
-Supabase/Postgres stack. A reported skip because port `54322` is unavailable is
-not a successful database execution and must be covered before release or by the
-linked deployment validation path.
+The capture-context and progress database integration tests require a running
+local Supabase/Postgres stack. A reported skip because port `54322` is
+unavailable is not a successful database execution and must be covered before
+release or by the linked deployment validation path. The progress test
+re-identifies one scan after standard and challenge level advancement and
+asserts that only rows inserted by the current attempt appear in the response.
 
 The static migration contract also verifies that both private checklist RPCs
 project `completed_scan_id` and grant execution only to `service_role`. Release

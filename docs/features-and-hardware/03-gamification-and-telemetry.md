@@ -20,12 +20,14 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
   `species_dictionary`. Non-biological results, including processed-material
   demotions such as wool rugs or leather goods, cannot set this flag.
 - Drives the shared `MilestoneToastPresenter` for in-app milestone UX.
-  Achievement unlocks enter from
-  `GamificationManager.evaluateAchievementsForNotifications(awards:)`.
-  `New to Naturebook` dictionary milestones enter from
-  `InsightSheetViewModel.evaluateVoiceOverAndCelebration` only when
-  `SpeciesData.isNewToMerianDictionary == true` for a valid biological subject.
-  The old local `CelebrationBanner` confetti overlay has been removed.
+  `ScanMilestoneCoordinator` waits for the scan's Field trip progress attempt,
+  asks `GamificationManager.evaluateAchievementsForNotifications` for newly
+  eligible awards without presenting them early, evaluates
+  `SpeciesData.isNewToMerianDictionary`, and batches standard outing progress,
+  Seasonal Challenge progress, achievements, then `New to Naturebook`. Both
+  foreground and background scan completion use this boundary and deduplicate
+  by final scan ID. The old local `CelebrationBanner` confetti overlay has been
+  removed.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
 - Consumed via `AppDIContainer.shared.gamificationManager` inside

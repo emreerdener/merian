@@ -10,6 +10,20 @@ allowlisted tester email and simulator builds may expose its tab or supporting
 surfaces. New Field trips entry points must use the same shared rule rather than
 adding local debug checks.
 
+## Field trip milestone routing
+
+`ExploreView` converts the source-agnostic `CaptureGoalDestination` passed by
+Capture or the shared progress toast at this feature boundary. A standard
+`.fieldTrip(templateId:checklistItemId:)` destination selects Outings, opens the
+template, and focuses the credited goal. A
+`.fieldTripChallenge(challengeId:)` destination selects Events and pushes
+Seasonal Challenge detail. Do not expose `FieldTripTemplateRoute` or
+`FieldTripChallengeRoute` to Core feedback code.
+
+`fieldTripProgressUpdated` and `fieldTripChallengeProgressUpdated` continue to
+refresh affected lists/details only. They must not produce a local plain toast;
+the global `MilestoneToastPresenter` already owns the user-facing notification.
+
 ## Completed Field-trip Scan Navigation
 
 Completed standard-outing goal tiles pass their private `completedScanId` to

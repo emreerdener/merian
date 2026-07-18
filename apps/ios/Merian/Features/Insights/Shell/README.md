@@ -18,3 +18,13 @@ either the catalog card or outing detail. This keeps the Insight view inside the
 current Explore sheet and returns to the outing on back. Missing local records
 must be handled before navigation; the Insight shell does not fetch Field-trip
 evidence or reconstruct media from a remote URL.
+
+## Scan milestones
+
+The Insight lifecycle owns result VoiceOver and haptic presentation, but it does
+not enqueue `New to Naturebook`. Foreground and background scan completion pass
+the final saved scan ID and `SpeciesData` to the shared
+`ScanMilestoneCoordinator`, which waits for Field trip progress and batches
+standard outings, Seasonal Challenges, achievements, then the dictionary
+milestone. Keeping this outside `.onAppear` prevents repeated Insight
+presentations from duplicating scan-completion notifications.

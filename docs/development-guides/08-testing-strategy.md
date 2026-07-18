@@ -677,15 +677,26 @@ standard field trip after a Seasonal Challenge join, exclusion of challenge-spec
 progress, the non-destructive retirement of placeholder templates, and the
 evidence-free capture projection. It also locks the private catalog/detail
 `completed_scan_id` projection, detail-only publication status, owner/non-deleted
-join, and service-role-only grants.
+join, service-role-only grants, and credited-level/count fields in both scan-
+progress RPCs.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
+`_tests/fieldTripProgressDb.test.ts` exercises standard and challenge
+credited-level responses across advancement, scan re-identification, and
+idempotent reapplication under the same local-stack requirement.
 `FieldTripCaptureContextModelsTests` covers capture-context decoding, while
 `FieldTripAPIModelsTests.catalogDecodesActiveProgressAndChecklistItems` covers
 the optional completing scan ID used by catalog/detail thumbnails and published
 status. A separate legacy-payload test ensures absent publication fields decode
 as Private during rollout.
+The progress-response tests cover both the legacy shape and an extended level-
+advancement shape where current counts are `0/N` but credited counts are the
+completed full level. `AchievementToastPresenterTests` covers delayed strict
+ordering, multiple standard/challenge destinations, common-name fallback,
+progress failure, empty matches, completed-level rings, and foreground/background
+scan-ID deduplication. `InsightSheetViewModelTests` keeps the dictionary
+eligibility policy covered after presentation moved out of the sheet lifecycle.
 `ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
@@ -699,6 +710,15 @@ adjustable actions, Reduce Motion, light/dark appearance, idle visual-only
 visibility, and that target swipes do not page capture modes. The architectural
 test obligations for future sources are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
+
+Progress-toast device QA must use the DEBUG Settings preview at compact and
+large widths with long species/trip names, VoiceOver, and Reduced Motion. A live
+scan matrix must confirm standard outing toasts precede Seasonal Challenge
+toasts, achievements, and **New to Naturebook**; standard taps focus the first
+credited goal, challenge taps open challenge detail, and progress refresh events
+do not create a duplicate plain banner. Re-identify an older scan after level
+advancement and confirm only rows inserted by that attempt supply destinations,
+newly completed items, and credited rings.
 
 Manual completion-evidence QA must use a non-leading checklist item to catch
 count-based slot inference, cover photo and video-poster thumbnails, verify the

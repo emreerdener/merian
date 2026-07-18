@@ -51,6 +51,14 @@ dispatch. `MerianNetworkClient` measures upload/response transport,
 `InsightSheetView` records the first rendered result frame. Awards, Field trips,
 and optional enrichment must not be awaited before that frame.
 
+After the result commit, foreground completion passes the final scan ID,
+`SpeciesData`, and model container to `ScanMilestoneCoordinator`. Background
+queue completion calls the same coordinator. It waits for remote scan
+persistence and Field trip progress, deduplicates the two paths by final scan
+ID, then batches standard outing progress, Seasonal Challenge progress,
+achievements, and `New to Naturebook` in that order. This follow-up must remain
+outside the first-result latency boundary.
+
 Still images use the accepted `NormalizedImageFocusRegion` to render four
 detached white corner brackets and a dimmed exterior in the Insight carousel.
 The brackets fade and resolve once, then remain static while a soft low-opacity
