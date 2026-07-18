@@ -55,7 +55,7 @@ enum AppEvent {
     case exploreShareStateChanged(scanId: String, postId: String?)
     /// Dispatched after a community identification request should open in Explore.
     case openCommunityIdentificationRequest(requestId: String)
-    /// Dispatched after a scan completes one or more Field Trip checklist items.
+    /// Dispatched after a scan completes one or more Field trip checklist items.
     case fieldTripProgressUpdated([FieldTripProgressUpdate])
     /// Dispatched after a scan completes one or more seasonal challenge items.
     case fieldTripChallengeProgressUpdated([FieldTripChallengeProgressUpdate])

@@ -227,6 +227,7 @@ struct FieldTripChecklistItem: Decodable, Identifiable, Equatable {
     let completedAt: String?
     let completedCommonName: String?
     let completedScientificName: String?
+    let completedScanId: String?
 
     var id: String { itemId }
 

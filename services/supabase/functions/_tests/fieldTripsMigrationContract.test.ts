@@ -14,7 +14,7 @@ function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
 }
 
-Deno.test("Field Trips migration creates separate progress, publication, like, and comment storage", async () => {
+Deno.test("Field trips migration creates separate progress, publication, like, and comment storage", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),
   );
@@ -39,7 +39,7 @@ Deno.test("Field Trips migration creates separate progress, publication, like, a
   }
 });
 
-Deno.test("Field Trips migration preserves privacy and Explore separation contracts", async () => {
+Deno.test("Field trips migration preserves privacy and Explore separation contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),
   );
@@ -59,15 +59,15 @@ Deno.test("Field Trips migration preserves privacy and Explore separation contra
 
   assert(
     !sql.includes("INSERT INTO public.explore_posts"),
-    "publishing a Field Trip must not create a normal Explore post",
+    "publishing a Field trip must not create a normal Explore post",
   );
   assert(
     !sql.includes("'scan_id', fpi.scan_id"),
-    "public Field Trip detail should expose publication item ids, not raw scan ids",
+    "public Field trip detail should expose publication item ids, not raw scan ids",
   );
 });
 
-Deno.test("Field Trips seed catalog keeps starter and Pro access distinct", async () => {
+Deno.test("Field trips seed catalog keeps starter and Pro access distinct", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),
   );
@@ -90,7 +90,7 @@ Deno.test("Field Trips seed catalog keeps starter and Pro access distinct", asyn
   }
 });
 
-Deno.test("Field Trips catalog keeps Backyard safari in sentence case", async () => {
+Deno.test("Field trips catalog keeps Backyard safari in sentence case", async () => {
   const sql = normalized(
     await migrationSql("20260717032701_rename_backyard_safari.sql"),
   );
@@ -129,7 +129,7 @@ Deno.test("Forest Edges placeholder is retired without deleting user history", a
   );
 });
 
-Deno.test("Field Trips migration avoids reserved SQL parameter names", async () => {
+Deno.test("Field trips migration avoids reserved SQL parameter names", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),
   );
@@ -139,11 +139,11 @@ Deno.test("Field Trips migration avoids reserved SQL parameter names", async () 
 
   assert(
     !reservedParameterPattern.test(sql),
-    "Field Trip helper functions should avoid unquoted reserved SQL parameter names",
+    "Field trip helper functions should avoid unquoted reserved SQL parameter names",
   );
 });
 
-Deno.test("Field Trips v2 migration adds guided detail, start, recent trips, and profile pin contracts", async () => {
+Deno.test("Field trips v2 migration adds guided detail, start, recent trips, and profile pin contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708033451_field_trips_v2.sql"),
   );
@@ -170,7 +170,7 @@ Deno.test("Field Trips v2 migration adds guided detail, start, recent trips, and
   }
 });
 
-Deno.test("Contextual Outing guides add structured reviewed content without removing legacy tips", async () => {
+Deno.test("Contextual field trip guides add structured reviewed content without removing legacy tips", async () => {
   const sql = normalized(
     await migrationSql("20260717150222_contextual_outing_objective_guides.sql"),
   );
@@ -204,7 +204,40 @@ Deno.test("Contextual Outing guides add structured reviewed content without remo
   );
 });
 
-Deno.test("Initial Field Trip capture context is focused, ordered, and service-role only", async () => {
+Deno.test("Private field trip checklist payloads expose the completing scan id", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260718043218_expose_field_trip_completion_scan_ids.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_catalog",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_template_detail",
+      "'completed_scan_id', ufc.scan_id",
+      "LEFT JOIN public.user_field_trip_item_completions ufc",
+      "uft.user_id = self_id",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_catalog(UUID, TEXT, INTEGER) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.get_field_trip_catalog(UUID, TEXT, INTEGER) TO service_role",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_template_detail(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.get_field_trip_template_detail(UUID, UUID, TEXT) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    (sql.match(/'completed_scan_id', ufc\.scan_id/g) ?? []).length === 2,
+    "catalog and template detail must both carry the completing scan id",
+  );
+  assert(
+    !sql.includes("field_trip_publication_items"),
+    "completion scan ids must remain out of public Field trip snapshots",
+  );
+});
+
+Deno.test("Initial Field trip capture context is focused, ordered, and service-role only", async () => {
   const sql = normalized(
     await migrationSql("20260717195751_active_outing_capture_context.sql"),
   );
@@ -249,7 +282,7 @@ Deno.test("Initial Field Trip capture context is focused, ordered, and service-r
   }
 });
 
-Deno.test("Capture context keeps a standard outing after Seasonal Challenge join", async () => {
+Deno.test("Capture context keeps a standard field trip after Seasonal Challenge join", async () => {
   const sql = normalized(
     await migrationSql(
       "20260717213641_preserve_standard_outings_in_capture_context.sql",
@@ -275,11 +308,11 @@ Deno.test("Capture context keeps a standard outing after Seasonal Challenge join
   assert(
     !sql.includes("field_trip_challenge_participants") &&
       !sql.includes("field_trip_challenge_item_completions"),
-    "Capture context must keep the standard outing and ignore challenge-specific progress",
+    "Capture context must keep the standard field trip and ignore challenge-specific progress",
   );
 });
 
-Deno.test("Field Trip capture context Edge action always uses the verified user", async () => {
+Deno.test("Field trip capture context Edge action always uses the verified user", async () => {
   const index = normalized(
     await Deno.readTextFile(new URL("index.ts", fieldTripsFunctionDir)),
   );
@@ -302,7 +335,7 @@ Deno.test("Field Trip capture context Edge action always uses the verified user"
   );
 });
 
-Deno.test("Field Trips v2 keeps published trips out of Explore feed infrastructure", async () => {
+Deno.test("Field trips v2 keeps published trips out of Explore feed infrastructure", async () => {
   const sql = normalized(
     await migrationSql("20260708033451_field_trips_v2.sql"),
   );
@@ -319,7 +352,7 @@ Deno.test("Field Trips v2 keeps published trips out of Explore feed infrastructu
   ) {
     assert(
       !sql.includes(forbidden),
-      `Field Trips v2 must not write to or extend normal Explore feed infrastructure: ${forbidden}`,
+      `Field trips v2 must not write to or extend normal Explore feed infrastructure: ${forbidden}`,
     );
   }
 
@@ -333,7 +366,7 @@ Deno.test("Field Trips v2 keeps published trips out of Explore feed infrastructu
   );
 });
 
-Deno.test("Field Trips v3 adds community feed ranking and compatibility contracts", async () => {
+Deno.test("Field trips v3 adds community feed ranking and compatibility contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708042713_field_trips_v3_community.sql"),
   );
@@ -363,7 +396,7 @@ Deno.test("Field Trips v3 adds community feed ranking and compatibility contract
   }
 });
 
-Deno.test("Field Trips v3 activity is in-app only and does not extend Explore feed push surfaces", async () => {
+Deno.test("Field trips v3 activity is in-app only and does not extend Explore feed push surfaces", async () => {
   const sql = normalized(
     await migrationSql("20260708042713_field_trips_v3_community.sql"),
   );
@@ -395,12 +428,12 @@ Deno.test("Field Trips v3 activity is in-app only and does not extend Explore fe
   ) {
     assert(
       !sql.includes(forbidden),
-      `Field Trips v3 must not write to or extend Explore feed/push infrastructure: ${forbidden}`,
+      `Field trips v3 must not write to or extend Explore feed/push infrastructure: ${forbidden}`,
     );
   }
 });
 
-Deno.test("Field Trips v4 adds curated seasonal challenge contracts", async () => {
+Deno.test("Field trips v4 adds curated seasonal challenge contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708051414_field_trips_v4_challenges.sql"),
   );
@@ -430,7 +463,7 @@ Deno.test("Field Trips v4 adds curated seasonal challenge contracts", async () =
   }
 });
 
-Deno.test("Field Trips v4 challenges stay non-competitive and Explore-separated", async () => {
+Deno.test("Field trips v4 challenges stay non-competitive and Explore-separated", async () => {
   const sql = normalized(
     await migrationSql("20260708051414_field_trips_v4_challenges.sql"),
   );
@@ -440,7 +473,7 @@ Deno.test("Field Trips v4 challenges stay non-competitive and Explore-separated"
       "Challenges are admin-created and never create Explore posts, maps, widgets, APNs, prizes, or leaderboards.",
       "scan_row.timestamp >= p.joined_at",
       "scan_row.timestamp <= c.ends_at",
-      "Completion badges for non-competitive Field Trip challenges",
+      "Completion badges for non-competitive",
       "suggested_hashtags",
       "ON CONFLICT(participation_id)",
       "new_entry_id UUID",
@@ -473,7 +506,7 @@ Deno.test("Field Trips v4 challenges stay non-competitive and Explore-separated"
   ) {
     assert(
       !sql.toLowerCase().includes(forbidden.toLowerCase()),
-      `Field Trips v4 challenges must not create competitive or Explore feed/push infrastructure: ${forbidden}`,
+      `Field trips v4 challenges must not create competitive or Explore feed/push infrastructure: ${forbidden}`,
     );
   }
 });

@@ -5,12 +5,12 @@ post-owned image, short-video, and standalone-audio media. Users can browse
 posts, like them, and leave comments while Merian preserves its privacy-first
 posture for both authenticated and ghost users.
 
-Field Trips remains an internal preview. All iOS discovery surfaces use the
+Field trips remain an internal preview. All iOS discovery surfaces use the
 shared `FieldTripsAvailability` rule: enabled only for
 `erdener.emre@gmail.com` (case/whitespace normalized) or simulator builds. The
 gate covers the tab, blended feed publications, profile modules, notification
-rows/routes, and the bundled Field Trips changelog entry. It is a release gate,
-not an authorization boundary; backend Field Trips infrastructure remains
+rows/routes, and the bundled Field trips changelog entry. It is a release gate,
+not an authorization boundary; backend Field trips infrastructure remains
 deployed for development and must not be treated as public launch status.
 
 ## Locked Product Decisions
@@ -30,7 +30,7 @@ deployed for development and must not be treated as public launch status.
   post ID, expires after 180 days, and is capped at 500 posts. Enhancement uses
   bounded temporary local files and never changes the approved R2 recording.
 - Post descriptions/captions are out of scope in V1.
-- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications and Field Trip activity are in-app only.
+- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications and Field trip activity are in-app only.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
 - The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
 - Explore includes a privacy-scoped public author profile sheet reachable from feed/detail author headers.
@@ -89,7 +89,7 @@ deployed for development and must not be treated as public launch status.
 
 The Explore feed and map shell are now live. The current shipped implementation is:
 
-- `ExploreView` uses bottom navigation for `Observations`, `Identify`, `Field Trips`, and `Dictionary`. Observations owns a root-only Feed/Map header toggle with Feed first, Field Trips owns Available/Community, and Dictionary keeps Tree behind its Catalog/Tree header toggle.
+- `ExploreView` uses bottom navigation for `Observations`, `Identify`, `Field trips`, and `Dictionary`. Observations owns a root-only Feed/Map header toggle with Feed first, Field trips owns Outings/Events plus Goals/Tips detail, and Dictionary keeps Tree behind its Catalog/Tree header toggle. Completed standard-outing goals resolve their private completion scan ID to a device-local photo/video-poster thumbnail; tapping one pushes the existing Insight view in the same Explore navigation stack and returns to the outing on back.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
 - Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.
@@ -119,9 +119,9 @@ The sheet renders:
 - current streak
 - 52-week scan heatmap
 - up to 9 preview published scans in a 3-column grid
-- active Field Trip checklist progress, when visible
-- published Field Trip cards, when visible
-- Field Trip challenge completion badges, when visible
+- active Field trip checklist progress, when visible
+- published Field trip cards, when visible
+- Field trip challenge completion badges, when visible
 - achievements as informational cards
 - a "View all published scans" control that side-transitions into a paginated 3-column library
 
@@ -129,9 +129,14 @@ The profile and library have deliberately different privacy scopes:
 
 - Profile stats, streak, heatmap, and achievement progress are computed from all of the author's non-tombstoned scans.
 - Preview and full library grids include only currently visible Explore posts.
-- Active Field Trip profile rows include checklist status only and never expose scan IDs, media, field notes, exact coordinates, public location labels, or evidence.
-- Published Field Trip rows open Field Trip publication details, not Explore post details.
-- Field Trip challenge badges are lightweight public reward cards. They expose
+- Active Field trip profile rows include checklist status only and never expose scan IDs, media, field notes, exact coordinates, public location labels, or evidence.
+- The authenticated Field trips catalog/detail projection may privately include
+  the exact `completed_scan_id` for the viewing user's completed standard goals.
+  It includes no media URL and is resolved only against the device-local scan
+  library; this field is not part of any public profile, publication, challenge,
+  feed, map, or capture-context contract.
+- Published Field trip rows open Field trip publication details, not Explore post details.
+- Field trip challenge badges are lightweight public reward cards. They expose
   badge/challenge labels and broad tags only, never scan IDs, media, exact
   locations, notes, or private evidence.
 - Achievement payloads contain progress only and never include qualifying scan IDs.
@@ -139,7 +144,7 @@ The profile and library have deliberately different privacy scopes:
 - Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
 - The `Follow` button is hidden for the viewer's own public profile. It follows asymmetrically; there are no friend requests, mutual-only states, DMs, or access changes to private scans.
 
-The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field Trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without public post-owned media, posts without a species key, and non-visible Field Trips are all filtered using the same visibility posture as the rest of Explore.
+The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without public post-owned media, posts without a species key, and non-visible Field trips are all filtered using the same visibility posture as the rest of Explore.
 
 The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
 
@@ -501,7 +506,7 @@ Recommended V1 endpoints:
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `field-trips`
-  - Returns Field Trip catalog, template-detail, explicit-start, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, publication, like, and comment actions, plus Seasonal Challenge catalog/detail/join/progress, challenge entry, badge, and optional challenge hashtag suggestion actions. Field Trip and challenge comments/likes are stored separately from Explore post interactions, and publishing a Field Trip or challenge entry does not write Explore posts, map points, APNs, widgets, public web share pages, prizes, leaderboards, or feed cards.
+  - Returns Field trip catalog, template-detail, explicit-start, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, publication, like, and comment actions, plus Seasonal Challenge catalog/detail/join/progress, challenge entry, badge, and optional challenge hashtag suggestion actions. Private catalog/detail checklist rows can include the completing scan ID through service-role-only RPCs, while public and capture projections remain evidence-free. One qualifying saved photo or video may satisfy every matching current-level goal across multiple eligible outings and separately joined live challenges. Field trip and challenge comments/likes are stored separately from Explore post interactions, and publishing a Field trip or challenge entry does not write Explore posts, map points, APNs, widgets, public web share pages, prizes, leaderboards, or feed cards.
 - `get-explore-map-points`
   - Returns privacy-safe map clusters or individual map points for the current visible area
 - `get-explore-notifications`
@@ -531,7 +536,7 @@ Existing endpoint reuse:
 The in-app notifications feed is the Explore source of truth. Remote APNs
 fan-out layers on top of that same notification row model for eligible
 post-backed activity through push-device registration plus a server-side
-webhook trigger. Follow notifications and Field Trip activity stay in-app only.
+webhook trigger. Follow notifications and Field trip activity stay in-app only.
 
 ## Feed Query Rules
 

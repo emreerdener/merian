@@ -16,7 +16,7 @@ or source-specific API DTOs.
 
 `CaptureGoalContextProviding` keeps source eligibility and ordering outside the
 camera. `FieldTripCaptureGoalProvider` is the first adapter. It converts the
-private Field Trip capture-context response into generic goals in server order.
+private Field trip capture-context response into generic goals in server order.
 
 `ActiveCaptureGoalStore` owns selection, bidirectional wrapping, five-minute
 freshness, refresh coalescing, and a versioned cache isolated by Supabase account.

@@ -22,7 +22,7 @@ documented in `docs/features-and-hardware/26-photos-share-import.md`.
 The active goal shown while visual Scan is idle is owned by
 `Features/Capture/Shell`, because it is fixed mode-level chrome and routes into
 Explore. `Scan` does not fetch source DTOs, award progress, or alter camera
-gesture handling. Field Trips currently provide the goals through the generic
+gesture handling. Field trips currently provide the goals through the generic
 capture-goal provider boundary. The indicator accepts only horizontally
 dominant completed drags so vertical camera interactions and the capture-mode
 pager keep their existing ownership. See `../Shell/README.md` and

@@ -119,6 +119,10 @@ struct ExploreView: View {
                     FieldTripsView(
                         userRegion: dictionaryUserRegionIdentifier,
                         selectedSection: $activeFieldTripsSection,
+                        onOpenTemplate: { templateId in
+                            navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
+                        },
+                        onOpenCompletedScan: openFieldTripCompletedScan,
                         onOpenPublication: { publicationId in
                             navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
                         },
@@ -126,7 +130,7 @@ struct ExploreView: View {
                     )
                     .tag(ExploreTab.fieldTrips)
                     .tabItem {
-                        Label("Outings", systemImage: "map")
+                        Label("Field trips", systemImage: "map")
                     }
                 }
 
@@ -253,10 +257,28 @@ struct ExploreView: View {
                 FieldTripTemplateDetailView(
                     templateId: route.templateId,
                     focusedChecklistItemId: route.focusedChecklistItemId,
+                    onOpenCompletedScan: openFieldTripCompletedScan,
                     onOpenPublication: { publicationId in
                         navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
                     },
                     onOpenAuthorProfile: openAuthorProfile
+                )
+                .toolbar(.hidden, for: .tabBar)
+            }
+            .navigationDestination(for: ScanInsightRoute.self) { route in
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { true },
+                        set: { isPresented in
+                            if !isPresented, !navigationPath.isEmpty {
+                                navigationPath.removeLast()
+                            }
+                        }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    allowsExplorePresentation: false,
+                    presentationStyle: .embeddedInScansLibrary
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
@@ -585,6 +607,22 @@ struct ExploreView: View {
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
+    }
+
+    private func openFieldTripCompletedScan(_ scanId: String) {
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+
+        guard let record = try? modelContext.fetch(descriptor).first else {
+            HapticManager.shared.triggerErrorThump()
+            viewModel.toastMessage = "This scan is not available on this device."
+            return
+        }
+
+        inferenceEngine.load(from: record)
+        HapticManager.shared.triggerSelectionPulse()
+        navigationPath.append(ScanInsightRoute(scanId: record.id))
     }
 
     private func openOwnedPostInsightFromParent(_ scanId: String) -> Bool {
@@ -1399,7 +1437,7 @@ private struct ExploreRootModePicker: View {
                 }
             }
         case .fieldTrips:
-            Picker("Outings view", selection: $activeFieldTripsSection) {
+            Picker("Field trips view", selection: $activeFieldTripsSection) {
                 ForEach(FieldTripsSection.allCases) { section in
                     Text(section.title).tag(section)
                 }

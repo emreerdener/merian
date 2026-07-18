@@ -416,7 +416,7 @@ private struct GBIFMedia: Decodable {
             }
             guard isPersisted else {
                 MerianLog.general.debug(
-                    "Field Trip progress deferred because remote scan persistence is not complete."
+                    "Field trip progress deferred because remote scan persistence is not complete."
                 )
                 return
             }
@@ -429,7 +429,7 @@ private struct GBIFMedia: Decodable {
                 AppEventPublisher.shared.send(.fieldTripChallengeProgressUpdated(result.challengeUpdates))
             }
         } catch {
-            MerianLog.general.debug("Field Trip progress update failed: \(error, privacy: .private)")
+            MerianLog.general.debug("Field trip progress update failed: \(error, privacy: .private)")
         }
     }
 

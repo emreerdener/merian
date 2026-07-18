@@ -1,17 +1,20 @@
-# Field Trips
+# Field trips
 
-Action-based Edge Function for Field Trips. The function is authenticated via
+Action-based Edge Function for Field trips. The function is authenticated via
 `withEdgeHandler`; request bodies cannot choose `self_id`.
 
-The backing SQL lives in
-`services/supabase/migrations/20260708021110_field_trips_v1.sql` and
-`services/supabase/migrations/20260708033451_field_trips_v2.sql`, plus
-`services/supabase/migrations/20260708042713_field_trips_v3_community.sql` and
-`services/supabase/migrations/20260708051414_field_trips_v4_challenges.sql`,
-`services/supabase/migrations/20260717150222_contextual_outing_objective_guides.sql`,
-`services/supabase/migrations/20260717195751_active_outing_capture_context.sql`,
-and
-`services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`.
+The backing SQL lives in this ordered migration chain:
+
+1. `20260708021110_field_trips_v1.sql`
+2. `20260708033451_field_trips_v2.sql`
+3. `20260708042713_field_trips_v3_community.sql`
+4. `20260708051414_field_trips_v4_challenges.sql`
+5. `20260717150222_contextual_outing_objective_guides.sql`
+6. `20260717195751_active_outing_capture_context.sql`
+7. `20260717213641_preserve_standard_outings_in_capture_context.sql`
+8. `20260717224544_retire_forest_edges_outing.sql`
+9. `20260718043218_expose_field_trip_completion_scan_ids.sql`
+
 Deploy the migrations before deploying this function.
 
 ## Privacy Contract
@@ -19,22 +22,22 @@ Deploy the migrations before deploying this function.
 - Active profile summaries are checklist-status only.
 - Active summaries must not return scan IDs, media URLs, field notes, exact
   coordinates, public location labels, or private evidence.
-- Published Field Trips are snapshots in Field Trip tables, not Explore posts.
-- Publishing a Field Trip must not create Explore feed posts, Explore map
+- Published Field trips are snapshots in Field trip tables, not Explore posts.
+- Publishing a Field trip must not create Explore feed posts, Explore map
   points, normal Explore post notifications, APNs, widgets, or public web share
   pages.
-- Published Field Trips appear on public profiles, the Field Trips `Community`
+- Published Field trips appear on public profiles, the Field trips `Community`
   segment, and as typed cards in unfiltered Explore Recent and Following. They
   remain absent from Trending, Nearby, map, APNs, widgets, and public web, and
   they never create duplicate `explore_posts` rows.
-- Field Trip comments, replies, and followed-author publications can create
-  Field Trip-only in-app activity rows. They appear in Explore activity and may
+- Field trip comments, replies, and followed-author publications can create
+  Field trip-only in-app activity rows. They appear in Explore activity and may
   increment the bell, but never fan out to push delivery.
-- Field Trip comments and likes use Field Trip publication tables, not Explore
+- Field trip comments and likes use Field trip publication tables, not Explore
   post interaction tables.
-- Field Trip likes do not create notifications in V3/V4.
-- Seasonal challenges are Field Trips-native. Challenge participation, badges,
-  entries, likes, and comments are stored separately from normal Field Trip
+- Field trip likes do not create notifications in V3/V4.
+- Seasonal challenges are Field trips-native. Challenge participation, badges,
+  entries, likes, and comments are stored separately from normal Field trip
   progress/publications.
 - Publishing a challenge entry must not create Explore posts, Explore map
   points, APNs, widgets, public web share pages, prizes, leaderboards, or
@@ -44,6 +47,9 @@ Deploy the migrations before deploying this function.
 - Challenge suggested hashtags are optional Explore composer suggestions only;
   this function never auto-posts or auto-tags scans.
 - Visibility checks must reject shadowbanned authors and mutual blocks.
+- `completed_scan_id` is private viewer evidence metadata exposed only by
+  catalog/detail. It is never copied into capture context, public profile
+  summaries, publication/challenge snapshots, Explore surfaces, or media URLs.
 
 ## Actions
 
@@ -51,16 +57,16 @@ Deploy the migrations before deploying this function.
 { "action": "capture_context" }
 ```
 
-Returns the caller's accessible, incomplete standard outings and unfinished
+Returns the caller's accessible, incomplete standard field trips and unfinished
 targets from each current level, ordered by recent engagement and curated
 checklist order. This capture-only contract contains aggregate progress and
 prompts, never scan IDs, media, field notes, location, or completion evidence.
 The backing RPC is executable only by `service_role`; `withEdgeHandler` supplies
-the verified user ID. It reads only standard Field Trip item completions and
+the verified user ID. It reads only standard Field trip item completions and
 never challenge-specific completions or Seasonal labels. Because joining a
-challenge starts or continues the same underlying standard outing, that outing
-remains eligible for the indicator. The cross-client ownership, cache,
-navigation, and future-source decision lives in
+challenge starts or continues the same underlying standard field trip, that
+field trip remains eligible for the indicator. The cross-client ownership,
+cache, navigation, and future-source decision lives in
 `docs/rfcs/active-capture-goal-context.md`.
 
 Response:
@@ -91,9 +97,9 @@ Response:
 }
 ```
 
-`last_engaged_at` is the later of the outing start and its most recent item
-completion. Outings order by `(last_engaged_at DESC, user_field_trip_id)` and
-targets order by `(sort_order, item_id)`. Only unfinished targets from the
+`last_engaged_at` is the later of the field trip start and its most recent item
+completion. Field trips order by `(last_engaged_at DESC, user_field_trip_id)`
+and targets order by `(sort_order, item_id)`. Only unfinished targets from the
 current unlocked level are returned. An eligible account with no remaining
 targets receives `{ "data": [] }`.
 
@@ -105,15 +111,19 @@ Returns active templates, access state, levels, checklist items, and the
 requesting user's active progress. V2 catalog rows may include
 `cover_image_url`, `estimated_duration_minutes`, `guide_where_to_look`,
 `guide_why_it_matters`, `guide_safety_ethics`, and item-level `guide_tip`
-values.
+values. Completed checklist items include the private `completed_scan_id` so
+first-party clients can show the owner's scan thumbnail and reopen its insight.
+This field is not included in public Field trip publication snapshots. Catalog
+and template-detail RPC execution is restricted to `service_role`; the Edge
+Function supplies the verified caller ID.
 
 ```json
 { "action": "template_detail", "template_id": "uuid" }
 ```
 
 Returns one template detail payload with guide fields, levels, checklist tips,
-access state, and viewer progress. `slug` may be supplied instead of
-`template_id`.
+access state, viewer progress, and the same private `completed_scan_id` on
+completed checklist items. `slug` may be supplied instead of `template_id`.
 
 ```json
 { "action": "start", "template_id": "uuid" }
@@ -138,7 +148,7 @@ eligible trips as a fallback.
 }
 ```
 
-Returns published completed Field Trips for the Field Trips `Community` segment.
+Returns published completed Field trips for the Field trips `Community` segment.
 `mode` accepts `smart`, `following`, or `recent`. `smart` ranks by
 followed-author plus local/template relevance, followed author, local/habitat/
 season match, global fallback, then other visible fallback. Within each bucket,
@@ -163,10 +173,14 @@ filters results for template-detail Community previews.
 { "action": "apply_scan_progress", "scan_id": "uuid" }
 ```
 
-Applies the Field Trip progress rules for one saved scan. The backing RPC only
+Applies the Field trip progress rules for one saved scan. The backing RPC only
 counts scans owned by the caller, only after a trip starts, and only for the
 current unlocked level. V4 also updates joined live challenge progress for the
 same scan when the scan was created after `joined_at` and before `ends_at`.
+Eligibility is independent of photo/video modality once the biological scan is
+saved. One scan can complete every matching current-level item across multiple
+eligible standard outings, and independently in joined live challenges; all
+created completion rows retain the same scan ID.
 
 Returns:
 
@@ -206,7 +220,7 @@ summary.
 `challenge_detail` returns one challenge with linked template guide context,
 viewer progress, aggregate counts, badge state, and initial published entries.
 `join_challenge` is explicit and idempotent for a live accessible challenge; it
-starts or continues the linked Field Trip and creates/returns separate challenge
+starts or continues the linked Field trip and creates/returns separate challenge
 participation.
 
 ```json
@@ -237,7 +251,7 @@ Paginates visible published challenge entries by
 { "action": "create_challenge_entry_comment", "entry_id": "uuid", "body": "Nice finds!" }
 ```
 
-Challenge entries are separate snapshots from normal Field Trip publications.
+Challenge entries are separate snapshots from normal Field trip publications.
 Their likes and comments use challenge-specific tables and never write Explore
 post interaction tables.
 
@@ -245,7 +259,7 @@ post interaction tables.
 { "action": "profile_summaries", "author_user_id": "uuid", "limit": 6 }
 ```
 
-Returns active, pinned, and published Field Trip summaries visible to the
+Returns active, pinned, and published Field trip summaries visible to the
 requester. Active summaries are checklist-status only and must not include scan
 IDs, media, field notes, or location details. Pinned summaries are capped at 3
 and are omitted from the general `published` list.
@@ -254,7 +268,7 @@ and are omitted from the general `published` list.
 { "action": "set_pinned_publications", "publication_ids": ["uuid"] }
 ```
 
-Replaces the caller's profile-pinned published Field Trips and returns refreshed
+Replaces the caller's profile-pinned published Field trips and returns refreshed
 profile summaries. The list is capped at 3 publication IDs.
 
 ```json
@@ -267,7 +281,7 @@ profile summaries. The list is capped at 3 publication IDs.
 }
 ```
 
-Publishes a completed Field Trip into Field Trip snapshot tables. This does not
+Publishes a completed Field trip into Field trip snapshot tables. This does not
 write `explore_posts`, Explore map points, normal Explore post notifications,
 APNs, widgets, or public web share pages.
 
@@ -278,7 +292,7 @@ APNs, widgets, or public web share pages.
 { "action": "create_comment", "publication_id": "uuid", "body": "Nice finds!" }
 ```
 
-Published pages use Field Trip likes and comments stored separately from Explore
+Published pages use Field trip likes and comments stored separately from Explore
 post likes and comments. `comments` also accepts the paired cursor fields
 `after_created_at` and `after_comment_id`; both must be supplied together.
 `create_comment` accepts an optional `parent_comment_id` for one-level replies
@@ -315,7 +329,7 @@ MerianNetworkClient.shared.createFieldTripComment(publicationId:body:parentComme
 MerianNetworkClient.shared.createFieldTripChallengeEntryComment(entryId:body:parentCommentId:)
 ```
 
-Scan-progress callers are best effort. A failed Field Trip progress call must
+Scan-progress callers are best effort. A failed Field trip progress call must
 not fail scan persistence.
 
 ## Deployment Order
@@ -327,13 +341,15 @@ not fail scan persistence.
 5. Apply `20260717150222_contextual_outing_objective_guides.sql`.
 6. Apply `20260717195751_active_outing_capture_context.sql`.
 7. Apply `20260717213641_preserve_standard_outings_in_capture_context.sql`.
-8. Deploy this function.
-9. Deploy `get-explore-author-profile` so profile responses include
+8. Apply `20260717224544_retire_forest_edges_outing.sql`.
+9. Apply `20260718043218_expose_field_trip_completion_scan_ids.sql`.
+10. Deploy this function.
+11. Deploy `get-explore-author-profile` so profile responses include
    `field_trips`.
-10. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
-    and `mark-explore-notifications-read` so Field Trip activity appears in the
+12. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+    and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-11. Ship the iOS client.
+13. Ship the iOS client.
 
 ## Verification
 
@@ -349,3 +365,8 @@ The capture-context database integration test requires a running local
 Supabase/Postgres stack. A reported skip because port `54322` is unavailable is
 not a successful database execution and must be covered before release or by the
 linked deployment validation path.
+
+The static migration contract also verifies that both private checklist RPCs
+project `completed_scan_id` and grant execution only to `service_role`. Release
+QA must compare the returned ID to `user_field_trip_item_completions.scan_id`
+and confirm public/capture payloads still omit it.

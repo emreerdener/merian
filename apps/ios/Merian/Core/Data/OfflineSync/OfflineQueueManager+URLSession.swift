@@ -741,7 +741,7 @@ extension OfflineQueueManager {
                             }
                         }
                     } catch {
-                        MerianLog.data.debug("Field Trip progress update failed: \(error, privacy: .private)")
+                        MerianLog.data.debug("Field trip progress update failed: \(error, privacy: .private)")
                     }
                 }
 

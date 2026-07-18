@@ -1,25 +1,25 @@
-# Field Trips
+# Field trips
 
-Field Trips are Explore-adjacent checklist quests for finding species and
+Field trips are Explore-adjacent checklist quests for finding species and
 ecological categories in a neighborhood, park, state, national park, or other
 regional environment. They are separate from low-power Expedition Mode, which is
 only a camera/performance setting.
 
 ## Current Scope
 
-- Field Trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
-- The Field Trips surface has two page-header segments: `Field Trips` first by
-  default for the base template catalog and `Seasonal` second for live and
-  upcoming curated challenges.
-- Standard Field Trip and Seasonal Challenge detail pages pin `Objectives` and
-  `Tips` in the sheet toolbar. `Objectives` is selected by default and owns the
+- Field trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
+- The Field trips surface has two page-header segments: `Outings` first by default
+  for standard outings and `Events` second for live and upcoming curated
+  challenges.
+- Standard Field trip and Seasonal Challenge detail pages pin `Goals` and
+  `Tips` in the sheet toolbar. `Goals` is selected by default and owns the
   trip overview, progress, actions, checklist, and Community content; `Tips`
   shows only the curated guide.
-- Seasonal challenges are curated/admin-created only, live inside Field Trips,
+- Seasonal challenges are curated/admin-created only, live inside Field trips,
   and require an explicit Join.
-- Challenges link to existing Field Trip templates but keep separate
+- Challenges link to existing Field trip templates but keep separate
   participation, item-completion, badge, entry, like, and comment storage so a
-  seasonal challenge can repeat without corrupting normal Field Trip progress or
+  seasonal challenge can repeat without corrupting normal Field trip progress or
   publications.
 - Templates are curated in Supabase with region, season, habitat, difficulty,
   rotating-free, Pro access tags, cover images, estimated duration, and curated
@@ -27,28 +27,57 @@ only a camera/performance setting.
 - Checklist items can include curated item-level tips. V4 does not generate
   pre-trip guidance with AI.
 - While the idle visual Scan page is visible, a compact active-target indicator
-  can surface unfinished objectives from every active standard Field Trip.
+  can surface unfinished goals from every active standard outing.
   Seasonal Challenge labels and challenge-specific progress are intentionally
   excluded from this first capture integration. Joining a challenge does not
-  hide the linked standard outing or its normal Field Trip progress.
-- Users can explicitly start a Field Trip from the template detail page before
+  hide the linked standard outing or its normal progress.
+- Users can explicitly start an outing from the template detail page before
   their first matching scan.
-- Levels unlock sequentially. A scan can complete an item only after the user
-  has started that Field Trip.
-- New scans can auto-start an eligible Field Trip when the scan matches a
-  current-level item.
+- Levels unlock sequentially. Every completion belongs to a started
+  `user_field_trips` row. For an eligible unstarted outing, the first matching
+  scan starts the outing at that scan's timestamp and can complete its matching
+  current-level goal in the same server transaction.
 - A checklist item can match by species, scientific name, taxonomy, ecology,
   habitat text, or dictionary group tag.
 - AI matches and later user confirmations/corrections both call the progress
   updater.
-- Field Trip comments and likes are separate from Explore post comments and
+- Completed standard-outing goals replace their curated artwork with the
+  completing scan's device-local photo or video-poster thumbnail in both the
+  catalog card and outing detail. They keep the standard neutral tile border;
+  blue/accent borders are reserved for an incomplete focused goal.
+- The active level header uses the shared circular `GoalProgressRing` at its
+  trailing edge, showing completed/total outing progress consistently with
+  the Scan target capsule.
+- Tapping a completed goal with locally available evidence opens that scan's
+  Insight view in the existing Explore navigation stack. Back returns to the
+  outing without presenting another sheet.
+- Field trip comments and likes are separate from Explore post comments and
   likes, even though the iOS UI reuses the compact Explore comment presentation.
-- V4 supports profile showcase, up to 3 pinned published Field Trips, completion
-  badges for challenges, published Field Trip pages, challenge entry pages,
-  template-detail Community previews, and Field Trips-native publication APIs.
+- V4 supports profile showcase, up to 3 pinned published Field trips, completion
+  badges for challenges, published Field trip pages, challenge entry pages,
+  template-detail Community previews, and Field trips-native publication APIs.
   It does not create Explore feed posts, map points, public web share pages,
   APNs, widgets, leaderboards, prizes, rankings, contest windows, or
   sponsored-trip eligibility.
+
+## Product Terminology
+
+These labels are a user-facing contract even though older internal symbols and
+migration filenames may still use `objective` or `challenge`:
+
+- **Field trips** is the feature name.
+- **Outings** is the standard catalog segment; a standard item is an **outing**.
+- **Events** is the seasonal segment. **Challenge** is reserved for seasonal
+  challenge data and explanatory copy inside an Event.
+- **Goals** is the default detail tab and the user-facing name for checklist
+  targets. Never label this tab **Objectives**.
+- **Tips** is the curated-guide tab.
+- Standard-outing actions are **Start outing**, **Start scanning**,
+  and **Publish outing**. Never use **Start challenge** or
+  **Publish challenge** for a standard outing.
+- The Scan capsule remains the action-oriented **Look for: {target}**, not
+  **Goal: {target}**. “Goal” names the object; “Look for” tells the user what to
+  do while the camera is open.
 
 ## Difficulty
 
@@ -56,11 +85,11 @@ Difficulty is manually curated template metadata rather than a value calculated
 from duration, checklist size, completion data, user behavior, or access tier:
 
 - `Starter`: onboarding-oriented with familiar, commonly available targets.
-- `Easy`: a focused trip reasonably completed in one ordinary outing.
+- `Easy`: a focused trip reasonably completed in one ordinary field trip.
 - `Moderate`: requires a specific habitat, longer effort, or subtler targets.
-- `Hard`: specialized, time-dependent, or likely to require multiple outings.
+- `Hard`: specialized, time-dependent, or likely to require multiple field trips.
 
-The standard Field Trips catalog shows single-select `All`, `Starter`, `Easy`,
+The standard Field trips catalog shows single-select `All`, `Starter`, `Easy`,
 `Moderate`, and `Hard` pills and filters the loaded catalog locally without
 changing server ordering or refetching. All levels remain available even when a
 level has no current trips. Seasonal Challenges are not difficulty-filtered.
@@ -68,21 +97,22 @@ Rotating-free and Pro access rules never affect a template's difficulty.
 
 ## Product Flow
 
-1. A signed-in or ghost user opens Explore -> Field Trips. The base `Field Trips`
-   tab loads first; `Seasonal` separately lists live and upcoming challenges.
+1. A signed-in or ghost user opens Explore -> Field trips. The `Outings` segment
+   loads first; `Events` separately lists live and upcoming challenges.
 2. `/field-trips` with `action: "catalog"` returns accessible and locked
    templates, their levels, checklist items, and any existing progress.
 3. Opening a catalog card loads `action: "template_detail"` and shows guide
    sections, levels, curated item tips, and the current start/continue/publish
    state.
-4. Tapping Start calls `action: "start"`. Auto-start from matching scans remains
-   as a fallback.
+4. Tapping **Start outing** calls `action: "start"`. Auto-start from matching
+   scans remains as a fallback. Standard outings never use Start/Publish
+   Challenge copy; that language is reserved for Seasonal Events.
 5. The idle visual Scan page loads `action: "capture_context"` without blocking
-   the camera. When unfinished standard objectives exist, an instructional
+   the camera. When unfinished standard goals exist, an instructional
    `Look for: {target}` label is shown beneath the capture-mode picker with its
    outing title and aggregate level progress.
 6. Swiping the indicator cycles through all unfinished targets in server order;
-   tapping it opens the owning outing and focuses that objective's guide.
+   tapping it opens the owning outing and focuses that goal's guide.
 7. A new scan or later confirmed/corrected identification calls
    `action: "apply_scan_progress"` with the saved scan ID.
 8. The backend verifies scan ownership, compares the scan against the current
@@ -90,9 +120,15 @@ Rotating-free and Pro access rules never affect a template's difficulty.
    returns newly completed items.
 9. iOS shows a short progress toast and immediately invalidates the capture
    target context so a completed selection advances naturally.
-10. Once all levels are complete, the user may publish a Field Trip snapshot
+10. Catalog and detail reloads associate each completed checklist item with the
+    exact saved scan that completed it. iOS replaces that item's artwork with
+    the scan thumbnail; completion order never determines which slot changes.
+11. Tapping a completed goal whose scan still exists on the device pushes the
+    existing Insight view inside Explore. The back arrow and swipe-back gesture
+    return to the same outing sheet.
+12. Once all levels are complete, **Publish outing** creates a Field trip snapshot
    with an editable title and optional description or AI summary.
-11. Published Field Trips appear on public profiles and template Community
+13. Published Field trips appear on public profiles and template Community
    previews. They open `FieldTripPublicationDetailView` with item cards,
    likes, comments, and author identity. Author taps open the existing Explore
    author-profile route.
@@ -100,7 +136,7 @@ Rotating-free and Pro access rules never affect a template's difficulty.
 ## Active Target on Scan
 
 The capture indicator is orientation and motivation, not a scan requirement.
-It never changes which Field Trip receives progress; the backend still matches
+It never changes which outing receives progress; the backend still matches
 every saved scan against eligible active trips.
 
 The canonical source-agnostic ownership, caching, navigation, security, and
@@ -109,18 +145,18 @@ future-source decision is
 
 Presentation contract:
 
-- Show only when Field Trips are enabled, Scan/visual mode is selected, a real
+- Show only when Field trips are enabled, Scan/visual mode is selected, a real
   target exists, the local `showsCaptureGoalProgress` preference is enabled, the
   staged-capture tray is empty, refinement is inactive, and video is not
   recording.
 - Show no loading placeholder when there is no cached context. Camera startup
   and capture remain independent from this request.
 - Render beneath `MediaModeToggle` at the same visual width, with a minimum
-  56-point height and 36-point bundled objective artwork. On iOS 26 and later
+  56-point height and 36-point bundled goal artwork. On iOS 26 and later
   the untinted capsule uses interactive native Liquid Glass; earlier supported
   versions use a neutral material fallback. Foreground styles remain semantic
   so system contrast adapts to the camera scene and accessibility settings.
-  Unknown objectives use a neutral binoculars symbol; they must not borrow
+  Unknown goals use a neutral binoculars symbol; they must not borrow
   semantically incorrect art.
 - Center the instructional `Look for: {target}` prompt and outing title between
   equal 40-point edge slots. Preserve the curated target text exactly; the
@@ -138,7 +174,7 @@ Presentation contract:
   Reduced Motion removes the selection animation, and VoiceOver exposes
   `Outing target. Look for {target}.`, the outing title and progress, plus
   adjustable previous/next actions.
-- Settings > Capture exposes an on-by-default **Outing progress** toggle. Turning
+- Settings > Capture exposes an on-by-default **Field trip goals** toggle. Turning
   it off removes the entire target capsule from Scan without changing outing
   progress, cached goal context, or server state.
 
@@ -152,7 +188,7 @@ successful generic payload, selection, and refresh date are stored in a
 versioned `UserDefaults` cache under an account-specific key. Switching Supabase
 accounts clears the in-memory state before reading that account's cache.
 
-Capture must not import Field Trip response DTOs, reconstruct access/unlock
+Capture must not import Field trip response DTOs, reconstruct access/unlock
 rules, or know Explore's internal route fields. New goal-producing features add
 an explicit `CaptureGoalSourceKind`, a `CaptureGoalContextProviding` adapter,
 and a compiler-checked `CaptureGoalDestination` case. The backend or provider
@@ -168,16 +204,16 @@ Refresh behavior:
 - force refresh asynchronously when Capture first appears;
 - refresh after five stale minutes when the app returns to the foreground or
   the user returns to visual Scan;
-- force refresh after Field Trip start/join, standard progress events, account
+- force refresh after outing start/join, standard progress events, account
   changes, and explicit scanner-routing events;
 - coalesce overlapping invalidations into one follow-up refresh; and
 - retain cached content without surfacing an error if refresh fails.
 
 Tapping the indicator passes its typed `CaptureGoalDestination` into Explore.
-Explore presents the Field Trips tab, opens the owning standard outing, selects
-Tips, expands the matching objective, scrolls it into view, and briefly
-highlights it. A future objective without guide content falls back to the
-highlighted Objectives tile. The destination is converted at the Explore
+Explore presents the Field trips tab, opens the owning standard outing, selects
+Tips, expands the matching goal, scrolls it into view, and briefly
+highlights it. A future goal without guide content falls back to the
+highlighted Goals tile. The destination is converted at the Explore
 boundary into `FieldTripTemplateRoute`, whose focused checklist-item identifier
 remains optional for ordinary outing navigation.
 
@@ -190,10 +226,10 @@ remains optional for ordinary outing navigation.
    guide context, schedule, aggregate counts, viewer progress, completion badge
    state, and initial published entries.
 3. Tapping Join calls `action: "join_challenge"`. The backend starts or
-   continues the linked Field Trip, then creates or returns the separate
+   continues the linked Field trip, then creates or returns the separate
    challenge participation row.
 4. New scans after `joined_at` and before `ends_at` can complete items for the
-   current challenge level. Normal Field Trip progress continues independently.
+   current challenge level. Normal Field trip progress continues independently.
 5. Completing all challenge levels awards a profile-visible badge that exposes
    no private evidence.
 6. A completed participant may publish a challenge entry snapshot. Challenge
@@ -210,6 +246,13 @@ remains optional for ordinary outing navigation.
 - Only scans created at or after `user_field_trips.started_at` can count.
 - Matching is limited to the current unlocked level. Later levels cannot fill
   early.
+- Eligibility is media-kind agnostic after a scan is saved and has a resolved
+  biological identification. A qualifying photo or video can count; the
+  camera-only active-target capsule does not restrict progress eligibility.
+- One scan is evaluated against every matching item in the current unlocked
+  level and every eligible active standard outing. The same scan may therefore
+  complete more than one `Bird` goal at the same time, and each completion row
+  links back to that same scan ID.
 - A checklist item can complete once. Reprocessing the same scan is idempotent.
 - A level unlocks only when all items in the current level are complete.
 - A trip completes when all levels and checklist items are complete.
@@ -224,15 +267,19 @@ remains optional for ordinary outing navigation.
   and at or before `field_trip_challenges.ends_at` can count.
 - Matching is limited to the participant's current challenge level. Later
   challenge levels cannot fill early.
+- One qualifying scan can complete every matching item in that current
+  challenge level. The same saved scan may also satisfy matching items in
+  eligible standard outings; challenge and standard completion rows remain
+  separate even when they reference the same scan.
 - Challenge item completions are keyed by participation and checklist item; they
-  do not retroactively satisfy or overwrite normal Field Trip item completions.
+  do not retroactively satisfy or overwrite normal Field trip item completions.
 - Reprocessing the same scan is idempotent.
 - The badge award is server-authoritative and occurs only after challenge
   completion.
 
 ## Privacy Model
 
-Active Field Trip progress is visible on public profiles by default, but it is
+Active Field trip progress is visible on public profiles by default, but it is
 status-only:
 
 - template title
@@ -244,36 +291,46 @@ status-only:
 Active profile summaries must not expose scan IDs, media URLs, field notes,
 exact coordinates, public location labels, or private evidence details.
 
-The Scan capture-context payload is even narrower: it contains only outing and
+The authenticated `catalog` and `template_detail` responses are a separate,
+private viewer-specific read model. A completed standard checklist item may
+include `completed_scan_id`, but it never includes a media URL. iOS uses the ID
+only to find the caller's device-local `LocalScanRecord` and render the same
+`ScanThumbnail` used elsewhere. If that record is unavailable on the device,
+the curated artwork remains and the app must not construct a remote or public
+evidence URL. `completed_scan_id` must not appear in public profile summaries,
+publication snapshots, challenge badges or entries, Explore feed/map payloads,
+or the capture-context response.
+
+The Scan capture-context payload is even narrower: it contains only field trip and
 template identifiers, title/slug, current-level metadata, aggregate counts, and
 unfinished item identifiers/prompts/order/guide availability. It must never
 return scan IDs, media, coordinates, location labels, field notes, completed
 species names, or completion evidence. Seasonal Challenge-specific progress is
-excluded; the shared underlying standard outing remains eligible.
+excluded; the shared underlying standard field trip remains eligible.
 
-Published Field Trip pages are explicit snapshots stored separately from
+Published Field trip pages are explicit snapshots stored separately from
 Explore posts. Publication items may include species names, taxonomy, reference
-images, and selected scan media snapshots, but publishing a Field Trip does not
+images, and selected scan media snapshots, but publishing a Field trip does not
 create Explore feed posts, Explore map points, normal Explore post
-notifications, APNs, widgets, or public web pages. Field Trip-only in-app
+notifications, APNs, widgets, or public web pages. Field trip-only in-app
 activity rows for comments, replies, and followed-author publications may
 appear in Explore activity and increment the bell, but they never fan out to
 push delivery.
 
 Public author profiles can be discoverable through either visible Explore posts
-or visible Field Trip surfaces. Field Trip discoverability still respects
+or visible Field trip surfaces. Field trip discoverability still respects
 shadowbans and mutual blocks.
 
 Challenge participation exposes only aggregate counts unless the user
 explicitly publishes a challenge entry or displays a completion badge. Badges do
 not expose scan IDs, media URLs, exact locations, field notes, or private
-evidence. Challenge entries are public snapshots scoped to Field Trips; they do
+evidence. Challenge entries are public snapshots scoped to Field trips; they do
 not create Explore posts, Explore map rows, APNs, widgets, public web pages, or
 automatic Explore hashtags.
 
 ## Backend
 
-Field Trip storage is created by
+Field trip storage is created by
 `services/supabase/migrations/20260708021110_field_trips_v1.sql`, extended by
 `services/supabase/migrations/20260708033451_field_trips_v2.sql`, and expanded
 for Community discovery by
@@ -284,10 +341,14 @@ Structured objective guidance is added by
 `services/supabase/migrations/20260717150222_contextual_outing_objective_guides.sql`.
 The private capture read model is added by
 `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`,
-and its standard-outing behavior after a challenge join is finalized by
+and its standard-field trip behavior after a challenge join is finalized by
 `services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`.
 The Forest Edges placeholder is retired without deleting historical data by
 `services/supabase/migrations/20260717224544_retire_forest_edges_outing.sql`.
+Private catalog/detail completion evidence links are added by
+`services/supabase/migrations/20260718043218_expose_field_trip_completion_scan_ids.sql`.
+That migration also restricts both RPCs to `service_role`; authenticated iOS
+clients continue to access them only through `/field-trips`.
 
 Core tables:
 
@@ -350,24 +411,26 @@ fields.
 Actions:
 
 - `capture_context`: returns the caller's incomplete, non-hidden, accessible
-  standard outings and unfinished current-level targets. Outings order by most
+  standard field trips and unfinished current-level targets. Field trips order by most
   recent start or item completion; targets retain curated checklist order. The
   RPC is revoked from `PUBLIC`, `anon`, and `authenticated`, and granted only to
   `service_role`; the authenticated Edge Function supplies the verified user
   ID.
 - `catalog`: returns active templates, gated access state, levels, checklist
-  items, and the viewer's progress.
+  items, and the viewer's progress. Completed standard items may include the
+  private `completed_scan_id` needed for device-local evidence thumbnails.
 - `template_detail`: returns one template with guide fields, levels, checklist
-  tips, access state, and viewer progress.
+  tips, access state, viewer progress, and the same optional private completion
+  scan ID.
 - `start`: explicitly starts or unhides the caller's progress row for an
   accessible template.
-- `community_publications`: returns visible published completed Field Trips for
+- `community_publications`: returns visible published completed Field trips for
   `smart`, `following`, or `recent` mode with optional template filtering and
   stable `(rank_bucket, published_at, publication_id)` pagination.
 - `recent_publications`: compatibility alias for `community_publications` with
   `mode: "recent"`.
 - `apply_scan_progress`: applies progress for one saved scan owned by the
-  caller. V4 keeps the existing `data` payload for normal Field Trip progress
+  caller. V4 keeps the existing `data` payload for normal Field trip progress
   and adds optional `challenge_updates` for joined live challenges.
 - `challenges_catalog`: returns curated seasonal challenges with viewer
   participation summary and aggregate counts.
@@ -375,7 +438,7 @@ Actions:
   schedule, suggested hashtags, viewer progress, aggregate counts, and initial
   published challenge entries.
 - `join_challenge`: explicitly joins a live accessible challenge and
-  starts/continues the linked Field Trip.
+  starts/continues the linked Field trip.
 - `challenge_publications`: paginates visible published challenge entries by
   `(published_at DESC, entry_id DESC)`.
 - `scan_challenge_hashtags`: returns normalized suggested challenge hashtags
@@ -390,16 +453,21 @@ Actions:
   one-level reply.
 - `profile_summaries`: returns active status-only and published summaries for a
   public profile, including a separate `pinned` list.
-- `set_pinned_publications`: replaces the caller's pinned published Field Trip
+- `set_pinned_publications`: replaces the caller's pinned published Field trip
   IDs, capped at 3.
-- `publish`: snapshots a completed trip into Field Trip publication tables.
+- `publish`: snapshots a completed trip into Field trip publication tables.
 - `detail`: returns a visible publication detail page.
-- `set_like`: idempotently sets the viewer's Field Trip like state.
-- `comments`: returns paginated Field Trip comments.
-- `create_comment`: creates a Field Trip comment or one-level reply.
+- `set_like`: idempotently sets the viewer's Field trip like state.
+- `comments`: returns paginated Field trip comments.
+- `create_comment`: creates a Field trip comment or one-level reply.
 
 See `services/supabase/functions/field-trips/README.md` and
 `docs/backend-and-data/05-api-contracts.md` for payload examples.
+
+The database RPCs behind `catalog` and `template_detail` are revoked from
+`PUBLIC`, `anon`, and `authenticated` and granted only to `service_role`. The
+authenticated Edge Function supplies the verified user ID, so callers cannot
+request another user's completion evidence.
 
 ## Access
 
@@ -491,9 +559,32 @@ MerianNetworkClient.shared.createFieldTripComment(publicationId:body:parentComme
 MerianNetworkClient.shared.createFieldTripChallengeEntryComment(entryId:body:parentCommentId:)
 ```
 
+`FieldTripChecklistItem.completedScanId` is optional for backward-compatible
+decoding. The catalog and detail surfaces resolve it to a caller-owned
+`LocalScanRecord`; they do not download media from the Field trips API. The
+outer catalog card and inner goal grid both use item-specific completion state,
+so a completed third slot replaces only the third slot rather than the first
+`completed_count` slots.
+
+`GoalProgressRing` is a Core UI primitive shared by the Scan target capsule and
+the active standard-outing level header. The level header passes the outing's
+completed and total counts; locked and non-active levels do not display the
+ring.
+
+Completed goal tiles render the captured scan full-bleed with a bottom metadata
+overlay and the ordinary neutral one-point border. Incomplete focused goals may
+still use the accent highlight. Tapping either completed thumbnail routes
+through `ExploreView` to `ScanInsightRoute`, loads the saved inference, and
+renders `InsightSheetView` with
+`InsightPresentationStyle.embeddedInScansLibrary`. The route stays in the
+existing Explore `NavigationStack`, exposing a back arrow and interactive back
+gesture instead of a nested sheet. If the local record is missing, the
+placeholder remains and the shell presents a non-destructive unavailable
+message rather than an empty Insight view.
+
 ## Community Ranking
 
-`For You` ranks visible published Field Trips in stable buckets:
+`For You` ranks visible published Field trips in stable buckets:
 
 1. followed author plus local/template relevance
 2. followed author
@@ -508,13 +599,13 @@ feed with `template_id` and a small limit for their preview section.
 
 ## Activity
 
-Field Trip comments, replies, and followed-author publications create rows in
+Field trip comments, replies, and followed-author publications create rows in
 `field_trip_activity_notifications`. These rows are read through
 `get_explore_notifications`, counted by `get_unread_explore_notification_count`,
 and marked through `mark_explore_notifications_read`. They are not stored in
 `explore_post_notifications`, do not call `send-push-notification`, and are
 deleted or hidden when relevant comments/publications are removed, authors are
-shadowbanned, or either user blocks the other. Field Trip likes intentionally do
+shadowbanned, or either user blocks the other. Field trip likes intentionally do
 not notify in V3/V4. Challenge joins, challenge entry likes, badges, and
 challenge progress updates do not notify other users in V4.
 
@@ -537,21 +628,26 @@ Deploy in this order:
 6. `20260717195751_active_outing_capture_context.sql`
 7. `20260717213641_preserve_standard_outings_in_capture_context.sql`
 8. `20260717224544_retire_forest_edges_outing.sql`
-9. `field-trips` Edge Function
-10. `get-explore-author-profile` so public profiles include Field Trip
+9. `20260718043218_expose_field_trip_completion_scan_ids.sql`
+10. `field-trips` Edge Function
+11. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-11. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+12. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-12. iOS client update
+13. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
 
-Rollback should disable the Explore Field Trips tab before removing backend
-state. Existing `user_field_trips` and publication rows are user data and
-should not be dropped casually after release. Placeholder outings should be
-retired through `field_trip_templates.is_active`, as Forest Edges is, rather
-than deleting their template graph.
+Rollback should revert the iOS thumbnail route before rolling back the evidence
+link migration. Because `completed_scan_id` is optional, older clients tolerate
+either database shape, and rolling back the migration does not delete completion
+rows. Do not restore direct `PUBLIC`, `anon`, or `authenticated` execution of
+the private catalog/detail RPCs. Existing `user_field_trips` and publication
+rows are user data and should not be dropped casually after release.
+Placeholder field trips should be retired through
+`field_trip_templates.is_active`, as Forest Edges is, rather than deleting their
+template graph.
 
 ## Verification
 
@@ -572,6 +668,7 @@ make xcodegen
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+  -only-testing:merianTests/FieldTripAPIModelsTests \
   -only-testing:merianTests/FieldTripCaptureContextModelsTests \
   -only-testing:merianTests/ActiveCaptureGoalStoreTests \
   -only-testing:merianTests/AppTelemetryTests test
@@ -581,7 +678,17 @@ The database integration test requires the local Supabase/Postgres stack. It
 reports a skip when `127.0.0.1:54322` is unavailable; a skip is not production
 database validation.
 
-Also verify that publishing a Field Trip appears on profiles, Field Trip-native
+For completion-evidence QA, complete a non-leading goal such as Cat and confirm
+that only Cat changes in both the catalog card and detail grid. Test both photo
+and video completions, confirm the captured thumbnail has the standard neutral
+border with no blue completion outline, and tap both surfaces to open the same
+embedded Insight view. Back must return to the current outing. A missing local
+record must leave the placeholder usable and must not show a blank Insight.
+At the database boundary, confirm catalog/detail return the completion row's
+exact `scan_id`, only `service_role` can execute their RPCs, and no public or
+capture-context payload contains `completed_scan_id`.
+
+Also verify that publishing a Field trip appears on profiles, Field trip-native
 preview/detail surfaces, and typed Observations Recent/Following cards without
 creating an `explore_posts` row. It must not create Explore map points, normal
 Explore post notifications, APNs, widgets, or public web share pages.
@@ -590,11 +697,11 @@ sheet and unread count.
 
 ## Explore Feed Presentation
 
-Published base Field Trips are mixed into the Observations feed as typed Field
-Trip cards for `Recent` and `Following`. They keep their Field Trip publication
+Published base Field trips are mixed into the Observations feed as typed Field
+Trip cards for `Recent` and `Following`. They keep their Field trip publication
 identity and open `FieldTripPublicationDetailView`, so likes, comments, author
 identity, and deletion semantics are not duplicated into `explore_posts`.
-Field Trips are intentionally absent from `Trending` and `Nearby` until those
+Field trips are intentionally absent from `Trending` and `Nearby` until those
 ranking and geoprivacy contracts are designed. Seasonal entry aggregation,
 cross-type cursor pagination, widget/APNs, and public-web presentation remain
 future work.

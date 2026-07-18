@@ -41,6 +41,22 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 
 ---
 
+## Embedded Field-trip Completion Route
+
+Completed standard-outing goals reuse the existing Insight surface instead of
+presenting a second sheet. The authenticated Field trips catalog/detail payload
+supplies an optional private `completed_scan_id`; `ExploreView` resolves that ID
+to a device-local `LocalScanRecord`, calls `InferenceEngine.load(from:)`, and
+appends `ScanInsightRoute` to its current `NavigationPath`.
+
+The destination constructs `InsightSheetView` with
+`InsightPresentationStyle.embeddedInScansLibrary`, disables another Explore
+presentation, hides the bottom tab bar, and uses the feature-local back arrow
+and interactive back gesture. Back returns to the existing outing detail and
+sheet state. No Field trips payload supplies or downloads media. If the local
+record cannot be found, Explore shows the non-destructive unavailable message
+and does not push an empty Insight route.
+
 ## Data Source
 
 `InsightSheetView` reads everything from `InferenceEngine.shared.speciesData` (a `SpeciesData` struct). It does NOT own a copy of the data — it observes the engine directly via `@Environment(InferenceEngine.self)`.
@@ -51,7 +67,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 
 For a live-camera still scan, `InferenceEngine` commits `speciesData` only after the
 response has parsed and the local scan/media write succeeds. It does so before
-award calculation or Field Trips. Field Trips remains gated on
+award calculation or Field trips. Field trips remain gated on
 `/check-scan-status` confirming server ingestion, and optional enrichment may
 fill cards later without blocking the initial result.
 

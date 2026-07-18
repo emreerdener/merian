@@ -69,6 +69,7 @@ Response:
               "guide_tip": "Wait for the insect to settle with wings visible.",
               "is_completed": true,
               "completed_at": "2026-07-08T12:05:00.000Z",
+              "completed_scan_id": "saved-scan-uuid",
               "completed_common_name": "Monarch",
               "completed_scientific_name": "Danaus plexippus"
             }
@@ -85,6 +86,22 @@ upgrade display. Pro users receive the full active catalog. The backend owns
 access decisions; iOS uses `viewer_has_access` and `access_kind` only for UI
 state.
 
+`completed_scan_id` is a private, viewer-specific link to the exact
+`user_field_trip_item_completions.scan_id` that satisfied the item. It is
+non-null only for completed standard-outing items; incomplete items return the
+key as `null`. The response deliberately does not add a media URL: iOS resolves
+the ID against the caller's device-local scan library and renders the normal photo or
+video-poster thumbnail. If that record is unavailable locally, clients retain
+the curated placeholder. Completion count or array position must never be used
+to infer which checklist items are complete.
+
+The catalog and template-detail RPCs are revoked from `PUBLIC`, `anon`, and
+`authenticated` and granted only to `service_role`. The authenticated
+`/field-trips` action supplies the verified `user.id`; a client cannot call the
+RPC directly or request another user's evidence. `completed_scan_id` is not
+projected into public profile summaries, publication or challenge snapshots,
+Explore feed/map contracts, or capture context.
+
 ### Template Detail and Explicit Start
 
 Template detail request:
@@ -97,8 +114,9 @@ Template detail request:
 ```
 
 `slug` may be sent instead of `template_id`. The response is one catalog-shaped
-template object with guide fields, levels, item tips, access state, and viewer
-progress.
+template object with guide fields, levels, item tips, access state, viewer
+progress, and the same optional private `completed_scan_id` for completed
+standard-outing items.
 
 Start request:
 
@@ -153,18 +171,18 @@ Response:
 ```
 
 This is a narrow read model for the idle visual Scan surface. It returns only
-active, incomplete, non-hidden standard Field Trips that the caller can access.
-For each outing it returns unfinished targets from the current unlocked level;
+active, incomplete, non-hidden standard Field trips that the caller can access.
+For each field trip it returns unfinished targets from the current unlocked level;
 completed targets and later levels are absent. Seasonal Challenge participation,
 labels, and challenge-specific completions are not projected. Joining a
 challenge reuses the underlying standard `user_field_trips` row, so that
-standard outing remains eligible and continues to show only its normal Field
+standard field trip remains eligible and continues to show only its normal Field
 Trip progress.
 
-Outings order by `last_engaged_at DESC`, where engagement is the later of the
+Field trips order by `last_engaged_at DESC`, where engagement is the later of the
 trip start and any item completion. `user_field_trip_id` is the stable tie
-breaker. Targets order by curated `(sort_order, item_id)`. Outings with no
-unfinished target are omitted, and an account with no eligible outings receives
+breaker. Targets order by curated `(sort_order, item_id)`. Field trips with no
+unfinished target are omitted, and an account with no eligible field trips receives
 `{ "data": [] }`.
 
 Privacy and authorization are deliberately stricter than the catalog contract:
@@ -241,9 +259,15 @@ Response:
 The backing RPC counts only scans owned by the caller, only after the Field
 Trip starts, and only against the current unlocked level. Matching accepts AI
 identifications and later user-confirmed/corrected identifications through the
-same scan row, then writes idempotent item completions.
+same scan row, then writes idempotent item completions. Eligibility is based on
+the saved biological scan, not its capture modality, so qualifying photos and
+videos can count. A single scan is evaluated against every matching current-
+level item in every eligible active standard outing; it may therefore satisfy
+two separate `Bird` goals at the same time, with both completion rows pointing
+to the same scan. Joined live challenges are evaluated independently and may
+also record matching current-level completions for that scan.
 
-V4 clients should continue reading `data` for normal Field Trip progress and
+V4 clients should continue reading `data` for normal Field trip progress and
 may read `challenge_updates` for joined live challenge progress. Older clients
 can ignore `challenge_updates`.
 
@@ -315,14 +339,14 @@ Detail and join requests:
 
 `challenge_detail` returns one challenge object with linked template guide
 context and initial entries. `join_challenge` requires a live accessible
-challenge, starts or continues the linked Field Trip, creates or returns the
+challenge, starts or continues the linked Field trip, creates or returns the
 separate participation row, and returns refreshed challenge detail. It is
 idempotent for repeated joins.
 
 Challenge progress is updated through `apply_scan_progress`. A scan counts only
 when it is owned by the caller, created at or after `joined_at`, created at or
 before `ends_at`, and matches the participant's current challenge level.
-Challenge completions are separate from normal Field Trip completions.
+Challenge completions are separate from normal Field trip completions.
 
 Challenge hashtag request:
 
@@ -355,7 +379,7 @@ Publication list request:
 ```
 
 Rows paginate by `(published_at DESC, entry_id DESC)` and use the same
-block/shadowban visibility rules as Field Trip publications. Challenge entries
+block/shadowban visibility rules as Field trip publications. Challenge entries
 are not `field_trip_publications` and do not create Explore posts.
 
 Publish/detail/like/comment requests:
@@ -376,7 +400,7 @@ Publish/detail/like/comment requests:
 Publishing requires a completed challenge participation and snapshots challenge
 item completions into `field_trip_challenge_entry_items`. Challenge entry likes
 and comments are stored in challenge-specific tables, not Explore or normal
-Field Trip publication tables. Joins, likes, badges, and progress updates do
+Field trip publication tables. Joins, likes, badges, and progress updates do
 not notify other users in V4.
 
 ### Profile Summaries
@@ -465,7 +489,7 @@ Response:
 
 Active summaries are profile-status only. They must not expose scan IDs, media
 URLs, field notes, exact coordinates, public location labels, or private
-evidence. Published summaries expose only Field Trip publication IDs and
+evidence. Published summaries expose only Field trip publication IDs and
 snapshot metadata. `pinned` is capped at 3 and omitted from the general
 `published` list. Shadowbanned authors and mutual blocks are excluded.
 Challenge badges are lightweight profile rewards only; they expose no scan IDs,
@@ -482,7 +506,7 @@ Set pinned publications request:
 
 The response is the refreshed profile summaries payload. The endpoint replaces
 the caller's pin list, preserves the supplied order, rejects more than 3 IDs,
-and accepts only the caller's visible Field Trip publications.
+and accepts only the caller's visible Field trip publications.
 
 ### Community Publications
 
@@ -544,7 +568,7 @@ followed author, local/habitat/season/template match, global/no-region
 fallback, then other visible fallback. Within each bucket, rows order by
 `published_at DESC, publication_id DESC`. `following` filters to existing
 `user_follows` relationships. `recent` is reverse chronological for all visible
-published Field Trips. `template_id` limits results for template-detail
+published Field trips. `template_id` limits results for template-detail
 Community previews.
 
 Pagination is stable on
@@ -567,10 +591,10 @@ Compatibility request:
 `recent_publications` is a compatibility alias for
 `community_publications` with `mode: "recent"`.
 
-Community Publications is Field Trips-native and never creates Explore post
-rows. The iOS client also reuses this action to mix typed Field Trip cards into
-unfiltered Explore Recent and Following. Those cards retain Field Trip identity
-and interactions. Field Trips remain absent from Trending, Nearby, map, widgets,
+Community Publications is Field trips-native and never creates Explore post
+rows. The iOS client also reuses this action to mix typed Field trip cards into
+unfiltered Explore Recent and Following. Those cards retain Field trip identity
+and interactions. Field trips remain absent from Trending, Nearby, map, widgets,
 APNs, and public web share surfaces.
 
 ### Publication Detail, Likes, and Comments
@@ -669,16 +693,16 @@ Create-comment request:
 }
 ```
 
-Field Trip likes and comments are stored in
+Field trip likes and comments are stored in
 `field_trip_publication_likes` and `field_trip_publication_comments`, not in
 Explore post tables. Comment payloads intentionally mirror the compact
-`ExploreComment` shape for iOS reuse, with `post_id` carrying the Field Trip
+`ExploreComment` shape for iOS reuse, with `post_id` carrying the Field trip
 publication ID inside this scoped endpoint.
 
-Publishing a Field Trip never writes `explore_posts`, Explore feed cards,
+Publishing a Field trip never writes `explore_posts`, Explore feed cards,
 Explore map rows, normal Explore post notifications, APNs, widgets, or public
-web share pages. Field Trip comments, replies, and followed-author publications
-may create Field Trip-only in-app activity rows that appear in Explore activity
+web share pages. Field trip comments, replies, and followed-author publications
+may create Field trip-only in-app activity rows that appear in Explore activity
 and the unread bell. Sharing is a future layer.
 
 ---
@@ -3534,7 +3558,7 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
 - Community Identification notifications include `community_request_id` plus
   display fields for the current or resolved taxon, and the client routes them
   to the Community request detail instead of regular post detail.
-- Field Trip activity notifications include `field_trip_publication_id`; the
+- Field trip activity notifications include `field_trip_publication_id`; the
   client routes them to `FieldTripPublicationDetailView`.
 - Pagination is cursor-based on `(updated_at DESC, notification_id DESC)`.
   Follow-up page requests send:
@@ -3653,7 +3677,7 @@ Current response shape:
       "reaction_emoji": null,
       "triggering_user_id": "uuid",
       "triggering_user_name": "User T",
-      "comment_body": "Great Field Trip.",
+      "comment_body": "Great Field trip.",
       "recent_actor_names": [],
       "action_count": 1,
       "is_read": false,
@@ -3681,14 +3705,14 @@ Current response shape:
 }
 ```
 
-`post_id` is nullable because follow notifications and Field Trip activity are
-not Explore-post-backed. Field Trip activity rows include
+`post_id` is nullable because follow notifications and Field trip activity are
+not Explore-post-backed. Field trip activity rows include
 `field_trip_publication_id` and route to `FieldTripPublicationDetailView`; follow
 rows remain informational and do not attempt post navigation.
 
 ### `/get-explore-unread-notification-count`
 
-Returns the unread bell badge count for visible Explore and Field Trip in-app
+Returns the unread bell badge count for visible Explore and Field trip in-app
 activity notifications:
 
 ```json

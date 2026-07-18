@@ -56,7 +56,8 @@ struct FieldTripAPIModelsTests {
                       "is_completed": true,
                       "completed_at": "2026-07-08T00:10:00Z",
                       "completed_common_name": "Northern Cardinal",
-                      "completed_scientific_name": "Cardinalis cardinalis"
+                      "completed_scientific_name": "Cardinalis cardinalis",
+                      "completed_scan_id": "scan-1"
                     }
                   ]
                 }
@@ -80,6 +81,7 @@ struct FieldTripAPIModelsTests {
         #expect(response.data[0].levels[0].items[0].hasGuide)
         #expect(response.data[0].levels[0].items[0].guidePreview == "Check shrubs, feeders, and tree canopies.")
         #expect(response.data[0].levels[0].items[0].completedCommonName == "Northern Cardinal")
+        #expect(response.data[0].levels[0].items[0].completedScanId == "scan-1")
     }
 
     @Test func checklistItemUsesLegacyGuideTipAsFallback() {
@@ -92,7 +94,8 @@ struct FieldTripAPIModelsTests {
             isCompleted: false,
             completedAt: nil,
             completedCommonName: nil,
-            completedScientificName: nil
+            completedScientificName: nil,
+            completedScanId: nil
         )
 
         #expect(item.hasGuide)
@@ -547,6 +550,11 @@ struct FieldTripCaptureContextModelsTests {
 
 @MainActor
 struct ActiveCaptureGoalStoreTests {
+    @Test func fieldTripsUsesOutingsAndEventsFeatureLabels() {
+        #expect(FieldTripsSection.fieldTrips.title == "Outings")
+        #expect(FieldTripsSection.seasonal.title == "Events")
+    }
+
     @Test func fieldTripProviderFlattensServerOrderIntoGenericGoals() async throws {
         let outings = [
             makeOuting(id: "recent", targetIds: ["butterfly", "bird"]),
@@ -562,7 +570,7 @@ struct ActiveCaptureGoalStoreTests {
             "field_trip:cat"
         ])
         #expect(goals[0].source.kind == .fieldTrip)
-        #expect(goals[0].source.title == "Outing recent")
+        #expect(goals[0].source.title == "Field trip recent")
         #expect(goals[0].destination == .fieldTrip(
             templateId: "template-recent",
             checklistItemId: "butterfly"
@@ -786,7 +794,7 @@ struct ActiveCaptureGoalStoreTests {
             userFieldTripId: id,
             templateId: "template-\(id)",
             templateSlug: "backyard_safari",
-            outingTitle: "Outing \(id)",
+            outingTitle: "Field trip \(id)",
             lastEngagedAt: "2026-07-17T18:00:00Z",
             levelNumber: 1,
             levelTitle: "Level 1",

@@ -322,7 +322,7 @@ triggering excessive SwiftUI view rebuilds.
   Analyze-tap timestamp, commits persisted media and parsed `speciesData`
   immediately, and measures the response-to-state boundary. A one-shot UIKit
   draw probe in `InsightSheetView` closes tap-to-first-render timing on the first
-  actual result frame. Award calculation and Field Trips run in a follow-up task. Field
+  actual result frame. Award calculation and Field trips run in a follow-up task. Field
   Trips polls `/check-scan-status` before invoking its remote progress endpoint,
   so tools requiring server persistence stay disabled until the existing
   ingestion ledger confirms the scan.
@@ -786,7 +786,7 @@ triggering excessive SwiftUI view rebuilds.
 | `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                        |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors. |
 | `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                               |
-| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. Settings controls whether `CaptureWorkspaceView` presents the active outing target capsule; default `true`.                                           |
+| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule; default `true`.                    |
 | `legacyMultiImageScanMode`             | `"multiImageScanMode"`                   | one-time migration in `MerianApp`                                                                                                                                                   |
 | `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"` | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                         |
 | `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`             | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                              |

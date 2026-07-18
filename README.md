@@ -46,7 +46,7 @@ steps are tracked in the
   durable local queue accepts the scan. WeatherKit/reverse geocoding receive a 150 ms grace period,
   late context is patched without re-identifying, and the live request hands the
   uplink to background recovery after its body finishes sending. Parsed and
-  persisted results render before awards, Field Trips, or cache-miss enrichment.
+  persisted results render before awards, Field trips, or cache-miss enrichment.
   Gallery, audio-bearing, and video submissions retain their existing context
   and upload behavior in this first optimization pass, while receiving timing
   instrumentation.
@@ -79,16 +79,19 @@ steps are tracked in the
 - Share/unshare scans to Explore with optional public hashtags and a selectable
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
-- Field Trips are currently an internal preview visible only to
+- Field trips are currently an internal preview visible only to
   `erdener.emre@gmail.com` and simulator builds. The preview adds guided regional checklist quests beside Explore, with
-  Available and Community segments, explicit start, curated tips, profile pins,
-  following-weighted Community discovery, seasonal non-competitive challenges,
-  completion badges, optional challenge hashtag suggestions, and a compact
-  account-cached visual Scan target that opens the relevant outing guide.
-  Publication storage stays separate from Explore posts; typed Field Trip cards
+  Outings and Events segments, Goals/Tips detail, explicit start, curated tips,
+  profile pins, following-weighted Community discovery, seasonal
+  non-competitive challenges, completion badges, optional challenge hashtag
+  suggestions, and a compact account-cached visual Scan target that opens the
+  relevant field trip guide. The active level shows a circular progress ring;
+  completed standard goals use the exact device-local scan thumbnail and open
+  that Insight inside the same Explore sheet when the record is available.
+  Publication storage stays separate from Explore posts; typed Field trip cards
   can appear in unfiltered Recent and Following, but not in Explore maps or the
   other post-only surfaces. Seasonal Challenge-specific targets are not included
-  in the Scan indicator, while their linked standard outing remains eligible.
+  in the Scan indicator, while their linked standard field trip remains eligible.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support image, short-video, and standalone-audio media snapshots.
 - Compact Explore/profile grids render standalone-audio posts with the species
@@ -119,7 +122,7 @@ steps are tracked in the
   fail-closed publication gate. Deleted legacy recordings remain unrecoverable.
 - Author profiles open inside the Explore navigation stack, expose
   privacy-scoped public stats, non-opening public achievements, and
-  active/published Field Trip previews, and cap profile-to-scan nesting after
+  active/published Field trip previews, and cap profile-to-scan nesting after
   one profile hop.
 - Home Screen widget caches thumbnail-first visual Explore snapshots through the
   shared App Group, renders video posts as clean still thumbnails, and excludes
@@ -147,7 +150,7 @@ steps are tracked in the
 - 13 achievement awards across categories: observation milestones, taxonomy specializations, environmental conditions, conservation engagement, and capture technique. Awards surface with smart sort: recently unlocked → in-progress → legacy.
 
 ### Settings
-**Camera** — zoom slider visibility, left-side placement, invert zoom direction, live viewfinder hints, and an on-by-default outing-progress overlay.
+**Camera** — zoom slider visibility, left-side placement, invert zoom direction, live viewfinder hints, and an on-by-default field trip-progress overlay.
 **Preferences** — theme (system/light/dark), multi-capture scans, expedition mode, system haptics, save to camera roll.
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account and synced to Supabase.
 **Notifications** — species discovery alerts, achievement milestone alerts.
@@ -161,7 +164,7 @@ steps are tracked in the
 
 ### Thermal & Memory Management
 - `HardwareOrchestrator` monitors `ProcessInfo.thermalState` and `isLowPowerModeEnabled`, dynamically capping framerates (60fps → 24fps) and dropping glassmorphism shaders under thermal pressure.
-- Expedition Mode allows users to force the 24fps/low-fidelity pipeline manually for off-grid battery conservation. This is separate from Explore Field Trips.
+- Expedition Mode allows users to force the 24fps/low-fidelity pipeline manually for off-grid battery conservation. This is separate from Explore Field trips.
 - `ViewfinderIntelligence` throttles frame analysis to 3fps via `NSLock` before any `@MainActor` context switch, preventing GPU thermal spikes from the luma evaluation loop.
 
 ### Offline-First Data Pipeline

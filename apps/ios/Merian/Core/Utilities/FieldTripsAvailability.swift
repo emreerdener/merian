@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 enum FieldTripsAvailability {
-    // TODO(field-trips-release): Remove this preview allowlist when Field Trips is ready
+    // TODO(field-trips-release): Remove this preview allowlist when Field trips are ready
     // for public release. Then remove the allowlist-specific tests and update README.md,
     // CHANGELOG.md, docs/rfcs/explore-page.md, and the Explore shell README.
     static let allowedEmail = "erdener.emre@gmail.com"

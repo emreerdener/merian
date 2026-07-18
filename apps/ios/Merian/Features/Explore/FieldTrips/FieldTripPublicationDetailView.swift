@@ -31,7 +31,7 @@ struct FieldTripPublicationDetailView: View {
             .padding(.bottom, 32)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Outing")
+        .navigationTitle("Field trip")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.load()

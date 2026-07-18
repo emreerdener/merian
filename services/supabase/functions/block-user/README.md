@@ -21,8 +21,8 @@ The Edge Function performs this cleanup after the idempotent block upsert, and m
 
 Follow notifications between the two users are deleted by the database trigger, preventing the activity feed from retaining stale "followed you" rows after a block.
 
-Field Trips V3 also installs `trg_field_trip_activity_user_blocks_cleanup` on
-`public.user_blocks`. That trigger deletes Field Trip comment/reply/followed
+Field trips V3 also installs `trg_field_trip_activity_user_blocks_cleanup` on
+`public.user_blocks`. That trigger deletes Field trip comment/reply/followed
 publication activity rows between the blocked users or attached to the blocked
-author's Field Trip publication, keeping the in-app activity feed aligned with
+author's Field trip publication, keeping the in-app activity feed aligned with
 the global block.

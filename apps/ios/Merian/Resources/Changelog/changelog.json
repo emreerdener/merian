@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-17-field-trip-goals",
+      "date": "2026-07-17",
+      "title": "Field trip goals",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Field trip detail now uses Goals and Tips tabs, calls the primary action Start outing, and shows a circular progress ring on the active level.",
+            "Completed goals now show the exact captured photo or video thumbnail in outing cards and detail; tapping one opens that Insight inside the current Explore sheet with a back arrow."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-15-cat-dog-reference-images",
       "date": "2026-07-15",
       "title": "Safer domestic pet media",
@@ -368,17 +382,17 @@
     {
       "id": "2026-07-08-field-trips",
       "date": "2026-07-08",
-      "title": "Field Trips",
+      "title": "Field trips",
       "sections": [
         {
           "title": "Added",
           "items": [
-            "Explore now includes Field Trips: regional checklist quests that can auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
-            "Field Trips now include guided detail pages, explicit Start, curated checklist tips, a Field Trips-only Community segment with For You, Following, and Recent filters, and up to 3 pinned published trips on profiles.",
-            "Seasonal Challenges add curated, non-competitive Field Trip goals with explicit Join, challenge progress, completion badges, and challenge entry pages.",
-            "Published Field Trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map.",
+            "Explore now includes Field trips: regional checklist quests that can auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
+            "Field trips now include guided detail pages, explicit Start, curated checklist tips, a Field trips-only Community segment with For You, Following, and Recent filters, and up to 3 pinned published trips on profiles.",
+            "Seasonal Challenges add curated, non-competitive Field trip goals with explicit Join, challenge progress, completion badges, and challenge entry pages.",
+            "Published Field trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map.",
             "Eligible challenge hashtags can appear as optional Explore sharing suggestions, but Naturebook never auto-posts or auto-tags a scan for a challenge.",
-            "Field Trip comments, replies, and followed-author publications can now appear in the in-app activity bell without sending push notifications."
+            "Field trip comments, replies, and followed-author publications can now appear in the in-app activity bell without sending push notifications."
           ]
         }
       ]

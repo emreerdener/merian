@@ -72,7 +72,7 @@ export async function fetchFieldTripCatalog(
   });
 
   if (error) {
-    throw new Error(`Failed to fetch Field Trip catalog: ${error.message}`);
+    throw new Error(`Failed to fetch Field trip catalog: ${error.message}`);
   }
 
   return Array.isArray(data) ? data : [];
@@ -89,7 +89,7 @@ export async function fetchFieldTripCaptureContext(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip capture context: ${error.message}`,
+      `Failed to fetch Field trip capture context: ${error.message}`,
     );
   }
 
@@ -113,7 +113,7 @@ export async function fetchFieldTripTemplateDetail(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip template: ${error.message}`,
+      `Failed to fetch Field trip template: ${error.message}`,
     );
   }
 
@@ -131,11 +131,11 @@ export async function startFieldTrip(
   });
 
   if (error) {
-    throw new Error(`Failed to start Field Trip: ${error.message}`);
+    throw new Error(`Failed to start Field trip: ${error.message}`);
   }
 
   if (!data) {
-    throw new Error("Failed to start Field Trip: missing template detail.");
+    throw new Error("Failed to start Field trip: missing template detail.");
   }
 
   return data;
@@ -155,7 +155,7 @@ export async function applyFieldTripScanProgress(
   );
 
   if (error) {
-    throw new Error(`Failed to update Field Trip progress: ${error.message}`);
+    throw new Error(`Failed to update Field trip progress: ${error.message}`);
   }
 
   const { data: challengeData, error: challengeError } = await supabaseAdmin
@@ -169,7 +169,7 @@ export async function applyFieldTripScanProgress(
 
   if (challengeError) {
     throw new Error(
-      `Failed to update Field Trip challenge progress: ${challengeError.message}`,
+      `Failed to update Field trip challenge progress: ${challengeError.message}`,
     );
   }
 
@@ -204,7 +204,7 @@ export async function fetchRecentFieldTripPublications(
 
   if (error) {
     throw new Error(
-      `Failed to fetch recent Field Trips: ${error.message}`,
+      `Failed to fetch recent Field trips: ${error.message}`,
     );
   }
 
@@ -244,7 +244,7 @@ export async function fetchCommunityFieldTripPublications(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip community publications: ${error.message}`,
+      `Failed to fetch Field trip community publications: ${error.message}`,
     );
   }
 
@@ -268,7 +268,7 @@ export async function fetchFieldTripProfileSummaries(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip profile summaries: ${error.message}`,
+      `Failed to fetch Field trip profile summaries: ${error.message}`,
     );
   }
 
@@ -287,7 +287,7 @@ export async function fetchFieldTripProfileSummaries(
 
   if (badgesError) {
     throw new Error(
-      `Failed to fetch Field Trip challenge badges: ${badgesError.message}`,
+      `Failed to fetch Field trip challenge badges: ${badgesError.message}`,
     );
   }
 
@@ -311,7 +311,7 @@ export async function setPinnedFieldTripPublications(
   );
 
   if (error) {
-    throw new Error(`Failed to update pinned Field Trips: ${error.message}`);
+    throw new Error(`Failed to update pinned Field trips: ${error.message}`);
   }
 
   return data ?? { active: [], pinned: [], published: [] };
@@ -332,7 +332,7 @@ export async function fetchFieldTripPublicationDetail(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip publication: ${error.message}`,
+      `Failed to fetch Field trip publication: ${error.message}`,
     );
   }
 
@@ -356,7 +356,7 @@ export async function publishFieldTrip(
   });
 
   if (error) {
-    throw new Error(`Failed to publish Field Trip: ${error.message}`);
+    throw new Error(`Failed to publish Field trip: ${error.message}`);
   }
 
   const publicationId = typeof data === "object" && data != null &&
@@ -364,7 +364,7 @@ export async function publishFieldTrip(
     ? String((data as Record<string, unknown>).publication_id)
     : null;
   if (!publicationId) {
-    throw new Error("Failed to publish Field Trip: missing publication id.");
+    throw new Error("Failed to publish Field trip: missing publication id.");
   }
 
   const detail = await fetchFieldTripPublicationDetail(
@@ -373,7 +373,7 @@ export async function publishFieldTrip(
     supabaseAdmin,
   );
   if (!detail) {
-    throw new Error("Failed to publish Field Trip: publication not visible.");
+    throw new Error("Failed to publish Field trip: publication not visible.");
   }
   return detail;
 }
@@ -393,12 +393,12 @@ export async function assertCanViewFieldTripPublication(
 
   if (error) {
     throw new Error(
-      `Failed to resolve Field Trip visibility: ${error.message}`,
+      `Failed to resolve Field trip visibility: ${error.message}`,
     );
   }
 
   if (data !== true) {
-    throw makeHttpError(404, "Field Trip publication not found.");
+    throw makeHttpError(404, "Field trip publication not found.");
   }
 }
 
@@ -417,7 +417,7 @@ export async function setFieldTripLike(
       );
 
     if (error) {
-      throw new Error(`Failed to like Field Trip: ${error.message}`);
+      throw new Error(`Failed to like Field trip: ${error.message}`);
     }
     return;
   }
@@ -429,7 +429,7 @@ export async function setFieldTripLike(
     .eq("user_id", userId);
 
   if (error) {
-    throw new Error(`Failed to unlike Field Trip: ${error.message}`);
+    throw new Error(`Failed to unlike Field trip: ${error.message}`);
   }
 }
 
@@ -445,7 +445,7 @@ export async function fetchFieldTripPublicationCounts(
 
   if (error || !data) {
     throw new Error(
-      `Failed to fetch Field Trip counts: ${error?.message ?? "No data"}`,
+      `Failed to fetch Field trip counts: ${error?.message ?? "No data"}`,
     );
   }
 
@@ -471,7 +471,7 @@ export async function fetchFieldTripComments(
   });
 
   if (error) {
-    throw new Error(`Failed to fetch Field Trip comments: ${error.message}`);
+    throw new Error(`Failed to fetch Field trip comments: ${error.message}`);
   }
 
   return (data ?? []) as FieldTripCommentRow[];
@@ -491,14 +491,14 @@ export async function fetchFieldTripCommentParent(
     .single();
 
   if (error || !data) {
-    throw makeHttpError(404, "Field Trip parent comment not found.");
+    throw makeHttpError(404, "Field trip parent comment not found.");
   }
 
   const parent = data as FieldTripCommentParent;
   if (parent.publication_id !== publicationId) {
     throw makeHttpError(
       400,
-      "parent_comment_id must belong to the same Field Trip.",
+      "parent_comment_id must belong to the same Field trip.",
     );
   }
   if (parent.parent_comment_id != null) {
@@ -507,7 +507,7 @@ export async function fetchFieldTripCommentParent(
   if (parent.deleted_at != null || parent.moderated_at != null) {
     throw makeHttpError(
       404,
-      "Field Trip parent comment is no longer available.",
+      "Field trip parent comment is no longer available.",
     );
   }
 
@@ -534,7 +534,7 @@ export async function insertFieldTripComment(
 
   if (error || !data) {
     throw new Error(
-      `Failed to create Field Trip comment: ${
+      `Failed to create Field trip comment: ${
         error?.message ?? "Unknown error"
       }`,
     );
@@ -560,7 +560,7 @@ export async function fetchFieldTripChallengesCatalog(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip challenges: ${error.message}`,
+      `Failed to fetch Field trip challenges: ${error.message}`,
     );
   }
 
@@ -586,7 +586,7 @@ export async function fetchFieldTripChallengeDetail(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip challenge: ${error.message}`,
+      `Failed to fetch Field trip challenge: ${error.message}`,
     );
   }
 
@@ -607,11 +607,11 @@ export async function joinFieldTripChallenge(
   );
 
   if (error) {
-    throw new Error(`Failed to join Field Trip challenge: ${error.message}`);
+    throw new Error(`Failed to join Field trip challenge: ${error.message}`);
   }
 
   if (!data) {
-    throw new Error("Failed to join Field Trip challenge: missing detail.");
+    throw new Error("Failed to join Field trip challenge: missing detail.");
   }
 
   return data;
@@ -640,7 +640,7 @@ export async function fetchFieldTripChallengePublications(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip challenge entries: ${error.message}`,
+      `Failed to fetch Field trip challenge entries: ${error.message}`,
     );
   }
 
@@ -662,7 +662,7 @@ export async function fetchFieldTripChallengeHashtagsForScan(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip challenge hashtags: ${error.message}`,
+      `Failed to fetch Field trip challenge hashtags: ${error.message}`,
     );
   }
 
@@ -686,7 +686,7 @@ export async function fetchFieldTripChallengeEntryDetail(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip challenge entry: ${error.message}`,
+      `Failed to fetch Field trip challenge entry: ${error.message}`,
     );
   }
 
@@ -712,7 +712,7 @@ export async function publishFieldTripChallengeEntry(
 
   if (error) {
     throw new Error(
-      `Failed to publish Field Trip challenge entry: ${error.message}`,
+      `Failed to publish Field trip challenge entry: ${error.message}`,
     );
   }
 
@@ -721,7 +721,7 @@ export async function publishFieldTripChallengeEntry(
     : null;
   if (!entryId) {
     throw new Error(
-      "Failed to publish Field Trip challenge entry: missing entry id.",
+      "Failed to publish Field trip challenge entry: missing entry id.",
     );
   }
 
@@ -732,7 +732,7 @@ export async function publishFieldTripChallengeEntry(
   );
   if (!detail) {
     throw new Error(
-      "Failed to publish Field Trip challenge entry: entry not visible.",
+      "Failed to publish Field trip challenge entry: entry not visible.",
     );
   }
   return detail;
@@ -753,12 +753,12 @@ export async function assertCanViewFieldTripChallengeEntry(
 
   if (error) {
     throw new Error(
-      `Failed to resolve Field Trip challenge visibility: ${error.message}`,
+      `Failed to resolve Field trip challenge visibility: ${error.message}`,
     );
   }
 
   if (data !== true) {
-    throw makeHttpError(404, "Field Trip challenge entry not found.");
+    throw makeHttpError(404, "Field trip challenge entry not found.");
   }
 }
 
@@ -778,7 +778,7 @@ export async function setFieldTripChallengeEntryLike(
 
     if (error) {
       throw new Error(
-        `Failed to like Field Trip challenge entry: ${error.message}`,
+        `Failed to like Field trip challenge entry: ${error.message}`,
       );
     }
     return;
@@ -792,7 +792,7 @@ export async function setFieldTripChallengeEntryLike(
 
   if (error) {
     throw new Error(
-      `Failed to unlike Field Trip challenge entry: ${error.message}`,
+      `Failed to unlike Field trip challenge entry: ${error.message}`,
     );
   }
 }
@@ -809,7 +809,7 @@ export async function fetchFieldTripChallengeEntryCounts(
 
   if (error || !data) {
     throw new Error(
-      `Failed to fetch Field Trip challenge entry counts: ${
+      `Failed to fetch Field trip challenge entry counts: ${
         error?.message ?? "No data"
       }`,
     );
@@ -841,7 +841,7 @@ export async function fetchFieldTripChallengeEntryComments(
 
   if (error) {
     throw new Error(
-      `Failed to fetch Field Trip challenge entry comments: ${error.message}`,
+      `Failed to fetch Field trip challenge entry comments: ${error.message}`,
     );
   }
 
@@ -860,14 +860,14 @@ export async function fetchFieldTripChallengeCommentParent(
     .single();
 
   if (error || !data) {
-    throw makeHttpError(404, "Field Trip challenge parent comment not found.");
+    throw makeHttpError(404, "Field trip challenge parent comment not found.");
   }
 
   const parent = data as FieldTripChallengeCommentParent;
   if (parent.entry_id !== entryId) {
     throw makeHttpError(
       400,
-      "parent_comment_id must belong to the same Field Trip challenge entry.",
+      "parent_comment_id must belong to the same Field trip challenge entry.",
     );
   }
   if (parent.parent_comment_id != null) {
@@ -876,7 +876,7 @@ export async function fetchFieldTripChallengeCommentParent(
   if (parent.deleted_at != null || parent.moderated_at != null) {
     throw makeHttpError(
       404,
-      "Field Trip challenge parent comment is no longer available.",
+      "Field trip challenge parent comment is no longer available.",
     );
   }
 
@@ -903,7 +903,7 @@ export async function insertFieldTripChallengeEntryComment(
 
   if (error || !data) {
     throw new Error(
-      `Failed to create Field Trip challenge entry comment: ${
+      `Failed to create Field trip challenge entry comment: ${
         error?.message ?? "Unknown error"
       }`,
     );

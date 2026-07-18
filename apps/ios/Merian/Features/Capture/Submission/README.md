@@ -48,7 +48,7 @@ The capture submission layer logs Analyze tap, durable queue commit, the still-
 image context grace or unchanged non-visual context wait, and inference
 dispatch. `MerianNetworkClient` measures upload/response transport,
 `InferenceProcessingActor` measures parse and persistence, and
-`InsightSheetView` records the first rendered result frame. Awards, Field Trips,
+`InsightSheetView` records the first rendered result frame. Awards, Field trips,
 and optional enrichment must not be awaited before that frame.
 
 Still images use the accepted `NormalizedImageFocusRegion` to render four

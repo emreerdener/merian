@@ -41,7 +41,7 @@ as their permanent engineering identity.
 - **Image-analysis latency contract**: Durable queue acceptance remains the
   mandatory gate. The eligible live-camera still path waits no more than 150 ms for shutter-prefetched
   weather/geocoding, defers its competing background upload until the inline
-  body is sent, and commits parsed/persisted results before awards or Field Trips.
+  body is sent, and commits parsed/persisted results before awards or Field trips.
   The Edge path uses verified ES256 claims, one atomic pre-inference RPC, at
   most one combined post-inference dictionary RPC, privacy-safe `Server-Timing`, and background
   cache-miss enrichment. `/update-scan-context` applies late owner-scoped
@@ -221,7 +221,7 @@ as their permanent engineering identity.
   extensions and the app-owned Photos document import.
 - **[`/features-and-hardware/20-explore-hashtags.md`](./features-and-hardware/20-explore-hashtags.md)**
   — Explore hashtag publishing, composer suggestions, feed/detail chip behavior,
-  tagged-post collections, API paths, event/BioBlitz groundwork, and Field Trip
+  tagged-post collections, API paths, event/BioBlitz groundwork, and Field trip
   Challenge suggestion boundaries.
 - **[`/features-and-hardware/21-public-usernames.md`](./features-and-hardware/21-public-usernames.md)**
   — Canonical public username handles, edit UX, Explore display-name behavior,
@@ -237,11 +237,13 @@ as their permanent engineering identity.
   identification queue, author-profile stack routing, Dictionary catalog, and
   Tree of Life canvas routing/data boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
-  — Field Trips Available/Community segments, guided template detail, progress
+  — Field trips Outings/Events segments, guided outing detail, progress
   matching, the account-cached active target indicator on visual Scan, focused
-  Tips/Objectives routing, seasonal challenges, challenge badges, publication
-  snapshots, profile pins, access gating, in-app activity, and deferred
-  leaderboard/prize scope.
+  Tips/Goals routing, active-level progress ring, private completed-scan
+  thumbnails and embedded Insight navigation, photo/video multi-goal
+  eligibility, seasonal challenges, challenge badges, publication snapshots,
+  profile pins, access gating, in-app activity, and deferred leaderboard/prize
+  scope.
 - **[`/features-and-hardware/26-photos-share-import.md`](./features-and-hardware/26-photos-share-import.md)**
   — Single-photo document import from the iOS Photos share sheet, including URL
   routing, durable inbox ownership, EXIF context, capture staging, privacy,

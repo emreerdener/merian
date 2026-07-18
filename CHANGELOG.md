@@ -24,7 +24,7 @@ TestFlight, App Store, support, and QA.
 - Reduced live-camera still-image analysis wait time by starting inference after
   a bounded environmental-context grace period, avoiding duplicate live/background
   uploads and duplicate inference dispatch, and moving optional enrichment,
-  awards, and Field Trips work off the first-result path. Free and Pro Gemini models and quality settings are
+  awards, and Field trips work off the first-result path. Free and Pro Gemini models and quality settings are
   unchanged; gallery, audio-bearing, and video submission behavior is unchanged.
 - Fixed Audio recording occasionally reporting unavailable hardware immediately
   after switching from Camera. Recording now waits for camera release and
@@ -38,14 +38,23 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Standardized **Field trip** / **Field trips** as the feature label while using
+  **outing** for contextual descriptions, actions, activity messages, and
+  VoiceOver. Renamed the standard catalog segment from **Challenges** to
+  **Outings**; Seasonal Challenge terminology is unchanged.
 - Added `All`, `Starter`, `Easy`, `Moderate`, and `Hard` difficulty filters to
-  the Field Trips catalog, including an illustrated empty state for levels
+  the Field trips catalog, including an illustrated empty state for levels
   without a current trip.
-- Moved Objectives and Tips into pinned toolbar tabs on standard Field Trip and
-  Seasonal Challenge detail pages. Objectives now owns the trip overview,
+- Moved Goals and Tips into pinned toolbar tabs on standard Field trip and
+  Seasonal Challenge detail pages. Goals now owns the trip overview,
   progress, actions, checklist, and Community content, while Tips opens directly
   to the curated guide.
-- Added a compact active Field Trip target beneath the visual Scan mode picker.
+- Added the same circular progress treatment to the active outing level header.
+  Completed goals now replace their illustration with the exact captured photo
+  or video thumbnail in both outing cards and detail, keep the standard neutral
+  border, and open that scan's Insight within the current Explore sheet with a
+  back arrow.
+- Added a compact active outing target beneath the visual Scan mode picker.
   It matches the picker width and centers an instructional `Look for: {target}`
   label and outing name between artwork and an AirPods-inspired circular
   progress ring. Swiping cycles through unfinished targets across active
@@ -54,7 +63,7 @@ TestFlight, App Store, support, and QA.
   capture modes, and Seasonal Challenges.
   Its capsule uses untinted interactive Liquid Glass on iOS 26 and a neutral
   material fallback on earlier supported versions.
-  An on-by-default Outing progress setting can hide the capsule without changing
+  An on-by-default Field trip goals setting can hide the capsule without changing
   outing data or progress, and tapping the capsule now provides light haptic
   confirmation before opening its guide.
   Its shared goal context is source-agnostic, so future guided experiences can
@@ -65,7 +74,7 @@ TestFlight, App Store, support, and QA.
 - Retired the placeholder Forest Edges outing from catalogs, detail/start
   routes, and the Scan target indicator while preserving existing progress,
   scans, publications, and evidence.
-- Refined standard and Seasonal Field Trip card and detail-image rounding, moved
+- Refined standard and Seasonal Field trip card and detail-image rounding, moved
   template badges onto the cover image, allowed full-width card text, and
   removed the redundant Open guide row and active-trip Continue Scanning
   actions. Loading skeletons now mirror the updated card layouts.
@@ -337,21 +346,21 @@ TestFlight, App Store, support, and QA.
   Insights with standalone audio. Mixed-media scans apply one setting to every
   audio page, preserve playback position while switching, restore quietly, and
   leave the original recording unchanged.
-- Added an allowlisted Field Trips preview to Explore: regional checklist quests can auto-start from
+- Added an allowlisted Field trips preview to Explore: regional checklist quests can auto-start from
   new scans, unlock levels sequentially, show active checklist progress on
-  public profiles, and publish Field Trip pages with species snapshots, likes,
+  public profiles, and publish Field trip pages with species snapshots, likes,
   and comments without creating Explore feed posts or map points.
-- Expanded Field Trips with guided trip detail pages, explicit Start, curated
-  item tips, a Field Trips-only Community segment with For You, Following, and
+- Expanded Field trips with guided trip detail pages, explicit Start, curated
+  item tips, a Field trips-only Community segment with For You, Following, and
   Recent filters, template Community previews, and up to 3 pinned published
   trips on profiles.
-- Added Field Trip Seasonal Challenges: curated, explicit-join, non-competitive
+- Added Field trip Seasonal Challenges: curated, explicit-join, non-competitive
   challenge pages with schedule/counts, after-join-only progress, completion
   badges, challenge-specific published entries, and optional Explore hashtag
   suggestions without auto-posting or auto-tagging.
-- Added in-app Field Trip activity for comments, replies, and followed-author
+- Added in-app Field trip activity for comments, replies, and followed-author
   publications without sending APNs or creating Explore post rows, map points,
-  or widgets. Typed Field Trip cards can appear in unfiltered Explore Recent and
+  or widgets. Typed Field trip cards can appear in unfiltered Explore Recent and
   Following.
 - Added public video Explore posts: shared video scans can now appear in Explore
   and Ask the Community with muted playback in feed/detail and in-app thumbnail

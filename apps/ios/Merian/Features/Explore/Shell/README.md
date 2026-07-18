@@ -3,12 +3,27 @@
 The `Shell` directory acts as the root container and routing hub for the Explore tab.
 
 ## Purpose
-This area orchestrates the top-level navigation, layout chrome, and state coordination for the Explore feature. It manages the transitions between Observations, Identify, Field Trips, Dictionary, pushed detail routes, notifications, and search interfaces while keeping the sub-components focused on their own domain logic.
+This area orchestrates the top-level navigation, layout chrome, and state coordination for the Explore feature. It manages the transitions between Observations, Identify, Field trips, Dictionary, pushed detail routes, notifications, and search interfaces while keeping the sub-components focused on their own domain logic.
 
-Field Trips is currently release-gated by `FieldTripsAvailability`: only the
+The Field trips feature is currently release-gated by `FieldTripsAvailability`: only the
 allowlisted tester email and simulator builds may expose its tab or supporting
-surfaces. New Field Trips entry points must use the same shared rule rather than
+surfaces. New Field trips entry points must use the same shared rule rather than
 adding local debug checks.
+
+## Completed Field-trip Scan Navigation
+
+Completed standard-outing goal tiles pass their private `completedScanId` to
+`ExploreView`. The shell fetches the matching device-local `LocalScanRecord`,
+loads it through `InferenceEngine`, and appends `ScanInsightRoute` to the
+existing Explore `NavigationPath`. The destination renders `InsightSheetView`
+with `.embeddedInScansLibrary`, so the user gets the normal Insight content plus
+a back arrow/back swipe inside the same Explore sheet. Do not present another
+sheet for this route.
+
+The Field trips API does not provide media URLs for this feature. If the local
+record is unavailable, show the existing unavailable toast and do not append a
+route. Catalog and detail callers both use the same callback so they cannot
+diverge in ownership, loading, or failure behavior.
 
 ## Explore Video Coordination
 

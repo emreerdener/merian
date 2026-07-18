@@ -14,7 +14,7 @@ Following does not affect `Recent`, `Trending`, `Nearby`, map results, the
 Home Screen widget, APNs pushes, private scan access, or the Explore
 author-profile visibility gate. A profile is discoverable only when the target
 author has at least one Explore post visible to the requester or at least one
-visible Field Trip profile surface.
+visible Field trip profile surface.
 
 ## UX Rules
 
@@ -55,7 +55,7 @@ Indexes:
 New and extended RPCs:
 
 - `public.can_view_explore_author_profile(self_id, target_author_user_id)`:
-  validates that the target has a currently visible Explore post or Field Trip
+  validates that the target has a currently visible Explore post or Field trip
   profile surface for the requester.
 - `public.get_user_follow_state(self_id, target_author_user_id)`: returns `author_user_id`, `follower_count`, `following_count`, and `viewer_is_following`.
 - `public.get_explore_feed_following(self_id, max_limit, before_shared_at, before_post_id)`: returns the same card projection as the feed, filtered to followed authors and ordered by `(shared_at DESC, post_id DESC)`.
@@ -105,9 +105,9 @@ Other Edge Function changes:
 
 - `/get-explore-feed` accepts `filter: "following"` and routes to `public.get_explore_feed_following(...)`.
 - `/get-explore-author-profile` returns the new count/state fields.
-- `/get-explore-author-profile` can now return visible Field Trip summaries in
+- `/get-explore-author-profile` can now return visible Field trip summaries in
   addition to Explore post previews. Follow counts and buttons use the same
-  profile visibility gate, so Field Trips can make a followable public profile
+  profile visibility gate, so Field trips can make a followable public profile
   discoverable without exposing scan evidence.
 - `/get-explore-notifications` decodes `post_id` as nullable and includes `type: "follow"`.
 - `/block-user` removes follow rows in both directions after an idempotent block request.
@@ -128,9 +128,9 @@ Follow notifications are created by an `AFTER INSERT` trigger on `user_follows` 
 
 The push-delivery trigger intentionally skips `type = 'follow'`. Follow activity is in-app only.
 
-Field Trips V3 reuses this same `user_follows` graph. The Field Trips
+Field trips V3 reuses this same `user_follows` graph. The Field trips
 `Community` feed uses followed authors for its `For You` buckets and
-`Following` filter, and published Field Trips can create
+`Following` filter, and published Field trips can create
 `field_trip_followed_publication` in-app activity for current followers. V3
 does not add trip follows, follower-list browsers, friend states, DMs, or
 private scan access.

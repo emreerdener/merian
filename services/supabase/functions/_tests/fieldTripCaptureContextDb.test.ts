@@ -35,7 +35,7 @@ type CaptureOuting = {
   }>;
 };
 
-Deno.test("Field Trip capture context preserves standard outings and excludes evidence", async () => {
+Deno.test("Field trip capture context preserves standard field trips and excludes evidence", async () => {
   await withExploreDbTest(
     "fieldTripCaptureContextDb.test",
     async (client: Client) => {

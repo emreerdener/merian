@@ -38,19 +38,19 @@ Follow-up page:
 - `comment_reaction`: post-backed aggregate emoji reaction row for comment
   authors.
 - `follow`: postless informational row when another user follows the recipient.
-- `field_trip_comment`: Field Trip publication comment row.
-- `field_trip_reply`: Field Trip publication reply row.
+- `field_trip_comment`: Field trip publication comment row.
+- `field_trip_reply`: Field trip publication reply row.
 - `field_trip_followed_publication`: postless row when a followed author
-  publishes a completed Field Trip.
+  publishes a completed Field trip.
 
-Field Trip activity types are checked text values on
+Field trip activity types are checked text values on
 `public.field_trip_activity_notifications`, not added values on
-`public.explore_notification_type`. This keeps the Field Trips-only activity
+`public.explore_notification_type`. This keeps the Field trips-only activity
 surface deployable independently from the push-backed Explore notification enum.
 
-Follow notifications and Field Trip activity have `post_id = null`. Follow rows
+Follow notifications and Field trip activity have `post_id = null`. Follow rows
 are shown in-app, contribute to unread counts, and are marked read by the normal
-mark-read endpoint, but tapping them does not navigate to a post. Field Trip
+mark-read endpoint, but tapping them does not navigate to a post. Field trip
 rows include `field_trip_publication_id` and route to
 `FieldTripPublicationDetailView`.
 
@@ -71,8 +71,8 @@ The SQL RPC filters hidden activity before returning rows:
 - blocked actors are excluded in both directions
 - soft-deleted or moderated comments are excluded
 - follow notifications require the active `user_follows` row to still exist
-- Field Trip activity requires a visible published completed Field Trip
-- Field Trip activity is hidden when the publication, comment, author, actor,
+- Field trip activity requires a visible published completed Field trip
+- Field trip activity is hidden when the publication, comment, author, actor,
   or follow relationship is no longer visible
 
 Post `location_sharing` controls public location fields; it does not hide
@@ -82,14 +82,14 @@ Follow notifications are removed when the relationship is deleted or either user
 blocks the other. Comment mention notifications are removed when the underlying
 comment is deleted or moderated.
 
-Field Trip activity is removed or hidden when either user blocks the other.
-Deleted or moderated Field Trip comments no longer appear. Self-actions are
-suppressed, and Field Trip likes do not create notification rows in V3.
+Field trip activity is removed or hidden when either user blocks the other.
+Deleted or moderated Field trip comments no longer appear. Self-actions are
+suppressed, and Field trip likes do not create notification rows in V3.
 
 ## Push Behavior
 
 Remote APNs push delivery is layered on top of
-`public.explore_post_notifications`, but follow notifications and Field Trip
+`public.explore_post_notifications`, but follow notifications and Field trip
 activity rows are intentionally in-app only. The push trigger skips
 `type = 'follow'`, and `public.field_trip_activity_notifications` has no APNs
 trigger, widget fanout, map write, Explore feed card, or Explore post row.

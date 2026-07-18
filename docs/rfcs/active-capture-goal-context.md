@@ -14,7 +14,7 @@ completion, artwork mapping, and destination construction. Capture owns only
 presentation, local selection, account-scoped caching, refresh timing, and the
 typed hand-off to the destination feature.
 
-Field Trips is the first source. It exposes a private, authenticated
+The Field trips feature is the first source. It exposes a private, authenticated
 `capture_context` action backed by
 `public.get_field_trip_capture_context(self_id)`. The Edge Function supplies the
 verified caller ID; the database RPC is not callable by direct client roles.
@@ -26,13 +26,13 @@ placing their API models, ranking logic, or routes inside the camera feature.
 ## Context
 
 The visual Scan page needs lightweight motivation and orientation without
-becoming a second Field Trips screen. A user may have several unfinished
+becoming a second Field trips screen. A user may have several unfinished
 targets across multiple outings, and progress values can change when the user
 swipes between them. The indicator therefore needs enough source context to
 explain the current target while remaining small, non-blocking, and safe to
 show over a live camera.
 
-The first implementation could have passed Field Trip DTOs directly into
+The first implementation could have passed Field trip DTOs directly into
 `CaptureWorkspaceView`. That would have made the camera responsible for outing
 access rules, current-level filtering, target ordering, and Explore routes. It
 would also have made later integrations, such as a curated event goal, require
@@ -72,13 +72,13 @@ needed.
 flowchart LR
     A["Authenticated iOS account"] --> B["field-trips Edge Function"]
     B -->|"verified user.id"| C["Private capture-context RPC"]
-    C --> D["Field Trip capture DTOs"]
+    C --> D["Field trip capture DTOs"]
     D --> E["FieldTripCaptureGoalProvider"]
     E --> F["CaptureGoal list in presentation order"]
     F --> G["ActiveCaptureGoalStore"]
     G --> H["Compact Scan indicator"]
     H -->|"typed destination"| I["Explore routing boundary"]
-    I --> J["Focused Tips card or Objectives fallback"]
+    I --> J["Focused Tips card or Goals fallback"]
 ```
 
 The dependency direction is intentional:
@@ -125,7 +125,7 @@ explicit source/product policy rather than an accidental client sort.
 Adding a destination therefore creates compiler errors at every routing switch
 that must decide how to handle it.
 
-## Field Trip source contract
+## Field trip source contract
 
 The authenticated Edge request is:
 
@@ -186,7 +186,7 @@ Refresh policy:
 
 - force asynchronously on Capture appearance;
 - refresh when stale after foregrounding or returning to visual Scan;
-- force after Field Trip start/join and standard progress events;
+- force after outing start/join and standard progress events;
 - force after account changes and explicit scanner-routing events; and
 - never await the request before starting the camera or accepting a capture.
 
@@ -199,7 +199,7 @@ transport state.
 
 The pill appears only when all of the following are true:
 
-- Field Trips is enabled;
+- Field trips are enabled;
 - the device-local `showsCaptureGoalProgress` preference is enabled;
 - visual Scan is selected;
 - a real target exists;
@@ -214,7 +214,7 @@ later, with a neutral material fallback on earlier supported versions. Text and
 symbols use semantic foreground styles rather than a fixed brand color so the
 system can maintain contrast over the live camera scene.
 
-The on-by-default **Outing progress** setting controls only presentation of the
+The on-by-default **Field trip goals** setting controls only presentation of the
 capsule. Disabling it does not clear the account cache, alter selection, stop
 normal refreshes, or mutate outing progress, so re-enabling is immediate and
 does not create a separate server preference contract.
@@ -247,12 +247,12 @@ does not build a `FieldTripTemplateRoute`.
 
 Explore owns the conversion and then:
 
-1. presents the Field Trips tab;
+1. presents the Field trips tab;
 2. opens the owning standard outing;
 3. selects Tips;
 4. expands and scrolls to the matching target;
 5. briefly highlights the focused card; and
-6. falls back to the highlighted Objectives tile when the target has no guide.
+6. falls back to the highlighted Goals tile when the target has no guide.
 
 The focused checklist-item ID remains optional so all existing outing routes
 retain their original behavior.
@@ -350,8 +350,8 @@ client provider boundary.
 ## Capacity and evolution guardrails
 
 The current response is intentionally unpaginated because the active curated
-Field Trip catalog is bounded and the indicator cycles through the full set. If
-active outings or target counts can grow materially, add a hard server-side
+Field trip catalog is bounded and the indicator cycles through the full set. If
+active field trips or target counts can grow materially, add a hard server-side
 limit and payload-size telemetry before broad rollout. Do not allow an
 unbounded user-generated checklist to feed the camera contract.
 
@@ -363,7 +363,7 @@ staleness is demonstrably harmful.
 
 Seasonal Challenge labels and challenge-specific progress remain excluded until
 their independent participation, timing, and completion semantics receive a
-dedicated product decision. The linked standard outing remains eligible.
+dedicated product decision. The linked standard field trip remains eligible.
 Adding Seasonal presentation is not a data-filter toggle.
 
 ## Deployment and rollback
@@ -380,11 +380,11 @@ Release order is mandatory:
 
 Existing clients remain compatible because the action and RPC are additive.
 
-For rollback, disable the client surface through the Field Trips availability
+For rollback, disable the client surface through the Field trips availability
 gate or ship a client rollback first. Leaving the additive endpoint and RPC in
 place is safer than dropping database objects during an incident. If the
 backend contract itself must be disabled, undeploy or reject only
-`capture_context`; do not delete Field Trip progress or publication data.
+`capture_context`; do not delete Field trip progress or publication data.
 
 ## Verification
 
@@ -397,7 +397,7 @@ Required automated coverage:
 - Swift decode and provider-mapping tests;
 - store tests for order, wraparound, completion advancement, account isolation,
   versioned cache persistence, refresh coalescing, and stale retention;
-- navigation tests for focused Tips and no-guide Objectives fallback;
+- navigation tests for focused Tips and no-guide Goals fallback;
 - presentation and gesture-policy tests;
 - privacy-shape telemetry tests; and
 - a simulator build.
@@ -410,7 +410,7 @@ Required manual coverage:
 - vertical camera gestures and horizontal capture-mode paging near the pill;
 - staged image/video, refinement, and active-recording suppression;
 - account switching and sign-out; and
-- tap-through to the correct outing and target.
+- tap-through to the correct field trip and target.
 
 The exact commands and current test inventory live in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md) and
@@ -418,12 +418,12 @@ The exact commands and current test inventory live in
 
 ## Alternatives considered
 
-### Put Field Trip DTOs in Capture
+### Put Field trip DTOs in Capture
 
 Rejected because it couples camera UI to one feature's access rules, ranking,
 network schema, and navigation.
 
-### Rank outings and targets on-device
+### Rank field trips and targets on-device
 
 Rejected because server and client could disagree about engagement, access,
 current level, or curated order. It would also make old clients retain outdated

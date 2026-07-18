@@ -518,7 +518,7 @@ MerianTests/
 - **`ExploreHashtagSuggestionTests.swift`**: Covers the share composer's
   AI-assisted hashtag suggestions, including
   species/taxonomy/location/field-note ranking, selected-tag exclusion, five-tag
-  slot handling, optional Field Trip Challenge `eventHashtags`, and
+  slot handling, optional Field trip Challenge `eventHashtags`, and
   normalization of typed hashtag input before publishing.
 - **`ScansManagerTests.swift`**: Verifies search-index construction, incremental
   reindexing, sort behavior, and selection limits for the Scans library.
@@ -655,7 +655,7 @@ Identification latency has focused contract coverage at each boundary:
   `/update-scan-context` construction.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
-for slow WeatherKit, reverse geocoding, awards, Field Trips, Wikipedia, and GBIF;
+for slow WeatherKit, reverse geocoding, awards, Field trips, Wikipedia, and GBIF;
 none may delay first render. Exercise queue durability rejection, inline request
 failure, connectivity loss, app background during upload, termination/relaunch,
 duplicate live/background completion, and the two-second upload fail-safe.
@@ -670,17 +670,20 @@ successful build or state assignment as latency proof. Run one Free and one Pro
 scan and verify the expected model/configuration and exactly one primary
 identification model call.
 
-Field Trip capture guidance has focused coverage on both sides of the Edge
+Field trip capture guidance has focused coverage on both sides of the Edge
 boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private
 RPC grants, verified-user Edge call, filtering/order clauses, preservation of a
-standard outing after a Seasonal Challenge join, exclusion of challenge-specific
+standard field trip after a Seasonal Challenge join, exclusion of challenge-specific
 progress, the non-destructive retirement of placeholder templates, and the
-evidence-free projection.
+evidence-free capture projection. It also locks the private catalog/detail
+`completed_scan_id` projection and service-role-only grants.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
-`FieldTripCaptureContextModelsTests` covers decoding, while
-`ActiveCaptureGoalStoreTests` covers the Field Trip-to-`CaptureGoal` provider
+`FieldTripCaptureContextModelsTests` covers capture-context decoding, while
+`FieldTripAPIModelsTests.catalogDecodesActiveProgressAndChecklistItems` covers
+the optional completing scan ID used by catalog/detail thumbnails.
+`ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
 refresh-failure retention, indicator presentation/gesture policy, exact-art
@@ -693,6 +696,13 @@ adjustable actions, Reduce Motion, light/dark appearance, idle visual-only
 visibility, and that target swipes do not page capture modes. The architectural
 test obligations for future sources are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
+
+Manual completion-evidence QA must use a non-leading checklist item to catch
+count-based slot inference, cover photo and video-poster thumbnails, verify the
+neutral border/no blue completion outline, and open the completed scan from
+both catalog and detail into the embedded Insight route. Back must return to the
+outing, and a locally unavailable scan must preserve the placeholder without
+opening a blank Insight.
 
 Explore audio poster coverage is split by contract seam:
 `_shared/audioSpectrogram_test.ts` validates PCM WAV decoding, iOS-compatible

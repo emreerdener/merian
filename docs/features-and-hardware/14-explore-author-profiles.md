@@ -13,9 +13,9 @@ achievement evidence.
 - Tapping an author row in the Explore feed, comments, mentions, or `ExplorePostDetailView` pushes `ExploreAuthorProfileSheet` as an author-profile route inside the active Explore stack.
 - Tapping the post media still opens `ExplorePostDetailView`; author-profile navigation is intentionally scoped to the header.
 - The user's own Profile tab shows an `Explore scans` preview for their currently visible Explore publications. It seeds from locally cached share state when available, then reconciles with the author-post endpoint.
-- The user's own Profile tab also shows active and published Field Trip modules
-  when the Field Trips endpoint returns visible summaries, plus lightweight
-  Field Trip challenge badges when awarded.
+- The user's own Profile tab also shows active and published Field trip modules
+  when the Field trips endpoint returns visible summaries, plus lightweight
+  Field trip challenge badges when awarded.
 - The profile route shows:
   - public avatar and centered serif author display name
   - `@public_username` underneath when available
@@ -26,10 +26,10 @@ achievement evidence.
   - current streak
   - 52-week scan heatmap
   - a 3-column preview of up to 9 published Explore scans
-  - active Field Trip checklist progress, when visible
-  - published Field Trip cards, when visible
-  - up to 3 pinned published Field Trips before the general Field Trip modules
-  - Field Trip challenge completion badges, when visible
+  - active Field trip checklist progress, when visible
+  - published Field trip cards, when visible
+  - up to 3 pinned published Field trips before the general Field trip modules
+  - Field trip challenge completion badges, when visible
   - achievements rendered as informational cards only
 - The "View all published scans" button side-transitions the profile route into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
 - Library tiles open `ExplorePostDetailView` inside the same Explore navigation stack. The post detail carries the originating author-profile depth, disables insight presentation, and blocks one more author-profile hop after `profile -> scan` so users cannot recursively build `profile -> scan -> profile -> scan` stacks. Public similar-species cards can still open the species dictionary page.
@@ -54,9 +54,9 @@ The feature has two separate data scopes:
 |---|---|
 | Profile stats, streak, heatmap, achievements | All of the author's non-tombstoned scans |
 | Preview grid and full library | Only the author's currently visible Explore posts |
-| Active Field Trips | Status-only checklist progress from `user_field_trips` |
-| Published Field Trips | Snapshot items from `field_trip_publications` and `field_trip_publication_items` |
-| Field Trip Challenge Badges | Badge cards from `field_trip_challenge_badges`, without scan evidence |
+| Active Field trips | Status-only checklist progress from `user_field_trips` |
+| Published Field trips | Snapshot items from `field_trip_publications` and `field_trip_publication_items` |
+| Field trip Challenge Badges | Badge cards from `field_trip_challenge_badges`, without scan evidence |
 
 Profile aggregates intentionally include private scans because they mirror the
 user's own profile stats at a high level. Published grids never include private
@@ -66,8 +66,8 @@ eligible through their media snapshot plus reference-thumbnail projection.
 
 The backend returns a profile only when the target author has at least one
 Explore post currently visible to the requesting viewer or at least one visible
-Field Trip profile surface. This prevents the endpoint from becoming a user
-lookup API while allowing active or published Field Trips to make a profile
+Field trip profile surface. This prevents the endpoint from becoming a user
+lookup API while allowing active or published Field trips to make a profile
 discoverable.
 
 The same Explore visibility rules apply to both profile and library reads:
@@ -82,12 +82,12 @@ The same Explore visibility rules apply to both profile and library reads:
 Post-level `location_sharing` controls public location fields but does not hide
 published posts from profile grids.
 
-Active Field Trip summaries deliberately exclude scan IDs, media URLs, field
+Active Field trip summaries deliberately exclude scan IDs, media URLs, field
 notes, exact coordinates, public location labels, and private evidence details.
-Field Trip challenge badges are also evidence-free: they expose badge title,
+Field trip challenge badges are also evidence-free: they expose badge title,
 challenge title, broad tags, and cover imagery only.
-Published Field Trip cards link to `FieldTripPublicationDetailView`, not to
-normal Explore posts. Field Trip Community cards reuse the same author profile
+Published Field trip cards link to `FieldTripPublicationDetailView`, not to
+normal Explore posts. Field trip Community cards reuse the same author profile
 sheet when the author identity is tapped.
 
 Public achievement payloads contain only progress fields:
@@ -166,16 +166,16 @@ Ghost-account merge repair:
 - `20260622010000_reparent_community_requests_after_identity_merge.sql` repairs existing Community requests whose requester no longer matches the backing scan owner.
 - This keeps own-profile Explore previews, author sheets, `is_owned_by_viewer` checks, and Identify's Yours filter aligned with the current Supabase account.
 
-Field Trips extension:
+Field trips extension:
 
-- `20260708021110_field_trips_v1.sql` adds Field Trip template, progress,
+- `20260708021110_field_trips_v1.sql` adds Field trip template, progress,
   publication, like, and comment storage.
 - `20260708033451_field_trips_v2.sql` adds template guide fields, item tips,
   explicit starts, Recent compatibility support, and pinned profile
   publication metadata.
-- `20260708042713_field_trips_v3_community.sql` adds the Field Trips Community
+- `20260708042713_field_trips_v3_community.sql` adds the Field trips Community
   feed RPC, following-weighted ranking metadata, template-filtered Community
-  previews, and Field Trip-only in-app activity rows.
+  previews, and Field trip-only in-app activity rows.
 - `20260708051414_field_trips_v4_challenges.sql` adds curated seasonal
   challenge storage, explicit participation, challenge-specific item
   completions, completion badges, challenge entry snapshots, and challenge entry
@@ -183,11 +183,11 @@ Field Trips extension:
 - `public.user_has_visible_field_trip_profile(...)` extends author-profile
   discoverability.
 - `public.get_field_trip_profile_summaries(...)` returns active status-only,
-  pinned published, general published Field Trip summaries, and V4 challenge
+  pinned published, general published Field trip summaries, and V4 challenge
   badges.
 - `get-explore-author-profile` includes a `field_trips` object in the profile
   response.
-- `field-trips` owns Field Trip catalog, template detail, start, Community
+- `field-trips` owns Field trip catalog, template detail, start, Community
   publication feed, Recent compatibility, profile pin, progress, publication,
   like/comment actions, plus V4 challenge catalog/detail/join/progress,
   challenge entry publication/detail/like/comment, and challenge hashtag
@@ -283,7 +283,7 @@ Backend:
 - Covers aggregate privacy boundaries and cursor pagination.
 - Covers username normalization and validation.
 - Covers custom-avatar precedence in the public identity DB test.
-- Field Trips profile privacy contracts live in
+- Field trips profile privacy contracts live in
   `services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts`.
 - Tests skip live assertions when the local Supabase DB is not running at `127.0.0.1:54322`.
 
@@ -295,7 +295,7 @@ iOS:
 - Covers `/update-public-avatar` response decoding and request payload
   construction.
 - `apps/ios/MerianTests/Core/Network/FieldTripAPIModelsTests.swift` covers
-  Field Trip DTO decoding used by profile modules and publication detail.
+  Field trip DTO decoding used by profile modules and publication detail.
 
 Recommended verification:
 
@@ -313,17 +313,17 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic
 
 ## Deployment Notes
 
-Deploy the migrations before deploying the profile and Field Trips Edge
+Deploy the migrations before deploying the profile and Field trips Edge
 Functions. The functions depend on the RPCs and on the `device_time_zone`
 column existing.
 
-For Field Trips, deploy `20260708021110_field_trips_v1.sql`,
+For Field trips, deploy `20260708021110_field_trips_v1.sql`,
 `20260708033451_field_trips_v2.sql`, and
 `20260708042713_field_trips_v3_community.sql`, then
 `20260708051414_field_trips_v4_challenges.sql` before deploying `field-trips`,
 `get-explore-author-profile`, and the Explore activity functions. The profile
-endpoint depends on the Field Trip summary RPC when returning `field_trips`,
-and the Field Trips endpoint depends on the V4 challenge RPCs when returning
+endpoint depends on the Field trip summary RPC when returning `field_trips`,
+and the Field trips endpoint depends on the V4 challenge RPCs when returning
 profile challenge badges.
 
 All identify paths now persist `device_time_zone` when the client sends a valid IANA timezone. Existing scans without a timezone continue to compute public profile streaks and heatmaps in UTC.

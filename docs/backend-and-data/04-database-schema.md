@@ -1760,15 +1760,15 @@ coordinates to the client contract.
   shadowbanned counterpart users and do not expose identities.
 - `public.get_explore_author_profile(self_id UUID, target_author_user_id UUID, preview_limit INTEGER)`:
   Returns a public author profile row only when the target author has at least
-  one currently visible Explore post or visible Field Trip profile surface for
+  one currently visible Explore post or visible Field trip profile surface for
   the requester. It emits public author identity, species count, current streak,
   52-week heatmap JSON, achievement-progress JSON, total visible published post
   count, follower/following counts, requester follow state, up to
-  `preview_limit` preview posts, and Field Trip summaries. Aggregate scan stats
+  `preview_limit` preview posts, and Field trip summaries. Aggregate scan stats
   are computed from all non-tombstoned scans; follow counts are computed from
   `user_follows`; preview posts use the stricter Explore visibility filters and
   never include private, unshared, tombstoned, media-less, or
-  non-species-backed scans. Active Field Trip summaries include checklist
+  non-species-backed scans. Active Field trip summaries include checklist
   status only and never return scan IDs, media URLs, field notes, exact
   coordinates, public location labels, or private evidence. Achievement
   progress never returns qualifying scan IDs.
@@ -1780,7 +1780,7 @@ coordinates to the client contract.
   nullable `reference_thumbnail_url`, resolved through
   `public_species_first_reference_image_url`, for nonvisual-media thumbnails.
 - `public.field_trip_templates`:
-  Curated Field Trip definitions with slug, title, region/season/habitat tags,
+  Curated Field trip definitions with slug, title, region/season/habitat tags,
   difficulty, Pro/rotating-free access flags, active state, optional cover
   image, estimated duration, and curated guide sections.
 - `public.field_trip_levels`:
@@ -1794,11 +1794,12 @@ coordinates to the client contract.
   Per-user progress rows with start time, current level, profile visibility,
   completion time, and denormalized progress counts.
 - `public.user_field_trip_item_completions`:
-  Idempotent item completion rows linking a Field Trip item to the saved scan
+  Idempotent item completion rows linking a Field trip item to the saved scan
   that completed it. Rows are written only for caller-owned scans made after the
-  Field Trip start time.
+  Field trip start time. The same scan may link to multiple matching items or
+  outings; uniqueness is by user Field trip and checklist item, not by scan.
 - `public.field_trip_publications`:
-  Published Field Trip snapshot headers with user-editable title, optional
+  Published Field trip snapshot headers with user-editable title, optional
   description, optional AI summary, counts, author/template linkage, and
   optional profile pin position metadata capped at 3 per author.
 - `public.field_trip_publication_items`:
@@ -1806,22 +1807,22 @@ coordinates to the client contract.
   labels and selected snapshot media, but they do not make the underlying scans
   Explore posts.
 - `public.field_trip_publication_likes`:
-  Field Trip publication likes, separate from `explore_post_likes`.
+  Field trip publication likes, separate from `explore_post_likes`.
 - `public.field_trip_publication_comments`:
-  Field Trip publication comments and one-level replies, separate from
+  Field trip publication comments and one-level replies, separate from
   `explore_post_comments`.
 - `public.field_trip_activity_notifications`:
-  Field Trip-only in-app activity rows for publication comments, replies, and
+  Field trip-only in-app activity rows for publication comments, replies, and
   followed-author publications. These rows are separate from
   `explore_post_notifications` and never trigger APNs, widgets, feed cards, map
   rows, or `explore_posts`. `type` is checked text
   (`field_trip_comment`, `field_trip_reply`, or
   `field_trip_followed_publication`) rather than a new
   `explore_notification_type` enum value, so the migration can deploy in one
-  transaction while keeping Field Trip activity separate from push-backed Explore
+  transaction while keeping Field trip activity separate from push-backed Explore
   notifications.
 - `public.field_trip_challenges`:
-  Curated/admin-created seasonal challenge definitions linked to a Field Trip
+  Curated/admin-created seasonal challenge definitions linked to a Field trip
   template. Rows store title, description, cover image, start/end timestamps,
   region/season/habitat tags, normalized suggested hashtags, access flags,
   active state, and sort order.
@@ -1832,7 +1833,7 @@ coordinates to the client contract.
 - `public.field_trip_challenge_item_completions`:
   Challenge-specific item completions keyed by participation and checklist item.
   Rows link to caller-owned scans made after `joined_at` and before the
-  challenge `ends_at`; they do not retroactively satisfy normal Field Trip
+  challenge `ends_at`; they do not retroactively satisfy normal Field trip
   progress.
 - `public.field_trip_challenge_badges`:
   Completion badge rows for non-competitive challenges. Profile-visible badges
@@ -1840,30 +1841,36 @@ coordinates to the client contract.
 - `public.field_trip_challenge_entries`:
   Published challenge completion snapshots. These are distinct from
   `field_trip_publications` so repeat seasonal challenges on the same template
-  do not overwrite normal Field Trip publication history.
+  do not overwrite normal Field trip publication history.
 - `public.field_trip_challenge_entry_items`:
   Snapshot item rows for challenge entries, including species/taxonomy labels
   and selected snapshot media without creating Explore posts.
 - `public.field_trip_challenge_entry_likes`:
-  Challenge entry likes, separate from Explore post likes and normal Field Trip
+  Challenge entry likes, separate from Explore post likes and normal Field trip
   publication likes.
 - `public.field_trip_challenge_entry_comments`:
   Challenge entry comments and one-level replies, separate from Explore post
-  comments and normal Field Trip publication comments.
+  comments and normal Field trip publication comments.
 - `public.get_field_trip_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
   Returns active templates with access state, levels, checklist items, and the
-  requester's progress.
+  requester's progress. Completed items include their exact private
+  `completed_scan_id`; incomplete items return a null evidence link. The response
+  includes no media URL.
 - `public.get_field_trip_template_detail(self_id UUID, target_template_id UUID, target_slug TEXT)`:
   Returns one catalog-shaped template payload with guide fields, item tips,
-  access state, and viewer progress.
+  access state, viewer progress, and the same private completion scan link.
+  Both catalog/detail functions are restricted to `service_role`; authenticated
+  callers reach them through `/field-trips`, which supplies the verified user
+  ID. `20260718043218_expose_field_trip_completion_scan_ids.sql` defines this
+  payload and permission contract.
 - `public.get_field_trip_capture_context(self_id UUID)`:
   Private service-role read model for the visual Scan indicator. Returns only
-  accessible active, incomplete, non-hidden standard outings and unfinished
-  targets from each current unlocked level. Outings order by latest start or
+  accessible active, incomplete, non-hidden standard field trips and unfinished
+  targets from each current unlocked level. Field trips order by latest start or
   item completion, and targets use curated checklist order. It reads standard
-  Field Trip completions only; Seasonal labels and challenge-specific
+  Field trip completions only; Seasonal labels and challenge-specific
   completions are excluded, but joining a challenge does not hide the shared
-  underlying standard outing. The payload contains aggregate progress and
+  underlying standard field trip. The payload contains aggregate progress and
   prompt metadata only—never scan IDs, media, location, notes, completed species
   labels, or evidence. Execute is revoked from `PUBLIC`, `anon`, and
   `authenticated` and granted only to `service_role`; the authenticated
@@ -1875,9 +1882,9 @@ coordinates to the client contract.
   it without deleting historical user rows.
 - `public.start_field_trip(self_id UUID, target_template_id UUID)`:
   Explicitly starts or unhides the caller's progress row for an accessible
-  Field Trip template.
+  Field trip template.
 - `public.get_field_trip_community_publications(self_id UUID, mode TEXT, target_template_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], viewer_season_tags TEXT[], max_limit INTEGER, before_rank_bucket INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
-  Returns visible published completed trips for the Field Trips `Community`
+  Returns visible published completed trips for the Field trips `Community`
   surface. `smart` ranks by followed-author and coarse region/habitat/season or
   template relevance buckets, `following` filters to `user_follows`, and
   `recent` orders reverse chronologically. Pagination is stable on
@@ -1892,26 +1899,29 @@ coordinates to the client contract.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
   Applies server-authoritative progress for one caller-owned scan. It counts
   only scans made after the trip starts and only against the current unlocked
-  level.
+  level. A saved biological photo or video can qualify. The scan is evaluated
+  against every matching current-level item across every eligible active
+  standard outing, so one scan may create multiple completion rows that all
+  retain the same `scan_id`.
 - `public.get_field_trip_profile_summaries(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
-  Returns active status-only, pinned published, and general published Field Trip
+  Returns active status-only, pinned published, and general published Field trip
   summaries visible to the requester. Pinned publications are omitted from the
   general published list.
 - `public.set_field_trip_pinned_publications(self_id UUID, publication_ids UUID[])`:
-  Replaces the caller's pinned published Field Trips, preserving supplied order
+  Replaces the caller's pinned published Field trips, preserving supplied order
   and rejecting more than 3 publication IDs.
 - `public.can_view_field_trip_publication(self_id UUID, target_publication_id UUID)`:
-  Returns whether the requester may view a published Field Trip after
+  Returns whether the requester may view a published Field trip after
   publication state, shadowban, and block checks.
 - `public.publish_field_trip(self_id UUID, target_user_field_trip_id UUID, title TEXT, description TEXT, ai_summary TEXT)`:
-  Publishes a completed trip into Field Trip publication tables without writing
+  Publishes a completed trip into Field trip publication tables without writing
   `explore_posts`, map points, APNs, widgets, or normal Explore post
   notifications. V3 followed-author publication activity is stored only in
   `field_trip_activity_notifications`.
 - `public.get_field_trip_publication_detail(self_id UUID, target_publication_id UUID)`:
-  Returns a visible Field Trip publication detail payload.
+  Returns a visible Field trip publication detail payload.
 - `public.get_field_trip_comments(self_id UUID, target_publication_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
-  Returns paginated Field Trip comments using the Explore comment-shaped client
+  Returns paginated Field trip comments using the Explore comment-shaped client
   DTO.
 - `public.get_field_trip_challenges_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
   Returns curated seasonal challenges with schedule status, access state,
@@ -1922,7 +1932,7 @@ coordinates to the client contract.
   viewer progress, badge state, and initial published challenge entries.
 - `public.join_field_trip_challenge(self_id UUID, target_challenge_id UUID)`:
   Idempotently joins a live accessible challenge, starts or continues the linked
-  Field Trip, and creates/returns the separate participant row.
+  Field trip, and creates/returns the separate participant row.
 - `public.apply_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
   Applies challenge progress for a caller-owned scan when the user joined the
   live challenge before the scan and the scan falls before the challenge ends.
@@ -1932,7 +1942,7 @@ coordinates to the client contract.
   for optional Explore composer suggestions only.
 - `public.get_field_trip_challenge_publications(self_id UUID, target_challenge_id UUID, max_limit INTEGER, before_published_at TIMESTAMPTZ, before_entry_id UUID)`:
   Returns visible published challenge entries with stable
-  `(published_at DESC, entry_id DESC)` pagination and Field Trip block/shadowban
+  `(published_at DESC, entry_id DESC)` pagination and Field trip block/shadowban
   checks.
 - `public.publish_field_trip_challenge_entry(self_id UUID, target_participation_id UUID, entry_title TEXT, entry_description TEXT)`:
   Publishes or updates a completed challenge participation into challenge entry
@@ -1968,15 +1978,15 @@ coordinates to the client contract.
   relationship, Community rows include `community_request_id` and request/taxon
   display fields, and `recent_actor_names` preserves the server-side actor order
   from `recent_actor_ids`. Follow rows have `post_id = NULL` and are
-  informational only; Field Trip rows have `field_trip_publication_id` and route
-  to Field Trip publication detail. Paging is stable on
+  informational only; Field trip rows have `field_trip_publication_id` and route
+  to Field trip publication detail. Paging is stable on
   `(updated_at DESC, notification_id DESC)` so new activity does not cause
   duplicates while the sheet paginates.
 - `public.get_unread_explore_notification_count(self_id UUID)`: Returns the
-  unread bell badge count for visible Explore notifications and Field Trip
+  unread bell badge count for visible Explore notifications and Field trip
   in-app activity rows.
 - `public.mark_explore_notifications_read(self_id UUID)`: Marks all of the
-  viewer's Explore notification and Field Trip activity rows as read. The iOS
+  viewer's Explore notification and Field trip activity rows as read. The iOS
   client calls this only after a successful notifications fetch.
 - `public.get_explore_push_notification_payload(target_notification_id UUID)`:
   Internal push-delivery projection used by `send-push-notification`. It filters

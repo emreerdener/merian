@@ -90,20 +90,24 @@ The same migration contract suite covers the identification-latency migration:
 service-role-only RPC grants, the atomic ingestion setup function, combined
 dictionary hydration, and the RLS-protected deferred-context table/trigger.
 
-Field Trips migrations also have static contract coverage. The current chain is
+Field trips migrations also have static contract coverage. The current chain is
 V1 template/progress/publication storage, V2 guided detail/start/pins, V3
 Community/activity, and V4 curated Seasonal Challenges with explicit joins,
 challenge progress, badges, challenge entries, and optional Explore hashtag
 suggestions. The contextual objective-guide migration supplies structured Tips,
 `20260717195751_active_outing_capture_context.sql` adds the private service-role
-capture read model, and
+capture read model.
 `20260717213641_preserve_standard_outings_in_capture_context.sql` keeps the
-underlying standard outing visible after a Seasonal Challenge join while still
-ignoring challenge-specific progress, and
+underlying standard field trip visible after a Seasonal Challenge join while still
+ignoring challenge-specific progress.
 `20260717224544_retire_forest_edges_outing.sql` deactivates the Forest Edges
-placeholder without deleting historical user data. The contract suite verifies caller
-identity, role grants, ordering/filtering clauses, and the absence of private
-evidence. `fieldTripCaptureContextDb.test.ts` additionally
+placeholder without deleting historical user data.
+`20260718043218_expose_field_trip_completion_scan_ids.sql` adds the completing
+scan ID to the private catalog/detail projections while restricting both RPCs
+to `service_role`. The contract suite verifies caller identity, role grants,
+ordering/filtering clauses, private completion links, and the absence of
+evidence from public/capture projections.
+`fieldTripCaptureContextDb.test.ts` additionally
 executes the filtering/order/privacy contract when the local Postgres stack is
 running; a connection skip is not database validation.
 
@@ -183,11 +187,18 @@ code that calls the new RPCs, then stage the client and Edge rollout using the
 gates in `docs/backend-and-data/06-supabase-deployment-runbook.md`. Do not force
 an Edge region without the documented A/B evidence.
 
-For the Field Trip Scan indicator, apply the contextual-guide, active-outing
-capture-context, and standard-outing preservation migrations before deploying
+For the Field trip Scan indicator, apply the contextual-guide, active-field trip
+capture-context, and standard-field trip preservation migrations before deploying
 `field-trips`, then smoke-test the authenticated `capture_context` action before
 releasing the iOS client. The RPC
 is intentionally unavailable to direct `anon` and `authenticated` database
 calls; only the verified Edge action may invoke it with `service_role`. The
 long-term client/source boundary and extension rules are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
+
+For completed-goal thumbnails, also apply
+`20260718043218_expose_field_trip_completion_scan_ids.sql` before releasing the
+iOS client. Smoke-test that catalog/detail return the exact completion
+`scan_id`, direct client roles cannot execute those RPCs, and public profile,
+publication, challenge, Explore, and capture-context payloads remain
+evidence-free.

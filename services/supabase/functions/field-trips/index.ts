@@ -108,7 +108,7 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
     case "create_challenge_entry_comment":
       return rawAction;
     default:
-      throw makeHttpError(400, "Unsupported Field Trip action.");
+      throw makeHttpError(400, "Unsupported Field trip action.");
   }
 }
 
@@ -126,7 +126,7 @@ function normalizeCommunityMode(
     case "recent":
       return rawMode.trim().toLowerCase() as "smart" | "following" | "recent";
     default:
-      throw makeHttpError(400, "Unsupported Field Trip community mode.");
+      throw makeHttpError(400, "Unsupported Field trip community mode.");
   }
 }
 
@@ -275,7 +275,7 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         if (!data) {
-          return jsonResponse({ error: "Field Trip template not found" }, 404);
+          return jsonResponse({ error: "Field trip template not found" }, 404);
         }
         return jsonResponse({ data });
       }
@@ -309,7 +309,7 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         if (!data) {
-          return jsonResponse({ error: "Field Trip challenge not found" }, 404);
+          return jsonResponse({ error: "Field trip challenge not found" }, 404);
         }
         return jsonResponse({ data });
       }
@@ -556,7 +556,7 @@ Deno.serve((req: Request) =>
         );
         if (!data) {
           return jsonResponse(
-            { error: "Field Trip publication not found" },
+            { error: "Field trip publication not found" },
             404,
           );
         }
@@ -574,7 +574,7 @@ Deno.serve((req: Request) =>
         );
         if (!data) {
           return jsonResponse(
-            { error: "Field Trip challenge entry not found" },
+            { error: "Field trip challenge entry not found" },
             404,
           );
         }
@@ -749,7 +749,7 @@ Deno.serve((req: Request) =>
             await hasMutualBlock(user.id, parent.user_id, supabaseAdmin)
           ) {
             return jsonResponse({
-              error: "You cannot reply to this Field Trip comment.",
+              error: "You cannot reply to this Field trip comment.",
             }, 403);
           }
         }
@@ -831,7 +831,7 @@ Deno.serve((req: Request) =>
             await hasMutualBlock(user.id, parent.user_id, supabaseAdmin)
           ) {
             return jsonResponse({
-              error: "You cannot reply to this Field Trip challenge comment.",
+              error: "You cannot reply to this Field trip challenge comment.",
             }, 403);
           }
         }

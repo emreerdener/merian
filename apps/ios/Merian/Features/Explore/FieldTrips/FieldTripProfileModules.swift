@@ -98,7 +98,7 @@ struct FieldTripProfilePreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Outings")
+                Text("Field trips")
                     .font(.title3.weight(.bold))
 
                 Spacer()

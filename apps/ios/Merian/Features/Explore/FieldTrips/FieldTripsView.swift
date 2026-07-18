@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 enum FieldTripTemplatePresentation {
@@ -14,24 +15,17 @@ enum FieldTripTemplatePresentation {
     static func bundledCoverImageName(for slug: String?) -> String? {
         slug == backyardSafariSlug ? "fieldtrip-backyard-safari" : nil
     }
-
-    static func outingCopy(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "Field Trips", with: "Outings")
-            .replacingOccurrences(of: "Field Trip", with: "Outing")
-            .replacingOccurrences(of: "field trips", with: "outings")
-            .replacingOccurrences(of: "field trip", with: "outing")
-            .replacingOccurrences(of: " trips", with: " outings")
-            .replacingOccurrences(of: " trip", with: " outing")
-    }
 }
 
 struct FieldTripsView: View {
     let userRegion: String?
     @Binding var selectedSection: FieldTripsSection
+    let onOpenTemplate: (String) -> Void
+    let onOpenCompletedScan: (String) -> Void
     let onOpenPublication: (String) -> Void
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
+    @Query private var localScans: [LocalScanRecord]
     @State private var viewModel = FieldTripsViewModel()
     @State private var selectedDifficultyFilter: FieldTripDifficultyFilter = .all
 
@@ -85,15 +79,15 @@ struct FieldTripsView: View {
                             }
                         } else if let errorMessage = viewModel.errorMessage, viewModel.templates.isEmpty {
                             FieldTripUnavailableCard(
-                                title: "Outings unavailable",
+                                title: "Field trips unavailable",
                                 message: errorMessage
                             ) {
                                 Task { await viewModel.refresh(userRegion: userRegion) }
                             }
                         } else if viewModel.templates.isEmpty {
                             FieldTripUnavailableCard(
-                                title: "Outings unavailable",
-                                message: "Challenges are not available right now."
+                                title: "Field trips unavailable",
+                                message: "Goals are not available right now."
                             ) {
                                 Task { await viewModel.refresh(userRegion: userRegion) }
                             }
@@ -104,17 +98,17 @@ struct FieldTripsView: View {
                                 )
                         } else {
                             ForEach(filteredTemplates) { template in
-                                NavigationLink(value: FieldTripTemplateRoute(templateId: template.templateId)) {
-                                    FieldTripTemplateCard(template: template)
-                                }
-                                .buttonStyle(.plain)
-                                .simultaneousGesture(
-                                    TapGesture().onEnded {
+                                FieldTripTemplateCard(
+                                    template: template,
+                                    localScansById: localScansById,
+                                    onOpenTemplate: {
                                         HapticManager.shared.triggerLightImpact(
                                             intensity: 0.45,
                                             source: "fieldTrips.catalog.template.open"
                                         )
-                                    }
+                                        onOpenTemplate(template.templateId)
+                                    },
+                                    onOpenCompletedScan: onOpenCompletedScan
                                 )
                             }
                         }
@@ -133,6 +127,12 @@ struct FieldTripsView: View {
         viewModel.templates.filtering(by: selectedDifficultyFilter.difficulty)
     }
 
+    private var localScansById: [String: LocalScanRecord] {
+        localScans.reduce(into: [:]) { scans, scan in
+            scans[scan.id] = scan
+        }
+    }
+
     private var difficultyFilterBar: some View {
         CategoryFilterBar(
             items: FieldTripDifficultyFilter.allCases,
@@ -144,14 +144,14 @@ struct FieldTripsView: View {
                 HapticManager.shared.triggerSelectionPulse()
             }
         )
-        .accessibilityLabel("Outing difficulty")
+        .accessibilityLabel("Field trip difficulty")
     }
 
     private var filteredEmptyState: some View {
         EmptyStateView(
             imageName: "fireflies",
-            title: "No \(selectedDifficultyFilter.title) challenges yet",
-            message: "Try another difficulty to find your next challenge."
+            title: "No \(selectedDifficultyFilter.title) goals yet",
+            message: "Try another difficulty to find your next goal."
         ) {
             Button {
                 selectedDifficultyFilter = .all
@@ -225,9 +225,11 @@ struct FieldTripsView: View {
 struct FieldTripTemplateDetailView: View {
     let templateId: String
     let focusedChecklistItemId: String?
+    let onOpenCompletedScan: (String) -> Void
     let onOpenPublication: (String) -> Void
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
+    @Query private var localScans: [LocalScanRecord]
     @State private var template: FieldTripTemplate?
     @State private var communityPreview: [FieldTripRecentPublication] = []
     @State private var isLoading = false
@@ -247,11 +249,13 @@ struct FieldTripTemplateDetailView: View {
     init(
         templateId: String,
         focusedChecklistItemId: String? = nil,
+        onOpenCompletedScan: @escaping (String) -> Void,
         onOpenPublication: @escaping (String) -> Void,
         onOpenAuthorProfile: @escaping (FieldTripRecentPublication) -> Void
     ) {
         self.templateId = templateId
         self.focusedChecklistItemId = focusedChecklistItemId
+        self.onOpenCompletedScan = onOpenCompletedScan
         self.onOpenPublication = onOpenPublication
         self.onOpenAuthorProfile = onOpenAuthorProfile
     }
@@ -264,7 +268,7 @@ struct FieldTripTemplateDetailView: View {
                         .padding(16)
                 } else if let errorMessage, template == nil {
                     FieldTripUnavailableCard(
-                        title: "Outing unavailable",
+                        title: "Field trip unavailable",
                         message: errorMessage
                     ) {
                         Task { await load(force: true) }
@@ -280,7 +284,7 @@ struct FieldTripTemplateDetailView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(
                 template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
-                    ?? "Outing"
+                    ?? "Field trip"
             )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
@@ -329,7 +333,7 @@ struct FieldTripTemplateDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let description = template.description {
-                        Text(FieldTripTemplatePresentation.outingCopy(description))
+                        Text(description)
                             .font(.body)
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -341,7 +345,10 @@ struct FieldTripTemplateDetailView: View {
                     currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1,
                     isTripComplete: template.activeProgress?.isComplete ?? false,
                     progress: template.activeProgress.map(FieldTripLevelProgressPresentation.init),
+                    progressPlacement: .headerRing,
                     highlightedItemId: highlightedObjectiveItemId,
+                    localScansById: localScansById,
+                    onOpenCompletedScan: onOpenCompletedScan,
                     onOpenGuide: openGuide
                 )
                 .onAppear {
@@ -376,6 +383,12 @@ struct FieldTripTemplateDetailView: View {
         pendingGuideItemId = item.id
         withAnimation(.easeInOut(duration: 0.2)) {
             selectedDetailSection = .tips
+        }
+    }
+
+    private var localScansById: [String: LocalScanRecord] {
+        localScans.reduce(into: [:]) { scans, scan in
+            scans[scan.id] = scan
         }
     }
 
@@ -441,7 +454,7 @@ struct FieldTripTemplateDetailView: View {
         if template != nil {
             ToolbarItem(placement: .principal) {
                 FieldTripDetailToolbarPicker(
-                    label: "Outing details",
+                    label: "Field trip details",
                     selection: $selectedDetailSection
                 )
             }
@@ -465,7 +478,7 @@ struct FieldTripTemplateDetailView: View {
             }
         } else if template.activeProgress == nil {
             FieldTripDetailPrimaryActionBar(
-                title: "Start challenge",
+                title: "Start outing",
                 systemImage: "play.fill",
                 isLoading: isStarting,
                 isEnabled: !isStarting
@@ -474,14 +487,14 @@ struct FieldTripTemplateDetailView: View {
             }
         } else if let progress = template.activeProgress, progress.isComplete {
             FieldTripDetailPrimaryActionBar(
-                title: "Publish challenge",
+                title: "Publish outing",
                 systemImage: "square.and.arrow.up"
             ) {
                 publishingTemplate = template
             }
         } else {
             FieldTripDetailPrimaryActionBar(
-                title: "Go scan",
+                title: "Start scanning",
                 systemImage: nil
             ) {
                 openScanner()
@@ -492,7 +505,7 @@ struct FieldTripTemplateDetailView: View {
     private func openScanner() {
         HapticManager.shared.triggerLightImpact(
             intensity: 0.45,
-            source: "fieldTrips.challenge.goScan"
+            source: "fieldTrips.outing.goScan"
         )
         AppEventPublisher.shared.send(.requestOpenScanner)
     }
@@ -637,7 +650,10 @@ struct FieldTripChallengeDetailView: View {
                         currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1,
                         isTripComplete: challenge.viewerParticipation?.isComplete ?? false,
                         progress: challenge.viewerParticipation.map(FieldTripLevelProgressPresentation.init),
+                        progressPlacement: .bar,
                         highlightedItemId: nil,
+                        localScansById: [:],
+                        onOpenCompletedScan: { _ in },
                         onOpenGuide: openGuide
                     )
 
@@ -713,7 +729,7 @@ struct FieldTripChallengeDetailView: View {
             }
 
             if let description = challenge.description {
-                Text(FieldTripTemplatePresentation.outingCopy(description))
+                Text(description)
                     .font(.body)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -806,7 +822,7 @@ struct FieldTripChallengeDetailView: View {
             }
         } else {
             FieldTripDetailPrimaryActionBar(
-                title: "Go scan",
+                title: "Start scanning",
                 systemImage: nil
             ) {
                 openScanner()
@@ -923,7 +939,7 @@ private enum FieldTripDetailSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .objectives:
-            "Objectives"
+            "Goals"
         case .tips:
             "Tips"
         }
@@ -955,7 +971,7 @@ enum FieldTripsSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .fieldTrips:
-            "Challenges"
+            "Outings"
         case .seasonal:
             "Events"
         }
@@ -970,7 +986,7 @@ private enum FieldTripScanPreviewLayout {
 }
 
 // Bundled objective artwork. Capture surfaces intentionally use only exact
-// template mappings; richer Field Trip grids may use semantic fallback art.
+// template mappings; richer Field trip grids may use semantic fallback art.
 enum FieldTripObjectiveArtwork {
     static let imageNames = [
         "butterfly-monarch",
@@ -1049,6 +1065,9 @@ enum FieldTripObjectiveArtwork {
 
 private struct FieldTripTemplateCard: View {
     let template: FieldTripTemplate
+    let localScansById: [String: LocalScanRecord]
+    let onOpenTemplate: () -> Void
+    let onOpenCompletedScan: (String) -> Void
 
     private var previewTargetCount: Int {
         if let activeProgress = template.activeProgress {
@@ -1058,10 +1077,6 @@ private struct FieldTripTemplateCard: View {
         return template.levels
             .min(by: { $0.levelNumber < $1.levelNumber })?
             .items.count ?? 0
-    }
-
-    private var previewCompletedCount: Int {
-        max(0, template.activeProgress?.completedCount ?? 0)
     }
 
     private var previewItems: [FieldTripChecklistItem] {
@@ -1081,49 +1096,60 @@ private struct FieldTripTemplateCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .center) {
-                    FieldTripAccessBadge(template: template)
+            Button(action: onOpenTemplate) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .center) {
+                        FieldTripAccessBadge(template: template)
 
-                    Spacer(minLength: 16)
+                        Spacer(minLength: 16)
 
-                    Image(systemName: "chevron.right")
-                        .font(.title3.weight(.semibold))
+                        Image(systemName: "chevron.right")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .accessibilityHidden(true)
+                    }
+
+                    Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
+                        .font(.title3.weight(.bold))
                         .foregroundStyle(.primary)
-                        .accessibilityHidden(true)
-                }
+                        .lineLimit(2)
 
-                Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-
-                if let subtitle = template.subtitle {
-                    Text(FieldTripTemplatePresentation.outingCopy(subtitle))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let subtitle = template.subtitle {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, showsScanPreview || template.activeProgress != nil ? 12 : 16)
 
             if showsScanPreview {
                 FieldTripScanPreviewStrip(
-                    completedCount: previewCompletedCount,
                     targetCount: previewTargetCount,
                     templateSlug: template.slug,
-                    items: previewItems
+                    items: previewItems,
+                    localScansById: localScansById,
+                    onOpenTemplate: onOpenTemplate,
+                    onOpenCompletedScan: onOpenCompletedScan
                 )
                 .padding(.bottom, template.activeProgress == nil ? 16 : 12)
             }
 
             if let activeProgress = template.activeProgress {
-                FieldTripProgressBar(progress: activeProgress)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                Button(action: onOpenTemplate) {
+                    FieldTripProgressBar(progress: activeProgress)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
         }
         .frame(maxWidth: .infinity)
@@ -1133,17 +1159,15 @@ private struct FieldTripTemplateCard: View {
 }
 
 private struct FieldTripScanPreviewStrip: View {
-    let completedCount: Int
     let targetCount: Int
     let templateSlug: String
     let items: [FieldTripChecklistItem]
+    let localScansById: [String: LocalScanRecord]
+    let onOpenTemplate: () -> Void
+    let onOpenCompletedScan: (String) -> Void
 
     private var visibleTargetCount: Int {
         max(0, targetCount)
-    }
-
-    private var visibleCompletedCount: Int {
-        min(visibleTargetCount, max(0, completedCount))
     }
 
     var body: some View {
@@ -1156,7 +1180,6 @@ private struct FieldTripScanPreviewStrip: View {
             .padding(.horizontal, 16)
         }
         .frame(height: FieldTripScanPreviewLayout.tileSize)
-        .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -1165,33 +1188,47 @@ private struct FieldTripScanPreviewStrip: View {
             cornerRadius: FieldTripScanPreviewLayout.cornerRadius,
             style: .continuous
         )
-        let isCompleted = index < visibleCompletedCount
+        let item = items.indices.contains(index) ? items[index] : nil
 
-        ZStack {
-            Color(uiColor: .tertiarySystemGroupedBackground)
+        Button {
+            if let completedScanId = item?.completedScanId {
+                onOpenCompletedScan(completedScanId)
+            } else {
+                onOpenTemplate()
+            }
+        } label: {
+            ZStack {
+                Color(uiColor: .tertiarySystemGroupedBackground)
 
-            Image(
-                FieldTripObjectiveArtwork.imageName(
-                    for: items.indices.contains(index) ? items[index].prompt : "",
-                    templateSlug: templateSlug,
-                    fallbackIndex: index
-                )
+                if let completedScanId = item?.completedScanId,
+                   let completedScan = localScansById[completedScanId] {
+                    ScanThumbnail(record: completedScan, maxDimension: 300)
+                } else {
+                    Image(
+                        FieldTripObjectiveArtwork.imageName(
+                            for: item?.prompt ?? "",
+                            templateSlug: templateSlug,
+                            fallbackIndex: index
+                        )
+                    )
+                        .resizable()
+                        .scaledToFit()
+                        .padding(FieldTripScanPreviewLayout.imagePadding)
+                }
+            }
+            .frame(
+                width: FieldTripScanPreviewLayout.tileSize,
+                height: FieldTripScanPreviewLayout.tileSize
             )
-                .resizable()
-                .scaledToFit()
-                .padding(FieldTripScanPreviewLayout.imagePadding)
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1)
+            }
         }
-        .frame(
-            width: FieldTripScanPreviewLayout.tileSize,
-            height: FieldTripScanPreviewLayout.tileSize
-        )
-        .clipShape(shape)
-        .overlay {
-            shape.strokeBorder(
-                isCompleted ? Color.primary.opacity(0.08) : Color.secondary.opacity(0.35),
-                lineWidth: 1
-            )
-        }
+        .buttonStyle(FieldTripObjectiveTipButtonStyle())
+        .accessibilityLabel(item?.prompt ?? "Field trip goal")
+        .accessibilityValue(item?.isCompleted == true ? "Completed" : "Not completed")
+        .accessibilityHint(item?.completedScanId == nil ? "Open this field trip." : "Open this scan's insight.")
     }
 }
 
@@ -1230,7 +1267,7 @@ private struct FieldTripChallengeCard: View {
                         if let subtitle = challenge.subtitle?
                             .trimmingCharacters(in: .whitespacesAndNewlines),
                            !subtitle.isEmpty {
-                            Text(FieldTripTemplatePresentation.outingCopy(subtitle))
+                            Text(subtitle)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
@@ -1388,6 +1425,22 @@ private struct FieldTripLevelProgressPresentation {
         fractionComplete = participation.fractionComplete
         completionLabel = participation.isComplete ? "Badge earned" : nil
     }
+
+    init(completedCount: Int, targetCount: Int) {
+        self.completedCount = completedCount
+        self.targetCount = targetCount
+        if targetCount > 0 {
+            fractionComplete = min(1, max(0, Double(completedCount) / Double(targetCount)))
+        } else {
+            fractionComplete = 0
+        }
+        completionLabel = nil
+    }
+}
+
+private enum FieldTripLevelProgressPlacement {
+    case headerRing
+    case bar
 }
 
 private struct FieldTripLevelsSection: View {
@@ -1395,7 +1448,10 @@ private struct FieldTripLevelsSection: View {
     let currentLevelNumber: Int
     let isTripComplete: Bool
     let progress: FieldTripLevelProgressPresentation?
+    let progressPlacement: FieldTripLevelProgressPlacement
     let highlightedItemId: String?
+    let localScansById: [String: LocalScanRecord]
+    let onOpenCompletedScan: (String) -> Void
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
@@ -1409,12 +1465,27 @@ private struct FieldTripLevelsSection: View {
                         currentLevelNumber: currentLevelNumber,
                         isTripComplete: isTripComplete
                     ),
-                    progress: level.levelNumber == currentLevelNumber ? progress : nil,
+                    progress: progress(for: level),
+                    progressPlacement: progressPlacement,
                     highlightedItemId: highlightedItemId,
+                    localScansById: localScansById,
+                    onOpenCompletedScan: onOpenCompletedScan,
                     onOpenGuide: onOpenGuide
                 )
             }
         }
+    }
+
+    private func progress(for level: FieldTripLevel) -> FieldTripLevelProgressPresentation? {
+        guard level.levelNumber == currentLevelNumber else { return nil }
+        if let progress {
+            return progress
+        }
+        guard progressPlacement == .headerRing else { return nil }
+        return FieldTripLevelProgressPresentation(
+            completedCount: level.items.filter(\.isCompleted).count,
+            targetCount: level.items.count
+        )
     }
 }
 
@@ -1493,7 +1564,7 @@ private struct FieldTripChallengeEntryCard: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 5) {
-                Label("Outing", systemImage: "map")
+                Label("Field trip", systemImage: "map")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.secondary)
 
@@ -2007,7 +2078,10 @@ private struct FieldTripLevelSection: View {
     let templateSlug: String
     let presentationState: FieldTripLevelPresentationState
     let progress: FieldTripLevelProgressPresentation?
+    let progressPlacement: FieldTripLevelProgressPlacement
     let highlightedItemId: String?
+    let localScansById: [String: LocalScanRecord]
+    let onOpenCompletedScan: (String) -> Void
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     private var rowStartIndices: [Int] {
@@ -2027,7 +2101,18 @@ private struct FieldTripLevelSection: View {
 
                     switch presentationState {
                     case .current:
-                        EmptyView()
+                        if progressPlacement == .headerRing, let progress {
+                            GoalProgressRing(
+                                completedCount: progress.completedCount,
+                                targetCount: progress.targetCount
+                            )
+                            .frame(width: 40, height: 40)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Level progress")
+                            .accessibilityValue(
+                                "\(progress.completedCount) of \(progress.targetCount) goals complete"
+                            )
+                        }
                     case .completed:
                         Text("Completed")
                             .font(.caption.weight(.semibold))
@@ -2041,14 +2126,14 @@ private struct FieldTripLevelSection: View {
                 }
 
                 if let description = level.description {
-                    Text(FieldTripTemplatePresentation.outingCopy(description))
+                    Text(description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            if let progress {
+            if progressPlacement == .bar, let progress {
                 FieldTripLevelProgressBar(progress: progress)
             }
 
@@ -2065,6 +2150,8 @@ private struct FieldTripLevelSection: View {
                             templateSlug: templateSlug,
                             fallbackStartIndex: startIndex,
                             highlightedItemId: highlightedItemId,
+                            localScansById: localScansById,
+                            onOpenCompletedScan: onOpenCompletedScan,
                             onOpenGuide: onOpenGuide
                         )
                     }
@@ -2074,6 +2161,8 @@ private struct FieldTripLevelSection: View {
                     items: level.items,
                     templateSlug: templateSlug,
                     presentationState: presentationState,
+                    localScansById: localScansById,
+                    onOpenCompletedScan: onOpenCompletedScan,
                     onOpenGuide: onOpenGuide
                 )
             }
@@ -2096,6 +2185,8 @@ private struct FieldTripChecklistGridRow: View {
     let templateSlug: String
     let fallbackStartIndex: Int
     let highlightedItemId: String?
+    let localScansById: [String: LocalScanRecord]
+    let onOpenCompletedScan: (String) -> Void
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
@@ -2109,6 +2200,8 @@ private struct FieldTripChecklistGridRow: View {
                         fallbackIndex: fallbackStartIndex + offset
                     ),
                     isHighlighted: highlightedItemId == item.id,
+                    completedScan: item.completedScanId.flatMap { localScansById[$0] },
+                    onOpenCompletedScan: onOpenCompletedScan,
                     onOpenGuide: onOpenGuide
                 )
                 .id(item.id)
@@ -2128,11 +2221,24 @@ private struct FieldTripChecklistGridTile: View {
     let item: FieldTripChecklistItem
     let imageName: String
     let isHighlighted: Bool
+    let completedScan: LocalScanRecord?
+    let onOpenCompletedScan: (String) -> Void
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     @ViewBuilder
     var body: some View {
-        if item.hasGuide {
+        if let completedScanId = item.completedScanId, completedScan != nil {
+            Button {
+                onOpenCompletedScan(completedScanId)
+            } label: {
+                tileContent
+            }
+            .buttonStyle(FieldTripObjectiveTipButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityValue(accessibilityValue)
+            .accessibilityHint("Open this scan's insight.")
+        } else if item.hasGuide {
             Button {
                 onOpenGuide(item)
             } label: {
@@ -2142,7 +2248,7 @@ private struct FieldTripChecklistGridTile: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityValue(accessibilityValue)
-            .accessibilityHint("View tips for this objective.")
+            .accessibilityHint("View tips for this goal.")
         } else {
             tileContent
                 .accessibilityElement(children: .ignore)
@@ -2151,60 +2257,102 @@ private struct FieldTripChecklistGridTile: View {
         }
     }
 
+    @ViewBuilder
     private var tileContent: some View {
-        VStack(alignment: .center, spacing: 6) {
-            Image(imageName)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(8)
+        if item.isCompleted, let completedScan {
+            ZStack(alignment: .bottom) {
+                ScanThumbnail(record: completedScan, maxDimension: 600)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(item.prompt)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.78)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
 
-                if item.hasGuide {
-                    Image(systemName: "info.circle")
-                        .font(.caption.weight(.semibold))
+                VStack(spacing: 2) {
+                    Text(item.prompt)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    if let completedName = item.completedCommonName,
+                       completedName.caseInsensitiveCompare(item.prompt) != .orderedSame {
+                        Text(completedName)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(1)
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(10)
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .background(tileShape.fill(Color(uiColor: .tertiarySystemGroupedBackground)))
+            .clipShape(tileShape)
+            .overlay {
+                tileShape.strokeBorder(borderColor, lineWidth: borderLineWidth)
+            }
+        } else {
+            VStack(alignment: .center, spacing: 6) {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(8)
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(item.prompt)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if item.hasGuide {
+                        Image(systemName: "info.circle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                if let completedName = item.completedCommonName {
+                    Text(completedName)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
                 }
             }
+            .padding(10)
             .frame(maxWidth: .infinity, alignment: .center)
-
-            if let completedName = item.completedCommonName {
-                Text(completedName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .background(tileShape.fill(Color(uiColor: .tertiarySystemGroupedBackground)))
+            .overlay {
+                tileShape.strokeBorder(borderColor, lineWidth: borderLineWidth)
             }
+            .shadow(color: highlightShadowColor, radius: 8)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .center)
-        .aspectRatio(1, contentMode: .fit)
-        .background(
-            tileShape.fill(Color(uiColor: .tertiarySystemGroupedBackground))
-        )
-        .overlay {
-            tileShape.strokeBorder(
-                isHighlighted
-                    ? Color.accentColor
-                    : item.isCompleted
-                        ? Color.accentColor.opacity(0.65)
-                        : Color.secondary.opacity(0.35),
-                lineWidth: isHighlighted || item.isCompleted ? 2 : 1
-            )
-        }
-        .shadow(
-            color: isHighlighted ? Color.accentColor.opacity(0.28) : .clear,
-            radius: 8
-        )
+    }
+
+    private var usesHighlight: Bool {
+        isHighlighted && !item.isCompleted
+    }
+
+    private var borderColor: Color {
+        usesHighlight ? Color.accentColor : Color.secondary.opacity(0.35)
+    }
+
+    private var borderLineWidth: CGFloat {
+        usesHighlight ? 2 : 1
+    }
+
+    private var highlightShadowColor: Color {
+        usesHighlight ? Color.accentColor.opacity(0.28) : .clear
     }
 
     private var tileShape: RoundedRectangle {
@@ -2228,6 +2376,8 @@ private struct FieldTripCompactLevelStrip: View {
     let items: [FieldTripChecklistItem]
     let templateSlug: String
     let presentationState: FieldTripLevelPresentationState
+    let localScansById: [String: LocalScanRecord]
+    let onOpenCompletedScan: (String) -> Void
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
@@ -2245,7 +2395,20 @@ private struct FieldTripCompactLevelStrip: View {
 
     @ViewBuilder
     private func compactTile(item: FieldTripChecklistItem, index: Int) -> some View {
-        if presentationState == .completed, item.hasGuide {
+        if presentationState == .completed,
+           let completedScanId = item.completedScanId,
+           localScansById[completedScanId] != nil {
+            Button {
+                onOpenCompletedScan(completedScanId)
+            } label: {
+                compactTileContent(item: item, index: index)
+            }
+            .buttonStyle(FieldTripObjectiveTipButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel(for: item))
+            .accessibilityValue(accessibilityValue)
+            .accessibilityHint("Open this scan's insight.")
+        } else if presentationState == .completed, item.hasGuide {
             Button {
                 onOpenGuide(item)
             } label: {
@@ -2255,7 +2418,7 @@ private struct FieldTripCompactLevelStrip: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel(for: item))
             .accessibilityValue(accessibilityValue)
-            .accessibilityHint("View tips for this objective.")
+            .accessibilityHint("View tips for this goal.")
         } else {
             compactTileContent(item: item, index: index)
                 .accessibilityElement(children: .ignore)
@@ -2274,16 +2437,22 @@ private struct FieldTripCompactLevelStrip: View {
         return ZStack {
             Color(uiColor: .tertiarySystemGroupedBackground)
 
-            Image(
-                FieldTripObjectiveArtwork.imageName(
-                    for: item.prompt,
-                    templateSlug: templateSlug,
-                    fallbackIndex: index
+            if presentationState == .completed,
+               let completedScanId = item.completedScanId,
+               let completedScan = localScansById[completedScanId] {
+                ScanThumbnail(record: completedScan, maxDimension: 300)
+            } else {
+                Image(
+                    FieldTripObjectiveArtwork.imageName(
+                        for: item.prompt,
+                        templateSlug: templateSlug,
+                        fallbackIndex: index
+                    )
                 )
-            )
-                .resizable()
-                .scaledToFit()
-                .padding(FieldTripScanPreviewLayout.imagePadding)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(FieldTripScanPreviewLayout.imagePadding)
+            }
         }
         .frame(
             width: FieldTripScanPreviewLayout.tileSize,
@@ -2581,7 +2750,7 @@ private struct FieldTripPublishSheet: View {
                     }
                 }
             }
-            .navigationTitle("Publish Outing")
+            .navigationTitle("Publish outing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

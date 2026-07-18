@@ -163,8 +163,8 @@ struct Preferences: View {
 
             if FieldTripsAvailability.isEnabled {
                 SettingsToggleRow(
-                    title: "Outing progress",
-                    description: "Show your active outing target and progress on the Scan camera.",
+                    title: "Field trip goals",
+                    description: "Show your current outing target and progress on the Scan camera.",
                     isOn: $appSettings.showsCaptureGoalProgress,
                     icon: "chart.pie.fill",
                     iconColor: .indigo

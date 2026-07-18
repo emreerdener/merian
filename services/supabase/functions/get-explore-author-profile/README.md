@@ -63,7 +63,7 @@ stable handle stored without `@`; iOS renders it beneath the display name as
 
 ## Privacy Rules
 
-The endpoint returns `404` unless the target author has at least one Explore post currently visible to the requester or at least one visible Field Trip profile surface. This prevents arbitrary user UUID lookups from surfacing profile state while allowing active or published Field Trips to make an author discoverable.
+The endpoint returns `404` unless the target author has at least one Explore post currently visible to the requester or at least one visible Field trip profile surface. This prevents arbitrary user UUID lookups from surfacing profile state while allowing active or published Field trips to make an author discoverable.
 
 Profile aggregates use all non-tombstoned scans owned by the target author:
 
@@ -81,18 +81,18 @@ Preview posts use stricter Explore visibility rules:
 - shadowbanned authors excluded
 - both directions of user blocking excluded
 
-Field Trip summaries use separate storage from Explore posts:
+Field trip summaries use separate storage from Explore posts:
 
-- active Field Trips show template title, level number, and checklist progress only
+- active Field trips show template title, level number, and checklist progress only
 - active summaries never return scan IDs, media URLs, field notes, or location details
-- pinned published Field Trips are capped at 3 and are returned before the
+- pinned published Field trips are capped at 3 and are returned before the
   general active/published modules on iOS
-- published Field Trips return publication IDs and snapshot media from
+- published Field trips return publication IDs and snapshot media from
   `field_trip_publication_items`
-- publishing a Field Trip does not create Explore feed posts, map points,
+- publishing a Field trip does not create Explore feed posts, map points,
   normal Explore post notifications, APNs, widgets, or public web share pages
-- Field Trip comments, replies, and followed-author publications may appear as
-  Field Trip-only rows in the in-app Explore activity sheet; they remain
+- Field trip comments, replies, and followed-author publications may appear as
+  Field trip-only rows in the in-app Explore activity sheet; they remain
   separate from Explore post notifications and never fan out to APNs
 - shadowbanned authors and mutual blocks are excluded
 
@@ -104,7 +104,7 @@ Follow state:
 - Counts are computed from `public.user_follows`.
 - Shadowbanned counterpart users are ignored in counts.
 - No follower or following identities are returned.
-- The profile remains undiscoverable unless the author has at least one visible Explore post or visible Field Trip surface for the requester.
+- The profile remains undiscoverable unless the author has at least one visible Explore post or visible Field trip surface for the requester.
 
 Achievement progress returns only `type`, `current_count`, and `last_interaction_at`. It must never return qualifying scan IDs or contribution details.
 

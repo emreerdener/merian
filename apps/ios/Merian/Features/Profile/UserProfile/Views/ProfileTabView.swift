@@ -50,7 +50,7 @@ struct ProfileTabView: View {
                     onOpenPost: openPublicScanPreview
                 )
 
-                // MARK: - Field Trips
+                // MARK: - Field trips
                 if FieldTripsAvailability.isEnabled {
                     CurrentUserFieldTripProfilePreview { publicationId in
                         selectedFieldTripPublicationRoute = FieldTripPublicationRoute(publicationId: publicationId)

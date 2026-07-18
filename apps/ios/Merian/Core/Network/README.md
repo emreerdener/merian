@@ -18,11 +18,25 @@ network client. Durable background uploads and replay scheduling live under
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 
-## Field Trip capture context
+## Field trip completion evidence
+
+Catalog and template-detail checklist items may decode an optional private
+`completed_scan_id` into `FieldTripChecklistItem.completedScanId`. The ID is the
+exact saved scan that completed that item; clients must not infer completed
+slots from `completed_count` or array order. The API supplies no media URL.
+Explore resolves the identifier against the current device's `LocalScanRecord`
+library and reuses `ScanThumbnail`/Insight navigation when available.
+
+The backing catalog/detail RPCs are service-role-only. iOS reaches them through
+the authenticated `/field-trips` Edge Function, which supplies the verified
+caller ID. Never add this field to public Field trip profiles, publication or
+challenge DTOs, Explore feed/map DTOs, or the capture-context DTO.
+
+## Field trip capture context
 
 `getFieldTripCaptureContext()` posts `{"action":"capture_context"}` to the
 authenticated `/field-trips` Edge Function and decodes the narrow
-`FieldTripCaptureContextResponse`. The response contains standard outing/current
+`FieldTripCaptureContextResponse`. The response contains standard field trip/current
 level metadata, aggregate progress, and unfinished target prompts only. It must
 not contain scan evidence, media, location, or field notes.
 
@@ -30,7 +44,7 @@ not contain scan evidence, media, location, or field notes.
 the source DTOs into generic `CaptureGoal` values, and
 `ActiveCaptureGoalStore` owns the five-minute freshness policy, per-account
 cache, selected-goal persistence, refresh coalescing, and silent stale-data
-retention. Capture never imports these Field Trip DTOs. Callers must never await
+retention. Capture never imports these Field trip DTOs. Callers must never await
 this request before starting the camera or accepting a capture. See
 `docs/backend-and-data/05-api-contracts.md` and
 `docs/features-and-hardware/25-field-trips.md`. The source-agnostic ownership

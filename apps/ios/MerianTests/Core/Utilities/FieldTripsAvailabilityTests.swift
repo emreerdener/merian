@@ -1,7 +1,7 @@
 @testable import Merian
 import Testing
 
-@Suite("Field Trips Availability Tests")
+@Suite("Field trips Availability Tests")
 @MainActor
 struct FieldTripsAvailabilityTests {
     @Test func simulatorAlwaysEnablesFieldTrips() {

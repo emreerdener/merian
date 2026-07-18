@@ -8,7 +8,7 @@ remote identification pipeline. Capture-specific composition remains under
 ## Responsibilities
 
 - `InferenceEngine` coordinates live analysis, result state, saved-media
-  handoff, offline-queue adoption, enrichment, awards, and Field Trips.
+  handoff, offline-queue adoption, enrichment, awards, and Field trips.
 - `InferenceProcessingActor` performs CPU/file/database work away from the main
   actor, including image encoding, response parsing, and scan persistence.
 - On-device Vision classification runs concurrently with the network request to
@@ -24,7 +24,7 @@ measured separately. The engine rebuilds `ActiveScanMedia`, commits
 `speciesData`, and ends processing immediately after those required operations
 succeed.
 
-Award calculation and Field Trips start in follow-up work. Field Trips first
+Award calculation and Field trips start in follow-up work. Field trips first
 polls the existing `/check-scan-status` ingestion ledger, so remote-persistence
 tools remain unavailable until the server confirms the scan. Cache-miss
 Wikipedia/GBIF enrichment is also outside first render.

@@ -2,7 +2,7 @@
 
 The Explore sheet uses root-only bottom navigation as its primary section
 navigation. The menu uses native tab-bar chrome for Observations, Identify,
-Field Trips, and Dictionary.
+Field trips, and Dictionary.
 
 ## Sections
 
@@ -15,20 +15,22 @@ Field Trips, and Dictionary.
   organism filters for Plants, Birds, Insects, Fungi, Mammals, and Herps. Cards
   show the request image and submitted-ID count without exposing the AI-derived
   name in the grid.
-- **Field Trips** shows curated regional checklist quests backed by the
-  `/field-trips` Edge Function. The tab defaults to `Available` trips and also
-  includes `Community` for Field Trips-native published completions with
-  `For You`, `Following`, and `Recent` filters. `Available` may show
-  Seasonal Challenges above the catalog; challenges require explicit Join,
+- **Field trips** shows curated regional checklist quests backed by the
+  `/field-trips` Edge Function. The tab defaults to `Outings` for standard outings
+  and includes `Events` for live and upcoming Seasonal Challenges. Challenges
+  require explicit Join,
   count only in-window scans after `joined_at`, award profile badges, and
-  publish challenge entries through Field Trips-specific pages. Active Field
-  Trip progress can appear on public profiles as checklist status only;
-  published Field Trips open `FieldTripPublicationDetailView`, challenge
+  publish challenge entries through Field trips-specific pages. Active outing
+  progress can appear on public profiles as checklist status only;
+  published Field trips open `FieldTripPublicationDetailView`, challenge
   entries open `FieldTripChallengeEntryDetailView`, and all of these remain
   separate from Explore posts, feed filters, maps, APNs, widgets, prizes, and
   leaderboards. Challenge hashtags are optional composer suggestions only.
-  Field Trip comment/reply/followed-publication activity may appear in the
-  Explore activity sheet and unread badge, but it is in-app only.
+  Field trip comment/reply/followed-publication activity may appear in the
+  Explore activity sheet and unread badge, but it is in-app only. Completed
+  standard goals replace their artwork with the device-local completing scan
+  thumbnail when available; tapping the thumbnail pushes the existing Insight
+  view in this same Explore navigation stack.
 - **Observations Feed** keeps `Recent`, `Following`, `Trending`, and `Nearby` as
   dedicated server-backed modes. Its leading Filters pill opens a sheet for
   feed mode, species groups, image/audio/video media, shared-date range, and a
@@ -62,20 +64,26 @@ Field Trips, and Dictionary.
 `ExploreView` owns the root section state through `ExploreTab` and owns pushed
 route state for post detail, hashtag collections, author profiles, and
 dictionary destinations. Bottom-menu taps set the active section in the
-production order Observations, Identify, then Field Trips, then Dictionary.
+production order Observations, Identify, then Field trips, then Dictionary.
 Observations owns a Feed/Map header toggle, and Dictionary keeps Tree inside
 its Catalog/Tree header toggle rather than exposing either Map or Tree as a
 separate root bottom-menu item. Author profiles opened from feed, detail,
-comments, notifications, Field Trips, or profile libraries push into this
+comments, notifications, Field trips, or profile libraries push into this
 same Explore navigation stack rather than presenting a second sheet over the
 active surface. Profile-library scans carry an author-profile depth so the app
 allows `profile -> scan` but blocks another author-profile hop from that nested
 detail. The visual Scan goal indicator initializes this stack with a typed
-`CaptureGoalDestination`. Explore converts the Field Trip case into a
+`CaptureGoalDestination`. Explore converts the Field trip case into a
 `FieldTripTemplateRoute` carrying an optional focused checklist-item ID. The
 destination opens Tips and focuses the matching guide, or falls back to the
-Objectives tile when no guide exists. Ordinary route callers omit the optional
+Goals tile when no guide exists. Ordinary route callers omit the optional
 focus ID and keep their prior behavior.
+
+Completed-goal navigation uses `ScanInsightRoute`. `ExploreView` resolves the
+private completion scan ID to a local record and loads `InferenceEngine` before
+pushing `InsightSheetView` in `.embeddedInScansLibrary` mode. A missing local
+record surfaces an unavailable message instead of presenting another sheet or
+an empty destination.
 
 ## iOS File Ownership
 
@@ -93,9 +101,9 @@ for the surface they are changing:
 - `apps/ios/Merian/Features/Explore/Identify/` owns Community ID requests,
   activity, request detail, taxonomy search, disagreement handling, and
   community feedback entry points.
-- `apps/ios/Merian/Features/Explore/FieldTrips/` owns the Field Trips
-  Available/Community segments, Seasonal Challenges cards/detail, Community
-  filters, guided template detail, progress cards, publication and challenge
+- `apps/ios/Merian/Features/Explore/FieldTrips/` owns the Field trips
+  Outings/Events segments, Seasonal Challenges cards/detail, guided template
+  detail, progress cards, publication and challenge
   entry detail pages, profile modules, challenge badges, pin controls, and Field
   Trip comment presentation. `FieldTripsViewModel.swift` also contains the
   app-injected, account-cached active-target store consumed by Capture.

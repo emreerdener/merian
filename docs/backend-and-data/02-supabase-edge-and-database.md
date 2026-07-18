@@ -840,10 +840,10 @@ the identify pipeline. The current shipped surface includes:
 
 The in-app notifications feed is backed by server tables, not by local client
 state. Explore post activity lives in `public.explore_post_notifications`.
-Field Trip-only activity for comments, replies, and followed-author
+Field trip-only activity for comments, replies, and followed-author
 publications lives in `public.field_trip_activity_notifications` and is unioned
 into `get_explore_notifications` for the in-app activity sheet and unread bell.
-Seasonal Field Trip Challenges use their own challenge participation, badge,
+Seasonal Field trip Challenges use their own challenge participation, badge,
 entry, like, and comment tables; challenge joins, likes, badges, and progress
 updates do not notify other users and never fan out to APNs.
 Like notifications are recomputed from the authoritative `explore_post_likes`
@@ -851,10 +851,23 @@ table after each insert/delete so concurrency cannot drift the aggregate count,
 comment notifications are created and removed via triggers on
 `explore_post_comments`, comment-reaction notifications are recomputed per
 `(comment, emoji)` from `explore_comment_reactions`, follow notifications are
-created and removed via triggers on `user_follows`, Field Trip activity is
-created from Field Trip publication/comment triggers, self-notifications are
+created and removed via triggers on `user_follows`, Field trip activity is
+created from Field trip publication/comment triggers, self-notifications are
 suppressed server-side, and rows are pruned or hidden when relevant content is
 removed, a follow is removed, or either user blocks the other.
+
+The authenticated `/field-trips` catalog and template-detail actions use a
+private viewer-specific projection that is intentionally different from public
+Field trip profile/publication data. Completed standard checklist items may
+include `completed_scan_id`, linking the item to its exact
+`user_field_trip_item_completions.scan_id`, but the response contains no media
+URL. iOS resolves that identifier only against the caller's device-local scan
+library. The catalog/detail RPCs are revoked from `PUBLIC`, `anon`, and
+`authenticated` and granted only to `service_role`; the Edge action supplies
+the verified `user.id`. Public profiles, publications, challenge entries and
+badges, Explore feed/map data, and the Scan `capture_context` projection remain
+evidence-free. This contract is defined by
+`20260718043218_expose_field_trip_completion_scan_ids.sql`.
 
 `get-explore-post` is an important routing helper for the iOS client and the
 public Next.js web app: it returns a single privacy-safe feed-card projection so
@@ -909,14 +922,14 @@ Author profile reads are split the same way as feed/detail reads.
 when the target author has at least one visible Explore post or visible Field
 Trip profile surface for the requester. Aggregates are computed from the
 author's non-tombstoned scans, preview posts are filtered to currently visible
-Explore posts, and Field Trip summaries are pulled from the separate Field Trip
+Explore posts, and Field trip summaries are pulled from the separate Field trip
 tables, including pinned published trips when present. It also returns public
 follower/following counts plus the requester-specific `viewer_is_following`
 flag. `get-explore-author-posts` returns the full published library projection
 with stable `(shared_at, post_id)` cursor pagination. Neither endpoint exposes
 raw auth metadata, exact coordinates, private scan IDs for achievements,
 qualifying achievement scans, browsable follower/following identities, or active
-Field Trip scan evidence. Field Trip challenge badges can appear as lightweight
+Field trip scan evidence. Field trip challenge badges can appear as lightweight
 profile rewards, but they expose no scan IDs, media, exact location, notes, or
 private evidence.
 
@@ -989,7 +1002,7 @@ stores them in `public.user_push_devices`, and a Postgres trigger on
 `send-push-notification` whenever a visible post-backed notification row is
 inserted or a like/comment-reaction aggregate count increases. Follow
 notifications are postless, informational, and intentionally skipped by the push
-trigger. Field Trip activity rows are stored in
+trigger. Field trip activity rows are stored in
 `field_trip_activity_notifications`, which has no push trigger. Seasonal
 challenge participation and entries also stay out of push, widgets, maps, and
 Explore feed rows. Delivery fanout is bounded with

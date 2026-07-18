@@ -163,16 +163,16 @@ All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimi
 
 ---
 
-## Achievements vs Field Trip Challenge Badges
+## Achievements vs Field trip Challenge Badges
 
 Achievements are always-on account awards computed from the local scan history
 projection. They can progress without joining anything, and they are recalculated
 after successful inference so long-running milestones stay current.
 
-Field Trip Challenge badges are seasonal, curated, and server-authoritative.
+Field trip Challenge badges are seasonal, curated, and server-authoritative.
 They require an explicit challenge join, count only scans made after `joined_at`
 and before the challenge ends, and are awarded through Supabase challenge
-participation tables. Challenge badges can appear near Field Trip profile
+participation tables. Challenge badges can appear near Field trip profile
 modules as lightweight public reward cards, but they do not expose scan IDs,
 media, exact locations, notes, or private evidence, and they are not prizes,
 rankings, or contest eligibility markers.

@@ -11,7 +11,7 @@ Following the Merian architecture guidelines, the `Shell` orchestrates the trans
 `CaptureWorkspaceView` owns the compact active-outing target indicator because
 it is fixed capture chrome beneath `MediaModeToggle`, not part of the camera
 preview. It reads app-injected `ActiveCaptureGoalStore` state and appears only
-when Field Trips are enabled, the on-by-default
+when Field trips are enabled, the on-by-default
 `AppSettings.showsCaptureGoalProgress` preference is enabled, visual Scan is
 selected, a real unfinished target exists, the staging tray is empty, refinement
 is inactive, and video is not recording. Turning the setting off hides the
@@ -19,7 +19,7 @@ entire capsule without deleting cached context or changing outing progress.
 Loading with no cache renders nothing and never blocks camera startup or capture.
 
 Capture consumes only the generic `CaptureGoal` read model. The first provider,
-`FieldTripCaptureGoalProvider`, owns conversion from Field Trip API DTOs,
+`FieldTripCaptureGoalProvider`, owns conversion from Field trip API DTOs,
 including exact artwork selection and the typed `CaptureGoalDestination`.
 Adding another source must happen through that provider/destination boundary;
 the camera must not import the source's network models or reproduce its
@@ -54,9 +54,9 @@ error over the viewfinder.
 
 Tapping the pill calls `CaptureWorkspaceViewModel.openCaptureGoal`, then
 `CameraSheetRouter` passes one typed destination to `ExploreView`. Explore owns
-converting the Field Trip destination into its optional focused checklist-item
-route, selecting Field Trips, opening the outing, expanding and highlighting
-the matching Tips card, or highlighting the Objectives tile when guide content
+converting the Field trip destination into its optional focused checklist-item
+route, selecting Field trips, opening the outing, expanding and highlighting
+the matching Tips card, or highlighting the Goals tile when guide content
 is absent. The complete data, privacy, interaction, and deployment contract
 lives in `docs/features-and-hardware/25-field-trips.md`.
 
