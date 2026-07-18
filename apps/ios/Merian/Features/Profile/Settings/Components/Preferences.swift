@@ -240,6 +240,13 @@ struct Preferences: View {
                 Label("Preview Field trip progress toast", systemImage: "map.fill")
             }
             .accessibilityIdentifier("Settings_PreviewFieldTripProgressToast")
+
+            Button {
+                MilestoneToastPresenter.shared.previewMilestoneStack()
+            } label: {
+                Label("Preview notification stack", systemImage: "square.3.layers.3d")
+            }
+            .accessibilityIdentifier("Settings_PreviewNotificationStack")
             
             Button {
                 showPaywall = true

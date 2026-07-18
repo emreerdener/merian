@@ -9,13 +9,26 @@ This area houses reusable view modifiers, generic controls (e.g., primary action
 
 `Components/GoalProgressRing.swift` renders the compact circular
 `completedCount/targetCount` treatment shared by the visual Scan target capsule
-the active Field-trip level header, and Field trip progress milestone toast.
+and the active Field-trip level header.
 Feature callers own their accessibility label/value and frame; the primitive
 owns clamping, track/progress drawing, and the centered count text. Keep it
 domain-neutral so future goal providers can reuse it without importing Capture
 or Field-trip models.
 
 ## Milestone feedback
+
+`ToastBanner` and the compact Scans snackbar share an adaptive inverse-glass
+surface. Light mode uses strongly tinted dark glass with light semantic content;
+dark mode uses strongly tinted light glass with dark semantic content. When
+Reduce Transparency is enabled, the surface becomes opaque. Toast callers own
+their content and placement, but should use the shared surface instead of
+introducing feature-local material, borders, or color-scheme overrides.
+
+Queued milestone notifications render as a collapsed FIFO stack. The active
+toast remains the only interactive and accessible surface; up to two scaled,
+downward-offset backplates indicate pending items. Dismissing or opening the
+front toast reveals the next item, and VoiceOver announces the full pending
+count without exposing the decorative layers as separate elements.
 
 `Feedback/AchievementToastPresenter.swift` retains its legacy filename for
 project continuity but defines the generic `MilestoneToastPresenter`,
@@ -27,6 +40,7 @@ ID and enqueue standard outings, Seasonal Challenges, achievements, then
 
 `MilestoneToastBanner` preserves the shared 3.5-second timeout, haptics,
 swipe/close dismissal, queue transition, and VoiceOver announcement. Field trip
-payloads replace the leading badge with a 56-point credited progress ring and
-publish their typed capture-goal destination when tapped. Other views must not
-show a second plain progress message in response to the same refresh event.
+payloads use the completed objective artwork, goal-complete title, and outing
+name in the same compact layout as other milestones, and publish their typed
+capture-goal destination when tapped. Other views must not show a second plain
+progress message in response to the same refresh event.

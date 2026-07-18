@@ -98,9 +98,11 @@ struct ScansSheetModifiers: ViewModifier {
                         .foregroundColor(.primary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .colorScheme(.dark)
-                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+                        .adaptiveToastSurface(
+                            in: Capsule(),
+                            shadowRadius: 10,
+                            shadowY: 5
+                        )
                         .padding(.bottom, 86)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .zIndex(100)

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MilestoneToastBanner: View {
     let item: MilestoneToastItem
+    var pendingItemCount = 0
     let onDismiss: () -> Void
     var onOpenAchievement: ((AwardPayload) -> Void)?
     var onOpenFieldTrip: ((CaptureGoalDestination) -> Void)?
@@ -9,11 +10,12 @@ struct MilestoneToastBanner: View {
     @State private var hasFiredPresentationEffects = false
 
     var body: some View {
-        ToastBanner(onDismiss: dismissManually) {
+        ToastBanner(
+            onDismiss: dismissManually,
+            pendingItemCount: pendingItemCount
+        ) {
             HStack(spacing: 14) {
-                if fieldTripProgress == nil {
-                    milestoneIcon
-                }
+                milestoneIcon
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(display.eyebrow)
@@ -37,20 +39,10 @@ struct MilestoneToastBanner: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-
-                Spacer(minLength: 0)
-
-                if let progress = fieldTripProgress {
-                    GoalProgressRing(
-                        completedCount: progress.completedCount,
-                        targetCount: progress.targetCount,
-                        lineWidth: 4.5,
-                        labelFontSize: 10
-                    )
-                    .frame(width: 56, height: 56)
-                    .accessibilityHidden(true)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture {
                 open()
@@ -87,10 +79,7 @@ struct MilestoneToastBanner: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(display.tintColor.opacity(0.12))
 
-            Image(display.imageName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 40, height: 40)
+            milestoneArtwork
         }
         .frame(width: 58, height: 58)
         .overlay(
@@ -100,18 +89,37 @@ struct MilestoneToastBanner: View {
         .accessibilityHidden(true)
     }
 
-    private var fieldTripProgress: FieldTripMilestonePayload? {
-        guard case let .fieldTrip(progress) = item.payload else { return nil }
-        return progress
+    @ViewBuilder
+    private var milestoneArtwork: some View {
+        switch display.artwork {
+        case .bundledImage(let name):
+            Image(name)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 40, height: 40)
+        case .systemSymbol(let name):
+            Image(systemName: name)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(display.tintColor)
+                .frame(width: 40, height: 40)
+        }
     }
 
     private var accessibilityLabel: String {
-        let text = [display.eyebrow, display.title, display.subtitle]
+        var components = [display.eyebrow, display.title, display.subtitle]
             .compactMap { $0 }
-            .joined(separator: ", ")
 
-        guard let progress = fieldTripProgress else { return text }
-        return "\(text), \(progress.completedCount) of \(progress.targetCount) goals complete"
+        if pendingItemCount > 0 {
+            components.append(pendingNotificationDescription)
+        }
+
+        return components.joined(separator: ", ")
+    }
+
+    private var pendingNotificationDescription: String {
+        pendingItemCount == 1
+            ? "1 more notification"
+            : "\(pendingItemCount) more notifications"
     }
 
     private var display: DisplayModel {
@@ -119,10 +127,10 @@ struct MilestoneToastBanner: View {
         case .fieldTrip(let progress):
             DisplayModel(
                 eyebrow: "Field trip progress",
-                title: progress.message,
-                subtitle: nil,
-                imageName: "",
-                tintColor: .blue,
+                title: progress.title,
+                subtitle: progress.tripTitle,
+                artwork: progress.artwork,
+                tintColor: .green,
                 accessibilityIdentifier: "MilestoneToastBanner_FieldTrip",
                 accessibilityHint: "Opens this Field trip."
             )
@@ -131,7 +139,7 @@ struct MilestoneToastBanner: View {
                 eyebrow: "Achievement unlocked",
                 title: award.title,
                 subtitle: award.descriptionText,
-                imageName: award.definition.imageName,
+                artwork: .bundledImage(name: award.definition.imageName),
                 tintColor: award.definition.tintToken.color,
                 accessibilityIdentifier: "AchievementToastBanner_\(award.type.rawValue)",
                 accessibilityHint: "Opens achievement details."
@@ -141,7 +149,7 @@ struct MilestoneToastBanner: View {
                 eyebrow: "Field guide milestone",
                 title: milestone.title,
                 subtitle: milestone.subtitle,
-                imageName: milestone.imageName,
+                artwork: .bundledImage(name: milestone.imageName),
                 tintColor: .green,
                 accessibilityIdentifier: "MilestoneToastBanner_NewToMerian",
                 accessibilityHint: "Dismisses the notification."
@@ -156,9 +164,12 @@ struct MilestoneToastBanner: View {
         HapticManager.shared.triggerSuccessPulse()
 
         if UIAccessibility.isVoiceOverRunning {
+            let queueAnnouncement = pendingItemCount > 0
+                ? ". \(pendingNotificationDescription)"
+                : ""
             UIAccessibility.post(
                 notification: .announcement,
-                argument: "\(display.eyebrow). \(display.title)"
+                argument: "\(display.eyebrow). \(display.title)\(queueAnnouncement)"
             )
         }
     }
@@ -193,7 +204,7 @@ struct MilestoneToastBanner: View {
         let eyebrow: String
         let title: String
         let subtitle: String?
-        let imageName: String
+        let artwork: CaptureGoalArtwork
         let tintColor: Color
         let accessibilityIdentifier: String
         let accessibilityHint: String

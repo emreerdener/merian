@@ -13,109 +13,110 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
     @State private var selectedAchievementToastAward: AwardPayload?
 
     func body(content: Content) -> some SwiftUI.View {
-        ZStack(alignment: .top) {
-            content
+        content
+            .overlay {
+                if let message = toastMessage {
+                    let display = SystemToastDisplay(message: message)
 
-            if let message = toastMessage {
-                let display = SystemToastDisplay(message: message)
+                    VStack {
+                        if toastAlignment == .bottom { Spacer() }
 
-                VStack {
-                    if toastAlignment == .bottom { Spacer() }
-                    
-                    ToastBanner(onDismiss: {
+                        ToastBanner(onDismiss: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                toastMessage = nil
+                                toastActionTitle = nil
+                                toastAction = nil
+                            }
+                        }) {
+                            HStack(alignment: .center, spacing: 12) {
+                                if display.isError {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(.orange)
+                                        .frame(width: 22, height: 22)
+                                        .accessibilityHidden(true)
+                                }
+
+                                VStack(alignment: .leading, spacing: display.body == nil ? 0 : 3) {
+                                    Text(display.title)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
+
+                                    if let body = display.body {
+                                        Text(body)
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+
+                                if let actionTitle = toastActionTitle, let action = toastAction {
+                                    Spacer(minLength: 0)
+
+                                    Button(action: {
+                                        action()
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            toastMessage = nil
+                                            toastActionTitle = nil
+                                            toastAction = nil
+                                        }
+                                    }) {
+                                        Text(actionTitle)
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom, toastAlignment == .top ? 16 : 60)
+
+                        if toastAlignment == .top { Spacer() }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.move(edge: toastAlignment == .top ? Edge.top : Edge.bottom).combined(with: .opacity))
+                    .zIndex(100)
+                    .task(id: message) {
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        guard !Task.isCancelled else { return }
                         withAnimation(.easeInOut(duration: 0.2)) {
                             toastMessage = nil
                             toastActionTitle = nil
                             toastAction = nil
                         }
-                    }) {
-                        HStack(alignment: .center, spacing: 12) {
-                            if display.isError {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(.orange)
-                                    .frame(width: 22, height: 22)
-                                    .accessibilityHidden(true)
-                            }
-
-                            VStack(alignment: .leading, spacing: display.body == nil ? 0 : 3) {
-                                Text(display.title)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(2)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                if let body = display.body {
-                                    Text(body)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            
-                            if let actionTitle = toastActionTitle, let action = toastAction {
-                                Spacer(minLength: 0)
-
-                                Button(action: {
-                                    action()
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        toastMessage = nil
-                                        toastActionTitle = nil
-                                        toastAction = nil
-                                    }
-                                }) {
-                                    Text(actionTitle)
-                                        .font(.subheadline)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.blue)
-                                }
-                            }
+                    }
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if showsAchievementToasts, let item = milestoneToastPresenter.activeItem {
+                    MilestoneToastBanner(
+                        item: item,
+                        pendingItemCount: milestoneToastPresenter.queuedItemCount,
+                        onDismiss: {
+                            milestoneToastPresenter.dismissActiveItem(id: item.id)
+                        },
+                        onOpenAchievement: { award in
+                            selectedAchievementToastAward = award
+                        },
+                        onOpenFieldTrip: { destination in
+                            AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom, toastAlignment == .top ? 16 : 60)
-                    
-                    if toastAlignment == .top { Spacer() }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .transition(.move(edge: toastAlignment == .top ? Edge.top : Edge.bottom).combined(with: .opacity))
-                .zIndex(100)
-                .task(id: message) {
-                    try? await Task.sleep(nanoseconds: 3_000_000_000)
-                    guard !Task.isCancelled else { return }
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        toastMessage = nil
-                        toastActionTitle = nil
-                        toastAction = nil
-                    }
+                    )
+                    .padding(.bottom, 24)
+                    .id(item.id)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(110)
                 }
             }
-
-            if showsAchievementToasts, let item = milestoneToastPresenter.activeItem {
-                MilestoneToastBanner(
-                    item: item,
-                    onDismiss: {
-                        milestoneToastPresenter.dismissActiveItem(id: item.id)
-                    },
-                    onOpenAchievement: { award in
-                        selectedAchievementToastAward = award
-                    },
-                    onOpenFieldTrip: { destination in
-                        AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(110)
+            .sheet(item: $selectedAchievementToastAward) { award in
+                AchievementDetailSheet(award: award, modelContainer: modelContext.container)
             }
-        }
-        .sheet(item: $selectedAchievementToastAward) { award in
-            AchievementDetailSheet(award: award, modelContainer: modelContext.container)
-        }
     }
 }
 

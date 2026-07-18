@@ -2,6 +2,7 @@ import Foundation
 
 enum ExploreErrorFormatter {
     private static let genericMessage = "Something went wrong. Please try again."
+    private static let fieldTripUnavailableMessage = "We couldn’t find this field trip. Please go back and choose another outing."
     private static let persistenceFallbackMessage = "We couldn’t finish that. Please try again."
     private static let duplicateScanMessage = "This scan is already saved. Try sharing again."
     private static let mediaPreparationMessage = "We couldn’t prepare this media for sharing. Please try again."
@@ -39,6 +40,26 @@ enum ExploreErrorFormatter {
 
     static func titledMessage(_ title: String, for error: Error) -> String {
         "\(title)\n\(message(for: error))"
+    }
+
+    static func fieldTripDetailMessage(for error: Error) -> String {
+        let formattedMessage = message(for: error)
+        let normalized = formattedMessage
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let backendIdentifierMarkers = [
+            "template_id",
+            "template id",
+            "uuid",
+            "invalid input syntax"
+        ]
+
+        if backendIdentifierMarkers.contains(where: normalized.contains) {
+            return fieldTripUnavailableMessage
+        }
+
+        return formattedMessage
     }
 
     private static func parsedMessage(from raw: String) -> String? {

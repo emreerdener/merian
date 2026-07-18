@@ -21,13 +21,12 @@ struct DictionaryMilestonePayload: Sendable, Equatable {
 
 struct FieldTripMilestonePayload: Sendable, Equatable {
     let tripTitle: String
-    let speciesLabel: String
-    let completedCount: Int
-    let targetCount: Int
+    let goalLabel: String
+    let artwork: CaptureGoalArtwork
     let destination: CaptureGoalDestination
 
-    var message: String {
-        "\(speciesLabel) counts toward \(tripTitle)"
+    var title: String {
+        goalLabel.isEmpty ? "Goal complete" : "\(goalLabel) goal complete"
     }
 
     static func standard(update: FieldTripProgressUpdate) -> FieldTripMilestonePayload? {
@@ -35,9 +34,8 @@ struct FieldTripMilestonePayload: Sendable, Equatable {
 
         return FieldTripMilestonePayload(
             tripTitle: update.title,
-            speciesLabel: item.toastSpeciesLabel,
-            completedCount: update.toastCompletedCount,
-            targetCount: update.toastTargetCount,
+            goalLabel: item.toastGoalLabel,
+            artwork: toastArtwork(for: item, templateSlug: update.slug),
             destination: .fieldTrip(
                 templateId: update.templateId,
                 checklistItemId: item.itemId
@@ -50,31 +48,39 @@ struct FieldTripMilestonePayload: Sendable, Equatable {
 
         return FieldTripMilestonePayload(
             tripTitle: update.title,
-            speciesLabel: item.toastSpeciesLabel,
-            completedCount: update.toastCompletedCount,
-            targetCount: update.toastTargetCount,
+            goalLabel: item.toastGoalLabel,
+            artwork: toastArtwork(for: item, templateSlug: update.slug),
             destination: .fieldTripChallenge(challengeId: update.challengeId)
         )
     }
 
+    private static func toastArtwork(
+        for item: FieldTripProgressCompletedItem,
+        templateSlug: String
+    ) -> CaptureGoalArtwork {
+        guard let imageName = FieldTripObjectiveArtwork.exactImageName(
+            for: item.prompt,
+            templateSlug: templateSlug
+        ) else {
+            return .systemSymbol(name: "binoculars.fill")
+        }
+
+        return .bundledImage(name: imageName)
+    }
+
     #if DEBUG
     static let preview = FieldTripMilestonePayload(
-        tripTitle: "Backyard safari",
-        speciesLabel: "Vine Sphinx",
-        completedCount: 3,
-        targetCount: 4,
+        tripTitle: "Backyard Safari",
+        goalLabel: "Spider",
+        artwork: .bundledImage(name: "fieldtrip-backyard-spider"),
         destination: .fieldTrip(templateId: "preview", checklistItemId: "preview")
     )
     #endif
 }
 
 private extension FieldTripProgressCompletedItem {
-    var toastSpeciesLabel: String {
-        if let commonName {
-            let trimmed = commonName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
-        return prompt
+    var toastGoalLabel: String {
+        prompt.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -100,7 +106,7 @@ struct MilestoneToastItem: Identifiable, Sendable {
     static let shared = MilestoneToastPresenter()
 
     private(set) var activeItem: MilestoneToastItem?
-    @ObservationIgnored private var queuedItems: [MilestoneToastItem] = []
+    private var queuedItems: [MilestoneToastItem] = []
 
     var queuedItemCount: Int {
         queuedItems.count
@@ -153,6 +159,21 @@ struct MilestoneToastItem: Identifiable, Sendable {
 
     func previewFieldTripProgress() {
         enqueue(.fieldTrip(.preview), source: .preview)
+    }
+
+    func previewMilestoneStack() {
+        let achievementType = AchievementType.domesticDog
+        let achievement = AwardPayload(
+            type: achievementType,
+            currentCount: achievementType.definition.targetCount,
+            lastInteractionDate: Date()
+        )
+
+        activeItem = nil
+        queuedItems.removeAll()
+        enqueue(.fieldTrip(.preview), source: .preview)
+        enqueue(.achievement(achievement), source: .preview)
+        enqueue(.dictionary(.newToMerian), source: .preview)
     }
 
     func resetForTesting() {

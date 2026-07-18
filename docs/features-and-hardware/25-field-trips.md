@@ -642,9 +642,9 @@ scan.
 item's label, credited counts, and a typed destination. Standard destinations
 use `.fieldTrip(templateId:checklistItemId:)`; Seasonal Challenge destinations
 use `.fieldTripChallenge(challengeId:)`. `MilestoneToastBanner` renders
-**Field trip progress** and `{species} counts toward {trip}` beside a 56-point
-ring, preserves the shared 3.5-second timeout, haptics, manual dismissal, queue
-transition, and VoiceOver announcement, and publishes
+**Field trip progress** and `{species} counts toward {trip}` above a compact
+linear progress indicator, preserves the shared 3.5-second timeout, haptics,
+manual dismissal, queue transition, and VoiceOver announcement, and publishes
 `requestOpenCaptureGoal` when tapped. Explore converts the destination into the
 standard focused outing route or Seasonal Challenge detail route.
 

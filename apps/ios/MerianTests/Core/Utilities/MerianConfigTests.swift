@@ -109,6 +109,24 @@ struct ExploreErrorFormatterTests {
 
         #expect(message == "Couldn’t share to Explore\nThis scan is already saved. Try sharing again.")
     }
+
+    @Test func fieldTripDetailHidesBackendIdentifierValidation() {
+        let message = ExploreErrorFormatter.fieldTripDetailMessage(for: MerianError.httpError(
+            statusCode: 400,
+            message: "template_id must be a valid UUID."
+        ))
+
+        #expect(message == "We couldn’t find this field trip. Please go back and choose another outing.")
+    }
+
+    @Test func fieldTripDetailPreservesHelpfulMessages() {
+        let message = ExploreErrorFormatter.fieldTripDetailMessage(for: MerianError.httpError(
+            statusCode: 404,
+            message: "This field trip is no longer available."
+        ))
+
+        #expect(message == "This field trip is no longer available.")
+    }
 }
 
 @Suite("Merian Environment Tests")

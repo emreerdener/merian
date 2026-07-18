@@ -524,7 +524,7 @@ struct FieldTripTemplateDetailView: View {
             applyInitialFocusIfNeeded(to: loadedTemplate)
             await loadCommunityPreview(templateId: loadedTemplate.templateId)
         } catch {
-            errorMessage = ExploreErrorFormatter.message(for: error)
+            errorMessage = ExploreErrorFormatter.fieldTripDetailMessage(for: error)
         }
     }
 
@@ -537,7 +537,6 @@ struct FieldTripTemplateDetailView: View {
         do {
             self.template = try await MerianNetworkClient.shared.startFieldTrip(templateId: template.templateId)
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Outing started."
             AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
@@ -1786,34 +1785,41 @@ private struct FieldTripGuideSections: View {
                 }
             }
 
-            if hasAboutGuidance {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("About this outing")
-                        .font(.title3.weight(.bold))
+            VStack(alignment: .leading, spacing: 10) {
+                Text("About this outing")
+                    .font(.title3.weight(.bold))
 
-                    if let whereToLook = template.guideWhereToLook {
-                        FieldTripGuideRow(
-                            title: "Where to look",
-                            systemImage: "binoculars",
-                            bodyText: whereToLook
-                        )
-                    }
+                FieldTripGuideRow(
+                    title: "How scans count",
+                    systemImage: "clock.arrow.circlepath",
+                    bodyText: """
+                    Only scans made once this outing starts count toward its goals. \
+                    Older scans—including anything already in your library when it starts—don’t qualify.
+                    """
+                )
 
-                    if let whyItMatters = template.guideWhyItMatters {
-                        FieldTripGuideRow(
-                            title: "Why it matters",
-                            systemImage: "leaf",
-                            bodyText: whyItMatters
-                        )
-                    }
+                if let whereToLook = template.guideWhereToLook {
+                    FieldTripGuideRow(
+                        title: "Where to look",
+                        systemImage: "binoculars",
+                        bodyText: whereToLook
+                    )
+                }
 
-                    if let safety = template.guideSafetyEthics {
-                        FieldTripGuideRow(
-                            title: "Safety",
-                            systemImage: "hand.raised",
-                            bodyText: safety
-                        )
-                    }
+                if let whyItMatters = template.guideWhyItMatters {
+                    FieldTripGuideRow(
+                        title: "Why it matters",
+                        systemImage: "leaf",
+                        bodyText: whyItMatters
+                    )
+                }
+
+                if let safety = template.guideSafetyEthics {
+                    FieldTripGuideRow(
+                        title: "Safety",
+                        systemImage: "hand.raised",
+                        bodyText: safety
+                    )
                 }
             }
         }
@@ -1862,12 +1868,6 @@ private struct FieldTripGuideSections: View {
         template.levels.contains { level in
             isLevelAvailable(level) && !guidedItems(in: level).isEmpty
         }
-    }
-
-    private var hasAboutGuidance: Bool {
-        template.guideWhereToLook != nil
-            || template.guideWhyItMatters != nil
-            || template.guideSafetyEthics != nil
     }
 
     private func guidedItems(in level: FieldTripLevel) -> [FieldTripChecklistItem] {

@@ -118,7 +118,8 @@ struct SettingsTabView: View {
                     onDismiss: { showTestExploreOnboarding = false }
                 )
             }
-
+        }
+        .overlay(alignment: .bottom) {
             if let message = toastMessage {
                 ToastBanner(onDismiss: {
                     withAnimation {
@@ -130,15 +131,16 @@ struct SettingsTabView: View {
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, 60)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(100)
             }
-
+        }
+        .overlay(alignment: .top) {
             if let item = milestoneToastPresenter.activeItem {
                 MilestoneToastBanner(
                     item: item,
+                    pendingItemCount: milestoneToastPresenter.queuedItemCount,
                     onDismiss: {
                         milestoneToastPresenter.dismissActiveItem(id: item.id)
                     },
@@ -149,8 +151,8 @@ struct SettingsTabView: View {
                         AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
                     }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.top, 16)
+                .id(item.id)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .zIndex(110)
             }

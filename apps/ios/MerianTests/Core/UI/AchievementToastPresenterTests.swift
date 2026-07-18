@@ -76,6 +76,37 @@ struct AchievementToastPresenterTests {
         #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
     }
 
+    @Test func previewMilestoneStackIsDeterministicAndFIFO() {
+        let presenter = MilestoneToastPresenter.shared
+
+        presenter.previewMilestoneStack()
+
+        guard case .fieldTrip = presenter.activeItem?.payload else {
+            Issue.record("Expected Field trip progress at the front of the preview stack")
+            return
+        }
+        #expect(presenter.queuedItemCount == 2)
+
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+        #expect(presenter.activeItem?.award?.type == .domesticDog)
+        #expect(presenter.queuedItemCount == 1)
+
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+        guard case .dictionary = presenter.activeItem?.payload else {
+            Issue.record("Expected New to Naturebook at the back of the preview stack")
+            return
+        }
+        #expect(presenter.queuedItemCount == 0)
+    }
+
+    @Test func visibleToastBackingLayersAreClamped() {
+        #expect(ToastStackPresentation.visibleBackingLayerCount(for: -1) == 0)
+        #expect(ToastStackPresentation.visibleBackingLayerCount(for: 0) == 0)
+        #expect(ToastStackPresentation.visibleBackingLayerCount(for: 1) == 1)
+        #expect(ToastStackPresentation.visibleBackingLayerCount(for: 2) == 2)
+        #expect(ToastStackPresentation.visibleBackingLayerCount(for: 5) == 2)
+    }
+
     @Test func completedAchievementUnlockEnqueuesToastWhenAchievementNotificationsAreEnabled() {
         GamificationManager.shared.evaluateAchievementsForNotifications(awards: [completedAward(.domesticDog)])
 
@@ -179,9 +210,9 @@ struct AchievementToastPresenterTests {
             Issue.record("Expected Field trip progress first")
             return
         }
-        #expect(fieldTrip.message == "Vine Sphinx counts toward Backyard safari")
-        #expect(fieldTrip.completedCount == 4)
-        #expect(fieldTrip.targetCount == 4)
+        #expect(fieldTrip.title == "Spider goal complete")
+        #expect(fieldTrip.tripTitle == "Backyard safari")
+        #expect(fieldTrip.artwork == .bundledImage(name: "fieldtrip-backyard-spider"))
 
         presenter.dismissActiveItem(id: presenter.activeItem?.id)
         guard case .fieldTrip(let challenge) = presenter.activeItem?.payload else {
@@ -293,7 +324,7 @@ struct AchievementToastPresenterTests {
         #expect(resolverCalls == 1)
     }
 
-    @Test func progressMappingKeepsStandardBeforeChallengeAndFallsBackToPrompt() {
+    @Test func progressMappingKeepsStandardBeforeChallengeAndUsesGoalPrompt() {
         let result = progressResult(
             challengeCommonName: "   ",
             challengePrompt: "Bee or wasp"
@@ -303,9 +334,13 @@ struct AchievementToastPresenterTests {
 
         #expect(milestones.count == 2)
         #expect(milestones[0].tripTitle == "Backyard safari")
+        #expect(milestones[0].goalLabel == "Spider")
+        #expect(milestones[0].title == "Spider goal complete")
+        #expect(milestones[0].artwork == .bundledImage(name: "fieldtrip-backyard-spider"))
         #expect(milestones[0].destination == .fieldTrip(templateId: "template-1", checklistItemId: "item-1"))
         #expect(milestones[1].tripTitle == "Summer pollinators")
-        #expect(milestones[1].speciesLabel == "Bee or wasp")
+        #expect(milestones[1].goalLabel == "Bee or wasp")
+        #expect(milestones[1].artwork == .systemSymbol(name: "binoculars.fill"))
         #expect(milestones[1].destination == .fieldTripChallenge(challengeId: "challenge-1"))
     }
 
@@ -361,7 +396,7 @@ struct AchievementToastPresenterTests {
     ) -> FieldTripProgressResult {
         let standardItem = FieldTripProgressCompletedItem(
             itemId: "item-1",
-            prompt: "Butterfly or moth",
+            prompt: "Spider",
             commonName: "Vine Sphinx",
             scientificName: "Eumorpha vitis",
             completedAt: "2026-07-18T14:00:00Z"
