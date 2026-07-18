@@ -309,6 +309,8 @@ final class CaptureWorkspaceViewModel {
                     self?.activeSheet = .scans
                 case .requestOpenScansLibraryIntent:
                     self?.activeSheet = .scans
+                case .requestOpenCaptureGoal(let destination):
+                    self?.openCaptureGoal(destination)
                 case .externalImageImportAvailable:
                     self?.importPendingExternalImageIfPossible()
                 case .externalImageImportFailed:
@@ -437,11 +439,15 @@ final class CaptureWorkspaceViewModel {
     }
 
     func openCaptureGoal(_ goal: CaptureGoal) {
+        openCaptureGoal(goal.destination)
+    }
+
+    func openCaptureGoal(_ destination: CaptureGoalDestination) {
         pendingExplorePostId = nil
         pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
-        pendingCaptureGoalDestination = goal.destination
+        pendingCaptureGoalDestination = destination
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }

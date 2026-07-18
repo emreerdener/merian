@@ -718,31 +718,12 @@ extension OfflineQueueManager {
                 if AppSettings.shared.isPushNotificationsEnabled {
                     PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
                 }
-                // Debounce award recalculation so a burst of completions fires one pass.
-                awardsDebounceTask?.cancel()
-                awardsDebounceTask = Task { [weak self] in
-                    guard let self else { return }
-                    try? await Task.sleep(for: .seconds(0.5))
-                    guard !Task.isCancelled else { return }
-                    let profileActor = self.resolvedProfileDbActor(container: capturedContainer)
-                    let updatedAwards = await profileActor.calculateAwards()
-                    GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
-                }
                 Task {
-                    do {
-                        let result = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: dbScanId)
-                        guard !result.fieldTripUpdates.isEmpty || !result.challengeUpdates.isEmpty else { return }
-                        await MainActor.run {
-                            if !result.fieldTripUpdates.isEmpty {
-                                AppEventPublisher.shared.send(.fieldTripProgressUpdated(result.fieldTripUpdates))
-                            }
-                            if !result.challengeUpdates.isEmpty {
-                                AppEventPublisher.shared.send(.fieldTripChallengeProgressUpdated(result.challengeUpdates))
-                            }
-                        }
-                    } catch {
-                        MerianLog.data.debug("Field trip progress update failed: \(error, privacy: .private)")
-                    }
+                    await ScanMilestoneCoordinator.shared.processCompletedScan(
+                        scanId: dbScanId,
+                        speciesData: processingResult.speciesData,
+                        modelContainer: capturedContainer
+                    )
                 }
 
                 // If the background path completed the same scan the live InferenceEngine is

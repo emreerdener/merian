@@ -133,14 +133,11 @@ import SwiftData
     @ObservationIgnored var replayedStagedScanCount: Int = 0
 #endif
 
-    // MARK: - Backoff & Debounce State
+    // MARK: - Backoff State
 
     /// Cancellable task that fires a delayed `syncPendingScans()` retry after a URL-generation failure.
     /// Cancelled on connectivity loss so stale retries never fire after going offline.
     @ObservationIgnored var retryBackoffTask: Task<Void, Never>?
-    /// Cancellable task that coalesces rapid burst completions into a single `calculateAwards()` pass.
-    /// Scheduled 0.5 s after the last inference completion; cancelled and rescheduled on each new result.
-    @ObservationIgnored var awardsDebounceTask: Task<Void, Never>?
 
     // MARK: - Long-Lived Database Actors
 

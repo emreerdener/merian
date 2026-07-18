@@ -294,9 +294,16 @@ struct FieldTripProgressUpdate: Decodable, Identifiable, Equatable {
     let completedCount: Int
     let targetCount: Int
     let isComplete: Bool
+    let creditedLevelNumber: Int?
+    let creditedLevelTitle: String?
+    let creditedCompletedCount: Int?
+    let creditedTargetCount: Int?
     let newlyCompletedItems: [FieldTripProgressCompletedItem]
 
     var id: String { userFieldTripId }
+
+    var toastCompletedCount: Int { creditedCompletedCount ?? completedCount }
+    var toastTargetCount: Int { creditedTargetCount ?? targetCount }
 }
 
 struct FieldTripProgressCompletedItem: Decodable, Identifiable, Equatable {
@@ -321,9 +328,16 @@ struct FieldTripChallengeProgressUpdate: Decodable, Identifiable, Equatable {
     let isComplete: Bool
     let badgeAwardedAt: String?
     let suggestedHashtags: [String]
+    let creditedLevelNumber: Int?
+    let creditedLevelTitle: String?
+    let creditedCompletedCount: Int?
+    let creditedTargetCount: Int?
     let newlyCompletedItems: [FieldTripProgressCompletedItem]
 
     var id: String { participationId }
+
+    var toastCompletedCount: Int { creditedCompletedCount ?? completedCount }
+    var toastTargetCount: Int { creditedTargetCount ?? targetCount }
 }
 
 struct FieldTripProfileSummaries: Decodable, Equatable {

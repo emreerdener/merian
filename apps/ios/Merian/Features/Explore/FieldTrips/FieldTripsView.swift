@@ -47,11 +47,9 @@ struct FieldTripsView: View {
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
             switch event {
-            case .fieldTripProgressUpdated(let updates):
-                viewModel.applyProgressToast(updates)
+            case .fieldTripProgressUpdated:
                 Task { await viewModel.refresh(userRegion: userRegion) }
-            case .fieldTripChallengeProgressUpdated(let updates):
-                viewModel.applyChallengeProgressToast(updates)
+            case .fieldTripChallengeProgressUpdated:
                 Task { await viewModel.refresh(userRegion: userRegion) }
             default:
                 break
@@ -858,20 +856,27 @@ private struct FieldTripDetailPrimaryActionBar: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(foregroundColor)
-                } else if let systemImage {
-                    Image(systemName: systemImage)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(foregroundColor)
+                    } else if let systemImage {
+                        Image(systemName: systemImage)
+                    }
+
+                    Text(title)
+                        .multilineTextAlignment(.center)
                 }
 
-                Text(title)
+                Spacer(minLength: 0)
             }
             .font(.headline)
             .foregroundStyle(foregroundColor)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
@@ -2094,48 +2099,48 @@ private struct FieldTripLevelSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text(level.title)
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.primary)
                         .lineLimit(2)
 
-                    Spacer(minLength: 12)
-
-                    switch presentationState {
-                    case .current:
-                        if progressPlacement == .headerRing, let progress {
-                            GoalProgressRing(
-                                completedCount: progress.completedCount,
-                                targetCount: progress.targetCount,
-                                lineWidth: 4.5,
-                                labelFontSize: 11
-                            )
-                            .frame(width: 52, height: 52)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("Level progress")
-                            .accessibilityValue(
-                                "\(progress.completedCount) of \(progress.targetCount) goals complete"
-                            )
-                        }
-                    case .completed:
-                        Text("Completed")
-                            .font(.caption.weight(.semibold))
+                    if let description = level.description {
+                        Text(description)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                    case .locked:
-                        Image(systemName: "lock")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.secondary)
-                            .accessibilityLabel("Locked")
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
-                if let description = level.description {
-                    Text(description)
-                        .font(.caption)
+                switch presentationState {
+                case .current:
+                    if progressPlacement == .headerRing, let progress {
+                        GoalProgressRing(
+                            completedCount: progress.completedCount,
+                            targetCount: progress.targetCount,
+                            lineWidth: 4.5,
+                            labelFontSize: 11
+                        )
+                        .frame(width: 52, height: 52)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Level progress")
+                        .accessibilityValue(
+                            "\(progress.completedCount) of \(progress.targetCount) goals complete"
+                        )
+                    }
+                case .completed:
+                    Text("Completed")
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                case .locked:
+                    Image(systemName: "lock")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Locked")
                 }
             }
 

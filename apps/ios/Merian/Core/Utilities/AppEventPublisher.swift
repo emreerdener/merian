@@ -27,6 +27,8 @@ enum AppEvent {
     case requestIdentifyNatureIntent
     /// Dispatched by in-app actions to close presented sheets and return to the visual scanner.
     case requestOpenScanner
+    /// Dispatched by a progress toast to open its Field trip or seasonal challenge destination.
+    case requestOpenCaptureGoal(CaptureGoalDestination)
     
     /// Dispatched by Siri/OS intents to immediately open the historical scans insight page.
     case requestRecallLastFindIntent

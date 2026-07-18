@@ -112,27 +112,6 @@ final class FieldTripsViewModel {
         challenges[index] = challenge
     }
 
-    func applyProgressToast(_ updates: [FieldTripProgressUpdate]) {
-        guard let update = updates.first,
-              let item = update.newlyCompletedItems.first else {
-            return
-        }
-
-        let label = item.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-            ?? item.prompt
-        toastMessage = "\(update.title): \(label)"
-    }
-
-    func applyChallengeProgressToast(_ updates: [FieldTripChallengeProgressUpdate]) {
-        guard let update = updates.first,
-              let item = update.newlyCompletedItems.first else {
-            return
-        }
-
-        let label = item.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-            ?? item.prompt
-        toastMessage = "\(update.title): \(label)"
-    }
 }
 
 @MainActor

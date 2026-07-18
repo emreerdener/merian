@@ -51,7 +51,15 @@ import os
     }
 
     /// Checks `awards` for newly completed achievements and triggers notifications if enabled.
-    func evaluateAchievementsForNotifications(awards: [AwardPayload]) {
+    /// Returns the unlocks eligible for an in-app toast so scan completion can batch them
+    /// behind any Field trip progress notifications.
+    @discardableResult
+    func evaluateAchievementsForNotifications(
+        awards: [AwardPayload],
+        enqueueToasts: Bool = true
+    ) -> [AwardPayload] {
+        var toastEligibleAwards: [AwardPayload] = []
+
         for award in awards where award.isCompleted {
             guard !unlockedAchievements.contains(award.type) else { continue }
 
@@ -63,13 +71,19 @@ import os
             let systemPushEnabled = defaults.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
 
             if achievementsEnabled && shouldNotifyUnlock(for: award) {
-                AchievementToastPresenter.shared.enqueueAchievementUnlock(award)
+                toastEligibleAwards.append(award)
+
+                if enqueueToasts {
+                    AchievementToastPresenter.shared.enqueueAchievementUnlock(award)
+                }
 
                 if systemPushEnabled {
                     PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)
                 }
             }
         }
+
+        return toastEligibleAwards
     }
 
     // MARK: - Private

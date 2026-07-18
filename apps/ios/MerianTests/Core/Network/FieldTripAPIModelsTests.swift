@@ -452,6 +452,53 @@ struct FieldTripAPIModelsTests {
         #expect(response.challengeUpdates.count == 1)
         #expect(response.challengeUpdates[0].suggestedHashtags == ["summerpollinators"])
         #expect(response.challengeUpdates[0].newlyCompletedItems[0].commonName == "Monarch")
+        #expect(response.challengeUpdates[0].creditedCompletedCount == nil)
+        #expect(response.challengeUpdates[0].toastCompletedCount == 2)
+        #expect(response.challengeUpdates[0].toastTargetCount == 4)
+    }
+
+    @Test func progressResponseUsesCreditedLevelCountsAfterAdvancement() throws {
+        let json = Data("""
+        {
+          "data": [
+            {
+              "user_field_trip_id": "trip-1",
+              "template_id": "template-1",
+              "slug": "backyard_safari",
+              "title": "Backyard safari",
+              "current_level_number": 2,
+              "current_level_title": "Level 2",
+              "completed_count": 0,
+              "target_count": 6,
+              "is_complete": false,
+              "credited_level_number": 1,
+              "credited_level_title": "Level 1",
+              "credited_completed_count": 4,
+              "credited_target_count": 4,
+              "newly_completed_items": [
+                {
+                  "item_id": "item-1",
+                  "prompt": "Butterfly or moth",
+                  "common_name": "Vine Sphinx",
+                  "scientific_name": "Eumorpha vitis",
+                  "completed_at": "2026-07-18T14:00:00Z"
+                }
+              ]
+            }
+          ],
+          "challenge_updates": []
+        }
+        """.utf8)
+
+        let response = try decoder.decode(FieldTripProgressUpdatesResponse.self, from: json)
+        let update = try #require(response.data.first)
+
+        #expect(update.currentLevelNumber == 2)
+        #expect(update.completedCount == 0)
+        #expect(update.creditedLevelNumber == 1)
+        #expect(update.creditedLevelTitle == "Level 1")
+        #expect(update.toastCompletedCount == 4)
+        #expect(update.toastTargetCount == 4)
     }
 
     @Test func profileSummariesDecodeChallengeBadges() throws {

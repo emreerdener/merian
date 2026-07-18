@@ -87,6 +87,11 @@ struct ExploreView: View {
                 _navigationPath = State(initialValue: initialPath)
                 _activeTab = State(initialValue: .fieldTrips)
                 _activeFieldTripsSection = State(initialValue: .fieldTrips)
+            case .fieldTripChallenge(let challengeId):
+                initialPath.append(FieldTripChallengeRoute(challengeId: challengeId))
+                _navigationPath = State(initialValue: initialPath)
+                _activeTab = State(initialValue: .fieldTrips)
+                _activeFieldTripsSection = State(initialValue: .seasonal)
             }
         } else if let requestId = initialCommunityRequestId {
             var initialPath = NavigationPath()
@@ -402,13 +407,6 @@ struct ExploreView: View {
                 Task { await viewModel.refreshPost(postId: postId) }
             case .openCommunityIdentificationRequest(let requestId):
                 openCommunityIdentificationRequest(requestId)
-            case .fieldTripProgressUpdated(let updates):
-                if let update = updates.first,
-                   let item = update.newlyCompletedItems.first {
-                    let label = item.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                        ?? item.prompt
-                    viewModel.toastMessage = "\(update.title): \(label)"
-                }
             case .publicAuthorIdentityChanged:
                 Task {
                     await viewModel.refreshFeed()

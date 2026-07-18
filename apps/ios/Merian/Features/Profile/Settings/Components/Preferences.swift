@@ -233,6 +233,13 @@ struct Preferences: View {
                 Label("Preview New to Naturebook notification", systemImage: "sparkles")
             }
             .accessibilityIdentifier("Settings_PreviewNewToMerianNotification")
+
+            Button {
+                MilestoneToastPresenter.shared.previewFieldTripProgress()
+            } label: {
+                Label("Preview Field trip progress toast", systemImage: "map.fill")
+            }
+            .accessibilityIdentifier("Settings_PreviewFieldTripProgressToast")
             
             Button {
                 showPaywall = true

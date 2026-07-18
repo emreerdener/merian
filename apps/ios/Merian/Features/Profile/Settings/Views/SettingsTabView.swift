@@ -144,6 +144,9 @@ struct SettingsTabView: View {
                     },
                     onOpenAchievement: { award in
                         selectedAchievementToastAward = award
+                    },
+                    onOpenFieldTrip: { destination in
+                        AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

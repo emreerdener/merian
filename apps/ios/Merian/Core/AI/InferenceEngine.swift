@@ -387,52 +387,6 @@ private struct GBIFMedia: Decodable {
         GamificationManager.shared.recordNewSpeciesDiscovered()
     }
 
-    private func refreshAchievementNotificationsIfPossible(modelContext: ModelContext?) async {
-        guard let container = modelContext?.container else { return }
-        // Reuse the process-lifetime shared profile actor — avoids a full
-        // ModelContext + actor allocation on every scan result.
-        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
-        let updatedAwards = await profileActor.calculateAwards()
-        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
-    }
-
-    private func applyFieldTripProgressIfPossible(scanId: String?) async {
-        guard let scanId else { return }
-
-        do {
-            var isPersisted = false
-            let retryDelaysMilliseconds = [0, 250, 500, 1_000, 2_000, 4_000]
-            for delay in retryDelaysMilliseconds {
-                if delay > 0 {
-                    try await Task.sleep(for: .milliseconds(delay))
-                }
-                try Task.checkCancellation()
-                let status = try await MerianNetworkClient.shared.checkScanStatusDetails(scanId: scanId)
-                if status.isFound {
-                    isPersisted = true
-                    break
-                }
-                if status.jobStatus == .failed { return }
-            }
-            guard isPersisted else {
-                MerianLog.general.debug(
-                    "Field trip progress deferred because remote scan persistence is not complete."
-                )
-                return
-            }
-
-            let result = try await MerianNetworkClient.shared.applyFieldTripProgress(scanId: scanId)
-            if !result.fieldTripUpdates.isEmpty {
-                AppEventPublisher.shared.send(.fieldTripProgressUpdated(result.fieldTripUpdates))
-            }
-            if !result.challengeUpdates.isEmpty {
-                AppEventPublisher.shared.send(.fieldTripChallengeProgressUpdated(result.challengeUpdates))
-            }
-        } catch {
-            MerianLog.general.debug("Field trip progress update failed: \(error, privacy: .private)")
-        }
-    }
-
     private func transferReplacementMetadataIfNeeded(
         from oldScanId: String?,
         to newScanId: String?,
@@ -875,10 +829,13 @@ private struct GBIFMedia: Decodable {
                             modelContext: modelContext,
                             referencePolicy: .showLoadingWhenReferenceMissing
                         )
-                        Task { [weak self, mappedData] in
-                            guard let self else { return }
-                            await self.refreshAchievementNotificationsIfPossible(modelContext: modelContext)
-                            await self.applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
+                        Task { [mappedData] in
+                            guard let scanId = mappedData.scanId else { return }
+                            await ScanMilestoneCoordinator.shared.processCompletedScan(
+                                scanId: scanId,
+                                speciesData: mappedData,
+                                modelContainer: modelContext?.container
+                            )
                         }
                     }
                 }
@@ -1067,10 +1024,13 @@ private struct GBIFMedia: Decodable {
                         "[⏱ BENCH] Total pipeline: \(String(format: "%.3f", stateCommittedAt - pipelineStart), privacy: .public)s"
                     )
                     if didCommitResult {
-                        Task { [weak self, mappedData] in
-                            guard let self else { return }
-                            await self.refreshAchievementNotificationsIfPossible(modelContext: modelContext)
-                            await self.applyFieldTripProgressIfPossible(scanId: mappedData.scanId)
+                        Task { [mappedData] in
+                            guard let scanId = mappedData.scanId else { return }
+                            await ScanMilestoneCoordinator.shared.processCompletedScan(
+                                scanId: scanId,
+                                speciesData: mappedData,
+                                modelContainer: modelContext?.container
+                            )
                         }
                     }
 
@@ -1887,7 +1847,7 @@ private struct GBIFMedia: Decodable {
             if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
                 AppEventPublisher.shared.send(.explorePostNeedsRefresh(postId: postId))
             }
-            await applyFieldTripProgressIfPossible(scanId: scanId)
+            await ScanMilestoneCoordinator.shared.processIdentificationUpdate(scanId: scanId)
         } catch {
             MerianLog.general.debug("syncIdentificationReviewToCloud failed: \(error, privacy: .private)")
         }

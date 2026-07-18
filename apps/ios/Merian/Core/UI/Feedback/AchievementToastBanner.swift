@@ -4,13 +4,16 @@ struct MilestoneToastBanner: View {
     let item: MilestoneToastItem
     let onDismiss: () -> Void
     var onOpenAchievement: ((AwardPayload) -> Void)?
+    var onOpenFieldTrip: ((CaptureGoalDestination) -> Void)?
 
     @State private var hasFiredPresentationEffects = false
 
     var body: some View {
         ToastBanner(onDismiss: dismissManually) {
             HStack(spacing: 14) {
-                milestoneIcon
+                if fieldTripProgress == nil {
+                    milestoneIcon
+                }
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(display.eyebrow)
@@ -26,14 +29,27 @@ struct MilestoneToastBanner: View {
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(display.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let subtitle = display.subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 Spacer(minLength: 0)
+
+                if let progress = fieldTripProgress {
+                    GoalProgressRing(
+                        completedCount: progress.completedCount,
+                        targetCount: progress.targetCount,
+                        lineWidth: 4.5,
+                        labelFontSize: 10
+                    )
+                    .frame(width: 56, height: 56)
+                    .accessibilityHidden(true)
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -49,8 +65,8 @@ struct MilestoneToastBanner: View {
                 }
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(display.eyebrow), \(display.title), \(display.subtitle)")
-        .accessibilityHint(display.opensDetails ? "Opens achievement details." : "Dismisses the notification.")
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(display.accessibilityHint)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier(display.accessibilityIdentifier)
         .onAppear(perform: firePresentationEffectsIfNeeded)
@@ -81,8 +97,32 @@ struct MilestoneToastBanner: View {
         .accessibilityHidden(true)
     }
 
+    private var fieldTripProgress: FieldTripMilestonePayload? {
+        guard case let .fieldTrip(progress) = item.payload else { return nil }
+        return progress
+    }
+
+    private var accessibilityLabel: String {
+        let text = [display.eyebrow, display.title, display.subtitle]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+
+        guard let progress = fieldTripProgress else { return text }
+        return "\(text), \(progress.completedCount) of \(progress.targetCount) goals complete"
+    }
+
     private var display: DisplayModel {
         switch item.payload {
+        case .fieldTrip(let progress):
+            DisplayModel(
+                eyebrow: "Field trip progress",
+                title: progress.message,
+                subtitle: nil,
+                imageName: "",
+                tintColor: .blue,
+                accessibilityIdentifier: "MilestoneToastBanner_FieldTrip",
+                accessibilityHint: "Opens this Field trip."
+            )
         case .achievement(let award):
             DisplayModel(
                 eyebrow: "Achievement unlocked",
@@ -91,7 +131,7 @@ struct MilestoneToastBanner: View {
                 imageName: award.definition.imageName,
                 tintColor: award.definition.tintToken.color,
                 accessibilityIdentifier: "AchievementToastBanner_\(award.type.rawValue)",
-                opensDetails: true
+                accessibilityHint: "Opens achievement details."
             )
         case .dictionary(let milestone):
             DisplayModel(
@@ -101,7 +141,7 @@ struct MilestoneToastBanner: View {
                 imageName: milestone.imageName,
                 tintColor: .green,
                 accessibilityIdentifier: "MilestoneToastBanner_NewToMerian",
-                opensDetails: false
+                accessibilityHint: "Dismisses the notification."
             )
         }
     }
@@ -134,8 +174,13 @@ struct MilestoneToastBanner: View {
     private func open() {
         HapticManager.shared.triggerSelectionPulse()
 
-        if case let .achievement(award) = item.payload {
+        switch item.payload {
+        case .fieldTrip(let progress):
+            onOpenFieldTrip?(progress.destination)
+        case .achievement(let award):
             onOpenAchievement?(award)
+        case .dictionary:
+            break
         }
 
         dismissAutomatically()
@@ -144,11 +189,11 @@ struct MilestoneToastBanner: View {
     private struct DisplayModel {
         let eyebrow: String
         let title: String
-        let subtitle: String
+        let subtitle: String?
         let imageName: String
         let tintColor: Color
         let accessibilityIdentifier: String
-        let opensDetails: Bool
+        let accessibilityHint: String
     }
 }
 

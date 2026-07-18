@@ -30,6 +30,7 @@ enum CaptureGoalArtwork: Codable, Equatable, Sendable {
 /// checked handling at the Explore boundary.
 enum CaptureGoalDestination: Codable, Equatable, Sendable {
     case fieldTrip(templateId: String, checklistItemId: String)
+    case fieldTripChallenge(challengeId: String)
 }
 
 /// The small, source-agnostic read model consumed by capture surfaces.

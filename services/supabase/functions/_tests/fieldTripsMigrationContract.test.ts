@@ -268,6 +268,36 @@ Deno.test("Private field trip detail exposes active publication status", async (
   );
 });
 
+Deno.test("Field trip progress responses preserve the level credited by a scan", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260718150932_add_credited_field_trip_progress.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.apply_field_trip_scan_progress",
+      "CREATE OR REPLACE FUNCTION public.apply_field_trip_challenge_scan_progress",
+      "credited_completion.scan_id = target_scan_id",
+      "'credited_level_number', cp.level_number",
+      "'credited_level_title', cp.level_title",
+      "'credited_completed_count', cp.completed_count",
+      "'credited_target_count', cp.target_count",
+      "COUNT(DISTINCT all_items.id)::INTEGER AS target_count",
+      "COUNT(DISTINCT all_completions.item_id)::INTEGER AS completed_count",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    (sql.match(/'credited_level_number', cp\.level_number/g) ?? []).length ===
+      2,
+    "standard and challenge updates must both expose credited-level progress",
+  );
+});
+
 Deno.test("Initial Field trip capture context is focused, ordered, and service-role only", async () => {
   const sql = normalized(
     await migrationSql("20260717195751_active_outing_capture_context.sql"),

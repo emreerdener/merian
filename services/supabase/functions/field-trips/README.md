@@ -200,12 +200,23 @@ Returns:
       "completed_count": 3,
       "target_count": 4,
       "is_complete": false,
+      "credited_level_number": 1,
+      "credited_level_title": "Level 1",
+      "credited_completed_count": 3,
+      "credited_target_count": 4,
       "newly_completed_items": []
     }
   ],
   "challenge_updates": []
 }
 ```
+
+Both standard `data` entries and `challenge_updates` include the optional
+`credited_*` fields. They describe the level changed by this scan. When a scan
+finishes a level and immediately unlocks the next one, `current_*` and the
+existing counts describe the new active level while `credited_*` retains the
+completed level and its full progress for scan-completion feedback. Older
+clients can continue using the existing fields.
 
 ```json
 { "action": "challenges_catalog", "user_region": "optional", "limit": 20 }

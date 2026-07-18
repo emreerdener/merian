@@ -121,52 +121,26 @@ struct InsightSheetViewModelTests {
     }
 
     @Test func localNewDiscoveryDoesNotShowNewToMerianMilestone() {
-        MilestoneToastPresenter.shared.resetForTesting()
-        let viewModel = InsightSheetViewModel()
-        let engine = InferenceEngine()
         var species = milestoneTestSpecies()
         species.isNewDiscovery = true
         species.isNewToMerianDictionary = false
-        engine.speciesData = species
 
-        viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: engine)
-
-        #expect(MilestoneToastPresenter.shared.activeItem == nil)
-        #expect(viewModel.state.hasPresentedNewToMerianMilestone == false)
+        #expect(ScanMilestoneCoordinator.isValidNewToMerianMilestone(species) == false)
     }
 
-    @Test func globalDictionaryContributionShowsNewToMerianMilestone() {
-        MilestoneToastPresenter.shared.resetForTesting()
-        let viewModel = InsightSheetViewModel()
-        let engine = InferenceEngine()
+    @Test func globalDictionaryContributionQualifiesForNewToMerianMilestone() {
         var species = milestoneTestSpecies()
         species.isNewDiscovery = false
         species.isNewToMerianDictionary = true
-        engine.speciesData = species
 
-        viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: engine)
-
-        guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
-            Issue.record("Expected New to Naturebook milestone")
-            return
-        }
-
-        #expect(milestone == .newToMerian)
-        #expect(viewModel.state.hasPresentedNewToMerianMilestone == true)
+        #expect(ScanMilestoneCoordinator.isValidNewToMerianMilestone(species))
     }
 
     @Test func invalidDictionaryContributionDoesNotShowNewToMerianMilestone() {
-        MilestoneToastPresenter.shared.resetForTesting()
-        let viewModel = InsightSheetViewModel()
-        let engine = InferenceEngine()
         var species = milestoneTestSpecies(commonName: "Unknown Subject", isBiological: true)
         species.isNewToMerianDictionary = true
-        engine.speciesData = species
 
-        viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: engine)
-
-        #expect(MilestoneToastPresenter.shared.activeItem == nil)
-        #expect(viewModel.state.hasPresentedNewToMerianMilestone == false)
+        #expect(ScanMilestoneCoordinator.isValidNewToMerianMilestone(species) == false)
     }
 
     @Test func testNonBiologicalHeaderTitleUsesFriendlyDisplayName() {
