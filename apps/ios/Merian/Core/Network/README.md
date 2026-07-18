@@ -32,6 +32,13 @@ the authenticated `/field-trips` Edge Function, which supplies the verified
 caller ID. Never add this field to public Field trip profiles, publication or
 challenge DTOs, Explore feed/map DTOs, or the capture-context DTO.
 
+Template detail additionally decodes optional
+`FieldTripProgress.publicationId` / `publishedAt`. These fields refer only to
+the requesting owner's active, non-deleted outing publication. The title badge
+derives Published from a non-null publication ID; completion and Community
+results are not substitutes. Missing fields remain backward-compatible and
+render Private during a staged backend/client rollout.
+
 ## Field trip capture context
 
 `getFieldTripCaptureContext()` posts `{"action":"capture_context"}` to the

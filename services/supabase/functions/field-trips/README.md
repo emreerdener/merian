@@ -14,6 +14,7 @@ The backing SQL lives in this ordered migration chain:
 7. `20260717213641_preserve_standard_outings_in_capture_context.sql`
 8. `20260717224544_retire_forest_edges_outing.sql`
 9. `20260718043218_expose_field_trip_completion_scan_ids.sql`
+10. `20260718051748_expose_field_trip_publication_status.sql`
 
 Deploy the migrations before deploying this function.
 
@@ -26,8 +27,8 @@ Deploy the migrations before deploying this function.
 - Publishing a Field trip must not create Explore feed posts, Explore map
   points, normal Explore post notifications, APNs, widgets, or public web share
   pages.
-- Published Field trips appear on public profiles, the Field trips `Community`
-  segment, and as typed cards in unfiltered Explore Recent and Following. They
+- Published Field trips appear on public profiles, template-detail Community
+  previews, and as typed cards in unfiltered Explore Recent and Following. They
   remain absent from Trending, Nearby, map, APNs, widgets, and public web, and
   they never create duplicate `explore_posts` rows.
 - Field trip comments, replies, and followed-author publications can create
@@ -123,7 +124,9 @@ Function supplies the verified caller ID.
 
 Returns one template detail payload with guide fields, levels, checklist tips,
 access state, viewer progress, and the same private `completed_scan_id` on
-completed checklist items. `slug` may be supplied instead of `template_id`.
+completed checklist items. Its `active_progress` also includes the owner's
+optional active `publication_id` and `published_at`; clients render Published
+only when that ID is non-null. `slug` may be supplied instead of `template_id`.
 
 ```json
 { "action": "start", "template_id": "uuid" }
@@ -343,13 +346,14 @@ not fail scan persistence.
 7. Apply `20260717213641_preserve_standard_outings_in_capture_context.sql`.
 8. Apply `20260717224544_retire_forest_edges_outing.sql`.
 9. Apply `20260718043218_expose_field_trip_completion_scan_ids.sql`.
-10. Deploy this function.
-11. Deploy `get-explore-author-profile` so profile responses include
+10. Apply `20260718051748_expose_field_trip_publication_status.sql`.
+11. Deploy this function.
+12. Deploy `get-explore-author-profile` so profile responses include
    `field_trips`.
-12. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+13. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-13. Ship the iOS client.
+14. Ship the iOS client.
 
 ## Verification
 
@@ -370,3 +374,7 @@ The static migration contract also verifies that both private checklist RPCs
 project `completed_scan_id` and grant execution only to `service_role`. Release
 QA must compare the returned ID to `user_field_trip_item_completions.scan_id`
 and confirm public/capture payloads still omit it.
+
+The contract also verifies that publication status stays detail-only, joins the
+requesting owner's active non-deleted publication, and preserves the
+service-role-only template-detail grant.

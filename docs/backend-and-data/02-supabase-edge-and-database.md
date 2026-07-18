@@ -867,7 +867,12 @@ library. The catalog/detail RPCs are revoked from `PUBLIC`, `anon`, and
 the verified `user.id`. Public profiles, publications, challenge entries and
 badges, Explore feed/map data, and the Scan `capture_context` projection remain
 evidence-free. This contract is defined by
-`20260718043218_expose_field_trip_completion_scan_ids.sql`.
+`20260718043218_expose_field_trip_completion_scan_ids.sql`. Template detail may
+also include the requesting owner's active, non-deleted `publication_id` and
+`published_at` inside `active_progress`; iOS uses only that detail-only state for
+the Private/Published badge. This addition is defined by
+`20260718051748_expose_field_trip_publication_status.sql` and does not expand
+catalog or public/capture projections.
 
 `get-explore-post` is an important routing helper for the iOS client and the
 public Next.js web app: it returns a single privacy-safe feed-card projection so

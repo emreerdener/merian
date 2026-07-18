@@ -237,6 +237,37 @@ Deno.test("Private field trip checklist payloads expose the completing scan id",
   );
 });
 
+Deno.test("Private field trip detail exposes active publication status", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260718051748_expose_field_trip_publication_status.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_template_detail",
+      "'publication_id', ftp.id",
+      "'published_at', ftp.published_at",
+      "LEFT JOIN public.field_trip_publications ftp ON ftp.user_field_trip_id = uft.id AND ftp.user_id = self_id AND ftp.deleted_at IS NULL",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_template_detail(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.get_field_trip_template_detail(UUID, UUID, TEXT) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("CREATE OR REPLACE FUNCTION public.get_field_trip_catalog"),
+    "publication status must remain scoped to the private detail payload",
+  );
+  assert(
+    !sql.includes("get_field_trip_profile_summaries") &&
+      !sql.includes("get_field_trip_capture_context"),
+    "publication status must not expand public profile or capture projections",
+  );
+});
+
 Deno.test("Initial Field trip capture context is focused, ordered, and service-role only", async () => {
   const sql = normalized(
     await migrationSql("20260717195751_active_outing_capture_context.sql"),

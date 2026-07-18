@@ -273,8 +273,11 @@ struct FieldTripProgress: Decodable, Equatable {
     let isProfileVisible: Bool
     let completedCount: Int
     let targetCount: Int
+    let publicationId: String?
+    let publishedAt: String?
 
     var isComplete: Bool { completedAt != nil }
+    var isPublished: Bool { publicationId != nil }
     var fractionComplete: Double {
         guard targetCount > 0 else { return 0 }
         return min(1, max(0, Double(completedCount) / Double(targetCount)))

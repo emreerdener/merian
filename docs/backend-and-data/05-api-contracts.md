@@ -102,6 +102,14 @@ RPC directly or request another user's evidence. `completed_scan_id` is not
 projected into public profile summaries, publication or challenge snapshots,
 Explore feed/map contracts, or capture context.
 
+`template_detail` additionally projects `publication_id` and `published_at`
+inside `active_progress` when the caller owns an active, non-deleted Field trip
+publication for that outing. Missing/null values mean the outing has no current
+public snapshot and the client renders **Private**; a non-null publication ID
+renders **Published**. Completion alone must not imply publication. These fields
+are detail-only private viewer metadata and are not added to catalog, capture
+context, public profile, or Explore-post projections.
+
 ### Template Detail and Explicit Start
 
 Template detail request:
@@ -117,6 +125,17 @@ Template detail request:
 template object with guide fields, levels, item tips, access state, viewer
 progress, and the same optional private `completed_scan_id` for completed
 standard-outing items.
+
+For template detail only, a published outing's progress includes:
+
+```json
+{
+  "active_progress": {
+    "publication_id": "publication-uuid",
+    "published_at": "2026-07-08T13:00:00.000Z"
+  }
+}
+```
 
 Start request:
 

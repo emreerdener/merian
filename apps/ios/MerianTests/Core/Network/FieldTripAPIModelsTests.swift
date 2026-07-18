@@ -84,6 +84,71 @@ struct FieldTripAPIModelsTests {
         #expect(response.data[0].levels[0].items[0].completedScanId == "scan-1")
     }
 
+    @Test func templateDetailDecodesPublishedStatus() throws {
+        let json = Data("""
+        {
+          "data": {
+            "template_id": "template-1",
+            "slug": "backyard_safari",
+            "title": "Backyard Safari",
+            "subtitle": null,
+            "description": null,
+            "cover_image_url": null,
+            "estimated_duration_minutes": null,
+            "guide_where_to_look": null,
+            "guide_why_it_matters": null,
+            "guide_safety_ethics": null,
+            "region_tags": [],
+            "season_tags": [],
+            "habitat_tags": [],
+            "difficulty": "starter",
+            "is_pro_only": false,
+            "is_rotating_free": true,
+            "viewer_has_access": true,
+            "access_kind": "starter",
+            "active_progress": {
+              "user_field_trip_id": "trip-1",
+              "started_at": "2026-07-08T00:00:00Z",
+              "current_level_number": 1,
+              "completed_at": "2026-07-08T01:00:00Z",
+              "is_profile_visible": true,
+              "completed_count": 4,
+              "target_count": 4,
+              "publication_id": "publication-1",
+              "published_at": "2026-07-08T01:05:00Z"
+            },
+            "levels": []
+          }
+        }
+        """.utf8)
+
+        let response = try decoder.decode(FieldTripTemplateDetailResponse.self, from: json)
+
+        #expect(response.data.activeProgress?.publicationId == "publication-1")
+        #expect(response.data.activeProgress?.publishedAt == "2026-07-08T01:05:00Z")
+        #expect(response.data.activeProgress?.isPublished == true)
+    }
+
+    @Test func legacyProgressWithoutPublicationStatusDecodesAsPrivate() throws {
+        let json = Data("""
+        {
+          "user_field_trip_id": "trip-1",
+          "started_at": "2026-07-08T00:00:00Z",
+          "current_level_number": 1,
+          "completed_at": null,
+          "is_profile_visible": true,
+          "completed_count": 0,
+          "target_count": 4
+        }
+        """.utf8)
+
+        let progress = try decoder.decode(FieldTripProgress.self, from: json)
+
+        #expect(progress.publicationId == nil)
+        #expect(progress.publishedAt == nil)
+        #expect(!progress.isPublished)
+    }
+
     @Test func checklistItemUsesLegacyGuideTipAsFallback() {
         let item = FieldTripChecklistItem(
             itemId: "item-legacy",

@@ -9,8 +9,9 @@
         {
           "title": "Improved",
           "items": [
-            "Field trip detail now uses Goals and Tips tabs, calls the primary action Start outing, and shows a circular progress ring on the active level.",
-            "Completed goals now show the exact captured photo or video thumbnail in outing cards and detail; tapping one opens that Insight inside the current Explore sheet with a back arrow."
+            "Field trip detail now uses Goals and Tips tabs, calls the primary action Start outing, and shows a larger circular progress ring on the active level.",
+            "Completed goals now show the exact captured photo or video thumbnail in outing cards and detail; tapping one opens that Insight inside the current Explore sheet with a back arrow.",
+            "Outing detail now shows a left-aligned Private badge above the title until you publish a public snapshot, then changes it to Published."
           ]
         }
       ]

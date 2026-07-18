@@ -676,13 +676,16 @@ RPC grants, verified-user Edge call, filtering/order clauses, preservation of a
 standard field trip after a Seasonal Challenge join, exclusion of challenge-specific
 progress, the non-destructive retirement of placeholder templates, and the
 evidence-free capture projection. It also locks the private catalog/detail
-`completed_scan_id` projection and service-role-only grants.
+`completed_scan_id` projection, detail-only publication status, owner/non-deleted
+join, and service-role-only grants.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
 `FieldTripCaptureContextModelsTests` covers capture-context decoding, while
 `FieldTripAPIModelsTests.catalogDecodesActiveProgressAndChecklistItems` covers
-the optional completing scan ID used by catalog/detail thumbnails.
+the optional completing scan ID used by catalog/detail thumbnails and published
+status. A separate legacy-payload test ensures absent publication fields decode
+as Private during rollout.
 `ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
@@ -703,6 +706,12 @@ neutral border/no blue completion outline, and open the completed scan from
 both catalog and detail into the embedded Insight route. Back must return to the
 outing, and a locally unavailable scan must preserve the placeholder without
 opening a blank Insight.
+
+Publication-status QA must cover unstarted, in-progress,
+completed-but-unpublished, published, and deleted-publication outings. Only the
+published case shows the green globe badge; VoiceOver must distinguish a public
+snapshot from a private outing, and long titles must wrap without compressing
+the fixed-size badge.
 
 Explore audio poster coverage is split by contract seam:
 `_shared/audioSpectrogram_test.ts` validates PCM WAV decoding, iOS-compatible

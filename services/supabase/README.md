@@ -104,9 +104,12 @@ ignoring challenge-specific progress.
 placeholder without deleting historical user data.
 `20260718043218_expose_field_trip_completion_scan_ids.sql` adds the completing
 scan ID to the private catalog/detail projections while restricting both RPCs
-to `service_role`. The contract suite verifies caller identity, role grants,
-ordering/filtering clauses, private completion links, and the absence of
-evidence from public/capture projections.
+to `service_role`.
+`20260718051748_expose_field_trip_publication_status.sql` adds the owner's
+active non-deleted publication ID/timestamp to private template detail only.
+The contract suite verifies caller identity, role grants, ordering/filtering
+clauses, private completion links/status, and the absence of evidence from
+public/capture projections.
 `fieldTripCaptureContextDb.test.ts` additionally
 executes the filtering/order/privacy contract when the local Postgres stack is
 running; a connection skip is not database validation.
@@ -202,3 +205,9 @@ iOS client. Smoke-test that catalog/detail return the exact completion
 `scan_id`, direct client roles cannot execute those RPCs, and public profile,
 publication, challenge, Explore, and capture-context payloads remain
 evidence-free.
+
+For the Private/Published detail badge, apply
+`20260718051748_expose_field_trip_publication_status.sql` before releasing the
+iOS surface. Verify only private template detail receives the requesting
+owner's active publication ID/timestamp and that direct client roles remain
+unable to execute the RPC.

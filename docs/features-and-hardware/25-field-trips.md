@@ -15,6 +15,9 @@ only a camera/performance setting.
   `Tips` in the sheet toolbar. `Goals` is selected by default and owns the
   trip overview, progress, actions, checklist, and Community content; `Tips`
   shows only the curated guide.
+- Standard outing detail places a left-aligned status badge above the title:
+  **Private** until an active publication exists and **Published** once
+  the owner has created a public outing snapshot.
 - Seasonal challenges are curated/admin-created only, live inside Field trips,
   and require an explicit Join.
 - Challenges link to existing Field trip templates but keep separate
@@ -128,7 +131,9 @@ Rotating-free and Pro access rules never affect a template's difficulty.
     return to the same outing sheet.
 12. Once all levels are complete, **Publish outing** creates a Field trip snapshot
    with an editable title and optional description or AI summary.
-13. Published Field trips appear on public profiles and template Community
+13. After the detail refreshes, its title badge changes from **Private** to
+    **Published**. Deleting the publication returns it to **Private**.
+14. Published Field trips appear on public profiles and template Community
    previews. They open `FieldTripPublicationDetailView` with item cards,
    likes, comments, and author identity. Author taps open the existing Explore
    author-profile route.
@@ -301,6 +306,13 @@ evidence URL. `completed_scan_id` must not appear in public profile summaries,
 publication snapshots, challenge badges or entries, Explore feed/map payloads,
 or the capture-context response.
 
+The detail-only publication status is also private viewer metadata.
+`active_progress.publication_id` and `published_at` identify the owner's active,
+non-deleted public snapshot; missing values mean the detail badge is **Private**.
+The badge describes publication state, not whether the status-only active
+progress summary is allowed on a public profile. It never makes completion
+evidence public.
+
 The Scan capture-context payload is even narrower: it contains only field trip and
 template identifiers, title/slug, current-level metadata, aggregate counts, and
 unfinished item identifiers/prompts/order/guide availability. It must never
@@ -349,6 +361,8 @@ Private catalog/detail completion evidence links are added by
 `services/supabase/migrations/20260718043218_expose_field_trip_completion_scan_ids.sql`.
 That migration also restricts both RPCs to `service_role`; authenticated iOS
 clients continue to access them only through `/field-trips`.
+Private detail publication status is added by
+`services/supabase/migrations/20260718051748_expose_field_trip_publication_status.sql`.
 
 Core tables:
 
@@ -421,7 +435,8 @@ Actions:
   private `completed_scan_id` needed for device-local evidence thumbnails.
 - `template_detail`: returns one template with guide fields, levels, checklist
   tips, access state, viewer progress, and the same optional private completion
-  scan ID.
+  scan ID. Its `active_progress` also includes the owner's optional active
+  `publication_id` and `published_at` for the title badge.
 - `start`: explicitly starts or unhides the caller's progress row for an
   accessible template.
 - `community_publications`: returns visible published completed Field trips for
@@ -582,6 +597,15 @@ gesture instead of a nested sheet. If the local record is missing, the
 placeholder remains and the shell presents a non-destructive unavailable
 message rather than an empty Insight view.
 
+`FieldTripProgress.publicationId` and `publishedAt` are optional for staged
+backend/client rollout. `FieldTripPublicationStatusBadge` derives Published
+only from a non-null publication ID; completion alone and Community results are
+not publication-state signals. The badge uses a green globe for **Published**
+and a neutral lock for **Private**, remains fixed-size in its own left-aligned
+row above the wrapping title, and exposes explicit VoiceOver labels and
+explanations. The active-level progress ring uses a larger 52-point treatment
+in outing detail while the camera component retains its compact size.
+
 ## Community Ranking
 
 `For You` ranks visible published Field trips in stable buckets:
@@ -629,12 +653,13 @@ Deploy in this order:
 7. `20260717213641_preserve_standard_outings_in_capture_context.sql`
 8. `20260717224544_retire_forest_edges_outing.sql`
 9. `20260718043218_expose_field_trip_completion_scan_ids.sql`
-10. `field-trips` Edge Function
-11. `get-explore-author-profile` so public profiles include Field trip
+10. `20260718051748_expose_field_trip_publication_status.sql`
+11. `field-trips` Edge Function
+12. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-12. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+13. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-13. iOS client update
+14. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
@@ -687,6 +712,13 @@ record must leave the placeholder usable and must not show a blank Insight.
 At the database boundary, confirm catalog/detail return the completion row's
 exact `scan_id`, only `service_role` can execute their RPCs, and no public or
 capture-context payload contains `completed_scan_id`.
+
+For publication-state QA, verify an unstarted, active, completed-but-unpublished,
+and deleted-publication outing all show **Private**. Publishing must change the
+badge to **Published** after refresh and expose a VoiceOver value that says the
+snapshot is public. Confirm template detail returns only the requesting user's
+active non-deleted publication ID and that catalog, capture context, public
+profile summaries, and completion evidence contracts are unchanged.
 
 Also verify that publishing a Field trip appears on profiles, Field trip-native
 preview/detail surfaces, and typed Observations Recent/Following cards without

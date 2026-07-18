@@ -327,6 +327,10 @@ struct FieldTripTemplateDetailView: View {
         case .objectives:
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
+                    FieldTripPublicationStatusBadge(
+                        isPublished: template.activeProgress?.isPublished == true
+                    )
+
                     Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
                         .font(.title2.weight(.bold))
                         .foregroundStyle(.primary)
@@ -2104,9 +2108,11 @@ private struct FieldTripLevelSection: View {
                         if progressPlacement == .headerRing, let progress {
                             GoalProgressRing(
                                 completedCount: progress.completedCount,
-                                targetCount: progress.targetCount
+                                targetCount: progress.targetCount,
+                                lineWidth: 4.5,
+                                labelFontSize: 11
                             )
-                            .frame(width: 40, height: 40)
+                            .frame(width: 52, height: 52)
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("Level progress")
                             .accessibilityValue(
@@ -2678,6 +2684,42 @@ private struct FieldTripLevelProgressBar: View {
             }
             .frame(height: 7)
         }
+    }
+}
+
+private struct FieldTripPublicationStatusBadge: View {
+    let isPublished: Bool
+
+    private var tint: Color {
+        isPublished ? .green : .secondary
+    }
+
+    var body: some View {
+        Label(
+            isPublished ? "Published" : "Private",
+            systemImage: isPublished ? "globe.americas.fill" : "lock.fill"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(tint)
+        .lineLimit(1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule(style: .continuous)
+                .fill(tint.opacity(isPublished ? 0.16 : 0.12))
+        )
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(tint.opacity(0.28), lineWidth: 1)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isPublished ? "Published publicly" : "Private outing")
+        .accessibilityHint(
+            isPublished
+                ? "A public snapshot of this outing is published."
+                : "This outing has not been published."
+        )
     }
 }
 

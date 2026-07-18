@@ -3,6 +3,8 @@ import SwiftUI
 struct GoalProgressRing: View {
     let completedCount: Int
     let targetCount: Int
+    var lineWidth: CGFloat = 3.5
+    var labelFontSize: CGFloat = 9
 
     private var fractionComplete: CGFloat {
         guard targetCount > 0 else { return 0 }
@@ -15,18 +17,18 @@ struct GoalProgressRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(.secondary.opacity(0.28), lineWidth: 3.5)
+                .stroke(.secondary.opacity(0.28), lineWidth: lineWidth)
 
             Circle()
                 .trim(from: 0, to: fractionComplete)
                 .stroke(
                     .primary,
-                    style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
 
             Text("\(completedCount)/\(targetCount)")
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .font(.system(size: labelFontSize, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)

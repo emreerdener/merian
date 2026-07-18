@@ -1858,11 +1858,16 @@ coordinates to the client contract.
   includes no media URL.
 - `public.get_field_trip_template_detail(self_id UUID, target_template_id UUID, target_slug TEXT)`:
   Returns one catalog-shaped template payload with guide fields, item tips,
-  access state, viewer progress, and the same private completion scan link.
+  access state, viewer progress, and the same private completion scan link. The
+  detail-only progress object also returns the requesting owner's active,
+  non-deleted publication ID/timestamp so iOS can distinguish **Private** from
+  **Published** without inferring from completion or Community results.
   Both catalog/detail functions are restricted to `service_role`; authenticated
   callers reach them through `/field-trips`, which supplies the verified user
   ID. `20260718043218_expose_field_trip_completion_scan_ids.sql` defines this
-  payload and permission contract.
+  evidence-link contract;
+  `20260718051748_expose_field_trip_publication_status.sql` adds the detail-only
+  publication status while preserving the same role grants.
 - `public.get_field_trip_capture_context(self_id UUID)`:
   Private service-role read model for the visual Scan indicator. Returns only
   accessible active, incomplete, non-hidden standard field trips and unfinished

@@ -54,6 +54,9 @@ TestFlight, App Store, support, and QA.
   or video thumbnail in both outing cards and detail, keep the standard neutral
   border, and open that scan's Insight within the current Explore sheet with a
   back arrow.
+- Added a left-aligned, above-title **Private** / **Published** badge to standard outing detail.
+  Published is shown only when the owner has an active public outing snapshot;
+  completion alone remains Private.
 - Added a compact active outing target beneath the visual Scan mode picker.
   It matches the picker width and centers an instructional `Look for: {target}`
   label and outing name between artwork and an AirPods-inspired circular

@@ -222,7 +222,8 @@ Field trips releases are migration-plus-function releases too. Deploy
 `20260717195751_active_outing_capture_context.sql` before
 `20260717213641_preserve_standard_outings_in_capture_context.sql` before
 `20260717224544_retire_forest_edges_outing.sql` before
-`20260718043218_expose_field_trip_completion_scan_ids.sql`, then deploy the
+`20260718043218_expose_field_trip_completion_scan_ids.sql` before
+`20260718051748_expose_field_trip_publication_status.sql`, then deploy the
 `field-trips` Edge Function and the updated Explore/profile activity bundles
 together. V1
 creates the Field trip tables, progress/publication/comment storage, profile
@@ -241,14 +242,17 @@ leaving challenge-specific progress out of the capture payload. The Forest
 retirement migration deactivates the placeholder while retaining
 existing progress and evidence. The completion-evidence migration redefines
 the private catalog/detail projections to expose the exact completing scan ID
-without a media URL and restricts both RPCs to `service_role`. A
+without a media URL and restricts both RPCs to `service_role`. The publication-
+status migration keeps template detail private and adds only the owner's active,
+non-deleted publication ID/timestamp for the Private/Published badge. A
 function-only deploy cannot serve `capture_context` or V4 actions until all
 migrations are applied; a database-only deploy leaves the app without the
 Field trips action router. Do not release the indicator-enabled iOS client until
 both the capture-context migration and updated function are live. Do not release
 the completed-goal thumbnail route until the completion-evidence migration is
 live; its optional decode keeps older database responses compatible during a
-staged rollout.
+staged rollout. Release the status badge only after the publication-status
+migration; its optional fields render Private against the older payload.
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
@@ -751,7 +755,8 @@ After deployment:
   `join_challenge`, `challenge_publications`, `scan_challenge_hashtags`, and
   `profile_summaries` after the V1, V2, V3, V4, contextual-guide, and
   capture-context migrations plus the standard-preservation, Forest-retirement,
-  and completion-evidence follow-ups. Verify `capture_context` returns only accessible
+  completion-evidence, and publication-status follow-ups. Verify
+  `capture_context` returns only accessible
   incomplete standard field trips and current-level unfinished targets, orders
   field trips by recent engagement, ignores Seasonal Challenge-specific completions
   without hiding the shared standard field trip, and returns no scan IDs, media,
@@ -765,6 +770,10 @@ After deployment:
   `public.get_field_trip_template_detail(...)`, while `service_role` can.
   Confirm `completed_scan_id` is absent from capture context, public profile
   summaries, publication/challenge snapshots, Explore feed, and map payloads.
+  Verify template detail returns `publication_id`/`published_at` only for the
+  requesting owner's active non-deleted snapshot. Catalog and public/capture
+  projections must remain unchanged, and direct client roles must remain unable
+  to execute template detail.
   Publishing a Field trip or challenge entry must not write `explore_posts`, map points,
   normal Explore post notification rows, APNs, widgets, public web share pages,
   prize rows, or leaderboard rows. Field trip comment/reply/followed-publication
