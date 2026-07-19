@@ -1,4 +1,5 @@
 import { normalizeTaxonomyValue } from "./taxonomy.ts";
+import { isAllowedExternalImageURL } from "./externalImagePolicy.ts";
 
 export type PublicReferenceImageSource = "wikipedia" | "gbif" | "merian";
 export type PublicSpeciesContentQuality =
@@ -293,7 +294,7 @@ export function legacyReferenceImageUrls(
   return (referenceImageUrl ?? "")
     .split(",")
     .map((value) => value.trim())
-    .filter((value) => value.length > 0);
+    .filter((value) => value.length > 0 && isAllowedExternalImageURL(value));
 }
 
 export function referenceImagesFromLegacyCache(
@@ -325,7 +326,7 @@ export function referenceImagesFromRows(
 
   for (const [index, row] of (rows ?? []).entries()) {
     const url = stringValue(row.url);
-    if (!url) continue;
+    if (!url || !isAllowedExternalImageURL(url)) continue;
 
     const source = normalizedReferenceImageSource(
       row.source,
@@ -407,7 +408,10 @@ export function firstReferenceImageUrlsBySpeciesId(
   for (const row of sortedRows) {
     const speciesId = stringValue(row.species_id);
     const url = stringValue(row.url);
-    if (!speciesId || !url || firstImageBySpeciesId.has(speciesId)) continue;
+    if (
+      !speciesId || !url || !isAllowedExternalImageURL(url) ||
+      firstImageBySpeciesId.has(speciesId)
+    ) continue;
     firstImageBySpeciesId.set(speciesId, url);
   }
 

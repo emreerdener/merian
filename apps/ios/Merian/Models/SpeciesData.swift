@@ -342,7 +342,9 @@ extension SpeciesData {
         self.similarSpecies = nil  // populated async via enrich-scan
         self.wikipediaUrl = edgeRes.wikipedia_url
         self.wikipediaOverview = edgeRes.wikipedia_overview
-        self.referenceImageUrl = edgeRes.reference_image_url
+        self.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
+            edgeRes.reference_image_url
+        )
         self.isBiological = edgeRes.is_biological_subject ?? true
         self.isLiveCapture = edgeRes.is_live_capture ?? true
         self.isInvasive = edgeRes.is_invasive ?? false
@@ -460,7 +462,7 @@ extension SpeciesData {
         self.similarSpecies = similarSpecies
         self.wikipediaUrl = wikipediaUrl
         self.wikipediaOverview = wikipediaOverview
-        self.referenceImageUrl = referenceImageUrl
+        self.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(referenceImageUrl)
         self.isBiological = isBiological
         self.isLiveCapture = isLiveCapture
         self.isInvasive = isInvasive
@@ -572,7 +574,7 @@ struct SimilarSpeciesEntry: Codable {
         self.speciesId = speciesId
         self.scientificName = scientificName
         self.commonName = commonName
-        self.referenceImageUrl = referenceImageUrl
+        self.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURL(referenceImageUrl)
         self.iucnRedListStatus = iucnRedListStatus
         self.similarityReason = similarityReason
         self.visualTraits = visualTraits
@@ -603,7 +605,9 @@ struct SimilarSpeciesEntry: Codable {
         speciesId = try container.decodeIfPresent(String.self, forKey: .speciesId)
         scientificName = try container.decode(String.self, forKey: .scientificName)
         commonName = try container.decodeIfPresent(String.self, forKey: .commonName)
-        referenceImageUrl = try container.decodeIfPresent(String.self, forKey: .referenceImageUrl)
+        referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURL(
+            try container.decodeIfPresent(String.self, forKey: .referenceImageUrl)
+        )
         iucnRedListStatus = try container.decodeIfPresent(String.self, forKey: .iucnRedListStatus)
         similarityReason = try container.decodeIfPresent(String.self, forKey: .similarityReason)
         visualTraits = try container.decodeIfPresent([String].self, forKey: .visualTraits) ?? []

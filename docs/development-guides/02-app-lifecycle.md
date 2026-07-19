@@ -36,6 +36,29 @@ event sent before the workspace subscribes cannot lose the photo. Capacity and
 quota blocks retain the receipt. See
 `docs/features-and-hardware/26-photos-share-import.md`.
 
+**Fresh-launch Explore preference:**
+`AppSettings.opensExploreOnLaunch` is default-off and sampled once when the app
+process is created. After onboarding, an ordinary launch may initialize the
+Capture workspace with the root Explore feed presented over it. Foreground
+phase changes never resample the preference. Because the Capture workspace is
+still the root, this is an initial sheet presentation rather than a second app
+root or an architectural mode switch. Camera startup is suppressed while that
+sheet is visible; dismissing it restores the configured Scan, Record, or
+Describe mode. The Explore sheet's appearance also sets
+`AppSettings.hasSeenExploreNewChip`.
+
+Launch presentation precedence is:
+
+1. A Photos/Files image handoff clears or dismisses generic Explore and
+   continues into the durable pending-import staging and crop flow.
+2. Deep links and tapped notifications replace generic Explore with their
+   requested Explore post, community request, scan Insight, or Scans library.
+3. The generic Explore feed remains only when no explicit intent supersedes it.
+
+When adding a new external route, clear any generic launch destination before
+presenting the requested state and protect it from the same foreground timeout
+event that accompanied the launch.
+
 **Internal Cross-Sheet Routing:**
 `AppEventPublisher` is also utilized for decoupled internal routing. For example, toast actions originating from the `InsightSheetViewModel` can dispatch specific intents (e.g., `.requestOpenNonBiologicalScansIntent`) that are captured by the `CaptureWorkspaceViewModel` and `ScansSheetView` to mutate root presentation states and push nested navigation views, completely avoiding tight coupling between sibling modal sheets.
 
@@ -92,10 +115,12 @@ To add new interrupt-sensitive states in the future, add a condition to `shouldP
 
 External routes can arrive at the same time as the foreground timeout reset. Widget taps, Explore activity pushes, and scan-result pushes should win over a stale camera reset when they are the direct reason the app opened.
 
-Photos document imports do not use this short route-suppression deadline. Their
-durable inbox copy is independent of sheet state and is retried after the
-Capture workspace becomes active, so timeout cleanup cannot destroy the source
-receipt.
+Photos document imports use this short route-suppression deadline once the
+workspace receives their event or confirms a durable pending receipt. The
+durable inbox still protects the source image independently, while suppression
+prevents the same foreground timeout from clearing the crop presentation after
+the import is staged. The import also clears a generic launch-time Explore
+sheet before beginning the Capture workflow.
 
 `CaptureWorkspaceViewModel.protectExternalRouteFromImmediateSessionTimeoutReset()` creates a short one-shot suppression deadline when a scan or Explore deep link is handled. If `.appDidResumeAfterTimeout` arrives during that window, `handleSessionTimeoutReset()` consumes the suppression and skips the reset. This prevents the sequence `widget URL -> activeSheet = .explore -> timeout reset -> activeSheet = nil`.
 

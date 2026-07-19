@@ -72,7 +72,11 @@ Several utilities are shared across all Edge Functions via
   `alternativeCommonNames: string[]`. This array is written to
   `species_dictionary.alternative_common_names` during the Cache Miss enrichment
   pass and served back to the iOS client as `alternative_common_names` on Cache
-  Hit.
+  Hit. Reference-image results are passed through `externalImagePolicy.ts`
+  before return. That helper owns narrow, exact provider-media suppressions;
+  its current rule rejects all variants beneath
+  `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` without blocking
+  the provider or species.
 - **`gemini.ts`**: Contains the physical module-level `_genAI` client wrapper
   initialization and the `extractJson<T>(text)` AST parser string evaluation.
 - **`posthog.ts`**: A headless telemetry ingestion pipeline executing
@@ -544,6 +548,10 @@ Key rules:
 - V1 does not expose provenance in the API response. Freshness/source data is
   stored separately in `species_content_provenance` for internal refresh
   workflows and future curation surfaces.
+- Normalized image rows, legacy image caches, catalog thumbnails, and
+  lookalike thumbnails use the same exact external-media policy. A denied first
+  URL is omitted and the next permitted ordered URL is promoted; the response
+  schema and species/navigation rows are unchanged.
 
 See `docs/backend-and-data/05-api-contracts.md` and
 `docs/features-and-hardware/16-species-dictionary.md` for the request/response
@@ -637,7 +645,10 @@ Key rules:
   normalized `species_reference_images` table. Existing license/attribution
   metadata is preserved when a refreshed URL matches an existing row. Merian
   community rows are preserved and ordered separately by the Merian reference
-  image worker.
+  image worker. Denied provider media is removed before both writes, while the
+  database trigger from
+  `20260719023147_suppress_european_wildcat_roadkill_image.sql` prevents the
+  current exact outlier from being reinserted by any service-role repair path.
 
 ## The Scheduled Species Model Content Node (`refresh-species-model-content`)
 

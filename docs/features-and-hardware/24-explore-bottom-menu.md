@@ -4,6 +4,20 @@ The Explore sheet uses root-only bottom navigation as its primary section
 navigation. The menu uses native tab-bar chrome for Observations, Identify,
 Field trips, and Dictionary.
 
+## Presentation entry points
+
+Capture remains the application root. After onboarding, the default-off **Open
+Explore on launch** setting may present this sheet with the generic Observations
+feed selected once when a new process starts. The setting does not reopen
+Explore on foreground returns and never selects a particular post.
+
+Explicit intent supersedes this generic presentation. Photos/Files image
+handoffs dismiss Explore and continue to capture staging/crop. Deep links and
+tapped notifications replace the generic feed with their requested Explore
+post, community request, scan Insight, or Scans library route. Any Explore
+appearance, including automatic launch presentation, marks the one-time **New**
+chip as seen.
+
 ## Sections
 
 - **Observations** shows either the public Explore feed or the Explore map. A

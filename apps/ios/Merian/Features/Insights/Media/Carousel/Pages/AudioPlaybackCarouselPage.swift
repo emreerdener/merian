@@ -51,6 +51,18 @@ enum InsightAudioBoostPillState: Equatable {
     }
 }
 
+enum InsightAudioPlaybackControlPolicy {
+    static let autoHideDelayNanoseconds: UInt64 = 1_000_000_000
+
+    static func shouldAutoHide(isPlaying: Bool, isSeeking: Bool) -> Bool {
+        isPlaying && !isSeeking
+    }
+
+    static func shouldPresent(isVisible: Bool, isSeeking: Bool) -> Bool {
+        isVisible && !isSeeking
+    }
+}
+
 struct AudioPlaybackCarouselPage: View {
     let filePath: String
     @Binding var isAudioBoostEnabled: Bool
@@ -73,6 +85,8 @@ struct AudioPlaybackCarouselPage: View {
     @State private var isAudioSeeking = false
     @State private var audioSeekWasPlaying = false
     @State private var audioSeekStartProgress = 0.0
+    @State private var showsPlaybackControl = true
+    @State private var playbackControlFadeTask: Task<Void, Never>?
     
     @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
@@ -81,6 +95,13 @@ struct AudioPlaybackCarouselPage: View {
     @State private var isPlaying: Bool = false
     private var isHardwareDisabled: Bool {
         speechManager.isRecording || audioCaptureManager.isRecording
+    }
+
+    private var isPlaybackControlPresented: Bool {
+        InsightAudioPlaybackControlPolicy.shouldPresent(
+            isVisible: showsPlaybackControl,
+            isSeeking: isAudioSeeking
+        )
     }
     
     // Captured session category across appearances
@@ -133,7 +154,7 @@ struct AudioPlaybackCarouselPage: View {
                             .contentShape(Rectangle())
                             .gesture(
                                 SpatialTapGesture().onEnded { value in
-                                    seekAudioFromTap(
+                                    handleAudioSurfaceTap(
                                         to: AudioSpectrogramSeekingPolicy.normalizedProgress(
                                             locationX: value.location.x,
                                             width: proxy.size.width
@@ -205,7 +226,9 @@ struct AudioPlaybackCarouselPage: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
                 .disabled(isHardwareDisabled)
-                .opacity(isHardwareDisabled ? 0.3 : 1.0)
+                .opacity(isPlaybackControlPresented ? (isHardwareDisabled ? 0.3 : 1.0) : 0)
+                .allowsHitTesting(isPlaybackControlPresented)
+                .animation(.easeInOut(duration: 0.25), value: isPlaybackControlPresented)
 
                 playbackBadges
 
@@ -243,6 +266,8 @@ struct AudioPlaybackCarouselPage: View {
             captureAndSwitchSession()
         }
         .onDisappear {
+            playbackControlFadeTask?.cancel()
+            playbackControlFadeTask = nil
             player?.stop()
             isPlaying = false
             originalAudioLease?.release()
@@ -251,6 +276,7 @@ struct AudioPlaybackCarouselPage: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
+                showPlaybackControlPersistently()
                 player?.stop()
                 isPlaying = false
                 playbackProgress = 0.0
@@ -341,6 +367,7 @@ struct AudioPlaybackCarouselPage: View {
         if player.isPlaying {
             player.pause()
             isPlaying = false
+            showPlaybackControlPersistently()
             HapticManager.shared.triggerLightImpact(
                 intensity: 0.55,
                 source: "media.insight.audio.pause"
@@ -351,6 +378,7 @@ struct AudioPlaybackCarouselPage: View {
                 try AVAudioSession.sharedInstance().setActive(true)
             player.play()
             isPlaying = true
+            showPlaybackControlTemporarily()
             trackBoostedPlaybackStartedIfNeeded()
             HapticManager.shared.triggerMediumPulse(source: "media.insight.audio.play")
             } catch {
@@ -372,8 +400,17 @@ struct AudioPlaybackCarouselPage: View {
 
     private func seekAudioFromTap(to progress: Double) {
         guard player?.duration ?? 0 > 0 else { return }
+        showPlaybackControlTemporarily()
         seekAudio(to: progress)
         HapticManager.shared.triggerSelectionPulse(source: "media.insight.audio.seek.tap")
+    }
+
+    private func handleAudioSurfaceTap(to progress: Double) {
+        if showsPlaybackControl {
+            seekAudioFromTap(to: progress)
+        } else {
+            showPlaybackControlTemporarily()
+        }
     }
 
     private func updateAudioSeek(translationX: CGFloat, width: CGFloat) {
@@ -382,6 +419,7 @@ struct AudioPlaybackCarouselPage: View {
             isAudioSeeking = true
             audioSeekWasPlaying = player.isPlaying
             audioSeekStartProgress = playbackProgress
+            showPlaybackControlPersistently()
             HapticManager.shared.triggerLightImpact(
                 intensity: 0.35,
                 source: "media.insight.audio.seek.begin"
@@ -402,6 +440,7 @@ struct AudioPlaybackCarouselPage: View {
         if shouldResume {
             player.play()
             isPlaying = true
+            showPlaybackControlTemporarily()
             trackBoostedPlaybackStartedIfNeeded()
         }
     }
@@ -419,6 +458,44 @@ struct AudioPlaybackCarouselPage: View {
             notification: .announcement,
             argument: Self.formattedTime(player.currentTime)
         )
+    }
+
+    private func showPlaybackControlTemporarily() {
+        playbackControlFadeTask?.cancel()
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showsPlaybackControl = true
+        }
+        guard InsightAudioPlaybackControlPolicy.shouldAutoHide(
+            isPlaying: isPlaying,
+            isSeeking: isAudioSeeking
+        ) else {
+            playbackControlFadeTask = nil
+            return
+        }
+
+        playbackControlFadeTask = Task {
+            try? await Task.sleep(
+                nanoseconds: InsightAudioPlaybackControlPolicy.autoHideDelayNanoseconds
+            )
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard InsightAudioPlaybackControlPolicy.shouldAutoHide(
+                    isPlaying: isPlaying,
+                    isSeeking: isAudioSeeking
+                ) else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showsPlaybackControl = false
+                }
+            }
+        }
+    }
+
+    private func showPlaybackControlPersistently() {
+        playbackControlFadeTask?.cancel()
+        playbackControlFadeTask = nil
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showsPlaybackControl = true
+        }
     }
     
     // MARK: - Hardware Lifecycle
@@ -542,6 +619,7 @@ struct AudioPlaybackCarouselPage: View {
         playerDelegate.onFinish = {
             playbackProgress = 0.0
             isPlaying = false
+            showPlaybackControlPersistently()
         }
         preparedPlayer.delegate = playerDelegate
         preparedPlayer.prepareToPlay()

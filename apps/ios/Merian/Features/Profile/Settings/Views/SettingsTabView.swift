@@ -137,12 +137,11 @@ struct SettingsTabView: View {
             }
         }
         .overlay(alignment: .top) {
-            if let item = milestoneToastPresenter.activeItem {
-                MilestoneToastBanner(
-                    item: item,
-                    pendingItemCount: milestoneToastPresenter.queuedItemCount,
-                    onDismiss: {
-                        milestoneToastPresenter.dismissActiveItem(id: item.id)
+            if !milestoneToastPresenter.presentedItems.isEmpty {
+                MilestoneToastStack(
+                    items: milestoneToastPresenter.presentedItems,
+                    onDismiss: { id in
+                        milestoneToastPresenter.dismissActiveItem(id: id)
                     },
                     onOpenAchievement: { award in
                         selectedAchievementToastAward = award
@@ -152,7 +151,6 @@ struct SettingsTabView: View {
                     }
                 )
                 .padding(.top, 16)
-                .id(item.id)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .zIndex(110)
             }

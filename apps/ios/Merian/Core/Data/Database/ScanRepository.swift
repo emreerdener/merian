@@ -508,7 +508,9 @@ actor HistoricalDatabaseActor {
             for id in chunkIds {
                 guard let existing = chunkLookup[id], let res = responseLookup[id] else { continue }
 
-                let dictRefImage = res.species_dictionary?.reference_image_url
+                let dictRefImage = ExternalReferenceImagePolicy.sanitizedURLList(
+                    res.species_dictionary?.reference_image_url
+                )
 
                 let existingMediaSnapshot = existing.capturedMediaSnapshot
                 let existingMediaPaths = existingMediaSnapshot.thumbnailImagePaths + existingMediaSnapshot.videoPaths
@@ -697,7 +699,9 @@ actor HistoricalDatabaseActor {
                 ecologyType: scan.ecology_type ?? "unknown",
                 wikipediaUrl: dict?.wikipedia_url,
                 wikipediaOverview: wikiExtract,
-                referenceImageUrl: dict?.reference_image_url,
+                referenceImageUrl: ExternalReferenceImagePolicy.sanitizedURLList(
+                    dict?.reference_image_url
+                ),
                 confidenceScore: scan.ai_confidence_score,
                 isLocallyArchived: false,
                 taxonomyKingdom: dict?.kingdom,

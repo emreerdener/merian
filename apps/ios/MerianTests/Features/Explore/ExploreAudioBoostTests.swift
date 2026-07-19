@@ -206,6 +206,15 @@ struct ExploreAudioBoostTests {
         #expect(AudioPlaybackCarouselPage.formattedTime(.nan) == "0:00")
     }
 
+    @Test func insightAudioPlaybackControlAutoHidesAfterOneSecondOnlyDuringPlayback() {
+        #expect(InsightAudioPlaybackControlPolicy.autoHideDelayNanoseconds == 1_000_000_000)
+        #expect(InsightAudioPlaybackControlPolicy.shouldAutoHide(isPlaying: true, isSeeking: false))
+        #expect(!InsightAudioPlaybackControlPolicy.shouldAutoHide(isPlaying: false, isSeeking: false))
+        #expect(!InsightAudioPlaybackControlPolicy.shouldAutoHide(isPlaying: true, isSeeking: true))
+        #expect(InsightAudioPlaybackControlPolicy.shouldPresent(isVisible: true, isSeeking: false))
+        #expect(!InsightAudioPlaybackControlPolicy.shouldPresent(isVisible: true, isSeeking: true))
+    }
+
     @Test func audioSeekingNormalizesAndClampsSpectrogramPositions() {
         #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: -20, width: 200) == 0)
         #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: 50, width: 200) == 0.25)

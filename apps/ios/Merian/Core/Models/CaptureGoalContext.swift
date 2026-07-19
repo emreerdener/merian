@@ -30,6 +30,7 @@ enum CaptureGoalArtwork: Codable, Equatable, Sendable {
 /// checked handling at the Explore boundary.
 enum CaptureGoalDestination: Codable, Equatable, Sendable {
     case fieldTrip(templateId: String, checklistItemId: String)
+    case fieldTripTemplate(slug: String)
     case fieldTripChallenge(challengeId: String)
 }
 
@@ -43,20 +44,46 @@ struct CaptureGoal: Identifiable, Codable, Equatable, Sendable {
     let destination: CaptureGoalDestination
 }
 
+/// A non-progress-bearing invitation shown only after a goal provider has
+/// successfully confirmed that there is no active target to present.
+struct CaptureGoalIntroduction: Identifiable, Codable, Equatable, Sendable {
+    let id: String
+    let sourceKind: CaptureGoalSourceKind
+    let headline: String
+    let subheadline: String
+    let progress: CaptureGoalProgress
+    let artworks: [CaptureGoalArtwork]
+    let destination: CaptureGoalDestination
+    let accessibilityLabel: String
+    let accessibilityValue: String
+    let accessibilityHint: String
+}
+
+struct CaptureGoalContextSnapshot: Codable, Equatable, Sendable {
+    let goals: [CaptureGoal]
+    let introduction: CaptureGoalIntroduction?
+}
+
+enum ActiveCaptureGoalPresentation: Equatable, Sendable {
+    case goal(CaptureGoal)
+    case introduction(CaptureGoalIntroduction)
+}
+
 /// Provider boundary between Capture and goal-producing features.
 /// Providers return goals in presentation order; Capture never reimplements
 /// source eligibility, entitlement, or ranking rules.
 protocol CaptureGoalContextProviding: Sendable {
-    func fetchCaptureGoals() async throws -> [CaptureGoal]
+    func fetchCaptureGoalContext() async throws -> CaptureGoalContextSnapshot
 }
 
 @MainActor
 @Observable
 final class ActiveCaptureGoalStore {
-    typealias FetchContext = @Sendable () async throws -> [CaptureGoal]
+    typealias FetchContext = @Sendable () async throws -> CaptureGoalContextSnapshot
 
     private struct CacheEnvelope: Codable {
         let goals: [CaptureGoal]
+        let introduction: CaptureGoalIntroduction?
         let selectedGoalId: String?
         let refreshedAt: Date
     }
@@ -64,6 +91,7 @@ final class ActiveCaptureGoalStore {
     static let freshnessInterval: TimeInterval = 5 * 60
 
     private(set) var goals: [CaptureGoal] = []
+    private(set) var introduction: CaptureGoalIntroduction?
     private(set) var selectedGoalId: String?
     private(set) var isLoading = false
     private(set) var accountId: String?
@@ -79,6 +107,16 @@ final class ActiveCaptureGoalStore {
         return goals.first(where: { $0.id == selectedGoalId }) ?? goals.first
     }
 
+    var presentation: ActiveCaptureGoalPresentation? {
+        if let selectedGoal {
+            return .goal(selectedGoal)
+        }
+        if let introduction {
+            return .introduction(introduction)
+        }
+        return nil
+    }
+
     init(
         userDefaults: UserDefaults = .standard,
         fetchContext: @escaping FetchContext
@@ -92,7 +130,7 @@ final class ActiveCaptureGoalStore {
         provider: any CaptureGoalContextProviding
     ) {
         self.init(userDefaults: userDefaults) {
-            try await provider.fetchCaptureGoals()
+            try await provider.fetchCaptureGoalContext()
         }
     }
 
@@ -105,6 +143,7 @@ final class ActiveCaptureGoalStore {
         isLoading = false
         needsFollowupRefresh = false
         goals = []
+        introduction = nil
         selectedGoalId = nil
         lastSuccessfulRefreshAt = nil
 
@@ -115,6 +154,7 @@ final class ActiveCaptureGoalStore {
         }
 
         goals = cached.goals
+        introduction = cached.introduction
         selectedGoalId = cached.selectedGoalId
         lastSuccessfulRefreshAt = cached.refreshedAt
         normalizeSelection()
@@ -149,10 +189,12 @@ final class ActiveCaptureGoalStore {
         }
 
         do {
-            let refreshedGoals = try await fetchContext()
+            let refreshedContext = try await fetchContext()
             guard self.accountId == requestedAccountId else { return }
 
+            let refreshedGoals = refreshedContext.goals
             goals = refreshedGoals
+            introduction = refreshedGoals.isEmpty ? refreshedContext.introduction : nil
             if let oldSelection,
                refreshedGoals.contains(where: { $0.id == oldSelection }) {
                 selectedGoalId = oldSelection
@@ -237,6 +279,7 @@ final class ActiveCaptureGoalStore {
               let lastSuccessfulRefreshAt,
               let data = try? JSONEncoder().encode(CacheEnvelope(
                 goals: goals,
+                introduction: introduction,
                 selectedGoalId: selectedGoalId,
                 refreshedAt: lastSuccessfulRefreshAt
               )) else {

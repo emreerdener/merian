@@ -154,8 +154,9 @@ steps are tracked in the
 - 13 achievement awards across categories: observation milestones, taxonomy specializations, environmental conditions, conservation engagement, and capture technique. Awards surface with smart sort: recently unlocked → in-progress → legacy.
 
 ### Settings
-**Camera** — zoom slider visibility, left-side placement, invert zoom direction, live viewfinder hints, and an on-by-default field trip-progress overlay.
-**Preferences** — theme (system/light/dark), multi-capture scans, expedition mode, system haptics, save to camera roll.
+**General preferences** — theme (system/light/dark), an optional fresh-launch Explore destination, Notifications, system haptics, and geoprivacy.
+**Pro** — multi-capture scans and expedition mode.
+**Workspace** — camera and audio preferences, capture-mode order, the on-by-default field trip-progress overlay, and scan-submission confirmation.
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account and synced to Supabase.
 **Notifications** — species discovery alerts, achievement milestone alerts.
 **Changelog** — bundled feature notes, release notes, and selected in-progress work.

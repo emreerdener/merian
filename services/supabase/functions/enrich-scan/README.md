@@ -17,3 +17,7 @@ The module is broken down by domain responsibility to keep the critical HTTP rou
 If you need to adjust what data is generated during an enrichment check, do not edit `enrich-scan` directly. Merian heavily re-uses atomic AI agents located globally across the API:
 - `../_shared/encyclopedic.ts`: The Flash 2.5 generative AI prompt that extracts habitat, taxonomy, hazard, and color context.
 - `../_shared/similar-species.ts`: The Flash 2.5 AI agent that calculates visual and biological lookalikes.
+- `../_shared/external.ts`: Wikipedia/GBIF enrichment. Its reference images
+  must pass `../_shared/externalImagePolicy.ts` before the response or species
+  cache write is built. The current exact rule suppresses iNaturalist media
+  `605615444` only; it does not suppress the species or provider.

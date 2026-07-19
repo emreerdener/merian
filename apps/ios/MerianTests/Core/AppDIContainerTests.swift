@@ -100,6 +100,41 @@ struct AppDIContainerTests {
         #expect(settings.isAchievementNotificationsEnabled == false)
     }
 
+    @Test func testOpenExploreOnLaunchDefaultsOffPersistsAndReloads() {
+        let suiteName = "merian.tests.open-explore-on-launch.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+        #expect(settings.opensExploreOnLaunch == false)
+
+        settings.opensExploreOnLaunch = true
+        #expect(defaults.bool(forKey: UserDefaultsKeys.opensExploreOnLaunch))
+
+        let restored = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+        #expect(restored.opensExploreOnLaunch)
+
+        defaults.set(false, forKey: UserDefaultsKeys.opensExploreOnLaunch)
+        restored.refreshFromDefaults()
+        #expect(restored.opensExploreOnLaunch == false)
+    }
+
+    @Test func testExploreLaunchPresentationRequiresOnboardingAndOptIn() {
+        #expect(!AppLaunchPresentationPolicy.shouldOpenExplore(
+            hasCompletedOnboarding: false,
+            opensExploreOnLaunch: true
+        ))
+        #expect(!AppLaunchPresentationPolicy.shouldOpenExplore(
+            hasCompletedOnboarding: true,
+            opensExploreOnLaunch: false
+        ))
+        #expect(AppLaunchPresentationPolicy.shouldOpenExplore(
+            hasCompletedOnboarding: true,
+            opensExploreOnLaunch: true
+        ))
+    }
+
     @Test func testCaptureGoalProgressDefaultsOnAndPersistsExplicitOff() {
         let suiteName = "merian.tests.capture-goal-progress.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

@@ -415,6 +415,30 @@ struct SpeciesDataTests {
         #expect(decoded[0].iucnRedListStatus == nil)
     }
 
+    @Test func testSimilarSpeciesEntryDecodesDeniedCachedReferenceImageAsAbsent() throws {
+        let data = Data("""
+        [
+            {
+                "scientificName": "Felis silvestris",
+                "commonName": "European wildcat",
+                "referenceImageUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/medium.jpg?size=500",
+                "iucnRedListStatus": "LC"
+            },
+            {
+                "scientificName": "Lynx rufus",
+                "commonName": "Bobcat",
+                "referenceImageUrl": "https://example.com/bobcat.jpg",
+                "iucnRedListStatus": "LC"
+            }
+        ]
+        """.utf8)
+
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
+
+        #expect(decoded[0].referenceImageUrl == nil)
+        #expect(decoded[1].referenceImageUrl == "https://example.com/bobcat.jpg")
+    }
+
     @Test func testSimilarSpeciesEntryRoundTripWithRelationMetadata() throws {
         let entry = SimilarSpeciesEntry(
             scientificName: "Limenitis archippus",

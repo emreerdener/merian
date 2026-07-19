@@ -517,3 +517,91 @@ Deno.test("Merian reference images DB - mirrors unshare and external refresh pre
     },
   );
 });
+
+Deno.test("Merian reference images DB - suppresses denied external media and promotes the next image", async () => {
+  await withExploreDbTest(
+    "merianReferenceImagesDb.suppressedMedia.test",
+    async (client: Client) => {
+      const speciesId = crypto.randomUUID();
+      const blocked =
+        "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/medium.jpg?size=500";
+      const safeNormalized =
+        "https://live.staticflickr.com/65535/55027456166_642323e641_b.jpg";
+      const safeLegacy = "https://example.com/wildcat-in-snow.jpg";
+
+      await insertSpecies(client, speciesId, "Felis silvestris testus");
+      await client.queryArray(
+        `
+          UPDATE public.species_dictionary
+          SET reference_image_url = $2
+          WHERE id = $1
+        `,
+        [speciesId, `${blocked},${safeLegacy}`],
+      );
+
+      await client.queryArray(
+        `
+          SELECT public.replace_species_reference_images(
+            $1,
+            $2::jsonb
+          )
+        `,
+        [
+          speciesId,
+          JSON.stringify([
+            { url: blocked, source: "gbif", sort_order: 0 },
+            { url: safeNormalized, source: "gbif", sort_order: 1 },
+          ]),
+        ],
+      );
+
+      const normalizedRows = await client.queryObject<{ url: string }>(
+        `
+          SELECT url
+          FROM public.species_reference_images
+          WHERE species_id = $1
+          ORDER BY sort_order
+        `,
+        [speciesId],
+      );
+      assertEquals(normalizedRows.rows.map((row) => row.url), [safeNormalized]);
+
+      const normalizedProjection = await client.queryObject<{
+        urls: string | null;
+        first_url: string | null;
+      }>(
+        `
+          SELECT
+            public.public_species_reference_image_urls($1, $2) AS urls,
+            public.public_species_first_reference_image_url($1, $2) AS first_url
+        `,
+        [speciesId, `${blocked},${safeLegacy}`],
+      );
+      assertEquals(normalizedProjection.rows[0], {
+        urls: safeNormalized,
+        first_url: safeNormalized,
+      });
+
+      await client.queryArray(
+        "DELETE FROM public.species_reference_images WHERE species_id = $1",
+        [speciesId],
+      );
+
+      const legacyProjection = await client.queryObject<{
+        urls: string | null;
+        first_url: string | null;
+      }>(
+        `
+          SELECT
+            public.public_species_reference_image_urls($1, $2) AS urls,
+            public.public_species_first_reference_image_url($1, $2) AS first_url
+        `,
+        [speciesId, `${blocked},${safeLegacy}`],
+      );
+      assertEquals(legacyProjection.rows[0], {
+        urls: safeLegacy,
+        first_url: safeLegacy,
+      });
+    },
+  );
+});

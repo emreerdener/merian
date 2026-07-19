@@ -34,6 +34,9 @@ only a camera/performance setting.
   Seasonal Challenge labels and challenge-specific progress are intentionally
   excluded from this first capture integration. Joining a challenge does not
   hide the linked standard outing or its normal progress.
+- When no active goal exists, the same Scan position can introduce an accessible,
+  unstarted Backyard safari as an outing with four goals. This introduction is
+  validated from template detail and remains distinct from progress-bearing goals.
 - Users can explicitly start an outing from the template detail page before
   their first matching scan.
 - Levels unlock sequentially. Every completion belongs to a started
@@ -84,9 +87,8 @@ migration filenames may still use `objective` or `challenge`:
 - Standard-outing actions are **Start outing**, **Start scanning**,
   and **Publish outing**. Never use **Start challenge** or
   **Publish challenge** for a standard outing.
-- The Scan capsule remains the action-oriented **Look for: {target}**, not
-  **Goal: {target}**. “Goal” names the object; “Look for” tells the user what to
-  do while the camera is open.
+- The active Scan capsule uses **Goal: {target}**. The empty introduction uses
+  **Start an outing** with **Backyard safari · 4 goals**.
 
 ## Difficulty
 
@@ -117,11 +119,15 @@ Rotating-free and Pro access rules never affect a template's difficulty.
    scans remains as a fallback. Standard outings never use Start/Publish
    Challenge copy; that language is reserved for Seasonal Events.
 5. The idle visual Scan page loads `action: "capture_context"` without blocking
-   the camera. When unfinished standard goals exist, an instructional
-   `Look for: {target}` label is shown beneath the capture-mode picker with its
-   outing title and aggregate level progress.
-6. Swiping the indicator cycles through all unfinished targets in server order;
-   tapping it opens the owning outing and focuses that goal's guide.
+   the camera. When unfinished standard goals exist, a `Goal: {target}` label is
+   shown beneath the capture-mode picker with its outing title and aggregate
+   level progress. When the context is successfully empty, iOS loads
+   `template_detail` by the `backyard_safari` slug and offers an introduction only
+   when that template is accessible and unstarted.
+6. Swiping an active indicator cycles through all unfinished targets in server
+   order; tapping it opens the owning outing and focuses that goal's guide.
+   The introduction has no swipe behavior and opens Backyard safari detail without
+   starting it.
 7. A new scan or later confirmed/corrected identification calls
    `action: "apply_scan_progress"` with the saved scan ID.
 8. The backend verifies scan ownership, compares the scan against the current
@@ -167,11 +173,12 @@ future-source decision is
 Presentation contract:
 
 - Show only when Field trips are enabled, Scan/visual mode is selected, a real
-  target exists, the local `showsCaptureGoalProgress` preference is enabled, the
+  target or validated introduction exists, the local `showsCaptureGoalProgress` preference is enabled, the
   staged-capture tray is empty, refinement is inactive, and video is not
   recording.
-- Show no loading placeholder when there is no cached context. Camera startup
-  and capture remain independent from this request.
+- Show no loading placeholder when there is no complete cached context. Camera
+  startup and capture remain independent from both requests. A template-detail
+  failure preserves the last complete snapshot and never fabricates an introduction.
 - Render beneath `MediaModeToggle` at the same visual width, with a minimum
   56-point height and 36-point bundled goal artwork. On iOS 26 and later
   the untinted capsule uses interactive native Liquid Glass; earlier supported
@@ -179,7 +186,7 @@ Presentation contract:
   so system contrast adapts to the camera scene and accessibility settings.
   Unknown goals use a neutral binoculars symbol; they must not borrow
   semantically incorrect art.
-- Center the instructional `Look for: {target}` prompt and outing title between
+- Center the `Goal: {target}` prompt and outing title between
   equal 40-point edge slots. Preserve the curated target text exactly; the
   colon avoids article and plurality errors for composite or mass-noun prompts.
   The leading slot contains the artwork; the trailing slot contains a circular
@@ -195,9 +202,15 @@ Presentation contract:
   Reduced Motion removes the selection animation, and VoiceOver exposes
   `Outing target. Look for {target}.`, the outing title and progress, plus
   adjustable previous/next actions.
-- Settings > Capture exposes an on-by-default **Field trip goals** toggle. Turning
+- Settings > Workspace exposes an on-by-default **Field trip goals** toggle with
+  the `binoculars.fill` symbol. Turning
   it off removes the entire target capsule from Scan without changing outing
   progress, cached goal context, or server state.
+- For the validated unstarted Backyard safari zero state, show **Start an outing**
+  over **Backyard safari · 4 goals**, rotate the first-level artwork by cross-fade
+  every three seconds, and show `0/4` in the shared progress ring. Reduce Motion
+  keeps the first artwork static. VoiceOver announces “Start an outing. Backyard
+  safari, 4 goals.”, “0 of 4 goals complete.”, and “Opens outing details.”
 
 Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
 flattens the server-ordered outing response into `CaptureGoal` values containing

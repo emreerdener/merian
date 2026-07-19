@@ -8,7 +8,9 @@ process
 
 ## Decision
 
-Capture surfaces consume a small, source-agnostic `CaptureGoal` read model.
+Capture surfaces consume a small, source-agnostic `CaptureGoalContextSnapshot`
+containing progress-bearing `CaptureGoal` values and an optional non-progress-bearing
+`CaptureGoalIntroduction`.
 Features that own goals remain responsible for eligibility, ordering,
 completion, artwork mapping, and destination construction. Capture owns only
 presentation, local selection, account-scoped caching, refresh timing, and the
@@ -117,8 +119,9 @@ The contract intentionally excludes source response objects, entitlements,
 unlock rules, scan IDs, media, coordinates, field notes, and completion
 evidence.
 
-`CaptureGoalContextProviding` returns a flat array in final presentation order.
-`ActiveCaptureGoalStore` must not re-rank that array. This makes ordering an
+`CaptureGoalContextProviding` returns a snapshot whose goals are a flat array in
+final presentation order. `ActiveCaptureGoalStore` must not re-rank that array.
+This makes ordering an
 explicit source/product policy rather than an accidental client sort.
 
 `CaptureGoalDestination` is an enum rather than an untyped dictionary or URL.
@@ -171,10 +174,12 @@ from an unrelated target.
 - a five-minute freshness window;
 - coalescing overlapping forced invalidations into one follow-up refresh; and
 - silent retention of the last successful snapshot on request failure.
+- the provider-validated introduction when no active goal exists.
 
 The cache is a versioned `Codable` envelope in `UserDefaults`, keyed by the
 normalized Supabase account ID. It stores only generic goals, the selected goal
-ID, and the successful refresh date. It does not cache source DTOs or evidence.
+ID, an optional generic introduction, and the successful refresh date. It does
+not cache source DTOs or evidence.
 Activating a different account clears in-memory state before loading that
 account's key. Signing out clears the in-memory state.
 
@@ -190,10 +195,11 @@ Refresh policy:
 - force after account changes and explicit scanner-routing events; and
 - never await the request before starting the camera or accepting a capture.
 
-An empty successful response replaces old content and hides the indicator. A
-failed response preserves the last successful content. This distinction is
-important: “no current goals” is data, while “could not refresh” is a transient
-transport state.
+An empty active-context response causes the Field trip provider to fetch the
+existing authenticated `template_detail` action by `backyard_safari` slug. Only
+an accessible, unstarted template with a nonempty first level yields an
+introduction. Both reads form one complete snapshot: a failure preserves the last
+successful content, while a successful ineligible lookup clears old content.
 
 ## Presentation and interaction
 
@@ -202,12 +208,12 @@ The pill appears only when all of the following are true:
 - Field trips are enabled;
 - the device-local `showsCaptureGoalProgress` preference is enabled;
 - visual Scan is selected;
-- a real target exists;
+- a real target or provider-validated introduction exists;
 - no staged capture is present;
 - refinement is inactive; and
 - video is not recording.
 
-With no cache, initial loading renders nothing. The pill sits below the existing
+With no complete cache, initial loading renders nothing. The pill sits below the existing
 mode picker, matches its visual width, has a minimum 56-point height, and shows
 36-point artwork. It uses untinted interactive native Liquid Glass on iOS 26 and
 later, with a neutral material fallback on earlier supported versions. Text and
@@ -219,7 +225,7 @@ capsule. Disabling it does not clear the account cache, alter selection, stop
 normal refreshes, or mutate outing progress, so re-enabling is immediate and
 does not create a separate server preference contract.
 
-The target is rendered as the instructional `Look for: {target}` while the
+An active target is rendered as `Goal: {target}` while the
 outing title remains centered beneath it between symmetric artwork and progress
 slots. The curated prompt is preserved exactly instead of adding grammar-aware
 articles. The trailing circular progress ring shows
@@ -239,13 +245,21 @@ intelligible without covering camera controls. If accessibility sizes do not
 meet that bar, prefer bounded vertical growth over shrinking the tap target or
 hiding the outing context.
 
+The initial Field trip introduction renders **Start an outing** over
+**Backyard safari · 4 goals**, cycles through the first level's exact artwork by
+three-second cross-fades, and shows the shared `0/4` progress ring. It is not a
+selectable goal and therefore has no horizontal drag or VoiceOver adjustable
+action. Reduce Motion keeps the first image static. Tapping opens outing detail
+without starting it; started, completed, inaccessible, missing, and empty
+templates produce no introduction.
+
 ## Navigation
 
 Tapping the pill sends `CaptureGoalDestination` through
 `CaptureWorkspaceViewModel` and `CameraSheetRouter` to `ExploreView`. Capture
 does not build a `FieldTripTemplateRoute`.
 
-Explore owns the conversion and then:
+Explore owns the conversion. Active goals then:
 
 1. presents the Field trips tab;
 2. opens the owning standard outing;
@@ -256,6 +270,11 @@ Explore owns the conversion and then:
 
 The focused checklist-item ID remains optional so all existing outing routes
 retain their original behavior.
+
+The introduction uses a separate `.fieldTripTemplate(slug:)` destination.
+Explore selects Outings and opens the same detail view using its ID-or-slug
+reference; the resolved template ID continues to own Start outing and subsequent
+progress mutations.
 
 ## Privacy and authorization
 
@@ -296,7 +315,8 @@ and [database function privileges](https://supabase.com/docs/guides/database/fun
 
 The UI emits one `CaptureGoalIndicator` event with:
 
-- `action`: `shown`, `opened`, `next`, or `previous`; and
+- `action`: `shown`, `opened`, `next`, `previous`, `zero_state_shown`, or
+  `zero_state_opened`; and
 - `source`: the coarse `CaptureGoalSourceKind` value.
 
 The standard `event_source = ios_client` property is added by `AppTelemetry`.

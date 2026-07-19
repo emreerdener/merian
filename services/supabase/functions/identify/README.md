@@ -129,7 +129,10 @@ English name so a malformed scan cannot rename an existing species row.
 If you need to adjust encyclopedic enrichment or similar species data arrays,
 they do not live here. Merian uses shared micro-agents available globally:
 
-- `../_shared/external.ts`: GBIF and Wikipedia REST mapping.
+- `../_shared/external.ts`: GBIF and Wikipedia REST mapping. Returned imagery is
+  filtered through `../_shared/externalImagePolicy.ts`; keep its exact-media
+  rules aligned with the iOS `ExternalReferenceImagePolicy` and their cleanup
+  migrations.
 - `../_shared/group-tags.ts`: Gemini Flash text agent for categorization tags.
 - `../_shared/encyclopedic.ts`: The secondary encyclopedic enrichment (supplying
   `colors` and `hazard_type`).

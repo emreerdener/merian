@@ -22,7 +22,7 @@ enum ActiveCaptureGoalPresentationPolicy {
         goalsEnabled: Bool,
         isUserVisible: Bool,
         isVisualMode: Bool,
-        hasTarget: Bool,
+        hasPresentation: Bool,
         stagedCaptureIsEmpty: Bool,
         isRefining: Bool,
         isVideoRecording: Bool
@@ -30,7 +30,7 @@ enum ActiveCaptureGoalPresentationPolicy {
         goalsEnabled
             && isUserVisible
             && isVisualMode
-            && hasTarget
+            && hasPresentation
             && stagedCaptureIsEmpty
             && !isRefining
             && !isVideoRecording
@@ -59,7 +59,7 @@ struct CaptureWorkspaceView: View {
     ) private var messageShareCacheRecords: [LocalScanRecord]
 
     // MARK: - View Model & State
-    @State private var viewModel = CaptureWorkspaceViewModel()
+    @State private var viewModel: CaptureWorkspaceViewModel
 
     @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
@@ -93,9 +93,15 @@ struct CaptureWorkspaceView: View {
     /// This strictly sidesteps lifecycle events like `.onAppear`, which would
     /// improperly re-snap the UI to the primary tab every time the view remounts.
     @MainActor
-    init(appSettings: AppSettings? = nil) {
+    init(
+        appSettings: AppSettings? = nil,
+        opensExploreOnFreshLaunch: Bool = false
+    ) {
         let raw = (appSettings ?? AppSettings.shared).captureModeOrderRaw
         let mode = CaptureMode.userOrder(from: raw).first ?? .visual
+        _viewModel = State(initialValue: CaptureWorkspaceViewModel(
+            initialActiveSheet: opensExploreOnFreshLaunch ? .explore : nil
+        ))
         _captureMode = State(initialValue: mode)
         _scrollPageMode = State(initialValue: mode)
     }
@@ -131,12 +137,16 @@ struct CaptureWorkspaceView: View {
         supabaseManager.currentUser?.id.uuidString
     }
 
-    private var shouldShowActiveCaptureGoal: Bool {
+    private var activeCaptureGoalPresentation: ActiveCaptureGoalPresentation? {
+        activeCaptureGoalStore.presentation
+    }
+
+    private var shouldShowCaptureGoalPresentation: Bool {
         ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: FieldTripsAvailability.isEnabled,
             isUserVisible: appSettings.showsCaptureGoalProgress,
             isVisualMode: captureMode == .visual,
-            hasTarget: activeCaptureGoalStore.selectedGoal != nil,
+            hasPresentation: activeCaptureGoalPresentation != nil,
             stagedCaptureIsEmpty: viewModel.stagedCapture.isEmpty,
             isRefining: viewModel.baseRefinementContext != nil,
             isVideoRecording: viewModel.isVideoRecording
@@ -260,11 +270,11 @@ struct CaptureWorkspaceView: View {
                             onModeChange: {}
                         )
 
-                        if shouldShowActiveCaptureGoal,
-                           let goal = activeCaptureGoalStore.selectedGoal {
-                            ActiveCaptureGoalIndicator(
-                                goal: goal,
-                                onOpen: { viewModel.openCaptureGoal(goal) },
+                        if shouldShowCaptureGoalPresentation,
+                           let presentation = activeCaptureGoalPresentation {
+                            CaptureGoalIndicator(
+                                presentation: presentation,
+                                onOpen: { viewModel.openCaptureGoal($0) },
                                 onNext: { activeCaptureGoalStore.selectNext() },
                                 onPrevious: { activeCaptureGoalStore.selectPrevious() }
                             )
@@ -442,7 +452,9 @@ struct CaptureWorkspaceView: View {
         ))
         .onAppear {
             viewModel.updateNotificationSuppression()
-            if captureMode == .visual {
+            if captureMode == .visual,
+               viewModel.activeSheet == nil,
+               scenePhase == .active {
                 cameraManager.startSession()
             }
             photoLibraryManager.startObservingAndFetch()
@@ -758,11 +770,126 @@ struct CaptureWorkspaceView: View {
 
 enum ActiveCaptureGoalIndicatorCopy {
     static func instruction(for prompt: String) -> String {
-        "Look for: \(prompt)"
+        "Goal: \(prompt)"
     }
 
     static func accessibilityLabel(for prompt: String) -> String {
-        "Outing target. Look for \(prompt)."
+        "Outing goal. \(prompt)."
+    }
+}
+
+private struct CaptureGoalIndicator: View {
+    let presentation: ActiveCaptureGoalPresentation
+    let onOpen: (CaptureGoalDestination) -> Void
+    let onNext: () -> Void
+    let onPrevious: () -> Void
+
+    @ViewBuilder
+    var body: some View {
+        switch presentation {
+        case .goal(let goal):
+            ActiveCaptureGoalIndicator(
+                goal: goal,
+                onOpen: { onOpen(goal.destination) },
+                onNext: onNext,
+                onPrevious: onPrevious
+            )
+        case .introduction(let introduction):
+            CaptureGoalIntroductionIndicator(
+                introduction: introduction,
+                onOpen: { onOpen(introduction.destination) }
+            )
+        }
+    }
+}
+
+private struct CaptureGoalIntroductionIndicator: View {
+    let introduction: CaptureGoalIntroduction
+    let onOpen: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var artworkIndex = 0
+
+    private var artworks: [CaptureGoalArtwork] {
+        introduction.artworks.isEmpty
+            ? [.systemSymbol(name: "binoculars.fill")]
+            : introduction.artworks
+    }
+
+    var body: some View {
+        Button {
+            HapticManager.shared.triggerSheetSpring(source: "capture.goalIntroduction.open")
+            AppTelemetry.trackCaptureGoalIndicator(
+                action: .zeroStateOpened,
+                source: introduction.sourceKind
+            )
+            onOpen()
+        } label: {
+            HStack(spacing: 8) {
+                ZStack {
+                    ForEach(Array(artworks.enumerated()), id: \.offset) { index, artwork in
+                        CaptureGoalArtworkView(artwork: artwork)
+                            .opacity(index == artworkIndex ? 1 : 0)
+                    }
+                }
+                .frame(width: 40, height: 40)
+                .animation(.easeInOut(duration: 0.2), value: artworkIndex)
+
+                VStack(alignment: .center, spacing: 2) {
+                    Text(introduction.headline)
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .allowsTightening(true)
+
+                    Text(introduction.subheadline)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                GoalProgressRing(
+                    completedCount: introduction.progress.completedCount,
+                    targetCount: introduction.progress.targetCount
+                )
+                    .frame(width: 40, height: 40)
+                    .accessibilityHidden(true)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .modifier(ActiveCaptureGoalGlassModifier())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(introduction.accessibilityLabel)
+        .accessibilityValue(introduction.accessibilityValue)
+        .accessibilityHint(introduction.accessibilityHint)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("captureGoalIntroductionIndicator")
+        .task(id: introduction.id) {
+            AppTelemetry.trackCaptureGoalIndicator(
+                action: .zeroStateShown,
+                source: introduction.sourceKind
+            )
+        }
+        .task(id: "\(introduction.id):\(reduceMotion)") {
+            artworkIndex = 0
+            guard !reduceMotion, artworks.count > 1 else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(3))
+                } catch {
+                    return
+                }
+                artworkIndex = (artworkIndex + 1) % artworks.count
+            }
+        }
     }
 }
 
@@ -781,7 +908,7 @@ private struct ActiveCaptureGoalIndicator: View {
             onOpen()
         } label: {
             HStack(spacing: 8) {
-                artwork
+                CaptureGoalArtworkView(artwork: goal.artwork)
                     .frame(width: 40, height: 40)
 
                 VStack(alignment: .center, spacing: 2) {
@@ -856,25 +983,6 @@ private struct ActiveCaptureGoalIndicator: View {
         }
     }
 
-    @ViewBuilder
-    private var artwork: some View {
-        switch goal.artwork {
-        case .bundledImage(let imageName):
-            Image(imageName)
-                .resizable()
-                .scaledToFit()
-                .padding(2)
-                .frame(width: 36, height: 36)
-                .accessibilityHidden(true)
-        case .systemSymbol(let symbolName):
-            Image(systemName: symbolName)
-                .font(.system(size: 19, weight: .semibold))
-                .frame(width: 36, height: 36)
-                .background(.primary.opacity(0.08), in: Circle())
-                .accessibilityHidden(true)
-        }
-    }
-
     private func changeSelection(next: Bool) {
         HapticManager.shared.triggerSelectionPulse(source: "capture.activeGoal")
         AppTelemetry.trackCaptureGoalIndicator(
@@ -895,6 +1003,29 @@ private struct ActiveCaptureGoalIndicator: View {
                     onPrevious()
                 }
             }
+        }
+    }
+}
+
+private struct CaptureGoalArtworkView: View {
+    let artwork: CaptureGoalArtwork
+
+    @ViewBuilder
+    var body: some View {
+        switch artwork {
+        case .bundledImage(let imageName):
+            Image(imageName)
+                .resizable()
+                .scaledToFit()
+                .padding(2)
+                .frame(width: 36, height: 36)
+                .accessibilityHidden(true)
+        case .systemSymbol(let symbolName):
+            Image(systemName: symbolName)
+                .font(.system(size: 19, weight: .semibold))
+                .frame(width: 36, height: 36)
+                .background(.primary.opacity(0.08), in: Circle())
+                .accessibilityHidden(true)
         }
     }
 }

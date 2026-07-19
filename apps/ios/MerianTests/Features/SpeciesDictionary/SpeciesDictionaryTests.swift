@@ -231,6 +231,37 @@ struct SpeciesDictionaryTests {
         ])
     }
 
+    @Test func testSpeciesDictionaryImageGallerySkipsDeniedMediaAndPromotesNextImage() throws {
+        let denied = SpeciesDictionaryReferenceImage(
+            url: "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/original.jpg",
+            source: .gbif,
+            license: nil,
+            attribution: nil,
+            width: nil,
+            height: nil
+        )
+        let safe = SpeciesDictionaryReferenceImage(
+            url: "https://live.staticflickr.com/65535/55027456166_642323e641_b.jpg",
+            source: .gbif,
+            license: nil,
+            attribution: nil,
+            width: nil,
+            height: nil
+        )
+
+        let presentation = try #require(SpeciesDictionaryImageGalleryBuilder.presentation(
+            for: [denied, safe],
+            selectedImageID: safe.id
+        ))
+
+        #expect(presentation.items.map(\.source) == [.referenceURL(safe.url)])
+        #expect(presentation.initialSelectedIndex == 0)
+        #expect(SpeciesDictionaryImageGalleryBuilder.presentation(
+            for: [denied],
+            selectedImageID: denied.id
+        ) == nil)
+    }
+
     @Test func testGetSpeciesDictionaryConstructsPayloadAndParsesResponse() async throws {
         let testData = Data("""
         {

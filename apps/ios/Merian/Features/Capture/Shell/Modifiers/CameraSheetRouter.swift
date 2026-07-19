@@ -8,7 +8,9 @@ struct CameraSheetRouter: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .sheet(item: $viewModel.activeSheet) { sheet in
+            .sheet(item: $viewModel.activeSheet, onDismiss: {
+                viewModel.handleRootSheetDismissed()
+            }) { sheet in
                 Group {
                     switch sheet {
                     case .insight:
@@ -44,6 +46,9 @@ struct CameraSheetRouter: ViewModifier {
                             initialCaptureGoalDestination: viewModel.pendingCaptureGoalDestination
                         )
                             .id(viewModel.explorePresentationIdentity)
+                            .onAppear {
+                                appSettings.hasSeenExploreNewChip = true
+                            }
                             .onDisappear {
                                 viewModel.pendingExplorePostId = nil
                                 viewModel.pendingCommunityIdentificationRequestId = nil

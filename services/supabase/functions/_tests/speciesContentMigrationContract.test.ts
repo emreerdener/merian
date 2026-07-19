@@ -68,3 +68,31 @@ Deno.test("species dictionary enrichment migration maps content gaps to the exis
     "content group appends must not rely on ambiguous array concatenation",
   );
 });
+
+Deno.test("reference image suppression migration removes and permanently skips the exact media", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260719023147_suppress_european_wildcat_roadkill_image.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "DELETE FROM public.species_reference_images",
+      "UPDATE public.species_dictionary AS species SET reference_image_url",
+      "CREATE OR REPLACE FUNCTION public.public_species_reference_image_urls",
+      "CREATE OR REPLACE FUNCTION public.public_species_first_reference_image_url",
+      "CREATE OR REPLACE FUNCTION public.suppress_blocked_species_reference_image()",
+      "RETURN NULL",
+      "CREATE TRIGGER suppress_blocked_species_reference_image BEFORE INSERT OR UPDATE OF url",
+      "photos/605615444/",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("WHERE LOWER(BTRIM(url)) LIKE '%felis silvestris%'"),
+    "suppression must remain scoped to the exact media rather than the taxon",
+  );
+});

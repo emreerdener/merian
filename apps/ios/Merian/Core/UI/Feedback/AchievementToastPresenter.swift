@@ -105,11 +105,14 @@ struct MilestoneToastItem: Identifiable, Sendable {
 @Observable final class MilestoneToastPresenter {
     static let shared = MilestoneToastPresenter()
 
-    private(set) var activeItem: MilestoneToastItem?
-    private var queuedItems: [MilestoneToastItem] = []
+    private(set) var presentedItems: [MilestoneToastItem] = []
+
+    var activeItem: MilestoneToastItem? {
+        presentedItems.first
+    }
 
     var queuedItemCount: Int {
-        queuedItems.count
+        max(presentedItems.count - 1, 0)
     }
 
     var activeUnlock: MilestoneToastItem? {
@@ -169,24 +172,22 @@ struct MilestoneToastItem: Identifiable, Sendable {
             lastInteractionDate: Date()
         )
 
-        activeItem = nil
-        queuedItems.removeAll()
+        presentedItems.removeAll()
         enqueue(.fieldTrip(.preview), source: .preview)
         enqueue(.achievement(achievement), source: .preview)
         enqueue(.dictionary(.newToMerian), source: .preview)
     }
 
     func resetForTesting() {
-        activeItem = nil
-        queuedItems.removeAll()
+        presentedItems.removeAll()
     }
     #endif
 
     func dismissActiveItem(id: UUID? = nil) {
-        if let id, activeItem?.id != id { return }
+        guard let activeItem else { return }
+        if let id, activeItem.id != id { return }
 
-        activeItem = nil
-        presentNextItemIfNeeded()
+        presentedItems.removeFirst()
     }
 
     func dismissActiveUnlock(id: UUID? = nil) {
@@ -195,18 +196,7 @@ struct MilestoneToastItem: Identifiable, Sendable {
 
     private func enqueue(_ payload: MilestoneToastPayload, source: MilestoneToastSource) {
         let item = MilestoneToastItem(id: UUID(), payload: payload, source: source)
-
-        if activeItem == nil {
-            activeItem = item
-        } else {
-            queuedItems.append(item)
-        }
-    }
-
-    private func presentNextItemIfNeeded() {
-        guard activeItem == nil, !queuedItems.isEmpty else { return }
-
-        activeItem = queuedItems.removeFirst()
+        presentedItems.append(item)
     }
 }
 

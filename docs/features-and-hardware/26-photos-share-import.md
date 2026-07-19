@@ -2,15 +2,15 @@
 
 Naturebook can receive one image from the iOS Photos share sheet and route it into
 the normal visual-identification workflow. This is an app-owned document import,
-not a Share Extension: selecting Merian opens the containing app, the app copies
+not a Share Extension: selecting Naturebook opens the containing app, the app copies
 the incoming file into its own durable inbox, and the Capture workspace stages
 the copy through the same bounded preparation pipeline used by `PhotosPicker`.
 
 ## Product Contract
 
-- V1 supports one photo per share action. Merian is not required to appear when
+- V1 supports one photo per share action. Naturebook is not required to appear when
   multiple Photos items are selected.
-- The Photos original is never edited. Merian imports and processes its own
+- The Photos original is never edited. Naturebook imports and processes its own
   copy.
 - A required square crop is presented before submission.
 - The existing scan quota, Pro entitlement, confirmation preference, inference,
@@ -20,7 +20,7 @@ the copy through the same bounded preparation pipeline used by `PhotosPicker`.
 
 The user-facing release-note wording is:
 
-> Share a photo from Photos directly to Merian for identification.
+> Share a photo from Photos directly to Naturebook for identification.
 
 ## iOS Registration and URL Routing
 
@@ -91,6 +91,14 @@ After a durable copy succeeds, `MerianApp` publishes
 the inbox when the workspace appears or the scene becomes active, so a missed
 event during cold launch or onboarding does not lose the import.
 
+An image handoff is an explicit launch intent. If the default-off **Open Explore
+on launch** preference initialized the workspace with the generic Explore feed,
+the confirmed import dismisses that presentation before staging the image and
+presenting its crop. The handoff arms the same one-shot timeout-reset protection
+used by external deep links so the foreground timeout cannot clear the newly
+staged crop; the durable inbox remains the source of truth if the UI event is
+missed.
+
 The retry triggers are:
 
 - the Capture workspace becoming available;
@@ -141,10 +149,10 @@ queue-ordering date while omitting `telemetry.timestamp` when the photo had no
 embedded date.
 
 When a user disables Location in Photos' share Options, the delivered file has
-no usable GPS dictionary and Merian imports it without coordinates. Receiving a
-shared image does not grant broad access to the user's Photo Library. Merian
-reads only the file explicitly handed to it by iOS, and this route adds no Photo
-Library permission prompt.
+no usable GPS dictionary and Naturebook imports it without coordinates.
+Receiving a shared image does not grant broad access to the user's Photo
+Library. Naturebook reads only the file explicitly handed to it by iOS, and this
+route adds no Photo Library permission prompt.
 
 The `ExternalImageImport` telemetry event contains only `outcome` and the shared
 `event_source = "ios_client"` property. Supported outcomes cover receipt,
@@ -178,7 +186,9 @@ Automated coverage lives in:
   gallery provenance and offline replay with and without an embedded date;
 - `CaptureWorkspaceViewModelRefinementTests` for successful staging and cleanup,
   capacity retention/retry, quota retention, Pro entitlement retry, and terminal
-  unreadable-image cleanup; and
+  unreadable-image cleanup. Its launch-routing case also starts with generic
+  Explore presented, injects a pending image and timeout event, and verifies the
+  import wins, remains staged, and presents the crop; and
 - `apps/ios/MerianTests/Core/Analytics/AppTelemetryTests.swift` for the
   privacy-safe telemetry property set.
 
@@ -193,9 +203,9 @@ git diff --check
 ```
 
 The Photos app row and security-scoped/iCloud handoff require a physical iPhone.
-Before release, share one JPEG, HEIC, PNG, and iCloud-backed photo; confirm Merian
+Before release, share one JPEG, HEIC, PNG, and iCloud-backed photo; confirm Naturebook
 opens, the crop appears, included date/location is preserved, excluded Location
 is absent, quota/capacity blocks retain the import, and both online and offline
-submission complete. Also confirm Merian is not required to appear for a
+submission complete. Also confirm Naturebook is not required to appear for a
 multi-photo selection and that `Payload/Merian.app/PlugIns/` contains no Photos
 Share Extension.

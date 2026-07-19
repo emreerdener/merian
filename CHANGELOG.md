@@ -11,6 +11,15 @@ TestFlight, App Store, support, and QA.
 - Merian is now Naturebook. The name is new; your scans, account,
   subscriptions, and Explore content stay exactly where they are.
 
+### Settings
+
+- Renamed the Capture settings group to Workspace, keeping the Camera, Audio,
+  capture-mode order, Field trip goal, and submission controls together.
+- Added a default-off **Open Explore on launch** preference above Notifications.
+  When enabled, a fresh ordinary launch opens the Explore feed; returning from
+  the background does not reopen it, and shared photos, links, and tapped
+  notifications still open their requested destination.
+
 ### Media & Performance
 
 - Hid third-party reference images for domestic cat and dog identifications

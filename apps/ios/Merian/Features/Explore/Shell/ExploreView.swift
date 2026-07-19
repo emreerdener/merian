@@ -87,6 +87,11 @@ struct ExploreView: View {
                 _navigationPath = State(initialValue: initialPath)
                 _activeTab = State(initialValue: .fieldTrips)
                 _activeFieldTripsSection = State(initialValue: .fieldTrips)
+            case .fieldTripTemplate(let slug):
+                initialPath.append(FieldTripTemplateRoute(slug: slug))
+                _navigationPath = State(initialValue: initialPath)
+                _activeTab = State(initialValue: .fieldTrips)
+                _activeFieldTripsSection = State(initialValue: .fieldTrips)
             case .fieldTripChallenge(let challengeId):
                 initialPath.append(FieldTripChallengeRoute(challengeId: challengeId))
                 _navigationPath = State(initialValue: initialPath)
@@ -260,7 +265,7 @@ struct ExploreView: View {
             }
             .navigationDestination(for: FieldTripTemplateRoute.self) { route in
                 FieldTripTemplateDetailView(
-                    templateId: route.templateId,
+                    reference: route.reference,
                     focusedChecklistItemId: route.focusedChecklistItemId,
                     onOpenCompletedScan: openFieldTripCompletedScan,
                     onOpenPublication: { publicationId in
@@ -1498,12 +1503,22 @@ struct FieldTripPublicationRoute: Hashable {
     let publicationId: String
 }
 
+enum FieldTripTemplateReference: Hashable {
+    case id(String)
+    case slug(String)
+}
+
 struct FieldTripTemplateRoute: Hashable {
-    let templateId: String
+    let reference: FieldTripTemplateReference
     let focusedChecklistItemId: String?
 
     init(templateId: String, focusedChecklistItemId: String? = nil) {
-        self.templateId = templateId
+        reference = .id(templateId)
+        self.focusedChecklistItemId = focusedChecklistItemId
+    }
+
+    init(slug: String, focusedChecklistItemId: String? = nil) {
+        reference = .slug(slug)
         self.focusedChecklistItemId = focusedChecklistItemId
     }
 }

@@ -65,7 +65,10 @@ level metadata, aggregate progress, and unfinished target prompts only. It must
 not contain scan evidence, media, location, or field notes.
 
 `MerianNetworkClient` performs the request. `FieldTripCaptureGoalProvider` maps
-the source DTOs into generic `CaptureGoal` values, and
+the source DTOs into a generic `CaptureGoalContextSnapshot`. After a successful
+empty response it uses the existing authenticated `template_detail` slug lookup
+to validate the optional Backyard safari introduction. No database or Edge
+contract changes are required. `ActiveCaptureGoalStore` owns the five-minute freshness policy, per-account
 `ActiveCaptureGoalStore` owns the five-minute freshness policy, per-account
 cache, selected-goal persistence, refresh coalescing, and silent stale-data
 retention. Capture never imports these Field trip DTOs. Callers must never await

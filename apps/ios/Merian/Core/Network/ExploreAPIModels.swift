@@ -1456,9 +1456,7 @@ struct ExplorePostDetail: Decodable {
     }
 
     var referenceGalleryImages: [ExploreReferenceGalleryImage] {
-        let rawUrls = referenceImageUrl?
-            .split(separator: ",")
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? []
+        let rawUrls = ExternalReferenceImagePolicy.allowedURLStrings(from: referenceImageUrl)
 
         var seen = Set<String>()
 

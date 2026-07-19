@@ -40,6 +40,8 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: .fieldTrip)
         AppTelemetry.trackCaptureGoalIndicator(action: .next, source: .fieldTrip)
         AppTelemetry.trackCaptureGoalIndicator(action: .previous, source: .fieldTrip)
+        AppTelemetry.trackCaptureGoalIndicator(action: .zeroStateShown, source: .fieldTrip)
+        AppTelemetry.trackCaptureGoalIndicator(action: .zeroStateOpened, source: .fieldTrip)
         AppTelemetry.trackOnboardingCompleted()
         AppTelemetry.trackExploreNotificationsFetchFailed(context: "sheet_load")
         AppTelemetry.trackAchievementDetailOpened(type: "fungi", state: "in_progress")
@@ -66,6 +68,8 @@ final class AppTelemetryTests: XCTestCase {
             "ClientErrorCaptured",
             "ScanQueuedForSync",
             "ExternalImageImport",
+            "CaptureGoalIndicator",
+            "CaptureGoalIndicator",
             "CaptureGoalIndicator",
             "CaptureGoalIndicator",
             "CaptureGoalIndicator",
@@ -163,11 +167,11 @@ final class AppTelemetryTests: XCTestCase {
     }
 
     func testCaptureGoalIndicatorContainsOnlyCoarseActionSourceAndClientSource() {
-        AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: .fieldTrip)
+        AppTelemetry.trackCaptureGoalIndicator(action: .zeroStateOpened, source: .fieldTrip)
 
         let event = capturedEvents.first
         XCTAssertEqual(event?.name, "CaptureGoalIndicator")
-        XCTAssertEqual(event?.properties["action"] as? String, "opened")
+        XCTAssertEqual(event?.properties["action"] as? String, "zero_state_opened")
         XCTAssertEqual(event?.properties["source"] as? String, "field_trip")
         XCTAssertEqual(
             Set(event?.properties.keys.map { $0 } ?? []),

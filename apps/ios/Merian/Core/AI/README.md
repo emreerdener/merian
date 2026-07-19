@@ -35,6 +35,13 @@ background completion path uses the same coordinator; scan-ID deduplication
 prevents a live/background race from presenting the batch twice. Cache-miss
 Wikipedia/GBIF enrichment is also outside first render.
 
+Every external reference URL applied by `InferenceEngine` is normalized through
+`ExternalReferenceImagePolicy` before it reaches `SpeciesData` or persisted scan
+state. The current exact rule treats iNaturalist media `605615444` as absent
+while preserving later permitted URLs in source order. Direct GBIF hydration
+must use this same boundary; do not write a provider URL straight into
+`referenceImageUrl`.
+
 `InsightSheetView` closes the user-perceived measurement with a one-shot UIKit
 draw probe after the first result frame participates in a display pass. Do not
 replace that boundary with only a SwiftUI state assignment or `onAppear`; those
@@ -51,6 +58,11 @@ Latency work must not change thinking budgets, prompts, response schema, image
 resolution, output-token limits, or the single Gemini `generateContent` call per
 scan. If measured Gemini time dominates, report it as the remaining latency
 floor rather than silently changing these economics or behavior.
+
+External-reference suppressions are also an invariant: they target an immutable
+media identity, never a species name, result index, or provider host. A denied
+first URL must promote the next permitted URL rather than removing the species
+or producing a synthetic censored carousel item.
 
 ## Verification
 

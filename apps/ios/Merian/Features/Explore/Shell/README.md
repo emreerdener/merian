@@ -10,6 +10,20 @@ allowlisted tester email and simulator builds may expose its tab or supporting
 surfaces. New Field trips entry points must use the same shared rule rather than
 adding local debug checks.
 
+## Fresh-launch entry
+
+Explore remains a sheet over the Capture workspace. When the default-off
+`AppSettings.opensExploreOnLaunch` preference is enabled and onboarding is
+complete, a new process may present the generic feed immediately. This launch
+preference never selects a post or another pushed destination and is not
+reevaluated on foreground returns.
+
+The generic feed is the lowest-priority launch route. Photos/Files imports
+dismiss it in favor of staging and crop, while deep links and tapped
+notifications replace it with their requested post, community request, scan, or
+library route. `CameraSheetRouter` marks `hasSeenExploreNewChip` when Explore
+appears, including this automatic presentation.
+
 ## Field trip milestone routing
 
 `ExploreView` converts the source-agnostic `CaptureGoalDestination` passed by

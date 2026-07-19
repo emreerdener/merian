@@ -343,10 +343,7 @@ private struct GBIFMedia: Decodable {
     }
 
     nonisolated static func normalizedReferenceURLs(from rawValue: String?) -> [String] {
-        rawValue?
-            .components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty } ?? []
+        ExternalReferenceImagePolicy.allowedURLStrings(from: rawValue)
     }
 
     private func mediaItems(
@@ -1733,7 +1730,9 @@ private struct GBIFMedia: Decodable {
                     updated.iucnRedListStatus = row.iucn_red_list_status
                     updated.habitatDescription = row.habitat_description
                     updated.gbifTaxonKey = row.gbif_taxon_key
-                    updated.referenceImageUrl = row.reference_image_url
+                    updated.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
+                        row.reference_image_url
+                    )
                     updated.wikipediaOverview = row.wikipedia_overview
                     updated.wikipediaUrl = row.wikipedia_url
                     speciesData = updated

@@ -161,7 +161,7 @@ struct FieldTripChallengeHashtagsResponse: Decodable {
     let data: [String]
 }
 
-struct FieldTripTemplate: Decodable, Identifiable, Equatable {
+struct FieldTripTemplate: Decodable, Identifiable, Equatable, Sendable {
     let templateId: String
     let slug: String
     let title: String
@@ -207,7 +207,7 @@ extension Array where Element == FieldTripTemplate {
     }
 }
 
-struct FieldTripLevel: Decodable, Identifiable, Equatable {
+struct FieldTripLevel: Decodable, Identifiable, Equatable, Sendable {
     let levelId: String
     let levelNumber: Int
     let title: String
@@ -217,7 +217,7 @@ struct FieldTripLevel: Decodable, Identifiable, Equatable {
     var id: String { levelId }
 }
 
-struct FieldTripChecklistItem: Decodable, Identifiable, Equatable {
+struct FieldTripChecklistItem: Decodable, Identifiable, Equatable, Sendable {
     let itemId: String
     let prompt: String
     let matchType: String
@@ -240,7 +240,7 @@ struct FieldTripChecklistItem: Decodable, Identifiable, Equatable {
     }
 }
 
-struct FieldTripChecklistItemGuide: Decodable, Equatable {
+struct FieldTripChecklistItemGuide: Decodable, Equatable, Sendable {
     let whereToLook: String?
     let bestConditions: String?
     let whatToNotice: String?
@@ -265,7 +265,7 @@ private extension String {
     }
 }
 
-struct FieldTripProgress: Decodable, Equatable {
+struct FieldTripProgress: Decodable, Equatable, Sendable {
     let userFieldTripId: String
     let startedAt: String
     let currentLevelNumber: Int

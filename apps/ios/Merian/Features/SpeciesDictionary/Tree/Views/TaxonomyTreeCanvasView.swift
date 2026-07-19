@@ -755,8 +755,7 @@ private struct TaxonomyTreeNodeView: View {
 
     private var thumbnail: some View {
         Group {
-            if let urlString = node.species?.referenceImageUrl,
-               let url = URL(string: urlString) {
+            if let url = ExternalReferenceImagePolicy.url(from: node.species?.referenceImageUrl) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -947,8 +946,9 @@ private struct TaxonomyTreeSelectionDrawer: View {
 
     private var thumbnail: some View {
         Group {
-            if let urlString = (node.species ?? node.representativeSpecies)?.referenceImageUrl,
-               let url = URL(string: urlString) {
+            if let url = ExternalReferenceImagePolicy.url(
+                from: (node.species ?? node.representativeSpecies)?.referenceImageUrl
+            ) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):

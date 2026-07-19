@@ -28,6 +28,15 @@ enum MerianOpenURLRoute: Equatable {
     }
 }
 
+enum AppLaunchPresentationPolicy {
+    static func shouldOpenExplore(
+        hasCompletedOnboarding: Bool,
+        opensExploreOnLaunch: Bool
+    ) -> Bool {
+        hasCompletedOnboarding && opensExploreOnLaunch
+    }
+}
+
 private struct StartupStoreStateKey: EnvironmentKey {
     static let defaultValue: StartupStoreState = .normal
 }
@@ -379,10 +388,17 @@ struct MerianApp: App {
     let container: ModelContainer?
     let startupStoreState: StartupStoreState
     let startupRecoveryNotice: StartupRecoveryNotice?
+    let shouldOpenExploreOnFreshLaunch: Bool
     
     // MARK: - Lifecycle Bootstrapping
     @MainActor
     init() {
+        let appSettings = AppDIContainer.shared.appSettings
+        shouldOpenExploreOnFreshLaunch = AppLaunchPresentationPolicy.shouldOpenExplore(
+            hasCompletedOnboarding: appSettings.hasCompletedOnboarding,
+            opensExploreOnLaunch: appSettings.opensExploreOnLaunch
+        )
+
         // Migrate old multiImageScanMode to the new isMultiCaptureEnabled key
         if UserDefaults.standard.object(forKey: UserDefaultsKeys.legacyMultiImageScanMode) != nil {
             let oldVal = UserDefaults.standard.bool(forKey: UserDefaultsKeys.legacyMultiImageScanMode)
@@ -1043,7 +1059,10 @@ struct MerianApp: App {
                 if let container {
                     Group {
                         if appSettings.hasCompletedOnboarding {
-                            CaptureWorkspaceView(appSettings: appSettings)
+                            CaptureWorkspaceView(
+                                appSettings: appSettings,
+                                opensExploreOnFreshLaunch: shouldOpenExploreOnFreshLaunch
+                            )
                         } else {
                             OnboardingView()
                         }

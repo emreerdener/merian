@@ -2209,11 +2209,18 @@ final class MerianNetworkClient {
     }
 
     func getFieldTripTemplate(templateId: String) async throws -> FieldTripTemplate {
+        try await getFieldTripTemplate(identifier: ["template_id": templateId])
+    }
+
+    func getFieldTripTemplate(slug: String) async throws -> FieldTripTemplate {
+        try await getFieldTripTemplate(identifier: ["slug": slug])
+    }
+
+    private func getFieldTripTemplate(identifier: [String: String]) async throws -> FieldTripTemplate {
         let functionUrl = try endpointURL("field-trips")
-        let bodyData = try JSONSerialization.data(withJSONObject: [
-            "action": "template_detail",
-            "template_id": templateId
-        ])
+        var payload = identifier
+        payload["action"] = "template_detail"
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(FieldTripTemplateDetailResponse.self, from: data).data
     }

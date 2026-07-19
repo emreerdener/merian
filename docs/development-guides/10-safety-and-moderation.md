@@ -10,6 +10,64 @@ and public-audio safety are intentionally different decisions: a clip may be
 valid biological evidence while its background speech is unsuitable for a
 public feed.
 
+## Exact External Reference Image Suppression
+
+Wikipedia, GBIF, and iNaturalist reference images are third-party educational
+media, not user submissions to the scan moderation pipeline above. Naturebook
+does not currently classify every external image. For a confirmed outlier, the
+app instead uses a small exact-media denylist and silently advances to the next
+available reference image. It does not hide the species card, add a censor
+overlay, or block the provider or taxon as a whole.
+
+The current denylist contains one item:
+
+- GBIF occurrence `5938154750`
+- iNaturalist media ID `605615444`
+- exact origin/path prefix
+  `inaturalist-open-data.s3.amazonaws.com/photos/605615444/`
+
+Matching uses the normalized hostname and path prefix, so original, resized,
+query-string, and fragment variants are all suppressed. An unrelated image on
+the same host, other GBIF imagery for `Felis silvestris`, and URLs that merely
+contain the digits elsewhere remain allowed. Never implement an outlier by
+species name, result position, filename such as `original.jpg`, or a broad GBIF
+or iNaturalist host block.
+
+Suppression is enforced in depth:
+
+- Deno uses `_shared/externalImagePolicy.ts` before live Wikipedia/GBIF
+  enrichment is returned and before normalized or legacy reference-image data
+  is projected or persisted.
+- Migration
+  `20260719023147_suppress_european_wildcat_roadkill_image.sql` removes existing
+  normalized and comma-separated legacy values, filters the public SQL image
+  helpers, and installs a service-write trigger that silently discards future
+  rows for the exact media path.
+- iOS mirrors the rule in `ExternalReferenceImagePolicy`. The loader checks it
+  before cache lookup and again at the network boundary; DTO normalization and
+  cached `SimilarSpeciesEntry` decoding treat a denied URL as absent.
+- `SimilarSpeciesImageFetcher` removes denied candidates before download and
+  restores source order after concurrent work. A blocked first result therefore
+  promotes the next successful image deterministically; an empty result uses
+  the existing leaf placeholder.
+
+The API payload shape is unchanged. Suppression removes a value from an
+existing image field or array; it does not introduce moderation metadata into a
+public response.
+
+When adding another exact external-media outlier:
+
+1. Record a stable provider media identity and the narrowest immutable
+   host/path prefix.
+2. Add the same match to the Deno and iOS policy helpers.
+3. Add a forward-only migration that cleans normalized and legacy caches and
+   extends write/projection prevention. Do not edit a deployed migration.
+4. Cover original, resized, query-string, unrelated-media, historical-cache,
+   next-image, and all-blocked cases.
+5. Deploy the migration and dependent Edge Functions before relying on the iOS
+   update. Older clients that fetch GBIF directly are protected only after an
+   app update.
+
 ## Explore Audio Publication Moderation
 
 When selected media contains standalone audio or an audio-bearing playback

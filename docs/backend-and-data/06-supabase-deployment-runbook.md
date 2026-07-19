@@ -758,6 +758,19 @@ actionable if a command fails while applying Auth provider config.
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- For an exact external-reference-media suppression, apply its cleanup/write
+  prevention migration before deploying dependent functions. Deploy every
+  transitive consumer selected for `_shared/externalImagePolicy.ts`,
+  `_shared/external.ts`, and `_shared/publicSpeciesProjection.ts` changes,
+  including identify/enrichment, Species Dictionary, Explore post detail, and
+  `refresh-species-content` surfaces. Query normalized and legacy reference
+  data to confirm the denied path is absent, attempt a service-role normalized
+  insert to confirm the trigger skips it, then confirm the public first-image
+  helper promotes the next permitted URL. For media `605615444`, manually open
+  the pictured Brown Tabby scan and verify the European wildcat card remains
+  navigable with a non-disturbing replacement or leaf placeholder in Insight,
+  Explore, and Species Dictionary. Released clients that fetch GBIF directly
+  still require the iOS update.
 - For identification-latency releases, confirm the three service-role RPCs and
   RLS-enabled `scan_deferred_context_updates` table exist before calling
   `/update-scan-context`. Submit one free and one Pro image and verify the exact

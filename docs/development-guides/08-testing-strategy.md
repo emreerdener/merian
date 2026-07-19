@@ -451,6 +451,15 @@ MerianTests/
   active, and an unreadable file is removed with terminal feedback.
   Confirmation and crop cancellation continue to be owned by the shared
   gallery staging tests rather than a second import-only pipeline.
+- **Launch presentation and explicit-route precedence**:
+  `AppDIContainerTests` proves `opensExploreOnLaunch` defaults off, persists an
+  enabled value, reloads from external `UserDefaults`, and requires both
+  completed onboarding and opt-in. `CaptureWorkspaceViewModelRefinementTests`
+  initializes generic Explore, then verifies Photos/Files imports, Explore post
+  routes, community requests, scan routes, and the Scans library replace it.
+  The import case also sends the foreground timeout event and asserts the
+  staged image and required crop survive. Foreground returns must never be
+  modeled as another launch-policy evaluation.
 - **`AppTelemetryTests.testExternalImageImportEventContainsOnlyOutcomeAndClientSource`**:
   Guards the privacy boundary by asserting the event contains only `outcome`
   and `event_source`.
@@ -570,6 +579,31 @@ wraps each into a `SimilarSpeciesEntry` with `nil` enrichment fields:
 
 `SimilarSpeciesGallery` falls back to `SimilarSpeciesImageFetcher` for image
 lookup when `referenceImageUrl == nil`.
+
+A historical cached `SimilarSpeciesEntry.referenceImageUrl` is also normalized
+during decode. If it matches the exact external-media denylist, it becomes
+`nil` and enters the same fallback path; the surrounding lookalike entry and
+cache remain intact.
+
+### Exact external reference media
+
+The current regression fixture is iNaturalist media `605615444` from GBIF
+occurrence `5938154750`. iOS coverage must prove:
+
+- the original, resized, uppercase-host, query-string, and fragment variants
+  below `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` are denied;
+- unrelated iNaturalist photos and unrelated URLs containing the same digits
+  remain allowed;
+- comma-separated normalization preserves the permitted source order;
+- a blocked cached lookalike URL decodes as absent without dropping the species;
+- `LocalImageLoader` performs no request when every candidate is denied;
+- concurrent similar-species download results are restored to candidate order,
+  so the first permitted success wins; and
+- blocked-only/all-failed dictionary galleries use the leaf placeholder.
+
+These assertions live in `LocalImageLoaderTests.swift`,
+`SpeciesDataTests.swift`, and `SpeciesDictionaryTests.swift`. Do not replace
+them with a brittle assertion that merely skips array index zero.
 
 ### Backwards-compat accessor
 
@@ -774,6 +808,13 @@ derived thumbnails are included in coordinated R2 cleanup.
   public reference-image, overview, habitat/distribution, and taxonomy signals.
   This keeps sparse-page UI behavior deterministic across iOS and the future web
   frontend.
+- **Exact external reference-media policy**:
+  `_shared/externalImagePolicy_test.ts` covers original/resized/query variants
+  and unrelated media; `_shared/external_test.ts` verifies live Wikipedia/GBIF
+  enrichment omits the denied URL and keeps the next result;
+  `_shared/publicSpeciesProjection_test.ts` covers normalized, legacy, and
+  first-image promotion; and `refresh-species-content/db.test.ts` verifies
+  neither cache nor normalized RPC writes receive the denied media.
 - **Public web media attribution audit**:
   `_shared/publicSpeciesProjection_test.ts` covers
   `publicWebReferenceImageAttributionIssues(...)`, which future web species
@@ -802,6 +843,14 @@ derived thumbnails are included in coordinated R2 cleanup.
   asserts that sparse rows and every future insert path enqueue only the missing
   `gbif_wikipedia_reference`, `habitat`, `lookalikes`, and `group_tags` jobs.
   Run it with `--allow-read=services/supabase/migrations`.
+- **Exact-media migration contract and database behavior**:
+  `_tests/speciesContentMigrationContract.test.ts` locks the cleanup, filtered
+  projection, and trigger definitions in
+  `20260719023147_suppress_european_wildcat_roadkill_image.sql`.
+  `_tests/merianReferenceImagesDb.test.ts` verifies the migration removes
+  normalized and legacy variants, rejects reinsertion through the write
+  backstop, and promotes the next permitted SQL result. The database test needs
+  a running local Supabase/Postgres instance.
 - **Scheduled Merian reference-image worker**:
   `refresh-merian-reference-images/db.test.ts` verifies request validation and
   RPC invocation; `_tests/merianReferenceImagesDb.test.ts` verifies threshold

@@ -16,7 +16,7 @@ struct SpeciesDictionaryReferenceGallery: View {
         onImageTap: ((InsightImageGalleryPresentation) -> Void)? = nil
     ) {
         self.scientificName = scientificName
-        self.images = images
+        self.images = SpeciesDictionaryImageGalleryBuilder.allowedImages(from: images)
         self.onImageLoadFailed = onImageLoadFailed
         self.onImageTap = onImageTap
     }
@@ -193,8 +193,14 @@ struct SpeciesDictionaryReferenceGallery: View {
 }
 
 struct SpeciesDictionaryImageGalleryBuilder {
+    static func allowedImages(
+        from images: [SpeciesDictionaryReferenceImage]
+    ) -> [SpeciesDictionaryReferenceImage] {
+        images.filter { ExternalReferenceImagePolicy.isAllowed($0.url) }
+    }
+
     static func buildItems(for images: [SpeciesDictionaryReferenceImage]) -> [InsightImageGalleryItem] {
-        images.map { image in
+        allowedImages(from: images).map { image in
             InsightImageGalleryItem(
                 id: "species-reference-\(image.id)",
                 source: .referenceURL(image.url),
@@ -207,10 +213,11 @@ struct SpeciesDictionaryImageGalleryBuilder {
         for images: [SpeciesDictionaryReferenceImage],
         selectedImageID: String?
     ) -> InsightImageGalleryPresentation? {
-        let items = buildItems(for: images)
+        let allowedImages = allowedImages(from: images)
+        let items = buildItems(for: allowedImages)
         guard !items.isEmpty else { return nil }
 
-        let selectedIndex = images.firstIndex { image in
+        let selectedIndex = allowedImages.firstIndex { image in
             image.id == selectedImageID
         } ?? 0
 

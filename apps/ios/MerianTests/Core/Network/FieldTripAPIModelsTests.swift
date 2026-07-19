@@ -672,10 +672,15 @@ struct ActiveCaptureGoalStoreTests {
             makeOuting(id: "recent", targetIds: ["butterfly", "bird"]),
             makeOuting(id: "older", targetIds: ["cat"])
         ]
-        let provider = FieldTripCaptureGoalProvider { outings }
+        let provider = FieldTripCaptureGoalProvider(
+            fetchContext: { outings },
+            fetchTemplate: { _ in throw CaptureGoalContextQueue.TestError.expected }
+        )
 
-        let goals = try await provider.fetchCaptureGoals()
+        let context = try await provider.fetchCaptureGoalContext()
+        let goals = context.goals
 
+        #expect(context.introduction == nil)
         #expect(goals.map(\.id) == [
             "field_trip:butterfly",
             "field_trip:bird",
@@ -690,10 +695,75 @@ struct ActiveCaptureGoalStoreTests {
         #expect(goals[0].artwork == .bundledImage(name: "fieldtrip-backyard-butterfly"))
     }
 
+    @Test func fieldTripProviderBuildsBackyardIntroductionFromAnUnstartedTemplate() async throws {
+        let provider = FieldTripCaptureGoalProvider(
+            fetchContext: { [] },
+            fetchTemplate: { slug in
+                #expect(slug == "backyard_safari")
+                return makeTemplate()
+            }
+        )
+
+        let context = try await provider.fetchCaptureGoalContext()
+        let introduction = try #require(context.introduction)
+
+        #expect(context.goals.isEmpty)
+        #expect(introduction.headline == "Start an outing")
+        #expect(introduction.subheadline == "Backyard safari · 4 goals")
+        #expect(introduction.progress == CaptureGoalProgress(completedCount: 0, targetCount: 4))
+        #expect(introduction.artworks == [
+            .bundledImage(name: "fieldtrip-backyard-butterfly"),
+            .bundledImage(name: "fieldtrip-backyard-cardinal"),
+            .bundledImage(name: "fieldtrip-backyard-cat"),
+            .bundledImage(name: "fieldtrip-backyard-spider")
+        ])
+        #expect(introduction.destination == .fieldTripTemplate(slug: "backyard_safari"))
+        #expect(introduction.accessibilityLabel == "Start an outing. Backyard safari, 4 goals.")
+        #expect(introduction.accessibilityValue == "0 of 4 goals complete.")
+        #expect(introduction.accessibilityHint == "Opens outing details.")
+    }
+
+    @Test func fieldTripProviderSuppressesIntroductionForUnavailableStartedOrEmptyTemplates() async throws {
+        let unavailableProvider = FieldTripCaptureGoalProvider(
+            fetchContext: { [] },
+            fetchTemplate: { _ in makeTemplate(viewerHasAccess: false) }
+        )
+        let startedProvider = FieldTripCaptureGoalProvider(
+            fetchContext: { [] },
+            fetchTemplate: { _ in makeTemplate(activeProgress: makeProgress()) }
+        )
+        let completedProvider = FieldTripCaptureGoalProvider(
+            fetchContext: { [] },
+            fetchTemplate: { _ in makeTemplate(activeProgress: makeProgress(isComplete: true)) }
+        )
+        let emptyProvider = FieldTripCaptureGoalProvider(
+            fetchContext: { [] },
+            fetchTemplate: { _ in makeTemplate(prompts: []) }
+        )
+
+        #expect(try await unavailableProvider.fetchCaptureGoalContext().introduction == nil)
+        #expect(try await startedProvider.fetchCaptureGoalContext().introduction == nil)
+        #expect(try await completedProvider.fetchCaptureGoalContext().introduction == nil)
+        #expect(try await emptyProvider.fetchCaptureGoalContext().introduction == nil)
+    }
+
+    @Test func fieldTripProviderRequiresACompleteSuccessfulIntroductionLookup() async {
+        let provider = FieldTripCaptureGoalProvider(
+            fetchContext: { [] },
+            fetchTemplate: { _ in throw CaptureGoalContextQueue.TestError.expected }
+        )
+
+        await #expect(throws: CaptureGoalContextQueue.TestError.self) {
+            try await provider.fetchCaptureGoalContext()
+        }
+    }
+
     @Test func preservesProviderOrderAndWrapsInBothDirections() async throws {
         let defaults = makeDefaults()
         let goals = [makeGoal(id: "a"), makeGoal(id: "b"), makeGoal(id: "c")]
-        let store = ActiveCaptureGoalStore(userDefaults: defaults) { goals }
+        let store = ActiveCaptureGoalStore(userDefaults: defaults) {
+            CaptureGoalContextSnapshot(goals: goals, introduction: nil)
+        }
 
         await store.refresh(accountId: "ACCOUNT-A", force: true)
 
@@ -726,7 +796,9 @@ struct ActiveCaptureGoalStoreTests {
     @Test func cacheIsAccountIsolatedAndSurvivesRefreshFailure() async throws {
         let defaults = makeDefaults()
         let cachedGoals = [makeGoal(id: "a"), makeGoal(id: "b")]
-        let writer = ActiveCaptureGoalStore(userDefaults: defaults) { cachedGoals }
+        let writer = ActiveCaptureGoalStore(userDefaults: defaults) {
+            CaptureGoalContextSnapshot(goals: cachedGoals, introduction: nil)
+        }
         await writer.refresh(accountId: "account-a", force: true)
         writer.selectNext()
 
@@ -745,6 +817,75 @@ struct ActiveCaptureGoalStoreTests {
         #expect(reader.selectedGoal == nil)
     }
 
+    @Test func introductionWaitsForSuccessCachesPerAccountAndSurvivesFailure() async throws {
+        let defaults = makeDefaults()
+        let introduction = makeIntroduction()
+        let writer = ActiveCaptureGoalStore(userDefaults: defaults) {
+            CaptureGoalContextSnapshot(goals: [], introduction: introduction)
+        }
+
+        writer.activate(accountId: "account-a")
+        #expect(writer.presentation == nil)
+
+        await writer.refresh(accountId: "account-a", force: true)
+        #expect(writer.presentation == .introduction(introduction))
+
+        let reader = ActiveCaptureGoalStore(userDefaults: defaults) {
+            throw CaptureGoalContextQueue.TestError.expected
+        }
+        reader.activate(accountId: "ACCOUNT-A")
+        #expect(reader.presentation == .introduction(introduction))
+
+        await reader.refresh(accountId: "account-a", force: true)
+        #expect(reader.presentation == .introduction(introduction))
+
+        reader.activate(accountId: "account-b")
+        #expect(reader.presentation == nil)
+    }
+
+    @Test func activeGoalsReplaceAnIntroductionSnapshot() async throws {
+        let defaults = makeDefaults()
+        let introduction = makeIntroduction()
+        let queue = CaptureGoalContextQueue(snapshots: [
+            CaptureGoalContextSnapshot(goals: [], introduction: introduction),
+            CaptureGoalContextSnapshot(goals: [makeGoal(id: "a")], introduction: introduction)
+        ])
+        let store = ActiveCaptureGoalStore(userDefaults: defaults) {
+            try await queue.next()
+        }
+
+        await store.refresh(accountId: "account", force: true)
+        #expect(store.presentation == .introduction(introduction))
+
+        await store.refresh(accountId: "account", force: true)
+        #expect(store.presentation == .goal(makeGoal(id: "a")))
+        #expect(store.introduction == nil)
+    }
+
+    @Test func legacyGoalOnlyCacheStillDecodesWithoutAnIntroduction() throws {
+        let defaults = makeDefaults()
+        let accountId = "legacy-account"
+        let cachedAt = Date(timeIntervalSinceReferenceDate: 1_000)
+        let envelope = LegacyCaptureGoalCacheEnvelope(
+            goals: [makeGoal(id: "legacy")],
+            selectedGoalId: "legacy",
+            refreshedAt: cachedAt
+        )
+        defaults.set(
+            try JSONEncoder().encode(envelope),
+            forKey: UserDefaultsKeys.captureGoalContextPrefix + accountId
+        )
+        let store = ActiveCaptureGoalStore(userDefaults: defaults) {
+            throw CaptureGoalContextQueue.TestError.expected
+        }
+
+        store.activate(accountId: accountId)
+
+        #expect(store.selectedGoal?.id == "legacy")
+        #expect(store.introduction == nil)
+        #expect(store.lastSuccessfulRefreshAt == cachedAt)
+    }
+
     @Test func focusedRouteKeepsExistingCallSitesCompatible() {
         #expect(FieldTripTemplateRoute(templateId: "template").focusedChecklistItemId == nil)
         #expect(
@@ -753,6 +894,7 @@ struct ActiveCaptureGoalStoreTests {
                 focusedChecklistItemId: "target"
             ).focusedChecklistItemId == "target"
         )
+        #expect(FieldTripTemplateRoute(slug: "backyard_safari").reference == .slug("backyard_safari"))
     }
 
     @Test func focusedTargetUsesTipsWhenAvailableAndObjectivesAsFallback() {
@@ -765,7 +907,7 @@ struct ActiveCaptureGoalStoreTests {
             goalsEnabled: true,
             isUserVisible: true,
             isVisualMode: true,
-            hasTarget: true,
+            hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
             isVideoRecording: false
@@ -776,7 +918,7 @@ struct ActiveCaptureGoalStoreTests {
             goalsEnabled: true,
             isUserVisible: true,
             isVisualMode: true,
-            hasTarget: false,
+            hasPresentation: false,
             stagedCaptureIsEmpty: true,
             isRefining: false,
             isVideoRecording: false
@@ -785,7 +927,7 @@ struct ActiveCaptureGoalStoreTests {
             goalsEnabled: true,
             isUserVisible: true,
             isVisualMode: false,
-            hasTarget: true,
+            hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
             isVideoRecording: false
@@ -794,7 +936,7 @@ struct ActiveCaptureGoalStoreTests {
             goalsEnabled: true,
             isUserVisible: true,
             isVisualMode: true,
-            hasTarget: true,
+            hasPresentation: true,
             stagedCaptureIsEmpty: false,
             isRefining: false,
             isVideoRecording: false
@@ -803,7 +945,7 @@ struct ActiveCaptureGoalStoreTests {
             goalsEnabled: true,
             isUserVisible: true,
             isVisualMode: true,
-            hasTarget: true,
+            hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: true,
             isVideoRecording: false
@@ -812,7 +954,7 @@ struct ActiveCaptureGoalStoreTests {
             goalsEnabled: true,
             isUserVisible: true,
             isVisualMode: true,
-            hasTarget: true,
+            hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
             isVideoRecording: true
@@ -821,7 +963,7 @@ struct ActiveCaptureGoalStoreTests {
             goalsEnabled: true,
             isUserVisible: false,
             isVisualMode: true,
-            hasTarget: true,
+            hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
             isVideoRecording: false
@@ -850,19 +992,19 @@ struct ActiveCaptureGoalStoreTests {
         )
     }
 
-    @Test func captureIndicatorFramesExactPromptsAsOutingInstructions() {
+    @Test func captureIndicatorFramesExactPromptsAsOutingGoals() {
         #expect(
             ["Bird", "Butterfly or moth", "Moss or lichen"].map(
                 ActiveCaptureGoalIndicatorCopy.instruction(for:)
             ) == [
-                "Look for: Bird",
-                "Look for: Butterfly or moth",
-                "Look for: Moss or lichen"
+                "Goal: Bird",
+                "Goal: Butterfly or moth",
+                "Goal: Moss or lichen"
             ]
         )
         #expect(
             ActiveCaptureGoalIndicatorCopy.accessibilityLabel(for: "Fungus") ==
-                "Outing target. Look for Fungus."
+                "Outing goal. Fungus."
         )
     }
 
@@ -894,6 +1036,90 @@ struct ActiveCaptureGoalStoreTests {
                 templateId: "template",
                 checklistItemId: id
             )
+        )
+    }
+
+    private func makeIntroduction() -> CaptureGoalIntroduction {
+        CaptureGoalIntroduction(
+            id: "field_trip_introduction:backyard_safari",
+            sourceKind: .fieldTrip,
+            headline: "Start an outing",
+            subheadline: "Backyard safari · 4 goals",
+            progress: CaptureGoalProgress(completedCount: 0, targetCount: 4),
+            artworks: [
+                .bundledImage(name: "fieldtrip-backyard-butterfly"),
+                .bundledImage(name: "fieldtrip-backyard-cardinal"),
+                .bundledImage(name: "fieldtrip-backyard-cat"),
+                .bundledImage(name: "fieldtrip-backyard-spider")
+            ],
+            destination: .fieldTripTemplate(slug: "backyard_safari"),
+            accessibilityLabel: "Start an outing. Backyard safari, 4 goals.",
+            accessibilityValue: "0 of 4 goals complete.",
+            accessibilityHint: "Opens outing details."
+        )
+    }
+
+    nonisolated private func makeTemplate(
+        viewerHasAccess: Bool = true,
+        activeProgress: FieldTripProgress? = nil,
+        prompts: [String] = ["Butterfly", "Bird", "Cat", "Spider"]
+    ) -> FieldTripTemplate {
+        FieldTripTemplate(
+            templateId: "template-backyard",
+            slug: "backyard_safari",
+            title: "Backyard safari",
+            subtitle: "A starter trip for everyday neighborhood life.",
+            description: "Find familiar animals and small wild neighbors.",
+            coverImageUrl: nil,
+            estimatedDurationMinutes: 30,
+            guideWhereToLook: nil,
+            guideWhyItMatters: nil,
+            guideSafetyEthics: nil,
+            regionTags: ["global"],
+            seasonTags: ["spring", "summer", "fall"],
+            habitatTags: ["urban", "yard"],
+            difficulty: "starter",
+            isProOnly: false,
+            isRotatingFree: true,
+            viewerHasAccess: viewerHasAccess,
+            accessKind: viewerHasAccess ? "free" : "locked",
+            activeProgress: activeProgress,
+            levels: prompts.isEmpty ? [] : [
+                FieldTripLevel(
+                    levelId: "level-1",
+                    levelNumber: 1,
+                    title: "Level 1",
+                    description: "A compact neighborhood checklist.",
+                    items: prompts.enumerated().map { index, prompt in
+                        FieldTripChecklistItem(
+                            itemId: "item-\(index)",
+                            prompt: prompt,
+                            matchType: "taxonomy",
+                            guideTip: nil,
+                            guide: nil,
+                            isCompleted: false,
+                            completedAt: nil,
+                            completedCommonName: nil,
+                            completedScientificName: nil,
+                            completedScanId: nil
+                        )
+                    }
+                )
+            ]
+        )
+    }
+
+    nonisolated private func makeProgress(isComplete: Bool = false) -> FieldTripProgress {
+        FieldTripProgress(
+            userFieldTripId: "outing-backyard",
+            startedAt: "2026-07-18T12:00:00Z",
+            currentLevelNumber: 1,
+            completedAt: isComplete ? "2026-07-18T13:00:00Z" : nil,
+            isProfileVisible: false,
+            completedCount: isComplete ? 4 : 0,
+            targetCount: 4,
+            publicationId: nil,
+            publishedAt: nil
         )
     }
 
@@ -930,14 +1156,26 @@ private actor CaptureGoalContextQueue {
         case exhausted
     }
 
-    private var values: [[CaptureGoal]]
+    private var values: [CaptureGoalContextSnapshot]
 
     init(_ values: [[CaptureGoal]]) {
-        self.values = values
+        self.values = values.map {
+            CaptureGoalContextSnapshot(goals: $0, introduction: nil)
+        }
     }
 
-    func next() throws -> [CaptureGoal] {
+    init(snapshots: [CaptureGoalContextSnapshot]) {
+        values = snapshots
+    }
+
+    func next() throws -> CaptureGoalContextSnapshot {
         guard !values.isEmpty else { throw TestError.exhausted }
         return values.removeFirst()
     }
+}
+
+private struct LegacyCaptureGoalCacheEnvelope: Codable {
+    let goals: [CaptureGoal]
+    let selectedGoalId: String?
+    let refreshedAt: Date
 }

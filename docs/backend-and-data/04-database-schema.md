@@ -223,6 +223,19 @@ Ordering uses `public.public_species_reference_image_source_rank(...)`: Merian
 images first, then Wikipedia, then GBIF, with `sort_order`, `created_at`, and
 `id` as tie-breakers.
 
+Exact external-media suppression is a defense-in-depth exception to normal
+ordering. Migration
+`20260719023147_suppress_european_wildcat_roadkill_image.sql` removes every
+normalized URL matching
+`inaturalist-open-data.s3.amazonaws.com/photos/605615444/`, scrubs the same
+media from the legacy comma-separated cache while preserving the order of the
+remaining values, and filters the public first/all-image SQL helpers. A
+`BEFORE INSERT OR UPDATE OF url` trigger returns `NULL` for that exact path so
+service-role refresh and repair writes cannot restore it. The trigger function
+is not executable by `PUBLIC`, `anon`, or `authenticated`; `service_role`
+retains execution for the trusted write path. Other GBIF/iNaturalist images and
+other reference images for the same species are unaffected.
+
 ### `taxonomy_versions`, `taxon_nodes`, `taxon_names`
 
 Community Identification uses a pinned Merian taxonomy graph. Added in
@@ -2075,6 +2088,26 @@ Lowers the current Merian reference-image quality threshold to
 `image_quality_score >= 80`, updates the SQL helper default, and reschedules the
 hourly cron payload with
 `{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
+
+### `20260719023147_suppress_european_wildcat_roadkill_image.sql`
+
+Suppresses iNaturalist media `605615444`, surfaced through GBIF occurrence
+`5938154750`, without removing the European wildcat species row. The migration:
+
+- deletes matching `species_reference_images` rows;
+- removes matching entries from
+  `species_dictionary.reference_image_url` while preserving permitted source
+  order;
+- replaces `public.public_species_reference_image_urls(...)` and
+  `public.public_species_first_reference_image_url(...)` with filtered versions
+  so normalized and legacy projections promote the next permitted image; and
+- installs `public.suppress_blocked_species_reference_image()` plus its
+  normalized-table trigger to silently reject future exact-path writes.
+
+The Edge and iOS helpers intentionally mirror this migration. This is not a
+general media classifier or a taxon-wide block. A future outlier requires a new
+forward migration and matching server/iOS policy tests; never edit this applied
+migration to add another ID.
 
 ## SwiftData Schema (Local Offline Queue)
 

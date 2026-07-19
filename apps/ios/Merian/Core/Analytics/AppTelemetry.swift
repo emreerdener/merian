@@ -10,6 +10,8 @@ enum AppTelemetry {
         case opened
         case next
         case previous
+        case zeroStateShown = "zero_state_shown"
+        case zeroStateOpened = "zero_state_opened"
     }
 
     // MARK: - State

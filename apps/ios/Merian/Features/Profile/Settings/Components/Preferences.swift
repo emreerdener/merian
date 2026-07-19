@@ -52,6 +52,15 @@ struct Preferences: View {
             }
             .padding(.vertical, 4)
 
+            // MARK: - Launch Destination
+            SettingsToggleRow(
+                title: "Open Explore on launch",
+                description: "Show Explore when you launch Naturebook. Close it to return to Scan, Record, or Describe.",
+                isOn: $appSettings.opensExploreOnLaunch,
+                icon: "safari.fill",
+                iconColor: .green
+            )
+
             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
                 SettingsNavigationRow(
@@ -129,7 +138,7 @@ struct Preferences: View {
         }
         .listRowBackground(ProSettingsStyle.accent.opacity(0.08))
 
-        // MARK: - Capture setup
+        // MARK: - Workspace setup
         Section {
             // MARK: - Camera
             Button { cameraSettingsActive = true } label: {
@@ -166,7 +175,7 @@ struct Preferences: View {
                     title: "Field trip goals",
                     description: "Show your current outing target and progress on the Scan camera.",
                     isOn: $appSettings.showsCaptureGoalProgress,
-                    icon: "chart.pie.fill",
+                    icon: "binoculars.fill",
                     iconColor: .indigo
                 )
             }
@@ -181,7 +190,7 @@ struct Preferences: View {
             )
 
         } header: {
-            Text("Capture")
+            Text("Workspace")
         }
 
         #if DEBUG

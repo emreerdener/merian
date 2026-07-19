@@ -5,7 +5,9 @@ import {
 import {
   buildPublicSpeciesDictionaryPayload,
   classifyPublicSpeciesContentQuality,
+  firstReferenceImageUrlsBySpeciesId,
   isPublicBiologicalSpeciesRow,
+  legacyReferenceImageUrls,
   PUBLIC_SPECIES_SCHEMA_VERSION,
   publicSimilarSpeciesMetadata,
   publicSpeciesProjectionForbiddenKeys,
@@ -14,6 +16,9 @@ import {
   resolveOptionalPublicCommonName,
   resolvePublicCommonName,
 } from "./publicSpeciesProjection.ts";
+
+const BLOCKED_WILDCAT_IMAGE =
+  "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/original.jpg";
 
 Deno.test("public species projection - schema version is pinned", () => {
   assertEquals(PUBLIC_SPECIES_SCHEMA_VERSION, 1);
@@ -129,6 +134,46 @@ Deno.test("public species projection - merian hosts and row sources sort first",
       ["wikipedia", "https://upload.wikimedia.org/photo.jpg"],
       ["gbif", "https://static.inaturalist.org/photo.jpg"],
     ],
+  );
+});
+
+Deno.test("public species projection - suppressed media is skipped across legacy and normalized sources", () => {
+  const safeImage =
+    "https://live.staticflickr.com/65535/55027456166_642323e641_b.jpg";
+  const blockedVariant =
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/medium.jpg?size=500";
+
+  assertEquals(
+    legacyReferenceImageUrls(
+      `${BLOCKED_WILDCAT_IMAGE},${safeImage},${blockedVariant}`,
+    ),
+    [safeImage],
+  );
+
+  const rows = [
+    {
+      id: "blocked-row",
+      species_id: "wildcat-species",
+      url: BLOCKED_WILDCAT_IMAGE,
+      source: "gbif",
+      sort_order: 0,
+    },
+    {
+      id: "safe-row",
+      species_id: "wildcat-species",
+      url: safeImage,
+      source: "gbif",
+      sort_order: 1,
+    },
+  ];
+
+  assertEquals(
+    referenceImagesFromRows(rows, null).map((image) => image.url),
+    [safeImage],
+  );
+  assertEquals(
+    firstReferenceImageUrlsBySpeciesId(rows).get("wildcat-species"),
+    safeImage,
   );
 });
 

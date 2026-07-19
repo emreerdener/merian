@@ -1965,6 +1965,14 @@ Name and imagery mapping:
   `wikipedia_url` exists, the first unresolved legacy image also maps to
   `wikipedia`; otherwise unresolved legacy images map to `gbif`.
 - Normalized rows are ordered Merian first, then Wikipedia, then GBIF.
+- Normalized rows and legacy strings are filtered through
+  `_shared/externalImagePolicy.ts` before source mapping or first-image
+  selection. The current exact rule removes every original/resized/query
+  variant below
+  `inaturalist-open-data.s3.amazonaws.com/photos/605615444/`. If it was first,
+  the next permitted ordered image is promoted. If none remain, existing image
+  fields are empty/null according to their existing types; no moderation field
+  is added and the species or lookalike row is not removed.
 - `similar_species` is hydrated from `species_lookalikes` using the explicit
   PostgREST hint `species_dictionary!lookalike_id` and includes `species_id` for
   canonical tap-through routing. Similar-species thumbnails prefer the first
@@ -5216,6 +5224,9 @@ Manual service-role calls may also include:
 5. Synchronizes normalized images through
    `public.replace_species_reference_images(...)`, which preserves
    `source = "merian"` rows managed by the Merian reference-image worker.
+   Denied external media has already been removed from both the legacy string
+   and normalized RPC payload; a database trigger silently rejects the current
+   exact outlier if another service-role path attempts to write it.
 6. Records new `species_content_provenance` rows for refreshed keys and marks
    claimed enrichment jobs succeeded or failed.
 

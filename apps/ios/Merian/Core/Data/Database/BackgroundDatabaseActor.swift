@@ -1001,8 +1001,10 @@ actor BackgroundDatabaseActor {
 
         if let extract { record.wikipediaOverview = extract }
         if let url { record.wikipediaUrl = url }
-        if let img = imageUrl, !img.isEmpty {
-            record.referenceImageUrl = img
+        if let imageUrl, !imageUrl.isEmpty {
+            record.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
+                imageUrl
+            )
         }
         do {
             try modelContext.save()
@@ -1141,7 +1143,9 @@ actor BackgroundDatabaseActor {
             record.hazardType = hazardType
             record.wikipediaOverview = wikipediaOverview
             record.wikipediaUrl = wikipediaUrl
-            record.referenceImageUrl = referenceImageUrl
+            record.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
+                referenceImageUrl
+            )
             record.iucnRedListStatus = iucnRedListStatus
             record.habitatDescription = habitatDescription
             record.gbifTaxonKey = gbifTaxonKey

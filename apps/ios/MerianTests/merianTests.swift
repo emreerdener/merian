@@ -565,6 +565,45 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertTrue(remainingImports.isEmpty)
     }
 
+    func testExternalImageImportOverridesLaunchExploreAndSurvivesTimeoutReset() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-external-import-launch-route-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let sourceURL = rootURL.appendingPathComponent("shared-photo.png")
+        try makePNGData().write(to: sourceURL)
+        let store = ExternalImageImportStore(rootURL: rootURL.appendingPathComponent("Inbox"))
+        let pendingImport = try await store.stageIncomingImage(at: sourceURL)
+        let preparedImage = makePreparedStagedImage()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in preparedImage },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .explore,
+            externalImageImportStore: store
+        )
+
+        AppEventPublisher.shared.send(.externalImageImportAvailable(importId: pendingImport.id))
+        AppEventPublisher.shared.send(.appDidResumeAfterTimeout)
+
+        try await waitUntil { viewModel.activeSheet == nil }
+        viewModel.handleRootSheetDismissed()
+
+        try await waitUntil {
+            viewModel.activeSheet == nil &&
+                viewModel.stagedCapture.images.count == 1 &&
+                viewModel.imageToCrop != nil
+        }
+
+        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
+        let remainingImports = await store.pendingImports()
+        XCTAssertTrue(remainingImports.isEmpty)
+    }
+
     func testPendingExternalImageImportRemainsQueuedUntilCaptureCapacityIsAvailable() async throws {
         enableUnlimitedFreeScansForTest()
         defer { restoreFreeScanLimitForTest() }
@@ -726,7 +765,8 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
             preparedImageLoader: { _ in nil },
-            prewarmHeadersOnInit: false
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .explore
         )
 
         AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(postId: postId, targetCommentId: nil, targetReplyParentCommentId: nil))
@@ -739,6 +779,56 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         XCTAssertEqual(viewModel.activeSheet, .explore)
         XCTAssertEqual(viewModel.pendingExplorePostId, postId)
+    }
+
+    func testCommunityAndLibraryRoutesOverrideGenericLaunchExplore() async throws {
+        let requestId = "community-request-123"
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .explore
+        )
+
+        AppEventPublisher.shared.send(.openCommunityIdentificationRequest(requestId: requestId))
+        try await waitUntil {
+            viewModel.activeSheet == .explore &&
+                viewModel.pendingCommunityIdentificationRequestId == requestId
+        }
+
+        AppEventPublisher.shared.send(.requestOpenScansLibraryIntent)
+        try await waitUntil { viewModel.activeSheet == .scans }
+
+        XCTAssertNil(viewModel.pendingCommunityIdentificationRequestId)
+        XCTAssertNil(viewModel.pendingExplorePostId)
+    }
+
+    func testScanRouteOverridesGenericLaunchExplore() async throws {
+        let modelContext = try makeModelContext()
+        let previousModelContext = OfflineQueueManager.shared.modelContext
+        OfflineQueueManager.shared.modelContext = modelContext
+        defer { OfflineQueueManager.shared.modelContext = previousModelContext }
+
+        let record = LocalScanRecord(
+            speciesId: "launch-route-species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly"
+        )
+        modelContext.insert(record)
+        try modelContext.save()
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .explore
+        )
+
+        AppEventPublisher.shared.send(.appDidEnterActivePhaseWithScan(scanId: record.id))
+        try await waitUntil { viewModel.activeSheet == .insight }
+
+        XCTAssertNil(viewModel.pendingExplorePostId)
+        XCTAssertNil(viewModel.pendingCommunityIdentificationRequestId)
     }
 
     func testSessionTimeoutResetClearsStaleExploreRoute() async throws {

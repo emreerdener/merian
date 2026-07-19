@@ -43,6 +43,14 @@ final class SimilarSpeciesImageFetcher {
         return URLSession(configuration: config)
     }()
 
+    nonisolated static func orderedLoadedValues<Value>(
+        from results: [(index: Int, value: Value?)]
+    ) -> [Value] {
+        results
+            .sorted { $0.index < $1.index }
+            .compactMap { $0.value }
+    }
+
     // Explicit network fallback strings that cache aggressively under OOM limits
     func fetchImage(for scientificName: String) async -> Bool {
         guard !scientificName.isEmpty else { return false }
@@ -95,7 +103,9 @@ final class SimilarSpeciesImageFetcher {
             
             // Remove duplicates while keeping order
             var seen = Set<String>()
-            let deduped = urls.filter { seen.insert($0).inserted }
+            let deduped = urls.filter {
+                ExternalReferenceImagePolicy.isAllowed($0) && seen.insert($0).inserted
+            }
             return (urls: deduped, commonName: wr?.0)
         }.value
         
@@ -106,20 +116,26 @@ final class SimilarSpeciesImageFetcher {
         
         if resolvedUrls.isEmpty { return false }
         
-        // 2. Delegate uncompressed bitmap instantiation to Zero-OOM actor limits
-        // We accumulate dynamically so the UI can update while remaining images continue downloading
-        await withTaskGroup(of: UIImage?.self) { group in
-            for urlString in resolvedUrls {
+        // 2. Delegate uncompressed bitmap instantiation to Zero-OOM actor limits.
+        // Preserve source order after concurrent downloads so filtering the first URL
+        // deterministically promotes the next GBIF/Wikipedia result.
+        await withTaskGroup(of: (Int, UIImage?).self) { group in
+            for (index, urlString) in resolvedUrls.enumerated() {
                 group.addTask {
-                    return await LocalImageLoader.shared.loadImage(fromPath: nil, fallbackUrl: urlString, maxDimension: 500)
+                    let image = await LocalImageLoader.shared.loadImage(
+                        fromPath: nil,
+                        fallbackUrl: urlString,
+                        maxDimension: 500
+                    )
+                    return (index, image)
                 }
             }
-            
-            for await downloadedImage in group {
-                if let downloadedImage = downloadedImage {
-                    self.images.append(downloadedImage)
-                }
+
+            var downloadedImages: [(index: Int, value: UIImage?)] = []
+            for await (index, downloadedImage) in group {
+                downloadedImages.append((index, downloadedImage))
             }
+            self.images = Self.orderedLoadedValues(from: downloadedImages)
         }
         
         return !self.images.isEmpty

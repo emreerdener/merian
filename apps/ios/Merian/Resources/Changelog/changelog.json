@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-18-workspace-launch-preference",
+      "date": "2026-07-18",
+      "title": "Your launch, your workspace",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Turn on Open Explore on launch in Settings to begin a fresh Naturebook session in Explore. Shared photos, links, and notifications still open where you expect."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Capture settings are now called Workspace, keeping Camera, Audio, capture mode, Field trip goal, and submission controls together."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-17-field-trip-goals",
       "date": "2026-07-17",
       "title": "Field trip goals",

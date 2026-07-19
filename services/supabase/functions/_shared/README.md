@@ -76,7 +76,15 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
-  enrichment, species refresh, and dictionary paths.
+  enrichment, species refresh, and dictionary paths. All returned reference
+  image URLs pass through `externalImagePolicy.ts` before the enrichment object
+  is returned.
+- **`externalImagePolicy.ts`**: Exact third-party reference-media denylist. The
+  current rule suppresses every resized/query variant below
+  `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` while leaving other
+  iNaturalist and GBIF media untouched. Keep it aligned with the iOS
+  `ExternalReferenceImagePolicy`; use a new cleanup/prevention migration for
+  every added outlier.
 - **`gemini.ts`**: Global `GoogleGenAI` client setup plus structured-output and
   JSON extraction helpers.
 - **`biology.ts`**: Shared structured biological generation helpers retained for
@@ -97,7 +105,9 @@ multiple functions need the same behavior and the ownership boundary is clear.
   social-surface helpers.
 - **`publicSpeciesProjection.ts`**: Public species projection sanitizer that
   prevents private scan/user fields from leaking into dictionary and Explore
-  responses.
+  responses. It also filters exact denied external media from normalized rows,
+  legacy comma-separated caches, and first-image projections without changing
+  the public DTO shape.
 - **`speciesContentProvenance.ts`**: Provenance mapping for scheduled species
   content refresh outputs.
 - **`taxonomy.ts`**: Taxonomic normalization helpers and test-backed taxonomy

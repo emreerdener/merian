@@ -54,6 +54,54 @@ struct LocalImageLoaderTests {
         #expect(replacementPermit)
         await pool.release()
     }
+
+    @Test func externalReferenceImagePolicyBlocksOnlyTheDeniedINaturalistMedia() {
+        let deniedVariants = [
+            "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/original.jpg",
+            "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/medium.jpg?size=500",
+            "HTTPS://INATURALIST-OPEN-DATA.S3.AMAZONAWS.COM/photos/605615444/square.jpg#preview"
+        ]
+
+        #expect(deniedVariants.allSatisfy { !ExternalReferenceImagePolicy.isAllowed($0) })
+        #expect(ExternalReferenceImagePolicy.isAllowed(
+            "https://inaturalist-open-data.s3.amazonaws.com/photos/605615445/original.jpg"
+        ))
+        #expect(ExternalReferenceImagePolicy.isAllowed(
+            "https://api.gbif.org/v1/image/605615444.jpg"
+        ))
+    }
+
+    @Test func externalReferenceImagePolicyPromotesTheNextLegacyURL() {
+        let denied = "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/original.jpg"
+        let safe = "https://live.staticflickr.com/65535/55027456166_642323e641_b.jpg"
+
+        #expect(ExternalReferenceImagePolicy.allowedURLStrings(
+            from: " \(denied), \(safe) "
+        ) == [safe])
+    }
+
+    @Test func localImageLoaderReturnsNilForAnAllBlockedFallbackWithoutDownloading() async {
+        let image = await LocalImageLoader.shared.loadImage(
+            fromPath: nil,
+            fallbackUrl: "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/large.jpg?download=1",
+            maxDimension: 500
+        )
+
+        #expect(image == nil)
+    }
+
+    @Test func similarSpeciesDownloadsAreRestoredToSourceOrder() {
+        let completionOrder: [(index: Int, value: String?)] = [
+            (index: 2, value: "third"),
+            (index: 0, value: "first"),
+            (index: 1, value: nil)
+        ]
+
+        #expect(SimilarSpeciesImageFetcher.orderedLoadedValues(from: completionOrder) == [
+            "first",
+            "third"
+        ])
+    }
     
     @Test func testLocalImageLoader_ConcurrentDeduplication() async throws {
         let loader = LocalImageLoader.shared

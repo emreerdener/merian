@@ -208,6 +208,31 @@ LocalImageLoader.shared.loadImage(
 | 4 | `imagePath` is a local filename | Resolve to `documentsDirectory`, downsample, cache |
 | 5 | Local file missing | Try `fallbackUrl` (supports comma-separated list) |
 
+**External reference URL policy:** Third-party reference imagery passes through
+`ExternalReferenceImagePolicy` before it can become a cache key or network
+request. The current exact rule rejects every URL whose normalized host is
+`inaturalist-open-data.s3.amazonaws.com` and whose path starts with
+`/photos/605615444/`; resized filenames, queries, and fragments cannot bypass
+the match. User-captured local media, Merian R2 media, unrelated iNaturalist
+photos, and other GBIF results are unaffected.
+
+The policy is applied at both normalization and loading boundaries:
+
+- comma-separated reference URL lists retain permitted values in their original
+  order;
+- a historical `SimilarSpeciesEntry.referenceImageUrl` containing the denied
+  media decodes as `nil`, allowing normal live fallback without clearing the
+  lookalike cache;
+- `LocalImageLoader` sanitizes a remote primary path and every fallback before
+  cache lookup, then rejects a denied URL again immediately before download;
+- `SimilarSpeciesImageFetcher` filters candidates before concurrent downloads
+  and sorts successful results by their original candidate index afterward.
+
+The last rule is important: task completion order must never decide which image
+becomes the card thumbnail. If the first candidate is denied or fails, the next
+successful permitted candidate wins. If none load, existing callers render
+their leaf/reference-unavailable placeholder.
+
 Both local and downloaded files enter the same decode boundary. `AsyncPermitPool`
 admits at most four images, suspends additional tasks without tying up an OS
 thread, removes cancelled waiters safely, and dispatches admitted synchronous
@@ -292,6 +317,6 @@ The same file-backed rule now applies to explore-media restore. `MerianNetworkCl
 | `ExternalImageImportStore` | `Core/Data/Images/` | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and pre-preparation EXIF extraction |
 | `MediaPreparationActor` | `Core/Data/Images/` | File-backed still-image preparation; owns inference/display encoding and budget metrics |
 | `FileIOActor` | `Core/Data/Database/` | Disk reads/writes; isolated from Main and SwiftData actors |
-| `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; RAM cache hits; request coalescing; local/remote routing |
+| `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; exact external-reference URL policy; RAM cache hits; request coalescing; local/remote routing |
 | `ImageCache` | `Core/Data/Images/` | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap |
 | `ArchiveManager` | `Core/Data/Images/` | `@MainActor` coordinator for generated dataset archive ZIP downloads |

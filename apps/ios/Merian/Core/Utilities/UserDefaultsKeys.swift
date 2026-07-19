@@ -16,6 +16,8 @@ enum UserDefaultsKeys {
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     /// The current theme mode selection persisted via AppStorage.
     static let themeMode = "themeMode"
+    /// Whether Explore should be presented over the Capture workspace on a fresh app launch.
+    static let opensExploreOnLaunch = "opensExploreOnLaunch"
     /// Whether multi-capture mode is enabled for the camera workflow.
     static let isMultiCaptureEnabled = "isMultiCaptureEnabled"
     /// Whether scans should wait for explicit user confirmation before submission.
@@ -1102,6 +1104,11 @@ final class AppSettings {
     var themeMode: ThemeMode {
         didSet { persistString(themeMode.rawValue, oldValue: oldValue.rawValue, key: UserDefaultsKeys.themeMode) }
     }
+    var opensExploreOnLaunch: Bool {
+        didSet {
+            persistBool(opensExploreOnLaunch, oldValue: oldValue, key: UserDefaultsKeys.opensExploreOnLaunch)
+        }
+    }
     var isMultiCaptureEnabled: Bool {
         didSet { persistBool(isMultiCaptureEnabled, oldValue: oldValue, key: UserDefaultsKeys.isMultiCaptureEnabled) }
     }
@@ -1240,6 +1247,7 @@ final class AppSettings {
 
         userDefaults.register(defaults: [
             UserDefaultsKeys.themeMode: ThemeMode.system.rawValue,
+            UserDefaultsKeys.opensExploreOnLaunch: false,
             UserDefaultsKeys.isMultiCaptureEnabled: false,
             UserDefaultsKeys.requiresScanConfirmation: false,
             UserDefaultsKeys.showsCaptureGoalProgress: true,
@@ -1274,6 +1282,7 @@ final class AppSettings {
         themeMode = ThemeMode(
             rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
         ) ?? .system
+        opensExploreOnLaunch = userDefaults.bool(forKey: UserDefaultsKeys.opensExploreOnLaunch)
         isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
         requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
         showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)
@@ -1343,6 +1352,7 @@ final class AppSettings {
         themeMode = ThemeMode(
             rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
         ) ?? .system
+        opensExploreOnLaunch = userDefaults.bool(forKey: UserDefaultsKeys.opensExploreOnLaunch)
         isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
         requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
         showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)

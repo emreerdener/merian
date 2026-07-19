@@ -56,6 +56,12 @@ as their permanent engineering identity.
   preparation; the normal required crop, confirmation preference, inference,
   and offline queue then apply. This path has no Share Extension, App Group
   handoff, backend import endpoint, or new Photo Library permission.
+- **Fresh-launch presentation contract**: The Capture workspace remains the app
+  root. After onboarding, the default-off **Open Explore on launch** preference
+  can present the generic Explore feed once when a new process starts. It is not
+  reevaluated on foreground returns. Photos/Files imports, deep links, and
+  tapped notification routes always replace the generic feed with the requested
+  capture, post, community, scan, or library destination.
 - **Media durability safety net**: Backend deploys run a media-ingestion
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident
@@ -233,9 +239,9 @@ as their permanent engineering identity.
   — Explore comment `@username` mention eligibility, suggestion endpoint,
   notification behavior, iOS composer/link rendering, and verification.
 - **[`/features-and-hardware/24-explore-bottom-menu.md`](./features-and-hardware/24-explore-bottom-menu.md)**
-  — Explore root navigation, Observations Feed/Map toggle, Community
-  identification queue, author-profile stack routing, Dictionary catalog, and
-  Tree of Life canvas routing/data boundaries.
+  — Explore launch entry points, root navigation, Observations Feed/Map toggle,
+  Community identification queue, author-profile stack routing, Dictionary
+  catalog, and Tree of Life canvas routing/data boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Field trips Outings/Events segments, guided outing detail, progress
   matching, the account-cached active target indicator on visual Scan, focused
@@ -270,7 +276,8 @@ as their permanent engineering identity.
   — Banned APIs, approved patterns, and memory debugging guide for new
   contributors.
 - **[`/development-guides/02-app-lifecycle.md`](./development-guides/02-app-lifecycle.md)**
-  — `AppLifecycleManager` phase contracts and trigger ordering.
+  — `AppLifecycleManager` phase contracts, fresh-launch presentation policy,
+  explicit-route precedence, and trigger ordering.
 - **[`/development-guides/03-feature-architecture.md`](./development-guides/03-feature-architecture.md)**
   — Feature module structure and ViewModel conventions.
 - **[`/development-guides/04-logging-and-debugging.md`](./development-guides/04-logging-and-debugging.md)**

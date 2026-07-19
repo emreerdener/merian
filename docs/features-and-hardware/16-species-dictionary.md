@@ -596,6 +596,24 @@ Reference image mapping:
   first image is treated as `wikipedia`; all other unresolved URLs default to
   `gbif`.
 
+Exact external-media suppression:
+
+- `_shared/externalImagePolicy.ts` filters live enrichment and the shared Deno
+  projection; the matching SQL helpers filter normalized and legacy values for
+  Explore/detail reads.
+- The current rule suppresses all variants beneath
+  `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` (GBIF occurrence
+  `5938154750`) and no other `Felis silvestris` or GBIF media.
+- If the denied URL was first, the next permitted image is promoted without
+  changing source order. If none remain, the existing leaf placeholder is
+  shown.
+- `ExternalReferenceImagePolicy` applies the same check to iOS DTO
+  normalization, persisted cache writes, historical
+  `SimilarSpeciesEntry.referenceImageUrl` decoding, catalog/tree URL creation,
+  the reference gallery, and the final loader download boundary.
+- The species card and navigation route remain. Suppression changes only the
+  selected image and never adds a censor overlay or a new API field.
+
 Reference image attribution:
 
 - `license` and `attribution` come from normalized `species_reference_images`
@@ -696,8 +714,8 @@ excluded, and the SQL RPC is executable only by `service_role`.
 Backend:
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
+deno test --allow-net --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
 deno test --allow-read=services/supabase/migrations --config services/supabase/functions/deno.json services/supabase/functions/_tests/speciesContentMigrationContract.test.ts
 ```
 
@@ -706,7 +724,7 @@ iOS:
 ```sh
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
-xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted simulator id>' CODE_SIGNING_ALLOWED=NO test -only-testing:merianTests/SpeciesDictionaryTests
+xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted simulator id>' CODE_SIGNING_ALLOWED=NO test -only-testing:merianTests/LocalImageLoaderTests -only-testing:merianTests/SpeciesDataTests -only-testing:merianTests/SpeciesDictionaryTests
 ```
 
 Manual acceptance:
@@ -719,4 +737,9 @@ Manual acceptance:
 - Confirm the similar-species section appears after habitat/distribution, then
   tap a card and verify the same species page sheet opens.
 - Confirm gallery images render, and missing images fall back gracefully.
+- Reopen the pictured Brown Tabby scan and confirm the European wildcat card
+  remains visible and navigable but media `605615444` does not appear in
+  Insight, Explore, the Dictionary catalog/tree, or the Dictionary detail
+  gallery. Confirm the next live image is used when available and the leaf
+  placeholder appears when every candidate is blocked or fails.
 - Confirm a missing dictionary row shows the not-found/retry state.

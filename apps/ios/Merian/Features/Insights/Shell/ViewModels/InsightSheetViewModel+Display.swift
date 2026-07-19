@@ -50,10 +50,7 @@ extension InsightSheetViewModel {
     var refUrls: [String] {
         guard let data = inferenceEngine?.speciesData else { return [] }
         guard !data.shouldSuppressReferenceImages else { return [] }
-        return data.referenceImageUrl?
-            .components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty } ?? []
+        return ExternalReferenceImagePolicy.allowedURLStrings(from: data.referenceImageUrl)
     }
 
     var shouldSuppressReferenceImages: Bool {

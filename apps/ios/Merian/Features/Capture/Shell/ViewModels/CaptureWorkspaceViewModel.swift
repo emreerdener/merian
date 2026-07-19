@@ -146,6 +146,8 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var externalRouteSessionResetSuppressionDeadline: Date?
     @ObservationIgnored private var externalImageImportTask: Task<Void, Never>?
+    @ObservationIgnored private var externalImageImportRetryRequested = false
+    @ObservationIgnored private var resumesExternalImageImportAfterSheetDismissal = false
     @ObservationIgnored private var slotBlockedExternalImportIds = Set<UUID>()
     @ObservationIgnored private var paywallPresentedExternalImportIds = Set<UUID>()
     
@@ -246,11 +248,12 @@ final class CaptureWorkspaceViewModel {
     }
     
     // MARK: - Lifecycle
-    convenience init() {
+    convenience init(initialActiveSheet: ActiveSheet? = nil) {
         self.init(
             diContainer: AppDIContainer.shared,
             preparedImageLoader: CaptureWorkspaceViewModel.livePreparedImageLoader,
-            prewarmHeadersOnInit: true
+            prewarmHeadersOnInit: true,
+            initialActiveSheet: initialActiveSheet
         )
     }
 
@@ -258,11 +261,13 @@ final class CaptureWorkspaceViewModel {
         diContainer: AppDIContainer,
         preparedImageLoader: @escaping PreparedStagedImageLoader,
         prewarmHeadersOnInit: Bool = true,
+        initialActiveSheet: ActiveSheet? = nil,
         externalImageImportStore: ExternalImageImportStore? = nil
     ) {
         self.diContainer = diContainer
         self.preparedImageLoader = preparedImageLoader
         self.externalImageImportStore = externalImageImportStore ?? diContainer.externalImageImportStore
+        self.activeSheet = initialActiveSheet
 
         // Pre-warm both connection pools while the user composes their shot: Supabase Auth
         // owns one session, while live inference uses MerianNetworkClient's pinned session.
@@ -306,14 +311,16 @@ final class CaptureWorkspaceViewModel {
                         entryPoint: entryPoint
                     )
                 case .requestOpenNonBiologicalScansIntent:
-                    self?.activeSheet = .scans
+                    self?.handleScansLibraryRoute()
                 case .requestOpenScansLibraryIntent:
-                    self?.activeSheet = .scans
+                    self?.handleScansLibraryRoute()
                 case .requestOpenCaptureGoal(let destination):
                     self?.openCaptureGoal(destination)
                 case .externalImageImportAvailable:
+                    self?.protectExternalRouteFromImmediateSessionTimeoutReset()
                     self?.importPendingExternalImageIfPossible()
                 case .externalImageImportFailed:
+                    self?.prepareForExternalImageImportPresentation()
                     self?.presentExternalImageImportFailure()
                 default:
                     break
@@ -388,6 +395,9 @@ final class CaptureWorkspaceViewModel {
     // MARK: - App Linking
     
     private func handleDeepLinkRoute(scanId: String) {
+        clearExplorePresentationRoute()
+        activeSheet = nil
+
         // SwiftData Context Access boundary seamlessly leveraging the shared queue context
         guard let context = diContainer.offlineQueueManager.modelContext else { return }
 
@@ -438,11 +448,18 @@ final class CaptureWorkspaceViewModel {
         activeSheet = .explore
     }
 
+    private func handleScansLibraryRoute() {
+        protectExternalRouteFromImmediateSessionTimeoutReset()
+        clearExplorePresentationRoute()
+        activeSheet = .scans
+    }
+
     func openCaptureGoal(_ goal: CaptureGoal) {
         openCaptureGoal(goal.destination)
     }
 
     func openCaptureGoal(_ destination: CaptureGoalDestination) {
+        protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = nil
         pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = nil
@@ -505,16 +522,59 @@ final class CaptureWorkspaceViewModel {
     }
 
     func importPendingExternalImageIfPossible() {
-        guard externalImageImportTask == nil else { return }
+        guard externalImageImportTask == nil else {
+            externalImageImportRetryRequested = true
+            return
+        }
 
         externalImageImportTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.externalImageImportTask = nil }
-            if await self.externalImageImportStore.consumeTerminalFailure() {
-                self.offlineToastMessage = "Naturebook couldn’t import that photo."
-            }
-            _ = await self.importNextPendingExternalImage()
+
+            repeat {
+                self.externalImageImportRetryRequested = false
+
+                let hasTerminalFailure = await self.externalImageImportStore.consumeTerminalFailure()
+                let hasPendingImport = !(await self.externalImageImportStore.pendingImports()).isEmpty
+                if hasTerminalFailure || hasPendingImport {
+                    let didDismissSheet = self.prepareForExternalImageImportPresentation()
+                    if hasTerminalFailure {
+                        self.offlineToastMessage = "Naturebook couldn’t import that photo."
+                    }
+                    if hasPendingImport {
+                        if didDismissSheet {
+                            self.resumesExternalImageImportAfterSheetDismissal = true
+                            self.externalImageImportRetryRequested = false
+                            break
+                        }
+                        _ = await self.importNextPendingExternalImage()
+                    }
+                }
+            } while self.externalImageImportRetryRequested && !Task.isCancelled
         }
+    }
+
+    func handleRootSheetDismissed() {
+        guard resumesExternalImageImportAfterSheetDismissal else { return }
+        resumesExternalImageImportAfterSheetDismissal = false
+        importPendingExternalImageIfPossible()
+    }
+
+    @discardableResult
+    private func prepareForExternalImageImportPresentation() -> Bool {
+        protectExternalRouteFromImmediateSessionTimeoutReset()
+        clearExplorePresentationRoute()
+        let didDismissSheet = activeSheet != nil
+        activeSheet = nil
+        return didDismissSheet
+    }
+
+    private func clearExplorePresentationRoute() {
+        pendingExplorePostId = nil
+        pendingCommunityIdentificationRequestId = nil
+        pendingExploreTargetCommentId = nil
+        pendingExploreTargetReplyParentCommentId = nil
+        pendingCaptureGoalDestination = nil
     }
 
     private func presentExternalImageImportFailure() {

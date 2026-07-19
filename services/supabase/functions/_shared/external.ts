@@ -1,3 +1,5 @@
+import { filterAllowedExternalImageURLs } from "./externalImagePolicy.ts";
+
 /**
  * Fetches English vernacular names for a species from GBIF using a known usageKey.
  * Normalises to Title Case and deduplicates. Returns an empty array on timeout,
@@ -81,9 +83,12 @@ interface WikiSummary {
   type: string | null;
 }
 
-async function fetchWikiSummary(title: string): Promise<WikiSummary | null> {
+async function fetchWikiSummary(
+  title: string,
+  fetcher: typeof fetch = fetch,
+): Promise<WikiSummary | null> {
   try {
-    const wikiRes = await fetch(
+    const wikiRes = await fetcher(
       `https://en.wikipedia.org/api/rest_v1/page/summary/${
         encodeURIComponent(title.replace(/ /g, "_"))
       }`,
@@ -105,6 +110,7 @@ async function fetchWikiSummary(title: string): Promise<WikiSummary | null> {
 
 export async function fetchExternalEnrichment(
   scientificName: string,
+  fetcher: typeof fetch = fetch,
 ): Promise<ExternalEnrichmentData> {
   let wikiUrl: string | null = null;
   let wikiExtract: string | null = null;
@@ -124,7 +130,7 @@ export async function fetchExternalEnrichment(
         let vernacularNames: string[] = [];
         let rank: string | null = null;
 
-        const gbifRes = await fetch(
+        const gbifRes = await fetcher(
           `https://api.gbif.org/v1/species/match?name=${
             encodeURIComponent(scientificName)
           }`,
@@ -140,11 +146,11 @@ export async function fetchExternalEnrichment(
           // Fetch occurrence images and vernacular names in parallel — both depend on key
           // but are independent of each other, so concurrent requests halve the wait time.
           const [mediaOutcome, vernacularOutcome] = await Promise.allSettled([
-            fetch(
+            fetcher(
               `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
               { signal: AbortSignal.timeout(2500) },
             ),
-            fetch(
+            fetcher(
               `https://api.gbif.org/v1/species/${key}/vernacularNames?language=eng&limit=30`,
               { signal: AbortSignal.timeout(2500) },
             ),
@@ -182,7 +188,7 @@ export async function fetchExternalEnrichment(
       })(),
 
       (async () => {
-        return await fetchWikiSummary(scientificName);
+        return await fetchWikiSummary(scientificName, fetcher);
       })(),
     ]);
 
@@ -197,8 +203,12 @@ export async function fetchExternalEnrichment(
     if (wikiOutcome.status === "fulfilled" && wikiOutcome.value) {
       let summary = wikiOutcome.value;
       if (summary.type === "disambiguation") {
-        const rank = gbifOutcome.status === "fulfilled" ? gbifOutcome.value.rank : null;
-        const taxonomy = gbifOutcome.status === "fulfilled" ? gbifOutcome.value.taxonomy : null;
+        const rank = gbifOutcome.status === "fulfilled"
+          ? gbifOutcome.value.rank
+          : null;
+        const taxonomy = gbifOutcome.status === "fulfilled"
+          ? gbifOutcome.value.taxonomy
+          : null;
 
         const suffixSet = new Set<string>();
         if (rank === "GENUS") {
@@ -226,7 +236,10 @@ export async function fetchExternalEnrichment(
 
         for (const suffix of suffixSet) {
           const candidateTitle = `${scientificName} (${suffix})`;
-          const candidateSummary = await fetchWikiSummary(candidateTitle);
+          const candidateSummary = await fetchWikiSummary(
+            candidateTitle,
+            fetcher,
+          );
           if (candidateSummary && candidateSummary.type !== "disambiguation") {
             summary = candidateSummary;
             break;
@@ -249,8 +262,9 @@ export async function fetchExternalEnrichment(
       fetchedUrls.unshift(wikiImg);
     }
 
-    if (fetchedUrls.length > 0) {
-      combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
+    const allowedImageUrls = filterAllowedExternalImageURLs(fetchedUrls);
+    if (allowedImageUrls.length > 0) {
+      combinedImageUrls = Array.from(new Set(allowedImageUrls)).join(",");
     }
   } catch (e) {
     console.error(

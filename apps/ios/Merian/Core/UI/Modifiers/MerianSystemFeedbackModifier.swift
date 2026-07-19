@@ -94,12 +94,11 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                 }
             }
             .overlay(alignment: .bottom) {
-                if showsAchievementToasts, let item = milestoneToastPresenter.activeItem {
-                    MilestoneToastBanner(
-                        item: item,
-                        pendingItemCount: milestoneToastPresenter.queuedItemCount,
-                        onDismiss: {
-                            milestoneToastPresenter.dismissActiveItem(id: item.id)
+                if showsAchievementToasts, !milestoneToastPresenter.presentedItems.isEmpty {
+                    MilestoneToastStack(
+                        items: milestoneToastPresenter.presentedItems,
+                        onDismiss: { id in
+                            milestoneToastPresenter.dismissActiveItem(id: id)
                         },
                         onOpenAchievement: { award in
                             selectedAchievementToastAward = award
@@ -109,7 +108,6 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                         }
                     )
                     .padding(.bottom, 24)
-                    .id(item.id)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(110)
                 }

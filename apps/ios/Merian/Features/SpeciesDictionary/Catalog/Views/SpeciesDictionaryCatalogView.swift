@@ -564,8 +564,7 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
 
     @ViewBuilder
     private var cardImage: some View {
-        if let referenceImageUrl = species.referenceImageUrl,
-           let url = URL(string: referenceImageUrl) {
+        if let url = ExternalReferenceImagePolicy.url(from: species.referenceImageUrl) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
@@ -988,7 +987,7 @@ private struct SpeciesDictionaryRegionRow: View {
 
     @ViewBuilder
     private var thumbnail: some View {
-        if let referenceImageUrl, let url = URL(string: referenceImageUrl) {
+        if let url = ExternalReferenceImagePolicy.url(from: referenceImageUrl) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
@@ -1344,8 +1343,7 @@ private struct SpeciesDictionaryCatalogRow: View {
 
     @ViewBuilder
     private var thumbnail: some View {
-        if let referenceImageUrl = item.referenceImageUrl,
-           let url = URL(string: referenceImageUrl) {
+        if let url = ExternalReferenceImagePolicy.url(from: item.referenceImageUrl) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):

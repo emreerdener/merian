@@ -165,14 +165,25 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 - **Dynamic Geometric Width Expansion**: Legacy explicit pixel arithmetic mapping `GeometryReader` widths was removed. For `.month` scale, the component uses a pure `HStack` with `.frame(maxWidth: .infinity)` constraints that divide available screen width evenly. During `.year` layouts, grid elements use strict `11pt` blocks.
 - **Conditional FadingScrollView Geometry Tracking**: The `.year` matrix is enclosed inside a `FadingScrollView` using `GeometryReader` tracking to map `.clear` gradients at the overlapping edges, pushing updates into isolated `.task` scopes. The `.month` scale bypasses `FadingScrollView` entirely, rendering as a static locked grid.
 
-### Hardware Preferences
+### Settings and Hardware Preferences
 - **Theme Segmentation (Symbol Anchoring)**: Apple's native `.pickerStyle(.segmented)` limits rendering to Text identifiers. Merian uses pure system `Text("Light")` bindings rather than custom `HStack` wrappers attempting to force SF Symbol layouts, ensuring crisp `.segmented` boundaries.
+- **Open Explore on launch (`opensExploreOnLaunch`)**: The default-off toggle is
+  in the top general-preferences section immediately after Theme and directly
+  above Notifications. A completed-onboarding cold launch may present the root
+  Explore feed once; foreground returns do not reopen it. Capture remains the
+  app root, camera hardware stays stopped while the initial sheet is visible,
+  and explicit Photos/Files imports, deep links, and notification routes take
+  precedence. The automatic presentation marks the Explore **New** chip as
+  seen.
+- **Workspace settings group**: The former Capture section is labeled
+  **Workspace** without moving its Camera, Audio, capture-mode order, Field trip
+  goals, or confirmation controls.
 - **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps and disables intensive visual blurs to preserve battery.
 - **Camera Settings (`CameraSettingsView`)**: A dedicated sub-page pushed from the "Camera" row in Preferences (described as "Zoom controls, viewfinder hints, and capture preferences"). Navigation state (`cameraSettingsActive: Bool`) is owned by `SettingsTabView` and passed as a `@Binding` to `Preferences`; the `.navigationDestination` modifier is attached to the `List` in `SettingsTabView` (not inside a `Section`) to satisfy SwiftUI's lazy-container navigation destination requirement. The view is split into two sections:
   - **Viewfinder**: Live viewfinder hints toggle (`isLiveInferencePaused`, inverted for display).
   - **Zoom**: Show zoom slider (`zoomSliderVisible`), left-side zoom slider (`zoomSideLeft`), invert zoom direction (`invertZoomDirection`).
 - **Live Viewfinder Hints (`isLiveInferencePaused`)**: Moved from the main Preferences list into the Viewfinder section of `CameraSettingsView`. Allows users to disable real-time AI scanning hints to reduce thermal load or battery drain. The toggle inverts `isLiveInferencePaused` for display and writes through the injected `AppSettings` boundary while keeping `CameraManager.shared.isLiveInferencePaused` synchronized.
-- **Field trip goals (`showsCaptureGoalProgress`)**: The Capture settings section exposes an on-by-default toggle for the active outing target capsule on visual Scan. Disabling it changes only the camera presentation; cached capture-goal context, refresh behavior, selection, and outing progress remain intact.
+- **Field trip goals (`showsCaptureGoalProgress`)**: The Workspace settings section exposes an on-by-default toggle for the active outing target capsule on visual Scan. Disabling it changes only the camera presentation; cached capture-goal context, refresh behavior, selection, and outing progress remain intact.
 - **Show Zoom Slider (`zoomSliderVisible`)**: Toggles the `ZoomSliderView` overlay on/off. When disabled, zoom via pinch and swipe still works — only the visual meter is hidden. Defaults to `true`.
 - **Invert Zoom Direction (`invertZoomDirection`)**: Flips the zoom direction across all gesture surfaces and the zoom meter's visual orientation. Default (`false`): swipe up / drag up = zoom in, top of meter = max zoom. Inverted (`true`): swipe down / drag down = zoom in (traditional camera-style), top of meter = 1×. Read on each gesture frame in `CameraPreviewView.Coordinator.handlePan` and `ZoomSliderView`'s `DragGesture`; also controls `ZoomSliderView`'s Canvas tick-to-zoom mapping and indicator position formula so the ruler orientation always matches the drag direction. Does not affect pinch-to-zoom (scale-based).
 - **Left-Side Zoom Slider (`zoomSideLeft`)**: Moves the `ZoomSliderView` from the trailing edge to the leading edge of the viewfinder. `MainOverlayView` switches the `.overlay` alignment and padding side; `ZoomSliderView` mirrors itself horizontally via `.scaleEffect(x: -1, y: 1)` so ticks and dots face inward on both sides without duplicating Canvas drawing logic.
@@ -182,9 +193,10 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 - **Beta Feedback Survey (`FeedbackSurveyView`)**: The one-time `beta_feedback_2026_06` campaign opens with a short intro screen, then asks satisfaction, recommendation, usage, most-useful area, bugs/crashes, and free-text polish questions. `CaptureWorkspaceView` can arm the survey once after onboarding and at least three completed biological scans, but the proactive sheet is presented only after the active Insight/result sheet has closed so it never competes with scan results. `FeedbackSurveyPromptPolicy` suppresses the prompt after the campaign is dismissed or submitted. The Settings Resources section also exposes a manual "Feedback survey" row while the campaign is active. After a successful manual submission, the thank-you state remains during a 24-hour cooldown and then resets to a fresh form so testers can send more feedback without the proactive prompt returning. Responses submit through `/submit-feedback-survey` and are stored as private product feedback in Supabase.
 - **System Haptics & Camera Roll**: `UserDefaults` bindings skip `HapticManager` calls or prevent `PhotoLibraryManager` from pushing raw buffer bytes into the iOS Photos ecosystem. Haptic interactions overlay `.heavy` feedback on the Camera Shutter and `.medium` responses on hardware triggers like the Flash toggle.
 - **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` & `requiresScanConfirmation`)**: Defaults to `false` (instant 1-capture mode). When disabled, a single camera capture is submitted to the AI inference pipeline immediately via an `onChange(of: viewModel.stagedCapture.images.count)` observer in `CaptureWorkspaceView`. Photo-library picks are staged first, marked as required gallery crops, and routed through `ImageCropperView`; confirming the final required crop re-evaluates `shouldAutoSubmitStagedCapture` and only then submits in the default single-image flow. Setting "Confirm scan submission" (`requiresScanConfirmation = true`) disables the auto-submit gatekeeper, staging the cropped image in the `ActiveScanToolbar` and forcing the user to physically tap "Identify". If "Multi-capture mode" (`isMultiCaptureEnabled = true`) is enabled, gallery crops are reviewed sequentially and the user returns to the toolbar after the final crop. Capture surfaces read the injected `AppSettings` boundary (`@Environment(AppSettings.self)` in views and `diContainer.appSettings` in `CaptureWorkspaceViewModel`) and dynamically cap the `PhotoLibraryButton`'s `maxSelectionCount` and the toolbar's secondary add button.
-- **Photos Share Import**: Merian is an alternate `public.image` document
-  viewer, not a Photos Share Extension. Sharing one photo opens the containing
-  app, which copies the security-scoped file into `ExternalImageImportStore`
+- **Photos Share Import**: Naturebook's Merian iOS target is an alternate
+  `public.image` document viewer, not a Photos Share Extension. Sharing one photo
+  opens the containing app, which copies the security-scoped file into
+  `ExternalImageImportStore`
   before publishing `AppEvent.externalImageImportAvailable`. The Capture shell
   recovers pending receipts on appearance/activation and retries after staging
   capacity or Pro entitlement changes. Shared files use the same
@@ -192,6 +204,9 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
   inference, and offline queue as `PhotosPicker`; only the durable receipt and
   embedded ImageIO EXIF extraction differ. See
   [Photos Share Import](./26-photos-share-import.md).
+  A cold-launch import is an explicit intent: it dismisses the generic Explore
+  launch sheet, protects the incoming crop from the accompanying timeout reset,
+  and then follows the same staging path.
 
 ### Privacy & Science
 - **Geoprivacy Control (`GeoprivacyPickerView`)**: Lives inside `Features/Profile/Settings/Components/Preferences.swift` and is pushed from the settings list. It explains `Open`, `Obscured`, and `Private` coordinate options, binds through `ProfileViewModel.defaultGeoprivacy`, and cascades changes to Supabase in the background.

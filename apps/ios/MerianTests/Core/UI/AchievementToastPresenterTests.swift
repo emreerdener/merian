@@ -32,12 +32,18 @@ struct AchievementToastPresenterTests {
 
         #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticCat)
         #expect(MilestoneToastPresenter.shared.queuedItemCount == 2)
+        let presentedIDs = MilestoneToastPresenter.shared.presentedItems.map(\.id)
+        #expect(presentedIDs.count == 3)
 
         let firstID = MilestoneToastPresenter.shared.activeItem?.id
         MilestoneToastPresenter.shared.dismissActiveItem(id: firstID)
 
         #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
         #expect(MilestoneToastPresenter.shared.queuedItemCount == 1)
+        #expect(
+            MilestoneToastPresenter.shared.presentedItems.map(\.id)
+                == Array(presentedIDs.dropFirst())
+        )
 
         let secondID = MilestoneToastPresenter.shared.activeItem?.id
         MilestoneToastPresenter.shared.dismissActiveItem(id: secondID)
@@ -105,6 +111,74 @@ struct AchievementToastPresenterTests {
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 1) == 1)
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 2) == 2)
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 5) == 2)
+    }
+
+    @Test func milestoneToastDragCommitsInEveryDirection() {
+        let distance = MilestoneToastDismissalGesture.commitDistance
+
+        #expect(MilestoneToastDismissalGesture.hasReachedCommitDistance(
+            CGSize(width: distance, height: 0)
+        ))
+        #expect(MilestoneToastDismissalGesture.hasReachedCommitDistance(
+            CGSize(width: -distance, height: 0)
+        ))
+        #expect(MilestoneToastDismissalGesture.hasReachedCommitDistance(
+            CGSize(width: 0, height: distance)
+        ))
+        #expect(MilestoneToastDismissalGesture.hasReachedCommitDistance(
+            CGSize(width: 0, height: -distance)
+        ))
+    }
+
+    @Test func milestoneToastQuickFlickUsesProjectedDistance() {
+        #expect(MilestoneToastDismissalGesture.shouldDismiss(
+            translation: CGSize(width: 20, height: 0),
+            predictedEndTranslation: CGSize(
+                width: MilestoneToastDismissalGesture.projectedCommitDistance,
+                height: 0
+            )
+        ))
+        #expect(!MilestoneToastDismissalGesture.shouldDismiss(
+            translation: CGSize(width: 20, height: 20),
+            predictedEndTranslation: CGSize(width: 80, height: 80)
+        ))
+    }
+
+    @Test func milestoneToastDragLocksToItsDominantAxis() {
+        let horizontal = CGSize(width: -90, height: 55)
+        let vertical = CGSize(width: 40, height: 100)
+        let diagonalBelowAxisThreshold = CGSize(width: 70, height: 70)
+
+        let horizontalAxis = MilestoneToastDismissalGesture.axis(for: horizontal)
+        let verticalAxis = MilestoneToastDismissalGesture.axis(for: vertical)
+        let constrainedDiagonal = MilestoneToastDismissalGesture.constrainedTranslation(
+            diagonalBelowAxisThreshold,
+            to: MilestoneToastDismissalGesture.axis(for: diagonalBelowAxisThreshold)
+        )
+
+        #expect(horizontalAxis == .horizontal)
+        #expect(verticalAxis == .vertical)
+        #expect(MilestoneToastDismissalGesture.constrainedTranslation(
+            horizontal,
+            to: horizontalAxis
+        ) == CGSize(width: -90, height: 0))
+        #expect(MilestoneToastDismissalGesture.constrainedTranslation(
+            vertical,
+            to: verticalAxis
+        ) == CGSize(width: 0, height: 100))
+        #expect(!MilestoneToastDismissalGesture.hasReachedCommitDistance(constrainedDiagonal))
+    }
+
+    @Test func milestoneToastDismissalKeepsFlickDirectionOffscreen() {
+        let offset = MilestoneToastDismissalGesture.offscreenOffset(
+            translation: CGSize(width: 20, height: 0),
+            predictedEndTranslation: CGSize(width: 240, height: 0)
+        )
+
+        #expect(offset.width > 0)
+        #expect(offset.height == 0)
+        #expect(abs(MilestoneToastDismissalGesture.distance(for: offset)
+            - MilestoneToastDismissalGesture.offscreenDistance) < 0.001)
     }
 
     @Test func completedAchievementUnlockEnqueuesToastWhenAchievementNotificationsAreEnabled() {

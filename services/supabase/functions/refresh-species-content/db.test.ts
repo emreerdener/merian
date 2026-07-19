@@ -226,6 +226,36 @@ Deno.test("refresh species content - maps refreshed reference images for RPC syn
   ]);
 });
 
+Deno.test("refresh species content - excludes suppressed media before cache and RPC sync", () => {
+  const blockedImage =
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/original.jpg";
+  const safeImage =
+    "https://live.staticflickr.com/65535/55027456166_642323e641_b.jpg";
+  const externalData: ExternalEnrichmentData = {
+    ...EXTERNAL_DATA,
+    referenceImageUrl: `${blockedImage},${safeImage}`,
+  };
+
+  const update = buildSpeciesDictionaryRefreshUpdate(
+    ["reference_images"],
+    externalData,
+  );
+  assertEquals(update.update.reference_image_url, safeImage);
+  assertEquals(
+    referenceImageRowsFromRefreshCache(
+      externalData.referenceImageUrl,
+      null,
+      new Date("2026-05-13T00:00:00.000Z"),
+    ),
+    [{
+      url: safeImage,
+      source: "gbif",
+      sort_order: 0,
+      last_verified_at: "2026-05-13T00:00:00.000Z",
+    }],
+  );
+});
+
 Deno.test("refresh species content - persists refreshed fields and provenance", async () => {
   const calls: Array<Record<string, unknown>> = [];
   const supabase = {

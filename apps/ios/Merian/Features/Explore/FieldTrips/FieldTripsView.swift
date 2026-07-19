@@ -221,7 +221,7 @@ struct FieldTripsView: View {
 }
 
 struct FieldTripTemplateDetailView: View {
-    let templateId: String
+    let reference: FieldTripTemplateReference
     let focusedChecklistItemId: String?
     let onOpenCompletedScan: (String) -> Void
     let onOpenPublication: (String) -> Void
@@ -245,17 +245,33 @@ struct FieldTripTemplateDetailView: View {
     @State private var didApplyInitialFocus = false
 
     init(
+        reference: FieldTripTemplateReference,
+        focusedChecklistItemId: String? = nil,
+        onOpenCompletedScan: @escaping (String) -> Void,
+        onOpenPublication: @escaping (String) -> Void,
+        onOpenAuthorProfile: @escaping (FieldTripRecentPublication) -> Void
+    ) {
+        self.reference = reference
+        self.focusedChecklistItemId = focusedChecklistItemId
+        self.onOpenCompletedScan = onOpenCompletedScan
+        self.onOpenPublication = onOpenPublication
+        self.onOpenAuthorProfile = onOpenAuthorProfile
+    }
+
+    init(
         templateId: String,
         focusedChecklistItemId: String? = nil,
         onOpenCompletedScan: @escaping (String) -> Void,
         onOpenPublication: @escaping (String) -> Void,
         onOpenAuthorProfile: @escaping (FieldTripRecentPublication) -> Void
     ) {
-        self.templateId = templateId
-        self.focusedChecklistItemId = focusedChecklistItemId
-        self.onOpenCompletedScan = onOpenCompletedScan
-        self.onOpenPublication = onOpenPublication
-        self.onOpenAuthorProfile = onOpenAuthorProfile
+        self.init(
+            reference: .id(templateId),
+            focusedChecklistItemId: focusedChecklistItemId,
+            onOpenCompletedScan: onOpenCompletedScan,
+            onOpenPublication: onOpenPublication,
+            onOpenAuthorProfile: onOpenAuthorProfile
+        )
     }
 
     var body: some View {
@@ -294,7 +310,8 @@ struct FieldTripTemplateDetailView: View {
             }
             .onReceive(AppEventPublisher.shared.publisher) { event in
                 guard case .fieldTripProgressUpdated(let updates) = event,
-                      updates.contains(where: { $0.templateId == templateId }) else {
+                      let resolvedTemplateId = template?.templateId,
+                      updates.contains(where: { $0.templateId == resolvedTemplateId }) else {
                     return
                 }
                 Task { await load(force: true) }
@@ -519,7 +536,15 @@ struct FieldTripTemplateDetailView: View {
         defer { isLoading = false }
 
         do {
-            let loadedTemplate = try await MerianNetworkClient.shared.getFieldTripTemplate(templateId: templateId)
+            let loadedTemplate: FieldTripTemplate
+            switch reference {
+            case .id(let templateId):
+                loadedTemplate = try await MerianNetworkClient.shared.getFieldTripTemplate(
+                    templateId: templateId
+                )
+            case .slug(let slug):
+                loadedTemplate = try await MerianNetworkClient.shared.getFieldTripTemplate(slug: slug)
+            }
             template = loadedTemplate
             applyInitialFocusIfNeeded(to: loadedTemplate)
             await loadCommunityPreview(templateId: loadedTemplate.templateId)
@@ -2313,22 +2338,13 @@ private struct FieldTripChecklistGridTile: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(8)
 
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(item.prompt)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if item.hasGuide {
-                        Image(systemName: "info.circle")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
+                Text(item.prompt)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 if let completedName = item.completedCommonName {
                     Text(completedName)
