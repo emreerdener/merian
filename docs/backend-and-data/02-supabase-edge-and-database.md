@@ -897,6 +897,15 @@ the additions optionally during staged rollout. The follow-up scope prevents a
 re-identified scan with historical completions in an earlier level from
 duplicating a response destination or supplying the wrong progress ring.
 
+These Seasonal Challenge contracts are already deployed while Events remain a
+client-staged iOS surface. Standard Outings are public; iOS requests and renders
+challenge catalogs, details, badges, entries, routes, and hashtag suggestions
+only when `FieldTripEventsAvailability` is enabled, and filters challenge rows
+from shared scan-progress responses otherwise. The flag is a presentation and
+release gate, not database authorization. Publishing Events later requires a
+new client build but no schema or function change unless the backend contract
+has changed independently.
+
 `get-explore-post` is an important routing helper for the iOS client and the
 public Next.js web app: it returns a single privacy-safe feed-card projection so
 notification taps, deep links, and `https://naturebook.earth/explore/post/{postId}`

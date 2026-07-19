@@ -30,9 +30,13 @@ struct FieldTripsView: View {
     @State private var filters = FieldTripCatalogFilters()
     @State private var isShowingFilterSheet = false
 
+    private var eventsEnabled: Bool {
+        FieldTripEventsAvailability.isEnabled
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            switch selectedSection {
+            switch eventsEnabled ? selectedSection : .fieldTrips {
             case .fieldTrips:
                 fieldTripsContent
             case .seasonal:
@@ -43,8 +47,11 @@ struct FieldTripsView: View {
         .sheet(isPresented: $isShowingFilterSheet) {
             outingFilterSheet
         }
-        .task {
-            await viewModel.load(userRegion: userRegion)
+        .task(id: eventsEnabled) {
+            if !eventsEnabled, selectedSection == .seasonal {
+                selectedSection = .fieldTrips
+            }
+            await viewModel.load(userRegion: userRegion, eventsEnabled: eventsEnabled)
         }
         .onChange(of: selectedSection) { _, _ in
             HapticManager.shared.triggerSelectionPulse()
@@ -52,9 +59,13 @@ struct FieldTripsView: View {
         .onReceive(AppEventPublisher.shared.publisher) { event in
             switch event {
             case .fieldTripProgressUpdated:
-                Task { await viewModel.refresh(userRegion: userRegion) }
-            case .fieldTripChallengeProgressUpdated:
-                Task { await viewModel.refresh(userRegion: userRegion) }
+                Task {
+                    await viewModel.refresh(userRegion: userRegion, eventsEnabled: eventsEnabled)
+                }
+            case .fieldTripChallengeProgressUpdated where eventsEnabled:
+                Task {
+                    await viewModel.refresh(userRegion: userRegion, eventsEnabled: true)
+                }
             default:
                 break
             }
@@ -476,9 +487,6 @@ struct FieldTripTemplateDetailView: View {
             .toolbar { detailToolbar }
             .task {
                 await load(force: false)
-            }
-            .refreshable {
-                await load(force: true)
             }
             .onReceive(AppEventPublisher.shared.publisher) { event in
                 guard case .fieldTripProgressUpdated(let updates) = event,
@@ -1164,6 +1172,10 @@ enum FieldTripsSection: String, CaseIterable, Identifiable {
         case .seasonal:
             "Events"
         }
+    }
+
+    static func availableSections(eventsEnabled: Bool) -> [Self] {
+        eventsEnabled ? allCases : [.fieldTrips]
     }
 }
 
@@ -3111,8 +3123,8 @@ private struct FieldTripUnavailableCard: View {
 
     var body: some View {
         EmptyStateView(
-            imageName: "fireflies",
-            imageHeight: 160,
+            imageName: "fieldtrip-backpack",
+            imageHeight: 300,
             title: title,
             message: message
         ) {

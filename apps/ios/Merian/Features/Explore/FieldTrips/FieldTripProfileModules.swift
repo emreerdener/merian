@@ -2,14 +2,18 @@ import SwiftData
 import SwiftUI
 
 struct ActiveFieldTripProfileItem: Identifiable, Equatable {
-    let outing: FieldTripCaptureOuting
+    let userFieldTripId: String
     let template: FieldTripTemplate
+    let lastEngagedAt: String
+    let currentLevelNumber: Int
+    let completedCount: Int
+    let targetCount: Int
 
-    var id: String { outing.userFieldTripId }
+    var id: String { userFieldTripId }
 
     var currentLevelItems: [FieldTripChecklistItem] {
         template.levels
-            .first(where: { $0.levelNumber == outing.levelNumber })?
+            .first(where: { $0.levelNumber == currentLevelNumber })?
             .items ?? []
     }
 }
@@ -21,18 +25,49 @@ enum ActiveFieldTripProfilePresentation {
         outings: [FieldTripCaptureOuting],
         templates: [FieldTripTemplate]
     ) -> [ActiveFieldTripProfileItem] {
-        let templatesById = Dictionary(uniqueKeysWithValues: templates.map { ($0.templateId, $0) })
+        var outingByTemplateId: [String: FieldTripCaptureOuting] = [:]
+        var contextOrderByTemplateId: [String: Int] = [:]
+        for (index, outing) in outings.enumerated()
+        where outingByTemplateId[outing.templateId] == nil {
+            outingByTemplateId[outing.templateId] = outing
+            contextOrderByTemplateId[outing.templateId] = index
+        }
 
-        return outings.compactMap { outing in
-            guard let template = templatesById[outing.templateId],
-                  template.viewerHasAccess,
+        let items = templates.compactMap { template -> ActiveFieldTripProfileItem? in
+            guard template.viewerHasAccess,
                   let progress = template.activeProgress,
-                  progress.userFieldTripId == outing.userFieldTripId,
                   !progress.isComplete else {
                 return nil
             }
 
-            return ActiveFieldTripProfileItem(outing: outing, template: template)
+            let outing = outingByTemplateId[template.templateId]
+            return ActiveFieldTripProfileItem(
+                userFieldTripId: progress.userFieldTripId,
+                template: template,
+                lastEngagedAt: outing?.lastEngagedAt ?? progress.startedAt,
+                currentLevelNumber: progress.currentLevelNumber,
+                completedCount: progress.completedCount,
+                targetCount: progress.targetCount
+            )
+        }
+
+        return items.sorted { lhs, rhs in
+            let lhsContextOrder = contextOrderByTemplateId[lhs.template.templateId]
+            let rhsContextOrder = contextOrderByTemplateId[rhs.template.templateId]
+
+            switch (lhsContextOrder, rhsContextOrder) {
+            case let (.some(lhsOrder), .some(rhsOrder)):
+                return lhsOrder < rhsOrder
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.none, .none):
+                if lhs.lastEngagedAt != rhs.lastEngagedAt {
+                    return lhs.lastEngagedAt > rhs.lastEngagedAt
+                }
+                return lhs.template.templateId < rhs.template.templateId
+            }
         }
     }
 
@@ -47,6 +82,32 @@ enum ActiveFieldTripProfilePresentation {
     }
 }
 
+enum FieldTripProfilePresentation {
+    static func visibleChallengeBadges(
+        in summaries: FieldTripProfileSummaries,
+        eventsEnabled: Bool
+    ) -> [FieldTripChallengeBadge] {
+        eventsEnabled ? summaries.challengeBadges : []
+    }
+
+    static func itemCount(
+        in summaries: FieldTripProfileSummaries,
+        eventsEnabled: Bool
+    ) -> Int {
+        summaries.active.count
+            + summaries.pinned.count
+            + summaries.published.count
+            + visibleChallengeBadges(in: summaries, eventsEnabled: eventsEnabled).count
+    }
+
+    static func hasContent(
+        _ summaries: FieldTripProfileSummaries,
+        eventsEnabled: Bool
+    ) -> Bool {
+        itemCount(in: summaries, eventsEnabled: eventsEnabled) > 0
+    }
+}
+
 struct ActiveFieldTripsProfilePreview: View {
     let onOpenTemplate: (String) -> Void
     let onOpenCompletedScan: (String) -> Void
@@ -56,7 +117,10 @@ struct ActiveFieldTripsProfilePreview: View {
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
 
     @State private var items: [ActiveFieldTripProfileItem] = []
-    @State private var isLoading = false
+    // Start in a rendered state so SwiftUI mounts the task that performs the first load.
+    // An initial EmptyView does not reliably receive lifecycle modifiers.
+    @State private var isLoading = true
+    @State private var isLoadInFlight = false
     @State private var hasLoaded = false
 
     private var currentUserId: String? {
@@ -93,30 +157,17 @@ struct ActiveFieldTripsProfilePreview: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Field trips")
-                    .font(.title3.weight(.bold))
-
-                Spacer()
-
-                Text(items.count.formatted(.number.notation(.compactName)))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 16) {
-                ForEach(ActiveFieldTripProfilePresentation.previewItems(from: items)) { item in
-                    CurrentUserActiveFieldTripProfileCard(
-                        item: item,
-                        localScansById: localScansById,
-                        onOpenTemplate: {
-                            HapticManager.shared.triggerSelectionPulse()
-                            onOpenTemplate(item.template.templateId)
-                        },
-                        onOpenCompletedScan: onOpenCompletedScan
-                    )
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(ActiveFieldTripProfilePresentation.previewItems(from: items)) { item in
+                CurrentUserActiveFieldTripProfileCard(
+                    item: item,
+                    localScansById: localScansById,
+                    onOpenTemplate: {
+                        HapticManager.shared.triggerSelectionPulse()
+                        onOpenTemplate(item.template.templateId)
+                    },
+                    onOpenCompletedScan: onOpenCompletedScan
+                )
             }
 
             if ActiveFieldTripProfilePresentation.shouldShowViewAll(for: items) {
@@ -156,16 +207,18 @@ struct ActiveFieldTripsProfilePreview: View {
             isLoading = false
             return
         }
-        guard !isLoading else { return }
+        guard !isLoadInFlight else { return }
 
+        isLoadInFlight = true
         isLoading = true
         defer {
+            isLoadInFlight = false
             isLoading = false
             hasLoaded = true
         }
 
         do {
-            async let outings = MerianNetworkClient.shared.getFieldTripCaptureContext()
+            async let outings = captureContextOrEmpty()
             async let templates = MerianNetworkClient.shared.getFieldTrips(limit: 80)
             let loadedItems = try await ActiveFieldTripProfilePresentation.items(
                 outings: outings,
@@ -173,8 +226,22 @@ struct ActiveFieldTripsProfilePreview: View {
             )
             guard !Task.isCancelled else { return }
             items = loadedItems
+            MerianLog.network.debug(
+                "Loaded \(loadedItems.count, privacy: .public) active Profile Field trips."
+            )
         } catch {
             MerianLog.network.warning("Failed to load active Profile Field trips: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    private func captureContextOrEmpty() async -> [FieldTripCaptureOuting] {
+        do {
+            return try await MerianNetworkClient.shared.getFieldTripCaptureContext()
+        } catch {
+            MerianLog.network.warning(
+                "Profile Field trip recency context unavailable; using catalog order: \(error.localizedDescription, privacy: .private)"
+            )
+            return []
         }
     }
 }
@@ -189,8 +256,8 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
                 Text(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug))
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.85))
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -201,7 +268,7 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
             .padding(.bottom, 12)
 
             FieldTripScanPreviewStrip(
-                targetCount: item.outing.targetCount,
+                targetCount: item.targetCount,
                 templateSlug: item.template.slug,
                 items: item.currentLevelItems,
                 localScansById: localScansById,
@@ -213,8 +280,8 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
             Button(action: onOpenTemplate) {
                 FieldTripLevelProgressBar(
                     progress: FieldTripLevelProgressPresentation(
-                        completedCount: item.outing.completedCount,
-                        targetCount: item.outing.targetCount
+                        completedCount: item.completedCount,
+                        targetCount: item.targetCount
                     )
                 )
                 .contentShape(Rectangle())
@@ -234,15 +301,7 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
 
 private struct ActiveFieldTripsProfileSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                GlowPulsingSkeletonView(cornerRadius: 5)
-                    .frame(width: 110, height: 23)
-                Spacer()
-                GlowPulsingSkeletonView(cornerRadius: 5)
-                    .frame(width: 20, height: 16)
-            }
-
+        VStack(alignment: .leading, spacing: 16) {
             ForEach(0..<ActiveFieldTripProfilePresentation.previewLimit, id: \.self) { _ in
                 GlowPulsingSkeletonView(cornerRadius: 24)
                     .frame(height: 190)
@@ -259,6 +318,17 @@ struct FieldTripProfilePreview: View {
     let onOpenPublication: (String) -> Void
     var onTogglePinned: ((FieldTripProfilePublishedSummary) -> Void)?
 
+    private var eventsEnabled: Bool {
+        FieldTripEventsAvailability.isEnabled
+    }
+
+    private var visibleChallengeBadges: [FieldTripChallengeBadge] {
+        FieldTripProfilePresentation.visibleChallengeBadges(
+            in: summaries,
+            eventsEnabled: eventsEnabled
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -267,19 +337,22 @@ struct FieldTripProfilePreview: View {
 
                 Spacer()
 
-                let count = summaries.active.count + summaries.pinned.count + summaries.published.count + summaries.challengeBadges.count
+                let count = FieldTripProfilePresentation.itemCount(
+                    in: summaries,
+                    eventsEnabled: eventsEnabled
+                )
                 Text(count.formatted(.number.notation(.compactName)))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
 
-            if !summaries.challengeBadges.isEmpty {
+            if !visibleChallengeBadges.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Badges")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
 
-                    ForEach(summaries.challengeBadges.prefix(3)) { badge in
+                    ForEach(visibleChallengeBadges.prefix(3)) { badge in
                         FieldTripChallengeBadgeProfileRow(badge: badge)
                     }
                 }

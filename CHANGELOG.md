@@ -47,6 +47,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Released Field trips and standard Outings to every user. The Events segment
+  remains a client-gated preview for the tester account and simulator builds so
+  its seasonal challenge UI can continue iterating independently.
 - Added **The Field Naturalist**, an Easy achievement earned by completing a
   first outing or Seasonal Challenge. Its completed Profile card and unlock
   notification reopen the Field trip that earned it.
@@ -158,6 +161,9 @@ TestFlight, App Store, support, and QA.
 - Added tap-to-seek and drag-to-scrub playback directly on audio spectrograms
   in Explore post detail. Feed cards remain playback-only so their navigation
   gestures stay predictable.
+- Smoothed standalone-audio playheads in Explore feed and post detail. The line
+  now follows audible playback at the display refresh rate, stays fixed while
+  audio is paused, waiting, or seeking, and preserves the exact pause position.
 - Added a compact **Boost audio** control directly to standalone-audio feed
   posts. It transitions to the existing **Boosted audio** treatment when ready,
   toggles back to original audio when tapped again, and does not open post
@@ -198,6 +204,11 @@ TestFlight, App Store, support, and QA.
 - Added tap-to-seek and playmarker dragging to completed scan audio pages.
   Dragging the rest of an Insight media page continues to move between carousel
   items.
+- Smoothed completed-scan audio playmarkers and hardened first playback after an
+  audio-boost source change. Prepared sources now wait for an idle handoff,
+  rendered files are fully reopened and decoded before publication, and an
+  unexpected decode stop falls back to the original recording at the last
+  confirmed position instead of leaving playback frozen.
 
 ### Account & Billing
 

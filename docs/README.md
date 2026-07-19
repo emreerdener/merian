@@ -243,7 +243,8 @@ as their permanent engineering identity.
   Community identification queue, author-profile stack routing, Dictionary
   catalog, and Tree of Life canvas routing/data boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
-  — Field trips Outings/Events segments, guided outing detail, progress
+  — Public Field trips/Outings, the client-staged Events rollout and release
+  checklist, guided outing detail, progress
   matching, the account-cached active target indicator on visual Scan, focused
   Tips/Goals routing, active-level progress ring, private completed-scan
   thumbnails and embedded Insight navigation, photo/video multi-goal

@@ -745,6 +745,19 @@ visibility, and that target swipes do not page capture modes. The architectural
 test obligations for future sources are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
 
+The split release gates have explicit regression coverage.
+`FieldTripsAvailabilityTests` locks standard Field trips on for every account
+and device, locks `FieldTripEventsAvailability.isReleased` off until an
+intentional release edit, and verifies the staged tester/simulator bypass plus
+the future public path. `FieldTripAPIModelsTests`,
+`ActiveCaptureGoalStoreTests`, profile visibility tests, and
+`AchievementToastPresenterTests` verify that Events-disabled clients do not
+fetch or expose challenge-only UI, routes, badges, cached achievement evidence,
+or progress toasts. Before an Events release, manually test a physical
+allowlisted account, a physical non-allowlisted account, a ghost user, and a
+simulator build; also confirm DEBUG startup logs
+`TODO(field-trip-events-release)`.
+
 Progress-toast device QA must use the DEBUG Settings preview at compact and
 large widths with long species/trip names, VoiceOver, and Reduced Motion. A live
 scan matrix must confirm standard outing toasts precede Seasonal Challenge
@@ -776,6 +789,36 @@ generated URL is copied into the public snapshot and normalized asset;
 repair; `update-explore-field-notes/db_test.ts` verifies edit media is approved
 before thumbnail attachment; and `_shared/scanMediaDeletion_test.ts` verifies
 derived thumbnails are included in coordinated R2 cleanup.
+
+iOS audio playback policy coverage lives in
+`MerianTests/Features/Explore/ExploreAudioBoostTests.swift` because the focused
+suite exercises the shared Core policy and both playback surfaces. The
+`insightAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` and
+`exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` tests require live
+player time only when UI intent and the concrete player are both playing, and
+require stored progress while paused, waiting, or seeking.
+`boostedAudioIsFullyReadableBeforePublication` verifies every rendered frame can
+be reopened and decoded; the source-handoff and failure-recovery tests lock idle
+replacement and last-confirmed-position fallback.
+
+Run the focused regression suite after changing the Explore/Insight playhead,
+audio boost rendering, or source handoff:
+
+```bash
+xcodebuild -scheme Merian -project Merian.xcodeproj \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+  -only-testing:merianTests/ExploreAudioBoostTests test
+```
+
+Device QA must cold-open an audio-backed Insight with boost enabled and play the
+clip through its midpoint on the first attempt, then replay it. Neither pass may
+stall, lose the line, jump to the end, or remain falsely playing. In Explore,
+play the same short and 15-second post in both feed and detail and confirm the
+line moves continuously with audible playback, remains parked during buffering
+and pause, does not snap backward on pause, and reaches the end with the audio.
+Also confirm the elapsed/total badge still advances at its lower cadence, the
+spectrogram does not visibly rerender, feed navigation gestures are unchanged,
+and detail seeking still behaves as documented.
 
 ### `validate_edge_dtos.ts`
 

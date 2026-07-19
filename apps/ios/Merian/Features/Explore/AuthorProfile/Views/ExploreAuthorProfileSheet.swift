@@ -311,7 +311,10 @@ struct ExploreAuthorProfileContent: View {
 
                 if FieldTripsAvailability.isEnabled,
                    let fieldTrips = profile.fieldTrips,
-                   !fieldTrips.isEmpty {
+                   FieldTripProfilePresentation.hasContent(
+                       fieldTrips,
+                       eventsEnabled: FieldTripEventsAvailability.isEnabled
+                   ) {
                     FieldTripProfilePreview(summaries: fieldTrips, onOpenPublication: { publicationId in
                         onOpenPublication(publicationId)
                     })

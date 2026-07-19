@@ -80,22 +80,25 @@ steps are tracked in the
 - Share/unshare scans to Explore with optional public hashtags and a selectable
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
-- Field trips are currently an internal preview visible only to
-  `erdener.emre@gmail.com` and simulator builds. The preview adds guided regional checklist quests beside Explore, with
-  Outings and Events segments, Goals/Tips detail, explicit start, curated tips,
-  profile pins, following-weighted Community discovery, seasonal
-  non-competitive challenges, completion badges, optional challenge hashtag
-  suggestions, and a compact account-cached visual Scan target that opens the
+- Field trips are released for every user. They add guided regional checklist
+  quests beside Explore, with Outings, Goals/Tips detail, explicit start,
+  curated tips, profile pins, following-weighted Community discovery, and a
+  compact account-cached visual Scan target that opens the
   relevant field trip guide. The active level shows a circular progress ring;
   completed standard goals use the exact device-local scan thumbnail and open
   that Insight inside the same Explore sheet when the record is available.
-  Saved scans that advance an outing or Event show contextual progress toasts
-  with a credited ring and tap-through navigation before any achievement or
-  New to Naturebook notification from the same scan.
+  Saved scans that advance an outing show contextual progress toasts with a
+  credited ring and tap-through navigation before any achievement or New to
+  Naturebook notification from the same scan.
   Publication storage stays separate from Explore posts; typed Field trip cards
   can appear in unfiltered Recent and Following, but not in Explore maps or the
-  other post-only surfaces. Seasonal Challenge-specific targets are not included
-  in the Scan indicator, while their linked standard field trip remains eligible.
+  other post-only surfaces. Events remain a client-gated preview for
+  `erdener.emre@gmail.com` and simulator builds; the preview includes curated
+  seasonal challenges, completion badges, published entries, and optional
+  challenge hashtag suggestions. DEBUG startup logs
+  `TODO(field-trip-events-release)` while this state remains; the public Events
+  checklist is in
+  [`25-field-trips.md`](docs/features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Explore posts support image, short-video, and standalone-audio media snapshots.
 - Compact Explore/profile grids render standalone-audio posts with the species
@@ -106,6 +109,9 @@ steps are tracked in the
   resets playback to muted.
 - Feed audio and video use a dedicated center Play/Pause hit zone, while taps
   elsewhere on the media continue opening post detail and double taps like.
+- Standalone-audio playheads in Explore feed, Explore post detail, and completed
+  scan Insights follow the audible player clock smoothly and hold their exact
+  position while playback is paused, buffering, or being repositioned.
 - Standalone Explore audio posts offer an optional device-local “Boost audio”
   listening mode from feed and detail menus, remembered independently per post
   without changing the original recording.

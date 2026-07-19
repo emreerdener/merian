@@ -7,10 +7,14 @@ only a camera/performance setting.
 
 ## Current Scope
 
+- Standard Field trips and Outings are released for every user. Events remain a
+  client-gated preview for `erdener.emre@gmail.com` and simulator builds through
+  `FieldTripEventsAvailability.isReleased`; enabling that release flag exposes
+  Events to everyone. The client gate is not a backend authorization boundary.
 - Field trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
-- The Field trips surface has two page-header segments: `Outings` first by default
-  for standard outings and `Events` second for live and upcoming curated
-  challenges.
+- The Field trips surface opens directly to `Outings` for standard outings. When
+  Events are enabled, the page header adds an `Outings`/`Events` segmented picker
+  and Events lists live and upcoming curated challenges.
 - Standard Field trip and Seasonal Challenge detail pages pin `Goals` and
   `Tips` in the sheet toolbar. `Goals` is selected by default and owns the
   trip overview, progress, actions, checklist, and Community content; `Tips`
@@ -72,6 +76,50 @@ only a camera/performance setting.
   APNs, widgets, leaderboards, prizes, rankings, contest windows, or
   sponsored-trip eligibility.
 
+## Rollout State and Events Release Checklist
+
+The release state is intentionally split in iOS:
+
+- `FieldTripsAvailability.isEnabled == true` makes Field trips and standard
+  Outings public.
+- `FieldTripEventsAvailability.isReleased == false` keeps Events staged. The
+  allowlisted tester account and simulator builds bypass that flag so UI/UX work
+  can continue against the deployed backend.
+- This is a client-build flag, not a remotely managed feature flag. Changing it
+  requires a new iOS build and release. It does not grant or revoke backend
+  authorization.
+- DEBUG app startup writes
+  `TODO(field-trip-events-release): Outings are public; Events remain staged to the tester allowlist and simulator builds.`
+  to `MerianLog.general`. The source flag carries the same named TODO so a repo
+  search and the Xcode console both expose the pending state.
+
+When Events UI/UX is ready for public release:
+
+1. Complete physical-device QA for an allowlisted account, a non-allowlisted
+   account, and a signed-out/ghost user. Before the flip, only the allowlisted
+   account should see Events on device; simulator builds should always see it.
+2. Verify the production Field trips migrations and Edge Function are current,
+   then exercise catalog, detail, Join, progress, badge, entry publication,
+   comments/likes, and optional Explore hashtag suggestions. The backend is
+   already deployed, so do not redeploy it solely because the client flag
+   changes.
+3. Set `FieldTripEventsAvailability.isReleased` to `true`, remove the tester and
+   simulator bypass paths, and update `FieldTripsAvailabilityTests` so the
+   public state is locked by tests.
+4. Promote the gated `2026-07-19-field-trip-events-preview` bundled changelog
+   entry into the public Events release entry. Update `README.md`, `CHANGELOG.md`,
+   the Explore RFC and shell README, the Explore/Field trips feature docs,
+   profile/gamification docs, testing guidance, logging guidance, and the
+   Supabase deployment/function docs.
+5. Remove `TODO(field-trip-events-release)` and change the startup notice to the
+   released-state message. Run the focused iOS suites, Deno Field trips tests,
+   SwiftLint, changelog JSON validation, and an unsigned device build before
+   distributing the client.
+
+If release QA finds an Events regression, set the client release flag back to
+`false` and issue a replacement build. Because the switch is compiled into the
+client, it is not an instantaneous server-side rollback mechanism.
+
 ## Product Terminology
 
 These labels are a user-facing contract even though older internal symbols and
@@ -115,7 +163,8 @@ difficulty.
 ## Product Flow
 
 1. A signed-in or ghost user opens Explore -> Field trips. The `Outings` segment
-   loads first; `Events` separately lists live and upcoming challenges.
+   loads first; when Events are enabled, `Events` separately lists live and
+   upcoming challenges.
 2. `/field-trips` with `action: "catalog"` returns accessible and locked
    templates, their levels, checklist items, and any existing progress.
 3. Opening a catalog card loads `action: "template_detail"` and shows guide
@@ -807,8 +856,8 @@ completion, multiple standard/challenge matches, re-identification after level
 advancement, and idempotent reapplication.
 Confirm the response exposes credited counts for the changed level and that
 legacy responses still decode through the current-count fallback. For one scan,
-verify the visible order is standard outings, Seasonal Challenges,
-achievements, then **New to Naturebook**; a failed/no-match progress attempt
+verify the visible order is standard outings, Events-visible Seasonal
+Challenges, achievements, then **New to Naturebook**; a failed/no-match progress attempt
 must release the later milestones only after it finishes, and foreground plus
 background completion must enqueue once. Tap a standard toast to open its
 focused first credited goal and a challenge toast to open challenge detail.

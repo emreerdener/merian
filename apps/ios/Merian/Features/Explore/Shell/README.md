@@ -5,10 +5,14 @@ The `Shell` directory acts as the root container and routing hub for the Explore
 ## Purpose
 This area orchestrates the top-level navigation, layout chrome, and state coordination for the Explore feature. It manages the transitions between Observations, Identify, Field trips, Dictionary, pushed detail routes, notifications, and search interfaces while keeping the sub-components focused on their own domain logic.
 
-The Field trips feature is currently release-gated by `FieldTripsAvailability`: only the
-allowlisted tester email and simulator builds may expose its tab or supporting
-surfaces. New Field trips entry points must use the same shared rule rather than
-adding local debug checks.
+Field trips and standard Outings are released for every user through the shared
+`FieldTripsAvailability` rule. Events remain staged behind
+`FieldTripEventsAvailability` for the allowlisted tester email and simulator
+builds. New Event entry points must use that shared rule for UI, loading, and
+routing rather than adding local debug checks. This is a client-build switch,
+not a remote flag; DEBUG startup logs `TODO(field-trip-events-release)` until the
+canonical checklist in `docs/features-and-hardware/25-field-trips.md` is
+completed.
 
 ## Fresh-launch entry
 
@@ -31,7 +35,7 @@ Capture or the shared progress toast at this feature boundary. A standard
 `.fieldTrip(templateId:checklistItemId:)` destination selects Outings, opens the
 template, and focuses the credited goal. A
 `.fieldTripChallenge(challengeId:)` destination selects Events and pushes
-Seasonal Challenge detail. Do not expose `FieldTripTemplateRoute` or
+Seasonal Challenge detail only while Events are enabled. Do not expose `FieldTripTemplateRoute` or
 `FieldTripChallengeRoute` to Core feedback code.
 
 `fieldTripProgressUpdated` and `fieldTripChallengeProgressUpdated` continue to

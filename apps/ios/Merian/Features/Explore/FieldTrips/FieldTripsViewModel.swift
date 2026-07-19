@@ -114,15 +114,22 @@ final class FieldTripsViewModel {
     var toastMessage: String?
 
     private var didLoad = false
+    private var loadedEventsEnabled: Bool?
 
-    func load(userRegion: String? = nil, force: Bool = false) async {
-        guard force || !didLoad else { return }
+    func load(
+        userRegion: String? = nil,
+        eventsEnabled: Bool? = nil,
+        force: Bool = false
+    ) async {
+        let eventsEnabled = eventsEnabled ?? FieldTripEventsAvailability.isEnabled
+        guard force || !didLoad || loadedEventsEnabled != eventsEnabled else { return }
         isLoading = true
         errorMessage = nil
         challengeErrorMessage = nil
         defer {
             isLoading = false
             didLoad = true
+            loadedEventsEnabled = eventsEnabled
         }
 
         do {
@@ -131,15 +138,22 @@ final class FieldTripsViewModel {
             errorMessage = ExploreErrorFormatter.message(for: error)
         }
 
-        do {
-            challenges = try await MerianNetworkClient.shared.getFieldTripChallenges(userRegion: userRegion)
-        } catch {
-            challengeErrorMessage = ExploreErrorFormatter.message(for: error)
+        if eventsEnabled {
+            do {
+                challenges = try await MerianNetworkClient.shared.getFieldTripChallenges(userRegion: userRegion)
+            } catch {
+                challengeErrorMessage = ExploreErrorFormatter.message(for: error)
+            }
+        } else {
+            challenges = []
         }
     }
 
-    func refresh(userRegion: String? = nil) async {
-        await load(userRegion: userRegion, force: true)
+    func refresh(
+        userRegion: String? = nil,
+        eventsEnabled: Bool? = nil
+    ) async {
+        await load(userRegion: userRegion, eventsEnabled: eventsEnabled, force: true)
     }
 
     func template(withId templateId: String) -> FieldTripTemplate? {

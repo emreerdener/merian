@@ -328,6 +328,16 @@ unchanged by the credited-level extension.
 
 ### Seasonal Challenges
 
+The challenge API is deployed before the Events UI is public. Standard Outings
+are available to every iOS user, while the client omits the Events segment,
+catalog/detail requests, badges, entry routes, and hashtag suggestions unless
+`FieldTripEventsAvailability` is enabled. `apply_scan_progress` may still return
+challenge progress from the shared server transaction; an Events-disabled
+client filters those rows before caching, refresh publication, navigation, or
+presentation. This release gate is not an authorization boundary: all actions
+continue to enforce the verified viewer and existing database policies. The
+future public Events flip does not change these request or response shapes.
+
 Catalog request:
 
 ```json

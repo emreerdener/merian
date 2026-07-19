@@ -205,7 +205,7 @@ struct FieldTripAPIModelsTests {
 
         #expect(response.data.count == 1)
         #expect(response.data[0].publicationId == "publication-1")
-        #expect(response.data[0].publicAuthorDisplayName == "@ari")
+        #expect(response.data[0].publicAuthorDisplayName == "Ari")
         #expect(response.data[0].publishedAt == "2026-07-08T01:00:00Z")
         #expect(response.data[0].rankBucket == 0)
         #expect(response.data[0].communityReasonLabel == "Following")
@@ -412,7 +412,7 @@ struct FieldTripAPIModelsTests {
         #expect(response.data[0].isLive)
         #expect(response.data[0].viewerParticipation?.fractionComplete == 0.25)
         #expect(response.data[0].suggestedHashtags == ["summerpollinators"])
-        #expect(response.data[0].entries[0].publicAuthorDisplayName == "@ari")
+        #expect(response.data[0].entries[0].publicAuthorDisplayName == "Ari")
     }
 
     @Test func challengeProgressResponseDecodesOptionalChallengeUpdates() throws {
@@ -617,6 +617,22 @@ struct FieldTripAPIModelsTests {
         #expect(response.data.challengeBadges.count == 1)
         #expect(!response.data.isEmpty)
         #expect(response.data.challengeBadges[0].challengeTitle == "Summer Pollinator Watch")
+        #expect(!FieldTripProfilePresentation.hasContent(
+            response.data,
+            eventsEnabled: false
+        ))
+        #expect(FieldTripProfilePresentation.itemCount(
+            in: response.data,
+            eventsEnabled: false
+        ) == 0)
+        #expect(FieldTripProfilePresentation.hasContent(
+            response.data,
+            eventsEnabled: true
+        ))
+        #expect(FieldTripProfilePresentation.itemCount(
+            in: response.data,
+            eventsEnabled: true
+        ) == 1)
     }
 
     @Test func difficultyNormalizesKnownValuesAndPreservesUnknownValues() {
@@ -947,6 +963,23 @@ struct ActiveFieldTripProfilePresentationTests {
         #expect(item.currentLevelItems.first?.completedScanId == "scan-1")
     }
 
+    @Test func activeCatalogProgressStillProducesCardsWithoutCaptureContext() {
+        let templates = [
+            makeTemplate(id: "older", startedAt: "2026-07-18T18:00:00Z"),
+            makeTemplate(id: "recent", startedAt: "2026-07-18T20:00:00Z")
+        ]
+
+        let items = ActiveFieldTripProfilePresentation.items(
+            outings: [],
+            templates: templates
+        )
+
+        #expect(items.map(\.id) == ["recent", "older"])
+        #expect(items.first?.completedCount == 1)
+        #expect(items.first?.targetCount == 4)
+        #expect(items.first?.currentLevelItems.map(\.prompt) == ["Bird"])
+    }
+
     @Test func completedThumbnailFallsBackToTripWhenTheScanIsNotAvailableLocally() {
         #expect(
             FieldTripScanPreviewAction.resolve(
@@ -991,7 +1024,8 @@ struct ActiveFieldTripProfilePresentationTests {
         viewerHasAccess: Bool = true,
         isComplete: Bool = false,
         levelNumber: Int = 1,
-        completedScanId: String? = nil
+        completedScanId: String? = nil,
+        startedAt: String = "2026-07-18T19:00:00Z"
     ) -> FieldTripTemplate {
         let outingId = id
         return FieldTripTemplate(
@@ -1015,7 +1049,7 @@ struct ActiveFieldTripProfilePresentationTests {
             accessKind: viewerHasAccess ? "free" : "locked",
             activeProgress: FieldTripProgress(
                 userFieldTripId: outingId,
-                startedAt: "2026-07-18T19:00:00Z",
+                startedAt: startedAt,
                 currentLevelNumber: levelNumber,
                 completedAt: isComplete ? "2026-07-18T20:00:00Z" : nil,
                 isProfileVisible: true,
@@ -1055,6 +1089,8 @@ struct ActiveCaptureGoalStoreTests {
     @Test func fieldTripsUsesOutingsAndEventsFeatureLabels() {
         #expect(FieldTripsSection.fieldTrips.title == "Outings")
         #expect(FieldTripsSection.seasonal.title == "Events")
+        #expect(FieldTripsSection.availableSections(eventsEnabled: false) == [.fieldTrips])
+        #expect(FieldTripsSection.availableSections(eventsEnabled: true) == [.fieldTrips, .seasonal])
     }
 
     @Test func fieldTripProviderFlattensServerOrderIntoGenericGoals() async throws {

@@ -23,6 +23,22 @@ Deploy the migrations before deploying this function. Existing installations
 with the current V4 function do not require a function redeploy because the two
 credited-progress migrations change only database responses.
 
+## Client Rollout State (2026-07-19)
+
+- The backend supports standard Outings and Seasonal Challenge Events and is
+  deployed before the full Events UI release.
+- Standard Field trips and Outings are public in iOS.
+- Events remain staged by `FieldTripEventsAvailability.isReleased`; the tester
+  account and simulator builds bypass that client flag. This function must not
+  treat the flag as authentication or authorization.
+- The shared `apply_scan_progress` transaction can return standard and challenge
+  updates. Events-disabled clients discard challenge-only results before local
+  caching, refresh publication, routing, or UI presentation.
+- Flipping Events public is an iOS release operation and does not require a
+  function redeploy unless this function or its database contract also changes.
+  The canonical checklist lives in
+  `docs/features-and-hardware/25-field-trips.md`.
+
 ## Privacy Contract
 
 - Active profile summaries are checklist-status only.

@@ -18,6 +18,8 @@ enum AchievementDetailNavigationPolicy {
     }
 }
 
+private struct AchievementFieldTripsRoute: Hashable {}
+
 // MARK: - Primary View
 struct Achievements: View {
     @Environment(\.modelContext) private var modelContext
@@ -190,10 +192,12 @@ struct AchievementDetailSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) private var inferenceEngine
 
+    @State private var navigationPath = NavigationPath()
     @State private var detail: AchievementDetailPayload?
     @State private var isLoading = true
     @State private var selectedScanForInsight: ScanInsightRoute?
-    @State private var isShowingFieldTrips = false
+    @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
+    @State private var fieldTripsExploreViewModel = ExploreFeedViewModel()
 
     private var resolvedAward: AwardPayload {
         detail?.award ?? award
@@ -204,7 +208,7 @@ struct AchievementDetailSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     AchievementDetailHeader(award: resolvedAward)
@@ -245,6 +249,55 @@ struct AchievementDetailSheet: View {
                     .accessibilityIdentifier("AchievementDetailSheet_Close")
                 }
             }
+            .navigationDestination(for: AchievementFieldTripsRoute.self) { _ in
+                AchievementFieldTripsPage(
+                    navigationPath: $navigationPath,
+                    onOpenCompletedScan: openFieldTripCompletedScan,
+                    onOpenAuthorProfile: openFieldTripAuthorProfile
+                )
+            }
+            .navigationDestination(for: FieldTripTemplateRoute.self) { route in
+                FieldTripTemplateDetailView(
+                    reference: route.reference,
+                    focusedChecklistItemId: route.focusedChecklistItemId,
+                    onOpenCompletedScan: openFieldTripCompletedScan,
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenAuthorProfile: openFieldTripAuthorProfile
+                )
+            }
+            .navigationDestination(for: FieldTripChallengeRoute.self) { route in
+                if FieldTripEventsAvailability.isEnabled {
+                    FieldTripChallengeDetailView(
+                        challengeId: route.challengeId,
+                        onOpenEntry: { entryId in
+                            navigationPath.append(FieldTripChallengeEntryRoute(entryId: entryId))
+                        },
+                        onOpenAuthorProfile: openFieldTripChallengeAuthorProfile
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Events aren’t available yet",
+                        systemImage: "calendar.badge.clock",
+                        description: Text("Field trip Events are still in preview.")
+                    )
+                }
+            }
+            .navigationDestination(for: FieldTripPublicationRoute.self) { route in
+                FieldTripPublicationDetailView(publicationId: route.publicationId)
+            }
+            .navigationDestination(for: FieldTripChallengeEntryRoute.self) { route in
+                if FieldTripEventsAvailability.isEnabled {
+                    FieldTripChallengeEntryDetailView(entryId: route.entryId)
+                } else {
+                    ContentUnavailableView(
+                        "Events aren’t available yet",
+                        systemImage: "calendar.badge.clock",
+                        description: Text("Field trip Events are still in preview.")
+                    )
+                }
+            }
         }
         .accessibilityIdentifier("AchievementDetailSheet_\(award.type.rawValue)")
         .sheet(item: $selectedScanForInsight) { route in
@@ -257,9 +310,11 @@ struct AchievementDetailSheet: View {
                 inferenceEngine: inferenceEngine
             )
         }
-        .sheet(isPresented: $isShowingFieldTrips) {
-            ExploreView(initialTab: .fieldTrips)
-                .presentationDragIndicator(.hidden)
+        .sheet(item: $selectedFieldTripAuthorRoute) { route in
+            ExploreAuthorProfileSheet(
+                viewModel: fieldTripsExploreViewModel,
+                route: route
+            )
         }
         .task(id: award.id) {
             await loadDetail()
@@ -308,7 +363,7 @@ struct AchievementDetailSheet: View {
             ) {
                 Button {
                     HapticManager.shared.triggerSelectionPulse()
-                    isShowingFieldTrips = true
+                    navigationPath.append(AchievementFieldTripsRoute())
                 } label: {
                     HStack(spacing: 8) {
                         Label("View Field trips", systemImage: "map")
@@ -324,7 +379,7 @@ struct AchievementDetailSheet: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("AchievementDetailSheet_ViewFieldTrips")
-                .accessibilityHint("Opens the Field trips sheet.")
+                .accessibilityHint("Opens Field trips in this achievement sheet.")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -375,11 +430,88 @@ struct AchievementDetailSheet: View {
     }
 
     @MainActor
+    private func openFieldTripCompletedScan(_ scanID: String) {
+        guard let record = fetchScan(withID: scanID) else {
+            HapticManager.shared.triggerErrorThump()
+            return
+        }
+
+        inferenceEngine.load(from: record)
+        HapticManager.shared.triggerSelectionPulse()
+        selectedScanForInsight = ScanInsightRoute(scanId: record.id)
+    }
+
+    @MainActor
+    private func openFieldTripAuthorProfile(_ publication: FieldTripRecentPublication) {
+        HapticManager.shared.triggerSelectionPulse()
+        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
+            authorUserId: publication.authorUserId,
+            authorName: publication.authorName,
+            authorUsername: publication.authorUsername,
+            authorAvatarUrl: publication.authorAvatarUrl
+        )
+    }
+
+    @MainActor
+    private func openFieldTripChallengeAuthorProfile(_ entry: FieldTripChallengeEntry) {
+        HapticManager.shared.triggerSelectionPulse()
+        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
+            authorUserId: entry.authorUserId,
+            authorName: entry.authorName,
+            authorUsername: entry.authorUsername,
+            authorAvatarUrl: entry.authorAvatarUrl
+        )
+    }
+
+    @MainActor
     private func fetchScan(withID scanID: String) -> LocalScanRecord? {
         let descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanID }
         )
         return try? modelContext.fetch(descriptor).first
+    }
+}
+
+private struct AchievementFieldTripsPage: View {
+    @Binding var navigationPath: NavigationPath
+
+    let onOpenCompletedScan: (String) -> Void
+    let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
+
+    @State private var selectedSection: FieldTripsSection = .fieldTrips
+
+    private var userRegion: String? {
+        EnvironmentContextManager.normalizedRegionIdentifier(Locale.current.region?.identifier)
+    }
+
+    var body: some View {
+        FieldTripsView(
+            userRegion: userRegion,
+            selectedSection: $selectedSection,
+            onOpenTemplate: { templateId in
+                navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
+            },
+            onOpenCompletedScan: onOpenCompletedScan,
+            onOpenPublication: { publicationId in
+                navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+            },
+            onOpenAuthorProfile: onOpenAuthorProfile
+        )
+        .navigationTitle("Field trips")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if FieldTripEventsAvailability.isEnabled {
+                ToolbarItem(placement: .principal) {
+                    Picker("Field trips view", selection: $selectedSection) {
+                        ForEach(FieldTripsSection.availableSections(eventsEnabled: true)) { section in
+                            Text(section.title).tag(section)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 240)
+                }
+            }
+        }
     }
 }
 

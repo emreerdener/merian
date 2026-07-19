@@ -99,7 +99,14 @@ final class ChangelogStore {
         }
 
         return catalog.newestEntriesFirst.filter { entry in
-            entry.id != "2026-07-08-field-trips" || FieldTripsAvailability.isEnabled
+            switch entry.id {
+            case "2026-07-08-field-trips":
+                FieldTripsAvailability.isEnabled
+            case "2026-07-19-field-trip-events-preview":
+                FieldTripEventsAvailability.isEnabled
+            default:
+                true
+            }
         }
     }
 }

@@ -208,12 +208,14 @@ final class ScanMilestoneCoordinator {
     typealias ProgressResolver = (String) async -> FieldTripProgressResult?
     typealias AchievementResolver = (ModelContainer?) async -> [AwardPayload]
     typealias FieldTripsAvailabilityResolver = @MainActor () -> Bool
+    typealias FieldTripEventsAvailabilityResolver = @MainActor () -> Bool
 
     static let shared = ScanMilestoneCoordinator()
 
     private let progressResolver: ProgressResolver
     private let achievementResolver: AchievementResolver
     private let fieldTripsAvailabilityResolver: FieldTripsAvailabilityResolver
+    private let fieldTripEventsAvailabilityResolver: FieldTripEventsAvailabilityResolver
     private let presenter: MilestoneToastPresenter
     private var inFlightScanIds: Set<String> = []
     private var completedScanIds: Set<String> = []
@@ -226,11 +228,15 @@ final class ScanMilestoneCoordinator {
         fieldTripsAvailabilityResolver: @escaping FieldTripsAvailabilityResolver = {
             FieldTripsAvailability.isEnabled
         },
+        fieldTripEventsAvailabilityResolver: @escaping FieldTripEventsAvailabilityResolver = {
+            FieldTripEventsAvailability.isEnabled
+        },
         presenter: MilestoneToastPresenter? = nil
     ) {
         self.progressResolver = progressResolver
         self.achievementResolver = achievementResolver
         self.fieldTripsAvailabilityResolver = fieldTripsAvailabilityResolver
+        self.fieldTripEventsAvailabilityResolver = fieldTripEventsAvailabilityResolver
         self.presenter = presenter ?? .shared
     }
 
@@ -250,7 +256,10 @@ final class ScanMilestoneCoordinator {
         let accountId = resolvesFieldTrips
             ? SupabaseManager.shared.currentUser?.id.uuidString
             : nil
-        let progress = resolvesFieldTrips ? await progressResolver(scanId) : nil
+        let progress = Self.visibleProgress(
+            resolvesFieldTrips ? await progressResolver(scanId) : nil,
+            eventsEnabled: fieldTripEventsAvailabilityResolver()
+        )
         cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
 
@@ -272,7 +281,10 @@ final class ScanMilestoneCoordinator {
     func processIdentificationUpdate(scanId: String) async {
         guard fieldTripsAvailabilityResolver() else { return }
         let accountId = SupabaseManager.shared.currentUser?.id.uuidString
-        let progress = await progressResolver(scanId)
+        let progress = Self.visibleProgress(
+            await progressResolver(scanId),
+            eventsEnabled: fieldTripEventsAvailabilityResolver()
+        )
         cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
 
@@ -289,6 +301,23 @@ final class ScanMilestoneCoordinator {
 
         return result.fieldTripUpdates.compactMap(FieldTripMilestonePayload.standard)
             + result.challengeUpdates.compactMap(FieldTripMilestonePayload.challenge)
+    }
+
+    static func visibleProgress(
+        _ result: FieldTripProgressResult?,
+        eventsEnabled: Bool
+    ) -> FieldTripProgressResult? {
+        guard let result, !eventsEnabled else { return result }
+
+        let achievement = result.firstFieldTripAchievement?.visible(eventsEnabled: false)
+        return FieldTripProgressResult(
+            fieldTripUpdates: result.fieldTripUpdates,
+            challengeUpdates: [],
+            firstFieldTripAchievement: achievement,
+            firstFieldTripAchievementNewlyUnlocked: achievement == nil
+                ? false
+                : result.firstFieldTripAchievementNewlyUnlocked
+        )
     }
 
     static func isValidNewToMerianMilestone(_ data: SpeciesData) -> Bool {

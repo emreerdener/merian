@@ -2,6 +2,34 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-19-field-trip-events-preview",
+      "date": "2026-07-19",
+      "title": "Field trip Events preview",
+      "sections": [
+        {
+          "title": "Preview",
+          "items": [
+            "Events add curated, non-competitive Field trip goals with explicit Join, event progress, completion badges, and published entry pages.",
+            "Eligible event hashtags can appear as optional Explore sharing suggestions, but Naturebook never auto-posts or auto-tags a scan for an Event."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-19-audio-playback-reliability",
+      "date": "2026-07-19",
+      "title": "Smoother, more reliable audio playback",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Audio playheads in Explore feed, Explore post detail, and completed scan Insights now move smoothly with audible playback and stay put while paused, buffering, or seeking.",
+            "The first playback of boosted Insight audio now waits for a safe source handoff and falls back to the original recording if decoding stops unexpectedly, instead of freezing or jumping to the end."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-18-workspace-launch-preference",
       "date": "2026-07-18",
       "title": "Your launch, your workspace",
@@ -409,9 +437,7 @@
           "items": [
             "Explore now includes Field trips: regional checklist quests that can auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
             "Field trips now include guided detail pages, explicit Start, curated checklist tips, a Field trips-only Community segment with For You, Following, and Recent filters, and up to 3 pinned published trips on profiles.",
-            "Seasonal Challenges add curated, non-competitive Field trip goals with explicit Join, challenge progress, completion badges, and challenge entry pages.",
             "Published Field trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map.",
-            "Eligible challenge hashtags can appear as optional Explore sharing suggestions, but Naturebook never auto-posts or auto-tags a scan for a challenge.",
             "Field trip comments, replies, and followed-author publications can now appear in the in-app activity bell without sending push notifications."
           ]
         }

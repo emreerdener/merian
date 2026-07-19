@@ -704,6 +704,12 @@ clock on SwiftUI's display-synchronized animation timeline while playback is
 active, matching Insight playback without forcing the raster spectrogram or
 timestamp badge to redraw every frame. Paused, waiting, and seeking states keep
 the last stored progress so the line never advances ahead of audible playback.
+`AudioSpectrogramSeekingPolicy` owns the shared clamping and display gate: live
+time is eligible only when both UI playback intent and the concrete player say
+they are playing. The players never extrapolate from a periodic observer tick.
+Explore keeps its 100 ms observer for timestamp and lifecycle state, snapshots
+the live clock immediately before a pause, and limits the display-rate update to
+the thin playhead overlay.
 
 Public web Explore playback is thumbnail-first. The home grid and post page use
 the persisted audio media `thumbnail_url` when available, while the native audio

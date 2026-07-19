@@ -83,7 +83,8 @@ drives a user-facing Insight celebration. `SpeciesData.isNewToMerianDictionary`
 is the separate global dictionary contribution signal returned by the identify
 Edge payload. `ScanMilestoneCoordinator` evaluates that flag for the final saved
 scan after the Field trip progress attempt and appends **New to Naturebook**
-after any standard outing progress, Seasonal Challenge progress, and newly
+after any standard outing progress, Events-visible Seasonal Challenge progress,
+and newly
 unlocked achievements. The Insight lifecycle retains VoiceOver/result haptic
 work but does not enqueue the dictionary milestone, preventing repeated sheet
 appearances from duplicating it. Error placeholders created by local fallback
@@ -653,7 +654,8 @@ if data.isNewToMerianDictionary && data.isBiological
 
 The coordinator waits for the existing remote-persistence/progress attempt,
 collects newly unlocked achievements without presenting them immediately, and
-atomically enqueues standard Field trips, Seasonal Challenges, achievements,
+atomically enqueues standard Field trips, Events-visible Seasonal Challenges,
+achievements,
 then **New to Naturebook**. The final scan ID deduplicates foreground and
 background completion races. Progress failure or an empty match result does not
 suppress the achievement/dictionary milestones; it only delays them until the

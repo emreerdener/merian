@@ -61,7 +61,7 @@ A structured schema built on native SwiftData migrations:
 - *Scan Milestone Boundary*: `ScanMilestoneCoordinator` is the shared
   foreground/background completion boundary keyed by the final Postgres scan
   UUID. It waits for server persistence and Field trip progress, then batches
-  standard outings, Seasonal Challenges, achievements, and
+  standard outings, Events-visible Seasonal Challenges, achievements, and
   **New to Naturebook** in that order. This prevents the live inference task and
   background URLSession completion from presenting duplicate notifications.
 - Schema versioning handles migrations cleanly.

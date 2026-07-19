@@ -324,7 +324,8 @@ triggering excessive SwiftUI view rebuilds.
   draw probe in `InsightSheetView` closes tap-to-first-render timing on the first
   actual result frame. `ScanMilestoneCoordinator` runs in follow-up work, polls
   `/check-scan-status` before invoking Field trip progress, then calculates
-  awards and batches standard outings, Seasonal Challenges, achievements, and
+  awards and batches standard outings, Events-visible Seasonal Challenges,
+  achievements, and
   **New to Naturebook**. Tools requiring server persistence stay disabled until
   the existing ingestion ledger confirms the final scan ID.
 - **Inline/background upload handoff**: `analyze()` installs a two-second
@@ -1261,9 +1262,10 @@ and `KeychainManager` migration logic. Do not inline
   so historical qualifying scans are seeded silently instead of showing
   retroactive unlock banners.
 - **The Field Naturalist** is the server-authoritative exception to the local
-  scan calculator. `ScanMilestoneCoordinator` merges the typed earliest outing
-  or Seasonal Challenge payload only when Field trips are available, saves it
-  in an account-scoped `UserDefaults` cache, and passes it to
+  scan calculator. `ScanMilestoneCoordinator` merges the typed earliest standard
+  outing for every user and a Seasonal Challenge payload only when
+  `FieldTripEventsAvailability` is enabled, saves only visible results in an
+  account-scoped `UserDefaults` cache, and passes it to
   `GamificationManager` only when the current server mutation reports a new
   unlock. There is no rollout cutoff because Field trips had no prior user
   engagement.
@@ -1285,11 +1287,16 @@ and `KeychainManager` migration logic. Do not inline
   It deduplicates by final scan ID, awaits the existing persistence/progress
   attempt, gathers achievements without presenting them immediately, evaluates
   `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
-  Field trips, Seasonal Challenges, achievements, then **New to Naturebook**.
+  Field trips, visible Seasonal Challenges, achievements, then **New to Naturebook**.
+  When Events are disabled, the coordinator removes challenge progress before
+  caching, refresh publication, destination construction, or toast presentation.
   Identification corrections reapply progress through the same coordinator but
   do not replay the original scan-achievement/dictionary batch. When Field trips
   are disabled, the coordinator skips its progress resolver while ordinary scan
   achievements and dictionary milestones continue normally.
+  `FieldTripsAvailability` is currently public/always on; availability injection
+  remains as a test seam and future emergency client-build control. The
+  independent Events gate does not suppress standard outing progress.
 - The presenter controls only in-app banner presentation. It does not mutate
   Field trip progress, achievement progress, dictionary state, analytics, or
   native notification authorization. DEBUG Settings preview entry points

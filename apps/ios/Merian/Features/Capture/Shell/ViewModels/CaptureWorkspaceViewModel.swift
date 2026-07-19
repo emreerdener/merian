@@ -465,6 +465,10 @@ final class CaptureWorkspaceViewModel {
     }
 
     func openCaptureGoal(_ destination: CaptureGoalDestination) {
+        if case .fieldTripChallenge = destination,
+           !FieldTripEventsAvailability.isEnabled {
+            return
+        }
         protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = nil
         pendingCommunityIdentificationRequestId = nil

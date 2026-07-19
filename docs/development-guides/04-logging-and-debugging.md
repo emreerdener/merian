@@ -45,6 +45,7 @@ When in doubt, use `MerianLog.general`. Do not create new `Logger` instances out
 |---|---|---|
 | Debug | `.debug(...)` | Expected paths, performance timings, state transitions that are useful during development. Stripped from production builds by the OS by default. |
 | Info | `.info(...)` | Informational messages that should survive to production logs. Use sparingly. |
+| Notice | `.notice(...)` | High-visibility operational state that should stand out from ordinary debug flow. Guard development-only reminders with `#if DEBUG`. |
 | Error | `.error(...)` | Any `catch` block where the failure represents a real problem (data loss risk, save failure, upload failure). Persists in production. |
 | Fault | `.fault(...)` | Reserved for programmer errors / invariant violations. Do not use in data paths. |
 
@@ -95,6 +96,24 @@ MerianLog.general.debug("Species: \(name, privacy: .auto)")
 
 ### Xcode Debug Console
 During a debug build, all `.debug` messages appear in the Xcode console. To filter in the console output stream, use `subsystem` as a filter prefix.
+
+### Field trip rollout reminder
+
+Every non-test DEBUG app startup calls
+`FieldTripEventsAvailability.logRolloutState()`. While Events are staged, the
+General-category notice is:
+
+```text
+TODO(field-trip-events-release): Outings are public; Events remain staged to the tester allowlist and simulator builds.
+```
+
+Filter the Xcode console for `field-trip-events-release`, or use
+`subsystem:com.merian.app category:General` in Console.app. The same named TODO
+is beside `FieldTripEventsAvailability.isReleased`, and the canonical release
+checklist is in
+[`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
+The reminder is compiled only into DEBUG builds, contains no user data, and is
+not product telemetry.
 
 ### Runtime Log Triage
 

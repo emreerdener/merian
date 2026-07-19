@@ -665,7 +665,7 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
   waits for remote persistence and the Field trip progress attempt, publishes
   progress refresh events, calculates newly eligible achievements without
   immediately presenting them, and atomically enqueues standard outing
-  progress, Seasonal Challenge progress, achievements, then
+  progress, Events-visible Seasonal Challenge progress, achievements, then
   **New to Naturebook**. A failed or no-match progress attempt releases the
   later milestones only after it finishes. Award calculation is per final scan
   rather than process-lifetime burst-debounced, because strict notification

@@ -97,11 +97,13 @@ struct ExploreView: View {
                 _navigationPath = State(initialValue: initialPath)
                 _activeTab = State(initialValue: .fieldTrips)
                 _activeFieldTripsSection = State(initialValue: .fieldTrips)
-            case .fieldTripChallenge(let challengeId):
+            case .fieldTripChallenge(let challengeId) where FieldTripEventsAvailability.isEnabled:
                 initialPath.append(FieldTripChallengeRoute(challengeId: challengeId))
                 _navigationPath = State(initialValue: initialPath)
                 _activeTab = State(initialValue: .fieldTrips)
                 _activeFieldTripsSection = State(initialValue: .seasonal)
+            case .fieldTripChallenge:
+                break
             }
         } else if let requestId = initialCommunityRequestId {
             var initialPath = NavigationPath()
@@ -298,22 +300,40 @@ struct ExploreView: View {
                 .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: FieldTripChallengeRoute.self) { route in
-                FieldTripChallengeDetailView(
-                    challengeId: route.challengeId,
-                    onOpenEntry: { entryId in
-                        navigationPath.append(FieldTripChallengeEntryRoute(entryId: entryId))
-                    },
-                    onOpenAuthorProfile: openAuthorProfile
-                )
-                .toolbar(.hidden, for: .tabBar)
+                if FieldTripEventsAvailability.isEnabled {
+                    FieldTripChallengeDetailView(
+                        challengeId: route.challengeId,
+                        onOpenEntry: { entryId in
+                            navigationPath.append(FieldTripChallengeEntryRoute(entryId: entryId))
+                        },
+                        onOpenAuthorProfile: openAuthorProfile
+                    )
+                    .toolbar(.hidden, for: .tabBar)
+                } else {
+                    ContentUnavailableView(
+                        "Events aren’t available yet",
+                        systemImage: "calendar.badge.clock",
+                        description: Text("Field trip Events are still in preview.")
+                    )
+                    .toolbar(.hidden, for: .tabBar)
+                }
             }
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in
                 FieldTripPublicationDetailView(publicationId: route.publicationId)
                     .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: FieldTripChallengeEntryRoute.self) { route in
-                FieldTripChallengeEntryDetailView(entryId: route.entryId)
+                if FieldTripEventsAvailability.isEnabled {
+                    FieldTripChallengeEntryDetailView(entryId: route.entryId)
+                        .toolbar(.hidden, for: .tabBar)
+                } else {
+                    ContentUnavailableView(
+                        "Events aren’t available yet",
+                        systemImage: "calendar.badge.clock",
+                        description: Text("Field trip Events are still in preview.")
+                    )
                     .toolbar(.hidden, for: .tabBar)
+                }
             }
             .toolbar { exploreToolbar }
         }
@@ -1392,13 +1412,16 @@ private struct ExploreRootModePicker: View {
     @Binding var activeCommunityMode: CommunityIdentificationMode
     @Binding var activeFieldTripsSection: FieldTripsSection
 
+    @ViewBuilder
     var body: some View {
-        picker
-            .pickerStyle(.segmented)
-            .padding(.bottom, 1)
-            .background(Capsule().fill(.regularMaterial))
-            .clipShape(Capsule())
-            .frame(width: pickerWidth)
+        if activeTab != .fieldTrips || FieldTripEventsAvailability.isEnabled {
+            picker
+                .pickerStyle(.segmented)
+                .padding(.bottom, 1)
+                .background(Capsule().fill(.regularMaterial))
+                .clipShape(Capsule())
+                .frame(width: pickerWidth)
+        }
     }
 
     @ViewBuilder
@@ -1417,7 +1440,9 @@ private struct ExploreRootModePicker: View {
             }
         case .fieldTrips:
             Picker("Field trips view", selection: $activeFieldTripsSection) {
-                ForEach(FieldTripsSection.allCases) { section in
+                ForEach(FieldTripsSection.availableSections(
+                    eventsEnabled: FieldTripEventsAvailability.isEnabled
+                )) { section in
                     Text(section.title).tag(section)
                 }
             }

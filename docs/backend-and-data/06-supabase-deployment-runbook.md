@@ -270,6 +270,16 @@ If the current V4 `field-trips` function is already deployed, this incremental
 release needs the two new migrations and iOS client only; the function does not
 need to be redeployed solely for the response additions.
 
+Current client rollout (2026-07-19): standard Field trips/Outings are public,
+while Seasonal Challenge Events remain staged through
+`FieldTripEventsAvailability.isReleased`. The tester account and simulator
+builds bypass that iOS flag. This is not a Supabase feature flag or an
+authorization boundary, and the current backend remains deployed for both
+standard and challenge actions. Publishing Events later requires an iOS build;
+do not run migrations or redeploy `field-trips` solely for that flag change.
+Follow the canonical release checklist in
+[`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
+
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
 anonymous-compatible app routes set `verify_jwt = false` and then perform manual
@@ -803,6 +813,14 @@ After deployment:
   requesting owner's active non-deleted snapshot. Catalog and public/capture
   projections must remain unchanged, and direct client roles must remain unable
   to execute template detail.
+  While Events are staged, verify a physical non-allowlisted account and ghost
+  user see Outings but not the Events segment, requests, badges, routes, or
+  hashtag suggestions; verify the allowlisted tester and simulator still see
+  the full Events flow. Before public Events release, set the client release
+  flag intentionally, promote the gated bundled changelog entry, update the
+  rollout documentation and test lock, and rerun the Field trips iOS/Deno suites
+  plus an unsigned device build. No backend deploy is implied unless a backend
+  contract changed independently.
   Publishing a Field trip or challenge entry must not write `explore_posts`, map points,
   normal Explore post notification rows, APNs, widgets, public web share pages,
   prize rows, or leaderboard rows. Field trip comment/reply/followed-publication

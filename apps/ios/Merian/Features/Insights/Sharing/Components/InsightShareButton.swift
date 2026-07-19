@@ -215,7 +215,8 @@ struct InsightShareButton: View {
     }
 
     private func loadChallengeEventHashtags() async {
-        guard let scanId = scanId?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard FieldTripEventsAvailability.isEnabled,
+              let scanId = scanId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !scanId.isEmpty else {
             challengeEventHashtags = []
             return

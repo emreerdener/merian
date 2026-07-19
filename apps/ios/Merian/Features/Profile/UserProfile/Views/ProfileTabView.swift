@@ -218,11 +218,13 @@ struct ProfileTabView: View {
             return
         }
 
-        var progress = FirstFieldTripAchievementProgressStore.load(accountId: accountId)
+        var progress = FirstFieldTripAchievementProgressStore.load(accountId: accountId)?
+            .visible(eventsEnabled: FieldTripEventsAvailability.isEnabled)
         awards = stats.awards.mergingFirstFieldTripAchievement(progress)
         do {
             if let refreshedProgress = try await MerianNetworkClient.shared
-                .getFirstFieldTripAchievementProgress() {
+                .getFirstFieldTripAchievementProgress()?
+                .visible(eventsEnabled: FieldTripEventsAvailability.isEnabled) {
                 guard SupabaseManager.shared.currentUser?.id.uuidString == accountId else {
                     return
                 }

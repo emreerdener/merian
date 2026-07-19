@@ -96,6 +96,7 @@ struct SettingsTabView: View {
                     .environment(RevenueCatManager.shared)
             }
             .listStyle(InsetGroupedListStyle())
+            .contentMargins(.top, 16, for: .scrollContent)
             .containerRelativeFrame(.horizontal)
             .sheet(isPresented: $showSafari) {
                 if let url = safariUrl {
