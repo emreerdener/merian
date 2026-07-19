@@ -699,7 +699,11 @@ can still page normally. Both players pause during a drag and resume only when
 they were playing before it began. Original and boosted sources use the same
 normalized position, and VoiceOver adjusts playback in five-second steps.
 Explore feed cards remain non-seekable to preserve their playback, like, and
-navigation gesture contract.
+navigation gesture contract. Feed and detail playheads sample the live AVPlayer
+clock on SwiftUI's display-synchronized animation timeline while playback is
+active, matching Insight playback without forcing the raster spectrogram or
+timestamp badge to redraw every frame. Paused, waiting, and seeking states keep
+the last stored progress so the line never advances ahead of audible playback.
 
 Public web Explore playback is thumbnail-first. The home grid and post page use
 the persisted audio media `thumbnail_url` when available, while the native audio

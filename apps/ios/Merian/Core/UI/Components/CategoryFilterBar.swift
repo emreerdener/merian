@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum CategoryFilterBarPresentation {
+    case standard
+    case overContent
+}
+
 struct CategoryFilterBar<Item: Hashable>: View {
     // MARK: - State Dependencies
     let items: [Item]
@@ -7,6 +12,8 @@ struct CategoryFilterBar<Item: Hashable>: View {
     let title: (Item) -> String
     let leadingTitle: String?
     let isLeadingSelected: Bool
+    let loadingItem: Item?
+    let presentation: CategoryFilterBarPresentation
 
     // MARK: - Callbacks
     let onSelection: (Item) -> Void
@@ -18,6 +25,8 @@ struct CategoryFilterBar<Item: Hashable>: View {
         title: @escaping (Item) -> String,
         leadingTitle: String? = nil,
         isLeadingSelected: Bool = false,
+        loadingItem: Item? = nil,
+        presentation: CategoryFilterBarPresentation = .standard,
         onSelection: @escaping (Item) -> Void,
         onLeadingSelection: (() -> Void)? = nil
     ) {
@@ -26,6 +35,8 @@ struct CategoryFilterBar<Item: Hashable>: View {
         self.title = title
         self.leadingTitle = leadingTitle
         self.isLeadingSelected = isLeadingSelected
+        self.loadingItem = loadingItem
+        self.presentation = presentation
         self.onSelection = onSelection
         self.onLeadingSelection = onLeadingSelection
     }
@@ -46,6 +57,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
                     filterButton(
                         title: title(item),
                         isSelected: activeItem == item,
+                        isLoading: loadingItem == item,
                         action: { onSelection(item) }
                     )
                 }
@@ -59,6 +71,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
     private func filterButton(
         title: String,
         isSelected: Bool,
+        isLoading: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -66,16 +79,45 @@ struct CategoryFilterBar<Item: Hashable>: View {
                 action()
             }
         } label: {
-            Text(title)
+            ZStack {
+                Text(title)
+                    .opacity(isLoading ? 0 : 1)
+
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                        .tint(isSelected ? Color(UIColor.systemBackground) : .primary)
+                        .accessibilityHidden(true)
+                }
+            }
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.primary : Color.secondary.opacity(0.15))
                 .foregroundColor(isSelected ? Color(UIColor.systemBackground) : .primary)
+                .background {
+                    filterBackground(isSelected: isSelected)
+                }
                 .clipShape(Capsule())
         }
+        .accessibilityLabel(title)
+        .accessibilityValue(isLoading ? "Loading" : "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private func filterBackground(isSelected: Bool) -> some View {
+        if isSelected {
+            Capsule().fill(Color.primary)
+        } else {
+            switch presentation {
+            case .standard:
+                Capsule().fill(Color.secondary.opacity(0.15))
+            case .overContent:
+                Capsule().fill(.regularMaterial)
+            }
+        }
     }
 }
 

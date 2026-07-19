@@ -501,6 +501,91 @@ struct FieldTripAPIModelsTests {
         #expect(update.toastTargetCount == 4)
     }
 
+    @Test func progressResponseDecodesStandardAchievementDestination() throws {
+        let json = Data("""
+        {
+          "data": [],
+          "challenge_updates": [],
+          "first_field_trip_achievement": {
+            "kind": "standard_outing",
+            "completed_at": "2026-07-18T14:00:00Z",
+            "template_slug": "backyard_safari",
+            "challenge_id": null
+          },
+          "first_field_trip_achievement_newly_unlocked": true
+        }
+        """.utf8)
+
+        let response = try decoder.decode(FieldTripProgressUpdatesResponse.self, from: json)
+        let progress = try #require(response.firstFieldTripAchievement)
+
+        #expect(response.firstFieldTripAchievementNewlyUnlocked)
+        #expect(progress.destination == .fieldTripTemplate(slug: "backyard_safari"))
+        #expect(progress.awardPayload?.type == .firstFieldTrip)
+        #expect(progress.awardPayload?.currentCount == 1)
+    }
+
+    @Test func seasonalAchievementDestinationCachesPerAccountAndMergesAward() throws {
+        let json = Data("""
+        {
+          "data": {
+            "kind": "seasonal_challenge",
+            "completed_at": "2026-07-18T14:00:00.123Z",
+            "template_slug": null,
+            "challenge_id": "challenge-1"
+          }
+        }
+        """.utf8)
+        let response = try decoder.decode(FirstFieldTripAwardResponse.self, from: json)
+        let progress = try #require(response.data)
+        let suiteName = "FirstFieldTripAchievementProgressStoreTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        FirstFieldTripAchievementProgressStore.save(
+            progress,
+            accountId: "ACCOUNT-A",
+            userDefaults: defaults
+        )
+
+        #expect(progress.destination == .fieldTripChallenge(challengeId: "challenge-1"))
+        #expect(
+            FirstFieldTripAchievementProgressStore.load(
+                accountId: "account-a",
+                userDefaults: defaults
+            ) == progress
+        )
+        #expect(
+            FirstFieldTripAchievementProgressStore.load(
+                accountId: "account-b",
+                userDefaults: defaults
+            ) == nil
+        )
+
+        let locked = AwardPayload(type: .firstFieldTrip, currentCount: 0, lastInteractionDate: nil)
+        let merged = [locked].mergingFirstFieldTripAchievement(progress)
+        #expect(merged.count == 1)
+        #expect(merged[0].isCompleted)
+        #expect(merged[0].destination == .fieldTripChallenge(challengeId: "challenge-1"))
+    }
+
+    @Test func publicFirstFieldTripAwardDecodesWithoutPrivateDestination() throws {
+        let json = Data("""
+        {
+          "type": "first_field_trip",
+          "current_count": 1,
+          "last_interaction_at": "2026-07-18T14:00:00Z"
+        }
+        """.utf8)
+
+        let publicAward = try decoder.decode(ExploreAuthorProfileAward.self, from: json)
+        let award = try #require(publicAward.awardPayload)
+
+        #expect(award.type == .firstFieldTrip)
+        #expect(award.isCompleted)
+        #expect(award.destination == nil)
+    }
+
     @Test func profileSummariesDecodeChallengeBadges() throws {
         let json = Data("""
         {
@@ -588,7 +673,140 @@ struct FieldTripAPIModelsTests {
         #expect(templates.filtering(by: .hard).map(\.templateId) == ["hard"])
     }
 
-    private func makeTemplate(id: String, difficulty: String) -> FieldTripTemplate {
+    @Test func catalogStateDistinguishesUnstartedInProgressAndCompletedOutings() {
+        let unstarted = makeTemplate(id: "unstarted", difficulty: "starter")
+        let startedAtZero = makeTemplate(
+            id: "started-zero",
+            difficulty: "easy",
+            activeProgress: makeProgress(id: "progress-zero", completedCount: 0)
+        )
+        let partiallyCompleted = makeTemplate(
+            id: "partial",
+            difficulty: "moderate",
+            activeProgress: makeProgress(id: "progress-partial", completedCount: 2)
+        )
+        let completed = makeTemplate(
+            id: "completed",
+            difficulty: "hard",
+            activeProgress: makeProgress(
+                id: "progress-completed",
+                completedCount: 4,
+                completedAt: "2026-07-18T20:00:00Z"
+            )
+        )
+
+        #expect(unstarted.catalogState == .incomplete)
+        #expect(startedAtZero.catalogState == .inProgress)
+        #expect(partiallyCompleted.catalogState == .inProgress)
+        #expect(completed.catalogState == .completed)
+    }
+
+    @Test func stateFilteringIsSingleSelectAndPreservesCatalogOrder() {
+        let templates = [
+            makeTemplate(id: "unstarted-1", difficulty: "starter"),
+            makeTemplate(
+                id: "started-zero",
+                difficulty: "easy",
+                activeProgress: makeProgress(id: "progress-zero", completedCount: 0)
+            ),
+            makeTemplate(
+                id: "completed-1",
+                difficulty: "moderate",
+                activeProgress: makeProgress(
+                    id: "progress-completed-1",
+                    completedCount: 4,
+                    completedAt: "2026-07-18T20:00:00Z"
+                )
+            ),
+            makeTemplate(id: "unstarted-2", difficulty: "hard"),
+            makeTemplate(
+                id: "partial",
+                difficulty: "starter",
+                activeProgress: makeProgress(id: "progress-partial", completedCount: 2)
+            ),
+            makeTemplate(
+                id: "completed-2",
+                difficulty: "easy",
+                activeProgress: makeProgress(
+                    id: "progress-completed-2",
+                    completedCount: 4,
+                    completedAt: "2026-07-18T21:00:00Z"
+                )
+            )
+        ]
+        var filters = FieldTripCatalogFilters()
+
+        #expect(templates.filtering(by: filters).map(\.templateId) == [
+            "unstarted-1",
+            "started-zero",
+            "completed-1",
+            "unstarted-2",
+            "partial",
+            "completed-2"
+        ])
+
+        filters.state = .incomplete
+        #expect(templates.filtering(by: filters).map(\.templateId) == ["unstarted-1", "unstarted-2"])
+
+        filters.state = .inProgress
+        #expect(templates.filtering(by: filters).map(\.templateId) == ["started-zero", "partial"])
+
+        filters.state = .completed
+        #expect(templates.filtering(by: filters).map(\.templateId) == ["completed-1", "completed-2"])
+    }
+
+    @Test func catalogFiltersCombineWithAndSemanticsCountGroupsAndReset() {
+        let templates = [
+            makeTemplate(
+                id: "starter-progress",
+                difficulty: "starter",
+                activeProgress: makeProgress(id: "starter-progress", completedCount: 1)
+            ),
+            makeTemplate(
+                id: "easy-progress",
+                difficulty: "easy",
+                activeProgress: makeProgress(id: "easy-progress", completedCount: 0)
+            ),
+            makeTemplate(
+                id: "easy-completed",
+                difficulty: "easy",
+                activeProgress: makeProgress(
+                    id: "easy-completed",
+                    completedCount: 4,
+                    completedAt: "2026-07-18T22:00:00Z"
+                )
+            ),
+            makeTemplate(id: "unknown-unstarted", difficulty: "expert")
+        ]
+        var filters = FieldTripCatalogFilters()
+
+        #expect(filters.activeFilterCount == 0)
+        #expect(!filters.hasActiveFilters)
+
+        filters.difficulty = .easy
+        #expect(filters.activeFilterCount == 1)
+        #expect(filters.hasActiveFilters)
+
+        filters.state = .inProgress
+        #expect(filters.activeFilterCount == 2)
+        #expect(templates.filtering(by: filters).map(\.templateId) == ["easy-progress"])
+
+        filters.reset()
+        #expect(filters == FieldTripCatalogFilters())
+        #expect(filters.activeFilterCount == 0)
+        #expect(templates.filtering(by: filters).map(\.templateId) == [
+            "starter-progress",
+            "easy-progress",
+            "easy-completed",
+            "unknown-unstarted"
+        ])
+    }
+
+    private func makeTemplate(
+        id: String,
+        difficulty: String,
+        activeProgress: FieldTripProgress? = nil
+    ) -> FieldTripTemplate {
         FieldTripTemplate(
             templateId: id,
             slug: id,
@@ -608,8 +826,27 @@ struct FieldTripAPIModelsTests {
             isRotatingFree: false,
             viewerHasAccess: true,
             accessKind: "free",
-            activeProgress: nil,
+            activeProgress: activeProgress,
             levels: []
+        )
+    }
+
+    private func makeProgress(
+        id: String,
+        completedCount: Int,
+        targetCount: Int = 4,
+        completedAt: String? = nil
+    ) -> FieldTripProgress {
+        FieldTripProgress(
+            userFieldTripId: id,
+            startedAt: "2026-07-18T19:00:00Z",
+            currentLevelNumber: 1,
+            completedAt: completedAt,
+            isProfileVisible: true,
+            completedCount: completedCount,
+            targetCount: targetCount,
+            publicationId: nil,
+            publishedAt: nil
         )
     }
 
@@ -657,6 +894,159 @@ struct FieldTripCaptureContextModelsTests {
         #expect(response.data[0].completedCount == 1)
         #expect(response.data[0].targets[0].prompt == "Butterfly")
         #expect(response.data[0].targets[0].hasGuide)
+    }
+}
+
+struct ActiveFieldTripProfilePresentationTests {
+    @Test func activeProfilePreservesRecentContextOrderAndFiltersUnavailableOrCompletedTrips() {
+        let outings = [
+            makeOuting(id: "recent"),
+            makeOuting(id: "completed"),
+            makeOuting(id: "older"),
+            makeOuting(id: "third"),
+            makeOuting(id: "locked")
+        ]
+        let templates = [
+            makeTemplate(id: "older"),
+            makeTemplate(id: "locked", viewerHasAccess: false),
+            makeTemplate(id: "recent"),
+            makeTemplate(id: "completed", isComplete: true),
+            makeTemplate(id: "third")
+        ]
+
+        let items = ActiveFieldTripProfilePresentation.items(
+            outings: outings,
+            templates: templates
+        )
+
+        #expect(items.map(\.id) == ["recent", "older", "third"])
+        #expect(
+            ActiveFieldTripProfilePresentation.previewItems(from: items).map(\.id) ==
+                ["recent", "older"]
+        )
+        #expect(ActiveFieldTripProfilePresentation.shouldShowViewAll(for: items))
+        #expect(!ActiveFieldTripProfilePresentation.shouldShowViewAll(for: Array(items.prefix(2))))
+    }
+
+    @Test func activeProfileUsesTheCurrentLevelItemsIncludingCompletedScanLinks() throws {
+        let outing = makeOuting(id: "recent", levelNumber: 2)
+        let template = makeTemplate(
+            id: "recent",
+            levelNumber: 2,
+            completedScanId: "scan-1"
+        )
+
+        let item = try #require(
+            ActiveFieldTripProfilePresentation.items(
+                outings: [outing],
+                templates: [template]
+            ).first
+        )
+
+        #expect(item.currentLevelItems.map(\.prompt) == ["Bird"])
+        #expect(item.currentLevelItems.first?.completedScanId == "scan-1")
+    }
+
+    @Test func completedThumbnailFallsBackToTripWhenTheScanIsNotAvailableLocally() {
+        #expect(
+            FieldTripScanPreviewAction.resolve(
+                completedScanId: "scan-1",
+                hasLocalScan: false
+            ) == .openTemplate
+        )
+        #expect(
+            FieldTripScanPreviewAction.resolve(
+                completedScanId: "scan-1",
+                hasLocalScan: true
+            ) == .openCompletedScan("scan-1")
+        )
+        #expect(
+            FieldTripScanPreviewAction.resolve(
+                completedScanId: nil,
+                hasLocalScan: true
+            ) == .openTemplate
+        )
+    }
+
+    private func makeOuting(
+        id: String,
+        levelNumber: Int = 1
+    ) -> FieldTripCaptureOuting {
+        FieldTripCaptureOuting(
+            userFieldTripId: id,
+            templateId: "template-\(id)",
+            templateSlug: id,
+            outingTitle: id.capitalized,
+            lastEngagedAt: "2026-07-18T20:00:00Z",
+            levelNumber: levelNumber,
+            levelTitle: "Level \(levelNumber)",
+            completedCount: 1,
+            targetCount: 4,
+            targets: []
+        )
+    }
+
+    private func makeTemplate(
+        id: String,
+        viewerHasAccess: Bool = true,
+        isComplete: Bool = false,
+        levelNumber: Int = 1,
+        completedScanId: String? = nil
+    ) -> FieldTripTemplate {
+        let outingId = id
+        return FieldTripTemplate(
+            templateId: "template-\(id)",
+            slug: id,
+            title: id.capitalized,
+            subtitle: nil,
+            description: nil,
+            coverImageUrl: nil,
+            estimatedDurationMinutes: nil,
+            guideWhereToLook: nil,
+            guideWhyItMatters: nil,
+            guideSafetyEthics: nil,
+            regionTags: [],
+            seasonTags: [],
+            habitatTags: [],
+            difficulty: "starter",
+            isProOnly: false,
+            isRotatingFree: false,
+            viewerHasAccess: viewerHasAccess,
+            accessKind: viewerHasAccess ? "free" : "locked",
+            activeProgress: FieldTripProgress(
+                userFieldTripId: outingId,
+                startedAt: "2026-07-18T19:00:00Z",
+                currentLevelNumber: levelNumber,
+                completedAt: isComplete ? "2026-07-18T20:00:00Z" : nil,
+                isProfileVisible: true,
+                completedCount: isComplete ? 4 : 1,
+                targetCount: 4,
+                publicationId: nil,
+                publishedAt: nil
+            ),
+            levels: [
+                FieldTripLevel(
+                    levelId: "level-\(levelNumber)",
+                    levelNumber: levelNumber,
+                    title: "Level \(levelNumber)",
+                    description: nil,
+                    items: [
+                        FieldTripChecklistItem(
+                            itemId: "item-bird",
+                            prompt: "Bird",
+                            matchType: "taxonomy",
+                            guideTip: nil,
+                            guide: nil,
+                            isCompleted: completedScanId != nil,
+                            completedAt: completedScanId == nil ? nil : "2026-07-18T19:30:00Z",
+                            completedCommonName: completedScanId == nil ? nil : "Northern Cardinal",
+                            completedScientificName: completedScanId == nil ? nil : "Cardinalis cardinalis",
+                            completedScanId: completedScanId
+                        )
+                    ]
+                )
+            ]
+        )
     }
 }
 

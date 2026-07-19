@@ -160,11 +160,11 @@ struct Preferences: View {
                 )
             }
 
-            // MARK: - Capture Modes
+            // MARK: - Reorder Modes
             Button { captureModeOrderSettingsActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Capture mode order",
-                    description: "Choose your default mode and reorder Scan, Record, and Describe.",
+                    title: "Reorder modes",
+                    description: "Choose which mode opens first and arrange Scan, Record, and Describe.",
                     icon: "rectangle.split.3x1.fill",
                     iconColor: .yellow
                 )
@@ -708,7 +708,7 @@ struct CaptureModeSettingsView: View {
             }
         }
         .environment(\.editMode, .constant(.active))
-        .navigationTitle("Capture Modes")
+        .navigationTitle("Reorder modes")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

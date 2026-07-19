@@ -854,12 +854,22 @@ struct ExplorePublicMediaView: View {
 
             if mediaItem.kind == .audio,
                audioPlaybackProgress > 0 || playbackOverlayState.isPlaying {
-                GeometryReader { proxy in
-                    Rectangle()
-                        .fill(.white.opacity(0.92))
-                        .frame(width: 2)
-                        .shadow(color: .black.opacity(0.45), radius: 2)
-                        .offset(x: max(0, min(proxy.size.width - 2, proxy.size.width * audioPlaybackProgress)))
+                TimelineView(.animation(paused: !playbackOverlayState.isPlaying)) { _ in
+                    GeometryReader { proxy in
+                        Rectangle()
+                            .fill(.white.opacity(0.92))
+                            .frame(width: 2)
+                            .shadow(color: .black.opacity(0.45), radius: 2)
+                            .offset(
+                                x: max(
+                                    0,
+                                    min(
+                                        proxy.size.width - 2,
+                                        proxy.size.width * displayedAudioPlaybackProgress
+                                    )
+                                )
+                            )
+                    }
                 }
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -1445,6 +1455,32 @@ struct ExplorePublicMediaView: View {
         return duration.seconds
     }
 
+    private var displayedAudioPlaybackProgress: Double {
+        AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: audioPlaybackProgress,
+            currentTime: player?.currentTime().seconds ?? 0,
+            duration: resolvedAudioDuration,
+            isPlaying: playbackOverlayState.isPlaying,
+            playerIsPlaying: player?.timeControlStatus == .playing,
+            isSeeking: isAudioSeeking
+        )
+    }
+
+    private func synchronizeAudioPlaybackProgress() {
+        guard mediaItem.kind == .audio,
+              let player,
+              resolvedAudioDuration > 0 else { return }
+        let currentTime = player.currentTime().seconds
+        audioPlaybackProgress = AudioSpectrogramSeekingPolicy.normalizedProgress(
+            currentTime: currentTime,
+            duration: resolvedAudioDuration,
+            fallback: audioPlaybackProgress
+        )
+        if currentTime.isFinite {
+            audioElapsedSeconds = min(resolvedAudioDuration, max(0, currentTime))
+        }
+    }
+
     private func seekAudioWithoutChangingPlayback(progress: Double) {
         guard resolvedAudioDuration > 0, let player else { return }
         applyAudioSeek(progress: progress, player: player)
@@ -1771,6 +1807,7 @@ struct ExplorePublicMediaView: View {
 
     private func pauseForUserInteraction() {
         logPlayback("pause-user")
+        synchronizeAudioPlaybackProgress()
         player?.pause()
         playbackRecoveryWatchdogTask?.cancel()
         playbackRecoveryWatchdogTask = nil
@@ -1785,6 +1822,7 @@ struct ExplorePublicMediaView: View {
 
     private func pauseForExternalActivePlayer() {
         logPlayback("pause-external-active-player")
+        synchronizeAudioPlaybackProgress()
         player?.pause()
         reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
     }
@@ -1809,6 +1847,7 @@ struct ExplorePublicMediaView: View {
             "pause-recoverable",
             extra: "seek=\(pendingRecoverySeekTime?.seconds ?? -1)"
         )
+        synchronizeAudioPlaybackProgress()
         player?.pause()
         playbackRecoveryWatchdogTask?.cancel()
         playbackRecoveryWatchdogTask = nil

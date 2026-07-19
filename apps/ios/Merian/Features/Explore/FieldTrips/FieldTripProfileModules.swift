@@ -1,90 +1,254 @@
+import SwiftData
 import SwiftUI
 
-struct CurrentUserFieldTripProfilePreview: View {
-    let onOpenPublication: (String) -> Void
+struct ActiveFieldTripProfileItem: Identifiable, Equatable {
+    let outing: FieldTripCaptureOuting
+    let template: FieldTripTemplate
 
-    @State private var summaries: FieldTripProfileSummaries?
+    var id: String { outing.userFieldTripId }
+
+    var currentLevelItems: [FieldTripChecklistItem] {
+        template.levels
+            .first(where: { $0.levelNumber == outing.levelNumber })?
+            .items ?? []
+    }
+}
+
+enum ActiveFieldTripProfilePresentation {
+    static let previewLimit = 2
+
+    static func items(
+        outings: [FieldTripCaptureOuting],
+        templates: [FieldTripTemplate]
+    ) -> [ActiveFieldTripProfileItem] {
+        let templatesById = Dictionary(uniqueKeysWithValues: templates.map { ($0.templateId, $0) })
+
+        return outings.compactMap { outing in
+            guard let template = templatesById[outing.templateId],
+                  template.viewerHasAccess,
+                  let progress = template.activeProgress,
+                  progress.userFieldTripId == outing.userFieldTripId,
+                  !progress.isComplete else {
+                return nil
+            }
+
+            return ActiveFieldTripProfileItem(outing: outing, template: template)
+        }
+    }
+
+    static func previewItems(
+        from items: [ActiveFieldTripProfileItem]
+    ) -> ArraySlice<ActiveFieldTripProfileItem> {
+        items.prefix(previewLimit)
+    }
+
+    static func shouldShowViewAll(for items: [ActiveFieldTripProfileItem]) -> Bool {
+        items.count > previewLimit
+    }
+}
+
+struct ActiveFieldTripsProfilePreview: View {
+    let onOpenTemplate: (String) -> Void
+    let onOpenCompletedScan: (String) -> Void
+    let onViewAll: () -> Void
+
+    @Environment(SupabaseManager.self) private var supabase
+    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
+
+    @State private var items: [ActiveFieldTripProfileItem] = []
     @State private var isLoading = false
-    @State private var isUpdatingPins = false
-    @State private var toastMessage: String?
+    @State private var hasLoaded = false
+
+    private var currentUserId: String? {
+        supabase.currentUser?.id.uuidString
+    }
+
+    private var localScansById: [String: LocalScanRecord] {
+        localScans.reduce(into: [:]) { scans, scan in
+            scans[scan.id] = scan
+        }
+    }
 
     var body: some View {
         Group {
-            if let summaries, !summaries.isEmpty {
-                FieldTripProfilePreview(
-                    summaries: summaries,
-                    allowsPinManagement: true,
-                    isUpdatingPins: isUpdatingPins,
-                    onOpenPublication: onOpenPublication,
-                    onTogglePinned: { trip in
-                        Task { await togglePin(trip) }
-                    }
-                )
-            } else if isLoading {
-                FieldTripProfilePreviewSkeleton()
+            if !items.isEmpty {
+                content
+            } else if isLoading && !hasLoaded {
+                ActiveFieldTripsProfileSkeleton()
             }
         }
-        .task {
+        .task(id: currentUserId) {
             await load()
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
             switch event {
-            case .fieldTripProgressUpdated, .fieldTripChallengeProgressUpdated:
+            case .fieldTripProgressUpdated:
+                Task { await load() }
+            case .captureGoalContextInvalidated(let source) where source == .fieldTrip:
                 Task { await load() }
             default:
                 break
             }
         }
-        .merianSystemFeedback(
-            toastMessage: Binding(
-                get: { toastMessage },
-                set: { toastMessage = $0 }
-            ),
-            toastAlignment: .top
-        )
     }
 
-    private func load() async {
-        guard let authorUserId = SupabaseManager.shared.currentUser?.id.uuidString else { return }
-        isLoading = true
-        defer { isLoading = false }
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Field trips")
+                    .font(.title3.weight(.bold))
 
-        summaries = try? await MerianNetworkClient.shared.getFieldTripProfileSummaries(
-            authorUserId: authorUserId,
-            limit: 6
-        )
-    }
+                Spacer()
 
-    private func togglePin(_ trip: FieldTripProfilePublishedSummary) async {
-        guard let summaries, !isUpdatingPins else { return }
-
-        var pinnedPublicationIds = summaries.pinned
-            .sorted { ($0.pinPosition ?? Int.max) < ($1.pinPosition ?? Int.max) }
-            .map(\.publicationId)
-
-        if pinnedPublicationIds.contains(trip.publicationId) {
-            pinnedPublicationIds.removeAll { $0 == trip.publicationId }
-        } else {
-            guard pinnedPublicationIds.count < 3 else {
-                toastMessage = "You can pin up to 3 outings."
-                HapticManager.shared.triggerErrorThump()
-                return
+                Text(items.count.formatted(.number.notation(.compactName)))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
-            pinnedPublicationIds.append(trip.publicationId)
-        }
 
-        isUpdatingPins = true
-        defer { isUpdatingPins = false }
+            VStack(spacing: 16) {
+                ForEach(ActiveFieldTripProfilePresentation.previewItems(from: items)) { item in
+                    CurrentUserActiveFieldTripProfileCard(
+                        item: item,
+                        localScansById: localScansById,
+                        onOpenTemplate: {
+                            HapticManager.shared.triggerSelectionPulse()
+                            onOpenTemplate(item.template.templateId)
+                        },
+                        onOpenCompletedScan: onOpenCompletedScan
+                    )
+                }
+            }
+
+            if ActiveFieldTripProfilePresentation.shouldShowViewAll(for: items) {
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    onViewAll()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("View all field trips")
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background {
+                        Capsule()
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    }
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens Field trips in Explore.")
+            }
+        }
+    }
+
+    @MainActor
+    private func load() async {
+        guard currentUserId != nil else {
+            items = []
+            hasLoaded = true
+            isLoading = false
+            return
+        }
+        guard !isLoading else { return }
+
+        isLoading = true
+        defer {
+            isLoading = false
+            hasLoaded = true
+        }
 
         do {
-            self.summaries = try await MerianNetworkClient.shared.setPinnedFieldTripPublications(
-                publicationIds: pinnedPublicationIds
+            async let outings = MerianNetworkClient.shared.getFieldTripCaptureContext()
+            async let templates = MerianNetworkClient.shared.getFieldTrips(limit: 80)
+            let loadedItems = try await ActiveFieldTripProfilePresentation.items(
+                outings: outings,
+                templates: templates
             )
-            HapticManager.shared.triggerSelectionPulse()
+            guard !Task.isCancelled else { return }
+            items = loadedItems
         } catch {
-            toastMessage = ExploreErrorFormatter.message(for: error)
-            HapticManager.shared.triggerErrorThump()
+            MerianLog.network.warning("Failed to load active Profile Field trips: \(error.localizedDescription, privacy: .private)")
         }
+    }
+}
+
+private struct CurrentUserActiveFieldTripProfileCard: View {
+    let item: ActiveFieldTripProfileItem
+    let localScansById: [String: LocalScanRecord]
+    let onOpenTemplate: () -> Void
+    let onOpenCompletedScan: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: onOpenTemplate) {
+                Text(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+
+            FieldTripScanPreviewStrip(
+                targetCount: item.outing.targetCount,
+                templateSlug: item.template.slug,
+                items: item.currentLevelItems,
+                localScansById: localScansById,
+                onOpenTemplate: onOpenTemplate,
+                onOpenCompletedScan: onOpenCompletedScan
+            )
+            .padding(.bottom, 12)
+
+            Button(action: onOpenTemplate) {
+                FieldTripLevelProgressBar(
+                    progress: FieldTripLevelProgressPresentation(
+                        completedCount: item.outing.completedCount,
+                        targetCount: item.outing.targetCount
+                    )
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+        }
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct ActiveFieldTripsProfileSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                GlowPulsingSkeletonView(cornerRadius: 5)
+                    .frame(width: 110, height: 23)
+                Spacer()
+                GlowPulsingSkeletonView(cornerRadius: 5)
+                    .frame(width: 20, height: 16)
+            }
+
+            ForEach(0..<ActiveFieldTripProfilePresentation.previewLimit, id: \.self) { _ in
+                GlowPulsingSkeletonView(cornerRadius: 24)
+                    .frame(height: 190)
+            }
+        }
+        .accessibilityLabel("Loading active Field trips")
     }
 }
 
@@ -397,19 +561,5 @@ private struct FieldTripProfileCover: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
-    }
-}
-
-private struct FieldTripProfilePreviewSkeleton: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.secondary.opacity(0.16))
-                .frame(width: 130, height: 20)
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.1))
-                .frame(height: 82)
-        }
-        .redacted(reason: .placeholder)
     }
 }

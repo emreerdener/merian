@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 @testable import Merian
 import Testing
@@ -215,6 +216,143 @@ struct ExploreAudioBoostTests {
         #expect(!InsightAudioPlaybackControlPolicy.shouldPresent(isVisible: true, isSeeking: true))
     }
 
+    @Test func insightAudioPlaybackWaitsForAnIdleSourceSwitchButStillAllowsPause() {
+        #expect(InsightAudioPlaybackControlPolicy.unexpectedStopGraceNanoseconds == 150_000_000)
+        #expect(InsightAudioPlaybackControlPolicy.shouldDisable(
+            isHardwareDisabled: false,
+            isPreparingSource: true,
+            isPlaying: false
+        ))
+        #expect(!InsightAudioPlaybackControlPolicy.shouldDisable(
+            isHardwareDisabled: false,
+            isPreparingSource: true,
+            isPlaying: true
+        ))
+        #expect(InsightAudioPlaybackControlPolicy.shouldDisable(
+            isHardwareDisabled: true,
+            isPreparingSource: false,
+            isPlaying: true
+        ))
+    }
+
+    @Test func insightAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback() {
+        #expect(AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: 0.2,
+            currentTime: 3,
+            duration: 6,
+            isPlaying: true,
+            playerIsPlaying: true,
+            isSeeking: false
+        ) == 0.5)
+        #expect(AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: 0.2,
+            currentTime: 3,
+            duration: 6,
+            isPlaying: false,
+            playerIsPlaying: false,
+            isSeeking: false
+        ) == 0.2)
+        #expect(AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: 0.2,
+            currentTime: 3,
+            duration: 6,
+            isPlaying: true,
+            playerIsPlaying: true,
+            isSeeking: true
+        ) == 0.2)
+        #expect(AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: 0.6,
+            currentTime: 6,
+            duration: 6,
+            isPlaying: true,
+            playerIsPlaying: false,
+            isSeeking: false
+        ) == 0.6)
+        #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(
+            currentTime: .nan,
+            duration: 6,
+            fallback: 1.4
+        ) == 1)
+    }
+
+    @Test func exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback() {
+        #expect(AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: 0.2,
+            currentTime: 7.5,
+            duration: 15,
+            isPlaying: true,
+            playerIsPlaying: true,
+            isSeeking: false
+        ) == 0.5)
+        #expect(AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: 0.2,
+            currentTime: 7.5,
+            duration: 15,
+            isPlaying: true,
+            playerIsPlaying: false,
+            isSeeking: false
+        ) == 0.2)
+    }
+
+    @Test func insightAudioSourceReplacementWaitsForPlaybackToStop() {
+        #expect(InsightAudioSourceHandoffPolicy.shouldStageReplacement(
+            isPlaybackActive: true,
+            playerIsPlaying: false
+        ))
+        #expect(InsightAudioSourceHandoffPolicy.shouldStageReplacement(
+            isPlaybackActive: false,
+            playerIsPlaying: true
+        ))
+        #expect(!InsightAudioSourceHandoffPolicy.shouldStageReplacement(
+            isPlaybackActive: false,
+            playerIsPlaying: false
+        ))
+    }
+
+    @Test func insightAudioFailureRecoveryUsesLastConfirmedPlayheadPosition() {
+        #expect(InsightAudioPlaybackFailurePolicy.recoveryTime(
+            currentTime: 6,
+            duration: 6,
+            storedProgress: 0.5
+        ) == 3)
+        #expect(InsightAudioPlaybackFailurePolicy.recoveryTime(
+            currentTime: 2,
+            duration: 6,
+            storedProgress: 0
+        ) == 2)
+    }
+
+    @Test func boostedAudioIsFullyReadableBeforePublication() async throws {
+        let sourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("audio-boost-source-\(UUID().uuidString).caf")
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        let expectedFrameLength: AVAudioFramePosition = 4_800
+        try Self.writeTestAudio(to: sourceURL, frameLength: AVAudioFrameCount(expectedFrameLength))
+
+        let result = try await AudioBoostProcessor.shared.prepare(source: sourceURL.path)
+        defer { try? FileManager.default.removeItem(at: result.url) }
+        let rendered = try AVAudioFile(forReading: result.url)
+
+        #expect(result.url.pathExtension == "caf")
+        #expect(rendered.length == expectedFrameLength)
+        var decodedFrameLength: AVAudioFramePosition = 0
+        while decodedFrameLength < expectedFrameLength {
+            let capacity = AVAudioFrameCount(min(expectedFrameLength - decodedFrameLength, 512))
+            let buffer = try #require(AVAudioPCMBuffer(
+                pcmFormat: rendered.processingFormat,
+                frameCapacity: capacity
+            ))
+            let positionBeforeRead = rendered.framePosition
+            try rendered.read(into: buffer)
+            #expect(buffer.frameLength > 0)
+            #expect(rendered.framePosition > positionBeforeRead)
+            guard buffer.frameLength > 0, rendered.framePosition > positionBeforeRead else { break }
+            decodedFrameLength += AVAudioFramePosition(buffer.frameLength)
+        }
+        #expect(decodedFrameLength == expectedFrameLength)
+        await AudioBoostProcessor.shared.invalidate(source: sourceURL.path)
+    }
+
     @Test func audioSeekingNormalizesAndClampsSpectrogramPositions() {
         #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: -20, width: 200) == 0)
         #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(locationX: 50, width: 200) == 0.25)
@@ -324,5 +462,24 @@ struct ExploreAudioBoostTests {
             isProcessing: false,
             hasStandaloneAudio: false
         ))
+    }
+
+    private static func writeTestAudio(
+        to url: URL,
+        frameLength: AVAudioFrameCount
+    ) throws {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameLength),
+              let samples = buffer.floatChannelData?[0] else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        buffer.frameLength = frameLength
+        for frame in 0..<Int(frameLength) {
+            samples[frame] = Float(sin(2 * Double.pi * 880 * Double(frame) / format.sampleRate) * 0.1)
+        }
+        try autoreleasepool {
+            let file = try AVAudioFile(forWriting: url, settings: format.settings)
+            try file.write(from: buffer)
+        }
     }
 }

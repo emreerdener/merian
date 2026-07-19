@@ -581,3 +581,62 @@ Deno.test("Field trips v4 challenges stay non-competitive and Explore-separated"
     );
   }
 });
+
+Deno.test("First Field trip achievement is indexed, private, and publicly projected without evidence", async () => {
+  const rawSql = await migrationSql(
+    "20260719045306_first_field_trip_achievement.sql",
+  );
+  const sql = normalized(rawSql);
+  const publicProjection = normalized(
+    rawSql.split("-- Explore author profiles expose only")[1] ?? "",
+  );
+
+  for (
+    const fragment of [
+      "CREATE INDEX IF NOT EXISTS idx_user_field_trips_user_completed_at ON public.user_field_trips(user_id, completed_at) WHERE completed_at IS NOT NULL",
+      "CREATE INDEX IF NOT EXISTS idx_field_trip_challenge_participants_user_completed_at ON public.field_trip_challenge_participants(user_id, completed_at) WHERE completed_at IS NOT NULL",
+      "CREATE OR REPLACE FUNCTION public.get_first_field_trip_achievement_progress( target_user_id UUID )",
+      "SECURITY INVOKER",
+      "SET search_path = ''",
+      "ORDER BY candidate.completed_at ASC, candidate.destination_priority ASC, candidate.source_id ASC",
+      "REVOKE ALL ON FUNCTION public.get_first_field_trip_achievement_progress(UUID) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.get_first_field_trip_achievement_progress(UUID) TO service_role",
+      "''type'', ''first_field_trip''",
+      "''current_count''",
+      "''last_interaction_at''",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !publicProjection.includes("'scan_id'") &&
+      !publicProjection.includes("'template_slug'") &&
+      !publicProjection.includes("'challenge_id'"),
+    "Public award projection must not expose trip evidence or scan ids",
+  );
+});
+
+Deno.test("First Field trip Edge actions use only the verified user", async () => {
+  const index = normalized(
+    await Deno.readTextFile(new URL("index.ts", fieldTripsFunctionDir)),
+  );
+
+  assertStringIncludes(index, '| "achievement_progress"');
+  assertStringIncludes(
+    index,
+    'case "achievement_progress": { const data = await fetchFirstFieldTripAchievementProgress( user.id, supabaseAdmin',
+  );
+  assertStringIncludes(
+    index,
+    "first_field_trip_achievement: progress.firstFieldTripAchievement",
+  );
+  assertStringIncludes(
+    index,
+    "first_field_trip_achievement_newly_unlocked: progress.firstFieldTripAchievementNewlyUnlocked",
+  );
+  assert(
+    !index.includes("body.target_user_id") && !index.includes("body.user_id"),
+    "Achievement progress must not accept an account id from the request body",
+  );
+});

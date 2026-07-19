@@ -60,11 +60,10 @@ struct ScansSheetView: View {
     @State private var showSelectionLimitAlert = false
     @State private var isSearchFocused = false
     @State private var isNonBiologicalScansPresented = false
-    @State private var collectionSortOption: CollectionSortOption = .newest
-    @State private var collectionFilters = CollectionLibraryFilters()
     
-    // MARK: - Static Bounds
-    private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles", "Other"]
+    private var filterCategories: [String] {
+        searchManager.orderedCategoryFilters
+    }
 
     private var prefetchThumbnailSize: Int {
         let screenWidth = UIScreen.main.bounds.width
@@ -115,9 +114,6 @@ struct ScansSheetView: View {
             tabPager
             .modifier(ScansSheetModifiers(
                 searchManager: searchManager, activeTab: $activeTab, isSearchFocused: $isSearchFocused,
-                collectionSortOption: $collectionSortOption,
-                collectionFilters: $collectionFilters,
-                filterCategories: filterCategories,
                 showNewCollectionAlert: $showNewCollectionAlert,
                 newCollectionName: $newCollectionName, scanToDelete: $scanToDelete,
                 showDeleteConfirmation: $showDeleteConfirmation, showBatchDeleteConfirmation: $showBatchDeleteConfirmation,
@@ -159,6 +155,7 @@ struct ScansSheetView: View {
             HStack(spacing: 0) {
                 LibraryTabContent(
                     searchManager: searchManager,
+                    filterCategories: filterCategories,
                     queuedScans: queuedScans,
                     isSearchFocused: $isSearchFocused,
                     onScanSelected: { record in
@@ -173,8 +170,6 @@ struct ScansSheetView: View {
                     searchManager: searchManager,
                     isSearchFocused: isSearchFocused,
                     collections: collections,
-                    collectionSortOption: collectionSortOption,
-                    collectionFilters: $collectionFilters,
                     hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
                     onHideSmartCollection: hideSmartCollection,
                     newlyCreatedCollection: $newlyCreatedCollection
@@ -477,6 +472,7 @@ struct ScansSheetView: View {
 
 private struct LibraryTabContent: View {
     @Bindable var searchManager: ScansManager
+    let filterCategories: [String]
     let queuedScans: [QueuedScanSnapshot]
     @Binding var isSearchFocused: Bool
     let onScanSelected: (LocalScanRecord) -> Void
@@ -490,6 +486,7 @@ private struct LibraryTabContent: View {
     var body: some View {
         LibraryView(
             searchManager: searchManager,
+            filterCategories: filterCategories,
             isSearchFocused: isSearchFocused,
             queuedScans: queuedScans,
             isSelectionMode: searchManager.isSelectionMode,
@@ -533,8 +530,6 @@ private struct CollectionsTabContent: View {
     let searchManager: ScansManager
     let isSearchFocused: Bool
     let collections: [ScanCollection]
-    let collectionSortOption: CollectionSortOption
-    @Binding var collectionFilters: CollectionLibraryFilters
     let hiddenSmartCollectionIDs: Set<String>
     let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
     @Binding var newlyCreatedCollection: ScanCollection?
@@ -544,8 +539,6 @@ private struct CollectionsTabContent: View {
             searchQuery: searchManager.searchQuery,
             isSearchFocused: isSearchFocused,
             collections: collections,
-            collectionSortOption: collectionSortOption,
-            filters: $collectionFilters,
             hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
             onHideSmartCollection: onHideSmartCollection,
             newlyCreatedCollection: $newlyCreatedCollection

@@ -3,9 +3,15 @@ import SwiftUI
 import UIKit
 
 final class PlayerDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
-    var onFinish: () -> Void = {}
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully _: Bool) {
-        onFinish()
+    var onFinish: (AVAudioPlayer, Bool) -> Void = { _, _ in }
+    var onDecodeError: (AVAudioPlayer, (any Error)?) -> Void = { _, _ in }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        onFinish(player, flag)
+    }
+
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: (any Error)?) {
+        onDecodeError(player, error)
     }
 }
 
@@ -53,6 +59,7 @@ enum InsightAudioBoostPillState: Equatable {
 
 enum InsightAudioPlaybackControlPolicy {
     static let autoHideDelayNanoseconds: UInt64 = 1_000_000_000
+    static let unexpectedStopGraceNanoseconds: UInt64 = 150_000_000
 
     static func shouldAutoHide(isPlaying: Bool, isSeeking: Bool) -> Bool {
         isPlaying && !isSeeking
@@ -61,6 +68,44 @@ enum InsightAudioPlaybackControlPolicy {
     static func shouldPresent(isVisible: Bool, isSeeking: Bool) -> Bool {
         isVisible && !isSeeking
     }
+
+    static func shouldDisable(
+        isHardwareDisabled: Bool,
+        isPreparingSource: Bool,
+        isPlaying: Bool
+    ) -> Bool {
+        isHardwareDisabled || (isPreparingSource && !isPlaying)
+    }
+}
+
+enum InsightAudioPlaybackFailurePolicy {
+    static func recoveryTime(
+        currentTime: TimeInterval,
+        duration: TimeInterval,
+        storedProgress: Double
+    ) -> TimeInterval {
+        guard duration.isFinite, duration > 0 else { return 0 }
+        let clampedProgress = min(1, max(0, storedProgress))
+        if clampedProgress > 0, clampedProgress < 1 {
+            return clampedProgress * duration
+        }
+        guard currentTime.isFinite else { return 0 }
+        return min(duration, max(0, currentTime))
+    }
+}
+
+enum InsightAudioSourceHandoffPolicy {
+    static func shouldStageReplacement(
+        isPlaybackActive: Bool,
+        playerIsPlaying: Bool
+    ) -> Bool {
+        isPlaybackActive || playerIsPlaying
+    }
+}
+
+private enum InsightAudioPlayerSource {
+    case original
+    case boosted
 }
 
 struct AudioPlaybackCarouselPage: View {
@@ -71,7 +116,11 @@ struct AudioPlaybackCarouselPage: View {
     let onAudioBoostToggleRequested: (() -> Void)?
     
     @State private var player: AVAudioPlayer?
+    @State private var activePlayerSource: InsightAudioPlayerSource = .original
+    @State private var pendingPlayer: AVAudioPlayer?
+    @State private var pendingPlayerSource: InsightAudioPlayerSource?
     @State private var playerDelegate = PlayerDelegate()
+    @State private var playerGeneration = 0
     @State private var columns: [SpectrogramColumn] = []
     @State private var playbackProgress: Double = 0.0
     @State private var isDecoding: Bool = true
@@ -100,6 +149,29 @@ struct AudioPlaybackCarouselPage: View {
     private var isPlaybackControlPresented: Bool {
         InsightAudioPlaybackControlPolicy.shouldPresent(
             isVisible: showsPlaybackControl,
+            isSeeking: isAudioSeeking
+        )
+    }
+
+    private var isPlaybackControlDisabled: Bool {
+        InsightAudioPlaybackControlPolicy.shouldDisable(
+            isHardwareDisabled: isHardwareDisabled,
+            isPreparingSource: isPreparingAudioBoost || isRevertingAudioBoost,
+            isPlaying: isPlaying
+        )
+    }
+
+    private var playbackMonitorID: Int {
+        isPlaying ? playerGeneration : -1
+    }
+
+    private var displayedPlaybackProgress: Double {
+        AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: playbackProgress,
+            currentTime: player?.currentTime ?? 0,
+            duration: player?.duration ?? 0,
+            isPlaying: isPlaying,
+            playerIsPlaying: player?.isPlaying == true,
             isSeeking: isAudioSeeking
         )
     }
@@ -163,51 +235,57 @@ struct AudioPlaybackCarouselPage: View {
                                 }
                             )
 
-                        if isPlaying || isAudioSeeking || playbackProgress > 0 {
-                            Rectangle()
-                                .fill(Color.white)
-                                .frame(width: 2)
-                                .offset(x: AudioSpectrogramSeekingPolicy.playmarkerCenterX(
-                                    progress: playbackProgress,
-                                    width: proxy.size.width
-                                ))
-                                .allowsHitTesting(false)
-                        }
+                        TimelineView(.animation(paused: !isPlaying)) { _ in
+                            let progress = displayedPlaybackProgress
+                            ZStack(alignment: .leading) {
+                                if isPlaying || isAudioSeeking || playbackProgress > 0 {
+                                    Rectangle()
+                                        .fill(Color.white)
+                                        .frame(width: 2)
+                                        .offset(x: AudioSpectrogramSeekingPolicy.playmarkerCenterX(
+                                            progress: progress,
+                                            width: proxy.size.width
+                                        ))
+                                        .allowsHitTesting(false)
+                                }
 
-                        Color.clear
-                            .frame(
-                                width: AudioSpectrogramSeekingPolicy.playmarkerHitWidth,
-                                height: proxy.size.height
-                            )
-                            .contentShape(Rectangle())
-                            .position(
-                                x: min(
-                                    proxy.size.width - AudioSpectrogramSeekingPolicy.playmarkerHitWidth / 2,
-                                    max(
-                                        AudioSpectrogramSeekingPolicy.playmarkerHitWidth / 2,
-                                        AudioSpectrogramSeekingPolicy.playmarkerCenterX(
-                                            progress: playbackProgress,
-                                            width: proxy.size.width
-                                        )
+                                Color.clear
+                                    .frame(
+                                        width: AudioSpectrogramSeekingPolicy.playmarkerHitWidth,
+                                        height: proxy.size.height
                                     )
-                                ),
-                                y: proxy.size.height / 2
-                            )
-                            .highPriorityGesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        updateAudioSeek(
-                                            translationX: value.translation.width,
-                                            width: proxy.size.width
+                                    .contentShape(Rectangle())
+                                    .position(
+                                        x: min(
+                                            proxy.size.width - AudioSpectrogramSeekingPolicy.playmarkerHitWidth / 2,
+                                            max(
+                                                AudioSpectrogramSeekingPolicy.playmarkerHitWidth / 2,
+                                                AudioSpectrogramSeekingPolicy.playmarkerCenterX(
+                                                    progress: progress,
+                                                    width: proxy.size.width
+                                                )
+                                            )
+                                        ),
+                                        y: proxy.size.height / 2
+                                    )
+                                    .highPriorityGesture(
+                                        DragGesture(minimumDistance: 0)
+                                            .onChanged { value in
+                                                updateAudioSeek(
+                                                    translationX: value.translation.width,
+                                                    width: proxy.size.width
+                                                )
+                                            }
+                                            .onEnded { value in
+                                                finishAudioSeek(
+                                                    translationX: value.translation.width,
+                                                    width: proxy.size.width
+                                                )
+                                            }
                                         )
-                                    }
-                                    .onEnded { value in
-                                        finishAudioSeek(
-                                            translationX: value.translation.width,
-                                            width: proxy.size.width
-                                        )
-                                    }
-                            )
+                            }
+                            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
+                        }
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Audio position")
@@ -225,8 +303,8 @@ struct AudioPlaybackCarouselPage: View {
                         .padding(24)
                         .background(.ultraThinMaterial, in: Circle())
                 }
-                .disabled(isHardwareDisabled)
-                .opacity(isPlaybackControlPresented ? (isHardwareDisabled ? 0.3 : 1.0) : 0)
+                .disabled(isPlaybackControlDisabled)
+                .opacity(isPlaybackControlPresented ? (isPlaybackControlDisabled ? 0.3 : 1.0) : 0)
                 .allowsHitTesting(isPlaybackControlPresented)
                 .animation(.easeInOut(duration: 0.25), value: isPlaybackControlPresented)
 
@@ -269,6 +347,7 @@ struct AudioPlaybackCarouselPage: View {
             playbackControlFadeTask?.cancel()
             playbackControlFadeTask = nil
             player?.stop()
+            clearPendingPlayer()
             isPlaying = false
             originalAudioLease?.release()
             originalAudioLease = nil
@@ -279,6 +358,9 @@ struct AudioPlaybackCarouselPage: View {
                 showPlaybackControlPersistently()
                 player?.stop()
                 isPlaying = false
+                if !commitPendingPlayer(resumeTime: 0) {
+                    player?.currentTime = 0
+                }
                 playbackProgress = 0.0
                 restoreSession()
             }
@@ -290,11 +372,22 @@ struct AudioPlaybackCarouselPage: View {
             guard !isDecoding else { return }
             await updateAudioBoostMode()
         }
-        .task(id: isPlaying) {
-            guard isPlaying else { return }
+        .task(id: playbackMonitorID) {
+            guard isPlaying, let monitoredPlayer = player else { return }
             while !Task.isCancelled {
-                guard let player, player.isPlaying, player.duration > 0 else { return }
-                playbackProgress = player.currentTime / player.duration
+                guard monitoredPlayer === player, monitoredPlayer.duration > 0 else { return }
+                guard monitoredPlayer.isPlaying else {
+                    try? await Task.sleep(
+                        nanoseconds: InsightAudioPlaybackControlPolicy.unexpectedStopGraceNanoseconds
+                    )
+                    guard !Task.isCancelled,
+                          isPlaying,
+                          monitoredPlayer === player,
+                          !monitoredPlayer.isPlaying else { return }
+                    handlePlaybackFailure(monitoredPlayer, error: nil)
+                    return
+                }
+                playbackProgress = monitoredPlayer.currentTime / monitoredPlayer.duration
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
@@ -362,11 +455,18 @@ struct AudioPlaybackCarouselPage: View {
     // MARK: - Handlers
 
     private func togglePlayback() {
-        guard !isHardwareDisabled, let player = player else { return }
+        guard !isPlaybackControlDisabled, let player else { return }
 
         if player.isPlaying {
             player.pause()
+            let pausedTime = player.currentTime
+            playbackProgress = AudioSpectrogramSeekingPolicy.normalizedProgress(
+                currentTime: pausedTime,
+                duration: player.duration,
+                fallback: playbackProgress
+            )
             isPlaying = false
+            commitPendingPlayer(resumeTime: pausedTime)
             showPlaybackControlPersistently()
             HapticManager.shared.triggerLightImpact(
                 intensity: 0.55,
@@ -376,11 +476,15 @@ struct AudioPlaybackCarouselPage: View {
             // Guarantee audio session is hot before play
             do {
                 try AVAudioSession.sharedInstance().setActive(true)
-            player.play()
-            isPlaying = true
-            showPlaybackControlTemporarily()
-            trackBoostedPlaybackStartedIfNeeded()
-            HapticManager.shared.triggerMediumPulse(source: "media.insight.audio.play")
+                guard player.play() else {
+                    HapticManager.shared.triggerErrorThump(source: "media.insight.audio.play.failed")
+                    MerianLog.general.debug("AudioPlaybackCarouselPage: player failed to start")
+                    return
+                }
+                isPlaying = true
+                showPlaybackControlTemporarily()
+                trackBoostedPlaybackStartedIfNeeded()
+                HapticManager.shared.triggerMediumPulse(source: "media.insight.audio.play")
             } catch {
                 HapticManager.shared.triggerErrorThump(source: "media.insight.audio.play.failed")
                 MerianLog.general.debug("AudioPlaybackCarouselPage: session activation failed: \(error, privacy: .private)")
@@ -416,9 +520,15 @@ struct AudioPlaybackCarouselPage: View {
     private func updateAudioSeek(translationX: CGFloat, width: CGFloat) {
         guard let player, player.duration > 0, width > 0 else { return }
         if !isAudioSeeking {
+            let currentProgress = AudioSpectrogramSeekingPolicy.normalizedProgress(
+                currentTime: player.currentTime,
+                duration: player.duration,
+                fallback: playbackProgress
+            )
             isAudioSeeking = true
             audioSeekWasPlaying = player.isPlaying
-            audioSeekStartProgress = playbackProgress
+            audioSeekStartProgress = currentProgress
+            playbackProgress = currentProgress
             showPlaybackControlPersistently()
             HapticManager.shared.triggerLightImpact(
                 intensity: 0.35,
@@ -426,6 +536,7 @@ struct AudioPlaybackCarouselPage: View {
             )
             player.pause()
             isPlaying = false
+            commitPendingPlayer(resumeTime: player.currentTime)
         }
         seekAudio(to: audioSeekStartProgress + Double(translationX / width))
     }
@@ -438,10 +549,14 @@ struct AudioPlaybackCarouselPage: View {
         audioSeekWasPlaying = false
         HapticManager.shared.triggerSelectionPulse(source: "media.insight.audio.seek.commit")
         if shouldResume {
-            player.play()
-            isPlaying = true
-            showPlaybackControlTemporarily()
-            trackBoostedPlaybackStartedIfNeeded()
+            if player.play() {
+                isPlaying = true
+                showPlaybackControlTemporarily()
+                trackBoostedPlaybackStartedIfNeeded()
+            } else {
+                isPlaying = false
+                showPlaybackControlPersistently()
+            }
         }
     }
 
@@ -449,7 +564,7 @@ struct AudioPlaybackCarouselPage: View {
         guard let player, player.duration > 0 else { return }
         let progress = AudioSpectrogramSeekingPolicy.progress(
             after: adjustment,
-            currentProgress: playbackProgress,
+            currentProgress: displayedPlaybackProgress,
             duration: player.duration
         )
         seekAudio(to: progress)
@@ -535,22 +650,28 @@ struct AudioPlaybackCarouselPage: View {
                 return
             }
             originalAudioLease = lease
-            player = makePlayer(url: lease.url, resumeTime: 0, shouldPlay: false)
+            guard let originalPlayer = makePlayer(url: lease.url, resumeTime: 0) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            installPlayer(originalPlayer, source: .original, shouldPlay: false)
             columns = await AudioSpectrogramDecoder.decodeColumns(fromFilePath: lease.url.path)
         } catch {
+            player?.stop()
             player = nil
+            clearPendingPlayer()
+            playerGeneration &+= 1
+            isPlaying = false
+            playbackProgress = 0
             columns = []
         }
-        isDecoding = false
         if isAudioBoostEnabled {
             await updateAudioBoostMode()
         }
+        isDecoding = false
     }
 
     @MainActor
     private func updateAudioBoostMode() async {
-        let wasPlaying = player?.isPlaying == true
-        let resumeTime = player?.currentTime ?? 0
         let shouldShowReverting = !isAudioBoostEnabled && isBoostedAudioReady
         isRevertingAudioBoost = shouldShowReverting
         defer {
@@ -558,6 +679,13 @@ struct AudioPlaybackCarouselPage: View {
         }
 
         if isAudioBoostEnabled {
+            if activePlayerSource == .boosted {
+                clearPendingPlayer()
+                isBoostedAudioReady = true
+                audioBoostPreparationFailed = false
+                return
+            }
+
             let actionToken = audioBoostActionToken
             isPreparingAudioBoost = true
             showsAudioBoostPreparationStatus = ExploreAudioBoostFeedbackPolicy.shouldPresent(
@@ -573,20 +701,13 @@ struct AudioPlaybackCarouselPage: View {
             }
             do {
                 let result = try await AudioBoostProcessor.shared.prepare(source: filePath)
-                guard !Task.isCancelled else { return }
-                guard let boostedPlayer = makePlayer(
-                    url: result.url,
-                    resumeTime: resumeTime,
-                    shouldPlay: wasPlaying
-                ) else {
+                guard !Task.isCancelled, isAudioBoostEnabled else { return }
+                guard let boostedPlayer = makePlayer(url: result.url, resumeTime: 0) else {
                     throw CocoaError(.fileReadCorruptFile)
                 }
-                player = boostedPlayer
+                stageOrInstallPlayer(boostedPlayer, source: .boosted)
                 isBoostedAudioReady = true
                 AppTelemetry.trackInsightAudioBoost(event: "enabled", gainBand: result.gainBand)
-                if wasPlaying {
-                    trackBoostedPlaybackStartedIfNeeded()
-                }
             } catch {
                 guard !Task.isCancelled else { return }
                 isBoostedAudioReady = false
@@ -604,9 +725,19 @@ struct AudioPlaybackCarouselPage: View {
         } else {
             audioBoostPreparationFailed = false
             showsAudioBoostPreparationStatus = false
-            guard isBoostedAudioReady else { return }
+            guard isBoostedAudioReady || activePlayerSource == .boosted else { return }
+
+            if activePlayerSource == .original {
+                clearPendingPlayer()
+                isBoostedAudioReady = false
+                hasTrackedBoostedPlaybackStart = false
+                AppTelemetry.trackInsightAudioBoost(event: "disabled")
+                return
+            }
+
             guard let originalURL = originalAudioLease?.url else { return }
-            player = makePlayer(url: originalURL, resumeTime: resumeTime, shouldPlay: wasPlaying)
+            guard let originalPlayer = makePlayer(url: originalURL, resumeTime: 0) else { return }
+            stageOrInstallPlayer(originalPlayer, source: .original)
             isBoostedAudioReady = false
             hasTrackedBoostedPlaybackStart = false
             AppTelemetry.trackInsightAudioBoost(event: "disabled")
@@ -614,25 +745,138 @@ struct AudioPlaybackCarouselPage: View {
     }
 
     @MainActor
-    private func makePlayer(url: URL, resumeTime: TimeInterval, shouldPlay: Bool) -> AVAudioPlayer? {
+    private func makePlayer(url: URL, resumeTime: TimeInterval) -> AVAudioPlayer? {
         guard let preparedPlayer = try? AVAudioPlayer(contentsOf: url) else { return nil }
-        playerDelegate.onFinish = {
-            playbackProgress = 0.0
+        playerDelegate.onFinish = { finishedPlayer, successfully in
+            guard finishedPlayer === player else { return }
+            guard successfully else {
+                handlePlaybackFailure(finishedPlayer, error: nil)
+                return
+            }
             isPlaying = false
+            if !commitPendingPlayer(resumeTime: 0) {
+                finishedPlayer.currentTime = 0
+                playbackProgress = 0.0
+            }
             showPlaybackControlPersistently()
+        }
+        playerDelegate.onDecodeError = { failedPlayer, error in
+            guard failedPlayer === player else { return }
+            handlePlaybackFailure(failedPlayer, error: error)
         }
         preparedPlayer.delegate = playerDelegate
         preparedPlayer.prepareToPlay()
         preparedPlayer.currentTime = min(max(0, resumeTime), preparedPlayer.duration)
-        if shouldPlay {
-            preparedPlayer.play()
-            isPlaying = true
-        }
         return preparedPlayer
     }
 
+    @MainActor
+    private func handlePlaybackFailure(_ failedPlayer: AVAudioPlayer, error: (any Error)?) {
+        guard failedPlayer === player else { return }
+        let shouldResume = isPlaying
+        let resumeTime = InsightAudioPlaybackFailurePolicy.recoveryTime(
+            currentTime: failedPlayer.currentTime,
+            duration: failedPlayer.duration,
+            storedProgress: playbackProgress
+        )
+        MerianLog.general.debug(
+            "AudioPlaybackCarouselPage: playback stopped unexpectedly source=\(String(describing: activePlayerSource), privacy: .public) error=\(String(describing: error), privacy: .private)"
+        )
+
+        failedPlayer.stop()
+        isPlaying = false
+        clearPendingPlayer()
+
+        guard activePlayerSource == .boosted,
+              let originalURL = originalAudioLease?.url,
+              let originalPlayer = makePlayer(url: originalURL, resumeTime: resumeTime) else {
+            failedPlayer.currentTime = min(max(0, resumeTime), failedPlayer.duration)
+            playbackProgress = AudioSpectrogramSeekingPolicy.normalizedProgress(
+                currentTime: failedPlayer.currentTime,
+                duration: failedPlayer.duration,
+                fallback: playbackProgress
+            )
+            showPlaybackControlPersistently()
+            return
+        }
+
+        isBoostedAudioReady = false
+        hasTrackedBoostedPlaybackStart = false
+        isAudioBoostEnabled = false
+        installPlayer(originalPlayer, source: .original, shouldPlay: shouldResume)
+        if isPlaying {
+            showPlaybackControlTemporarily()
+        } else {
+            showPlaybackControlPersistently()
+        }
+        AppTelemetry.trackInsightAudioBoost(event: "playback_failed")
+        Task {
+            await AudioBoostProcessor.shared.invalidate(source: filePath)
+        }
+    }
+
+    @MainActor
+    private func stageOrInstallPlayer(
+        _ preparedPlayer: AVAudioPlayer,
+        source: InsightAudioPlayerSource
+    ) {
+        let resumeTime = player?.currentTime ?? 0
+        if InsightAudioSourceHandoffPolicy.shouldStageReplacement(
+            isPlaybackActive: isPlaying,
+            playerIsPlaying: player?.isPlaying == true
+        ) {
+            clearPendingPlayer()
+            pendingPlayer = preparedPlayer
+            pendingPlayerSource = source
+            return
+        }
+
+        clearPendingPlayer()
+        preparedPlayer.currentTime = min(max(0, resumeTime), preparedPlayer.duration)
+        installPlayer(preparedPlayer, source: source, shouldPlay: false)
+    }
+
+    @MainActor
+    @discardableResult
+    private func commitPendingPlayer(resumeTime: TimeInterval) -> Bool {
+        guard let pendingPlayer, let pendingPlayerSource else { return false }
+        self.pendingPlayer = nil
+        self.pendingPlayerSource = nil
+        pendingPlayer.currentTime = min(max(0, resumeTime), pendingPlayer.duration)
+        installPlayer(pendingPlayer, source: pendingPlayerSource, shouldPlay: false)
+        return true
+    }
+
+    @MainActor
+    private func clearPendingPlayer() {
+        pendingPlayer?.stop()
+        pendingPlayer = nil
+        pendingPlayerSource = nil
+    }
+
+    @MainActor
+    private func installPlayer(
+        _ preparedPlayer: AVAudioPlayer,
+        source: InsightAudioPlayerSource,
+        shouldPlay: Bool
+    ) {
+        player?.stop()
+        player = preparedPlayer
+        activePlayerSource = source
+        playerGeneration &+= 1
+        isPlaying = shouldPlay && preparedPlayer.play()
+        playbackProgress = preparedPlayer.duration > 0
+            ? preparedPlayer.currentTime / preparedPlayer.duration
+            : 0
+        if shouldPlay && !isPlaying {
+            showPlaybackControlPersistently()
+        }
+    }
+
     private func trackBoostedPlaybackStartedIfNeeded() {
-        guard isAudioBoostEnabled, isBoostedAudioReady, !hasTrackedBoostedPlaybackStart else { return }
+        guard isAudioBoostEnabled,
+              activePlayerSource == .boosted,
+              !hasTrackedBoostedPlaybackStart else { return }
         hasTrackedBoostedPlaybackStart = true
         AppTelemetry.trackInsightAudioBoost(event: "boosted_playback_started")
     }

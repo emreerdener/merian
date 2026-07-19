@@ -101,10 +101,16 @@ from duration, checklist size, completion data, user behavior, or access tier:
 - `Hard`: specialized, time-dependent, or likely to require multiple field trips.
 
 The standard Field trips catalog shows single-select `All`, `Starter`, `Easy`,
-`Moderate`, and `Hard` pills and filters the loaded catalog locally without
-changing server ordering or refetching. All levels remain available even when a
-level has no current trips. Seasonal Challenges are not difficulty-filtered.
-Rotating-free and Pro access rules never affect a template's difficulty.
+`Moderate`, and `Hard` pills after a leading `Filters` pill. The filter sheet
+mirrors those difficulty choices and adds a single-select status group:
+`Completed` for outings with completed progress, `In progress` for every started
+but unfinished outing (including `0/N` progress), and `Incomplete` for unstarted
+outings. Difficulty and status combine with AND semantics, and the pill counts
+each non-default group once. Filtering remains local, preserves server ordering,
+and never refetches. Reset returns both groups to `All`. All levels remain
+available even when a level has no current trips. Seasonal Challenges are not
+filtered. Rotating-free and Pro access rules never affect a template's
+difficulty.
 
 ## Product Flow
 

@@ -29,6 +29,8 @@ enum AppEvent {
     case requestOpenScanner
     /// Dispatched by a progress toast to open its Field trip or seasonal challenge destination.
     case requestOpenCaptureGoal(CaptureGoalDestination)
+    /// Dispatched by Profile to replace it with Explore on the existing Field trips view.
+    case requestOpenFieldTrips
     
     /// Dispatched by Siri/OS intents to immediately open the historical scans insight page.
     case requestRecallLastFindIntent

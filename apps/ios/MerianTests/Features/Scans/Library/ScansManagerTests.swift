@@ -37,6 +37,44 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertFalse(searchManager.isFiltering)
     }
 
+    func testCategoryFiltersSortByLibraryFrequencyWithStablePriority() throws {
+        let birds = try (0..<2).map { index in
+            try createTestScan(
+                commonName: "Bird \(index)",
+                scientificName: "Aves \(index)",
+                ecologyType: "wild",
+                taxonomyClass: "Aves"
+            )
+        }
+        let fungi = try (0..<2).map { index in
+            try createTestScan(
+                commonName: "Fungus \(index)",
+                scientificName: "Fungi \(index)",
+                ecologyType: "fungus",
+                taxonomyKingdom: "Fungi"
+            )
+        }
+        let plant = try createTestScan(
+            commonName: "Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "plant",
+            taxonomyKingdom: "Plantae"
+        )
+        let reptile = try createTestScan(
+            commonName: "Lizard",
+            scientificName: "Anolis carolinensis",
+            ecologyType: "wild",
+            taxonomyClass: "Reptilia"
+        )
+
+        searchManager.allScans = birds + fungi + [plant, reptile]
+
+        XCTAssertEqual(
+            searchManager.orderedCategoryFilters,
+            ["All", "Birds", "Fungi", "Plants", "Reptiles", "Insects", "Mammals", "Other"]
+        )
+    }
+
     func testEmptyLibraryCopyExplainsSafeModeUnavailable() {
         let copy = ScanLibraryEmptyStateCopy.make(
             startupStoreState: .safeMode,
@@ -406,6 +444,7 @@ final class ScansManagerTests: XCTestCase {
         }
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [bird.id])
+        XCTAssertEqual(searchManager.activeCategoryFilter, "Birds")
     }
 
     func testExpandedDateLocationAndTagFiltersStackWithSort() async throws {

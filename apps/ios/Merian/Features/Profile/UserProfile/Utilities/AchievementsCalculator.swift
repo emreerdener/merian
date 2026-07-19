@@ -27,6 +27,8 @@ struct AchievementsCalculator {
                 switch type.definition.contributionKind {
                 case .firstScan:
                     return nil
+                case .externalMilestone:
+                    return nil
                 case .uniqueSpecies:
                     return (type, AchievementAccumulator(type: type))
                 }
@@ -37,6 +39,8 @@ struct AchievementsCalculator {
             for type in AchievementType.allCases {
                 switch type.definition.contributionKind {
                 case .firstScan:
+                    continue
+                case .externalMilestone:
                     continue
                 case .uniqueSpecies(let qualifyingReason):
                     guard let reasonText = qualifyingReason(record) else { continue }
@@ -53,6 +57,11 @@ struct AchievementsCalculator {
             switch type.definition.contributionKind {
             case .firstScan(let reasonText):
                 return firstScanDetail(from: allRecords, reasonText: reasonText)
+            case .externalMilestone:
+                return AchievementDetailPayload(
+                    award: AwardPayload(type: type, currentCount: 0, lastInteractionDate: nil),
+                    contributions: []
+                )
             case .uniqueSpecies:
                 return accumulators[type]?.detailPayload ?? AchievementDetailPayload(
                     award: AwardPayload(type: type, currentCount: 0, lastInteractionDate: nil),

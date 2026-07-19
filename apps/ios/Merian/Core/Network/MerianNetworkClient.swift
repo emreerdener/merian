@@ -2208,6 +2208,22 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripCaptureContextResponse.self, from: data).data
     }
 
+    func getFirstFieldTripAchievementProgress() async throws -> FirstFieldTripAchievementProgress? {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "achievement_progress"
+        ])
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData
+        )
+        return try makeExploreDecoder().decode(
+            FirstFieldTripAwardResponse.self,
+            from: data
+        ).data
+    }
+
     func getFieldTripTemplate(templateId: String) async throws -> FieldTripTemplate {
         try await getFieldTripTemplate(identifier: ["template_id": templateId])
     }
@@ -2345,7 +2361,10 @@ final class MerianNetworkClient {
         let response = try makeExploreDecoder().decode(FieldTripProgressUpdatesResponse.self, from: data)
         return FieldTripProgressResult(
             fieldTripUpdates: response.data,
-            challengeUpdates: response.challengeUpdates
+            challengeUpdates: response.challengeUpdates,
+            firstFieldTripAchievement: response.firstFieldTripAchievement,
+            firstFieldTripAchievementNewlyUnlocked:
+                response.firstFieldTripAchievementNewlyUnlocked
         )
     }
 

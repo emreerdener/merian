@@ -7,6 +7,7 @@ struct ExploreNotificationsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ExploreNotificationsViewModel()
     @State private var selectedNotificationId: String?
+    @State private var isNotificationSettingsPresented = false
 
     var body: some View {
         NavigationStack {
@@ -24,6 +25,9 @@ struct ExploreNotificationsSheet: View {
             .background(Color(uiColor: .systemBackground))
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $isNotificationSettingsPresented) {
+                NotificationSettingsView()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: { dismiss() }) {
@@ -32,20 +36,28 @@ struct ExploreNotificationsSheet: View {
                     }
                 }
 
-                if !viewModel.notifications.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        if !viewModel.notifications.isEmpty {
                             Button {
                                 Task { await viewModel.markAllAsRead() }
                             } label: {
                                 Label("Mark all as read", systemImage: "checkmark.circle")
                             }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 16, weight: .bold))
+
+                            Divider()
                         }
-                        .tint(.primary)
+
+                        Button {
+                            isNotificationSettingsPresented = true
+                        } label: {
+                            Label("Notification settings", systemImage: "gearshape")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .bold))
                     }
+                    .tint(.primary)
                 }
             }
         }

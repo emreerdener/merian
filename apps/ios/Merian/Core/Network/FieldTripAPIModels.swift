@@ -82,22 +82,138 @@ enum FieldTripCommunityMode: String, CaseIterable, Identifiable {
 struct FieldTripProgressUpdatesResponse: Decodable {
     let data: [FieldTripProgressUpdate]
     let challengeUpdates: [FieldTripChallengeProgressUpdate]
+    let firstFieldTripAchievement: FirstFieldTripAchievementProgress?
+    let firstFieldTripAchievementNewlyUnlocked: Bool
 
     private enum CodingKeys: String, CodingKey {
         case data
         case challengeUpdates
+        case firstFieldTripAchievement
+        case firstFieldTripAchievementNewlyUnlocked
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         data = try container.decodeIfPresent([FieldTripProgressUpdate].self, forKey: .data) ?? []
         challengeUpdates = try container.decodeIfPresent([FieldTripChallengeProgressUpdate].self, forKey: .challengeUpdates) ?? []
+        firstFieldTripAchievement = try container.decodeIfPresent(
+            FirstFieldTripAchievementProgress.self,
+            forKey: .firstFieldTripAchievement
+        )
+        firstFieldTripAchievementNewlyUnlocked = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .firstFieldTripAchievementNewlyUnlocked
+        ) ?? false
     }
 }
 
 struct FieldTripProgressResult: Equatable {
     let fieldTripUpdates: [FieldTripProgressUpdate]
     let challengeUpdates: [FieldTripChallengeProgressUpdate]
+    let firstFieldTripAchievement: FirstFieldTripAchievementProgress?
+    let firstFieldTripAchievementNewlyUnlocked: Bool
+
+    init(
+        fieldTripUpdates: [FieldTripProgressUpdate],
+        challengeUpdates: [FieldTripChallengeProgressUpdate],
+        firstFieldTripAchievement: FirstFieldTripAchievementProgress? = nil,
+        firstFieldTripAchievementNewlyUnlocked: Bool = false
+    ) {
+        self.fieldTripUpdates = fieldTripUpdates
+        self.challengeUpdates = challengeUpdates
+        self.firstFieldTripAchievement = firstFieldTripAchievement
+        self.firstFieldTripAchievementNewlyUnlocked = firstFieldTripAchievementNewlyUnlocked
+    }
+}
+
+struct FirstFieldTripAwardResponse: Decodable {
+    let data: FirstFieldTripAchievementProgress?
+}
+
+struct FirstFieldTripAchievementProgress: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable {
+        case standardOuting = "standard_outing"
+        case seasonalChallenge = "seasonal_challenge"
+    }
+
+    let kind: Kind
+    let completedAt: String
+    let templateSlug: String?
+    let challengeId: String?
+
+    var completionDate: Date? {
+        DateUtilities.iso8601FractionalFormatter.date(from: completedAt)
+            ?? DateUtilities.iso8601Formatter.date(from: completedAt)
+    }
+
+    var destination: CaptureGoalDestination? {
+        switch kind {
+        case .standardOuting:
+            guard let templateSlug = templateSlug?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !templateSlug.isEmpty else { return nil }
+            return .fieldTripTemplate(slug: templateSlug)
+        case .seasonalChallenge:
+            guard let challengeId = challengeId?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !challengeId.isEmpty else { return nil }
+            return .fieldTripChallenge(challengeId: challengeId)
+        }
+    }
+
+    var awardPayload: AwardPayload? {
+        guard let completionDate, let destination else { return nil }
+        return AwardPayload(
+            type: .firstFieldTrip,
+            currentCount: 1,
+            lastInteractionDate: completionDate,
+            unlockedAt: completionDate,
+            destination: destination
+        )
+    }
+}
+
+enum FirstFieldTripAchievementProgressStore {
+    static func load(
+        accountId: String,
+        userDefaults: UserDefaults = .standard
+    ) -> FirstFieldTripAchievementProgress? {
+        guard let data = userDefaults.data(forKey: key(accountId: accountId)),
+              let progress = try? JSONDecoder().decode(FirstFieldTripAchievementProgress.self, from: data),
+              progress.awardPayload != nil else {
+            return nil
+        }
+        return progress
+    }
+
+    static func save(
+        _ progress: FirstFieldTripAchievementProgress,
+        accountId: String,
+        userDefaults: UserDefaults = .standard
+    ) {
+        guard progress.awardPayload != nil,
+              let data = try? JSONEncoder().encode(progress) else { return }
+        userDefaults.set(data, forKey: key(accountId: accountId))
+    }
+
+    static func key(accountId: String) -> String {
+        UserDefaultsKeys.firstFieldTripAchievementProgressPrefix
+            + accountId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
+extension Array where Element == AwardPayload {
+    func mergingFirstFieldTripAchievement(
+        _ progress: FirstFieldTripAchievementProgress?
+    ) -> [AwardPayload] {
+        guard let completedAward = progress?.awardPayload else { return self }
+
+        var merged = self
+        if let index = merged.firstIndex(where: { $0.type == .firstFieldTrip }) {
+            merged[index] = completedAward
+        } else {
+            merged.append(completedAward)
+        }
+        return merged
+    }
 }
 
 struct FieldTripProfileSummariesResponse: Decodable {
@@ -140,6 +256,77 @@ enum FieldTripDifficulty: String, CaseIterable, Identifiable {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
         )
+    }
+}
+
+enum FieldTripDifficultyFilter: String, CaseIterable, Identifiable {
+    case all
+    case starter
+    case easy
+    case moderate
+    case hard
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    var difficulty: FieldTripDifficulty? {
+        guard self != .all else { return nil }
+        return FieldTripDifficulty(rawValue: rawValue)
+    }
+}
+
+enum FieldTripCatalogState: String, CaseIterable, Identifiable {
+    case completed
+    case inProgress
+    case incomplete
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .completed:
+            "Completed"
+        case .inProgress:
+            "In progress"
+        case .incomplete:
+            "Incomplete"
+        }
+    }
+}
+
+enum FieldTripStateFilter: String, CaseIterable, Identifiable {
+    case all
+    case completed
+    case inProgress
+    case incomplete
+
+    var id: String { rawValue }
+
+    var title: String {
+        state?.title ?? "All statuses"
+    }
+
+    var state: FieldTripCatalogState? {
+        guard self != .all else { return nil }
+        return FieldTripCatalogState(rawValue: rawValue)
+    }
+}
+
+struct FieldTripCatalogFilters: Equatable {
+    var difficulty: FieldTripDifficultyFilter = .all
+    var state: FieldTripStateFilter = .all
+
+    var activeFilterCount: Int {
+        (difficulty == .all ? 0 : 1) + (state == .all ? 0 : 1)
+    }
+
+    var hasActiveFilters: Bool {
+        activeFilterCount > 0
+    }
+
+    mutating func reset() {
+        difficulty = .all
+        state = .all
     }
 }
 
@@ -188,6 +375,11 @@ struct FieldTripTemplate: Decodable, Identifiable, Equatable, Sendable {
         FieldTripDifficulty(apiValue: difficulty)
     }
 
+    var catalogState: FieldTripCatalogState {
+        guard let activeProgress else { return .incomplete }
+        return activeProgress.isComplete ? .completed : .inProgress
+    }
+
     var difficultyTitle: String {
         if let resolvedDifficulty {
             return resolvedDifficulty.title
@@ -204,6 +396,18 @@ extension Array where Element == FieldTripTemplate {
     func filtering(by difficulty: FieldTripDifficulty?) -> [FieldTripTemplate] {
         guard let difficulty else { return self }
         return filter { $0.resolvedDifficulty == difficulty }
+    }
+
+    func filtering(by filters: FieldTripCatalogFilters) -> [FieldTripTemplate] {
+        filter { template in
+            let matchesDifficulty = filters.difficulty.difficulty.map {
+                template.resolvedDifficulty == $0
+            } ?? true
+            let matchesState = filters.state.state.map {
+                template.catalogState == $0
+            } ?? true
+            return matchesDifficulty && matchesState
+        }
     }
 }
 

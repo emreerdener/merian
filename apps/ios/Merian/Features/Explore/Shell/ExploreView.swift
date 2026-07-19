@@ -71,11 +71,16 @@ struct ExploreView: View {
         initialTargetCommentId: String? = nil,
         initialTargetReplyParentCommentId: String? = nil,
         initialCaptureGoalDestination: CaptureGoalDestination? = nil,
+        initialTab: ExploreTab = .feed,
         allowsInsightPresentation: Bool = true,
         onOpenOwnedPostInsight: ((String) -> Bool)? = nil
     ) {
         self.allowsInsightPresentation = allowsInsightPresentation
         self.onOpenOwnedPostInsight = onOpenOwnedPostInsight
+        _activeTab = State(initialValue: initialTab)
+        if initialTab == .fieldTrips {
+            _activeFieldTripsSection = State(initialValue: .fieldTrips)
+        }
         if let initialCaptureGoalDestination {
             var initialPath = NavigationPath()
             switch initialCaptureGoalDestination {
@@ -797,17 +802,7 @@ private struct ExploreFeedTabContent: View {
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
 
-            Group {
-                if viewModel.isLoadingInitialFeed && viewModel.feedItems.isEmpty {
-                    loadingState
-                } else if let errorMessage = viewModel.errorMessage, viewModel.feedItems.isEmpty {
-                    errorState(message: errorMessage)
-                } else if viewModel.feedItems.isEmpty {
-                    emptyState
-                } else {
-                    feedScrollView
-                }
-            }
+            feedScrollView
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
@@ -856,54 +851,16 @@ private struct ExploreFeedTabContent: View {
         ScrollView {
             VStack(spacing: 0) {
                 filterBar
-                
-                LazyVStack(spacing: 16) {
-                    ForEach(viewModel.feedItems) { item in
-                        switch item {
-                        case .observation(let post):
-                            ExplorePostCard(
-                                post: post,
-                                speciesDisplayName: viewModel.resolvedSpeciesCommonName(for: post),
-                                mediaReloadGeneration: viewModel.mediaReloadGeneration,
-                                onLike: { Task { await viewModel.toggleLike(for: post) } },
-                                onComments: {
-                                    Task { await viewModel.openCommentsSheet(for: post) }
-                                },
-                                onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
-                                onOpenDetail: { onOpenPostDetail(post) },
-                                onOpenAuthorProfile: { onOpenAuthorProfile(post) },
-                                onOpenHashtag: onOpenHashtag,
-                                onOpenInsight: onOpenInsight.map { callback in
-                                    { callback(post) }
-                                },
-                                onEditPost: { Task { await openPostEditor(for: post) } },
-                                onUnshare: { Task { await viewModel.unshare(post) } },
-                                onBlock: { Task { await viewModel.blockAuthor(of: post) } },
-                                onReport: { Task { await viewModel.report(post) } }
-                            )
-                            .onAppear {
-                                Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
-                            }
-                        case .fieldTrip(let publication):
-                            FieldTripCommunityPublicationCard(
-                                publication: publication,
-                                onOpenPublication: { _ in onOpenFieldTrip(publication) },
-                                onOpenAuthorProfile: onOpenFieldTripAuthorProfile
-                            )
-                            .padding(.horizontal, 16)
-                        }
-                    }
 
-                    if viewModel.isLoadingMore {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .padding(.horizontal, 16)
-                    }
+                if viewModel.isLoadingInitialFeed && viewModel.feedItems.isEmpty {
+                    loadingState
+                } else if let errorMessage = viewModel.errorMessage, viewModel.feedItems.isEmpty {
+                    errorState(message: errorMessage)
+                } else if viewModel.feedItems.isEmpty {
+                    emptyState
+                } else {
+                    feedItems
                 }
-                .padding(.top, 12)
-                .padding(.bottom, 24)
             }
         }
         .refreshable {
@@ -914,59 +871,85 @@ private struct ExploreFeedTabContent: View {
         }
     }
 
-    private var loadingState: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                filterBar
-                
-                LazyVStack(spacing: 24) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        ExplorePostCard.Skeleton()
+    private var feedItems: some View {
+        LazyVStack(spacing: 16) {
+            ForEach(viewModel.feedItems) { item in
+                switch item {
+                case .observation(let post):
+                    ExplorePostCard(
+                        post: post,
+                        speciesDisplayName: viewModel.resolvedSpeciesCommonName(for: post),
+                        mediaReloadGeneration: viewModel.mediaReloadGeneration,
+                        onLike: { Task { await viewModel.toggleLike(for: post) } },
+                        onComments: {
+                            Task { await viewModel.openCommentsSheet(for: post) }
+                        },
+                        onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
+                        onOpenDetail: { onOpenPostDetail(post) },
+                        onOpenAuthorProfile: { onOpenAuthorProfile(post) },
+                        onOpenHashtag: onOpenHashtag,
+                        onOpenInsight: onOpenInsight.map { callback in
+                            { callback(post) }
+                        },
+                        onEditPost: { Task { await openPostEditor(for: post) } },
+                        onUnshare: { Task { await viewModel.unshare(post) } },
+                        onBlock: { Task { await viewModel.blockAuthor(of: post) } },
+                        onReport: { Task { await viewModel.report(post) } }
+                    )
+                    .onAppear {
+                        Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
                     }
+                case .fieldTrip(let publication):
+                    FieldTripCommunityPublicationCard(
+                        publication: publication,
+                        onOpenPublication: { _ in onOpenFieldTrip(publication) },
+                        onOpenAuthorProfile: onOpenFieldTripAuthorProfile
+                    )
+                    .padding(.horizontal, 16)
                 }
-                .padding(.top, 12)
-                .padding(.bottom, 24)
+            }
+
+            if viewModel.isLoadingMore {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
             }
         }
+        .padding(.top, 12)
+        .padding(.bottom, 24)
+    }
+
+    private var loadingState: some View {
+        LazyVStack(spacing: 24) {
+            ForEach(0..<3, id: \.self) { _ in
+                ExplorePostCard.Skeleton()
+            }
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 24)
     }
 
     private var emptyState: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                filterBar
-                
-                EmptyStateView(
-                    imageName: "nature-scene",
-                    imageHeight: 300,
-                    title: emptyStateTitle,
-                    message: emptyStateMessage
-                )
-                .padding(.top, 60)
-            }
-        }
-        .refreshable {
-            await refreshFeed()
-        }
+        EmptyStateView(
+            imageName: "nature-scene",
+            imageHeight: 300,
+            title: emptyStateTitle,
+            message: emptyStateMessage
+        )
+        .padding(.top, 60)
     }
 
     private func errorState(message: String) -> some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                filterBar
-                
-                ExploreUnavailableStateView(
-                    title: "Explore unavailable",
-                    message: message
-                ) {
-                    Task { await refreshFeed() }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 520)
-            }
+        ExploreUnavailableStateView(
+            title: "Explore unavailable",
+            message: message
+        ) {
+            Task { await refreshFeed() }
         }
-        .refreshable {
-            await refreshFeed()
-        }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 520)
     }
 
     private var emptyStateTitle: String {
@@ -1167,6 +1150,7 @@ private struct ExploreFeedTabContent: View {
                 ? "Filters \(viewModel.activeAdvancedFilterCount.formatted())"
                 : "Filters",
             isLeadingSelected: viewModel.hasActiveAdvancedFilters,
+            loadingItem: isResolvingNearbyLocation ? .nearby : nil,
             onSelection: { filter in
                 Task {
                     await selectFilter(filter)
@@ -1178,14 +1162,6 @@ private struct ExploreFeedTabContent: View {
             }
         )
         .disabled(isResolvingNearbyLocation)
-        .overlay(alignment: .trailing) {
-            if isResolvingNearbyLocation {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(0.85)
-                    .padding(.trailing, 16)
-            }
-        }
     }
 
     private var feedFilterSheet: some View {

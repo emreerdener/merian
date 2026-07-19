@@ -6,9 +6,6 @@ struct ScansSheetModifiers: ViewModifier {
     @Bindable var searchManager: ScansManager
     @Binding var activeTab: ScansTab
     @Binding var isSearchFocused: Bool
-    @Binding var collectionSortOption: CollectionSortOption
-    @Binding var collectionFilters: CollectionLibraryFilters
-    let filterCategories: [String]
     
     @Binding var showNewCollectionAlert: Bool
     @Binding var newCollectionName: String
@@ -28,6 +25,7 @@ struct ScansSheetModifiers: ViewModifier {
     
     func body(content: Content) -> some View {
         content
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .onChange(of: activeTab) { _, newValue in
                 if !searchManager.searchQuery.isEmpty {
                     searchManager.searchQuery = ""
@@ -38,6 +36,12 @@ struct ScansSheetModifiers: ViewModifier {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $searchManager.searchQuery,
+                isPresented: $isSearchFocused,
+                placement: .toolbar,
+                prompt: activeTab == .library ? "Search scans" : "Search collections"
+            )
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 if activeTab == .library {
                     searchManager.performSearch(query: newValue)
@@ -75,21 +79,6 @@ struct ScansSheetModifiers: ViewModifier {
             } message: {
                 Text("You can only select up to 20 items at a time to ensure optimal system performance during export and deletion workloads.")
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !searchManager.isSelectionMode {
-                    ScansBottomSearchFilterBar(
-                        searchManager: searchManager,
-                        activeTab: activeTab,
-                        isSearchFocused: $isSearchFocused,
-                        collectionSortOption: $collectionSortOption,
-                        collectionFilters: $collectionFilters,
-                        filterCategories: filterCategories
-                    )
-                    .padding(.horizontal, 18)
-                    .padding(.top, 10)
-                    .padding(.bottom, 2)
-                }
-            }
             .overlay(alignment: .bottom) {
                 if let message = toastMessage {
                     Text(message)
@@ -103,7 +92,7 @@ struct ScansSheetModifiers: ViewModifier {
                             shadowRadius: 10,
                             shadowY: 5
                         )
-                        .padding(.bottom, 86)
+                        .padding(.bottom, 60)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .zIndex(100)
                         .allowsHitTesting(false)
@@ -120,280 +109,7 @@ struct ScansSheetModifiers: ViewModifier {
     }
 }
 
-private struct ScansBottomSearchFilterBar: View {
-    @Bindable var searchManager: ScansManager
-    let activeTab: ScansTab
-    @Binding var isSearchFocused: Bool
-    @Binding var collectionSortOption: CollectionSortOption
-    @Binding var collectionFilters: CollectionLibraryFilters
-    let filterCategories: [String]
-    @FocusState private var isFieldFocused: Bool
-    @State private var isShowingFilterSheet = false
-    private let controlSize: CGFloat = 52
-    private let iconSize: CGFloat = 21
-    private let labelSize: CGFloat = 20
-
-    private var prompt: String {
-        activeTab == .library ? "Search scans" : "Search collections"
-    }
-
-    private var isSearchActive: Bool {
-        isFieldFocused || isSearchFocused || !searchManager.searchQuery.isEmpty
-    }
-
-    private var isFilterActive: Bool {
-        switch activeTab {
-        case .library:
-            return searchManager.hasActiveFilters
-        case .collections:
-            return collectionFilters.hasActiveFilters
-        }
-    }
-
-    private var activeFilterCount: Int {
-        switch activeTab {
-        case .library:
-            return searchManager.activeFilterCount
-        case .collections:
-            return collectionFilters.activeFilterCount
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if isSearchActive {
-                searchField
-
-                Button {
-                    HapticManager.shared.triggerLightImpact(intensity: 0.5)
-                    searchManager.searchQuery = ""
-                    if activeTab == .library {
-                        searchManager.performSearch(query: "")
-                    }
-                    isFieldFocused = false
-                    isSearchFocused = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 24, weight: .regular))
-                        .foregroundStyle(.primary)
-                        .frame(width: controlSize, height: controlSize)
-                        .scansLiquidGlassCircle()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close search")
-            } else {
-                filterButton
-
-                Button {
-                    HapticManager.shared.triggerLightImpact(intensity: 0.5)
-                    isFieldFocused = true
-                    isSearchFocused = true
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: iconSize, weight: .regular))
-                            .foregroundStyle(.primary)
-
-                        Text(prompt)
-                            .font(.system(size: labelSize, weight: .regular))
-                            .foregroundStyle(.secondary)
-
-                        Spacer(minLength: 0)
-                    }
-                    .frame(height: controlSize)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 16)
-                    .scansLiquidGlassCapsule()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Search")
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .onAppear {
-            isFieldFocused = isSearchFocused
-        }
-        .onChange(of: isFieldFocused) { _, newValue in
-            isSearchFocused = newValue
-        }
-        .onChange(of: isSearchFocused) { _, newValue in
-            if isFieldFocused != newValue {
-                isFieldFocused = newValue
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var filterButton: some View {
-        Button {
-            HapticManager.shared.triggerSheetSpring()
-            isShowingFilterSheet = true
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: iconSize, weight: .regular))
-                    .foregroundStyle(isFilterActive ? .white : .primary)
-                    .frame(width: controlSize, height: controlSize)
-
-                if activeFilterCount > 0 {
-                    Text("\(activeFilterCount)")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                        .monospacedDigit()
-                        .frame(width: 22, height: 22)
-                        .background(Color.red, in: Circle())
-                        .offset(x: 4, y: -2)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .frame(width: controlSize, height: controlSize)
-        .scansLiquidGlassCircle(isActive: isFilterActive)
-        .accessibilityLabel(activeTab == .library ? "Filter scans" : "Filter collections")
-        .accessibilityValue(isFilterActive ? "\(activeFilterCount) active" : "Inactive")
-        .sheet(isPresented: $isShowingFilterSheet) {
-            switch activeTab {
-            case .library:
-                ScansFilterSheet(
-                    searchManager: searchManager,
-                    filterCategories: filterCategories
-                )
-            case .collections:
-                CollectionsFilterSheet(
-                    collectionSortOption: $collectionSortOption,
-                    filters: $collectionFilters
-                )
-            }
-        }
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: iconSize, weight: .regular))
-                .foregroundStyle(.primary)
-
-            TextField(prompt, text: $searchManager.searchQuery)
-                .font(.system(size: labelSize, weight: .regular))
-                .foregroundStyle(.primary)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .focused($isFieldFocused)
-
-            if !searchManager.searchQuery.isEmpty {
-                Button {
-                    HapticManager.shared.triggerSelectionPulse()
-                    searchManager.searchQuery = ""
-                    if activeTab == .library {
-                        searchManager.performSearch(query: "")
-                    }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .frame(height: controlSize)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
-        .scansLiquidGlassCapsule()
-    }
-}
-
-private struct ScansLiquidGlassCapsuleModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background {
-                Capsule(style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .fill(Color.primary.opacity(0.055))
-                    }
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [
-                                        .white.opacity(0.48),
-                                        .white.opacity(0.10),
-                                        .primary.opacity(0.12)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 0.9
-                            )
-                    }
-            }
-            .shadow(color: .black.opacity(0.13), radius: 16, x: 0, y: 8)
-    }
-}
-
-private struct ScansLiquidGlassCircleModifier: ViewModifier {
-    let isActive: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        Circle()
-                            .fill(
-                                isActive
-                                    ? AnyShapeStyle(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.accentColor.opacity(0.95),
-                                                Color.accentColor.opacity(0.72)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    : AnyShapeStyle(Color.primary.opacity(0.06))
-                            )
-                    }
-                    .overlay {
-                        Circle()
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [
-                                        .white.opacity(isActive ? 0.70 : 0.52),
-                                        .white.opacity(isActive ? 0.18 : 0.08),
-                                        .primary.opacity(isActive ? 0.18 : 0.14)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 0.9
-                            )
-                    }
-            }
-            .shadow(
-                color: .black.opacity(0.16),
-                radius: 16,
-                x: 0,
-                y: 8
-            )
-    }
-}
-
 private extension View {
-    func scansLiquidGlassCapsule() -> some View {
-        modifier(ScansLiquidGlassCapsuleModifier())
-    }
-
-    func scansLiquidGlassCircle(isActive: Bool = false) -> some View {
-        modifier(ScansLiquidGlassCircleModifier(isActive: isActive))
-    }
-
     func filterSheetOpaqueBackground() -> some View {
         scrollContentBackground(.hidden)
             .background(FilterSheetStyle.background)
@@ -428,12 +144,7 @@ private enum ScansFilterGroup: Hashable {
     case explorePosts
 }
 
-private enum CollectionFilterGroup: Hashable {
-    case sort
-    case type
-}
-
-private struct ScansFilterSheet: View {
+struct ScansFilterSheet: View {
     @Bindable var searchManager: ScansManager
     let filterCategories: [String]
     @Environment(\.dismiss) private var dismiss
@@ -1023,179 +734,6 @@ private struct ScansFilterSheet: View {
             updated.dateFilters.insert(.custom)
             updated[keyPath: keyPath] = newValue
             searchManager.filters = updated
-        }
-    }
-}
-
-private struct CollectionsFilterSheet: View {
-    @Binding var collectionSortOption: CollectionSortOption
-    @Binding var filters: CollectionLibraryFilters
-    @Environment(\.dismiss) private var dismiss
-    @State private var expandedGroups: Set<CollectionFilterGroup> = []
-    @State private var presentedActiveFilterCount: Int?
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                filterDisclosureGroup(
-                    .sort,
-                    title: "Sort",
-                    summary: formattedFilterTitle(collectionSortOption.rawValue)
-                ) {
-                    ForEach(CollectionSortOption.allCases) { option in
-                        filterRow(title: option.rawValue, isSelected: collectionSortOption == option) {
-                            collectionSortOption = option
-                        }
-                    }
-                }
-
-                filterDisclosureGroup(
-                    .type,
-                    title: "Collection type",
-                    summary: selectedSummary(filters.typeFilters, title: \.rawValue)
-                ) {
-                    ForEach(CollectionTypeFilter.allCases) { filter in
-                        filterRow(
-                            title: filter.rawValue,
-                            isSelected: filters.typeFilters.contains(filter)
-                        ) {
-                            toggleTypeFilter(filter)
-                        }
-                    }
-                }
-            }
-            .listSectionSpacing(12)
-            .contentMargins(.top, 8, for: .scrollContent)
-            .filterSheetOpaqueBackground()
-            .navigationTitle(sheetTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Clear") {
-                        HapticManager.shared.triggerMediumPulse()
-                        filters.clear()
-                        presentedActiveFilterCount = 0
-                    }
-                    .disabled(!filters.hasActiveFilters)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        HapticManager.shared.triggerLightImpact(intensity: 0.5)
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FilterSheetStyle.background)
-        .onAppear {
-            presentedActiveFilterCount = filters.activeFilterCount
-        }
-    }
-
-    private var sheetTitle: String {
-        let count = presentedActiveFilterCount ?? filters.activeFilterCount
-        guard count > 0 else { return "Filter collections" }
-        return count == 1 ? "1 active filter" : "\(count) active filters"
-    }
-
-    @ViewBuilder
-    private func filterDisclosureGroup<Content: View>(
-        _ group: CollectionFilterGroup,
-        title: String,
-        summary: String,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        Section {
-            DisclosureGroup(isExpanded: expansionBinding(for: group)) {
-                content()
-            } label: {
-                filterGroupLabel(title: title, summary: summary)
-            }
-        }
-    }
-
-    private func filterGroupLabel(title: String, summary: String) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .foregroundStyle(.primary)
-
-            Spacer(minLength: 0)
-
-            Text(summary)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(1)
-        }
-    }
-
-    private func expansionBinding(for group: CollectionFilterGroup) -> Binding<Bool> {
-        Binding {
-            expandedGroups.contains(group)
-        } set: { isExpanded in
-            HapticManager.shared.triggerSelectionPulse()
-            if isExpanded {
-                expandedGroups.insert(group)
-            } else {
-                expandedGroups.remove(group)
-            }
-        }
-    }
-
-    private func filterRow(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            HapticManager.shared.triggerSelectionPulse()
-            action()
-        } label: {
-            HStack {
-                Text(formattedFilterTitle(title))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.tint)
-                }
-            }
-        }
-    }
-
-    private func formattedFilterTitle(_ title: String) -> String {
-        let normalized = title
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
-            .split(separator: " ")
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let firstCharacter = normalized.first else { return normalized }
-        return firstCharacter.uppercased() + String(normalized.dropFirst())
-    }
-
-    private func selectedSummary<Value: Hashable>(
-        _ values: Set<Value>,
-        title: KeyPath<Value, String>
-    ) -> String {
-        if values.isEmpty {
-            return "None"
-        }
-
-        if values.count == 1, let value = values.first {
-            return formattedFilterTitle(value[keyPath: title])
-        }
-
-        return "\(values.count) selected"
-    }
-
-    private func toggleTypeFilter(_ filter: CollectionTypeFilter) {
-        if filters.typeFilters.contains(filter) {
-            filters.typeFilters.remove(filter)
-        } else {
-            filters.typeFilters.insert(filter)
         }
     }
 }

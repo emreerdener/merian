@@ -207,11 +207,13 @@ typealias AchievementToastItem = MilestoneToastItem
 final class ScanMilestoneCoordinator {
     typealias ProgressResolver = (String) async -> FieldTripProgressResult?
     typealias AchievementResolver = (ModelContainer?) async -> [AwardPayload]
+    typealias FieldTripsAvailabilityResolver = @MainActor () -> Bool
 
     static let shared = ScanMilestoneCoordinator()
 
     private let progressResolver: ProgressResolver
     private let achievementResolver: AchievementResolver
+    private let fieldTripsAvailabilityResolver: FieldTripsAvailabilityResolver
     private let presenter: MilestoneToastPresenter
     private var inFlightScanIds: Set<String> = []
     private var completedScanIds: Set<String> = []
@@ -221,10 +223,14 @@ final class ScanMilestoneCoordinator {
     init(
         progressResolver: @escaping ProgressResolver = ScanMilestoneCoordinator.resolveProgress,
         achievementResolver: @escaping AchievementResolver = ScanMilestoneCoordinator.resolveAchievements,
+        fieldTripsAvailabilityResolver: @escaping FieldTripsAvailabilityResolver = {
+            FieldTripsAvailability.isEnabled
+        },
         presenter: MilestoneToastPresenter? = nil
     ) {
         self.progressResolver = progressResolver
         self.achievementResolver = achievementResolver
+        self.fieldTripsAvailabilityResolver = fieldTripsAvailabilityResolver
         self.presenter = presenter ?? .shared
     }
 
@@ -240,10 +246,16 @@ final class ScanMilestoneCoordinator {
         inFlightScanIds.insert(scanId)
         defer { inFlightScanIds.remove(scanId) }
 
-        let progress = await progressResolver(scanId)
+        let resolvesFieldTrips = fieldTripsAvailabilityResolver()
+        let accountId = resolvesFieldTrips
+            ? SupabaseManager.shared.currentUser?.id.uuidString
+            : nil
+        let progress = resolvesFieldTrips ? await progressResolver(scanId) : nil
+        cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
 
         let achievements = await achievementResolver(modelContainer)
+            + newlyUnlockedFirstFieldTripAwards(from: progress)
         let fieldTrips = Self.milestones(from: progress)
         let includesNewToMerian = speciesData.map(Self.isValidNewToMerianMilestone) ?? false
 
@@ -258,11 +270,17 @@ final class ScanMilestoneCoordinator {
     /// Re-applies progress after a user changes a saved scan's identification.
     /// These updates are not part of the original scan-completion milestone batch.
     func processIdentificationUpdate(scanId: String) async {
+        guard fieldTripsAvailabilityResolver() else { return }
+        let accountId = SupabaseManager.shared.currentUser?.id.uuidString
         let progress = await progressResolver(scanId)
+        cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
 
         for milestone in Self.milestones(from: progress) {
             presenter.enqueueFieldTripProgress(milestone)
+        }
+        for award in newlyUnlockedFirstFieldTripAwards(from: progress) {
+            presenter.enqueueAchievementUnlock(award)
         }
     }
 
@@ -299,6 +317,27 @@ final class ScanMilestoneCoordinator {
         if !result.challengeUpdates.isEmpty {
             AppEventPublisher.shared.send(.fieldTripChallengeProgressUpdated(result.challengeUpdates))
         }
+    }
+
+    private func cacheFirstFieldTripAchievement(
+        from result: FieldTripProgressResult?,
+        accountId: String?
+    ) {
+        guard let progress = result?.firstFieldTripAchievement,
+              let accountId,
+              SupabaseManager.shared.currentUser?.id.uuidString == accountId else { return }
+        FirstFieldTripAchievementProgressStore.save(progress, accountId: accountId)
+    }
+
+    private func newlyUnlockedFirstFieldTripAwards(
+        from result: FieldTripProgressResult?
+    ) -> [AwardPayload] {
+        guard result?.firstFieldTripAchievementNewlyUnlocked == true,
+              let award = result?.firstFieldTripAchievement?.awardPayload else { return [] }
+        return GamificationManager.shared.evaluateAchievementsForNotifications(
+            awards: [award],
+            enqueueToasts: false
+        )
     }
 
     private func rememberCompletedScan(_ scanId: String) {

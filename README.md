@@ -156,7 +156,7 @@ steps are tracked in the
 ### Settings
 **General preferences** — theme (system/light/dark), an optional fresh-launch Explore destination, Notifications, system haptics, and geoprivacy.
 **Pro** — multi-capture scans and expedition mode.
-**Workspace** — camera and audio preferences, capture-mode order, the on-by-default field trip-progress overlay, and scan-submission confirmation.
+**Workspace** — camera and audio preferences, **Reorder modes**, the on-by-default field trip-progress overlay, and scan-submission confirmation.
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account and synced to Supabase.
 **Notifications** — species discovery alerts, achievement milestone alerts.
 **Changelog** — bundled feature notes, release notes, and selected in-progress work.

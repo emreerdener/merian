@@ -803,6 +803,25 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertNil(viewModel.pendingExplorePostId)
     }
 
+    func testProfileFieldTripsRouteOpensExistingExploreFieldTripsRoot() async throws {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .profile
+        )
+        viewModel.pendingExplorePostId = "stale-post"
+
+        AppEventPublisher.shared.send(.requestOpenFieldTrips)
+        try await waitUntil {
+            viewModel.activeSheet == .explore && viewModel.pendingExploreShowsFieldTrips
+        }
+
+        XCTAssertNil(viewModel.pendingExplorePostId)
+        XCTAssertNil(viewModel.pendingCommunityIdentificationRequestId)
+        XCTAssertNil(viewModel.pendingCaptureGoalDestination)
+    }
+
     func testScanRouteOverridesGenericLaunchExplore() async throws {
         let modelContext = try makeModelContext()
         let previousModelContext = OfflineQueueManager.shared.modelContext

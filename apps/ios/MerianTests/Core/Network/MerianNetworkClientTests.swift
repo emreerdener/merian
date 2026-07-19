@@ -1191,6 +1191,11 @@ struct MerianNetworkClientTests {
                         "type": "explorer",
                         "current_count": 5,
                         "last_interaction_at": "2026-05-03T12:00:00.000Z"
+                    },
+                    {
+                        "type": "first_field_trip",
+                        "current_count": 1,
+                        "last_interaction_at": "2026-05-02T12:00:00.000Z"
                     }
                 ],
                 "preview_posts": [
@@ -1245,6 +1250,8 @@ struct MerianNetworkClientTests {
         #expect(profile.awardPayloads.first { $0.type == .explorer }?.isCompleted == true)
         #expect(profile.awardPayloads.first { $0.type == .domesticCat }?.currentCount == 0)
         #expect(profile.awardPayloads.first { $0.type == .domesticDog }?.currentCount == 0)
+        #expect(profile.awardPayloads.first { $0.type == .firstFieldTrip }?.isCompleted == true)
+        #expect(profile.awardPayloads.first { $0.type == .firstFieldTrip }?.destination == nil)
         #expect(profile.previewPosts.first?.id == "post-profile-123")
     }
 

@@ -22,7 +22,9 @@ struct ProfileTabView: View {
     @State private var awards: [AwardPayload] = []
     @State private var exploreViewModel = ExploreFeedViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var selectedFieldTripTemplateRoute: FieldTripTemplateRoute?
     @State private var selectedFieldTripPublicationRoute: FieldTripPublicationRoute?
+    @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var profileRefreshToken = UUID()
     
@@ -37,11 +39,24 @@ struct ProfileTabView: View {
                         isShowingDisplayNameEditor: $isShowingDisplayNameEditor,
                         isShowingUsernameEditor: $isShowingUsernameEditor,
                         totalScans: totalCaptures,
-                        completedAchievements: awards.completedCount
+                        completedAchievements: visibleAwards.completedCount
                     )
 
                     // MARK: - Stats
                     UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
+                }
+
+                // MARK: - Field trips
+                if FieldTripsAvailability.isEnabled {
+                    ActiveFieldTripsProfilePreview(
+                        onOpenTemplate: { templateId in
+                            selectedFieldTripTemplateRoute = FieldTripTemplateRoute(templateId: templateId)
+                        },
+                        onOpenCompletedScan: openFieldTripCompletedScan,
+                        onViewAll: {
+                            AppEventPublisher.shared.send(.requestOpenFieldTrips)
+                        }
+                    )
                 }
 
                 // MARK: - Public Explore Scans
@@ -49,13 +64,6 @@ struct ProfileTabView: View {
                     viewModel: exploreViewModel,
                     onOpenPost: openPublicScanPreview
                 )
-
-                // MARK: - Field trips
-                if FieldTripsAvailability.isEnabled {
-                    CurrentUserFieldTripProfilePreview { publicationId in
-                        selectedFieldTripPublicationRoute = FieldTripPublicationRoute(publicationId: publicationId)
-                    }
-                }
 
                 // MARK: - Paywall & Subscriptions
                 if !revenueCatManager.isProActive {
@@ -84,8 +92,8 @@ struct ProfileTabView: View {
                 ScansHeatmap(heatmapData: heatmapData)
 
                 // MARK: - Gamification Awards
-                if !awards.isEmpty {
-                    Achievements(awards: awards)
+                if !visibleAwards.isEmpty {
+                    Achievements(awards: visibleAwards)
                 }
 
                 // MARK: - Refer a Friend
@@ -119,6 +127,26 @@ struct ProfileTabView: View {
             }
             .navigationDestination(
                 isPresented: Binding(
+                    get: { selectedFieldTripTemplateRoute != nil },
+                    set: { if !$0 { selectedFieldTripTemplateRoute = nil } }
+                )
+            ) {
+                if let selectedFieldTripTemplateRoute {
+                    FieldTripTemplateDetailView(
+                        reference: selectedFieldTripTemplateRoute.reference,
+                        focusedChecklistItemId: selectedFieldTripTemplateRoute.focusedChecklistItemId,
+                        onOpenCompletedScan: openFieldTripCompletedScan,
+                        onOpenPublication: { publicationId in
+                            selectedFieldTripPublicationRoute = FieldTripPublicationRoute(
+                                publicationId: publicationId
+                            )
+                        },
+                        onOpenAuthorProfile: openFieldTripAuthorProfile
+                    )
+                }
+            }
+            .navigationDestination(
+                isPresented: Binding(
                     get: { selectedFieldTripPublicationRoute != nil },
                     set: { if !$0 { selectedFieldTripPublicationRoute = nil } }
                 )
@@ -138,6 +166,9 @@ struct ProfileTabView: View {
                     allowsExplorePresentation: false
                 )
             }
+            .sheet(item: $selectedFieldTripAuthorRoute) { route in
+                ExploreAuthorProfileSheet(viewModel: exploreViewModel, route: route)
+            }
             .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
                 SpeciesDictionaryPageContentView(
                     scientificName: route.scientificName,
@@ -152,6 +183,15 @@ struct ProfileTabView: View {
             }
             .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
                 profileRefreshToken = UUID()
+            }
+            .onReceive(AppEventPublisher.shared.publisher) { event in
+                guard FieldTripsAvailability.isEnabled else { return }
+                switch event {
+                case .fieldTripProgressUpdated, .fieldTripChallengeProgressUpdated:
+                    profileRefreshToken = UUID()
+                default:
+                    break
+                }
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
@@ -172,7 +212,37 @@ struct ProfileTabView: View {
         currentStreak = stats.streak
         totalCaptures = stats.heatmap.totalCaptures
         heatmapData = stats.heatmap
-        awards = stats.awards
+        guard FieldTripsAvailability.isEnabled,
+              let accountId = SupabaseManager.shared.currentUser?.id.uuidString else {
+            awards = stats.awards
+            return
+        }
+
+        var progress = FirstFieldTripAchievementProgressStore.load(accountId: accountId)
+        awards = stats.awards.mergingFirstFieldTripAchievement(progress)
+        do {
+            if let refreshedProgress = try await MerianNetworkClient.shared
+                .getFirstFieldTripAchievementProgress() {
+                guard SupabaseManager.shared.currentUser?.id.uuidString == accountId else {
+                    return
+                }
+                FirstFieldTripAchievementProgressStore.save(
+                    refreshedProgress,
+                    accountId: accountId
+                )
+                progress = refreshedProgress
+                awards = stats.awards.mergingFirstFieldTripAchievement(progress)
+            }
+        } catch {
+            MerianLog.network.debug(
+                "First Field trip achievement refresh failed: \(error, privacy: .private)"
+            )
+        }
+    }
+
+    private var visibleAwards: [AwardPayload] {
+        guard !FieldTripsAvailability.isEnabled else { return awards }
+        return awards.filter { $0.type != .firstFieldTrip }
     }
 
     private func openPublicScanPreview(_ post: ExplorePost) {
@@ -204,6 +274,24 @@ struct ProfileTabView: View {
         inferenceEngine.load(from: record)
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
         return true
+    }
+
+    private func openFieldTripCompletedScan(_ scanId: String) {
+        if openInsight(scanId: scanId) {
+            HapticManager.shared.triggerSelectionPulse()
+        } else {
+            HapticManager.shared.triggerErrorThump()
+        }
+    }
+
+    private func openFieldTripAuthorProfile(_ publication: FieldTripRecentPublication) {
+        HapticManager.shared.triggerSelectionPulse()
+        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
+            authorUserId: publication.authorUserId,
+            authorName: publication.authorName,
+            authorUsername: publication.authorUsername,
+            authorAvatarUrl: publication.authorAvatarUrl
+        )
     }
 }
 

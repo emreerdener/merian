@@ -25,9 +25,9 @@ struct ReferFriendCard: View {
 
                 Spacer()
 
-                Image(systemName: "leaf.fill")
-                    .foregroundStyle(.green)
-                    .font(.system(size: 38, weight: .semibold))
+                Image("heart")
+                    .resizable()
+                    .scaledToFit()
                     .frame(width: 56, height: 56)
             }
 

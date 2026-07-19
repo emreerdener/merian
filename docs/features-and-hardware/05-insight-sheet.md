@@ -314,14 +314,30 @@ and total playback time. The preference is device-local and per scan, applies to
 standalone audio page in a mixed-media carousel, and remains independent from
 any public Explore-post preference. Restoration is silent; explicit activation
 shows progress, and successful playback displays **Boosted audio** without
-modifying the original recording.
+modifying the original recording. An idle first play remains disabled while a
+restored boosted source is being prepared. If a boost or revert finishes during
+active playback, the prepared source is staged without interrupting the active
+player. The source handoff occurs at the next pause, marker drag, or clip end and
+aligns the replacement to the live player position immediately before the swap.
+If a marker drag resumes playback, playhead observation restarts for the
+replacement player. Completion callbacks from replaced players are ignored so
+they cannot reset the active playhead.
+
+Boost processing writes a Core Audio file inside an explicit close scope, then
+reopens and decodes every rendered frame before publishing the source to a
+player. Decode errors and callback-less playback stops invalidate the cached
+boost and fall back to the original recording at the last confirmed playhead
+position, so the UI cannot remain falsely stuck in its playing state.
 
 Insight audio spectrograms support focused seeking. A tap jumps playback to the
-selected time. The thin playmarker has a 44-point invisible drag target; a drag
-that starts there pauses playback while moving and resumes only if the clip was
-previously playing. Horizontal drags elsewhere continue paging through mixed
-media. VoiceOver adjusts the position in five-second steps. Seek position is
-session-local and works identically for original and boosted playback.
+selected time. During playback, the thin playmarker and its 44-point invisible
+drag target sample `AVAudioPlayer.currentTime` on SwiftUI's display-synchronized
+animation timeline; the raster-backed, equatable spectrogram remains outside
+that frame loop. A drag that starts on the marker pauses playback while moving
+and resumes only if the clip was previously playing. Horizontal drags elsewhere
+continue paging through mixed media. VoiceOver adjusts the position in
+five-second steps. Seek position is session-local and works identically for
+original and boosted playback.
 Playback taps use the shared Merian haptic vocabulary: medium feedback for play
 or enabling boost, light feedback for pause, mute, or disabling boost, and a
 single begin/commit pair for a scrub gesture. Timer updates, playhead movement,

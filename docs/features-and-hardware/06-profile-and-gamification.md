@@ -169,9 +169,16 @@ All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimi
 
 ## Achievements vs Field trip Challenge Badges
 
-Achievements are always-on account awards computed from the local scan history
-projection. They can progress without joining anything, and they are recalculated
-after successful inference so long-running milestones stay current.
+Most achievements are always-on account awards computed from the local scan
+history projection. They can progress without joining anything, and they are
+recalculated after successful inference so long-running milestones stay current.
+
+**The Field Naturalist** (`first_field_trip`) is server-authoritative and remains
+behind `FieldTripsAvailability`. It unlocks from the earliest completed standard
+outing or Seasonal Challenge, uses an account-scoped offline cache, and carries
+the typed destination needed for a completed card or toast to reopen the trip.
+The local calculator emits its locked/default state so profiles remain complete
+without pretending scan history can resolve Field trip completion.
 
 Field trip Challenge badges are seasonal, curated, and server-authoritative.
 They require an explicit challenge join, count only scans made after `joined_at`
@@ -239,7 +246,9 @@ When adding a new achievement, update both:
 - the local Swift definition in `AchievementType.definition`
 - the SQL progress projection in `public.get_explore_author_profile(...)`
 
-The public SQL projection must return progress only. Do not add qualifying scan IDs, scan URLs, exact locations, or private notes to the public achievement payload.
+The public SQL projection must return progress only. Do not add qualifying scan
+IDs, scan URLs, exact locations, private notes, Field trip template slugs, or
+Seasonal Challenge IDs to the public achievement payload.
 
 ---
 

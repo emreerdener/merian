@@ -158,6 +158,7 @@ final class CaptureWorkspaceViewModel {
     var pendingExploreTargetCommentId: String?
     var pendingExploreTargetReplyParentCommentId: String?
     var pendingCaptureGoalDestination: CaptureGoalDestination?
+    var pendingExploreShowsFieldTrips = false
     var explorePresentationIdentity = UUID()
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
@@ -316,6 +317,8 @@ final class CaptureWorkspaceViewModel {
                     self?.handleScansLibraryRoute()
                 case .requestOpenCaptureGoal(let destination):
                     self?.openCaptureGoal(destination)
+                case .requestOpenFieldTrips:
+                    self?.openFieldTrips()
                 case .externalImageImportAvailable:
                     self?.protectExternalRouteFromImmediateSessionTimeoutReset()
                     self?.importPendingExternalImageIfPossible()
@@ -381,6 +384,7 @@ final class CaptureWorkspaceViewModel {
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
         pendingCaptureGoalDestination = nil
+        pendingExploreShowsFieldTrips = false
         imageToCrop = nil
         editingCropIndex = nil
 
@@ -433,6 +437,7 @@ final class CaptureWorkspaceViewModel {
         pendingExploreTargetCommentId = targetCommentId
         pendingExploreTargetReplyParentCommentId = targetReplyParentCommentId
         pendingCaptureGoalDestination = nil
+        pendingExploreShowsFieldTrips = false
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }
@@ -444,6 +449,7 @@ final class CaptureWorkspaceViewModel {
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
         pendingCaptureGoalDestination = nil
+        pendingExploreShowsFieldTrips = false
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }
@@ -465,6 +471,15 @@ final class CaptureWorkspaceViewModel {
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
         pendingCaptureGoalDestination = destination
+        pendingExploreShowsFieldTrips = false
+        explorePresentationIdentity = UUID()
+        activeSheet = .explore
+    }
+
+    private func openFieldTrips() {
+        protectExternalRouteFromImmediateSessionTimeoutReset()
+        clearExplorePresentationRoute()
+        pendingExploreShowsFieldTrips = true
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }
@@ -575,6 +590,7 @@ final class CaptureWorkspaceViewModel {
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
         pendingCaptureGoalDestination = nil
+        pendingExploreShowsFieldTrips = false
     }
 
     private func presentExternalImageImportFailure() {

@@ -81,9 +81,16 @@ struct InsightChatSheet: View {
                 .navigationTitle("Field chat")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
-                .safeAreaInset(edge: .bottom) {
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if !showsBlockingError && showsPromptChips {
+                        promptSuggestionsInset
+                    }
+                }
+                // Keep this outermost inset pinned to the keyboard. Prompt updates then
+                // consume space above it without changing the composer's placement.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
                     if !showsBlockingError {
-                        composer
+                        persistentComposer
                     }
                 }
         }
@@ -311,16 +318,13 @@ struct InsightChatSheet: View {
         }
     }
 
-    private var composer: some View {
+    private var persistentComposer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if showsPromptChips {
-                promptChipsRow
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .opacity
-                        )
-                    )
+            if let error = viewModel.errorMessage, !viewModel.messages.isEmpty {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
             }
 
             if viewModel.isOffline {
@@ -328,17 +332,17 @@ struct InsightChatSheet: View {
             } else {
                 composerInput
             }
-
-            if let error = viewModel.errorMessage, !viewModel.messages.isEmpty {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-            }
         }
         .padding(.top, 8)
         .padding(.bottom, 8)
-        .animation(.easeOut(duration: 0.24), value: showsPromptChips)
+        .fixedSize(horizontal: false, vertical: true)
+        .layoutPriority(1)
+    }
+
+    private var promptSuggestionsInset: some View {
+        promptChipsRow
+            .padding(.top, 8)
+            .padding(.bottom, 2)
     }
 
     private var promptChipsRow: some View {
@@ -404,6 +408,7 @@ struct InsightChatSheet: View {
                 .lineLimit(1...5)
                 .textFieldStyle(.plain)
                 .focused($composerFocused)
+                .accessibilityIdentifier("InsightChatComposerInput")
                 .padding(.vertical, 6)
                 .padding(.leading, 16)
 
@@ -436,6 +441,7 @@ struct InsightChatSheet: View {
                 .stroke(Color.primary.opacity(0.12), lineWidth: 1)
         )
         .padding(.horizontal, 16)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {

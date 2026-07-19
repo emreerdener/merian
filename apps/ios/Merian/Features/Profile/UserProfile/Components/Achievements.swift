@@ -9,6 +9,15 @@ extension ProfileDatabaseActor {
     }
 }
 
+enum AchievementDetailNavigationPolicy {
+    static func showsFieldTripsLink(
+        for award: AwardPayload,
+        fieldTripsEnabled: Bool
+    ) -> Bool {
+        fieldTripsEnabled && award.type == .firstFieldTrip && !award.isCompleted
+    }
+}
+
 // MARK: - Primary View
 struct Achievements: View {
     @Environment(\.modelContext) private var modelContext
@@ -144,7 +153,11 @@ struct Achievements: View {
                 ForEach(sortedAwards) { award in
                     if allowsDetailPresentation {
                         Button {
-                            selectedAward = award
+                            if award.isCompleted, let destination = award.destination {
+                                AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
+                            } else {
+                                selectedAward = award
+                            }
                         } label: {
                             AchievementCard(award: award)
                         }
@@ -180,6 +193,7 @@ struct AchievementDetailSheet: View {
     @State private var detail: AchievementDetailPayload?
     @State private var isLoading = true
     @State private var selectedScanForInsight: ScanInsightRoute?
+    @State private var isShowingFieldTrips = false
 
     private var resolvedAward: AwardPayload {
         detail?.award ?? award
@@ -243,6 +257,10 @@ struct AchievementDetailSheet: View {
                 inferenceEngine: inferenceEngine
             )
         }
+        .sheet(isPresented: $isShowingFieldTrips) {
+            ExploreView(initialTab: .fieldTrips)
+                .presentationDragIndicator(.hidden)
+        }
         .task(id: award.id) {
             await loadDetail()
         }
@@ -258,7 +276,11 @@ struct AchievementDetailSheet: View {
     private var loadingState: some View {
         HStack(spacing: 12) {
             ProgressView()
-            Text("Loading qualifying scans...")
+            Text(
+                award.type == .firstFieldTrip
+                    ? "Loading achievement progress..."
+                    : "Loading qualifying scans..."
+            )
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -271,15 +293,46 @@ struct AchievementDetailSheet: View {
     }
 
     private var emptyState: some View {
-        Text("No qualifying scans count toward this achievement yet.")
+        VStack(alignment: .leading, spacing: 14) {
+            Text(
+                award.type == .firstFieldTrip
+                    ? "Complete a Field trip to unlock this achievement."
+                    : "No qualifying scans count toward this achievement yet."
+            )
             .font(.subheadline)
             .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
+
+            if AchievementDetailNavigationPolicy.showsFieldTripsLink(
+                for: resolvedAward,
+                fieldTripsEnabled: FieldTripsAvailability.isEnabled
+            ) {
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    isShowingFieldTrips = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Label("View Field trips", systemImage: "map")
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("AchievementDetailSheet_ViewFieldTrips")
+                .accessibilityHint("Opens the Field trips sheet.")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
     }
 
     @MainActor

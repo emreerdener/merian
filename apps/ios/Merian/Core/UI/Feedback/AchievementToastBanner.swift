@@ -247,7 +247,9 @@ struct MilestoneToastBanner: View {
                 artwork: .bundledImage(name: award.definition.imageName),
                 tintColor: award.definition.tintToken.color,
                 accessibilityIdentifier: "AchievementToastBanner_\(award.type.rawValue)",
-                accessibilityHint: "Opens achievement details. Swipe horizontally or vertically to dismiss."
+                accessibilityHint: award.destination == nil
+                    ? "Opens achievement details. Swipe horizontally or vertically to dismiss."
+                    : "Opens the completed Field trip. Swipe horizontally or vertically to dismiss."
             )
         case .dictionary(let milestone):
             DisplayModel(
@@ -395,7 +397,11 @@ struct MilestoneToastBanner: View {
         case .fieldTrip(let progress):
             onOpenFieldTrip?(progress.destination)
         case .achievement(let award):
-            onOpenAchievement?(award)
+            if let destination = award.destination {
+                onOpenFieldTrip?(destination)
+            } else {
+                onOpenAchievement?(award)
+            }
         case .dictionary:
             break
         }

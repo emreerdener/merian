@@ -14,7 +14,7 @@ TestFlight, App Store, support, and QA.
 ### Settings
 
 - Renamed the Capture settings group to Workspace, keeping the Camera, Audio,
-  capture-mode order, Field trip goal, and submission controls together.
+  **Reorder modes**, Field trip goal, and submission controls together.
 - Added a default-off **Open Explore on launch** preference above Notifications.
   When enabled, a fresh ordinary launch opens the Explore feed; returning from
   the background does not reopen it, and shared photos, links, and tapped
@@ -47,6 +47,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added **The Field Naturalist**, an Easy achievement earned by completing a
+  first outing or Seasonal Challenge. Its completed Profile card and unlock
+  notification reopen the Field trip that earned it.
 - Standardized **Field trip** / **Field trips** as the feature label while using
   **outing** for contextual descriptions, actions, activity messages, and
   VoiceOver. Renamed the standard catalog segment from **Challenges** to

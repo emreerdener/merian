@@ -3,6 +3,7 @@ import SwiftUI
 
 enum AchievementType: String, CaseIterable, Sendable, Identifiable {
     case firstScan = "first_scan"
+    case firstFieldTrip = "first_field_trip"
     case explorer = "explorer"
     case plantae = "plantae"
     case insecta = "insecta"
@@ -33,6 +34,18 @@ enum AchievementType: String, CaseIterable, Sendable, Identifiable {
                 tintToken: .springGreen,
                 difficultyLevel: 0,
                 contributionKind: .firstScan(reasonText: "Your first recorded scan")
+            )
+        case .firstFieldTrip:
+            return AchievementDefinition(
+                title: "The Field Naturalist",
+                targetCount: 1,
+                descriptionText: "Complete your first Field trip",
+                detailProgressDescription: "Your first completed Field trip unlocks this achievement.",
+                qualifyingScansTitle: "Unlock requirement",
+                imageName: "boots",
+                tintToken: .terracotta,
+                difficultyLevel: 0,
+                contributionKind: .externalMilestone
             )
         case .explorer:
             return AchievementDefinition(
@@ -330,6 +343,7 @@ struct AchievementDefinition: Sendable {
 
 enum AchievementContributionKind: Sendable {
     case firstScan(reasonText: String)
+    case externalMilestone
     case uniqueSpecies(qualifyingReason: @Sendable (any AchievementRecordRepresentable) -> String?)
 }
 
@@ -403,6 +417,7 @@ struct AwardPayload: Sendable, Identifiable {
     let currentCount: Int
     let lastInteractionDate: Date?
     let unlockedAt: Date?
+    let destination: CaptureGoalDestination?
 
     var id: String { type.id }
 
@@ -410,12 +425,14 @@ struct AwardPayload: Sendable, Identifiable {
         type: AchievementType,
         currentCount: Int,
         lastInteractionDate: Date?,
-        unlockedAt: Date? = nil
+        unlockedAt: Date? = nil,
+        destination: CaptureGoalDestination? = nil
     ) {
         self.type = type
         self.currentCount = currentCount
         self.lastInteractionDate = lastInteractionDate
         self.unlockedAt = unlockedAt
+        self.destination = destination
     }
 }
 
@@ -502,7 +519,13 @@ extension AwardPayload {
     }
 
     var cardAccessibilityHint: String {
-        "Opens the achievement details and qualifying scans."
+        if isCompleted, destination != nil {
+            return "Opens the Field trip that unlocked this achievement."
+        }
+        if type == .firstFieldTrip {
+            return "Opens the achievement requirement."
+        }
+        return "Opens the achievement details and qualifying scans."
     }
 
     var progressStatusText: String {

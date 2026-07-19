@@ -80,6 +80,15 @@ actor AudioBoostProcessor {
         try await Self.resolveSource(source)
     }
 
+    func invalidate(source: String) {
+        inFlight[source]?.cancel()
+        inFlight[source] = nil
+        cacheOrder.removeAll { $0 == source }
+        if let result = cached.removeValue(forKey: source) {
+            try? FileManager.default.removeItem(at: result.url)
+        }
+    }
+
     private static func resolveSource(_ source: String) async throws -> AudioSourceLease {
         if let remoteURL = URL(string: source), remoteURL.scheme == "https" {
             var request = URLRequest(url: remoteURL)
@@ -125,12 +134,19 @@ actor AudioBoostProcessor {
         var sumSquares = 0.0
         var sampleCount = 0
         var peak = 0.0
-        while source.framePosition < source.length {
+        var analyzedFrameLength: AVAudioFramePosition = 0
+        while analyzedFrameLength < source.length {
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else {
                 throw CocoaError(.fileReadCorruptFile)
             }
+            let positionBeforeRead = source.framePosition
             try source.read(into: buffer)
-            guard let channels = buffer.floatChannelData else { throw CocoaError(.fileReadCorruptFile) }
+            guard buffer.frameLength > 0,
+                  source.framePosition > positionBeforeRead,
+                  let channels = buffer.floatChannelData else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            analyzedFrameLength += AVAudioFramePosition(buffer.frameLength)
             for channel in 0..<Int(format.channelCount) {
                 for frame in 0..<Int(buffer.frameLength) {
                     let value = Double(channels[channel][frame])
@@ -141,40 +157,117 @@ actor AudioBoostProcessor {
             }
         }
 
-        guard sampleCount > 0 else { throw CocoaError(.fileReadCorruptFile) }
+        guard analyzedFrameLength == source.length, sampleCount > 0 else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
         let rms = sqrt(sumSquares / Double(sampleCount))
         let rmsDb = 20 * log10(max(rms, 0.000_001))
         let peakDb = 20 * log10(max(peak, 0.000_001))
         let gainDb = adaptiveGainDecibels(rmsDb: rmsDb, peakDb: peakDb)
         let linearGain = pow(10, gainDb / 20)
 
+        let expectedFrameLength = source.length
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("explore-boosted-\(UUID().uuidString).wav")
-        let output = try AVAudioFile(forWriting: outputURL, settings: format.settings)
-        source.framePosition = 0
-        let highPassCutoff = 35.0
-        let dt = 1.0 / format.sampleRate
-        let rc = 1.0 / (2 * Double.pi * highPassCutoff)
-        let highPassAlpha = rc / (rc + dt)
-        var previousInput = Array(repeating: 0.0, count: Int(format.channelCount))
-        var previousOutput = Array(repeating: 0.0, count: Int(format.channelCount))
-        while source.framePosition < source.length {
-            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity),
-                  let channels = buffer.floatChannelData else { throw CocoaError(.fileReadCorruptFile) }
-            try source.read(into: buffer)
-            for channel in 0..<Int(format.channelCount) {
-                for frame in 0..<Int(buffer.frameLength) {
-                    let input = Double(channels[channel][frame])
-                    let clarified = highPassAlpha * (previousOutput[channel] + input - previousInput[channel])
-                    previousInput[channel] = input
-                    previousOutput[channel] = clarified
-                    let amplified = clarified * linearGain
-                    channels[channel][frame] = Float(max(-0.891, min(0.891, amplified)))
-                }
-            }
-            try output.write(from: buffer)
+            .appendingPathComponent("explore-boosted-\(UUID().uuidString).caf")
+        do {
+            try writeBoostedAudio(
+                source: source,
+                format: format,
+                frameCapacity: frameCapacity,
+                linearGain: linearGain,
+                outputURL: outputURL
+            )
+            try validateRenderedAudio(
+                at: outputURL,
+                expectedFrameLength: expectedFrameLength,
+                expectedFormat: format
+            )
+        } catch {
+            try? FileManager.default.removeItem(at: outputURL)
+            throw error
         }
         return AudioBoostResult(url: outputURL, gainDecibels: gainDb)
+    }
+
+    private static nonisolated func writeBoostedAudio(
+        source: AVAudioFile,
+        format: AVAudioFormat,
+        frameCapacity: AVAudioFrameCount,
+        linearGain: Double,
+        outputURL: URL
+    ) throws {
+        try autoreleasepool {
+            let output = try AVAudioFile(forWriting: outputURL, settings: format.settings)
+            source.framePosition = 0
+            let highPassCutoff = 35.0
+            let dt = 1.0 / format.sampleRate
+            let rc = 1.0 / (2 * Double.pi * highPassCutoff)
+            let highPassAlpha = rc / (rc + dt)
+            var previousInput = Array(repeating: 0.0, count: Int(format.channelCount))
+            var previousOutput = Array(repeating: 0.0, count: Int(format.channelCount))
+            var renderedFrameLength: AVAudioFramePosition = 0
+            while renderedFrameLength < source.length {
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity),
+                      let channels = buffer.floatChannelData else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                let positionBeforeRead = source.framePosition
+                try source.read(into: buffer)
+                guard buffer.frameLength > 0, source.framePosition > positionBeforeRead else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                renderedFrameLength += AVAudioFramePosition(buffer.frameLength)
+                for channel in 0..<Int(format.channelCount) {
+                    for frame in 0..<Int(buffer.frameLength) {
+                        let input = Double(channels[channel][frame])
+                        let clarified = highPassAlpha * (
+                            previousOutput[channel] + input - previousInput[channel]
+                        )
+                        previousInput[channel] = input
+                        previousOutput[channel] = clarified
+                        let amplified = clarified * linearGain
+                        channels[channel][frame] = Float(max(-0.891, min(0.891, amplified)))
+                    }
+                }
+                try output.write(from: buffer)
+            }
+            guard renderedFrameLength == source.length else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+        }
+    }
+
+    private static nonisolated func validateRenderedAudio(
+        at url: URL,
+        expectedFrameLength: AVAudioFramePosition,
+        expectedFormat: AVAudioFormat
+    ) throws {
+        let rendered = try AVAudioFile(forReading: url)
+        guard rendered.length == expectedFrameLength,
+              rendered.processingFormat.channelCount == expectedFormat.channelCount,
+              abs(rendered.processingFormat.sampleRate - expectedFormat.sampleRate) < 0.5 else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+
+        let validationCapacity = AVAudioFrameCount(min(expectedFrameLength, 4096))
+        var decodedFrameLength: AVAudioFramePosition = 0
+        while decodedFrameLength < expectedFrameLength {
+            guard let buffer = AVAudioPCMBuffer(
+                pcmFormat: rendered.processingFormat,
+                frameCapacity: validationCapacity
+            ) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            let positionBeforeRead = rendered.framePosition
+            try rendered.read(into: buffer)
+            guard buffer.frameLength > 0, rendered.framePosition > positionBeforeRead else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            decodedFrameLength += AVAudioFramePosition(buffer.frameLength)
+        }
+        guard decodedFrameLength == expectedFrameLength else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
     }
 
     static nonisolated func adaptiveGainDecibels(rmsDb: Double, peakDb: Double) -> Double {

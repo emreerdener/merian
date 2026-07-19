@@ -30,7 +30,8 @@ struct InsightContentView: View {
                 // 1. DYNAMIC STRETCHY CAROUSEL HEADER
                 // Embeds firmly inside the native ScrollView to bypass NavigationStack safe area clipping perfectly.
                 GeometryReader { proxy in
-                    let scrollY = proxy.frame(in: .named("InsightScrollSpace")).minY
+                    let heroFrame = proxy.frame(in: .named("InsightScrollSpace"))
+                    let scrollY = heroFrame.minY
                     // MASSIVE FIX: The 'bleedBuffer' forces the image to natively render 50px taller and shifted 50px upward out of viewport.
                     // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
                     let bleedBuffer: CGFloat = 50
@@ -62,6 +63,9 @@ struct InsightContentView: View {
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
                         .ignoresSafeArea(.all, edges: .top) // CRUESCIAL: Kills the 16pt sheet native dragging padding!
+                        .onChange(of: heroFrame.maxY, initial: true) { _, newMaxY in
+                            viewModel.evaluateHeroScrollOffset(maxY: newMaxY)
+                        }
                 }
                 .frame(height: imageSize)
                 .ignoresSafeArea(.all, edges: .top) // Ensure the entire geometry wrapper bypasses top safe area
@@ -79,6 +83,9 @@ struct InsightContentView: View {
             .frame(width: imageSize) // CLAMP: Physically guarantees the content bounds can never expand left/right even if child views attempt to breach safe area X bounds.
         }
         .coordinateSpace(name: "InsightScrollSpace")
+        .modifier(InsightTopScrollEdgeEffectModifier(
+            isHidden: viewModel.state.isTopScrollEdgeEffectHidden
+        ))
         // Forces native underlap of the translucent NavigationBar completely!
         .ignoresSafeArea(.container, edges: .top)
         .contentMargins(.top, 0, for: .scrollContent) // CRITICAL: Eradicates hidden iOS 17 interior scroll canvas offsets!
@@ -193,6 +200,19 @@ struct InsightContentView: View {
         }
         .fullScreenCover(item: $fullscreenGalleryPresentation) { presentation in
             InsightFullscreenImageCarousel(presentation: presentation)
+        }
+    }
+}
+
+private struct InsightTopScrollEdgeEffectModifier: ViewModifier {
+    let isHidden: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(isHidden, for: .top)
+        } else {
+            content
         }
     }
 }

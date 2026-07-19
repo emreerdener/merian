@@ -12,6 +12,8 @@ import UIKit
 enum UserDefaultsKeys {
     /// Versioned prefix for account-isolated, source-agnostic capture goal caches.
     static let captureGoalContextPrefix = "captureGoalContext.v1."
+    /// Versioned prefix for account-isolated first Field trip achievement progress.
+    static let firstFieldTripAchievementProgressPrefix = "firstFieldTripAchievementProgress.v1."
     /// Whether onboarding has completed and the full app lifecycle may start.
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     /// The current theme mode selection persisted via AppStorage.

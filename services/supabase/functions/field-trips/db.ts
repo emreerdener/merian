@@ -50,6 +50,13 @@ export interface InsertedFieldTripChallengeComment {
   created_at: string;
 }
 
+export interface FirstFieldTripAchievementProgress {
+  kind: "standard_outing" | "seasonal_challenge";
+  completed_at: string;
+  template_slug: string | null;
+  challenge_id: string | null;
+}
+
 function makeHttpError(
   status: number,
   message: string,
@@ -145,7 +152,16 @@ export async function applyFieldTripScanProgress(
   userId: string,
   scanId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<{ fieldTripUpdates: unknown[]; challengeUpdates: unknown[] }> {
+): Promise<{
+  fieldTripUpdates: unknown[];
+  challengeUpdates: unknown[];
+  firstFieldTripAchievement: FirstFieldTripAchievementProgress | null;
+  firstFieldTripAchievementNewlyUnlocked: boolean;
+}> {
+  const previousAchievement = await fetchFirstFieldTripAchievementProgress(
+    userId,
+    supabaseAdmin,
+  );
   const { data, error } = await supabaseAdmin.rpc(
     "apply_field_trip_scan_progress",
     {
@@ -173,9 +189,66 @@ export async function applyFieldTripScanProgress(
     );
   }
 
+  const fieldTripUpdates = Array.isArray(data) ? data : [];
+  const challengeUpdates = Array.isArray(challengeData) ? challengeData : [];
+  const firstFieldTripAchievement =
+    await fetchFirstFieldTripAchievementProgress(userId, supabaseAdmin);
+  const currentMutationCompletedTrip = [
+    ...fieldTripUpdates,
+    ...challengeUpdates,
+  ].some((update) =>
+    typeof update === "object" && update !== null &&
+    (update as Record<string, unknown>).is_complete === true
+  );
+
   return {
-    fieldTripUpdates: Array.isArray(data) ? data : [],
-    challengeUpdates: Array.isArray(challengeData) ? challengeData : [],
+    fieldTripUpdates,
+    challengeUpdates,
+    firstFieldTripAchievement,
+    firstFieldTripAchievementNewlyUnlocked: previousAchievement === null &&
+      firstFieldTripAchievement !== null &&
+      currentMutationCompletedTrip,
+  };
+}
+
+export async function fetchFirstFieldTripAchievementProgress(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<FirstFieldTripAchievementProgress | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_first_field_trip_achievement_progress",
+    { target_user_id: userId },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch first Field trip achievement progress: ${error.message}`,
+    );
+  }
+
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return null;
+  }
+
+  const progress = data as Record<string, unknown>;
+  const kind = progress.kind;
+  const completedAt = progress.completed_at;
+  if (
+    (kind !== "standard_outing" && kind !== "seasonal_challenge") ||
+    typeof completedAt !== "string"
+  ) {
+    throw new Error("Invalid first Field trip achievement progress payload.");
+  }
+
+  return {
+    kind,
+    completed_at: completedAt,
+    template_slug: typeof progress.template_slug === "string"
+      ? progress.template_slug
+      : null,
+    challenge_id: typeof progress.challenge_id === "string"
+      ? progress.challenge_id
+      : null,
   };
 }
 

@@ -5,8 +5,6 @@ struct CollectionsView: View {
     let searchQuery: String
     let isSearchFocused: Bool
     let collections: [ScanCollection]
-    let collectionSortOption: CollectionSortOption
-    @Binding var filters: CollectionLibraryFilters
     let hiddenSmartCollectionIDs: Set<String>
     let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
     @Binding var newlyCreatedCollection: ScanCollection?
@@ -30,39 +28,33 @@ struct CollectionsView: View {
             VStack(spacing: 16) {
                 let isSearching = !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
                 let query = searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
-                let showUserCreatedCollections = shouldShowCollectionType(.userCreated)
-                let showSmartSuggestionCollections = shouldShowCollectionType(.smartSuggestions)
-                let showBuiltInCollections = shouldShowCollectionType(.builtIn)
 
-                let userCollections = showUserCreatedCollections
-                    ? sortedUserCollections(collections.filter {
+                let userCollections = collections
+                    .filter {
                         !$0.isDeleted &&
                             $0.name != "Favorites" &&
                             (!isSearching || $0.name.localizedCaseInsensitiveContains(query))
-                    })
-                    : []
+                    }
+                    .sorted { $0.createdAt > $1.createdAt }
                 let favoritesCollection = collections.first { $0.name == "Favorites" && !$0.isDeleted }
                 let favoritesSummary = favoritesCollection.map { collectionSnapshot.summary(for: $0.id) } ?? .empty
 
-                let showFavorites = showBuiltInCollections && (!isSearching || "favorites".contains(query))
+                let showFavorites = !isSearching || "favorites".contains(query)
                 let showFavoritesRow = showFavorites && favoritesCollection != nil
-                let showNonBio = showBuiltInCollections &&
-                    (!isSearching || "non-biological".contains(query) || "non biological".contains(query))
-                let featuredCollection = showSmartSuggestionCollections
-                    ? SmartCollectionSuggester.featuredSnapshot(
-                        from: allScans,
-                        hiddenCollectionIDs: hiddenSmartCollectionIDs,
-                        referenceDate: featuredReferenceDate
-                    )
-                    : nil
+                let showNonBio = !isSearching ||
+                    "non-biological".contains(query) ||
+                    "non biological".contains(query)
+                let featuredCollection = SmartCollectionSuggester.featuredSnapshot(
+                    from: allScans,
+                    hiddenCollectionIDs: hiddenSmartCollectionIDs,
+                    referenceDate: featuredReferenceDate
+                )
                 let visibleFeaturedCollection = featuredCollection.flatMap { snapshot in
                     !isSearching || snapshot.title.localizedCaseInsensitiveContains(query) ? snapshot : nil
                 }
-                let visibleSmartCollections = showSmartSuggestionCollections
-                    ? smartCollections.filter {
-                        !isSearching || $0.title.localizedCaseInsensitiveContains(query)
-                    }
-                    : []
+                let visibleSmartCollections = smartCollections.filter {
+                    !isSearching || $0.title.localizedCaseInsensitiveContains(query)
+                }
                 let smartRowCollections = visibleSmartCollections.filter(\.isPinnedRow)
                 let smartCardCollections = visibleSmartCollections.filter { !$0.isPinnedRow }
                 let hasCardCollections = !userCollections.isEmpty || !smartCardCollections.isEmpty
@@ -101,23 +93,10 @@ struct CollectionsView: View {
                     showNonBio: showNonBio
                 ) {
                     EmptyStateView(
-                        iconName: isSearching ? "magnifyingglass" : "line.3.horizontal.decrease",
+                        iconName: "magnifyingglass",
                         title: "No collections found",
-                        message: emptyStateMessage(isSearching: isSearching)
-                    ) {
-                        if filters.hasActiveFilters {
-                            Button {
-                                HapticManager.shared.triggerMediumPulse()
-                                filters.clear()
-                            } label: {
-                                Text("Clear filters")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.regular)
-                        }
-                    }
+                        message: "No collections match \"\(searchQuery)\"."
+                    )
                 } else {
                     if let visibleFeaturedCollection {
                         NavigationLink {
@@ -182,7 +161,6 @@ struct CollectionsView: View {
                 }
 
                 if !isSearching &&
-                    !filters.hasActiveFilters &&
                     visibleFeaturedCollection == nil &&
                     userCollections.isEmpty &&
                     visibleSmartCollections.isEmpty {
@@ -287,25 +265,16 @@ struct CollectionsView: View {
 
     private var isSearchHeaderVisible: Bool {
         isSearchFocused ||
-            filters.hasActiveFilters ||
             !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    private func shouldShowCollectionType(_ type: CollectionTypeFilter) -> Bool {
-        filters.typeFilters.isEmpty || filters.typeFilters.contains(type)
-    }
-
     private func shouldShowHeader(isSearching: Bool) -> Bool {
-        isSearching || isSearchFocused || filters.hasActiveFilters
+        isSearching || isSearchFocused
     }
 
     private func headerTitle(isSearching: Bool) -> String {
         if isSearching {
             return "Search results"
-        }
-
-        if filters.hasActiveFilters {
-            return "Filtered collections"
         }
 
         return "Search collections"
@@ -319,37 +288,12 @@ struct CollectionsView: View {
         showFavorites: Bool,
         showNonBio: Bool
     ) -> Bool {
-        (isSearching || filters.hasActiveFilters) &&
+        isSearching &&
             visibleFeaturedCollection == nil &&
             userCollections.isEmpty &&
             visibleSmartCollections.isEmpty &&
             !showFavorites &&
             !showNonBio
-    }
-
-    private func emptyStateMessage(isSearching: Bool) -> String {
-        if isSearching {
-            return "No collections match \"\(searchQuery)\"."
-        }
-
-        return "No collections match the current filters."
-    }
-
-    private func sortedUserCollections(_ collections: [ScanCollection]) -> [ScanCollection] {
-        switch collectionSortOption {
-        case .newest:
-            return collections.sorted { $0.createdAt > $1.createdAt }
-        case .oldest:
-            return collections.sorted { $0.createdAt < $1.createdAt }
-        case .aToZ:
-            return collections.sorted {
-                $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
-        case .zToA:
-            return collections.sorted {
-                $0.name.localizedStandardCompare($1.name) == .orderedDescending
-            }
-        }
     }
 
     private var collectionsSignature: String {

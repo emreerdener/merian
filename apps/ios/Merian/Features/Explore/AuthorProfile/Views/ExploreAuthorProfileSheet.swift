@@ -319,9 +319,10 @@ struct ExploreAuthorProfileContent: View {
 
                 publishedPreview(profile)
 
-                if !profile.awardPayloads.isEmpty {
+                let awards = visibleAwards(for: profile)
+                if !awards.isEmpty {
                     Achievements(
-                        awards: profile.awardPayloads,
+                        awards: awards,
                         allowsDetailPresentation: false
                     )
                 }
@@ -367,7 +368,10 @@ struct ExploreAuthorProfileContent: View {
             profileSummaryCountView(count: profile.heatmap.totalCaptures, label: "Scans")
                 .frame(maxWidth: .infinity)
 
-            profileSummaryCountView(count: profile.completedAchievementCount, label: "Achievements")
+            profileSummaryCountView(
+                count: visibleAwards(for: profile).filter(\.isCompleted).count,
+                label: "Achievements"
+            )
                 .frame(maxWidth: .infinity)
 
             profileSummaryCountView(count: profile.followerCount, label: "Followers")
@@ -378,6 +382,11 @@ struct ExploreAuthorProfileContent: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 2)
+    }
+
+    private func visibleAwards(for profile: ExploreAuthorProfile) -> [AwardPayload] {
+        guard !FieldTripsAvailability.isEnabled else { return profile.awardPayloads }
+        return profile.awardPayloads.filter { $0.type != .firstFieldTrip }
     }
 
     private func profileSummaryCountView(count: Int, label: String) -> some View {

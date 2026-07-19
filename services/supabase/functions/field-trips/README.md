@@ -17,6 +17,7 @@ The backing SQL lives in this ordered migration chain:
 10. `20260718051748_expose_field_trip_publication_status.sql`
 11. `20260718150932_add_credited_field_trip_progress.sql`
 12. `20260718162409_scope_credited_progress_to_current_attempt.sql`
+13. `20260719045306_first_field_trip_achievement.sql`
 
 Deploy the migrations before deploying this function. Existing installations
 with the current V4 function do not require a function redeploy because the two
@@ -55,8 +56,34 @@ credited-progress migrations change only database responses.
 - `completed_scan_id` is private viewer evidence metadata exposed only by
   catalog/detail. It is never copied into capture context, public profile
   summaries, publication/challenge snapshots, Explore surfaces, or media URLs.
+- First Field trip achievement evidence is available only through a
+  `service_role` RPC. Public Explore author awards expose its binary count and
+  earliest completion date, never a template slug, challenge ID, or scan ID.
 
 ## Actions
+
+```json
+{ "action": "achievement_progress" }
+```
+
+Returns the caller's earliest completed standard outing or Seasonal Challenge,
+or `null` when neither is complete. The Edge handler supplies the verified user
+ID to a `service_role`-only RPC. When timestamps tie exactly, the Seasonal
+Challenge destination wins deterministically.
+
+```json
+{
+  "data": {
+    "kind": "standard_outing",
+    "completed_at": "2026-07-18T14:00:00Z",
+    "template_slug": "backyard_safari",
+    "challenge_id": null
+  }
+}
+```
+
+For `kind: "seasonal_challenge"`, `template_slug` is null and `challenge_id`
+contains the destination ID.
 
 ```json
 { "action": "capture_context" }
@@ -219,7 +246,14 @@ Returns:
       ]
     }
   ],
-  "challenge_updates": []
+  "challenge_updates": [],
+  "first_field_trip_achievement": {
+    "kind": "standard_outing",
+    "completed_at": "2026-07-18T14:00:00Z",
+    "template_slug": "backyard_safari",
+    "challenge_id": null
+  },
+  "first_field_trip_achievement_newly_unlocked": true
 }
 ```
 
@@ -238,6 +272,12 @@ idempotent reapplication returns no update. Within each update, that array keeps
 curated checklist order, so its first item is the canonical label/focus target
 for scan-completion UI. The credited fields are response additions only and do
 not change the Edge Function request contract.
+
+The two `first_field_trip_achievement*` response fields are additive and may be
+absent when the caller has no completed outing or challenge. The payload always
+describes the earliest qualifying completion. `newly_unlocked` is true only
+when this request's progress mutation created the first completion; idempotent,
+non-final, and later completions return false.
 
 ```json
 { "action": "challenges_catalog", "user_region": "optional", "limit": 20 }

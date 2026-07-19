@@ -23,6 +23,20 @@ enum SearchCategoryBucket: String, CaseIterable, Sendable {
     case reptiles
     case other
 
+    static let libraryFilterPriority: [SearchCategoryBucket] = [
+        .birds,
+        .insects,
+        .plants,
+        .fungi,
+        .mammals,
+        .reptiles,
+        .other
+    ]
+
+    var title: String {
+        rawValue.capitalized
+    }
+
     init(kingdom: String, className: String) {
         if kingdom == "plantae" {
             self = .plants

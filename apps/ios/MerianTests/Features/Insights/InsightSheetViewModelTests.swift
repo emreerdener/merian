@@ -29,6 +29,33 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.isCommonNameScrolledPast == false)
     }
 
+    @Test func testEvaluateHeroScrollOffsetUsesClearanceHysteresis() {
+        let viewModel = InsightSheetViewModel()
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == true)
+
+        viewModel.evaluateHeroScrollOffset(maxY: 45)
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == true)
+
+        viewModel.evaluateHeroScrollOffset(maxY: 44)
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == false)
+
+        viewModel.evaluateHeroScrollOffset(maxY: 47)
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == false)
+
+        viewModel.evaluateHeroScrollOffset(maxY: 48)
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == true)
+
+        viewModel.evaluateHeroScrollOffset(maxY: 40)
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == false)
+
+        viewModel.evaluateHeroScrollOffset(maxY: .infinity)
+        viewModel.evaluateHeroScrollOffset(maxY: .nan)
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == false)
+
+        viewModel.reset()
+        #expect(viewModel.state.isTopScrollEdgeEffectHidden == true)
+    }
+
     @Test func testToggleScanInCollection() async throws {
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()

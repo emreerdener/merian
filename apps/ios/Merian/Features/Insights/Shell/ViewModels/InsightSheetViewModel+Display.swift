@@ -388,6 +388,29 @@ extension InsightSheetViewModel {
 
     // MARK: - Layout Computations
 
+    /// Keeps the iOS 26 top scroll-edge treatment away from the hero image, then
+    /// restores it once the image clears the navigation toolbar. The separate
+    /// return threshold prevents the effect from flickering at the boundary.
+    func evaluateHeroScrollOffset(maxY: CGFloat) {
+        guard maxY.isFinite else { return }
+
+        let toolbarLowerBoundary: CGFloat = 44
+        let returnHysteresis: CGFloat = 4
+        let shouldHideEffect: Bool
+
+        if state.isTopScrollEdgeEffectHidden {
+            shouldHideEffect = maxY > toolbarLowerBoundary
+        } else {
+            shouldHideEffect = maxY >= toolbarLowerBoundary + returnHysteresis
+        }
+
+        guard state.isTopScrollEdgeEffectHidden != shouldHideEffect else { return }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            state.isTopScrollEdgeEffectHidden = shouldHideEffect
+        }
+    }
+
     /// Evaluates dynamic coordinate thresholds actively against negative scroll intersections, routing structural top-bar offsets.
     func evaluateScrollOffset(minY: CGFloat) {
         guard minY != .infinity else { return }

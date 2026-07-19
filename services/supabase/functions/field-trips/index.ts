@@ -29,6 +29,7 @@ import {
   fetchFieldTripPublicationCounts,
   fetchFieldTripPublicationDetail,
   fetchFieldTripTemplateDetail,
+  fetchFirstFieldTripAchievementProgress,
   fetchRecentFieldTripPublications,
   insertFieldTripChallengeEntryComment,
   insertFieldTripComment,
@@ -44,6 +45,7 @@ import {
 type FieldTripAction =
   | "catalog"
   | "capture_context"
+  | "achievement_progress"
   | "challenges_catalog"
   | "template_detail"
   | "start"
@@ -84,6 +86,7 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
   switch (rawAction) {
     case "catalog":
     case "capture_context":
+    case "achievement_progress":
     case "challenges_catalog":
     case "template_detail":
     case "start":
@@ -227,6 +230,14 @@ Deno.serve((req: Request) =>
     const action = normalizeAction(body.action);
 
     switch (action) {
+      case "achievement_progress": {
+        const data = await fetchFirstFieldTripAchievementProgress(
+          user.id,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
       case "capture_context": {
         const data = await fetchFieldTripCaptureContext(
           user.id,
@@ -457,6 +468,13 @@ Deno.serve((req: Request) =>
         return jsonResponse({
           data: progress.fieldTripUpdates,
           challenge_updates: progress.challengeUpdates,
+          ...(progress.firstFieldTripAchievement
+            ? {
+              first_field_trip_achievement: progress.firstFieldTripAchievement,
+              first_field_trip_achievement_newly_unlocked:
+                progress.firstFieldTripAchievementNewlyUnlocked,
+            }
+            : {}),
         });
       }
 

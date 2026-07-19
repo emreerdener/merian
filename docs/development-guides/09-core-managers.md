@@ -1260,6 +1260,13 @@ and `KeychainManager` migration logic. Do not inline
   trip progress. Cat and dog achievements use a July 4, 2026 notification cutoff
   so historical qualifying scans are seeded silently instead of showing
   retroactive unlock banners.
+- **The Field Naturalist** is the server-authoritative exception to the local
+  scan calculator. `ScanMilestoneCoordinator` merges the typed earliest outing
+  or Seasonal Challenge payload only when Field trips are available, saves it
+  in an account-scoped `UserDefaults` cache, and passes it to
+  `GamificationManager` only when the current server mutation reports a new
+  unlock. There is no rollout cutoff because Field trips had no prior user
+  engagement.
 - Full architecture documented in
   [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
 
@@ -1280,12 +1287,17 @@ and `KeychainManager` migration logic. Do not inline
   `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
   Field trips, Seasonal Challenges, achievements, then **New to Naturebook**.
   Identification corrections reapply progress through the same coordinator but
-  do not replay the original achievement/dictionary batch.
+  do not replay the original scan-achievement/dictionary batch. When Field trips
+  are disabled, the coordinator skips its progress resolver while ordinary scan
+  achievements and dictionary milestones continue normally.
 - The presenter controls only in-app banner presentation. It does not mutate
   Field trip progress, achievement progress, dictionary state, analytics, or
   native notification authorization. DEBUG Settings preview entry points
   enqueue representative achievement, dictionary, and Field trip payloads
   through the same queue while bypassing persistence and OS notifications.
+- Completed Field Naturalist cards and unlock toasts carry a typed
+  `CaptureGoalDestination` and open the outing or Seasonal Challenge that earned
+  the award. Its locked card continues to open the requirement sheet.
 
 ### `PostHogManager`
 

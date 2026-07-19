@@ -164,6 +164,63 @@ final class AchievementsCalculatorTests: XCTestCase {
         XCTAssertEqual(awards.first { $0.type == .explorer }?.currentCount, 2, "Explorer should count absolutely unique scientific names mathematically")
     }
 
+    func testFirstFieldTripDefaultsToLockedWithoutServerProgress() {
+        let awards = AchievementsCalculator.calculate(from: [
+            mockScan(scientificName: "A")
+        ])
+        let detail = AchievementsCalculator.detail(
+            for: .firstFieldTrip,
+            from: [LocalScanRecord]()
+        )
+
+        XCTAssertEqual(awards.first { $0.type == .firstFieldTrip }?.currentCount, 0)
+        XCTAssertEqual(detail?.award.currentCount, 0)
+        XCTAssertTrue(detail?.contributions.isEmpty == true)
+    }
+
+    func testOnlyLockedFieldTripAchievementLinksToFieldTrips() {
+        let lockedFieldTrip = AwardPayload(
+            type: .firstFieldTrip,
+            currentCount: 0,
+            lastInteractionDate: nil
+        )
+        let completedFieldTrip = AwardPayload(
+            type: .firstFieldTrip,
+            currentCount: 1,
+            lastInteractionDate: Date()
+        )
+        let lockedScan = AwardPayload(
+            type: .firstScan,
+            currentCount: 0,
+            lastInteractionDate: nil
+        )
+
+        XCTAssertTrue(
+            AchievementDetailNavigationPolicy.showsFieldTripsLink(
+                for: lockedFieldTrip,
+                fieldTripsEnabled: true
+            )
+        )
+        XCTAssertFalse(
+            AchievementDetailNavigationPolicy.showsFieldTripsLink(
+                for: completedFieldTrip,
+                fieldTripsEnabled: true
+            )
+        )
+        XCTAssertFalse(
+            AchievementDetailNavigationPolicy.showsFieldTripsLink(
+                for: lockedScan,
+                fieldTripsEnabled: true
+            )
+        )
+        XCTAssertFalse(
+            AchievementDetailNavigationPolicy.showsFieldTripsLink(
+                for: lockedFieldTrip,
+                fieldTripsEnabled: false
+            )
+        )
+    }
+
     func testUrbanEcologist() {
         let scans = [
             mockScan(scientificName: "Urban Plant", ecologyType: "urban"),

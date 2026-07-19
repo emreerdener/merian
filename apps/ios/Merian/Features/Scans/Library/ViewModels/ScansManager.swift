@@ -11,37 +11,6 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     var id: String { self.rawValue }
 }
 
-enum CollectionSortOption: String, CaseIterable, Identifiable, Sendable {
-    case newest = "Newest"
-    case oldest = "Oldest"
-    case aToZ = "A to Z"
-    case zToA = "Z to A"
-    var id: String { self.rawValue }
-}
-
-enum CollectionTypeFilter: String, CaseIterable, Identifiable, Hashable {
-    case userCreated = "User-created"
-    case smartSuggestions = "Smart suggestions"
-    case builtIn = "Built-in"
-    var id: String { rawValue }
-}
-
-struct CollectionLibraryFilters: Equatable {
-    var typeFilters: Set<CollectionTypeFilter> = []
-
-    var hasActiveFilters: Bool {
-        activeFilterCount > 0
-    }
-
-    var activeFilterCount: Int {
-        typeFilters.count
-    }
-
-    mutating func clear() {
-        self = CollectionLibraryFilters()
-    }
-}
-
 enum ScanDateFilter: String, CaseIterable, Identifiable, Hashable {
     case today = "Today"
     case thisWeek = "This week"
@@ -188,7 +157,7 @@ struct ScanLibraryFilters: Equatable {
     var filters = ScanLibraryFilters() {
         didSet {
             guard oldValue != filters else { return }
-            performSearch(query: searchQuery)
+            performSearch(query: searchQuery, category: activeCategoryFilter)
         }
     }
     var isSelectionMode: Bool = false
@@ -423,6 +392,29 @@ struct ScanLibraryFilters: Equatable {
             taxonomyFamilies: uniqueDisplayValues(allScans.compactMap(\.taxonomyFamily)),
             taxonomyGenera: uniqueDisplayValues(allScans.compactMap(\.taxonomyGenus))
         )
+    }
+
+    var orderedCategoryFilters: [String] {
+        let counts = allScans.reduce(into: [SearchCategoryBucket: Int]()) { result, scan in
+            let category = SearchCategoryBucket(
+                kingdom: scan.taxonomyKingdom?.lowercased() ?? "",
+                className: scan.taxonomyClass?.lowercased() ?? ""
+            )
+            result[category, default: 0] += 1
+        }
+        let priority = Dictionary(
+            uniqueKeysWithValues: SearchCategoryBucket.libraryFilterPriority.enumerated().map { ($1, $0) }
+        )
+        let orderedCategories = SearchCategoryBucket.libraryFilterPriority.sorted { lhs, rhs in
+            let lhsCount = counts[lhs, default: 0]
+            let rhsCount = counts[rhs, default: 0]
+            if lhsCount != rhsCount {
+                return lhsCount > rhsCount
+            }
+            return priority[lhs, default: .max] < priority[rhs, default: .max]
+        }
+
+        return ["All"] + orderedCategories.map(\.title)
     }
 
     private func uniqueDisplayValues(_ values: [String]) -> [String] {

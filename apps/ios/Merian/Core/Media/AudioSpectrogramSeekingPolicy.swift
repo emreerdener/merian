@@ -26,6 +26,35 @@ struct AudioSpectrogramSeekingPolicy {
         return min(duration, max(0, progress.isFinite ? progress : 0) * duration)
     }
 
+    static func normalizedProgress(
+        currentTime: TimeInterval,
+        duration: TimeInterval,
+        fallback: Double
+    ) -> Double {
+        guard currentTime.isFinite, duration.isFinite, duration > 0 else {
+            return min(1, max(0, fallback))
+        }
+        return min(1, max(0, currentTime / duration))
+    }
+
+    static func displayedProgress(
+        storedProgress: Double,
+        currentTime: TimeInterval,
+        duration: TimeInterval,
+        isPlaying: Bool,
+        playerIsPlaying: Bool,
+        isSeeking: Bool
+    ) -> Double {
+        guard isPlaying, playerIsPlaying, !isSeeking else {
+            return min(1, max(0, storedProgress))
+        }
+        return normalizedProgress(
+            currentTime: currentTime,
+            duration: duration,
+            fallback: storedProgress
+        )
+    }
+
     static func progress(
         after adjustment: AudioSeekAdjustment,
         currentProgress: Double,

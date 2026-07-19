@@ -358,6 +358,115 @@ struct AchievementToastPresenterTests {
         }
     }
 
+    @Test func disabledFieldTripsSkipProgressWithoutInterruptingOtherMilestones() async {
+        let presenter = MilestoneToastPresenter()
+        var progressResolverCalls = 0
+        let achievement = completedAward(.domesticDog)
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _ in
+                progressResolverCalls += 1
+                return nil
+            },
+            achievementResolver: { _ in [achievement] },
+            fieldTripsAvailabilityResolver: { false },
+            presenter: presenter
+        )
+        var species = milestoneSpecies()
+        species.isNewToMerianDictionary = true
+
+        await coordinator.processCompletedScan(
+            scanId: "disabled-field-trips-scan",
+            speciesData: species,
+            modelContainer: nil
+        )
+
+        #expect(progressResolverCalls == 0)
+        #expect(presenter.activeItem?.award?.type == .domesticDog)
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+        guard case .dictionary = presenter.activeItem?.payload else {
+            Issue.record("Expected dictionary milestone after ordinary achievement")
+            return
+        }
+    }
+
+    @Test func finalFieldTripProgressPresentsAchievementBeforeDictionary() async {
+        let presenter = MilestoneToastPresenter()
+        let achievementProgress = FirstFieldTripAchievementProgress(
+            kind: .seasonalChallenge,
+            completedAt: "2026-07-18T14:00:00Z",
+            templateSlug: nil,
+            challengeId: "challenge-1"
+        )
+        let fieldTripProgress = progressResult()
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _ in
+                FieldTripProgressResult(
+                    fieldTripUpdates: fieldTripProgress.fieldTripUpdates,
+                    challengeUpdates: fieldTripProgress.challengeUpdates,
+                    firstFieldTripAchievement: achievementProgress,
+                    firstFieldTripAchievementNewlyUnlocked: true
+                )
+            },
+            achievementResolver: { _ in [] },
+            fieldTripsAvailabilityResolver: { true },
+            presenter: presenter
+        )
+        var species = milestoneSpecies()
+        species.isNewToMerianDictionary = true
+
+        await coordinator.processCompletedScan(
+            scanId: "first-field-trip-unlock",
+            speciesData: species,
+            modelContainer: nil
+        )
+
+        guard case .fieldTrip = presenter.activeItem?.payload else {
+            Issue.record("Expected standard Field trip progress first")
+            return
+        }
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+        guard case .fieldTrip = presenter.activeItem?.payload else {
+            Issue.record("Expected challenge progress second")
+            return
+        }
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+        #expect(presenter.activeItem?.award?.type == .firstFieldTrip)
+        #expect(
+            presenter.activeItem?.award?.destination
+                == .fieldTripChallenge(challengeId: "challenge-1")
+        )
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+        guard case .dictionary = presenter.activeItem?.payload else {
+            Issue.record("Expected dictionary milestone after Field trip achievement")
+            return
+        }
+    }
+
+    @Test func firstFieldTripAchievementNotificationIsDeduplicated() {
+        let progress = FirstFieldTripAchievementProgress(
+            kind: .standardOuting,
+            completedAt: "2026-07-18T14:00:00Z",
+            templateSlug: "backyard_safari",
+            challengeId: nil
+        )
+        guard let award = progress.awardPayload else {
+            Issue.record("Expected a valid first Field trip award")
+            return
+        }
+
+        let first = GamificationManager.shared.evaluateAchievementsForNotifications(
+            awards: [award],
+            enqueueToasts: false
+        )
+        let duplicate = GamificationManager.shared.evaluateAchievementsForNotifications(
+            awards: [award],
+            enqueueToasts: false
+        )
+
+        #expect(first.map(\.type) == [.firstFieldTrip])
+        #expect(duplicate.isEmpty)
+    }
+
     @Test func liveAndBackgroundCompletionRaceProcessesScanOnce() async {
         let presenter = MilestoneToastPresenter()
         var resolverCalls = 0

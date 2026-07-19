@@ -176,7 +176,7 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
   precedence. The automatic presentation marks the Explore **New** chip as
   seen.
 - **Workspace settings group**: The former Capture section is labeled
-  **Workspace** without moving its Camera, Audio, capture-mode order, Field trip
+  **Workspace** without moving its Camera, Audio, **Reorder modes**, Field trip
   goals, or confirmation controls.
 - **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps and disables intensive visual blurs to preserve battery.
 - **Camera Settings (`CameraSettingsView`)**: A dedicated sub-page pushed from the "Camera" row in Preferences (described as "Zoom controls, viewfinder hints, and capture preferences"). Navigation state (`cameraSettingsActive: Bool`) is owned by `SettingsTabView` and passed as a `@Binding` to `Preferences`; the `.navigationDestination` modifier is attached to the `List` in `SettingsTabView` (not inside a `Section`) to satisfy SwiftUI's lazy-container navigation destination requirement. The view is split into two sections:

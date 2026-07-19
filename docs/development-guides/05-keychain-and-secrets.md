@@ -25,6 +25,7 @@ Merian.
 | `isAchievementNotificationsEnabled` | `UserDefaults`                                       | Non-sensitive preference                                                               |
 | `Merian_UnlockedSpeciesCount`       | `UserDefaults`                                       | Non-sensitive gamification counter                                                     |
 | `Merian_UnlockedAchievements`       | `UserDefaults`                                       | Non-sensitive gamification set                                                         |
+| `firstFieldTripAchievementProgress.v1.{accountId}` | `UserDefaults`                          | Non-sensitive account-scoped completion date and typed Field trip destination cache   |
 | User geoprivacy preference          | Supabase `users` table                               | Server-authoritative preference                                                        |
 
 ---
