@@ -19,7 +19,7 @@ struct ActiveFieldTripProfileItem: Identifiable, Equatable {
 }
 
 enum ActiveFieldTripProfilePresentation {
-    static let previewLimit = 2
+    static let previewLimit = 1
 
     static func items(
         outings: [FieldTripCaptureOuting],
@@ -255,12 +255,22 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
-                Text(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(0.85))
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
+                HStack(spacing: 8) {
+                    Text(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.primary.opacity(0.85))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 16)

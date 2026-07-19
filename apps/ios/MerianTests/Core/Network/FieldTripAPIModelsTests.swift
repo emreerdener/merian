@@ -938,10 +938,10 @@ struct ActiveFieldTripProfilePresentationTests {
         #expect(items.map(\.id) == ["recent", "older", "third"])
         #expect(
             ActiveFieldTripProfilePresentation.previewItems(from: items).map(\.id) ==
-                ["recent", "older"]
+                ["recent"]
         )
         #expect(ActiveFieldTripProfilePresentation.shouldShowViewAll(for: items))
-        #expect(!ActiveFieldTripProfilePresentation.shouldShowViewAll(for: Array(items.prefix(2))))
+        #expect(!ActiveFieldTripProfilePresentation.shouldShowViewAll(for: Array(items.prefix(1))))
     }
 
     @Test func activeProfileUsesTheCurrentLevelItemsIncludingCompletedScanLinks() throws {
