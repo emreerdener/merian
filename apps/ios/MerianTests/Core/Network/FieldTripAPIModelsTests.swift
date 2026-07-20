@@ -838,12 +838,19 @@ struct FieldTripAPIModelsTests {
             ]
         )
         #expect(locatedTags.first?.systemImage == "lock.fill")
-        #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
         #expect(
-            FieldTripTemplatePresentation.cardTags(
-                for: published,
-                locationLabel: nil
-            ).map(\.title) == ["Starter", "Level 1", "Public"]
+            locatedTags.first(where: { $0.kind == .visibility })?.systemImage ==
+                "eye.slash.fill"
+        )
+        #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
+        let publishedTags = FieldTripTemplatePresentation.cardTags(
+            for: published,
+            locationLabel: nil
+        )
+        #expect(publishedTags.map(\.title) == ["Starter", "Level 1", "Public"])
+        #expect(
+            publishedTags.first(where: { $0.kind == .visibility })?.systemImage ==
+                "eye.fill"
         )
     }
 

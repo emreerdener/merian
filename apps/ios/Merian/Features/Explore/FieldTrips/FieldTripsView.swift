@@ -70,9 +70,9 @@ enum FieldTripTemplatePresentation {
         tags.append(.init(kind: .difficulty, title: template.difficultyTitle))
         tags.append(.init(kind: .level, title: currentLevelTitle(for: template)))
         if template.viewerProgress?.isPublished == true {
-            tags.append(.init(kind: .visibility, title: "Public", systemImage: "globe.americas.fill"))
+            tags.append(.init(kind: .visibility, title: "Public", systemImage: "eye.fill"))
         } else {
-            tags.append(.init(kind: .visibility, title: "Private", systemImage: "lock.fill"))
+            tags.append(.init(kind: .visibility, title: "Private", systemImage: "eye.slash.fill"))
         }
 
         if let locationLabel = locationLabel?
@@ -836,7 +836,7 @@ struct FieldTripTemplateDetailView: View {
             }
         case .start:
             FieldTripDetailPrimaryActionBar(
-                title: "Start outing",
+                title: "Start",
                 systemImage: "play.fill",
                 isLoading: isStarting,
                 isEnabled: !isLifecycleMutating
@@ -845,7 +845,7 @@ struct FieldTripTemplateDetailView: View {
             }
         case .resume:
             FieldTripDetailPrimaryActionBar(
-                title: "Resume outing",
+                title: "Resume",
                 systemImage: "play.fill",
                 isLoading: isStarting,
                 isEnabled: !isLifecycleMutating
@@ -854,7 +854,7 @@ struct FieldTripTemplateDetailView: View {
             }
         case .publish:
             FieldTripDetailPrimaryActionBar(
-                title: "Publish outing",
+                title: "Publish",
                 systemImage: "square.and.arrow.up",
                 isEnabled: !isLifecycleMutating
             ) {
@@ -1562,7 +1562,7 @@ private struct FieldTripTemplateCard: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
-                            .font(.headline.weight(.bold))
+                            .font(.title3.weight(.bold))
                             .foregroundStyle(.primary)
                             .lineLimit(2)
 
@@ -1578,7 +1578,7 @@ private struct FieldTripTemplateCard: View {
                     .layoutPriority(1)
 
                     Image(systemName: "chevron.right")
-                        .font(.title3.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(.primary)
                         .accessibilityHidden(true)
                 }
@@ -3159,7 +3159,7 @@ private struct FieldTripPublicationStatusBadge: View {
     var body: some View {
         Label(
             isPublished ? "Published" : "Private",
-            systemImage: isPublished ? "globe.americas.fill" : "lock.fill"
+            systemImage: isPublished ? "eye.fill" : "eye.slash.fill"
         )
         .font(.caption.weight(.semibold))
         .foregroundStyle(tint)
@@ -3410,7 +3410,7 @@ private struct FieldTripTemplateSkeletonCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.secondary.opacity(0.16))
-                        .frame(width: 164, height: 17)
+                        .frame(width: 172, height: 19)
 
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.secondary.opacity(0.12))
@@ -3424,7 +3424,7 @@ private struct FieldTripTemplateSkeletonCard: View {
 
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(Color.secondary.opacity(0.16))
-                    .frame(width: 8, height: 22)
+                    .frame(width: 7, height: 18)
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)

@@ -10,7 +10,7 @@ import {
 const graphs = await buildAllFunctionGraphs();
 
 Deno.test("every Edge Function has a discoverable graph", () => {
-  assertEquals(graphs.length, 77);
+  assertEquals(graphs.length, 78);
   assert(graphs.every((graph) => graph.files.has(graph.entrypoint)));
 });
 
