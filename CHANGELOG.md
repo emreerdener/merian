@@ -20,6 +20,16 @@ TestFlight, App Store, support, and QA.
   the background does not reopen it, and shared photos, links, and tapped
   notifications still open their requested destination.
 
+### Beta Operations
+
+- Prelaunch builds intentionally keep free scans unlimited, including
+  TestFlight. The normal free/Pro quota remains covered for the eventual public
+  release, and subscription testing remains available directly from Settings →
+  Plan while quota-triggered paywalls are bypassed.
+- Paywall diagnostics now distinguish a missing current offering, an empty
+  package set, and missing required `pro_week` / `pro_annual` products so beta
+  store-configuration failures are visible before release.
+
 ### Media & Performance
 
 - Hid third-party reference images for domestic cat and dog identifications
@@ -44,8 +54,18 @@ TestFlight, App Store, support, and QA.
 - Removed a priority-inversion hang risk from local and remote image decoding.
   Decode concurrency remains capped for memory safety, but excess work now
   suspends asynchronously instead of blocking user-initiated threads.
+- Prevented non-finite media geometry from reaching SwiftUI in Explore detail
+  zoom and audio playmarkers, eliminating invalid-frame warnings and unstable
+  offsets during transient layout/player states.
+- Release configuration now requests the production APNs entitlement.
 
 ### Explore
+
+- Reduced unread-badge network churn by sharing one in-flight count refresh,
+  briefly reusing successful results, and using Realtime as the primary update
+  path with a five-minute polling fallback.
+- Fixed cross-device preferred species names repeatedly writing an already
+  matching value or tombstone during cloud reconciliation.
 
 - Fixed the Field notes editor so closing an unchanged note no longer republishes
   its existing visibility, shows a misleading public toast, or refreshes the

@@ -142,7 +142,7 @@ extension InsightSheetViewModel {
         }
         evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
         MerianLog.data.debug(
-            "InsightSheetViewModel.promoteQueuedScanIfLocalRecordExists: promoted scanId=\(scanId, privacy: .public)"
+            "InsightSheetViewModel.promoteQueuedScanIfLocalRecordExists: promoted scanId=\(scanId, privacy: .private)"
         )
         return true
     }

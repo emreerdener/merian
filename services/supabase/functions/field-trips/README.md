@@ -82,6 +82,17 @@ credited-progress migrations change only database responses.
 
 ## Actions
 
+`actions.ts` is the server action allowlist and the type source consumed by the
+handler. Add or retire an action there and update
+`_tests/fieldTripActions.test.ts` in the same change. That test contains a
+manually maintained snapshot of the actions emitted by the iOS client; reviewers
+must compare Swift call sites when the contract changes because the test does not
+parse Swift source. A missing or
+non-string action returns `HTTP 400`. An unknown string also returns `HTTP 400`
+and emits the structured warning `field_trip_action_rejected` with only the
+first 64 characters of the rejected action. Use that event to identify a stale
+client or undeployed server action; do not log the full request body or user ID.
+
 ```json
 { "action": "achievement_progress" }
 ```
@@ -474,8 +485,9 @@ not fail scan persistence.
 ## Verification
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripActions.test.ts services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
+deno test services/supabase/functions/_tests/fieldTripActions.test.ts
 deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripProgressDb.test.ts

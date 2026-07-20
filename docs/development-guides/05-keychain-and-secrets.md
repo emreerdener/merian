@@ -93,6 +93,31 @@ enum MerianEnvironment {
 }
 ```
 
+### Debug simulator production guard
+
+The tracked client configuration currently resolves to the production Supabase
+project. On a Debug simulator, `MerianEnvironment` therefore emits:
+
+```text
+Environment configuration degraded: Debug simulator is using production Supabase...
+```
+
+This is an intentional warning, not a block. Supabase Auth and normal network
+reads/writes continue, and a fresh install or cleared session can create a real
+anonymous production user. Use a local or staging `SUPABASE_URL` plus matching
+client key in ignored `Config.local.xcconfig` for routine simulator work.
+
+For a deliberate production smoke test, preserve the existing session when
+possible and add this environment variable to the Xcode Run action for that run:
+
+```text
+MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1
+```
+
+The override suppresses only the diagnostic. It does not change the endpoint,
+permissions, RLS, or cleanup obligations. Remove it after the smoke test and
+never use a service-role/secret key as the matching client key.
+
 ---
 
 ## KeychainManager

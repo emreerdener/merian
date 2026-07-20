@@ -10,8 +10,8 @@ enum MerianConfig {
 
     // MARK: - Alpha Overrides
 
-    /// Temporary alpha-phase override that disables the daily free scan cap for every user.
-    /// Remove this flag once standard quota enforcement should return.
+    /// Temporary prelaunch override that disables the daily free scan cap in every build,
+    /// including TestFlight. Set this to false before the public App Store release.
     static var alphaUnlimitedFreeScansEnabled = true
 
     // MARK: - Retention

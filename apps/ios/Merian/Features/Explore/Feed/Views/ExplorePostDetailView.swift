@@ -238,7 +238,9 @@ struct ExplorePostDetailView: View {
                                                 of: geo.frame(in: .named("ExplorePostDetailScrollSpace")).minY,
                                                 initial: true
                                             ) { _, newMinY in
-                                                commentsSectionMinY = newMinY
+                                                if newMinY.isFinite {
+                                                    commentsSectionMinY = newMinY
+                                                }
                                             }
                                     }
                                 )
@@ -501,14 +503,16 @@ struct ExplorePostDetailView: View {
             GeometryReader { outerGeo in
                 Color.clear
                     .onChange(of: outerGeo.size.height, initial: true) { _, newHeight in
-                        viewportHeight = newHeight
+                        if newHeight.isFinite, newHeight >= 0 {
+                            viewportHeight = newHeight
+                        }
                     }
             }
         )
     }
 
     private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
-        guard maxY != .infinity else { return }
+        guard maxY.isFinite else { return }
 
         let isPast = maxY < 44
         guard isCommonNameScrolledPast != isPast else { return }

@@ -78,19 +78,13 @@ struct MainTabBar: View {
         }()
         
         async let fetchUnreadCount: Int? = {
-            do {
-                return try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
-            } catch {
-                MerianLog.network.debug("Failed to fetch unread notification count for badge: \(error.localizedDescription, privacy: .private)")
-                return nil
-            }
+            await AppIconBadgeCoordinator.refreshExploreUnreadNotificationCount()
         }()
         
         let (recentPosts, unreadCount) = await (fetchRecentPosts, fetchUnreadCount)
 
         if let unreadCount {
             hasUnreadExploreNotifications = unreadCount > 0
-            AppIconBadgeCoordinator.setExploreUnreadNotificationCount(unreadCount)
         }
 
         guard let recentPosts else {

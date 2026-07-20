@@ -72,6 +72,12 @@ handle. `custom_avatar_url` and `custom_avatar_updated_at` were added later by
 compute `public_avatar_url` with `custom_avatar_url` precedence so provider
 metadata updates cannot overwrite a user-uploaded profile picture.
 
+Migration `20260720042641_optimize_explore_author_maintenance.sql` makes the
+identity refresh idempotent and restricts both identity refresh and Explore post
+ownership repair to `service_role`. Auth triggers and public write/ghost-merge
+paths own refreshes. Feed, profile, map, comment, notification, and other Explore
+reads consume the existing projection and never perform maintenance writes.
+
 ## Edge Function
 
 `update-public-username` is an authenticated app-facing Edge Function. Its

@@ -23,6 +23,23 @@ test("admin data routes require membership, AAL2, role, and an active RPC sessio
   assert.match(shell, /href: "\/reviews", label: "Review queue", minimum: 2/);
 });
 
+test("anonymous admin routing does not call the restricted access-state RPC", async () => {
+  const admin = await source("lib/admin.ts");
+  const getAccessStateBody = admin.slice(
+    admin.indexOf("export async function getAccessState"),
+    admin.indexOf("export async function requireAdmin"),
+  );
+  const authCheck = getAccessStateBody.indexOf("supabase.auth.getUser()");
+  const accessRpc = getAccessStateBody.indexOf(
+    'supabase.rpc("admin_get_access_state")',
+  );
+
+  assert.notEqual(authCheck, -1);
+  assert.notEqual(accessRpc, -1);
+  assert.ok(authCheck < accessRpc);
+  assert.match(getAccessStateBody, /!userResult\.user/);
+});
+
 test("response and browser boundaries are private by default", async () => {
   const [proxy, config, layout] = await Promise.all([
     source("proxy.ts"),
@@ -58,7 +75,9 @@ test("review, feedback, user, and audit lists use bounded cursor pagination", as
   assert.match(feedback, /p_cursor_created_at/);
   assert.match(users, /nextCursor/);
   assert.match(access, /p_cursor_id/);
-  for (const text of [reviews, feedback, access]) assert.match(text, /p_limit: 100/);
+  for (const text of [reviews, feedback, access]) {
+    assert.match(text, /p_limit: 100/);
+  }
 });
 
 test("server-rendered admin pages pass only serializable component props", async () => {

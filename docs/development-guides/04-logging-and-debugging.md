@@ -77,6 +77,8 @@ MerianLog.general.debug("Species: \(name, privacy: .auto)")
 
 **Rules:**
 - UUIDs, scan IDs, species names, GPS coordinates, user data → `.private`
+- Reference/media URLs, object keys, local file paths, and summaries that pair a
+  scan ID with species or media state → `.private`
 - Counts, HTTP status codes, boolean flags, timing durations → `.public`
 - Never log a raw `Error` without `privacy: .private` — error messages can contain user file paths or network URLs
 
@@ -124,8 +126,43 @@ Some noisy lines come from Apple frameworks or third-party development configura
 | `FigCaptureSourceSimulator`, `FigCaptureSessionSimulator`, `FormatDescription` | AVFoundation simulator capture stack probing unavailable or synthetic camera formats. | Merian simulator builds use a no-preview camera path; investigate if these appear in a fresh build or if the preview is blank on physical devices. |
 | `IOSurfaceClientSetSurfaceNotify failed` | Simulator/CoreAnimation surface notification failure. | Treat as simulator noise unless paired with a reproducible rendering failure. |
 | `nw_connection_copy_connected_local_endpoint... no local endpoint` | Network framework inspected a socket before connection establishment completed. | Usually harmless; investigate only with request failures in `MerianLog.network`. |
+| `AudioConverterOOP.cpp... Failed to prepare AudioConverterService: -302` | CoreAudio failed to prepare an out-of-process converter, most commonly while the simulator audio route is settling. The numeric code alone does not identify an app failure. | Ignore an isolated line when recording and playback work. Reproduce on a physical device and inspect the active `AVAudioSession` route if audio is unavailable, silent, or interrupted. |
+| `_dictationButton not yet initialized`, `System gesture gate timed out` | UIKit accessibility/dictation setup or a system gesture recognizer missed its timing window. | Treat as framework noise unless the matching dictation control, gesture, or transition visibly fails. |
 | `PostHog identity buffered until SDK configuration completes` | Expected defensive path if identity arrives before setup in a future startup order. | Should be rare because Supabase configures PostHog before auth listening. |
-| `AttributeGraph: cycle detected` | SwiftUI detected a state/layout feedback loop. | Investigate immediately. Layout measurements must be guarded by equality tolerances and deferred out of the active layout pass before writing `@State` or observable view-model state. |
+| `Environment configuration degraded: Debug simulator is using production Supabase...` | A Debug simulator resolved the production project. This is a warning, not a network block; auth, reads, writes, and anonymous-user creation still proceed. | Prefer local/staging for routine work. For a deliberate production smoke test, avoid reinstalling/clearing the session and set the documented scheme override only for that run. |
+| `TEMP OVERRIDE ACTIVE: unlimited free scans...` | Expected in every current prelaunch build, including TestFlight; it may appear beside the separate `PostHog initialized` line. Older binaries say `alpha phase`; current source says `prelaunch testing`. Both mean the override is active. | No action during testing. Clean/rebuild if validating the current wording. Before public App Store release, set `MerianConfig.alphaUnlimitedFreeScansEnabled` to `false` and confirm the warning is absent from the release candidate. |
+| `None of the products registered in the RevenueCat dashboard could be fetched from App Store Connect (or the StoreKit Configuration file...)` | RevenueCat fetched its offering metadata, but StoreKit could not resolve the mapped products. A successful RevenueCat login does not validate product availability. | First fix the selected store environment: Test Store key/products for fast simulator testing, or an attached StoreKit configuration/App Store Connect products with the production iOS key. Then verify the current offering returns `pro_week` and `pro_annual`. |
+| `RevenueCat returned no current offering`, `current offering has no available packages`, or `missing required products` | StoreKit returned far enough for the app's own offering policy to run, but the dashboard-selected offering is absent or incomplete. Required product IDs are `pro_week` and `pro_annual`. | Fix RevenueCat current-offering selection and package mapping, then repeat the paywall smoke test. |
+| `RevenueCat is already using the same appUserID` | The SDK was asked to log in the already-cached Supabase UUID. | Benign when followed by `RevenueCat login succeeded`; investigate only if identity or entitlement state is wrong. |
+| `field_trip_action_rejected` | The Edge function received an unknown action; the structured field contains at most 64 characters and omits every other request field plus the derived user ID. | Compare the deployed `field-trips/actions.ts` allowlist with the client version. Usually indicates a stale client or a server action that was not deployed. |
+| Missing valid `aps-environment` entitlement | The signed app cannot register correctly with APNs. | Inspect the archived app's signed entitlements, the explicit App ID capability, and the distribution provisioning profile. Release must resolve `APS_ENVIRONMENT=production`. |
+| `Invalid frame dimension` or non-finite SwiftUI geometry near Explore detail/audio | A proposed layout or playback progress contained `NaN`/infinity/non-positive values. | Current layout and spectrogram policies sanitize these values. Reproduce only if a new frame/offset calculation bypasses `ExploreDetailZoomLayoutPolicy` or `AudioSpectrogramSeekingPolicy`. |
+| `AttributeGraph: cycle detected through attribute ...` | SwiftUI detected a dependency cycle. The numeric attribute is process-local and does not identify a source view by itself. | Record the screen and interaction that reproduce it, then use Instruments' SwiftUI View Properties instrument. Guard layout-derived writes with equality/tolerance checks and avoid mutating observable state during the active layout pass. |
+
+### Healthy startup and sync signals
+
+Use nearby application logs to decide whether a framework warning is paired
+with a real failure:
+
+- `PostHog initialized` followed by `AppTelemetry initialized with PostHog`
+  confirms telemetry setup. Identification may happen later after Supabase
+  restores the session.
+- A successful initial Auth session plus HTTP success entries for feed, Field
+  trips, unread count, or species dictionary indicates that the client reached
+  Supabase. A tiny response body can be a legitimate zero/empty response; use
+  HTTP status and decoded behavior, not byte count alone.
+- `syncPendingScans skipped because sync active` is the expected single-flight
+  guard. It is not a dropped scan; the existing task owns the work.
+- Preferred-name synchronization ending with `0 local, 0 remote, 0 pushed` is a
+  healthy no-op. Matching values and matching tombstones should not be rewritten.
+- One slower request is a sample, not a regression. Compare repeated p50/p95
+  timing before assigning endpoint work, and correlate latency with a failed
+  status or visible delay.
+
+When reviewing a log bundle, record the app version/build, simulator versus
+physical device, OS version, screen/action, and whether the user observed a
+failure. Absence from one bundle means only “not reproduced in this run”; it
+does not prove an APNs, signing, or production configuration issue is fixed.
 
 ---
 

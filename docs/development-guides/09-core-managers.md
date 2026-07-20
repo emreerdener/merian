@@ -299,6 +299,14 @@ triggering excessive SwiftUI view rebuilds.
   branches between modern `UNUserNotificationCenter` APIs (iOS 16+) and standard
   `UIApplication` fallbacks, keeping inference alerts directly coupled to the
   user's scan-viewing behavior.
+- **Explore unread coordination**: `AppIconBadgeCoordinator` is the single
+  process-wide owner of unread-count refreshes used by lifecycle, `MainTabBar`,
+  and Explore. Concurrent callers await the same task, and a successful result
+  is reusable for 10 seconds. Explore-post activity uses Realtime as the primary
+  update path and polls every five minutes to cover Field trip-only activity,
+  missed events, and subscription failure. Realtime events and notification-
+  sheet dismissal use `force: true`. Failed or cancelled refreshes do not start
+  the reuse window or erase the last persisted count.
 
 ## AI & Offline Synchronization
 
@@ -858,6 +866,11 @@ and `KeychainManager` migration logic. Do not inline
   immediately by an identical foreground sync. Local edits bypass that freshness
   gate, and local clears are queued in `pendingSpeciesPreferredNameDeletes`
   until a remote `deleted_at` tombstone upsert succeeds.
+- Treat normalized equality as convergence before comparing timestamps. A
+  matching active name never upserts merely to copy a timestamp, and an existing
+  remote tombstone satisfies a pending local delete. Only a real value/tombstone
+  conflict uses last-write-wins: remote-newer pulls, while local-newer or equal
+  pushes. This prevents devices from echoing an already-matching value.
 - Persists lightweight support diagnostics in `UserDefaults`: last attempt time,
   last success time, current status (`running`, `success`, `failure`, or
   `skipped`), failure/skip message, and last successful pushed/pulled row
@@ -1061,7 +1074,8 @@ and `KeychainManager` migration logic. Do not inline
   `_shared/explore.ts.assertCanInteractWithExplorePost(...)` for the identical
   "post still shareable + no mutual block" gate used by comment and like flows.
   `syncPublicAuthorIdentity(...)` remains the single author-sync path for public
-  writes.
+  writes. Explore reads consume the current projection and must not refresh
+  identity or repair ownership as a side effect.
 
 ### `SupabaseManager`
 
@@ -1073,6 +1087,12 @@ and `KeychainManager` migration logic. Do not inline
   missing Supabase config is logged and represented by a fallback client only to
   keep app boot non-crashing; actual app network requests are still blocked by
   `MerianNetworkClient.endpointURL(_:)` until config is valid.
+- A Debug simulator pointed at the production Supabase host reports
+  `.productionSupabaseInDebugSimulator` as a startup fault, but remains valid
+  and connected. This protects routine testing by making production use
+  conspicuous without preventing an intentional smoke test. The Xcode Run
+  environment variable `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1`
+  suppresses only that warning; it does not redirect or sandbox requests.
 - **`authListenerTask` handle**:
   `@ObservationIgnored private var authListenerTask: Task<Void, Never>?` — the
   auth state listener task is stored rather than fire-and-forget, consistent
@@ -1090,6 +1110,10 @@ and `KeychainManager` migration logic. Do not inline
   attributes such as `supabase_user_id`, `auth_email`, `public_username`,
   `public_author_name`, `public_identity_source`, and `account_kind` so Test
   Store customers can be matched back to Merian accounts.
+  The lookup decodes a bounded array and uses its first row rather than requiring
+  PostgREST singular-object semantics. A newly authenticated user may not have a
+  `public.users` projection yet; an empty result is a normal best-effort fallback,
+  not a `406` auth failure, and telemetry linking continues with Auth metadata.
 - **`ghostSessionTask` single-flight**:
   `@ObservationIgnored private var ghostSessionTask: Task<Void, Never>?` —
   serializes anonymous session creation across all callers. This closes the
@@ -1200,6 +1224,12 @@ and `KeychainManager` migration logic. Do not inline
 - Connects authenticated users to RevenueCat; the `revenuecat-webhook` Edge
   function remains the server-side purchase authority and writes timed pass
   expiry into Supabase.
+- `RevenueCatOfferingPolicy` defines the paywall's required App Store product
+  identifiers: `pro_week` and `pro_annual`. `fetchOfferings()` logs an error when
+  there is no current offering, no available packages, or either required
+  product is absent. These diagnostics do not create products or repair package
+  mapping; App Store Connect product readiness and RevenueCat dashboard mapping
+  remain release prerequisites.
 
 ### `UsageManager`
 
@@ -1221,11 +1251,11 @@ and `KeychainManager` migration logic. Do not inline
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from
   `AppDIContainer.handleActivePhase()` on foreground transitions.
-- **Alpha override**: `MerianConfig.alphaUnlimitedFreeScansEnabled = true`
-  intentionally bypasses free scan limits during the current testing period. Do
-  not remove or flip this flag as part of telemetry work. When the alpha
-  override is retired, Pro users should continue to bypass the cap via
-  `isProActive`, and free users should return to the daily quota path.
+- **Prelaunch override**: `MerianConfig.alphaUnlimitedFreeScansEnabled` is
+  intentionally `true` in every current build, including Release/TestFlight, so
+  testers are not constrained by the daily free quota. Before the public App
+  Store release, set it to `false`, rerun `UsageManagerTests`, and verify the
+  standard Pro/free quota path on a physical release-candidate build.
 - Full contract documented in
   [02-revenue-and-identity.md](../features-and-hardware/02-revenue-and-identity.md#usage-limits-usagemanager).
 

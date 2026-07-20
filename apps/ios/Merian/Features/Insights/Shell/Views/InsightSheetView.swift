@@ -468,7 +468,7 @@ private extension InsightSheetView {
         }
 
         MerianLog.data.debug(
-            "InsightSheetView.attemptQueuedCompletionHandoff: no completed local record visible scanId=\(scanId, privacy: .public)"
+            "InsightSheetView.attemptQueuedCompletionHandoff: no completed local record visible scanId=\(scanId, privacy: .private)"
         )
     }
 }

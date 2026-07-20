@@ -84,6 +84,33 @@ then updates `project.yml`, regenerates `Merian.xcodeproj`, and writes
 `build/ios-release-prep.json`. The marker is intentionally ignored by git and
 exists only to prove that the local archive was deliberately prepared.
 
+RevenueCat product configuration is a separate release gate. Open the paywall
+with the production SDK key and confirm the dashboard-selected current offering
+returns packages mapped to both `pro_week` and `pro_annual`. The client logs an
+operational error for no current offering, an empty current offering, or a
+missing required product, but it cannot create App Store products or repair
+RevenueCat package mappings from the repository. A successful RevenueCat login
+only verifies identity linking; it does not verify StoreKit product loading.
+
+The committed shared scheme does not currently bind a `.storekit` file. For
+routine simulator purchase QA, use the RevenueCat Test Store with a Debug
+`test_` key, or deliberately add and attach a StoreKit configuration following
+the testing matrix in
+[`02-revenue-and-identity.md`](../features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
+TestFlight must use the production `appl_` key and App Store Connect products;
+a local StoreKit success does not replace the TestFlight purchase/restore and
+webhook smoke tests.
+
+Prelaunch TestFlight builds intentionally keep
+`MerianConfig.alphaUnlimitedFreeScansEnabled = true`, so testers have unlimited
+scans. Do not disable this for ordinary beta uploads. Before the first public
+App Store submission, set the flag to `false`, update the changelog/release
+notes, run `UsageManagerTests`, and verify on a physical release-candidate build
+that a free account receives one daily scan while Pro remains uncapped. The
+`TEMP OVERRIDE ACTIVE` startup warning must be absent from that public release
+candidate. Its presence is expected and must not reject an ordinary prelaunch
+TestFlight build.
+
 ## Archive Guardrail
 
 Xcode calls `scripts/check-ios-release-prep.sh` during Release archives. The
@@ -118,6 +145,34 @@ override for you by substituting the real key:
 ```bash
 REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=x.y.z
 ```
+
+## Push Entitlement and Signing
+
+`project.yml` is the source of truth for the main app's Push Notifications
+entitlement. `Merian.entitlements` uses
+`aps-environment = $(APS_ENVIRONMENT)`; XcodeGen resolves it to `development`
+for Debug and `production` for Release. Regenerate `Merian.xcodeproj` after any
+project setting change, and do not hardcode one environment in the generated
+project or entitlement file.
+
+Before distributing a Release archive:
+
+1. Confirm the Apple Developer explicit App ID `app.merian.Merian` has the Push
+   Notifications capability enabled.
+2. Confirm the selected distribution provisioning profile includes the
+   production APS entitlement.
+3. Inspect the signed archive and verify `aps-environment` is `production`:
+
+```bash
+codesign -d --entitlements :- \
+  /path/to/Merian.xcarchive/Products/Applications/Merian.app
+```
+
+A simulator build can verify the Release build setting and compile-time wiring,
+but it does not prove APNs registration or distribution signing. Complete one
+physical-device smoke test that registers a token and receives an Explore push
+before TestFlight rollout. If logs report a missing valid `aps-environment`,
+inspect the signed entitlements and provisioning capability first.
 
 ## Archive Export
 

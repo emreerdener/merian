@@ -6,7 +6,6 @@ import {
 import {
   normalizeCursorTimestamp,
   normalizeLimit,
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
 } from "../_shared/explore.ts";
 import { fetchExploreNotifications } from "./db.ts";
@@ -44,12 +43,6 @@ Deno.serve((req: Request) =>
         "before_updated_at and before_notification_id must be provided together.",
       );
     }
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-notifications",
-    );
 
     let data;
     try {

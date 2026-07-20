@@ -896,6 +896,17 @@ After deployment:
   prize rows, or leaderboard rows. Field trip comment/reply/followed-publication
   activity may appear in `field_trip_activity_notifications` and the in-app
   Explore activity feed.
+- For Explore author-maintenance releases, apply
+  `20260720042641_optimize_explore_author_maintenance.sql` before deploying the
+  affected write and read functions. Confirm `PUBLIC`, `anon`, and
+  `authenticated` cannot execute `refresh_public_author_identity(uuid)` or
+  `repair_explore_post_ownership_for_user(uuid)`, while `service_role` can.
+  Run `_tests/exploreIdentityDb.test.ts` with an explicit
+  `SUPABASE_DB_TEST_URL`; verify a second converged refresh preserves the user
+  row version. Smoke-test one feed/profile read and confirm it performs no
+  maintenance RPC, then share or comment once and confirm the public author
+  projection is current. During ghost-merge QA, verify scans and Explore posts
+  move to the target account before the identity refresh and ghost purge.
 - For video-upload contract releases, confirm `scan_media_assets.scan_id` and
   `scan_media_assets.url` are nullable in production
   (`information_schema.columns.is_nullable = YES`) before expecting six-file

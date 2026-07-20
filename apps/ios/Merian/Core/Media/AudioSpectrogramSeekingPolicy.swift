@@ -23,7 +23,7 @@ struct AudioSpectrogramSeekingPolicy {
 
     static func seconds(progress: Double, duration: TimeInterval) -> TimeInterval {
         guard duration.isFinite, duration > 0 else { return 0 }
-        return min(duration, max(0, progress.isFinite ? progress : 0) * duration)
+        return min(duration, clampedProgress(progress) * duration)
     }
 
     static func normalizedProgress(
@@ -32,9 +32,9 @@ struct AudioSpectrogramSeekingPolicy {
         fallback: Double
     ) -> Double {
         guard currentTime.isFinite, duration.isFinite, duration > 0 else {
-            return min(1, max(0, fallback))
+            return clampedProgress(fallback)
         }
-        return min(1, max(0, currentTime / duration))
+        return clampedProgress(currentTime / duration)
     }
 
     static func displayedProgress(
@@ -46,7 +46,7 @@ struct AudioSpectrogramSeekingPolicy {
         isSeeking: Bool
     ) -> Double {
         guard isPlaying, playerIsPlaying, !isSeeking else {
-            return min(1, max(0, storedProgress))
+            return clampedProgress(storedProgress)
         }
         return normalizedProgress(
             currentTime: currentTime,
@@ -69,6 +69,21 @@ struct AudioSpectrogramSeekingPolicy {
 
     static func playmarkerCenterX(progress: Double, width: CGFloat) -> CGFloat {
         guard width.isFinite, width > 0 else { return 0 }
-        return min(width, max(0, width * CGFloat(progress.isFinite ? progress : 0)))
+        return min(width, max(0, width * CGFloat(clampedProgress(progress))))
+    }
+
+    static func playmarkerLeadingX(
+        progress: Double,
+        width: CGFloat,
+        markerWidth: CGFloat = 2
+    ) -> CGFloat {
+        guard width.isFinite, width > 0, markerWidth.isFinite else { return 0 }
+        let availableWidth = max(0, width - max(0, markerWidth))
+        return availableWidth * CGFloat(clampedProgress(progress))
+    }
+
+    private static func clampedProgress(_ progress: Double) -> Double {
+        guard progress.isFinite else { return 0 }
+        return min(1, max(0, progress))
     }
 }

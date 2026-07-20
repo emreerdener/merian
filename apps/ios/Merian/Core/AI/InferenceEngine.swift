@@ -1163,7 +1163,7 @@ private struct GBIFMedia: Decodable {
             wikiFetchAttemptedIds.insert(species)
 
             let safeImageUrlToPersist = await MainActor.run { () -> String? in
-                MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .public)")
+                MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .private)")
                 // Individual optional-chain mutations (self.speciesData?.field = x) do not
                 // reliably fire @Observable notifications for struct value types; a single
                 // full-value replacement is the only guaranteed trigger.
@@ -1254,7 +1254,7 @@ private struct GBIFMedia: Decodable {
                 return urls
             }.value
 
-            MerianLog.general.debug("GBIF hydration returned \(newUrls.count, privacy: .public) URLs: \(newUrls, privacy: .public)")
+            MerianLog.general.debug("GBIF hydration returned \(newUrls.count, privacy: .public) URLs: \(newUrls, privacy: .private)")
             guard !newUrls.isEmpty else { return }
 
             // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
@@ -1936,7 +1936,7 @@ private struct GBIFMedia: Decodable {
 
     /// Removes an invalid image URL from the carousel and from the stored `referenceImageUrl` field.
     func dropInvalidCarouselImage(_ identifier: String) {
-        MerianLog.general.debug("Dropping invalid carousel image: \(identifier, privacy: .public)")
+        MerianLog.general.debug("Dropping invalid carousel image: \(identifier, privacy: .private)")
         // Attempt to remove from items
         self.activeMedia.items.removeAll { item in
             if case .image(let path) = item, path == identifier { return true }
@@ -1947,7 +1947,7 @@ private struct GBIFMedia: Decodable {
         if case .loaded(var urls) = self.activeMedia.referenceState {
             urls.removeAll { $0 == identifier }
             self.activeMedia.referenceState = urls.isEmpty ? .empty : .loaded(urls)
-            MerianLog.general.debug("New referenceState after drop: \(urls, privacy: .public)")
+            MerianLog.general.debug("New referenceState after drop: \(urls, privacy: .private)")
         }
 
         if var updated = self.speciesData, let currentRef = updated.referenceImageUrl {

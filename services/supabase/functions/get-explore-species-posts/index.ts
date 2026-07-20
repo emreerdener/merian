@@ -1,6 +1,5 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
-  refreshExploreAuthorStateBestEffort,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
   withExplorePostHashtags,
@@ -20,12 +19,6 @@ Deno.serve((req: Request) =>
     }
 
     const parsed = parseExploreSpeciesPostsRequest(body);
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-species-posts",
-    );
 
     const rows = await fetchExploreSpeciesPosts(
       user.id,

@@ -4,6 +4,22 @@ This directory owns Merian's authenticated, certificate-pinned foreground
 network client. Durable background uploads and replay scheduling live under
 `Core/Data/OfflineSync`.
 
+## Environment selection
+
+`SupabaseManager` is initialized from the typed `MerianEnvironment`
+configuration. Missing or invalid Supabase values keep app startup non-crashing
+but block real endpoint construction. A Debug simulator that resolves to the
+known production Supabase host is different: the configuration remains valid,
+and the app logs a conspicuous production-use diagnostic while auth, reads, and
+writes continue.
+
+Use matching local/staging URL and client-key overrides in ignored
+`Config.local.xcconfig` for routine simulator work. For a deliberate production
+smoke test, the Xcode Run environment variable
+`MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1` suppresses only the
+diagnostic. It does not redirect traffic, isolate rows, or prevent a cleared
+session from creating an anonymous production user.
+
 ## `MerianNetworkClient`
 
 - Builds authenticated requests to Supabase Edge Functions and retains the

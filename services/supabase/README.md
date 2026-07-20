@@ -68,6 +68,26 @@ and the
 runbook before changing grants, roles, sessions, review transitions, visibility,
 pricing, or auditing.
 
+### Explore Author Maintenance
+
+Explore read functions are projection-only. They must not refresh public author
+identity or repair post ownership while serving feeds, profiles, comments,
+notifications, maps, mentions, hashtags, species pages, or post detail. Public
+author maintenance belongs on the write paths that can make the projection
+observable: Explore sharing, Explore and Field trip comment creation, Community
+requests, auth metadata triggers, and ghost-profile merge.
+
+Migration `20260720042641_optimize_explore_author_maintenance.sql` keeps
+`refresh_public_author_identity(uuid)` idempotent, hardens both maintenance
+functions with `SECURITY DEFINER SET search_path = ''`, and grants execution
+only to `service_role`. The refresh returns without writing when the safe public
+projection already matches, preventing repeated row-version churn. Never grant
+either maintenance RPC to `PUBLIC`, `anon`, or `authenticated`, and never move
+them back into a read endpoint to repair data opportunistically.
+This follows Supabase's
+[database-function security guidance](https://supabase.com/docs/guides/database/functions)
+for fixed search paths and explicit execute privileges.
+
 ### Testing Edge Functions
 
 Before opening a PR targeting `services/supabase/functions`, run formatting,
@@ -144,6 +164,21 @@ filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
 standard/challenge credited counts, level advancement, re-identification, and
 idempotent reapplication. Both require the local Postgres stack; a connection
 skip is not database validation.
+
+Explore identity integration coverage in `_tests/exploreIdentityDb.test.ts`
+executes the public projection and ownership-repair functions against Postgres.
+It verifies custom-avatar precedence, no row rewrite after identity convergence,
+ownership repair, and service-role-only execution. Database helpers use the
+standard local URL when `SUPABASE_DB_TEST_URL` is absent and may report a skip
+when that default stack is unavailable. When `SUPABASE_DB_TEST_URL` is set
+explicitly, a connection failure fails the test; this is the required mode for
+CI and release validation.
+
+```bash
+SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  deno test --allow-env --allow-net \
+  services/supabase/functions/_tests/exploreIdentityDb.test.ts
+```
 
 From the repo root:
 

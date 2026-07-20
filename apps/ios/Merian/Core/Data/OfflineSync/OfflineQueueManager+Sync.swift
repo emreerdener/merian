@@ -340,7 +340,7 @@ extension OfflineQueueManager {
             await MainActor.run {
                 self.uploadPreparationScanIds.formUnion(candidateUploadScanIds)
                 MerianLog.data.debug(
-                    "syncPendingScans: tracking upload preparation ids=\(candidateUploadScanIds.sorted().joined(separator: ","), privacy: .public)"
+                    "syncPendingScans: tracking upload preparation ids=\(candidateUploadScanIds.sorted().joined(separator: ","), privacy: .private)"
                 )
             }
 
@@ -349,7 +349,7 @@ extension OfflineQueueManager {
                 self.userRequestedLargeUploadScanIds.subtract(claimedScanIds)
             }
             MerianLog.data.debug(
-                "syncPendingScans: claimed scans=\(claimedScanIds.count, privacy: .public) ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .public)"
+                "syncPendingScans: claimed scans=\(claimedScanIds.count, privacy: .public) ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .private)"
             )
             let unclaimedScanIds = candidateUploadScanIds.subtracting(claimedScanIds)
             if !unclaimedScanIds.isEmpty {
@@ -386,7 +386,7 @@ extension OfflineQueueManager {
                 await MainActor.run {
                     self.uploadPreparationScanIds.subtract(claimedScanIds)
                     MerianLog.data.debug(
-                        "syncPendingScans: cleared upload preparation ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .public) dispatched=\(dispatchedScanIDs.sorted().joined(separator: ","), privacy: .public)"
+                        "syncPendingScans: cleared upload preparation ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .private) dispatched=\(dispatchedScanIDs.sorted().joined(separator: ","), privacy: .private)"
                     )
                 }
 
@@ -529,7 +529,7 @@ extension OfflineQueueManager {
                         uploadIndex: item.uploadIndex
                     )
                     uploadTask.resume()
-                    MerianLog.data.debug("🚀 BACKGROUND UPLOAD: Dispatched upload task for \(item.scanId, privacy: .public)")
+                    MerianLog.data.debug("🚀 BACKGROUND UPLOAD: Dispatched upload task for \(item.scanId, privacy: .private)")
                     return item.scanId
                 }
             }

@@ -60,6 +60,15 @@ resumes only when playback was active before the drag. The center playback
 control remains independently tappable and VoiceOver can adjust position in
 five-second steps. Feed spectrograms intentionally do not seek because their
 center and outer regions retain playback, like, and detail-navigation gestures.
+`AudioSpectrogramSeekingPolicy` treats non-finite progress, duration, width, and
+marker values as a safe zero and clamps finite playmarker offsets into the
+available width. Do not calculate frame offsets directly from player time.
+
+Detail zoom layout uses `ExploreDetailZoomLayoutPolicy.resolvedSize(...)` to
+accept only finite positive proposed dimensions. It can use one valid dimension
+when the other is invalid and returns `nil` when neither is usable, allowing
+SwiftUI to choose an unconstrained fallback without an invalid-frame warning.
+Any new geometry-dependent detail overlay must use the same finite guards.
 
 User-initiated playback uses Merian's shared `HapticManager`: play and enabling
 audio boost receive a medium confirmation, pause and mute changes receive light

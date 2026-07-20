@@ -3,7 +3,6 @@ import { requireParams } from "../_shared/http.ts";
 import {
   normalizeCursorTimestamp,
   normalizeLimit,
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
@@ -49,12 +48,6 @@ Deno.serve((req: Request) =>
         "after_created_at and after_comment_id must be provided together.",
       );
     }
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-comment-replies",
-    );
 
     const data = await withExploreAuthorUsernames(
       await fetchExploreCommentReplies(

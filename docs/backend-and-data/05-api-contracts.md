@@ -10,6 +10,12 @@ Gemini.
 authenticated through `withEdgeHandler`; request bodies cannot choose `self_id`
 or otherwise assign progress to another user.
 
+`services/supabase/functions/field-trips/actions.ts` is the canonical action
+allowlist. A missing/non-string or unknown action returns `HTTP 400`. Unknown
+strings emit `field_trip_action_rejected` with the value truncated to 64
+characters so operators can distinguish a stale client from an incomplete Edge
+deployment without logging the request body or user identity.
+
 ### Catalog
 
 Request:
@@ -3838,6 +3844,14 @@ activity notifications:
 
 Unlike most read endpoints, this response returns the scalar at the top level
 rather than nesting it under `data`.
+
+The iOS client coordinates this request globally through
+`AppIconBadgeCoordinator`. Concurrent callers await one in-flight request, and
+a successful count may be reused for 10 seconds. Explore-post activity uses
+Realtime as the primary refresh path, while routine five-minute polling also
+covers Field trip-only rows, missed events, and subscription failure. Realtime
+events and notification-sheet dismissal force a fresh count. Keep the server
+endpoint side-effect-free so this deduplication remains safe.
 
 ### `/mark-explore-notifications-read`
 

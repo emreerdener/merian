@@ -188,7 +188,10 @@ Use disposable staff test accounts and records where mutation is required.
 
 ### Authentication and roles
 
-- Anonymous request: admin routes redirect to login; admin RPC execution fails.
+- Anonymous request: admin routes redirect to login without attempting
+  `admin_get_access_state`; a deliberate direct anonymous RPC execution still
+  fails. Confirm routine anonymous navigation does not add avoidable
+  `401`/`42501` access-state noise to Supabase logs.
 - Registered nonmember and ghost: no admin data is returned.
 - Disabled member: access fails even with a previously valid cookie.
 - Analyst at AAL1: redirected to MFA. Analyst at AAL2: Overview and AI Usage
@@ -329,6 +332,7 @@ idempotent source key, and keep the repaired rows labeled accurately.
 | Symptom | Check |
 |---|---|
 | OAuth returns to login | Exact redirect allowlist, Google provider config, callback `code`, public URL/key |
+| Repeated anonymous `admin_get_access_state` 401/42501 logs | Confirm the deployed admin includes the server-side `auth.getUser()` preflight and that middleware/routes use `getAccessState()` rather than calling the RPC directly |
 | Member sees “not authorized” | Exact Auth UUID, active membership, confirmed email, non-anonymous account, Google identity |
 | User loops through MFA | Factor status, `currentLevel`, fresh token after verify, browser cookie domain |
 | “Start a new Google session” | Internal session is idle/expired/revoked; sign out and begin a new OAuth session |

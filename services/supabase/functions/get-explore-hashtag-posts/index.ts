@@ -3,12 +3,11 @@ import {
   normalizeCursorTimestamp,
   normalizeExploreHashtag,
   normalizeLimit,
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
-  withExplorePostMediaItems,
   withExplorePostHashtags,
+  withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 import { fetchExploreHashtagPosts } from "./db.ts";
 
@@ -46,12 +45,6 @@ Deno.serve((req: Request) =>
         "before_shared_at and before_post_id must be provided together.",
       );
     }
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-hashtag-posts",
-    );
 
     const data = await withExplorePostHashtags(
       await withExplorePostMediaItems(

@@ -2,12 +2,11 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   normalizeCursorTimestamp,
   normalizeLimit,
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
-  withExplorePostMediaItems,
   withExplorePostHashtags,
+  withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 import { fetchExploreAuthorPosts } from "./db.ts";
 
@@ -45,12 +44,6 @@ Deno.serve((req: Request) =>
         "before_shared_at and before_post_id must be provided together.",
       );
     }
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-author-posts",
-    );
 
     const data = await withExplorePostHashtags(
       await withExplorePostMediaItems(

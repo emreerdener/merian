@@ -5,6 +5,23 @@ The `Analytics` directory manages the app's telemetry and product analytics infr
 ## Purpose
 This area integrates PostHog-backed app analytics. It provides a unified, cross-feature API for tracking user events, performance metrics, and gamification telemetry without coupling feature modules directly to the third-party analytics SDK.
 
+## Prelaunch usage-limit override
+
+`UsageManager` currently treats
+`MerianConfig.alphaUnlimitedFreeScansEnabled = true` as the highest-priority
+quota decision in every build configuration, including Release/TestFlight. The
+name is historical; the supported meaning is “unlimited during prelaunch
+testing.” Do not make it Debug-only or disable it while beta testing continues.
+
+`UsageManagerTests` must continue exercising both flag states. Before the public
+App Store release, the explicit launch checklist disables the flag and verifies
+that free accounts receive the daily quota while Pro accounts remain uncapped.
+The startup `TEMP OVERRIDE ACTIVE` log is expected until that release step.
+
+This override changes quota enforcement only. It does not grant a RevenueCat
+entitlement, alter backend subscription rows, or validate the paywall. Open
+Settings → Plan directly for purchase testing.
+
 ## External Image Import
 
 `AppTelemetry.trackExternalImageImport(outcome:)` emits one

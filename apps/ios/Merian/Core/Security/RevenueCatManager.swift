@@ -23,6 +23,18 @@ enum SevenDayPassAccessPolicy {
     }
 }
 
+enum RevenueCatOfferingPolicy {
+    static let annualProductIdentifier = "pro_annual"
+    static let requiredProductIdentifiers = Set([
+        SevenDayPassAccessPolicy.productIdentifier,
+        annualProductIdentifier
+    ])
+
+    static func missingRequiredProducts(in productIdentifiers: Set<String>) -> Set<String> {
+        requiredProductIdentifiers.subtracting(productIdentifiers)
+    }
+}
+
 struct RevenueCatIdentityContext: Equatable {
     let userId: String
     let email: String?
@@ -236,7 +248,32 @@ struct RevenueCatIdentityContext: Equatable {
         isFetchingOfferings = true
         defer { isFetchingOfferings = false }
         do {
-            currentOfferings = try await Purchases.shared.offerings()
+            let offerings = try await Purchases.shared.offerings()
+            currentOfferings = offerings
+
+            guard let currentOffering = offerings.current else {
+                MerianLog.general.error(
+                    "RevenueCat returned no current offering. Select a current offering in the RevenueCat dashboard before release."
+                )
+                return
+            }
+
+            let productIdentifiers = Set(
+                currentOffering.availablePackages.map(\.storeProduct.productIdentifier)
+            )
+            let missingProductIdentifiers = RevenueCatOfferingPolicy.missingRequiredProducts(
+                in: productIdentifiers
+            )
+
+            if currentOffering.availablePackages.isEmpty {
+                MerianLog.general.error(
+                    "RevenueCat current offering has no available packages. Verify App Store product readiness and RevenueCat package mapping."
+                )
+            } else if !missingProductIdentifiers.isEmpty {
+                MerianLog.general.error(
+                    "RevenueCat current offering is missing required products: \(missingProductIdentifiers.sorted().joined(separator: ","), privacy: .public)"
+                )
+            }
         } catch {
             MerianLog.general.debug("Failed to fetch RevenueCat offerings: \(error.localizedDescription, privacy: .private)")
         }

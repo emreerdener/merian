@@ -18,6 +18,20 @@ lifecycle (signing in/out and deletion). It operates in conjunction with the
 `ProfileViewModel` and updates the app's global state and preferences through
 the injected `AppSettings` boundary.
 
+## Plan and prelaunch purchase testing
+
+Settings → Plan is the canonical manual entry point for `PaywallView`. Every
+current prelaunch build intentionally enables unlimited scans, so the capture
+quota will not present this paywall during ordinary testing. Purchase QA must
+open Plan directly.
+
+The paywall is ready only when RevenueCat's current offering resolves packages
+for both `pro_week` and `pro_annual`. A successful RevenueCat login proves the
+Supabase customer identity was linked, not that StoreKit returned products.
+Simulator Test Store, local StoreKit, and TestFlight/App Store sandbox setup are
+documented in
+[`02-revenue-and-identity.md`](../../../../../../docs/features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
+
 ## Preference layout
 
 The top general-preferences section begins with Theme. **Open Explore on

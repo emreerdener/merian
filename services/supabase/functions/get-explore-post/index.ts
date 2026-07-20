@@ -5,12 +5,11 @@ import {
 } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
-  withExplorePostMediaItems,
   withExplorePostHashtags,
+  withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 import { fetchExplorePost } from "./db.ts";
 
@@ -27,12 +26,6 @@ Deno.serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const postId = requireUuid(body.post_id, "post_id");
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-post",
-    );
-
     let data;
     try {
       const fetchedPost = await fetchExplorePost(

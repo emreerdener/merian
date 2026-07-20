@@ -129,7 +129,10 @@ MerianTests/
   math updates against user local scores so UI progression trackers do not skew
   unexpectedly.
 - **`UsageManagerTests.swift`**: Validates daily free quota checks and limits
-  without accessing live API constraints.
+  without accessing live API constraints. The suite explicitly tests both
+  states of `MerianConfig.alphaUnlimitedFreeScansEnabled`: every prelaunch
+  build currently ships with the flag enabled, while the disabled branch must
+  keep the future public free/Pro quota behavior intact.
 
 ### AI & Data Architectures
 
@@ -511,7 +514,15 @@ MerianTests/
   (the public `@Observable` property) — it does **not** call the private
   `getOrGeneratePersistentIDFV()` method directly. The test wipes the relevant
   Keychain item via `SecItemDelete` before and after the assertion to prevent
-  cross-run contamination.
+  cross-run contamination. `RevenueCatManagerTests` also locks the required
+  current-offering product set to `pro_week` plus `pro_annual`; it does not
+  replace dashboard/App Store smoke testing.
+- **`MerianConfigTests.swift` production-environment coverage**: Verifies that a
+  Debug simulator pointed at production Supabase reports a configuration issue
+  by default, remains configured so deliberate smoke tests can proceed, and
+  suppresses only the warning when
+  `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1`. It also verifies that
+  non-production projects and non-simulator/release contexts do not warn.
 - **`SocialGuardManagerTests.swift`, `CircuitBreakerManagerTests.swift`**:
   Asserts offline logic ensuring blocked users do not re-populate the feed.
 
@@ -531,6 +542,9 @@ MerianTests/
   normalization of typed hashtag input before publishing.
 - **`ScansManagerTests.swift`**: Verifies search-index construction, incremental
   reindexing, sort behavior, and selection limits for the Scans library.
+- **`AppDIContainerTests.swift` preferred-name coverage**: Verifies matching
+  normalized cloud values and existing tombstones are converged without an
+  upsert, while real conflicts retain timestamp ordering.
 - **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine
   progression, ensuring hardware fallback steps prevent `Int` scalar
   out-of-bounds crashes. Tests core persistence loops simulating `@AppStorage`
@@ -719,6 +733,11 @@ available, and that skip must not be counted as database validation.
 `_tests/fieldTripProgressDb.test.ts` exercises standard and challenge
 credited-level responses across advancement, scan re-identification, and
 idempotent reapplication under the same local-stack requirement.
+`_tests/fieldTripActions.test.ts` compares the complete Edge allowlist with a
+manually maintained snapshot of the actions emitted by iOS and verifies that
+missing and unknown actions are rejected. It does not parse Swift source, so
+review the client call sites and update both arrays whenever an action is added,
+renamed, or retired.
 `FieldTripCaptureContextModelsTests` covers capture-context decoding, while
 `FieldTripAPIModelsTests.catalogDecodesActiveProgressAndChecklistItems` covers
 the optional completing scan ID used by catalog/detail thumbnails and published
@@ -744,6 +763,15 @@ adjustable actions, Reduce Motion, light/dark appearance, idle visual-only
 visibility, and that target swipes do not page capture modes. The architectural
 test obligations for future sources are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
+
+Explore identity database coverage lives in
+`_tests/exploreIdentityDb.test.ts`. It verifies safe identity derivation,
+custom-avatar precedence, ownership repair, a stable row version after a
+converged refresh, and execute privileges limited to `service_role`. The shared
+DB helper may skip only when it is using the absent default local stack. Set
+`SUPABASE_DB_TEST_URL` for CI or release checks; an unreachable explicitly
+configured URL is a test failure, so a successful run proves the test actually
+connected.
 
 The split release gates have explicit regression coverage.
 `FieldTripsAvailabilityTests` locks standard Field trips on for every account
@@ -819,6 +847,10 @@ suite exercises the shared Core policy and both playback surfaces. The
 `exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` tests require live
 player time only when UI intent and the concrete player are both playing, and
 require stored progress while paused, waiting, or seeking.
+The same suite passes `NaN`, infinity, non-positive dimensions, and out-of-range
+progress through `AudioSpectrogramSeekingPolicy` and
+`ExploreDetailZoomLayoutPolicy`; every returned frame/offset must be finite,
+clamped, or absent.
 `boostedAudioIsFullyReadableBeforePublication` verifies every rendered frame can
 be reopened and decoded; the source-handoff and failure-recovery tests lock idle
 replacement and last-confirmed-position fallback.

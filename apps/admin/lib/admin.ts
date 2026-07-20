@@ -11,10 +11,19 @@ export interface AdminAccessState {
   session_active?: boolean;
 }
 
-const roleRank: Record<AdminRole, number> = { analyst: 1, moderator: 2, owner: 3 };
+const roleRank: Record<AdminRole, number> = {
+  analyst: 1,
+  moderator: 2,
+  owner: 3,
+};
 
 export async function getAccessState(): Promise<AdminAccessState> {
   const supabase = await createServerSupabaseClient();
+  const { data: userResult, error: userError } = await supabase.auth.getUser();
+  if (userError || !userResult.user) {
+    return { is_authenticated: false, is_member: false };
+  }
+
   const { data, error } = await supabase.rpc("admin_get_access_state");
   if (error) return { is_authenticated: false, is_member: false };
   return data as AdminAccessState;
@@ -28,7 +37,9 @@ export async function requireAdmin(minimumRole: AdminRole = "analyst") {
   const { data, error } = await supabase.rpc("admin_get_access_state");
   if (error) redirect("/login?error=access-check");
   const access = data as AdminAccessState;
-  if (!access.is_member || !access.role) redirect("/login?error=not-authorized");
+  if (!access.is_member || !access.role) {
+    redirect("/login?error=not-authorized");
+  }
   if (access.aal !== "aal2") redirect("/mfa");
   if (roleRank[access.role] < roleRank[minimumRole]) redirect("/overview");
 

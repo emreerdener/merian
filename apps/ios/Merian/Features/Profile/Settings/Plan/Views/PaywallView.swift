@@ -800,7 +800,7 @@ private struct PaywallPlanCard: View {
 private enum PaywallFixedPlanDisplay {
     static let sevenDayPassPrice = "$3.99"
     static let annualPrice = "$24.99"
-    static let annualProductIdentifier = "pro_annual"
+    static let annualProductIdentifier = RevenueCatOfferingPolicy.annualProductIdentifier
 }
 
 private extension Package {

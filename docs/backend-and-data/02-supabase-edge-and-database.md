@@ -1618,6 +1618,35 @@ PostgREST rather than through an Edge Function. RLS scopes every row to
   SwiftData, newer remote tombstones delete the local row, newer local rows push
   back to Supabase, and pending local clears remain queued until their tombstone
   upsert succeeds.
+- A matching normalized active value is already converged even when local and
+  remote timestamps differ, and two tombstones are already converged as well.
+  The repository clears stale legacy/pending markers without rewriting the
+  matching remote row. For a real active-value conflict, the newer timestamp
+  wins; local-newer or equal values push, while remote-newer values replace the
+  SwiftData row. This avoids two devices repeatedly echoing the same value.
+
+## Explore Author Identity Maintenance
+
+Explore reads never mutate author identity or post ownership. Feed, author,
+comment, notification, map, mention, hashtag, species, and post-detail functions
+read the existing public projection only. This keeps read latency predictable
+and prevents a popular profile or feed page from creating database writes.
+
+`syncPublicAuthorIdentity(...)` remains the shared Edge helper for public write
+paths. It is called when sharing a scan, creating Explore or Field trip comments,
+requesting Community identification, and merging a ghost profile. Auth metadata
+triggers also refresh the projection at the database boundary. Ghost merge
+transfers scan and Explore post ownership before
+refreshing the target identity, so the new account owns every denormalized row
+before the ghost is purged.
+
+Migration `20260720042641_optimize_explore_author_maintenance.sql` defines both
+maintenance RPCs as `SECURITY DEFINER SET search_path = ''`, fully qualifies
+their relations, revokes execution from `PUBLIC`, `anon`, and `authenticated`,
+and grants it only to `service_role`. `refresh_public_author_identity(uuid)`
+uses `IS DISTINCT FROM` guards and does not update a converged row;
+`repair_explore_post_ownership_for_user(uuid)` updates only rows whose scan
+owner matches the requested target. Neither function is a client API.
 
 ## Ghost Account Merge (`merge-ghost-profile`)
 
@@ -1647,8 +1676,8 @@ history is merged into the new authenticated identity:
 7. `transferUserFollows` — copies and dedupes follow relationships onto the
    authenticated account before the ghost public user row is removed.
 8. `syncPublicAuthorIdentity` — refreshes the target user's public Explore
-   identity projection from the Apple/Google provider so provider identity
-   remains the fallback.
+   identity projection from the Apple/Google provider after scan and Explore
+   post ownership have moved, so provider identity remains the fallback.
 9. `purgeGhostUser` — deletes the ghost from `auth.users` (cascades to
    `collections` and `export_jobs` — both already transferred or empty) and then
    explicitly deletes `public.users(ghost_id)`. The `public.users` row has no FK

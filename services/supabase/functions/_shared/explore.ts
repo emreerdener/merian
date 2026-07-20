@@ -195,52 +195,6 @@ export async function syncPublicAuthorIdentity(
   }
 }
 
-export async function syncPublicAuthorIdentityBestEffort(
-  userId: string,
-  supabaseAdmin: SupabaseClient,
-  context: string,
-): Promise<void> {
-  try {
-    await syncPublicAuthorIdentity(userId, supabaseAdmin);
-  } catch (error) {
-    console.warn("public_author_identity_sync_failed", {
-      context,
-      user_id: userId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-export async function repairExplorePostOwnershipBestEffort(
-  userId: string,
-  supabaseAdmin: SupabaseClient,
-  context: string,
-): Promise<void> {
-  const { error } = await supabaseAdmin.rpc(
-    "repair_explore_post_ownership_for_user",
-    {
-      target_user_id: userId,
-    },
-  );
-
-  if (error) {
-    console.warn("explore_post_ownership_repair_failed", {
-      context,
-      user_id: userId,
-      error: error.message,
-    });
-  }
-}
-
-export async function refreshExploreAuthorStateBestEffort(
-  userId: string,
-  supabaseAdmin: SupabaseClient,
-  context: string,
-): Promise<void> {
-  await syncPublicAuthorIdentityBestEffort(userId, supabaseAdmin, context);
-  await repairExplorePostOwnershipBestEffort(userId, supabaseAdmin, context);
-}
-
 export async function fetchPublicAuthorName(
   userId: string,
   supabaseAdmin: SupabaseClient,

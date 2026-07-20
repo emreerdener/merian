@@ -3,7 +3,8 @@ import type { PetIdentification } from "../_shared/identify/types.ts";
 
 const DEFAULT_DB_URL =
   "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
-const DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL") ?? DEFAULT_DB_URL;
+const CONFIGURED_DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL");
+const DB_URL = CONFIGURED_DB_URL ?? DEFAULT_DB_URL;
 
 export async function withExploreDbTest(
   label: string,
@@ -14,10 +15,16 @@ export async function withExploreDbTest(
   try {
     await client.connect();
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (CONFIGURED_DB_URL != null) {
+      throw new Error(
+        `[${label}] Could not connect to configured DB integration test database ${DB_URL}: ${message}`,
+        { cause: error },
+      );
+    }
+
     console.warn(
-      `[${label}] Skipping DB integration test. Could not connect to ${DB_URL}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      `[${label}] Skipping DB integration test. Could not connect to ${DB_URL}: ${message}`,
     );
     return;
   }

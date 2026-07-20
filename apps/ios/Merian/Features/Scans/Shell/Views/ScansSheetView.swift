@@ -393,7 +393,7 @@ struct ScansSheetView: View {
             .joined(separator: ",")
         let visibleSummary = visibleQueued.map(\.id).joined(separator: ",")
         MerianLog.data.debug(
-            "ScansSheetView.refreshQueuedScans: freshContext queued=\(fetched.count, privacy: .public) visible=\(visibleQueued.count, privacy: .public) completedMatches=\(completedIds.count, privacy: .public) states=\(stateSummary, privacy: .public) visibleIds=\(visibleSummary, privacy: .public)"
+            "ScansSheetView.refreshQueuedScans: freshContext queued=\(fetched.count, privacy: .public) visible=\(visibleQueued.count, privacy: .public) completedMatches=\(completedIds.count, privacy: .public) states=\(stateSummary, privacy: .public) visibleIds=\(visibleSummary, privacy: .private)"
         )
         let snapshots = visibleQueued.map {
             QueuedScanSnapshot(
@@ -427,11 +427,8 @@ struct ScansSheetView: View {
             sortBy: [SortDescriptor(\LocalScanRecord.timestamp, order: .reverse)]
         )
         let records = (try? modelContext.fetch(descriptor)) ?? []
-        let latestSummary = records.prefix(3).map { record in
-            "\(record.id):\(record.commonName)"
-        }.joined(separator: ",")
         MerianLog.data.debug(
-            "ScansSheetView.syncStateFromStore: records=\(records.count, privacy: .public) latest=\(latestSummary, privacy: .public)"
+            "ScansSheetView.syncStateFromStore: records=\(records.count, privacy: .public)"
         )
         guard scanListSignature(records) != scanListSignature(searchManager.allScans) else { return }
 
@@ -518,7 +515,7 @@ private struct LibraryTabContent: View {
             },
             onQueuedInsight: { queuedContext in
                 MerianLog.data.debug(
-                    "ScansSheetView: presenting queued insight scanId=\(queuedContext.id, privacy: .public) state=\(queuedContext.queueState.rawValue, privacy: .public)"
+                    "ScansSheetView: presenting queued insight scanId=\(queuedContext.id, privacy: .private) state=\(queuedContext.queueState.rawValue, privacy: .public)"
                 )
                 selectedQueuedScanForInsight = queuedContext
             }

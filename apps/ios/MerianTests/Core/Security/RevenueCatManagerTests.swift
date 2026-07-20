@@ -92,6 +92,20 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertEqual(context.subscriberAttributes["account_kind"], "anonymous")
     }
 
+    func testRevenueCatOfferingPolicyRequiresAnnualAndSevenDayPassProducts() {
+        XCTAssertEqual(
+            RevenueCatOfferingPolicy.missingRequiredProducts(
+                in: [RevenueCatOfferingPolicy.annualProductIdentifier]
+            ),
+            [SevenDayPassAccessPolicy.productIdentifier]
+        )
+        XCTAssertTrue(
+            RevenueCatOfferingPolicy.missingRequiredProducts(
+                in: RevenueCatOfferingPolicy.requiredProductIdentifiers
+            ).isEmpty
+        )
+    }
+
     func testHandleSupabaseSignOutClearsEntitlementsInTests() async {
         revenueCatManager.isProActive = true
         revenueCatManager.isSubscribed = true

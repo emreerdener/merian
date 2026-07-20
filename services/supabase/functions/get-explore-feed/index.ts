@@ -6,7 +6,6 @@ import {
   normalizeLimit,
   normalizeLongitude,
   normalizeNonNegativeInteger,
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
@@ -100,12 +99,6 @@ Deno.serve((req: Request) =>
         "latitude and longitude are required for the nearby filter.",
       );
     }
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-feed",
-    );
 
     const data = await withExplorePostHashtags(
       await withExplorePostMediaItems(

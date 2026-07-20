@@ -1,7 +1,6 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   normalizeLimit,
-  refreshExploreAuthorStateBestEffort,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
   withExplorePostMediaItems,
@@ -87,12 +86,6 @@ Deno.serve((req: Request) =>
       body.species_categories,
     );
     const mediaTypes = normalizeMediaTypes(body.media_types);
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-map-points",
-    );
 
     const rows = normalizeExploreMapRows(
       await withExplorePostMediaItems(

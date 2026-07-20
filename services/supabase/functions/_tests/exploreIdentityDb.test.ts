@@ -116,6 +116,77 @@ Deno.test("Explore identity DB - custom avatar wins over provider refresh", asyn
   });
 });
 
+Deno.test("Explore identity DB - converged identity refresh does not rewrite the user row", async () => {
+  await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
+    const userId = "00000000-0000-0000-0000-00000000b9ea";
+    const customAvatar =
+      "https://media.merian.app/avatars/00000000-0000-0000-0000-00000000b9ea/avatar.webp";
+
+    await insertUser(client, userId, "Stable User", customAvatar);
+    await client.queryArray(
+      `
+        UPDATE public.users
+        SET custom_avatar_url = $2,
+            public_avatar_url = $2,
+            custom_avatar_updated_at = now()
+        WHERE id = $1
+      `,
+      [userId, customAvatar],
+    );
+    await client.queryArray(
+      "SELECT public.refresh_public_author_identity($1::uuid)",
+      [userId],
+    );
+
+    const before = await client.queryObject<{ row_location: string }>(
+      "SELECT ctid::text AS row_location FROM public.users WHERE id = $1",
+      [userId],
+    );
+    await client.queryArray(
+      "SELECT public.refresh_public_author_identity($1::uuid)",
+      [userId],
+    );
+    const after = await client.queryObject<{ row_location: string }>(
+      "SELECT ctid::text AS row_location FROM public.users WHERE id = $1",
+      [userId],
+    );
+
+    assertEquals(after.rows[0]?.row_location, before.rows[0]?.row_location);
+  });
+});
+
+Deno.test("Explore identity DB - maintenance RPCs are service-role only", async () => {
+  await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
+    const result = await client.queryObject<{
+      anon_refresh: boolean;
+      authenticated_refresh: boolean;
+      service_refresh: boolean;
+      anon_repair: boolean;
+      authenticated_repair: boolean;
+      service_repair: boolean;
+    }>(
+      `
+        SELECT
+          has_function_privilege('anon', 'public.refresh_public_author_identity(uuid)', 'EXECUTE') AS anon_refresh,
+          has_function_privilege('authenticated', 'public.refresh_public_author_identity(uuid)', 'EXECUTE') AS authenticated_refresh,
+          has_function_privilege('service_role', 'public.refresh_public_author_identity(uuid)', 'EXECUTE') AS service_refresh,
+          has_function_privilege('anon', 'public.repair_explore_post_ownership_for_user(uuid)', 'EXECUTE') AS anon_repair,
+          has_function_privilege('authenticated', 'public.repair_explore_post_ownership_for_user(uuid)', 'EXECUTE') AS authenticated_repair,
+          has_function_privilege('service_role', 'public.repair_explore_post_ownership_for_user(uuid)', 'EXECUTE') AS service_repair
+      `,
+    );
+
+    assertEquals(result.rows[0], {
+      anon_refresh: false,
+      authenticated_refresh: false,
+      service_refresh: true,
+      anon_repair: false,
+      authenticated_repair: false,
+      service_repair: true,
+    });
+  });
+});
+
 Deno.test("Explore identity DB - repair function aligns Explore post owner with scan owner", async () => {
   await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
     const ghostId = "00000000-0000-0000-0000-00000000a001";

@@ -430,7 +430,7 @@ struct SpeciesPreferredNameSyncDiagnostics: Equatable, Sendable {
     let lastPulledCount: Int
 }
 
-private struct SpeciesPreferenceCloudRow: Decodable {
+struct SpeciesPreferenceCloudRow: Decodable {
     let scientific_name: String
     let preferred_common_name: String?
     let updated_at: String
@@ -950,9 +950,11 @@ enum SpeciesPreferredNameRepository {
                 return nil
             }
 
-            if let remote = remoteByScientificName[scientificName],
-               let remoteUpdatedAt = cloudDate(remote.updated_at),
-               remoteUpdatedAt > preference.updatedAt {
+            if !needsActiveCloudUpsert(
+                preferredName: preferredName,
+                updatedAt: preference.updatedAt,
+                remote: remoteByScientificName[scientificName]
+            ) {
                 return nil
             }
 
@@ -974,9 +976,10 @@ enum SpeciesPreferredNameRepository {
             let scientificName = normalizedScientificName(scientificName)
             guard !scientificName.isEmpty else { return nil }
 
-            if let remote = remoteByScientificName[scientificName],
-               let remoteUpdatedAt = cloudDate(remote.updated_at),
-               remoteUpdatedAt > deletedAt {
+            if !needsPendingDeleteCloudUpsert(
+                deletedAt: deletedAt,
+                remote: remoteByScientificName[scientificName]
+            ) {
                 return nil
             }
 
@@ -987,6 +990,36 @@ enum SpeciesPreferredNameRepository {
                 deleted_at: cloudString(deletedAt)
             )
         }
+    }
+
+    static func needsActiveCloudUpsert(
+        preferredName: String,
+        updatedAt: Date,
+        remote: SpeciesPreferenceCloudRow?
+    ) -> Bool {
+        guard let remote else { return true }
+
+        if remote.deleted_at == nil,
+           normalizedPreferredName(remote.preferred_common_name) == normalizedPreferredName(preferredName) {
+            return false
+        }
+
+        guard let remoteUpdatedAt = cloudDate(remote.updated_at) else {
+            return true
+        }
+        return remoteUpdatedAt <= updatedAt
+    }
+
+    static func needsPendingDeleteCloudUpsert(
+        deletedAt: Date,
+        remote: SpeciesPreferenceCloudRow?
+    ) -> Bool {
+        guard let remote else { return true }
+        if remote.deleted_at != nil { return false }
+        guard let remoteUpdatedAt = cloudDate(remote.updated_at) else {
+            return true
+        }
+        return remoteUpdatedAt <= deletedAt
     }
 
     private static func applyRemotePreferences(
@@ -1012,11 +1045,6 @@ enum SpeciesPreferredNameRepository {
                 continue
             }
 
-            if let pendingDelete = pendingDeletes[scientificName],
-               pendingDelete >= remoteUpdatedAt {
-                continue
-            }
-
             if remote.deleted_at != nil {
                 if let localPreference = localByScientificName[scientificName],
                    remoteUpdatedAt >= localPreference.updatedAt {
@@ -1029,11 +1057,21 @@ enum SpeciesPreferredNameRepository {
                 continue
             }
 
+            if let pendingDelete = pendingDeletes[scientificName],
+               pendingDelete >= remoteUpdatedAt {
+                continue
+            }
+
             guard let remotePreferredName = normalizedPreferredName(remote.preferred_common_name) else {
                 continue
             }
 
             if let localPreference = localByScientificName[scientificName] {
+                if normalizedPreferredName(localPreference.preferredCommonName) == remotePreferredName {
+                    SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+                    SpeciesPreferredNameStore.clearPendingCloudDelete(for: scientificName, userDefaults: legacyDefaults)
+                    continue
+                }
                 guard remoteUpdatedAt > localPreference.updatedAt else { continue }
                 localPreference.preferredCommonName = remotePreferredName
                 localPreference.updatedAt = remoteUpdatedAt

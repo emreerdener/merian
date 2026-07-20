@@ -279,7 +279,6 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var activeReplyTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored var activeCommentsRequestId = UUID()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
-    @ObservationIgnored var isRefreshingUnreadNotificationCount = false
     @ObservationIgnored var unreadNotificationsChannel: RealtimeChannelV2?
     @ObservationIgnored var unreadNotificationListenerTask: Task<Void, Never>?
     @ObservationIgnored var toastDismissTask: Task<Void, Never>?

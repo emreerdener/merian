@@ -33,7 +33,7 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
         let scanId = String(taskDescription.dropFirst("inference_".count))
         let statusCode = (downloadTask.response as? HTTPURLResponse)?.statusCode
         MerianLog.data.debug(
-            "urlSession didFinishDownloadingTo: inference scanId=\(scanId, privacy: .public) status=\(statusCode ?? -1, privacy: .public)"
+            "urlSession didFinishDownloadingTo: inference scanId=\(scanId, privacy: .private) status=\(statusCode ?? -1, privacy: .public)"
         )
 
         // Copy the temp file before the system deletes it at callback return.
@@ -75,7 +75,7 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
             if let taskDesc = taskDescription, taskDesc.hasPrefix("inference_") {
                 let scanId = String(taskDesc.dropFirst("inference_".count))
                 MerianLog.data.debug(
-                    "urlSession didCompleteWithError: inference scanId=\(scanId, privacy: .public) status=\(responseStatusCode ?? -1, privacy: .public) error=\((error?.localizedDescription ?? "nil"), privacy: .public)"
+                    "urlSession didCompleteWithError: inference scanId=\(scanId, privacy: .private) status=\(responseStatusCode ?? -1, privacy: .public) error=\((error?.localizedDescription ?? "nil"), privacy: .private)"
                 )
                 if let error {
                     await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(scanId: scanId, error: error)
@@ -701,7 +701,7 @@ extension OfflineQueueManager {
            let speciesName = processingResult.resolvedSpeciesName,
            let dbScanId = processingResult.finalScanId {
             MerianLog.data.debug(
-                "processInferenceDownloadResult: finalized scanId=\(scanId, privacy: .public) dbScanId=\(dbScanId, privacy: .public) species=\(speciesName, privacy: .public)"
+            "processInferenceDownloadResult: finalized scanId=\(scanId, privacy: .private) dbScanId=\(dbScanId, privacy: .private) species=\(speciesName, privacy: .private)"
             )
             let capturedContainer = extracted.container
             await MainActor.run {
@@ -1176,7 +1176,7 @@ extension OfflineQueueManager {
         }
         let retryActor = resolvedInferenceDbActor(container: container)
         await retryActor.transitionScanToStaged(id: scanId)
-        MerianLog.data.debug("Inference failed for \(scanId, privacy: .private) — scheduled durable retry \(retries, privacy: .public) reason=\(reason, privacy: .public)")
+        MerianLog.data.debug("Inference failed for \(scanId, privacy: .private) — scheduled durable retry \(retries, privacy: .public) reason=\(reason, privacy: .private)")
         updateUnsyncedItemCount()
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(delay))

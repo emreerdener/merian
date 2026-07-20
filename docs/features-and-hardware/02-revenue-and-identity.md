@@ -113,6 +113,13 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   identity for manual support lookups. Production App Store export should still
   resolve to a RevenueCat iOS SDK key beginning with `appl_`.
 - Uses `logIn(currentAppUserID)` to bind the Supabase Auth UUID.
+- `RevenueCatOfferingPolicy` requires the current offering to contain App Store
+  product identifiers `pro_week` and `pro_annual`. Offering fetches emit an
+  operational error when there is no current offering, the current offering has
+  no packages, or either mapping is missing. The client cannot create products
+  or select a dashboard offering: App Store Connect product readiness, RevenueCat
+  package mapping, and current-offering selection must be completed externally
+  before release.
 - Evaluates `isSubscribed` and `trialDaysRemaining` via `.customerInfo()`.
   - `isSubscribed` checks for active entitlements across the standard Pro
     subscription identifiers and a locally evaluated `pro_week`
@@ -143,6 +150,43 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     Ghost users without a row are treated as trial Pro for their first scan and
     then upserted as raw `subscription_tier = "free"` so paid entitlement
     and paid-pass storage remains webhook-owned.
+
+### Prelaunch purchase testing
+
+Choose one store source deliberately; do not mix Test Store products, App Store
+products, and StoreKit configuration products in one diagnosis.
+
+| Test path | SDK key | Product source | Required verification |
+|---|---|---|---|
+| Fast Debug/simulator purchase testing | RevenueCat `test_` key | RevenueCat Test Store products | The dashboard current offering contains Test Store products whose identifiers are exactly `pro_week` and `pro_annual`; purchases and customer identity are visible in the Test Store project. |
+| Local StoreKit configuration | RevenueCat iOS `appl_` key | A `.storekit` file attached to the Xcode Run action | The file contains the same identifiers and its certificate/configuration follows RevenueCat's StoreKit testing setup. |
+| Apple sandbox, physical device, or TestFlight | RevenueCat iOS `appl_` key | App Store Connect products imported and mapped in RevenueCat | Bundle ID, agreements, product readiness, package mapping, current offering, purchase, restore, and webhook behavior all pass. |
+
+The shared `Merian` scheme does not currently attach a `.storekit` file. A
+Debug simulator using the production `appl_` key therefore depends on StoreKit
+being able to resolve the App Store Connect products. If the SDK reports that
+none of the dashboard products could be fetched, fix the selected store setup
+before changing client retry logic. Repeated errors can reflect more than one
+SDK/UI request for the same unavailable offering; the first success criterion
+is one valid offering, not fewer error lines.
+
+RevenueCat identity and product loading are separate checks. A log such as
+`RevenueCat login succeeded` proves that the Supabase UUID was linked; it does
+not prove StoreKit returned products. A complete smoke test must:
+
+1. Launch with the intended key/store combination.
+2. Confirm the SDK product-fetch error is absent.
+3. Open Settings → Plan manually and confirm both required packages render.
+4. Complete and restore a purchase in the selected test environment.
+5. For Apple sandbox/TestFlight, confirm the webhook updates the matching
+   Supabase user and expiration semantics.
+
+The unlimited prelaunch scan override intentionally prevents quota-triggered
+paywall presentation, so purchase QA must open the Plan surface directly. See
+[RevenueCat offering troubleshooting](https://www.revenuecat.com/docs/offerings/troubleshooting-offerings),
+[Apple sandbox testing](https://www.revenuecat.com/docs/test-and-launch/sandbox/apple-app-store),
+and the
+[iOS release runbook](../development-guides/14-ios-release-versioning.md).
 
 ## RevenueCat Webhook (`revenuecat-webhook`)
 
@@ -199,12 +243,12 @@ Enforces the paywall in frontend entry points.
   before any background downsampling begins. If the batch is over quota, it
   clears the picker selection immediately, tracks the paywall impression, and
   exits before loading gallery bytes into memory.
-- The current alpha/testing override is intentional:
-  `MerianConfig.alphaUnlimitedFreeScansEnabled = true` bypasses the free daily
-  scan limit while testing continues. Do not remove or flip this flag as part of
-  telemetry or plan-tag work. When this override is later removed, Pro users
-  should still bypass the cap via `isProActive`, and free users should return to
-  the daily quota.
+- The prelaunch testing override is intentionally enabled in every current
+  build, including TestFlight:
+  `MerianConfig.alphaUnlimitedFreeScansEnabled = true`. This keeps testers
+  unlimited until the public launch. Before App Store release, set the flag to
+  `false`; Pro users must continue to bypass the cap through `isProActive`, while
+  free users return to the daily quota.
 - **Quota Enforcement at Capture Time**: `consumeScan()` is called once, at
   enqueue time, inside `OfflineQueueManager.insertAndPersistRecord`. The quota
   check (`canPerformScan`) and token consumption happen before the

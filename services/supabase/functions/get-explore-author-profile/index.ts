@@ -2,7 +2,6 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
   normalizeLimit,
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProfileProBadge,
   withExploreAuthorUsernames,
@@ -24,12 +23,6 @@ Deno.serve((req: Request) =>
 
     const authorUserId = requireUuid(body.author_user_id, "author_user_id");
     const previewLimit = normalizeLimit(body.preview_limit, 9, 30);
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-author-profile",
-    );
-
     const profile = await fetchExploreAuthorProfile(
       user.id,
       authorUserId,

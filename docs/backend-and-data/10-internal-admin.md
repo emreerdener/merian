@@ -68,9 +68,12 @@ The application flow is:
 3. `/mfa` checks the authenticator assurance level. A verified factor is
    challenged; otherwise a factor named `Naturebook Admin` is enrolled and its
    QR code/secret is shown once.
-4. `admin_get_access_state` may run before AAL2 so routing can distinguish an
+4. The server routing helper first calls Supabase Auth `getUser()`. If no valid
+   cookie-backed user exists, it returns an unauthenticated routing state without
+   invoking a restricted RPC. For an authenticated user,
+   `admin_get_access_state` may run before AAL2 so routing can distinguish an
    inactive/nonmember account from a member that still needs MFA. It returns no
-   raw product data.
+   raw product data; this preflight is not an authorization substitute.
 5. At AAL2, `admin_begin_session` creates or refreshes the internal session
    keyed by the JWT's Supabase `session_id` and writes an audit event.
 6. Every later RPC calls `internal.require_admin`. Successful calls advance

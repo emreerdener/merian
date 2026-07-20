@@ -331,6 +331,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
 @MainActor
 enum AppIconBadgeCoordinator {
     private static let exploreUnreadNotificationCountKey = "exploreUnreadNotificationBadgeCount"
+    private static let refreshReuseInterval: TimeInterval = 10
+    private static var activeExploreUnreadRefreshTask: Task<Int?, Never>?
+    private static var lastExploreUnreadRefreshAt: Date?
 
     static var exploreUnreadNotificationCount: Int {
         max(0, UserDefaults.standard.integer(forKey: exploreUnreadNotificationCountKey))
@@ -345,19 +348,41 @@ enum AppIconBadgeCoordinator {
         setExploreUnreadNotificationCount(0)
     }
 
-    static func refreshExploreUnreadNotificationCount() async {
-        do {
-            let count = try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
-            setExploreUnreadNotificationCount(count)
-        } catch is CancellationError {
-            // Absorb cancellation during lifecycle transitions.
-        } catch let error as URLError where error.code == .cancelled {
-            // Absorb URLSession cancellation.
-        } catch {
-            MerianLog.network.debug(
-                "Failed to refresh Explore app icon badge count: \(error.localizedDescription, privacy: .private)"
-            )
+    static func refreshExploreUnreadNotificationCount(force: Bool = false) async -> Int? {
+        if let activeExploreUnreadRefreshTask {
+            return await activeExploreUnreadRefreshTask.value
         }
+
+        if !force,
+           let lastExploreUnreadRefreshAt,
+           Date().timeIntervalSince(lastExploreUnreadRefreshAt) < refreshReuseInterval {
+            return exploreUnreadNotificationCount
+        }
+
+        let refreshTask = Task<Int?, Never> { @MainActor in
+            do {
+                let count = try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
+                setExploreUnreadNotificationCount(count)
+                return count
+            } catch is CancellationError {
+                return nil
+            } catch let error as URLError where error.code == .cancelled {
+                return nil
+            } catch {
+                MerianLog.network.debug(
+                    "Failed to refresh Explore app icon badge count: \(error.localizedDescription, privacy: .private)"
+                )
+                return nil
+            }
+        }
+        activeExploreUnreadRefreshTask = refreshTask
+
+        let count = await refreshTask.value
+        activeExploreUnreadRefreshTask = nil
+        if count != nil {
+            lastExploreUnreadRefreshAt = Date()
+        }
+        return count
     }
 
     static func updateAppIconBadge() {

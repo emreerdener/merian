@@ -92,6 +92,16 @@ avatar first and only then falls back to provider metadata. `public_author_name`
 remains the display label; use `public_username` as the stable handle for
 profile surfaces and future mentions.
 
+`refresh_public_author_identity(uuid)` is an idempotent backend maintenance
+function: once name, source, and avatar are converged, it performs no `UPDATE`.
+`repair_explore_post_ownership_for_user(uuid)` aligns denormalized
+`explore_posts.user_id` only for posts backed by scans owned by the target user.
+Both are `SECURITY DEFINER` with an empty search path, fully schema-qualified,
+and executable only by `service_role`; `PUBLIC`, `anon`, and `authenticated`
+have no execute privilege. Auth triggers continue to execute the refresh as the
+function owner. Edge read endpoints never call either function; write and
+ghost-merge paths own maintenance.
+
 ### `species_dictionary`
 
 The global source-of-truth for biological species models. The identify boundary

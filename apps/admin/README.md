@@ -95,3 +95,14 @@ An admin session is valid for at most eight hours and expires after 30 minutes
 without a successful authorized RPC. Revoked, expired, and disabled sessions
 cannot be revived with the same Google session; sign out and start OAuth again.
 
+Server-side routing calls `supabase.auth.getUser()` before the restricted
+`admin_get_access_state` RPC. Missing or invalid cookies return the local
+unauthenticated state immediately, so ordinary anonymous visits do not generate
+avoidable `401`/`42501` RPC noise. This is only a log-noise and latency guard:
+`requireAdmin(...)` still calls the database RPC, and every privileged RPC still
+rechecks membership, role, AAL2, Supabase session ID, and internal-session age.
+Never treat the `getUser()` result alone as admin authorization.
+
+Supabase documents `getUser()` as an authentic network-validated user lookup;
+see the
+[JavaScript Auth reference](https://supabase.com/docs/reference/javascript/auth-getuser).

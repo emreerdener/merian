@@ -370,7 +370,7 @@ struct ExploreView: View {
             await viewModel.startUnreadNotificationUpdates()
 
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                try? await Task.sleep(nanoseconds: 300_000_000_000)
                 guard !Task.isCancelled else { break }
                 await viewModel.refreshUnreadNotificationCount()
             }
@@ -395,7 +395,7 @@ struct ExploreView: View {
                 set: { if !$0 { viewModel.dismissNotifications() } }
             ),
             onDismiss: {
-                Task { await viewModel.refreshUnreadNotificationCount() }
+                Task { await viewModel.refreshUnreadNotificationCount(force: true) }
             }
         ) {
             ExploreNotificationsSheet(

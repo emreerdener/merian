@@ -176,13 +176,13 @@ private struct RevenueCatPublicIdentity: Decodable {
 
     private func fetchRevenueCatPublicIdentity(for userId: UUID) async -> RevenueCatPublicIdentity? {
         do {
-            let response: RevenueCatPublicIdentity = try await client.from("users")
+            let response: [RevenueCatPublicIdentity] = try await client.from("users")
                 .select("email,public_username,public_author_name,public_identity_source,public_avatar_url")
                 .eq("id", value: userId)
-                .single()
+                .limit(1)
                 .execute()
                 .value
-            return response
+            return response.first
         } catch {
             MerianLog.auth.debug("RevenueCat public identity lookup failed: \(error.localizedDescription, privacy: .private)")
             return nil

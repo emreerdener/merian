@@ -1,9 +1,6 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
-import {
-  refreshExploreAuthorStateBestEffort,
-  requireUuid,
-} from "../_shared/explore.ts";
+import { requireUuid } from "../_shared/explore.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import { fetchExplorePostDetail } from "./db.ts";
 
@@ -20,12 +17,6 @@ Deno.serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const postId = requireUuid(body.post_id, "post_id");
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-post-detail",
-    );
-
     const data = await fetchExplorePostDetail(user.id, postId, supabaseAdmin);
 
     if (!data) {

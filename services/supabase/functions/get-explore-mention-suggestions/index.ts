@@ -3,7 +3,6 @@ import { requireParams } from "../_shared/http.ts";
 import {
   assertCanInteractWithExplorePost,
   normalizeLimit,
-  refreshExploreAuthorStateBestEffort,
   requireUuid,
 } from "../_shared/explore.ts";
 import { fetchReplyParent } from "../create-explore-comment/db.ts";
@@ -32,12 +31,6 @@ Deno.serve((req: Request) =>
     if (parentCommentId != null) {
       await fetchReplyParent(parentCommentId, postId, supabaseAdmin);
     }
-
-    await refreshExploreAuthorStateBestEffort(
-      user.id,
-      supabaseAdmin,
-      "get-explore-mention-suggestions",
-    );
 
     const data = await fetchExploreMentionSuggestions(
       user.id,

@@ -861,12 +861,9 @@ struct ExplorePublicMediaView: View {
                             .frame(width: 2)
                             .shadow(color: .black.opacity(0.45), radius: 2)
                             .offset(
-                                x: max(
-                                    0,
-                                    min(
-                                        proxy.size.width - 2,
-                                        proxy.size.width * displayedAudioPlaybackProgress
-                                    )
+                                x: AudioSpectrogramSeekingPolicy.playmarkerLeadingX(
+                                    progress: displayedAudioPlaybackProgress,
+                                    width: proxy.size.width
                                 )
                             )
                     }
@@ -2629,6 +2626,26 @@ extension ExplorePostCard {
     }
 }
 
+enum ExploreDetailZoomLayoutPolicy {
+    static func resolvedSize(width: CGFloat?, height: CGFloat?) -> CGSize? {
+        let finiteWidth = width.flatMap { value in
+            value.isFinite && value > 0 ? value : nil
+        }
+        let finiteHeight = height.flatMap { value in
+            value.isFinite && value > 0 ? value : nil
+        }
+
+        switch (finiteWidth, finiteHeight) {
+        case let (width?, height?):
+            return CGSize(width: width, height: height)
+        case let (side?, nil), let (nil, side?):
+            return CGSize(width: side, height: side)
+        case (nil, nil):
+            return nil
+        }
+    }
+}
+
 struct ExploreDetailZoomView<Content: View>: UIViewControllerRepresentable {
     private let content: Content
     private let onSingleTap: (() -> Void)?
@@ -2729,12 +2746,10 @@ struct ExploreDetailZoomView<Content: View>: UIViewControllerRepresentable {
         uiViewController: UIViewController,
         context: Context
     ) -> CGSize? {
-        let side = proposal.width ?? proposal.height
-        let width = proposal.width ?? side
-        let height = proposal.height ?? side
-
-        guard let width, let height else { return nil }
-        return CGSize(width: width, height: height)
+        ExploreDetailZoomLayoutPolicy.resolvedSize(
+            width: proposal.width,
+            height: proposal.height
+        )
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {

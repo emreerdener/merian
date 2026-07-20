@@ -203,7 +203,7 @@ struct LibraryView: View {
     private func openQueuedScan(_ snapshot: QueuedScanSnapshot) {
         if let completedRecord = localScanRecord(id: snapshot.id) {
             MerianLog.data.debug(
-                "LibraryView.openQueuedScan: opening completed record scanId=\(snapshot.id, privacy: .public)"
+                "LibraryView.openQueuedScan: opening completed record scanId=\(snapshot.id, privacy: .private)"
             )
             onSelect(completedRecord)
             return
@@ -211,7 +211,7 @@ struct LibraryView: View {
 
         if let queuedScanContext = queuedScanContext(id: snapshot.id) {
             MerianLog.data.debug(
-                "LibraryView.openQueuedScan: opening fresh queued insight scanId=\(snapshot.id, privacy: .public) state=\(queuedScanContext.queueState.rawValue, privacy: .public)"
+                "LibraryView.openQueuedScan: opening fresh queued insight scanId=\(snapshot.id, privacy: .private) state=\(queuedScanContext.queueState.rawValue, privacy: .public)"
             )
             onQueuedInsight?(queuedScanContext)
             UITestSeedCoordinator.triggerQueuedAudioHandoffIfNeeded(
@@ -222,7 +222,7 @@ struct LibraryView: View {
         }
 
         MerianLog.data.debug(
-            "LibraryView.openQueuedScan: opening snapshot queued insight scanId=\(snapshot.id, privacy: .public) state=\(snapshot.queueState.rawValue, privacy: .public)"
+            "LibraryView.openQueuedScan: opening snapshot queued insight scanId=\(snapshot.id, privacy: .private) state=\(snapshot.queueState.rawValue, privacy: .public)"
         )
         onQueuedInsight?(
             QueuedScanContext(

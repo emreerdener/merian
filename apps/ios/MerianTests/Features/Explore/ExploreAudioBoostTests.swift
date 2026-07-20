@@ -22,6 +22,22 @@ struct ExploreAudioBoostTests {
         }
     }
 
+    @Test func detailZoomLayoutRejectsUnboundedAndInvalidFrameDimensions() {
+        #expect(
+            ExploreDetailZoomLayoutPolicy.resolvedSize(width: 320, height: .infinity)
+                == CGSize(width: 320, height: 320)
+        )
+        #expect(
+            ExploreDetailZoomLayoutPolicy.resolvedSize(width: 320, height: 280)
+                == CGSize(width: 320, height: 280)
+        )
+        #expect(
+            ExploreDetailZoomLayoutPolicy.resolvedSize(width: -.infinity, height: 280)
+                == CGSize(width: 280, height: 280)
+        )
+        #expect(ExploreDetailZoomLayoutPolicy.resolvedSize(width: -.infinity, height: .nan) == nil)
+    }
+
     @Test func preferencesAreIndependentPerPost() throws {
         let suite = "ExploreAudioBoostTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -273,6 +289,27 @@ struct ExploreAudioBoostTests {
             duration: 6,
             fallback: 1.4
         ) == 1)
+        #expect(AudioSpectrogramSeekingPolicy.normalizedProgress(
+            currentTime: .nan,
+            duration: 6,
+            fallback: .nan
+        ) == 0)
+        #expect(AudioSpectrogramSeekingPolicy.displayedProgress(
+            storedProgress: .nan,
+            currentTime: .nan,
+            duration: 6,
+            isPlaying: false,
+            playerIsPlaying: false,
+            isSeeking: false
+        ) == 0)
+        #expect(AudioSpectrogramSeekingPolicy.playmarkerLeadingX(
+            progress: .nan,
+            width: 300
+        ) == 0)
+        #expect(AudioSpectrogramSeekingPolicy.playmarkerLeadingX(
+            progress: 1,
+            width: 300
+        ) == 298)
     }
 
     @Test func exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback() {

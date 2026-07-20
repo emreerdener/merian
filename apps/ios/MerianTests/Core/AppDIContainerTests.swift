@@ -279,6 +279,78 @@ struct AppDIContainerTests {
         #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults).isEmpty)
     }
 
+    @Test func testSpeciesPreferredNameCloudSyncTreatsMatchingValuesAsConverged() {
+        let localUpdatedAt = Date(timeIntervalSince1970: 2_000)
+        let matchingRemote = SpeciesPreferenceCloudRow(
+            scientific_name: "Quercus macrocarpa",
+            preferred_common_name: "  Bur Oak  ",
+            updated_at: "1970-01-01T00:16:40.000Z",
+            deleted_at: nil
+        )
+        let newerConflictingRemote = SpeciesPreferenceCloudRow(
+            scientific_name: "Quercus macrocarpa",
+            preferred_common_name: "Mossycup Oak",
+            updated_at: "1970-01-01T00:50:00.000Z",
+            deleted_at: nil
+        )
+        let olderConflictingRemote = SpeciesPreferenceCloudRow(
+            scientific_name: "Quercus macrocarpa",
+            preferred_common_name: "Mossycup Oak",
+            updated_at: "1970-01-01T00:16:40.000Z",
+            deleted_at: nil
+        )
+
+        #expect(!SpeciesPreferredNameRepository.needsActiveCloudUpsert(
+            preferredName: "Bur Oak",
+            updatedAt: localUpdatedAt,
+            remote: matchingRemote
+        ))
+        #expect(!SpeciesPreferredNameRepository.needsActiveCloudUpsert(
+            preferredName: "Bur Oak",
+            updatedAt: localUpdatedAt,
+            remote: newerConflictingRemote
+        ))
+        #expect(SpeciesPreferredNameRepository.needsActiveCloudUpsert(
+            preferredName: "Bur Oak",
+            updatedAt: localUpdatedAt,
+            remote: olderConflictingRemote
+        ))
+        #expect(SpeciesPreferredNameRepository.needsActiveCloudUpsert(
+            preferredName: "Bur Oak",
+            updatedAt: localUpdatedAt,
+            remote: nil
+        ))
+    }
+
+    @Test func testSpeciesPreferredNameCloudDeleteDoesNotRewriteExistingTombstone() {
+        let localDeletedAt = Date(timeIntervalSince1970: 2_000)
+        let deletedRemote = SpeciesPreferenceCloudRow(
+            scientific_name: "Quercus macrocarpa",
+            preferred_common_name: nil,
+            updated_at: "1970-01-01T00:16:40.000Z",
+            deleted_at: "1970-01-01T00:16:40.000Z"
+        )
+        let newerActiveRemote = SpeciesPreferenceCloudRow(
+            scientific_name: "Quercus macrocarpa",
+            preferred_common_name: "Bur Oak",
+            updated_at: "1970-01-01T00:50:00.000Z",
+            deleted_at: nil
+        )
+
+        #expect(!SpeciesPreferredNameRepository.needsPendingDeleteCloudUpsert(
+            deletedAt: localDeletedAt,
+            remote: deletedRemote
+        ))
+        #expect(!SpeciesPreferredNameRepository.needsPendingDeleteCloudUpsert(
+            deletedAt: localDeletedAt,
+            remote: newerActiveRemote
+        ))
+        #expect(SpeciesPreferredNameRepository.needsPendingDeleteCloudUpsert(
+            deletedAt: localDeletedAt,
+            remote: nil
+        ))
+    }
+
     @Test func testSpeciesPreferredNameStoreTracksCloudSyncDiagnostics() {
         let suiteName = "merian.tests.species-preferred-name-sync-diagnostics.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

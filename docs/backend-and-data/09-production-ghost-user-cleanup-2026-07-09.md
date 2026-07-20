@@ -61,7 +61,13 @@ These files may contain production user IDs and should not be committed.
 
 ## Follow-Up
 
-- Keep debug simulator production Supabase blocking enabled.
+- Keep the Debug-simulator production Supabase warning enabled. It is
+  intentionally diagnostic rather than blocking, so developers must still use
+  local/staging for routine work and avoid fresh installs or cleared sessions
+  during production smoke tests.
+- Set `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1` only for a
+  deliberate production smoke run. The override suppresses the warning; it does
+  not prevent anonymous-user creation or redirect writes.
 - Use staging or local Supabase for routine simulator testing.
 - Leave the 11 recent empty ghosts alone until they age past the threshold and a
   fresh audit confirms they remain empty.

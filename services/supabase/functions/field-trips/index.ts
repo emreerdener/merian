@@ -43,35 +43,7 @@ import {
   startFieldTrip,
   stopFieldTrip,
 } from "./db.ts";
-
-type FieldTripAction =
-  | "catalog"
-  | "capture_context"
-  | "achievement_progress"
-  | "challenges_catalog"
-  | "template_detail"
-  | "start"
-  | "stop"
-  | "reset"
-  | "challenge_detail"
-  | "join_challenge"
-  | "community_publications"
-  | "recent_publications"
-  | "challenge_publications"
-  | "apply_scan_progress"
-  | "scan_challenge_hashtags"
-  | "profile_summaries"
-  | "set_pinned_publications"
-  | "publish"
-  | "publish_challenge_entry"
-  | "detail"
-  | "challenge_entry_detail"
-  | "set_like"
-  | "set_challenge_entry_like"
-  | "comments"
-  | "challenge_entry_comments"
-  | "create_comment"
-  | "create_challenge_entry_comment";
+import { normalizeFieldTripAction } from "./actions.ts";
 
 function makeHttpError(
   status: number,
@@ -80,45 +52,6 @@ function makeHttpError(
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
-}
-
-function normalizeAction(rawAction: unknown): FieldTripAction {
-  if (typeof rawAction !== "string") {
-    throw makeHttpError(400, "action must be a string.");
-  }
-
-  switch (rawAction) {
-    case "catalog":
-    case "capture_context":
-    case "achievement_progress":
-    case "challenges_catalog":
-    case "template_detail":
-    case "start":
-    case "stop":
-    case "reset":
-    case "challenge_detail":
-    case "join_challenge":
-    case "community_publications":
-    case "recent_publications":
-    case "challenge_publications":
-    case "apply_scan_progress":
-    case "scan_challenge_hashtags":
-    case "profile_summaries":
-    case "set_pinned_publications":
-    case "publish":
-    case "publish_challenge_entry":
-    case "detail":
-    case "challenge_entry_detail":
-    case "set_like":
-    case "set_challenge_entry_like":
-    case "comments":
-    case "challenge_entry_comments":
-    case "create_comment":
-    case "create_challenge_entry_comment":
-      return rawAction;
-    default:
-      throw makeHttpError(400, "Unsupported field trip action.");
-  }
 }
 
 function normalizeCommunityMode(
@@ -233,7 +166,7 @@ Deno.serve((req: Request) =>
     const paramErr = requireParams(body, ["action"]);
     if (paramErr) return paramErr;
 
-    const action = normalizeAction(body.action);
+    const action = normalizeFieldTripAction(body.action);
 
     switch (action) {
       case "achievement_progress": {

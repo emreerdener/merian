@@ -11,21 +11,9 @@ extension ExploreFeedViewModel {
         isNotificationsSheetPresented = false
     }
 
-    func refreshUnreadNotificationCount() async {
-        guard !isRefreshingUnreadNotificationCount else { return }
-
-        isRefreshingUnreadNotificationCount = true
-        defer { isRefreshingUnreadNotificationCount = false }
-
-        do {
-            unreadNotificationCount = try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
-            AppIconBadgeCoordinator.setExploreUnreadNotificationCount(unreadNotificationCount)
-        } catch is CancellationError {
-            // Absorb cancellation while the view is disappearing.
-        } catch let error as URLError where error.code == .cancelled {
-            // Absorb URLSession cancellation.
-        } catch {
-            // The badge should fail silently to avoid noisy Explore toasts from background refreshes.
+    func refreshUnreadNotificationCount(force: Bool = false) async {
+        if let count = await AppIconBadgeCoordinator.refreshExploreUnreadNotificationCount(force: force) {
+            unreadNotificationCount = count
         }
     }
 
@@ -82,7 +70,7 @@ extension ExploreFeedViewModel {
             unreadNotificationListenerTask = Task { [weak self] in
                 for await _ in changes {
                     guard !Task.isCancelled else { break }
-                    await self?.refreshUnreadNotificationCount()
+                    await self?.refreshUnreadNotificationCount(force: true)
                 }
             }
         } catch {
