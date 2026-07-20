@@ -1608,8 +1608,10 @@ private struct FieldTripTemplateCard: View {
                 .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+        .background {
+            Color(uiColor: .secondarySystemGroupedBackground)
+                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+        }
     }
 }
 

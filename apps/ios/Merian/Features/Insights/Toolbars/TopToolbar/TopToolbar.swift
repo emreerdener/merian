@@ -327,8 +327,14 @@ struct TopToolbar: ToolbarContent {
 
 // MARK: - Isolated Header Component
 struct ScrollAwareToolbarTitleBadge: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     let title: String
     let isVisible: Bool
+
+    private var maximumWidth: CGFloat {
+        horizontalSizeClass == .regular ? 320 : 200
+    }
     
     var body: some View {
         ZStack {
@@ -340,8 +346,11 @@ struct ScrollAwareToolbarTitleBadge: View {
                     .truncationMode(.tail)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
+                    .frame(maxWidth: maximumWidth)
+                    .fixedSize(horizontal: true, vertical: false)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    .accessibilityLabel(title)
             }
         }
         .opacity(isVisible ? 1 : 0)
