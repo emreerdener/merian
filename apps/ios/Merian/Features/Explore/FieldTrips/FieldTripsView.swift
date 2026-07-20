@@ -69,10 +69,12 @@ enum FieldTripTemplatePresentation {
 
         tags.append(.init(kind: .difficulty, title: template.difficultyTitle))
         tags.append(.init(kind: .level, title: currentLevelTitle(for: template)))
-        if template.viewerProgress?.isPublished == true {
-            tags.append(.init(kind: .visibility, title: "Public", systemImage: "eye.fill"))
-        } else {
-            tags.append(.init(kind: .visibility, title: "Private", systemImage: "eye.slash.fill"))
+        if let progress = template.viewerProgress {
+            if progress.isPublished {
+                tags.append(.init(kind: .visibility, title: "Public", systemImage: "eye.fill"))
+            } else {
+                tags.append(.init(kind: .visibility, title: "Private", systemImage: "eye.slash.fill"))
+            }
         }
 
         if let locationLabel = locationLabel?
@@ -644,9 +646,9 @@ struct FieldTripTemplateDetailView: View {
         case .objectives:
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
-                    FieldTripPublicationStatusBadge(
-                        isPublished: template.viewerProgress?.isPublished == true
-                    )
+                    if let progress = template.viewerProgress {
+                        FieldTripPublicationStatusBadge(isPublished: progress.isPublished)
+                    }
 
                     Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
                         .font(.largeTitle.weight(.bold))

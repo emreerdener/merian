@@ -807,6 +807,9 @@ struct FieldTripAPIModelsTests {
 
     @Test func fieldTripCardTagsPreserveLockedAccessAndOptionalLocation() {
         let locked = makeCardTemplate(viewerHasAccess: false, isProOnly: true)
+        let privateStarted = makeCardTemplate(
+            activeProgress: makeCardProgress(completedCount: 0, targetCount: 4)
+        )
         let published = makeCardTemplate(
             activeProgress: makeCardProgress(
                 completedCount: 4,
@@ -825,24 +828,30 @@ struct FieldTripAPIModelsTests {
         )
 
         let expectedLocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
-            .access, .difficulty, .level, .visibility, .location
+            .access, .difficulty, .level, .location
         ]
         let expectedUnlocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
-            .access, .difficulty, .level, .visibility
+            .access, .difficulty, .level
         ]
 
         #expect(locatedTags.map(\.kind) == expectedLocatedKinds)
         #expect(
             locatedTags.map(\.title) == [
-                "Pro", "Starter", "Level 1", "Private", "Austin, TX"
+                "Pro", "Starter", "Level 1", "Austin, TX"
             ]
         )
         #expect(locatedTags.first?.systemImage == "lock.fill")
+        #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
+        #expect(unlocatedTags.allSatisfy { $0.kind != .visibility })
+        let privateStartedTags = FieldTripTemplatePresentation.cardTags(
+            for: privateStarted,
+            locationLabel: nil
+        )
+        #expect(privateStartedTags.map(\.title) == ["Starter", "Level 1", "Private"])
         #expect(
-            locatedTags.first(where: { $0.kind == .visibility })?.systemImage ==
+            privateStartedTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.slash.fill"
         )
-        #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
         let publishedTags = FieldTripTemplatePresentation.cardTags(
             for: published,
             locationLabel: nil
