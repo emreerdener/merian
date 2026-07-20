@@ -87,7 +87,14 @@ struct FieldNotesSheet: View {
                                 .allowsHitTesting(false)
                         }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 320, alignment: .topLeading)
+                    // Collapse before the keyboard arrives so its avoidance pass does not
+                    // translate the editor beneath the navigation bar on first focus.
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: 320,
+                        maxHeight: isTextFieldFocused ? 320 : .infinity,
+                        alignment: .topLeading
+                    )
                     .layoutPriority(1)
                     .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .onTapGesture {
