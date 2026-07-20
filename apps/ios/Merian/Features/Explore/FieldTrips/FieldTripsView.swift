@@ -1637,6 +1637,10 @@ private struct FieldTripTemplateTagRow: View {
                         Capsule()
                             .fill(Color(uiColor: .tertiarySystemGroupedBackground))
                     )
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -2621,7 +2625,8 @@ private struct FieldTripLevelSection: View {
                             completedCount: progress.completedCount,
                             targetCount: progress.targetCount,
                             lineWidth: 4.5,
-                            labelFontSize: 11
+                            labelFontSize: 11,
+                            tint: .accentColor
                         )
                         .frame(width: 52, height: 52)
                         .accessibilityElement(children: .ignore)
@@ -3465,6 +3470,10 @@ private struct FieldTripTemplateSkeletonCard: View {
                         Capsule()
                             .fill(Color.secondary.opacity(0.12))
                             .frame(width: width, height: 27)
+                            .overlay {
+                                Capsule()
+                                    .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
+                            }
                     }
                 }
                 .padding(.horizontal, 16)

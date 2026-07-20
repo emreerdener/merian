@@ -107,7 +107,7 @@ enum CaptureMode: String, CaseIterable {
 }
 ```
 
-The page order is user-configurable via `@AppStorage(UserDefaultsKeys.captureModeOrder)` (default `"visual,audio,describe"`). `CaptureWorkspaceView.orderedModes` deserializes this into the `ForEach` order.
+The page order is user-configurable via `@AppStorage(UserDefaultsKeys.captureModeOrder)` (default `"visual,audio,describe"`). `CaptureWorkspaceView` samples the first decoded mode in its initializer, so the user's first item opens immediately on a fresh launch; the same decoded order drives the pager `ForEach`. Unsupported stored tokens are ignored and missing supported modes are appended; the Settings reorder UI emits each supported mode once.
 
 `MediaModeToggle` is a glassmorphic capsule segmented control that switches between capture modes. It is rendered in `CaptureWorkspaceView`'s fixed top overlay (not inside the paged content area) so it is always visible regardless of which page is active.
 - **Size probe**: A `GeometryReader` in the background measures the actual rendered width into `toggleSize`, making the pill `segmentWidth = toggleSize.width / 2`.
@@ -132,17 +132,25 @@ See [Audio Listen Mode](./12-audio-listen-mode.md) for the full `SpectrogramActo
 
 ### `CaptureWorkspaceView` — Paged Capture Architecture
 
-`CaptureWorkspaceView` hosts a horizontal paged `ScrollView` with two full-screen pages driven by `captureMode: CaptureMode`:
+`CaptureWorkspaceView` hosts a horizontal paged `ScrollView` with three
+user-orderable full-screen modes driven by `captureMode: CaptureMode`:
 
-| Page | `CaptureMode` ID | Content |
-|------|-----------------|---------|
-| 1 | `.visual` | `CameraPreviewView` on device or `SimulatorCameraSurfaceView` in simulator + focus indicator + flash overlay + `ThermalWarningView` + `CameraControlsLayer` (hints + zoom slider on zoom-capable device sessions) |
-| 2 | `.audio` | `AudioRecordingView` (spectrogram + SNR gauge + countdown ring) |
-| 3 | `.describe` | `DescribeInputView` (text + tag strip + voice dictation) |
+| `CaptureMode` ID | Content |
+|------------------|---------|
+| `.visual` | `CameraPreviewView` on device or `SimulatorCameraSurfaceView` in simulator + focus indicator + flash overlay + `ThermalWarningView` + `CameraControlsLayer` (hints + zoom slider on zoom-capable device sessions) |
+| `.audio` | `AudioRecordingView` (spectrogram + SNR gauge + countdown ring) |
+| `.describe` | `DescribeInputView` (text + tag strip + voice dictation) |
 
-**`captureModeScrollBinding`**: Bridges `CaptureMode` into the `Binding<CaptureMode?>` form that `.scrollPosition(id:)` requires. The setter wraps a `.spring(response: 0.35, dampingFraction: 0.75)` animation so the `MediaModeToggle` pill animates when the page settles after a free swipe.
+**Lazy page construction**: The pager uses `LazyHStack`, so startup does not
+unconditionally construct every off-screen mode. Describe's vertical content
+uses a UIKit scroll-hosting boundary, while its lifecycle observer and sheet
+host live outside the pager. This keeps Camera-, Audio-, and Description-first
+launches free of nested SwiftUI scroll and presentation feedback cycles.
 
-**Programmatic scroll (ScrollViewReader)**: `scrollPosition(id:)` handles user-swipe → `captureMode` (binding `set`) but does not reliably trigger a programmatic scroll when `captureMode` changes externally (e.g. from a `MediaModeToggle` tap or drag, which mutates `@State captureMode` directly rather than going through the binding's `set`). A `ScrollViewReader` wraps the `ScrollView`, and an `onChange(of: captureMode)` calls `scrollProxy.scrollTo(newMode, anchor: .leading)` to explicitly drive the page change. This also prevents the "frozen page" bug: if the toggle committed a mode change from the audio page, the `onChange` scrolls immediately before the session lifecycle callbacks (`cameraManager.startSession()` / `stopSession()`) create an inconsistent state.
+**Pager synchronization**: Optional `scrollPageMode` state backs
+`.scrollPosition(id:)`. A settled swipe updates `captureMode`; a toggle change
+animates `scrollPageMode` to the matching page. `ScrollViewReader` also reanchors
+the selected mode when the user changes the stored page order.
 
 **Full-bleed layout**: The outer `ZStack` respects safe areas — it only uses `.background(Color.black.ignoresSafeArea())` for its visual full-screen black background, but its own layout frame stays within the safe-area bounds (y=47 to y=898 on a Pro). A `GeometryReader { proxy in }.ignoresSafeArea()` is placed inside the ZStack; the `.ignoresSafeArea()` on the reader extends it beyond the ZStack's safe-area frame to capture the true full-screen dimensions (`proxy.size.height` = physical screen height including Dynamic Island / home indicator area). Each page receives an explicit `.frame(width: proxy.size.width, height: proxy.size.height)` instead of `containerRelativeFrame`, eliminating any ambiguity about whether the reference resolves to safe-area-bounds height or full screen height. `CameraPreviewView` inside the camera page ZStack also carries `.ignoresSafeArea()` as a belt-and-suspenders safeguard. Because the outer ZStack itself respects safe areas, the fixed overlay `VStack`s inside it naturally position within the device safe area without any manual padding — `MediaModeToggle` sits 16 pt below the status bar, and `MainTabBar` sits 8 pt above the home indicator safe area bottom.
 
@@ -152,7 +160,7 @@ See [Audio Listen Mode](./12-audio-listen-mode.md) for the full `SpectrogramActo
 
 **Fixed overlays**: Rendered in a `ZStack` above the `ScrollView` so they are unaffected by page position:
 - **Top** — `MediaModeToggle` (hidden during multi-capture staging).
-- **Capture bar** (`PhotoLibraryButton` · `CaptureButton` · `FlashButton`) and **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two independent `VStack` overlays**, each with their own `Spacer()` + fixed bottom padding. The capture bar uses `.padding(.bottom, 140)` anchoring it at a constant absolute position regardless of which toolbar is showing. This prevents `ActiveScanToolbar` (taller than `MainTabBar`) from pushing the shutter row upward when it slides in.
+- **Capture bar** (`PhotoLibraryButton` · `CaptureButton` · `FlashButton`) and **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two independent `VStack` overlays**, each with its own `Spacer()` and fixed bottom padding. `CaptureControlBarLayout` defines the 80 pt primary control, 124 pt bottom inset, and 204 pt reserved height used by both rendering and page layout. No child-height preference is written back into the workspace, avoiding a layout feedback loop while keeping the shutter row fixed when the taller `ActiveScanToolbar` slides in.
 - `PhotoLibraryButton` and `FlashButton` fade to opacity 0 when `captureMode == .audio` (camera-only controls), preserving their layout slot so the shutter button stays centred. During active visual video recording, the photo-library slot swaps to `VideoCancelButton`, matching the audio recording cancel affordance and calling `cancelVideoCapture()` so the in-progress clip is discarded without staging or submitting.
 - The capture bar and audio/describe utility buttons share `.circularMaterialControl(...)` from `Core/UI/Modifiers/IconButtonModifiers.swift` for identical 50 pt circular material chrome. The modifier is presentation-only; each button still owns its haptic path, action, icon, color, and accessibility identifier.
 

@@ -753,8 +753,39 @@ eligibility policy covered after presentation moved out of the sheet lifecycle.
 `ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
-refresh-failure retention, indicator presentation/gesture policy, exact-art
+refresh-failure retention, single-fetch coalescing for overlapping startup
+freshness checks, indicator presentation/gesture policy, exact-art
 fallback, user-visibility gating, and focused Explore route compatibility.
+Capture startup diagnostics must also exercise the user-configurable first-mode
+matrix. For each of Camera, Audio, and Description, persist that mode first,
+cold-launch with `AG_PRINT_CYCLES=3`, leave the default page idle long enough for
+initial tasks and sheets to settle, and require no `AttributeGraph: cycle`
+output. Description-first QA must also confirm the question content scrolls,
+the keyboard dismisses on drag, the table-of-contents sheet opens, and dictation
+stops when leaving the mode. Preserve the lazy horizontal pager, the UIKit
+Describe vertical-scroll boundary, workspace-owned lifecycle/sheet state, and
+the fixed capture-bar layout reservation when extending these surfaces.
+`merianUITests.testAudioFirstLaunchSelectsRecordMode` locks the reordered Audio
+launch selection. `testDescribeFirstLaunchRendersAndOpensPrompts` locks the
+Description-first selection, render path, and workspace-owned prompt-sheet
+interaction; strict cycle tracing remains a separate diagnostic requirement.
+
+After installing the intended Debug build on a disposable booted simulator,
+run each mode as a separate cold launch. Launch arguments override the stored
+order for that process without changing the simulator's persistent preference:
+
+```bash
+SIMCTL_CHILD_AG_PRINT_CYCLES=3 xcrun simctl launch --terminate-running-process --console booted app.merian.Merian -captureModeOrder visual,audio,describe
+SIMCTL_CHILD_AG_PRINT_CYCLES=3 xcrun simctl launch --terminate-running-process --console booted app.merian.Merian -captureModeOrder audio,visual,describe
+SIMCTL_CHILD_AG_PRINT_CYCLES=3 xcrun simctl launch --terminate-running-process --console booted app.merian.Merian -captureModeOrder describe,visual,audio
+```
+
+For each run, require the selected segmented mode to match the first argument,
+leave the workspace idle for startup work to settle, and fail the check on any
+`AttributeGraph: cycle detected` line. Audio-first must not start camera
+hardware. Description-first must render the input, open **Prompts** through
+`DescribePrompts`, scroll vertically, dismiss the keyboard on drag, and stop
+dictation when changing modes.
 `AppDIContainerTests` verifies the presentation preference defaults on and
 persists an explicit opt-out. `AppTelemetryTests` locks the coarse
 action/source-only event shape and prevents goal content or identifiers from

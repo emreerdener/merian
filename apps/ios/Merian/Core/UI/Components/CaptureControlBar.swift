@@ -3,6 +3,12 @@ import SwiftUI
 
 // MARK: - Capture Control Bar
 
+enum CaptureControlBarLayout {
+    static let primaryControlSize: CGFloat = 80
+    static let bottomInset: CGFloat = 124
+    static let reservedHeight = primaryControlSize + bottomInset
+}
+
 /// A horizontal control bar pinned to the bottom of the camera interface.
 /// It orchestrates the primary capture button along with secondary tools
 /// (like the photo library, table of contents, flash toggle, and dictation)
@@ -192,13 +198,7 @@ struct CaptureControlBar: View {
                 .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.isRecording)
                 .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.pendingPlaybackPath == nil)
             }
-            .padding(.bottom, 124)
-            .background {
-                GeometryReader { proxy in
-                    Color.clear
-                        .preference(key: CaptureBarHeightPreferenceKey.self, value: proxy.size.height)
-                }
-            }
+            .padding(.bottom, CaptureControlBarLayout.bottomInset)
         }
         .onChange(of: captureMode) { _, newMode in
             if newMode != .audio {
@@ -302,7 +302,10 @@ private struct CaptureButton: View {
             // Track ring — dims when recording to show the progress arc.
             Circle()
                 .stroke(outerRingColor.opacity(shouldShowRecordingChrome ? 0.25 : 1), lineWidth: 1)
-                .frame(width: 80, height: 80)
+                .frame(
+                    width: CaptureControlBarLayout.primaryControlSize,
+                    height: CaptureControlBarLayout.primaryControlSize
+                )
                 .animation(.easeInOut(duration: 0.2), value: shouldShowRecordingChrome)
 
             // Progress arc — sweeps red clockwise for the duration of the recording.
@@ -312,7 +315,10 @@ private struct CaptureButton: View {
                     .trim(from: 0, to: shouldShowRecordingChrome ? recordingProgress : 0)
                     .stroke(Color.red, style: StrokeStyle(lineWidth: 1, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .frame(width: 80, height: 80)
+                    .frame(
+                        width: CaptureControlBarLayout.primaryControlSize,
+                        height: CaptureControlBarLayout.primaryControlSize
+                    )
                     .animation(.linear(duration: 0.12), value: recordingProgress)
             }
 
@@ -551,6 +557,8 @@ private struct TableOfContentsButton: View {
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
+        .accessibilityLabel("Show prompts")
+        .accessibilityIdentifier("DescribePrompts")
     }
 }
 

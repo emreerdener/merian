@@ -15,6 +15,9 @@ steps are tracked in the
 ## Features
 
 ### Capture Workspace
+- User-orderable Scan, Record, and Describe pages. The first configured mode is
+  selected during workspace initialization, so Audio-first and Description-first
+  launches do not briefly open Camera or start camera hardware.
 - Instant-on `AVCaptureSession` with device priority: triple camera → LiDAR → dual → wide. Triple camera is preferred on Pro models to expose the full 0.5×–15× optical zoom range.
 - LiDAR depth harvesting via `AVCaptureDepthDataOutput`, feeding absolute subject distance (up to ~5m) to the AI model to prevent scale hallucinations.
 - Tap-to-focus, tap-to-expose, pinch zoom, vertical swipe zoom, and direct drag on the zoom meter.
@@ -202,7 +205,11 @@ steps are tracked in the
 - Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at launch).
 - Sign in with Apple / Google OAuth merges Ghost identity via `linkIdentityWithIdToken` or the `/merge-ghost-profile` Edge RPC.
 - RevenueCat webhook drives `free` ↔ `pro` tier updates while leaving existing scan media in place.
-- Free tier: 1 scan/day. Pro: unlimited scans, Gemini 2.5 Pro model, video scans, AI chat, multi-capture, Apple Watch logging, expedition mode, and offline queue.
+- Public-release policy: Free receives 1 scan/day; Pro receives unlimited scans,
+  Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple Watch logging,
+  expedition mode, and offline queue. Current prelaunch builds intentionally
+  override only the scan quota to unlimited for every tester, including
+  TestFlight; the public-release checklist restores normal quota enforcement.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5 Flash against stored scan evidence only; the same function also generates short, scan-specific prompt chips from private text context.
 
 ### Evidence Retention

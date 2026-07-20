@@ -137,7 +137,7 @@ Some noisy lines come from Apple frameworks or third-party development configura
 | `field_trip_action_rejected` | The Edge function received an unknown action; the structured field contains at most 64 characters and omits every other request field plus the derived user ID. | Compare the deployed `field-trips/actions.ts` allowlist with the client version. Usually indicates a stale client or a server action that was not deployed. |
 | Missing valid `aps-environment` entitlement | The signed app cannot register correctly with APNs. | Inspect the archived app's signed entitlements, the explicit App ID capability, and the distribution provisioning profile. Release must resolve `APS_ENVIRONMENT=production`. |
 | `Invalid frame dimension` or non-finite SwiftUI geometry near Explore detail/audio | A proposed layout or playback progress contained `NaN`/infinity/non-positive values. | Current layout and spectrogram policies sanitize these values. Reproduce only if a new frame/offset calculation bypasses `ExploreDetailZoomLayoutPolicy` or `AudioSpectrogramSeekingPolicy`. |
-| `AttributeGraph: cycle detected through attribute ...` | SwiftUI detected a dependency cycle. The numeric attribute is process-local and does not identify a source view by itself. | Record the screen and interaction that reproduce it, then use Instruments' SwiftUI View Properties instrument. Guard layout-derived writes with equality/tolerance checks and avoid mutating observable state during the active layout pass. |
+| `AttributeGraph: cycle detected through attribute ...` | SwiftUI detected a dependency cycle. The numeric attribute is process-local and does not identify a source view by itself. Capture previously combined eager off-screen pages, nested SwiftUI scroll containers, sheet state, and layout-preference feedback. | Record the screen and interaction that reproduce it, then use Instruments' SwiftUI View Properties instrument. Confirm the pager still uses `LazyHStack`, Describe still uses its UIKit vertical-scroll boundary with lifecycle/sheet ownership outside the pager, and the capture bar still uses a fixed layout reservation. Cold-launch all three configurable first modes with `AG_PRINT_CYCLES=3`; guard any new layout-derived state writes with equality/tolerance checks. |
 
 ### Healthy startup and sync signals
 
@@ -151,6 +151,10 @@ with a real failure:
   trips, unread count, or species dictionary indicates that the client reached
   Supabase. A tiny response body can be a legitimate zero/empty response; use
   HTTP status and decoded behavior, not byte count alone.
+- One empty active-goal refresh can issue two `field-trips` requests by design:
+  `capture_context`, followed by `template_detail` for the optional introduction.
+  Two repeated response-size pairs during one startup indicate duplicate refresh
+  ownership and should be checked against the Capture appearance/account paths.
 - `syncPendingScans skipped because sync active` is the expected single-flight
   guard. It is not a dropped scan; the existing task owns the work.
 - Preferred-name synchronization ending with `0 local, 0 remote, 0 pushed` is a

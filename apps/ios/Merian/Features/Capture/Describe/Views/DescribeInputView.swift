@@ -1,6 +1,170 @@
 import SwiftUI
+import UIKit
 
 // MARK: - View
+
+private struct DescribeVerticalScrollView<Content: View>: UIViewControllerRepresentable {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    func makeUIViewController(context: Context) -> DescribeScrollHostingController<Content> {
+        DescribeScrollHostingController(rootView: content)
+    }
+
+    func updateUIViewController(
+        _ controller: DescribeScrollHostingController<Content>,
+        context: Context
+    ) {
+        controller.hostingController.rootView = content
+        controller.hostingController.view.invalidateIntrinsicContentSize()
+    }
+}
+
+private final class DescribeScrollHostingController<Content: View>: UIViewController {
+    let hostingController: UIHostingController<Content>
+
+    init(rootView: Content) {
+        hostingController = UIHostingController(rootView: rootView)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        let rootView = UIView()
+        rootView.backgroundColor = .clear
+
+        let scrollView = UIScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.alwaysBounceVertical = true
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.keyboardDismissMode = .onDrag
+        scrollView.backgroundColor = .clear
+
+        let hostedView = hostingController.view!
+        hostedView.translatesAutoresizingMaskIntoConstraints = false
+        hostedView.backgroundColor = .clear
+
+        rootView.addSubview(scrollView)
+        addChild(hostingController)
+        scrollView.addSubview(hostedView)
+        hostingController.didMove(toParent: self)
+
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: rootView.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
+            hostedView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            hostedView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            hostedView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            hostedView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            hostedView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            hostedView.heightAnchor.constraint(
+                greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor
+            )
+        ])
+
+        view = rootView
+    }
+}
+
+struct DescribeInputLifecycleObserver: View {
+    let captureMode: CaptureMode
+    let promptFlow: DescribePromptFlow
+    @Binding var context: ObservationContext
+    let promptManager: DescribePromptManager
+    @Binding var isQuestionsSheetPresented: Bool
+    let coordinator: CaptureActionCoordinator
+
+    @Environment(SpeechManager.self) private var speechManager
+    @State private var dictationTask: Task<Void, Never>?
+
+    var body: some View {
+        Color.clear
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task(id: promptFlow) {
+                promptManager.configure(for: promptFlow)
+                if promptFlow.isReanalysis {
+                    isQuestionsSheetPresented = false
+                }
+            }
+            .task(id: context.freeText) {
+                let newText = context.freeText
+                guard !promptFlow.isReanalysis else { return }
+                if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    promptManager.resetFunnel()
+                    return
+                }
+                guard !promptManager.isFunnelActive else { return }
+
+                try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled, !promptManager.isFunnelActive else { return }
+                if let subjectId = SubjectKeywordMatcher.infer(from: newText) {
+                    promptManager.activateFunnel(for: subjectId)
+                }
+            }
+            .task(id: captureMode) {
+                if captureMode != .describe {
+                    stopDictation()
+                }
+            }
+            .task(id: coordinator.isDictationRequested) {
+                if coordinator.isDictationRequested {
+                    startDictation()
+                } else {
+                    stopDictation()
+                }
+            }
+            .task(id: speechManager.isRecording) {
+                if !speechManager.isRecording && coordinator.isDictationRequested {
+                    coordinator.isDictationRequested = false
+                }
+            }
+            .task(id: coordinator.tocRequestID) {
+                if coordinator.tocRequestID != nil && !promptFlow.isReanalysis {
+                    isQuestionsSheetPresented = true
+                }
+            }
+            .onDisappear {
+                stopDictation()
+            }
+    }
+
+    private func startDictation() {
+        guard dictationTask == nil else { return }
+        let base = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        dictationTask = Task {
+            defer { dictationTask = nil }
+            do {
+                try await speechManager.startDictation { transcribed in
+                    guard !transcribed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    context.freeText = base.isEmpty ? transcribed : base + " " + transcribed
+                }
+            } catch {
+                coordinator.isDictationRequested = false
+            }
+        }
+    }
+
+    private func stopDictation() {
+        guard dictationTask != nil
+                || coordinator.isDictationRequested
+                || speechManager.isRecording
+                || speechManager.isStarting else { return }
+        speechManager.stopDictation()
+        dictationTask?.cancel()
+        dictationTask = nil
+        coordinator.isDictationRequested = false
+    }
+}
 
 /// Full-screen text-first input field for Describe identification.
 ///
@@ -13,40 +177,21 @@ import SwiftUI
 ///   always remains interactive; this view must NOT place anything above the
 ///   `safeAreaInsets.top + 64` band.
 struct DescribeInputView: View {
-    var captureMode: CaptureMode
     let promptFlow: DescribePromptFlow
 
     @Binding var context: ObservationContext
     @FocusState private var isTextFieldFocused: Bool
-    @Environment(SpeechManager.self) private var speechManager
 
-    let coordinator: CaptureActionCoordinator
-    var showToast: ((String) -> Void)?
-
-    @State private var promptManager: DescribePromptManager
-    @State private var isDescribeQuestionsSheetPresented: Bool = false
-
-    // MARK: - Dictation state
-
-    @State private var dictationTask: Task<Void, Never>?
-    @State private var inferenceDebounceTask: Task<Void, Never>?
+    let promptManager: DescribePromptManager
 
     init(
-        captureMode: CaptureMode,
         promptFlow: DescribePromptFlow,
         context: Binding<ObservationContext>,
-        coordinator: CaptureActionCoordinator,
-        showToast: ((String) -> Void)? = nil
+        promptManager: DescribePromptManager
     ) {
-        self.captureMode = captureMode
         self.promptFlow = promptFlow
         self._context = context
-        self.coordinator = coordinator
-        self.showToast = showToast
-
-        let promptManager = DescribePromptManager()
-        promptManager.configure(for: promptFlow)
-        self._promptManager = State(initialValue: promptManager)
+        self.promptManager = promptManager
     }
 
     // MARK: - Derived
@@ -69,12 +214,10 @@ struct DescribeInputView: View {
     // MARK: - Body
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .bottom) {
-                Color(UIColor.systemBackground)
-                .ignoresSafeArea()
+        ZStack(alignment: .bottom) {
+            Color(UIColor.systemBackground)
 
-            ScrollView(showsIndicators: false) {
+            DescribeVerticalScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // Top spacer: device safe area + MediaModeToggle (16pt padding + ~44pt height) + 20pt gap.
@@ -177,101 +320,8 @@ struct DescribeInputView: View {
                     // Bottom spacer: clears the global tab bar / scan toolbar
                     Spacer().frame(height: 250)
                 }
-                .frame(minHeight: proxy.size.height)
-            }
-            .scrollDismissesKeyboard(.immediately)
-            .onChange(of: promptFlow, initial: true) { _, newFlow in
-                promptManager.configure(for: newFlow)
-                if newFlow.isReanalysis {
-                    isDescribeQuestionsSheetPresented = false
-                }
-            }
-            .onChange(of: context.freeText) { _, newText in
-                guard !isReanalysisMode else { return }
-                if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    promptManager.resetFunnel()
-                    return
-                }
-                guard !promptManager.isFunnelActive else {
-                    inferenceDebounceTask?.cancel()
-                    inferenceDebounceTask = nil
-                    return
-                }
-                inferenceDebounceTask?.cancel()
-                inferenceDebounceTask = Task {
-                    try? await Task.sleep(for: .seconds(1.5))
-                    guard !Task.isCancelled else { return }
-                    guard !promptManager.isFunnelActive else { return }
-                    if let subjectId = SubjectKeywordMatcher.infer(from: newText) {
-                        promptManager.activateFunnel(for: subjectId)
-                    }
-                }
-            }
-            .onChange(of: captureMode) { _, newMode in
-                if newMode != .describe {
-                    isTextFieldFocused = false
-                    stopDictation()
-                    inferenceDebounceTask?.cancel()
-                    inferenceDebounceTask = nil
-                }
-            }
-            .onChange(of: coordinator.isDictationRequested) { _, requested in
-                if requested {
-                    startDictation()
-                } else {
-                    stopDictation()
-                }
-            }
-            .onChange(of: speechManager.isRecording) { _, isRecording in
-                if !isRecording && coordinator.isDictationRequested {
-                    // Sync the button state if the SpeechManager halts intrinsically (e.g., error/timeout)
-                    coordinator.isDictationRequested = false
-                }
-            }
-            .onChange(of: coordinator.tocRequestID) { _, id in
-                if id != nil && !isReanalysisMode {
-                    isDescribeQuestionsSheetPresented = true
-                }
             }
         }
-        .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
-            DescribeQuestionsSheet(
-                promptManager: promptManager,
-                hasInputs: !context.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                onReset: {
-                    HapticManager.shared.triggerMediumPulse()
-                    context.freeText = ""
-                    promptManager.resetFunnel()
-                    promptManager.activeQuestionIndex = 0
-                    showToast?("Draft discarded")
-                }
-            )
-        }
-        }
-    }
-
-    // MARK: - Helpers
-    
-    private func startDictation() {
-        let base = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
-        dictationTask = Task {
-            do {
-                try await speechManager.startDictation { transcribed in
-                    guard !transcribed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    context.freeText = base.isEmpty ? transcribed : base + " " + transcribed
-                }
-            } catch {
-                coordinator.isDictationRequested = false
-            }
-        }
-    }
-    
-    private func stopDictation() {
-        guard dictationTask != nil || coordinator.isDictationRequested else { return }
-        speechManager.stopDictation()
-        dictationTask?.cancel()
-        dictationTask = nil
-        coordinator.isDictationRequested = false
     }
 
     private func advanceQuestion() {

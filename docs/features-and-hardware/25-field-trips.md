@@ -305,11 +305,14 @@ outing IDs/titles, progress values, route IDs, or account identifiers.
 
 Refresh behavior:
 
-- force refresh asynchronously when Capture first appears;
+- refresh through the five-minute freshness gate when Capture first appears or
+  the Supabase account is restored/changed;
 - refresh after five stale minutes when the app returns to the foreground or
   the user returns to visual Scan;
-- force refresh after outing start/join, standard progress events, account
-  changes, and explicit scanner-routing events;
+- force refresh after outing start/join, standard progress events, and explicit
+  scanner-routing events;
+- share one provider fetch when appearance, account restoration, and scene
+  activation overlap at startup;
 - coalesce overlapping invalidations into one follow-up refresh; and
 - retain cached content without surfacing an error if refresh fails.
 

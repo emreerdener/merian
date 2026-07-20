@@ -5,6 +5,22 @@ The `UI` directory contains the foundational visual components and design system
 ## Purpose
 This area houses reusable view modifiers, generic controls (e.g., primary action buttons, custom toggles), typography extensions, and complex visual treatments like glassmorphism shaders. Code placed here ensures visual consistency across all feature modules and prevents duplication of fundamental UI elements.
 
+## Capture control layout
+
+`Components/CaptureControlBar.swift` exposes `CaptureControlBarLayout` as the
+fixed chrome contract shared with `CaptureWorkspaceView`: an 80 pt primary
+control, a 124 pt bottom inset, and a 204 pt reserved height. The workspace
+publishes that reservation through the environment for page clearance,
+including Audio spectrogram layout, instead of measuring the rendered bar with
+a preference key. Camera crop composition keeps its separately documented
+framing margin.
+
+Do not reintroduce child-size-to-parent-state feedback for this fixed chrome.
+If the control dimensions change, update the constants and verify Camera-,
+Audio-, and Description-first cold launches with strict AttributeGraph cycle
+logging. The Describe table-of-contents control exposes the accessibility label
+**Show prompts** and stable UI-test identifier `DescribePrompts`.
+
 ## Shared Goal Progress
 
 `Components/GoalProgressRing.swift` renders the compact circular

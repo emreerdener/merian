@@ -25,6 +25,8 @@ enum UITestAppLauncher {
     }
 }
 
+// Keep the Xcode-generated test class name because existing CI selectors use it.
+// swiftlint:disable:next type_name
 final class merianUITests: XCTestCase {
 
     override func setUpWithError() throws {
@@ -44,6 +46,42 @@ final class merianUITests: XCTestCase {
     func testExample() throws {
         let app = UITestAppLauncher.launchConfiguredApp()
         XCTAssertTrue(app.buttons["MainTabBar_Profile"].waitForExistence(timeout: 8.0))
+    }
+
+    @MainActor
+    func testAudioFirstLaunchSelectsRecordMode() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-captureModeOrder", "audio,visual,describe"]
+        )
+
+        let recordMode = app.segmentedControls.buttons["Record"]
+        XCTAssertTrue(recordMode.waitForExistence(timeout: 8.0), "Record mode did not render")
+        XCTAssertTrue(recordMode.isSelected, "The configured Audio-first order did not open Record")
+        XCTAssertTrue(app.buttons["CaptureShutter"].waitForExistence(timeout: 4.0))
+    }
+
+    @MainActor
+    func testDescribeFirstLaunchRendersAndOpensPrompts() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-captureModeOrder", "describe,visual,audio"]
+        )
+
+        let describeMode = app.segmentedControls.buttons["Describe"]
+        XCTAssertTrue(describeMode.waitForExistence(timeout: 8.0), "Describe mode did not render")
+        XCTAssertTrue(describeMode.isSelected, "The configured Description-first order did not open Describe")
+
+        let descriptionInput = app.textFields[
+            "e.g., A bright green beetle with gold stripes resting on an oak leaf..."
+        ]
+        XCTAssertTrue(descriptionInput.waitForExistence(timeout: 4.0), "Describe input did not render")
+
+        let promptsButton = app.buttons["DescribePrompts"]
+        XCTAssertTrue(promptsButton.waitForExistence(timeout: 4.0), "Describe prompt control did not render")
+        promptsButton.tap()
+        XCTAssertTrue(
+            app.navigationBars["Prompts"].waitForExistence(timeout: 4.0),
+            "The workspace-owned Describe prompt sheet did not open"
+        )
     }
 
     @MainActor
@@ -240,6 +278,8 @@ final class merianUITests: XCTestCase {
         // Assert mathematical UI existence of the pending dot or image grid cell
         // A generic UI test checks if the grid is populated rather than fully blank.
         let gridCells = app.collectionViews.cells
+        // XCUIElementQuery exposes count but not Collection.isEmpty.
+        // swiftlint:disable:next empty_count
         XCTAssertTrue(gridCells.count > 0, "Disappearance Bug: The backgrounded offline scan was wrongly tombstoned and vanished from the Library!")
     }
 }

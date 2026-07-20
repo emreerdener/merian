@@ -57,6 +57,14 @@ TestFlight, App Store, support, and QA.
 - Prevented non-finite media geometry from reaching SwiftUI in Explore detail
   zoom and audio playmarkers, eliminating invalid-frame warnings and unstable
   offsets during transient layout/player states.
+- Removed the Capture startup SwiftUI AttributeGraph cycle for every configurable
+  first mode (Camera, Audio, and Description). The pager now builds pages lazily,
+  Description isolates its vertical scroller and reactive lifecycle from the
+  horizontal pager, and capture chrome uses a fixed layout reservation. Startup
+  Field-trip goal loading also shares one freshness-gated refresh instead of
+  repeating the same capture-context and introduction requests. Leaving
+  Description or closing the workspace now also stops dictation that is active
+  or still starting.
 - Release configuration now requests the production APNs entitlement.
 
 ### Explore

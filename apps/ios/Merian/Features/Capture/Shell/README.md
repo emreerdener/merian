@@ -6,6 +6,20 @@ The `Shell` directory acts as the root container for the entire Capture feature.
 
 Following the Merian architecture guidelines, the `Shell` orchestrates the transitions between the different capture modes (`Scan`, `Record`, `Describe`). It acts as the routing layer, keeping the individual capture modes isolated and focused entirely on their specific hardware/input logic.
 
+The horizontal mode pager uses a `LazyHStack`, so startup does not
+unconditionally construct every off-screen page. The configured first mode is
+selected during workspace initialization, and camera-session startup remains
+gated on visual mode. Keep page sizing and `scrollTargetLayout()` on the lazy
+stack when changing pager behavior.
+
+Describe keeps its vertical scrolling behind a UIKit `UIScrollView` hosting
+boundary. Its prompt/dictation lifecycle observer and questions sheet are owned
+by `CaptureWorkspaceView`, outside the horizontal pager. The capture bar also
+publishes the fixed `CaptureControlBarLayout.reservedHeight` instead of feeding a
+measured child height back into parent layout. Together these boundaries prevent
+the nested scroll, sheet, and preference feedback that previously formed a
+startup AttributeGraph cycle when Description was the configured first mode.
+
 ## Fresh-launch presentation
 
 The Capture workspace remains the application root. When the default-off
@@ -77,10 +91,11 @@ fill.
 
 `ActiveCaptureGoalStore` preserves the last successful generic payload,
 introduction, and selected goal in a versioned cache per Supabase account. Capture force-refreshes
-on first appearance and
-relevant invalidation events, and refreshes after five stale minutes on
-foreground/visual-mode return. Failures keep cached state without placing an
-error over the viewfinder.
+after relevant progress or routing invalidation events. First appearance,
+account restoration/change, foreground return, and visual-mode return all use
+the five-minute freshness path. Overlapping startup lifecycle callbacks share
+the in-flight provider fetch instead of scheduling a duplicate follow-up.
+Failures keep cached state without placing an error over the viewfinder.
 
 Tapping the pill calls `CaptureWorkspaceViewModel.openCaptureGoal`, then
 `CameraSheetRouter` passes one typed destination to `ExploreView`. Explore owns

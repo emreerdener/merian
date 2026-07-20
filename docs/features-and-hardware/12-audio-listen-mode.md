@@ -394,6 +394,11 @@ let halfHeight = min(centerY - 100, proxy.size.height - controlBarHeight - cente
 let spectrogramHeight = max(180, halfHeight * 2)
 ```
 
+`controlBarHeight` is the fixed
+`CaptureControlBarLayout.reservedHeight` environment value: 80 pt for the
+primary control plus a 124 pt bottom inset, totaling 204 pt. Audio does not
+measure the rendered child bar or write its height back into workspace state.
+
 This ensures the spectrogram clears the `MediaModeToggle` toolbar above and the
 tooltip hint zone above the FAB below. The view uses
 `.frame(width: proxy.size.width)` before `.position()` to correctly offer full

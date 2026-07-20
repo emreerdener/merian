@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// All capture modes available from the camera root view.
-/// Adding a new case automatically adds a segment to `MediaModeToggle`
-/// and a page to the `CaptureWorkspaceView` pager — no other changes needed.
+/// Adding a case requires matching pager content, settings copy, persistence
+/// migration behavior, and startup-mode coverage.
 enum CaptureMode: String, CaseIterable {
     case visual
     case audio

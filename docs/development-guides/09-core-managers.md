@@ -15,17 +15,23 @@ triggering excessive SwiftUI view rebuilds.
 - Owns the full `AVAudioEngine` + `SFSpeechRecognizer` pipeline for live voice
   dictation on the Describe page.
 - **`isRecording: Bool`** — the single source of truth for dictation state.
-  Drives the `CaptureButton` pulse animation and the `onTranscribe` stop-path
-  guard in `CaptureWorkspaceView`. Never set to `true` until
+  `DescribeInputLifecycleObserver` mirrors it into
+  `CaptureActionCoordinator.isDictationRequested`, which drives the capture-bar
+  pulse. Never set to `true` until
   `audioEngine.start()` succeeds; reset to `false` in all failure and teardown
   paths.
+- **`isStarting: Bool`** — prevents overlapping permission/session startup and
+  lets the lifecycle observer tear down a dictation request that is still
+  negotiating permissions or audio hardware.
 - **`startDictation(onResult: @MainActor @escaping (String) -> Void) async throws`**:
-  - Initializes `SFSpeechRecognizer()` and silently no-ops if the recognizer is
-    `nil` or `!isAvailable` (unsupported locale — no user-visible error).
-  - Requests `SFSpeechRecognizer` authorization and microphone permission
-    (`AVAudioApplication.requestRecordPermission()`) via
-    `withCheckedContinuation`. Throws `PermissionError` on denial; caller
-    surfaces this via `viewModel.offlineToastMessage`.
+  - Requests speech authorization, then retries recognizer availability five
+    times at 200 ms intervals. If no recognizer becomes available, throws
+    `DictationUnavailableError` instead of leaving the button in a starting
+    state.
+  - Requests microphone permission with
+    `AVAudioApplication.requestRecordPermission()`. Throws `PermissionError` on
+    denial; the lifecycle observer clears the requested-recording state so the
+    control returns idle.
   - Checks `Task.isCancelled` after each `await` suspension point. If cancelled
     after the `AVAudioSession` was already activated, releases the current
     `AudioSessionCoordinator.Lease` before returning — preventing stale
@@ -51,10 +57,10 @@ triggering excessive SwiftUI view rebuilds.
   internally — the user does not need to tap the mic again to stop a session
   that the system ended (e.g. 60-second silence timeout).
 - **`PermissionError`** — a `LocalizedError` struct defined in the same file.
-  Thrown exclusively on permission denial, caught by `catch is PermissionError`
-  at the `CaptureWorkspaceView` call site for toast display. All other throws
-  (hardware faults, `AVAudioEngine` start failure) are silently swallowed at the
-  call site since no user-actionable recovery path exists.
+  Thrown on permission denial or an unusable zero-Hz input format. The lifecycle
+  observer catches startup failures and clears the requested-recording flag so
+  the control returns idle; no mode-specific error handling lives inside the
+  paged Describe view.
 
 ### `AudioCaptureManager`
 

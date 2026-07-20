@@ -1,8 +1,9 @@
 # Describe Mode & Voice Dictation
 
-The Describe capture mode is the third page of `CaptureWorkspaceView`'s
-horizontal pager. It allows users to identify a biological subject through
-free-text description or live voice dictation instead of a photograph. The
+The Describe capture mode is one of the user-orderable pages in
+`CaptureWorkspaceView`'s horizontal pager. It allows users to identify a
+biological subject through free-text description or live voice dictation
+instead of a photograph. The
 shipped path now routes through the same shared non-visual
 `/identify-multimodal` flow used by audio-only captures, via
 `CaptureWorkspaceViewModel.submitNonVisualCapture(...)` and
@@ -169,19 +170,21 @@ interactive — no content above `safeAreaInsets.top + 64` pt.
 
 - `@Binding var context: ObservationContext` — two-way binding to
   `CaptureWorkspaceView`'s lifted state.
-- `let onSubmit: (ObservationContext) -> Void` — called when the user taps
-  "Identify" / "Add description".
 - `@FocusState private var isTextFieldFocused: Bool` — drives the text area
-  border highlight and `.scrollDismissesKeyboard(.interactively)`.
-- `@State private var inferenceDebounceTask: Task<Void, Never>?` — holds the
-  1.5-second debounce task for keyword-based funnel auto-activation.
-- Auto-rotating prompts (`promptIndex`) cycle every 3 seconds only when
-  `context.freeText.isEmpty && captureMode == .describe`, preventing animation
-  noise while the user is typing.
+  border highlight.
+- `let promptManager: DescribePromptManager` — workspace-owned prompt state
+  used to render and edit the guided question funnel.
 
 The `TextEditor` binds to `$context.freeText`. The placeholder is a separate
 `Text` view rendered when `context.freeText.isEmpty`, with
 `.allowsHitTesting(false)` so it doesn't intercept taps.
+
+`DescribeInputView` is deliberately render-only. Its full-page vertical content
+uses `DescribeVerticalScrollView`, a UIKit `UIScrollView` containing a
+`UIHostingController`. That boundary preserves vertical scrolling and drag-to-
+dismiss keyboard behavior without putting a nested SwiftUI vertical scroll graph
+inside the workspace's horizontal SwiftUI pager. Replacing it requires strict
+AttributeGraph cold-launch testing for all three configurable first modes.
 
 ### Tag Rendering
 
@@ -200,7 +203,7 @@ The tag scroll view carries
 `.id("tags_scroll_\(promptManager.activeQuestionIndex)")` so `ScrollViewReader`
 can snap to the correct tag row when the question advances.
 
-### Funnel Lifecycle in `DescribeInputView`
+### Funnel Lifecycle
 
 **Subject tap → funnel activation**: On the subject question (index 0), tapping
 a tag checks `promptManager.activeSubjectId == tag.tagId`. If the tag is already
@@ -210,21 +213,23 @@ tags are re-sorted. Otherwise, the normal `appendTag` path runs, then
 funnel question. Auto-advance is suppressed when `isSelectedFunnel == true` to
 prevent double-stepping.
 
-**Text-driven auto-activation (1.5s debounce)**:
-`onChange(of: context.freeText)`:
+**Text-driven auto-activation (1.5s debounce)** is owned by the zero-sized
+`DescribeInputLifecycleObserver` mounted in `CaptureWorkspaceView`, outside the
+pager:
 
 1. If `freeText` is empty → `promptManager.resetFunnel()` and early return.
 2. If `isFunnelActive` → no-op (funnel already running).
-3. Otherwise: cancel any in-flight `inferenceDebounceTask`, start a new `Task`
-   that sleeps 1.5 seconds, then calls
+3. Otherwise: the text-keyed SwiftUI task sleeps 1.5 seconds, then calls
    `SubjectKeywordMatcher.infer(from: freeText)`. If a subject is inferred,
    `promptManager.activateFunnel(for: subjectId)` activates the funnel. Useful
    when the user dictates "I saw a hawk" before tapping any tags — the funnel
    activates automatically after typing settles.
 
-**Funnel reset on submit**: `inferenceDebounceTask?.cancel()` is called before
-`onSubmit` fires, preventing a race where a pending debounce activates a funnel
-after the submission has already started.
+SwiftUI automatically cancels the keyed task when the text changes again. The
+same observer configures reanalysis prompt flow, owns dictation start/stop, and
+requests the questions sheet. `CaptureWorkspaceView` owns the prompt manager and
+sheet presentation so those state transitions do not occur inside the pager's
+layout graph.
 
 ---
 
@@ -234,8 +239,8 @@ Lives at
 `apps/ios/Merian/Features/Capture/Describe/Managers/SpeechManager.swift`.
 Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and
 distributed via `.environment(container.speechManager)` in
-`DIContainerModifier.body()`. Accessed in `CaptureWorkspaceView` as
-`@Environment(SpeechManager.self) var speechManager`.
+`DIContainerModifier.body()`. `DescribeInputLifecycleObserver` reads it through
+`@Environment(SpeechManager.self)` outside the horizontal pager.
 
 ### Class declaration
 
@@ -247,39 +252,47 @@ distributed via `.environment(container.speechManager)` in
 property mutations are on the main actor — no explicit `DispatchQueue.main`
 dispatches are needed for `isRecording` or `onResult` callbacks.
 
-### `PermissionError`
+### Startup errors
 
 ```swift
 struct PermissionError: LocalizedError { ... }
+struct DictationUnavailableError: LocalizedError { ... }
 ```
 
-Thrown exclusively when speech recognition authorization or microphone
-permission is denied. The `LocalizedError` description is "Microphone access
-required. ." — surfaced at the `CaptureWorkspaceView` call site as
-`viewModel.offlineToastMessage`.
+Thrown when speech-recognition or microphone permission is denied, and when the
+audio input reports an unusable zero-Hz format. Its localized description is
+"Microphone access required. Check device settings." The lifecycle observer
+returns the dictation control to idle after any startup failure.
+
+`DictationUnavailableError` is thrown when five bounded recognizer checks,
+spaced 200 ms apart, cannot obtain an available speech recognizer. Its localized
+description is "Dictation is temporarily unavailable. Please try again." This
+is distinct from permission denial and remains retryable without changing
+Settings.
 
 ### `startDictation` lifecycle
 
 ```
-SFSpeechRecognizer() guard (nil / !isAvailable → silent no-op)
-    ↓
 SFSpeechRecognizer.requestAuthorization (async continuation)
     ↓ Task.isCancelled check
+availableSpeechRecognizer() (bounded availability retry)
+    ↓
 AVAudioApplication.requestRecordPermission() (async continuation)
     ↓ Task.isCancelled check
 teardownAudioEngine()          ← clears any prior session
-AVAudioSession configure + activate
+AudioSessionCoordinator.activate(.recordMeasurement) in detached setup
+    ↓ lease stored on SpeechManager
+AVAudioEngine input/tap negotiation → prepare → start()
     ↓ Task.isCancelled check (deactivates session before returning if true)
 SFSpeechAudioBufferRecognitionRequest + recognitionTask
-AVAudioEngine installTap → prepare → start()
     ↓
 isRecording = true             ← assigned only here, as the final line
 ```
 
-All operations after the last `await` (microphone permission) are synchronous on
-`@MainActor`. The `onChange(of: captureMode)` swipe-away handler cannot
-interleave with this stretch — it is queued on `@MainActor` and runs only at
-`await` suspension points.
+The detached setup prevents AVAudioSession/input negotiation from blocking the
+main actor. Cancellation is checked after every permission/availability await
+and again after detached engine startup; cancellation cleanup releases only the
+lease owned by this dictation attempt.
 
 ### `teardownAudioEngine` (private)
 
@@ -287,10 +300,11 @@ interleave with this stretch — it is queued on `@MainActor` and runs only at
 audioEngine.stop()                        // no-op if not running
 audioEngine.inputNode.removeTap(onBus: 0) // no-op if no tap installed
 recognitionRequest?.endAudio()
-recognitionTask?.cancel()
+recognitionTask?.finish()
 recognitionRequest = nil
 recognitionTask = nil
-try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+audioSessionLease = nil
+Task { await AudioSessionCoordinator.shared.deactivate(ifCurrent: lease) }
 ```
 
 Both `stop()` and `removeTap(onBus:)` are called **unconditionally**. This
@@ -307,100 +321,26 @@ resetting `isRecording = false` without user action.
 
 ---
 
-## 5. `CaptureWorkspaceView` Dictation Wiring
+## 5. Workspace Dictation and Sheet Wiring
 
-### State additions
+`CaptureActionCoordinator` is the intent boundary between fixed capture chrome
+and Describe lifecycle state:
 
-```swift
-@Environment(SpeechManager.self) var speechManager
-@State private var observationContext = ObservationContext()
-@State private var dictationTask: Task<Void, Never>?
-```
+- `CaptureControlBar` toggles `isDictationRequested` and assigns a new
+  `tocRequestID`; it does not own speech tasks or sheet presentation.
+- `DescribeInputLifecycleObserver` observes those intents outside the pager. It
+  captures the existing text as a baseline, starts `SpeechManager`, appends live
+  cumulative transcription, and mirrors automatic speech termination back to
+  the coordinator.
+- Leaving Describe, removing the workspace, or toggling dictation off calls the
+  shared stop path. It stops the speech engine, cancels setup, clears task state,
+  and resets the coordinator flag, including the mid-permission-dialog case.
+- `CaptureWorkspaceView` owns `isDescribeQuestionsSheetPresented` and applies
+  `DescribeQuestionsSheet` at workspace scope. Reanalysis suppresses that sheet.
 
-`dictationTask` holds a strong reference to the active async setup task. It is
-the cancellation handle for the mid-permission-dialog swipe-away scenario.
-
-### `onTranscribe` logic (at `CaptureButton` call site)
-
-```swift
-// Stop path — covers both active recording and mid-setup cancellation
-if speechManager.isRecording || dictationTask != nil {
-    speechManager.stopDictation()
-    dictationTask?.cancel()
-    dictationTask = nil
-    return
-}
-
-// Start path
-UIApplication.shared.sendAction(
-    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
-)
-let baseline = observationContext.freeText
-
-dictationTask = Task {
-    defer { dictationTask = nil }
-    do {
-        try await speechManager.startDictation(onResult: { text in
-            let separator = baseline.isEmpty ? "" : " "
-            observationContext.freeText = baseline + separator + text
-        })
-    } catch is PermissionError {
-        viewModel.offlineToastMessage = "Microphone access required. Check Settings."
-    } catch {
-        // Silently swallow hardware/OS faults — no user-actionable recovery path
-    }
-}
-```
-
-**Keyboard dismissal**: `resignFirstResponder` fires before `startDictation` to
-prevent the `TextEditor` from accepting concurrent input while recognition
-results are streaming. Each `onResult` callback delivers the full cumulative
-transcription for the current session (not just new words) —
-`observationContext.freeText = baseline + separator + text` would overwrite
-anything typed after dictation started.
-
-**Baseline capture**: `baseline` captures `observationContext.freeText` at the
-moment the mic is tapped. Recognition callbacks prepend it to every result,
-preserving text the user entered before starting dictation.
-
-**`defer { dictationTask = nil }`**: Runs when the `Task` body exits (success,
-`PermissionError` catch, or hardware catch). `dictationTask == nil` after normal
-setup completes, which is why the stop-path guard checks
-`speechManager.isRecording || dictationTask != nil` — `isRecording` catches the
-active-recording case after `dictationTask` has already been cleared.
-
-### Swipe-away teardown
-
-Added to the existing `onChange(of: captureMode)` handler inside the
-`ScrollView`:
-
-```swift
-if newMode != .describe {
-    dictationTask?.cancel()
-    dictationTask = nil
-    speechManager.stopDictation()
-    UIApplication.shared.sendAction(
-        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
-    )
-}
-```
-
-Cancelling `dictationTask` before calling `stopDictation()` ensures
-`startDictation` will see `Task.isCancelled == true` at its next check point
-even if it resumes from a permission prompt after the swipe has completed.
-`stopDictation()` then cleans up any engine state that managed to start before
-cancellation was observed.
-
-### `CaptureButton` struct
-
-`private struct CaptureButton: View` accepts four parameters:
-
-| Parameter      | Type          | Purpose                              |
-| -------------- | ------------- | ------------------------------------ |
-| `captureMode`  | `CaptureMode` | Drives visual style                  |
-| `isRecording`  | `Bool`        | Drives pulse animation on `mic.fill` |
-| `onCapture`    | `() -> Void`  | Shutter tap in `.visual` mode        |
-| `onTranscribe` | `() -> Void`  | Mic tap in `.describe` mode (toggle) |
+This split is part of the startup stability contract: the Describe page renders
+prompt state but does not attach reactive tasks or sheet hosts to the nested page
+hierarchy.
 
 ---
 
@@ -416,28 +356,23 @@ Both required `Info.plist` strings are already present:
 Permission requests happen inside `startDictation` — not at app launch or
 onboarding. First-time users see both iOS system permission dialogs on their
 first mic tap. Subsequent taps skip the dialogs (already authorized). Denial on
-either dialog causes `startDictation` to throw `PermissionError`, which surfaces
-as the toast.
+either dialog causes `startDictation` to throw `PermissionError`; the lifecycle
+observer clears the dictation request so the control returns to its idle state.
 
 ---
 
 ## 7. AVAudioSession Lifecycle
 
-| Event                                              | Action                                                                             |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `startDictation` called                            | `setCategory(.record, mode: .measurement)` + `setActive(true)`                     |
-| `stopDictation()` called                           | `setActive(false, options: .notifyOthersOnDeactivation)` via `teardownAudioEngine` |
-| Task cancelled mid-setup (after session activated) | `setActive(false, ...)` before returning from `startDictation`                     |
-| `SFSpeechRecognitionTask` auto-terminates          | `stopDictation()` → `teardownAudioEngine` → session deactivated                    |
+| Event                                              | Action                                                                                             |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `startDictation` called                            | Acquires a `.recordMeasurement` lease from `AudioSessionCoordinator`                               |
+| `stopDictation()` called                           | Tears down recognition and asks the coordinator to deactivate only if this lease is still current |
+| Task cancelled mid-setup (after session activated) | `handleCancelledStartup()` tears down and releases the owned lease                                 |
+| `SFSpeechRecognitionTask` auto-terminates          | `stopDictation()` → `teardownAudioEngine()` → token-aware deactivation                             |
 
-`notifyOthersOnDeactivation` on deactivation signals the audio subsystem to
-restore any previously ducked audio (e.g., music playback) once dictation ends.
-This also ensures `AudioCaptureManager` on the `.audio` page can acquire its own
-`AVAudioSession` cleanly after the user swipes away from `.describe`. Both
-`SpeechManager` and `AudioCaptureManager` use the same `.record` /
-`.measurement` session category and the same `Task.detached` activation pattern
-— whichever page the user is on last cleanly deactivates before the other
-activates.
+The lease prevents delayed teardown from one mode from deactivating a newer
+audio owner. This lets `AudioCaptureManager` acquire its own recording lease
+cleanly after the user leaves Describe, even when stop/start work overlaps.
 
 ---
 
@@ -468,3 +403,16 @@ The recognition result handler dispatches back to `@MainActor` via
 - The dictation lifecycle contract is now "activate late, teardown on every
   failure path, and never rely on the happy-path stop call to release engine
   resources."
+
+## 2026-07 Workspace and Startup Hardening
+
+- `DescribeInputView` is render-only inside the lazy horizontal pager; UIKit
+  owns its vertical scroll container.
+- `DescribeInputLifecycleObserver`, prompt state, and prompt-sheet presentation
+  live at workspace scope so their reactive tasks cannot participate in page
+  layout.
+- Leaving Describe or removing the workspace stops both live and still-starting
+  dictation, cancels the task, and clears the requested state.
+- `DescribePrompts` is the stable UI-test identifier for the prompt-list button.
+  `merianUITests.testDescribeFirstLaunchRendersAndOpensPrompts` verifies the
+  Description-first render and sheet route.

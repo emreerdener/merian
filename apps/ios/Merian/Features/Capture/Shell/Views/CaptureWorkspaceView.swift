@@ -64,8 +64,9 @@ struct CaptureWorkspaceView: View {
     @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
     @State private var observationContext = ObservationContext()
+    @State private var describePromptManager = DescribePromptManager()
+    @State private var isDescribeQuestionsSheetPresented = false
     @State private var isKeyboardVisible: Bool = false
-    @State private var controlBarHeight: CGFloat = 250
 
     // MARK: - Zoom Drag Lock
     @State private var isVerticalZooming: Bool = false
@@ -160,7 +161,7 @@ struct CaptureWorkspaceView: View {
 
         ZStack {
                 // Paged capture mode switcher.
-                // CameraPreviewView lives inside page 1 so the outer horizontal UIScrollView
+                // CameraPreviewView lives inside the visual page so the outer horizontal UIScrollView
                 // naturally defers vertical pan gestures to the inner camera pan recognizer
                 // (zoom), while claiming horizontal ones (paging).
                 // GeometryReader captures the true full-screen dimensions (after the outer
@@ -170,11 +171,11 @@ struct CaptureWorkspaceView: View {
                 GeometryReader { proxy in
                     ScrollViewReader { scrollProxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 0) {
+                            LazyHStack(spacing: 0) {
                                 ForEach(orderedModes, id: \.self) { mode in
                                     switch mode {
                                     case .visual:
-                                        // MARK: Page 1 — Camera
+                                        // MARK: Visual page — Camera
                                         VisualCaptureView(
                                             viewModel: viewModel,
                                             isVerticalZooming: $isVerticalZooming
@@ -184,20 +185,18 @@ struct CaptureWorkspaceView: View {
                                         .id(CaptureMode.visual)
 
                                     case .audio:
-                                        // MARK: Page 2 — Audio Recording
+                                        // MARK: Audio page — Recording
                                         AudioRecordingView()
                                             .frame(width: proxy.size.width, height: proxy.size.height)
                                             .clipped()
                                             .id(CaptureMode.audio)
 
                                     case .describe:
-                                        // MARK: Page 3 — Describe Input
+                                        // MARK: Describe page — Text input
                                         DescribeInputView(
-                                            captureMode: captureMode,
                                             promptFlow: viewModel.describePromptFlow,
                                             context: $observationContext,
-                                            coordinator: coordinator,
-                                            showToast: { viewModel.offlineToastMessage = $0 }
+                                            promptManager: describePromptManager
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
                                         .clipped()
@@ -250,8 +249,10 @@ struct CaptureWorkspaceView: View {
                         }
                         .onAppear {
                             // Measure the composing zone: the open area between the mode toggle
-                            // (top overlay, 16pt padding + ~48pt height) and the capture button row
-                            // (bottom overlay, 140pt padding + 80pt button height).
+                            // (top overlay, 16pt padding + ~48pt height) and the capture button row.
+                            // Crop framing intentionally keeps a 16pt margin above the control
+                            // bar's 124pt bottom inset; update this geometry if the fixed
+                            // CaptureControlBarLayout dimensions change.
                             // proxy uses the full-screen frame (.ignoresSafeArea on the GeometryReader)
                             // so safe-area insets must be accounted for explicitly.
                             updateComposingZoneVerticalCenter(from: proxy)
@@ -259,6 +260,16 @@ struct CaptureWorkspaceView: View {
                     }
                 }
                 .ignoresSafeArea()
+
+                DescribeInputLifecycleObserver(
+                    captureMode: captureMode,
+                    promptFlow: viewModel.describePromptFlow,
+                    context: $observationContext,
+                    promptManager: describePromptManager,
+                    isQuestionsSheetPresented: $isDescribeQuestionsSheetPresented,
+                    coordinator: coordinator
+                )
+                .frame(width: 0, height: 0)
 
                 // MARK: Fixed Overlay — Mode Toggle (top)
                 if viewModel.shouldShowMediaModeToggle {
@@ -355,7 +366,7 @@ struct CaptureWorkspaceView: View {
             ),
             toastAlignment: .top
         )
-        .environment(\.controlBarHeight, controlBarHeight)
+        .environment(\.controlBarHeight, CaptureControlBarLayout.reservedHeight)
         .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
         .modifier(ExternalImageImportRetryModifier(
             viewModel: viewModel,
@@ -363,9 +374,6 @@ struct CaptureWorkspaceView: View {
             stagedCaptureLimit: viewModel.stagedCaptureLimit,
             isProActive: revenueCatManager.isProActive
         ))
-        .onPreferenceChange(CaptureBarHeightPreferenceKey.self) { newHeight in
-            updateControlBarHeight(newHeight)
-        }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
         .task(id: messageShareCacheSignature) {
             await MessageScanShareCacheWriter.refresh(
@@ -407,6 +415,21 @@ struct CaptureWorkspaceView: View {
                     guard viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex) else { return }
                     viewModel.stagedCapture.observationContexts.remove(at: selectedIndex)
                     stagedDescriptionEditIndex = nil
+                }
+            )
+        }
+        .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
+            DescribeQuestionsSheet(
+                promptManager: describePromptManager,
+                hasInputs: !observationContext.freeText
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .isEmpty,
+                onReset: {
+                    HapticManager.shared.triggerMediumPulse()
+                    observationContext.freeText = ""
+                    describePromptManager.resetFunnel()
+                    describePromptManager.activeQuestionIndex = 0
+                    viewModel.offlineToastMessage = "Draft discarded"
                 }
             )
         }
@@ -464,9 +487,8 @@ struct CaptureWorkspaceView: View {
             activeCaptureGoalStore.activate(accountId: currentAccountId)
             if FieldTripsAvailability.isEnabled {
                 Task {
-                    await activeCaptureGoalStore.refresh(
-                        accountId: currentAccountId,
-                        force: true
+                    await activeCaptureGoalStore.refreshIfStale(
+                        accountId: currentAccountId
                     )
                 }
             }
@@ -551,9 +573,8 @@ struct CaptureWorkspaceView: View {
             activeCaptureGoalStore.activate(accountId: currentAccountId)
             guard FieldTripsAvailability.isEnabled else { return }
             Task {
-                await activeCaptureGoalStore.refresh(
-                    accountId: currentAccountId,
-                    force: true
+                await activeCaptureGoalStore.refreshIfStale(
+                    accountId: currentAccountId
                 )
             }
         }
@@ -691,20 +712,6 @@ struct CaptureWorkspaceView: View {
         let screenBounds = UIScreen.main.bounds
         let visibleKeyboardHeight = max(0, screenBounds.maxY - endFrame.minY)
         return visibleKeyboardHeight > 80
-    }
-
-    private func updateControlBarHeight(_ newHeight: CGFloat) {
-        guard newHeight.isFinite, newHeight > 0 else { return }
-        guard abs(controlBarHeight - newHeight) > 0.5 else { return }
-
-        DispatchQueue.main.async {
-            guard abs(controlBarHeight - newHeight) > 0.5 else { return }
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                controlBarHeight = newHeight
-            }
-        }
     }
 
     private func updateComposingZoneVerticalCenter(from proxy: GeometryProxy) {
@@ -1230,13 +1237,6 @@ private struct ExternalImageImportRetryModifier: ViewModifier {
 }
 
 // MARK: - Safe Area Synchronization
-struct CaptureBarHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 250
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 extension EnvironmentValues {
     var controlBarHeight: CGFloat {
         get { self[ControlBarHeightKey.self] }
@@ -1245,7 +1245,7 @@ extension EnvironmentValues {
 }
 
 private struct ControlBarHeightKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 250
+    static let defaultValue = CaptureControlBarLayout.reservedHeight
 }
 
 extension EnvironmentValues {

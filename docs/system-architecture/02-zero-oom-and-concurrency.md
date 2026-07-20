@@ -106,6 +106,25 @@ Injecting singleton managers into the view hierarchy via `.environment(container
 ### SwiftUI Presentation Collisions (`CaptureWorkspaceView`)
 Apple's iOS 17 rendering engine throws fatal exceptions if the UI attempts to present multiple `.sheet` modifiers from concurrent background triggers (e.g. `isScansOpen = true` overlapping with `isInsightSheetOpen = true`). Merian prevents UI presentation overlaps by abandoning discrete `@Published` boolean switches in `CaptureWorkspaceViewModel`. Navigation is mapped against a single unified `enum ActiveSheet: Identifiable` property routed through a `Group { switch sheet }`. This blocks the UI from issuing parallel presentation commands, guaranteeing stable 120Hz view transitions without iOS framework layer crashes.
 
+### Capture Startup AttributeGraph Isolation
+
+The user may configure Scan, Record, or Describe as the first capture page, so
+the startup view graph cannot assume Camera is selected. The horizontal pager
+uses `LazyHStack`, and `CaptureWorkspaceView` initializes both its selected mode
+and scroll position from the first sanitized preference value. Describe keeps
+its vertical scroller behind a UIKit hosting boundary; its dictation/prompt
+lifecycle observer and prompt sheet are mounted outside the pager. Fixed capture
+chrome publishes `CaptureControlBarLayout.reservedHeight` instead of measuring
+a child and writing that value back into parent layout.
+
+These boundaries eliminate the startup cycle previously formed by eager
+off-screen pages, nested SwiftUI scroll graphs, presentation state, and a layout
+preference feedback loop. Do not collapse them without cold-launching all three
+first-mode permutations with `AG_PRINT_CYCLES=3`. Automated UI tests cover
+Audio-first selection and Description-first rendering/sheet presentation; the
+strict cycle trace remains a separate diagnostic requirement documented in
+[`08-testing-strategy.md`](../development-guides/08-testing-strategy.md).
+
 ### Swift 6 MainActor Initialization (`CaptureTelemetry`)
 When mapping telemetry from the global `InferenceEngine` into a lightweight, `Sendable` `CaptureTelemetry` struct for network offloading, a standard struct initializer `init(from inferenceEngine:)` violates Swift 6 concurrency rules. Because the `InferenceEngine` tracks its properties on the `@MainActor`, a non-isolated initializer crosses execution boundaries, triggering a "Main actor-isolated property can not be referenced from a nonisolated context" compiler error. Merian tags `@MainActor` on the `CaptureTelemetry` initializer itself (`@MainActor init(from inferenceEngine: InferenceEngine)`), ensuring execution aligns with `AppDIContainer.handleBackgroundPhase()` on the UI thread.
 

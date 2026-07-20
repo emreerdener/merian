@@ -28,6 +28,8 @@ conversion into its feature-local route types.
 
 `ActiveCaptureGoalStore` owns selection, bidirectional wrapping, five-minute
 freshness, refresh coalescing, and a versioned goal/introduction cache isolated by Supabase account.
+Concurrent freshness checks share the active provider fetch. Only an explicit
+forced invalidation received during that fetch schedules one follow-up refresh.
 Capture keeps the last successful context when a provider refresh fails. New
 goal sources should add an explicit source kind, provider mapping, and typed
 destination instead of exposing their network models to Capture.

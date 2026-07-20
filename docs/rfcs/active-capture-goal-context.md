@@ -172,8 +172,10 @@ from an unrelated target.
 - selection preservation across a refresh;
 - advancement to the next surviving target after completion;
 - a five-minute freshness window;
-- coalescing overlapping forced invalidations into one follow-up refresh; and
-- silent retention of the last successful snapshot on request failure.
+- sharing one in-flight provider fetch across overlapping freshness checks;
+- coalescing explicit forced invalidations received during that fetch into one
+  follow-up refresh;
+- silent retention of the last successful snapshot on request failure; and
 - the provider-validated introduction when no active goal exists.
 
 The cache is a versioned `Codable` envelope in `UserDefaults`, keyed by the
@@ -189,10 +191,13 @@ of trying to decode the old shape opportunistically.
 
 Refresh policy:
 
-- force asynchronously on Capture appearance;
-- refresh when stale after foregrounding or returning to visual Scan;
+- refresh through the five-minute freshness gate on Capture appearance,
+  Supabase account restoration/change, foregrounding, or return to visual Scan;
 - force after outing start/join and standard progress events;
-- force after account changes and explicit scanner-routing events; and
+- force after explicit scanner-routing or capture-goal invalidation events;
+- when lifecycle callbacks overlap at startup, share the current fetch without
+  scheduling a follow-up; only a forced invalidation during that fetch schedules
+  one follow-up; and
 - never await the request before starting the camera or accepting a capture.
 
 An empty active-context response causes the Field trip provider to fetch the

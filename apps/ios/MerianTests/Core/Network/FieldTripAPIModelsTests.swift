@@ -1516,6 +1516,37 @@ struct ActiveCaptureGoalStoreTests {
         #expect(store.selectedGoal?.id == "a")
     }
 
+    @Test func overlappingStartupRefreshesShareOneProviderFetch() async {
+        let defaults = makeDefaults()
+        let fetcher = SuspendedCaptureGoalContextFetcher(
+            snapshot: CaptureGoalContextSnapshot(
+                goals: [makeGoal(id: "a")],
+                introduction: nil
+            )
+        )
+        let store = ActiveCaptureGoalStore(userDefaults: defaults) {
+            await fetcher.fetch()
+        }
+
+        let firstRefresh = Task {
+            await store.refreshIfStale(accountId: "account")
+        }
+        while !store.isLoading {
+            await Task.yield()
+        }
+        while await fetcher.callCount == 0 {
+            await Task.yield()
+        }
+
+        await store.refreshIfStale(accountId: "account")
+        await fetcher.resume()
+        await firstRefresh.value
+        await Task.yield()
+
+        #expect(await fetcher.callCount == 1)
+        #expect(store.selectedGoal?.id == "a")
+    }
+
     @Test func completionAdvancesToTheNextTargetAtTheSameFlattenedPosition() async throws {
         let defaults = makeDefaults()
         let queue = CaptureGoalContextQueue([
@@ -1918,6 +1949,29 @@ private actor CaptureGoalContextQueue {
     func next() throws -> CaptureGoalContextSnapshot {
         guard !values.isEmpty else { throw TestError.exhausted }
         return values.removeFirst()
+    }
+}
+
+private actor SuspendedCaptureGoalContextFetcher {
+    private(set) var callCount = 0
+    private let snapshot: CaptureGoalContextSnapshot
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(snapshot: CaptureGoalContextSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    func fetch() async -> CaptureGoalContextSnapshot {
+        callCount += 1
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+        return snapshot
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 

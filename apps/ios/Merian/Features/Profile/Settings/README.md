@@ -50,6 +50,23 @@ The section previously named **Capture** is now **Workspace**. It continues to
 own Camera, Audio, **Reorder modes**, Field trip goals, and confirmation
 preferences; the rename does not move those controls or change their behavior.
 
+### Reorder modes
+
+`captureModeOrderRaw` stores a comma-separated permutation of `visual`, `audio`,
+and `describe`; the registered default is `visual,audio,describe`.
+`CaptureMode.userOrder(from:)` ignores unsupported values and appends any
+missing supported modes. `CaptureWorkspaceView` writes that healed sequence
+back when necessary. The Settings reorder UI itself always emits one entry per
+supported mode.
+
+The workspace samples the first decoded mode in its initializer. Therefore a
+fresh workspace opens directly into the user's first mode, whether that is
+Scan, Record, or Describe. Audio-first does not start the camera, and
+Description-first mounts the text workflow immediately. Reordering while the
+workspace already exists preserves the active mode and reanchors that page in
+the new sequence; the new first mode becomes the default on the next fresh
+workspace launch.
+
 ## Fresh-launch contract
 
 `MerianApp` samples `opensExploreOnLaunch` once when a new process is created.
