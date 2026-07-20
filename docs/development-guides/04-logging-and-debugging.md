@@ -135,6 +135,7 @@ Some noisy lines come from Apple frameworks or third-party development configura
 | `RevenueCat returned no current offering`, `current offering has no available packages`, or `missing required products` | StoreKit returned far enough for the app's own offering policy to run, but the dashboard-selected offering is absent or incomplete. Required product IDs are `pro_week` and `pro_annual`. | Fix RevenueCat current-offering selection and package mapping, then repeat the paywall smoke test. |
 | `RevenueCat is already using the same appUserID` | The SDK was asked to log in the already-cached Supabase UUID. | Benign when followed by `RevenueCat login succeeded`; investigate only if identity or entitlement state is wrong. |
 | `field_trip_action_rejected` | The Edge function received an unknown action; the structured field contains at most 64 characters and omits every other request field plus the derived user ID. | Compare the deployed `field-trips/actions.ts` allowlist with the client version. Usually indicates a stale client or a server action that was not deployed. |
+| `Failed to register push device: invalid regular expression: invalid repetition count(s)` | The database still has the obsolete APNs-token check using the unsupported PostgreSQL `{32,512}` regex bound. Receiving an APNs token from iOS does not mean the server saved it. | Confirm migration `20260720174209_fix_push_device_token_constraint.sql` is deployed, then trigger notification-permission synchronization and require `/register-push-device` to return success. |
 | Missing valid `aps-environment` entitlement | The signed app cannot register correctly with APNs. | Inspect the archived app's signed entitlements, the explicit App ID capability, and the distribution provisioning profile. Release must resolve `APS_ENVIRONMENT=production`. |
 | `Invalid frame dimension` or non-finite SwiftUI geometry near Explore detail/audio | A proposed layout or playback progress contained `NaN`/infinity/non-positive values. | Current layout and spectrogram policies sanitize these values. Reproduce only if a new frame/offset calculation bypasses `ExploreDetailZoomLayoutPolicy` or `AudioSpectrogramSeekingPolicy`. |
 | `AttributeGraph: cycle detected through attribute ...` | SwiftUI detected a dependency cycle. The numeric attribute is process-local and does not identify a source view by itself. Capture previously combined eager off-screen pages, nested SwiftUI scroll containers, sheet state, and layout-preference feedback. | Record the screen and interaction that reproduce it, then use Instruments' SwiftUI View Properties instrument. Confirm the pager still uses `LazyHStack`, Describe still uses its UIKit vertical-scroll boundary with lifecycle/sheet ownership outside the pager, and the capture bar still uses a fixed layout reservation. Cold-launch all three configurable first modes with `AG_PRINT_CYCLES=3`; guard any new layout-derived state writes with equality/tolerance checks. |
@@ -157,6 +158,13 @@ with a real failure:
   ownership and should be checked against the Capture appearance/account paths.
 - `syncPendingScans skipped because sync active` is the expected single-flight
   guard. It is not a dropped scan; the existing task owns the work.
+- `Received APNs device token from the system` confirms only the Apple callback.
+  Server registration is healthy only when no subsequent remote-registration
+  error appears. Migration `20260720174209_fix_push_device_token_constraint.sql`
+  was applied to the linked hosted project on 2026-07-20. Seeing the invalid
+  repetition error after that date usually means the app is pointed at a
+  different or stale Supabase project; compare that project's migration history
+  before changing the client or Edge Function regex.
 - Preferred-name synchronization ending with `0 local, 0 remote, 0 pushed` is a
   healthy no-op. Matching values and matching tombstones should not be rewritten.
 - One slower request is a sample, not a regression. Compare repeated p50/p95

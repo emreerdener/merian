@@ -65,10 +65,25 @@ TestFlight, App Store, support, and QA.
   repeating the same capture-context and introduction requests. Leaving
   Description or closing the workspace now also stops dictation that is active
   or still starting.
+- Restored the camera hint badge's pre-regression position above the shutter;
+  full-screen overlays now use their prior fixed 250 pt clearance without
+  reintroducing capture-bar measurement or startup layout feedback, with a UI
+  regression test that checks the rendered hint and shutter frames do not overlap.
+- Center-aligned the primary and secondary capture controls across Scan, Record,
+  and Describe, and restored the Describe editor's clearance above that row;
+  expanded the editor to fill the available height instead of leaving blank
+  space above the controls; removed Describe's duplicate top-safe-area padding;
+  Describe UI coverage now bounds both surrounding gaps and verifies the shared
+  control centerline.
 - Release configuration now requests the production APNs entitlement.
 
 ### Explore
 
+- Fixed remote push-device registration failing with a Supabase 500 by replacing
+  an unsupported PostgreSQL `{32,512}` regex bound with separate hex-format and
+  length constraints; added static migration and executable database coverage,
+  and clarified that the iOS token log records Apple's callback rather than a
+  completed server registration.
 - Reduced unread-badge network churn by sharing one in-flight count refresh,
   briefly reusing successful results, and using Realtime as the primary update
   path with a five-minute polling fallback.

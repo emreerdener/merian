@@ -242,8 +242,19 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
   Describe's vertical content is hosted by UIKit, and its prompt/dictation
   lifecycle observer plus prompt sheet live at workspace scope. The capture bar
   uses `CaptureControlBarLayout`'s fixed 80 pt control, 124 pt bottom inset, and
-  204 pt reservation instead of publishing measured child height into parent
-  layout. These lazy-construction, scroll-hosting, presentation, and fixed-layout
+  204 pt safe-area-relative reservation instead of publishing measured child
+  height into parent layout. Full-screen hint and audio overlays use the fixed
+  250 pt pre-regression clearance; they do not derive it from the full-bleed
+  pager, whose bottom safe-area inset is zero. The 80 pt primary capture control
+  and 50 pt secondary controls share one vertical centerline in every mode. The
+  UIKit-hosted Describe editor uses a 204 pt bottom content reservation matching
+  the overlaid row. Its flexible rounded field fills the remaining height, with
+  UI coverage requiring 8...32 pt between their rendered frames. Its top spacer
+  is a fixed 60 pt selector
+  band and does not add the safe area again; the rendered selector-to-question
+  gap must stay within 8...32 pt.
+  These lazy-construction,
+  scroll-hosting, presentation, and fixed-layout
   boundaries are the startup AttributeGraph stability contract for all three
   configurable first modes. Camera-only controls keep their slots hidden in
   Record; Describe exposes prompt-list and dictation intents through

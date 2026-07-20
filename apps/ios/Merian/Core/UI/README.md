@@ -10,15 +10,29 @@ This area houses reusable view modifiers, generic controls (e.g., primary action
 `Components/CaptureControlBar.swift` exposes `CaptureControlBarLayout` as the
 fixed chrome contract shared with `CaptureWorkspaceView`: an 80 pt primary
 control, a 124 pt bottom inset, and a 204 pt reserved height. The workspace
-publishes that reservation through the environment for page clearance,
-including Audio spectrogram layout, instead of measuring the rendered bar with
-a preference key. Camera crop composition keeps its separately documented
-framing margin.
+publishes that fixed reservation without measuring the rendered bar with a
+preference key. Full-screen Camera and Audio overlays use the separate fixed
+`fullScreenOverlayClearance` value of 250 pt, preserving the position used before
+child measurement was removed. The full-screen pager reports a zero bottom
+safe-area inset, so its geometry must not be used to derive this clearance.
+The shared capture row center-aligns its 80 pt primary control with the 50 pt
+secondary controls in Camera, Audio, and Describe. Describe's UIKit-hosted
+editor uses the 204 pt `describeContentBottomClearance` reservation, matching
+the row's actual reserved height. The editor's flexible interior consumes the
+remaining viewport height, and its own 24 pt bottom padding separates the
+rounded field from the fixed row instead of leaving blank page space.
+Camera crop composition keeps its separately documented framing margin.
 
 Do not reintroduce child-size-to-parent-state feedback for this fixed chrome.
 If the control dimensions change, update the constants and verify Camera-,
 Audio-, and Description-first cold launches with strict AttributeGraph cycle
-logging. The Describe table-of-contents control exposes the accessibility label
+logging. `testCameraHintPreservesClearanceAboveShutter` also verifies the real
+rendered hint and shutter frames retain at least 8 pt of separation.
+`testDescribeFirstLaunchRendersAndOpensPrompts` verifies both the Describe
+control-row centerline and 8...32 pt of rendered clearance below the editor.
+It also requires 8...32 pt between the `CaptureModeToggle` and Describe question
+navigation, catching both overlap and duplicate top-safe-area padding.
+The Describe table-of-contents control exposes the accessibility label
 **Show prompts** and stable UI-test identifier `DescribePrompts`.
 
 ## Shared Goal Progress

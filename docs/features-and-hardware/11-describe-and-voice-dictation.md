@@ -415,4 +415,12 @@ The recognition result handler dispatches back to `@MainActor` via
   dictation, cancels the task, and clears the requested state.
 - `DescribePrompts` is the stable UI-test identifier for the prompt-list button.
   `merianUITests.testDescribeFirstLaunchRendersAndOpensPrompts` verifies the
-  Description-first render and sheet route.
+  Description-first render and sheet route. It also verifies that prompt,
+  submit, and dictation controls share a centerline and that the rounded editor
+  retains 8...32 pt of rendered clearance above them. The editor reserves the
+  row's fixed 204 pt `CaptureControlBarLayout.describeContentBottomClearance`
+  inside its UIKit-hosted scroll content and flexes to consume the remaining
+  height. At the top, the hosted page reserves
+  only a fixed 60 pt selector band because its origin is already safe-area
+  adjusted. UI coverage requires an 8...32 pt gap from `CaptureModeToggle` to
+  `DescribeQuestionNavigation`, preventing duplicate top-safe-area padding.

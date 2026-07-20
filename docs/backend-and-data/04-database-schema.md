@@ -1637,7 +1637,14 @@ Remote push device registry for Explore activity delivery. Added in migration
 - `id` (UUID): Primary key.
 - `user_id` (UUID FK → `users.id`, CASCADE DELETE): Owning Merian user.
 - `device_token` (TEXT): Lowercase APNs token, unique per
-  `(device_token, platform, environment)`.
+  `(device_token, platform, environment)`. Migration
+  `20260720174209_fix_push_device_token_constraint.sql` validates the 32...512
+  character length separately from the hex-only regex. Do not combine that
+  range into a PostgreSQL `{32,512}` regex bound: PostgreSQL rejects repetition
+  bounds above 255 and registration fails before the row is written. The active
+  validated constraints are
+  `user_push_devices_device_token_format_check` and
+  `user_push_devices_device_token_length_check`.
 - `platform` (TEXT): Currently `'ios'`.
 - `environment` (TEXT): `'sandbox'` or `'production'` so debug and release
   tokens are routed to the correct APNs host.

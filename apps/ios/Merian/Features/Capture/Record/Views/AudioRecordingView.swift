@@ -33,7 +33,6 @@ struct RecordingCountdownBadge: View {
 /// three states: idle → recording (live spectrogram + SNR) → review (play/confirm/discard).
 struct AudioRecordingView: View {
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
-    @Environment(\.controlBarHeight) private var controlBarHeight
     @Environment(\.composingCenter) private var composingCenter
 
     // MARK: - Carousel State
@@ -46,10 +45,11 @@ struct AudioRecordingView: View {
                 Color(UIColor.systemBackground).ignoresSafeArea()
 
                 let showSpectrogram = audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil
+                let bottomClearance = CaptureControlBarLayout.fullScreenOverlayClearance
 
                 if showSpectrogram {
                     let centerY = proxy.size.height * composingCenter
-                    let halfHeight = min(centerY - 100, proxy.size.height - controlBarHeight - centerY - 88)
+                    let halfHeight = min(centerY - 100, proxy.size.height - bottomClearance - centerY - 88)
                     let spectrogramHeight = max(180, halfHeight * 2)
                     
                     VStack(spacing: 16) {
@@ -67,7 +67,7 @@ struct AudioRecordingView: View {
                     Spacer()
                     if !showSpectrogram || audioCaptureManager.pendingPlaybackPath == nil {
                         SNRGaugeView(snrLevel: audioCaptureManager.snrLevel)
-                            .padding(.bottom, controlBarHeight + 16)
+                            .padding(.bottom, bottomClearance + 16)
                             .opacity(audioCaptureManager.isRecording ? 1 : 0)
                     }
                 }

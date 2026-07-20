@@ -679,9 +679,28 @@ the staged signing limits, allowed content types, and six-file video batch in
 sync with the documented contract; and `_tests/migrationMediaContract.test.ts`
 checks the scan-media, reconciliation, scanless staged-row repair,
 video-audio metadata backfill, ingestion-job, manifest-checksum, intent-outbox,
-and replay-worker migrations.
+replay-worker migrations, and the APNs device-token constraint repair.
 Run the migration contract test with `--allow-read=services/supabase/migrations`
 because it reads SQL files directly.
+
+Push-device registration has two complementary database checks. The static
+contract prevents a PostgreSQL-incompatible bounded regex from returning, while
+`services/supabase/tests/push_device_registration.sql` inserts a normal
+64-character hexadecimal token and proves that short, oversized, and non-hex
+tokens fail. From the repository root, run:
+
+```bash
+make validate-supabase-migrations
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/push_device_registration.sql
+```
+
+The pgTAP command requires a running local Supabase/Postgres stack. Do not run
+this fixture test with `--linked`: it intentionally writes test rows inside a
+transaction. After a hosted deployment, use migration history plus read-only
+constraint inspection to verify that both push-token constraints exist and are
+validated.
 
 Identification latency has focused contract coverage at each boundary:
 
@@ -768,7 +787,13 @@ the fixed capture-bar layout reservation when extending these surfaces.
 `merianUITests.testAudioFirstLaunchSelectsRecordMode` locks the reordered Audio
 launch selection. `testDescribeFirstLaunchRendersAndOpensPrompts` locks the
 Description-first selection, render path, and workspace-owned prompt-sheet
-interaction; strict cycle tracing remains a separate diagnostic requirement.
+interaction. It also compares rendered frames: all three Describe controls must
+share a centerline, and the rounded editor must end 8...32 pt above the row.
+The upper bound ensures the flexible editor fills the available page height
+instead of leaving a blank band above the controls.
+The question navigation must also begin 8...32 pt below the mode selector; this
+upper bound catches a duplicated top-safe-area reservation.
+Strict cycle tracing remains a separate diagnostic requirement.
 
 After installing the intended Debug build on a disposable booted simulator,
 run each mode as a separate cold launch. Launch arguments override the stored
@@ -785,7 +810,9 @@ leave the workspace idle for startup work to settle, and fail the check on any
 `AttributeGraph: cycle detected` line. Audio-first must not start camera
 hardware. Description-first must render the input, open **Prompts** through
 `DescribePrompts`, scroll vertically, dismiss the keyboard on drag, and stop
-dictation when changing modes.
+dictation when changing modes. It must also keep the editor clear of the prompt,
+submit, and dictation row rather than letting those controls straddle its bottom
+edge.
 `AppDIContainerTests` verifies the presentation preference defaults on and
 persists an explicit opt-out. `AppTelemetryTests` locks the coarse
 action/source-only event shape and prevents goal content or identifiers from

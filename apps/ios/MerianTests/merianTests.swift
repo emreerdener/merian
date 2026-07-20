@@ -387,6 +387,20 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertFalse(viewModel.shouldShowMediaModeToggle)
     }
 
+    func testCaptureControlClearancesPreserveOverlayPositions() {
+        XCTAssertEqual(CaptureControlBarLayout.reservedHeight, 204)
+        XCTAssertEqual(CaptureControlBarLayout.fullScreenOverlayClearance, 250)
+        XCTAssertEqual(CaptureControlBarLayout.describeContentBottomClearance, 204)
+        XCTAssertGreaterThan(
+            CaptureControlBarLayout.fullScreenOverlayClearance,
+            CaptureControlBarLayout.reservedHeight
+        )
+        XCTAssertEqual(
+            CaptureControlBarLayout.describeContentBottomClearance,
+            CaptureControlBarLayout.reservedHeight
+        )
+    }
+
     func testViewfinderHintsHideAfterSingleScanContentIsStaged() {
         let diContainer = AppDIContainer.preview
         diContainer.appSettings.isMultiCaptureEnabled = false

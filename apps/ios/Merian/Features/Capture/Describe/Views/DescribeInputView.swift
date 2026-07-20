@@ -45,6 +45,7 @@ private final class DescribeScrollHostingController<Content: View>: UIViewContro
         scrollView.alwaysBounceVertical = true
         scrollView.showsVerticalScrollIndicator = false
         scrollView.keyboardDismissMode = .onDrag
+        scrollView.contentInsetAdjustmentBehavior = .never
         scrollView.backgroundColor = .clear
 
         let hostedView = hostingController.view!
@@ -196,11 +197,6 @@ struct DescribeInputView: View {
 
     // MARK: - Derived
 
-    private var topSafeArea: CGFloat {
-        let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
-        return windowScene?.windows.first?.safeAreaInsets.top ?? 59
-    }
-
     private var textFieldPlaceholder: String {
         isReanalysisMode
             ? DescribePromptCopy.reanalysisInputPlaceholder
@@ -220,8 +216,9 @@ struct DescribeInputView: View {
             DescribeVerticalScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Top spacer: device safe area + MediaModeToggle (16pt padding + ~44pt height) + 20pt gap.
-                    Spacer().frame(height: topSafeArea + 60)
+                    // The hosted page already begins in safe-area coordinates.
+                    // Reserve only the fixed mode-toggle band and visual gap.
+                    Spacer().frame(height: 60)
 
                     // MARK: Question Header
                     VStack(alignment: .leading, spacing: 0) {
@@ -272,6 +269,8 @@ struct DescribeInputView: View {
                                 }
                             }
                             .padding(.horizontal, 20)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("DescribeQuestionNavigation")
 
                             DescribePromptHeader(
                                 promptManager: promptManager,
@@ -295,30 +294,38 @@ struct DescribeInputView: View {
                                     )
                             )
 
-                        TextField(
-                            textFieldPlaceholder,
-                            text: $context.freeText,
-                            axis: .vertical
-                        )
-                        .id(textFieldPlaceholder)
-                        .accessibilityLabel(textFieldPlaceholder)
-                        .lineLimit(5...10)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .focused($isTextFieldFocused)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 48)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        VStack(spacing: 0) {
+                            TextField(
+                                textFieldPlaceholder,
+                                text: $context.freeText,
+                                axis: .vertical
+                            )
+                            .id(textFieldPlaceholder)
+                            .accessibilityLabel(textFieldPlaceholder)
+                            .lineLimit(5...10)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .focused($isTextFieldFocused)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 48)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                            // Absorb the page's remaining height inside the
+                            // rounded editor instead of below it.
+                            Spacer(minLength: 0)
+                        }
                     }
-                    .frame(minHeight: 160)
+                    .frame(minHeight: 160, maxHeight: .infinity)
+                    .layoutPriority(1)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("DescribeTextArea")
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
 
-                    Spacer() // Absorbs extra vertical space
-
-                    // Bottom spacer: clears the global tab bar / scan toolbar
-                    Spacer().frame(height: 250)
+                    // Keep the editor clear of the fixed capture row and the
+                    // global tab bar while this page scrolls independently.
+                    Spacer().frame(height: CaptureControlBarLayout.describeContentBottomClearance)
                 }
             }
         }

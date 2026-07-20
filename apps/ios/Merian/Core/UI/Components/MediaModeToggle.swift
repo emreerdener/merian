@@ -73,6 +73,7 @@ struct MediaModeToggle: View {
         .clipShape(Capsule())
         .scaleEffect(1.1)
         .padding(.horizontal, 48)
+        .accessibilityIdentifier("CaptureModeToggle")
         .environment(\.colorScheme, activeMode == .visual ? .dark : colorScheme)
     }
 }

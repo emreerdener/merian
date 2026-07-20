@@ -14,9 +14,17 @@ stack when changing pager behavior.
 
 Describe keeps its vertical scrolling behind a UIKit `UIScrollView` hosting
 boundary. Its prompt/dictation lifecycle observer and questions sheet are owned
-by `CaptureWorkspaceView`, outside the horizontal pager. The capture bar also
-publishes the fixed `CaptureControlBarLayout.reservedHeight` instead of feeding a
-measured child height back into parent layout. Together these boundaries prevent
+by `CaptureWorkspaceView`, outside the horizontal pager. Capture chrome derives
+its clearance from fixed `CaptureControlBarLayout` geometry instead of feeding
+a measured child height back into parent layout. Camera and Audio use the fixed
+250 pt full-screen overlay clearance because the full-bleed pager reports a zero
+bottom safe-area inset. The primary and secondary capture controls share one
+vertical centerline across every mode. Describe reserves the row's matching
+204 pt height at the bottom of its UIKit-hosted content. Its flexible rounded
+editor fills the space above the row and retains a 24 pt visual gap. At the top,
+the hosted page uses a 60 pt selector
+band without adding another safe-area inset; UIKit automatic content-inset
+adjustment is disabled. Together these boundaries prevent
 the nested scroll, sheet, and preference feedback that previously formed a
 startup AttributeGraph cycle when Description was the configured first mode.
 

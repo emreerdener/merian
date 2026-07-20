@@ -119,6 +119,13 @@ as their permanent engineering identity.
   SwiftData actor, feature, Edge Function, and testing inventory for this repo
   state.
 
+### Product
+
+- **[`/product/01-master-product-document.md`](./product/01-master-product-document.md)**
+  — Repository-aligned product definition, implementation-status boundaries,
+  current release identifiers, and high-impact corrections to the retired
+  product document.
+
 ### System Architecture
 
 - **[`/system-architecture/01-system-architecture.md`](./system-architecture/01-system-architecture.md)**

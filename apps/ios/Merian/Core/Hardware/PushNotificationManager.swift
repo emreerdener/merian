@@ -110,7 +110,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
     func handleRemoteDeviceToken(_ deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         currentDeviceToken = token
-        MerianLog.hardware.debug("Registered APNs device token.")
+        MerianLog.hardware.debug("Received APNs device token from the system.")
 
         Task {
             await syncRemotePushRegistrationIfPossible(reason: "device_token_received")

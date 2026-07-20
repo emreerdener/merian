@@ -10,7 +10,6 @@ struct MainOverlayView: View {
     var showsViewfinderHints: Bool = true
 
     @Environment(AppSettings.self) private var appSettings
-    @Environment(\.controlBarHeight) private var controlBarHeight
 
     // MARK: - Interface Layout
     var body: some View {
@@ -24,8 +23,9 @@ struct MainOverlayView: View {
                     isVideoRecording: isVideoRecording,
                     videoRecordingProgress: videoRecordingProgress
                 )
-                    // Padding keeps hints consistently above the dynamic capture-bar + tab-bar overlay.
-                    .padding(.bottom, controlBarHeight + 16)
+                    // Keep the pre-regression full-screen offset. The pager ignores safe areas,
+                    // so its GeometryProxy cannot supply the home-indicator inset here.
+                    .padding(.bottom, CaptureControlBarLayout.fullScreenOverlayClearance + 16)
                     .transition(.opacity)
             }
         }

@@ -114,8 +114,10 @@ uses `LazyHStack`, and `CaptureWorkspaceView` initializes both its selected mode
 and scroll position from the first sanitized preference value. Describe keeps
 its vertical scroller behind a UIKit hosting boundary; its dictation/prompt
 lifecycle observer and prompt sheet are mounted outside the pager. Fixed capture
-chrome publishes `CaptureControlBarLayout.reservedHeight` instead of measuring
-a child and writing that value back into parent layout.
+chrome and full-screen overlay clearance come from `CaptureControlBarLayout`
+instead of measuring a child and writing that value back into parent layout.
+The full-screen clearance remains 250 pt because the safe-area-ignoring pager
+reports a zero bottom inset.
 
 These boundaries eliminate the startup cycle previously formed by eager
 off-screen pages, nested SwiftUI scroll graphs, presentation state, and a layout

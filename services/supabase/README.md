@@ -129,6 +129,30 @@ before media reconciliation indexes are created.
 The same migration contract suite covers the identification-latency migration:
 service-role-only RPC grants, the atomic ingestion setup function, combined
 dictionary hydration, and the RLS-protected deferred-context table/trigger.
+It also guards the APNs device-token repair so PostgreSQL format validation and
+32...512 character length validation remain separate. The executable pgTAP
+coverage in `tests/push_device_registration.sql` accepts a normal 64-character
+hex token and rejects short, oversized, and non-hex tokens.
+
+Run the focused checks from the repository root after the local Supabase stack
+is available:
+
+```bash
+make validate-supabase-migrations
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/push_device_registration.sql
+```
+
+Keep the pgTAP fixture local; do not substitute `--linked`. Before deploying a
+database repair, run `supabase --workdir services db push --linked --dry-run`
+and confirm only the reviewed migrations appear. After deployment, run
+`supabase --workdir services migration list --linked`, then inspect
+`pg_constraint` read-only. For the APNs repair, both
+`user_push_devices_device_token_format_check` and
+`user_push_devices_device_token_length_check` must exist with
+`convalidated = true`. The migration is database-only; the existing
+`register-push-device` Edge Function does not need redeployment.
 
 Field trips migrations also have static contract coverage. The current chain is
 V1 template/progress/publication storage, V2 guided detail/start/pins, V3

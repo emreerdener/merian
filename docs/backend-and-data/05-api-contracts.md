@@ -3888,7 +3888,13 @@ activity pushes:
 - The endpoint is authenticated with the viewer's existing Supabase session,
   just like the other Explore nodes.
 - `device_token` is normalized to lowercase and upserted by
-  `(device_token, platform, environment)`.
+  `(device_token, platform, environment)`. It must contain only hexadecimal
+  characters and be 32...512 characters long. The Edge Function may express
+  that complete policy as the JavaScript regex `/^[0-9a-f]{32,512}$/i` because
+  JavaScript accepts that repetition bound. PostgreSQL enforces the same policy
+  as separate format and length constraints because its regex engine rejects
+  repetition bounds above 255. Do not "repair" the valid Edge Function regex or
+  recombine the database checks.
 - `explore_enabled` is feature-specific. Users can opt into Explore activity
   pushes without also enabling discovery-result alerts. New installs default
   this setting on.
@@ -3905,6 +3911,10 @@ activity pushes:
   `community_identifications_enabled` to be true.
 - The server stores these rows in `public.user_push_devices`. Delivery failures
   from APNs feed back into that table via `last_error_*` fields and `is_active`.
+- Migration `20260720174209_fix_push_device_token_constraint.sql` is a
+  database-only repair. It does not require an Edge Function deployment. After
+  applying it, the next notification-permission/token synchronization retries
+  registration through the existing function.
 
 ### iOS Mapping
 

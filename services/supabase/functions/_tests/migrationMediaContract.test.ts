@@ -32,6 +32,33 @@ function assertBefore(
   );
 }
 
+Deno.test("push device token migration avoids unsupported PostgreSQL regex bounds", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260720174209_fix_push_device_token_constraint.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "DROP CONSTRAINT IF EXISTS user_push_devices_device_token_check",
+      "ADD CONSTRAINT user_push_devices_device_token_format_check",
+      "CHECK (device_token ~ '^[A-Fa-f0-9]+$') NOT VALID",
+      "ADD CONSTRAINT user_push_devices_device_token_length_check",
+      "CHECK (CHAR_LENGTH(device_token) BETWEEN 32 AND 512) NOT VALID",
+      "VALIDATE CONSTRAINT user_push_devices_device_token_format_check",
+      "VALIDATE CONSTRAINT user_push_devices_device_token_length_check",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("{32,512}"),
+    "PostgreSQL rejects regex repetition bounds above 255.",
+  );
+});
+
 Deno.test("Explore post detail permits audio-only scans and retains AI reasoning", async () => {
   const sql = normalized(
     await migrationSql(

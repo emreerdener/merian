@@ -1046,6 +1046,16 @@ Explore feed rows. Delivery fanout is bounded with
 `mapWithConcurrencyLimit(devices, 8,
 ...)` so one notification row cannot launch
 unbounded APNs requests and device state writes from a single V8 isolate.
+The device-token table checks a 32...512 character length separately from its
+hex-only regex. A `{32,512}` PostgreSQL regex bound is invalid because the
+engine caps repetition bounds at 255; migration
+`20260720174209_fix_push_device_token_constraint.sql` corrects the original
+constraint without weakening token validation. The combined 32...512 regex in
+`register-push-device/index.ts` is still valid JavaScript and remains the Edge
+Function request-boundary check. This repair changes only the database and does
+not require a function redeployment. A healthy deployment has both
+`user_push_devices_device_token_format_check` and
+`user_push_devices_device_token_length_check` present and validated.
 
 ## The Webhook Node (`revenuecat-webhook`)
 

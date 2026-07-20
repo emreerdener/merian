@@ -366,7 +366,6 @@ struct CaptureWorkspaceView: View {
             ),
             toastAlignment: .top
         )
-        .environment(\.controlBarHeight, CaptureControlBarLayout.reservedHeight)
         .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
         .modifier(ExternalImageImportRetryModifier(
             viewModel: viewModel,
@@ -718,7 +717,9 @@ struct CaptureWorkspaceView: View {
         guard proxy.size.height.isFinite, proxy.size.height > 0 else { return }
 
         let toggleBottom = proxy.safeAreaInsets.top + 16 + 48
-        let captureButtonTop = proxy.size.height - proxy.safeAreaInsets.bottom - 140 - 80
+        let captureButtonTop = proxy.size.height
+            - CaptureControlBarLayout.reservedHeight
+            - 16
         let verticalCenter = ((toggleBottom + captureButtonTop) / 2) / proxy.size.height
         guard verticalCenter.isFinite else { return }
         guard abs(viewModel.composingZoneVerticalCenter - verticalCenter) > 0.001 else { return }
@@ -1234,18 +1235,6 @@ private struct ExternalImageImportRetryModifier: ViewModifier {
                 viewModel.importPendingExternalImageIfPossible()
             }
     }
-}
-
-// MARK: - Safe Area Synchronization
-extension EnvironmentValues {
-    var controlBarHeight: CGFloat {
-        get { self[ControlBarHeightKey.self] }
-        set { self[ControlBarHeightKey.self] = newValue }
-    }
-}
-
-private struct ControlBarHeightKey: EnvironmentKey {
-    static let defaultValue = CaptureControlBarLayout.reservedHeight
 }
 
 extension EnvironmentValues {

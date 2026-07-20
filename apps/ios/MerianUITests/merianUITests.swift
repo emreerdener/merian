@@ -61,6 +61,28 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testCameraHintPreservesClearanceAboveShutter() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: [
+                "-captureModeOrder", "visual,audio,describe",
+                "-keepViewfinderHintVisible"
+            ]
+        )
+
+        let hint = app.descendants(matching: .any)["ViewfinderHint"]
+        let shutter = app.buttons["CaptureShutter"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 8.0), "Viewfinder hint did not render")
+        XCTAssertTrue(shutter.waitForExistence(timeout: 4.0), "Camera shutter did not render")
+
+        let renderedGap = shutter.frame.minY - hint.frame.maxY
+        XCTAssertGreaterThanOrEqual(
+            renderedGap,
+            8,
+            "Viewfinder hint overlaps the shutter; rendered gap was \(renderedGap) pt"
+        )
+    }
+
+    @MainActor
     func testDescribeFirstLaunchRendersAndOpensPrompts() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: ["-captureModeOrder", "describe,visual,audio"]
@@ -76,7 +98,49 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(descriptionInput.waitForExistence(timeout: 4.0), "Describe input did not render")
 
         let promptsButton = app.buttons["DescribePrompts"]
+        let captureButton = app.buttons["CaptureShutter"]
+        let dictationButton = app.buttons["DescribeDictation"]
+        let textArea = app.descendants(matching: .any)["DescribeTextArea"]
+        let modeToggle = app.segmentedControls["CaptureModeToggle"]
+        let questionNavigation = app.descendants(matching: .any)["DescribeQuestionNavigation"]
         XCTAssertTrue(promptsButton.waitForExistence(timeout: 4.0), "Describe prompt control did not render")
+        XCTAssertTrue(captureButton.waitForExistence(timeout: 4.0), "Describe capture control did not render")
+        XCTAssertTrue(dictationButton.waitForExistence(timeout: 4.0), "Describe dictation control did not render")
+        XCTAssertTrue(textArea.waitForExistence(timeout: 4.0), "Describe text area did not render")
+        XCTAssertTrue(modeToggle.waitForExistence(timeout: 4.0), "Capture mode toggle did not render")
+        XCTAssertTrue(questionNavigation.waitForExistence(timeout: 4.0), "Describe question navigation did not render")
+        XCTAssertEqual(promptsButton.frame.midY, captureButton.frame.midY, accuracy: 1)
+        XCTAssertEqual(dictationButton.frame.midY, captureButton.frame.midY, accuracy: 1)
+
+        let renderedTopGap = questionNavigation.frame.minY - modeToggle.frame.maxY
+        XCTAssertGreaterThanOrEqual(
+            renderedTopGap,
+            8,
+            "Describe question content overlaps the mode toggle; rendered gap was \(renderedTopGap) pt"
+        )
+        XCTAssertLessThanOrEqual(
+            renderedTopGap,
+            32,
+            "Describe question content has unintended top padding; rendered gap was \(renderedTopGap) pt"
+        )
+
+        let controlRowTop = min(
+            promptsButton.frame.minY,
+            captureButton.frame.minY,
+            dictationButton.frame.minY
+        )
+        let renderedGap = controlRowTop - textArea.frame.maxY
+        XCTAssertGreaterThanOrEqual(
+            renderedGap,
+            8,
+            "Describe controls overlap the text area; rendered gap was \(renderedGap) pt"
+        )
+        XCTAssertLessThanOrEqual(
+            renderedGap,
+            32,
+            "Describe text area does not fill the space above the controls; rendered gap was \(renderedGap) pt"
+        )
+
         promptsButton.tap()
         XCTAssertTrue(
             app.navigationBars["Prompts"].waitForExistence(timeout: 4.0),
