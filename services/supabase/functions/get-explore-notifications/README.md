@@ -65,6 +65,7 @@ they are also mentioned in the body.
 The SQL RPC filters hidden activity before returning rows:
 
 - unshared posts are excluded
+- administratively hidden posts (`moderated_at IS NOT NULL`) are excluded
 - tombstoned scans are excluded
 - media-less posts are excluded
 - shadowbanned owners or follow actors are excluded
@@ -77,6 +78,9 @@ The SQL RPC filters hidden activity before returning rows:
 
 Post `location_sharing` controls public location fields; it does not hide
 post-backed activity.
+
+Restoring a post can make still-valid activity eligible again. Resolving or
+dismissing its review case without a restore does not change visibility.
 
 Follow notifications are removed when the relationship is deleted or either user
 blocks the other. Comment mention notifications are removed when the underlying

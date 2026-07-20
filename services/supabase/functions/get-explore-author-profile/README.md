@@ -30,6 +30,7 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
     "follower_count": 124,
     "following_count": 17,
     "viewer_is_following": true,
+    "viewer_can_report": true,
     "heatmap": {
       "total_captures": 124,
       "current_month_captures": 8,
@@ -61,6 +62,10 @@ stable handle stored without `@`; iOS renders it beneath the display name as
 
 `follower_count` and `following_count` are public aggregate counts for visible profiles only. They are not list affordances. `viewer_is_following` is specific to the requesting viewer and drives the iOS `Follow` / `Following` button.
 
+`viewer_can_report` is true for a returned non-self profile and controls the
+iOS overflow action. It is only a capability hint: `/report-user` independently
+re-runs this endpoint's profile visibility contract before accepting a report.
+
 ## Privacy Rules
 
 The endpoint returns `404` unless the target author has at least one Explore post currently visible to the requester or at least one visible Field trip profile surface. This prevents arbitrary user UUID lookups from surfacing profile state while allowing active or published Field trips to make an author discoverable.
@@ -75,6 +80,7 @@ Profile aggregates use all non-tombstoned scans owned by the target author:
 Preview posts use stricter Explore visibility rules:
 
 - unshared posts excluded
+- administratively hidden posts (`moderated_at IS NOT NULL`) excluded
 - tombstoned scans excluded
 - scans without image media excluded
 - scans without a species key excluded

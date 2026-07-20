@@ -54,6 +54,7 @@ struct SpeciesDictionaryPageContentView: View {
     @State private var viewModel: SpeciesDictionaryPageViewModel
     @State private var fallbackExploreViewModel = ExploreFeedViewModel()
     @State private var isCommonNameScrolledPast = false
+    @State private var isTopScrollEdgeEffectHidden = true
     @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
 
     init(
@@ -79,6 +80,9 @@ struct SpeciesDictionaryPageContentView: View {
 
     var body: some View {
         content
+            .modifier(DictionaryTopEdgeModifier(
+                isHidden: isTopScrollEdgeEffectHidden
+            ))
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
@@ -108,6 +112,7 @@ struct SpeciesDictionaryPageContentView: View {
             }
             .task(id: speciesId ?? scientificName) {
                 isCommonNameScrolledPast = false
+                isTopScrollEdgeEffectHidden = true
                 await viewModel.load()
             }
             .toolbar(.hidden, for: .bottomBar)
@@ -158,6 +163,7 @@ struct SpeciesDictionaryPageContentView: View {
                             source: image.source.rawValue
                         )
                     },
+                    onHeroBottomChange: evaluateHeroScrollOffset,
                     onImageTap: { presentation in
                         fullscreenGalleryPresentation = presentation
                     }
@@ -220,6 +226,7 @@ struct SpeciesDictionaryPageContentView: View {
         .contentMargins(.top, 0, for: .scrollContent)
         .onChange(of: species.id, initial: true) { _, _ in
             isCommonNameScrolledPast = false
+            isTopScrollEdgeEffectHidden = true
         }
     }
 
@@ -271,6 +278,19 @@ struct SpeciesDictionaryPageContentView: View {
         }
     }
 
+    private func evaluateHeroScrollOffset(maxY: CGFloat) {
+        guard let shouldHideEffect = DictionaryHeroEdgePolicy.shouldHideEffect(
+            heroMaxY: maxY,
+            isCurrentlyHidden: isTopScrollEdgeEffectHidden
+        ), shouldHideEffect != isTopScrollEdgeEffectHidden else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isTopScrollEdgeEffectHidden = shouldHideEffect
+        }
+    }
+
     private var retryButton: some View {
         Button {
             Task { await viewModel.retry() }
@@ -303,6 +323,37 @@ struct SpeciesDictionaryPageContentView: View {
             speciesId: entry.speciesId,
             entryPoint: .speciesDictionarySimilarSpecies
         )
+    }
+}
+
+enum DictionaryHeroEdgePolicy {
+    static let toolbarLowerBoundary: CGFloat = 44
+    static let returnHysteresis: CGFloat = 4
+
+    static func shouldHideEffect(
+        heroMaxY: CGFloat,
+        isCurrentlyHidden: Bool
+    ) -> Bool? {
+        guard heroMaxY.isFinite else { return nil }
+
+        if isCurrentlyHidden {
+            return heroMaxY > toolbarLowerBoundary
+        }
+
+        return heroMaxY >= toolbarLowerBoundary + returnHysteresis
+    }
+}
+
+private struct DictionaryTopEdgeModifier: ViewModifier {
+    let isHidden: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(isHidden, for: .top)
+        } else {
+            content
+        }
     }
 }
 

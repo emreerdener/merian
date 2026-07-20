@@ -178,6 +178,7 @@ export interface AudioScanInsertRow {
   llm_thinking_tokens?: number | null;
   llm_cached_tokens?: number | null;
   llm_total_tokens?: number | null;
+  llm_usage_metadata?: Record<string, unknown>;
   image_storage_urls: string[];
   life_stage: string;
   reproductive_condition: string;

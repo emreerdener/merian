@@ -90,7 +90,7 @@ Deno.test("Field trips seed catalog keeps starter and Pro access distinct", asyn
   }
 });
 
-Deno.test("Field trips catalog keeps Backyard safari in sentence case", async () => {
+Deno.test("Legacy Backyard Safari rename remains represented in migration history", async () => {
   const sql = normalized(
     await migrationSql("20260717032701_rename_backyard_safari.sql"),
   );
@@ -106,6 +106,33 @@ Deno.test("Field trips catalog keeps Backyard safari in sentence case", async ()
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("Backyard Safari copy is canonical and custom publication titles are preserved", async () => {
+  const sql = normalized(
+    await migrationSql("20260720014446_update_backyard_safari_copy.sql"),
+  );
+
+  for (
+    const fragment of [
+      "UPDATE public.field_trip_templates",
+      "SET title = 'Backyard Safari'",
+      "subtitle = 'Observe local species often found in your own backyard.'",
+      "WHERE slug = 'backyard_safari'",
+      "UPDATE public.field_trip_publications AS publication",
+      "SET title = 'Backyard Safari'",
+      "AND publication.title = 'Backyard safari'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("DELETE FROM") &&
+      !sql.includes("publication.title LIKE") &&
+      !sql.includes("publication.title ILIKE"),
+    "Copy normalization must preserve progress and user-authored publication titles",
+  );
 });
 
 Deno.test("Forest Edges placeholder is retired without deleting user history", async () => {
@@ -305,6 +332,84 @@ Deno.test("Field trip progress responses preserve the level credited by a scan",
       (sql.match(/JOIN pg_temp\.field_trip_challenge_new_completions/g) ?? [])
           .length === 3,
     "responses must stay scoped to completion rows inserted by this application attempt",
+  );
+});
+
+Deno.test("Field trip lifecycle controls preserve progress and gate scans by active periods", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260719160750_field_trip_lifecycle_controls.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE IF NOT EXISTS public.user_field_trip_active_periods",
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_field_trip_active_periods_open",
+      "ALTER TABLE public.user_field_trip_active_periods ENABLE ROW LEVEL SECURITY",
+      "THEN LEAST(uft.hidden_at, uft.completed_at)",
+      "GRANT ALL ON TABLE public.user_field_trip_active_periods TO service_role",
+      "CREATE OR REPLACE FUNCTION public.stop_field_trip",
+      "CREATE OR REPLACE FUNCTION public.reset_field_trip",
+      "CREATE OR REPLACE FUNCTION public.get_stopped_field_trip_progress",
+      "CREATE OR REPLACE FUNCTION public.start_field_trip",
+      "CREATE OR REPLACE FUNCTION public.join_field_trip_challenge",
+      "CREATE OR REPLACE FUNCTION public.apply_field_trip_scan_progress",
+      "scan_row.timestamp >= period.started_at",
+      "scan_row.timestamp <= period.stopped_at",
+      "'stopped_progress', row.stopped_progress",
+      "DELETE FROM public.user_field_trip_item_completions completion",
+      "DELETE FROM public.user_field_trip_active_periods period",
+      "IF trip_row.hidden_at IS NOT NULL",
+      "GRANT EXECUTE ON FUNCTION public.stop_field_trip(UUID, UUID) TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.reset_field_trip(UUID, UUID) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("DELETE FROM public.user_field_trips") &&
+      !sql.includes("DELETE FROM public.field_trip_challenge_participants"),
+    "Reset must preserve the shared outing row and Seasonal Challenge participation",
+  );
+  assert(
+    !sql.includes(
+      "GRANT EXECUTE ON FUNCTION public.stop_field_trip(UUID, UUID) TO authenticated",
+    ) &&
+      !sql.includes(
+        "GRANT EXECUTE ON FUNCTION public.reset_field_trip(UUID, UUID) TO authenticated",
+      ),
+    "Lifecycle RPCs must remain service-role only behind the authenticated Edge action",
+  );
+});
+
+Deno.test("Field trip lifecycle Edge actions are caller-scoped", async () => {
+  const index = normalized(
+    await Deno.readTextFile(new URL("index.ts", fieldTripsFunctionDir)),
+  );
+  const db = normalized(
+    await Deno.readTextFile(new URL("db.ts", fieldTripsFunctionDir)),
+  );
+
+  for (
+    const fragment of [
+      '| "stop"',
+      '| "reset"',
+      'case "stop":',
+      'case "reset":',
+      'body.user_field_trip_id, "user_field_trip_id"',
+      'supabaseAdmin.rpc( "stop_field_trip", { self_id: userId, target_user_field_trip_id: userFieldTripId',
+      'supabaseAdmin.rpc( "reset_field_trip", { self_id: userId, target_user_field_trip_id: userFieldTripId',
+      'supabaseAdmin.rpc( "get_stopped_field_trip_progress"',
+    ]
+  ) {
+    assertStringIncludes(`${index} ${db}`, fragment);
+  }
+
+  assert(
+    !index.includes("body.self_id") && !index.includes("body.user_id"),
+    "Lifecycle actions must derive ownership from the verified caller",
   );
 });
 

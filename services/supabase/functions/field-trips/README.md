@@ -18,6 +18,7 @@ The backing SQL lives in this ordered migration chain:
 11. `20260718150932_add_credited_field_trip_progress.sql`
 12. `20260718162409_scope_credited_progress_to_current_attempt.sql`
 13. `20260719045306_first_field_trip_achievement.sql`
+14. `20260719160750_field_trip_lifecycle_controls.sql`
 
 Deploy the migrations before deploying this function. Existing installations
 with the current V4 function do not require a function redeploy because the two
@@ -75,6 +76,9 @@ credited-progress migrations change only database responses.
 - First Field trip achievement evidence is available only through a
   `service_role` RPC. Public Explore author awards expose its binary count and
   earliest completion date, never a template slug, challenge ID, or scan ID.
+- Standard outing activity periods are private, protected by RLS, and available
+  only to `service_role`. Stopped progress is returned only to the owning caller
+  through the authenticated Edge Function.
 
 ## Actions
 
@@ -126,7 +130,7 @@ Response:
       "user_field_trip_id": "uuid",
       "template_id": "uuid",
       "template_slug": "backyard_safari",
-      "outing_title": "Backyard safari",
+      "outing_title": "Backyard Safari",
       "last_engaged_at": "2026-07-17T18:00:00.000Z",
       "level_number": 1,
       "level_title": "Level 1",
@@ -156,7 +160,9 @@ targets receives `{ "data": [] }`.
 ```
 
 Returns active templates, access state, levels, checklist items, and the
-requesting user's active progress. V2 catalog rows may include
+requesting user's active or stopped progress. `active_progress` remains the
+legacy active/completed contract; an unfinished stopped outing instead adds
+`stopped_progress` with its saved checklist state. V2 catalog rows may include
 `cover_image_url`, `estimated_duration_minutes`, `guide_where_to_look`,
 `guide_why_it_matters`, `guide_safety_ethics`, and item-level `guide_tip`
 values. Completed checklist items include the private `completed_scan_id` so
@@ -180,8 +186,22 @@ only when that ID is non-null. `slug` may be supplied instead of `template_id`.
 ```
 
 Explicitly starts or unhides the caller's progress for an accessible template
-and returns the refreshed template detail. Matching scans can still auto-start
-eligible trips as a fallback.
+and returns the refreshed template detail. Starting a stopped outing resumes it
+by opening a new activity period. Matching scans can still auto-start eligible
+reset trips as a fallback.
+
+```json
+{ "action": "stop", "user_field_trip_id": "uuid" }
+{ "action": "reset", "user_field_trip_id": "uuid" }
+```
+
+`stop` closes the outing's open activity period, hides it from Capture and
+active profile summaries, preserves its checklist state, and returns refreshed
+template detail containing `stopped_progress`. `reset` is restricted to an
+unfinished, unpublished standard outing. It clears standard completion rows and
+activity periods while preserving the shared `user_field_trips` row and all
+Seasonal Challenge participation, badges, entries, and engagement data. Both
+actions are idempotent and ownership-scoped to the verified caller.
 
 ```json
 {
@@ -224,13 +244,15 @@ filters results for template-detail Community previews.
 ```
 
 Applies the Field trip progress rules for one saved scan. The backing RPC only
-counts scans owned by the caller, only after a trip starts, and only for the
-current unlocked level. V4 also updates joined live challenge progress for the
-same scan when the scan was created after `joined_at` and before `ends_at`.
-Eligibility is independent of photo/video modality once the biological scan is
-saved. One scan can complete every matching current-level item across multiple
-eligible standard outings, and independently in joined live challenges; all
-created completion rows retain the same scan ID.
+counts scans owned by the caller whose capture timestamp falls inside one of
+that outing's activity periods, and only for the current unlocked level. This
+allows a pre-stop scan to count after late approval while permanently excluding
+scans captured during a stopped gap. V4 also updates joined live challenge
+progress for the same scan when the scan was created after `joined_at` and
+before `ends_at`. Eligibility is independent of photo/video modality once the
+biological scan is saved. One scan can complete every matching current-level
+item across multiple eligible standard outings, and independently in joined live
+challenges; all created completion rows retain the same scan ID.
 
 Returns:
 
@@ -241,7 +263,7 @@ Returns:
       "user_field_trip_id": "uuid",
       "template_id": "uuid",
       "slug": "backyard_safari",
-      "title": "Backyard safari",
+      "title": "Backyard Safari",
       "current_level_number": 1,
       "current_level_title": "Level 1",
       "completed_count": 3,
@@ -291,8 +313,8 @@ not change the Edge Function request contract.
 
 The two `first_field_trip_achievement*` response fields are additive and may be
 absent when the caller has no completed outing or challenge. The payload always
-describes the earliest qualifying completion. `newly_unlocked` is true only
-when this request's progress mutation created the first completion; idempotent,
+describes the earliest qualifying completion. `newly_unlocked` is true only when
+this request's progress mutation created the first completion; idempotent,
 non-final, and later completions return false.
 
 ```json
@@ -398,6 +420,8 @@ MerianNetworkClient.shared.getFieldTripCaptureContext()
 MerianNetworkClient.shared.getFieldTrips(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripTemplate(templateId:)
 MerianNetworkClient.shared.startFieldTrip(templateId:)
+MerianNetworkClient.shared.stopFieldTrip(userFieldTripId:)
+MerianNetworkClient.shared.resetFieldTrip(userFieldTripId:)
 MerianNetworkClient.shared.getFieldTripChallenges(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripChallenge(challengeId:entriesLimit:)
 MerianNetworkClient.shared.joinFieldTripChallenge(challengeId:)
@@ -437,27 +461,30 @@ not fail scan persistence.
 10. Apply `20260718051748_expose_field_trip_publication_status.sql`.
 11. Apply `20260718150932_add_credited_field_trip_progress.sql`.
 12. Apply `20260718162409_scope_credited_progress_to_current_attempt.sql`.
-13. Deploy this function.
-14. Deploy `get-explore-author-profile` so profile responses include
+13. Apply `20260719045306_first_field_trip_achievement.sql`.
+14. Apply `20260719160750_field_trip_lifecycle_controls.sql`.
+15. Deploy this function.
+16. Deploy `get-explore-author-profile` so profile responses include
     `field_trips`.
-15. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+17. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-16. Ship the iOS client.
+18. Ship the iOS client.
 
 ## Verification
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
-deno test --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripProgressDb.test.ts
+deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 supabase db lint --workdir services
 ```
 
-The capture-context and progress database integration tests require a running
-local Supabase/Postgres stack. A reported skip because port `54322` is
+The capture-context, progress, and lifecycle database integration tests require
+a running local Supabase/Postgres stack. A reported skip because port `54322` is
 unavailable is not a successful database execution and must be covered before
 release or by the linked deployment validation path. The progress test
 re-identifies one scan after standard and challenge level advancement and
@@ -467,6 +494,10 @@ The static migration contract also verifies that both private checklist RPCs
 project `completed_scan_id` and grant execution only to `service_role`. Release
 QA must compare the returned ID to `user_field_trip_item_completions.scan_id`
 and confirm public/capture payloads still omit it.
+
+The lifecycle test covers saved stopped progress, Capture/profile exclusion,
+late approval, stopped-gap exclusion, repeated periods, Reset preservation of
+Seasonal Challenge data, the post-reset scan boundary, and automatic restart.
 
 The contract also verifies that publication status stays detail-only, joins the
 requesting owner's active non-deleted publication, and preserves the

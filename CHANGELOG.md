@@ -47,9 +47,18 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Fixed the Field notes editor so closing an unchanged note no longer republishes
+  its existing visibility, shows a misleading public toast, or refreshes the
+  Explore detail page. Real text edits still autosave with a **Field notes
+  updated** confirmation, while public/private messages appear only after an
+  actual visibility change.
 - Released Field trips and standard Outings to every user. The Events segment
   remains a client-gated preview for the tester account and simulator builds so
   its seasonal challenge UI can continue iterating independently.
+- Redesigned Outing catalog cards with a compact progress ring, current-level
+  Backyard Safari copy, the existing scrolling goal thumbnails, and pills for
+  access, difficulty, level, public/private status, and an available
+  privacy-filtered location.
 - Added **The Field Naturalist**, an Easy achievement earned by completing a
   first outing or Seasonal Challenge. Its completed Profile card and unlock
   notification reopen the Field trip that earned it.

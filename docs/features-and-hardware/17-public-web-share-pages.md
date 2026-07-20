@@ -80,8 +80,11 @@ poster-only so browsing it does not fetch or autoplay video. The detail carousel
 uses one responsive square frame for post-owned images, videos, audio spectrograms,
 posters, and eligible species reference images.
 
-If the RPC returns no visible row, the route returns a not-found page and marks
-metadata as non-indexable. Approved audio-only posts are public and indexable:
+If the RPC returns no visible row—including when a post is unshared,
+administratively hidden, tombstoned, blocked, or otherwise privacy-filtered—the
+route returns a not-found page and marks metadata as non-indexable. The route
+must not render stale content or metadata from a prior request. Approved
+audio-only posts are public and indexable:
 WAV posts render the persisted spectrogram in the audio-focused post header,
 Open Graph metadata, and Twitter metadata, while the public home grid uses the
 species reference thumbnail. Mixed posts retain their visual social preview
@@ -144,6 +147,12 @@ The web page must not render:
 - private scan IDs in copy or metadata
 - moderation-only state
 - service-role credentials or Supabase tokens
+
+The server may use its service-role credential only to invoke the existing
+privacy-safe public projections. It must not bypass `moderated_at IS NULL` or
+reconstruct a hidden post from direct table reads. Restore makes a post eligible
+for public projection again; resolving or dismissing a review case by itself
+does not.
 
 Public audio playback emits privacy-safe PostHog events for start, completion,
 and failure when `NEXT_PUBLIC_POSTHOG_API_KEY` is configured. These events carry

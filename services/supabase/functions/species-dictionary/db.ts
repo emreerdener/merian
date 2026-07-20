@@ -206,6 +206,7 @@ export interface SpeciesDictionaryTreeResult {
 export type SpeciesDictionaryTreeScope = "all_species" | "my_scans";
 
 export const USER_SCANNED_SPECIES_TREE_PAGE_SIZE = 500;
+export const PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE = 500;
 export const SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE = 100;
 export const SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT = 24;
 export const SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT = 40;
@@ -551,25 +552,35 @@ export async function fetchAllSpeciesDictionaryTree(
   return buildSpeciesDictionaryTree(rows, firstImageBySpeciesId);
 }
 
-async function fetchAllPublicSpeciesDictionaryRows(
+export async function fetchAllPublicSpeciesDictionaryRows(
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryRow[]> {
-  const { data, error } = await supabaseAdmin
-    .from("species_dictionary")
-    .select(SPECIES_DICTIONARY_CATALOG_SELECT)
-    .or("gbif_taxon_key.not.is.null,kingdom.not.is.null")
-    .order("scientific_name", { ascending: true })
-    .order("id", { ascending: true });
+  const rows: SpeciesDictionaryRow[] = [];
+  let from = 0;
 
-  if (error) {
-    throw new Error(
-      `Failed to fetch public species dictionary rows: ${error.message}`,
-    );
+  while (true) {
+    const to = from + PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE - 1;
+    const { data, error } = await supabaseAdmin
+      .from("species_dictionary")
+      .select(SPECIES_DICTIONARY_CATALOG_SELECT)
+      .or("gbif_taxon_key.not.is.null,kingdom.not.is.null")
+      .order("scientific_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch public species dictionary rows: ${error.message}`,
+      );
+    }
+
+    const page = (data ?? []) as SpeciesDictionaryRow[];
+    rows.push(...page.filter(isPublicBiologicalSpeciesRow));
+    if (page.length < PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE) break;
+    from += PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE;
   }
 
-  return ((data ?? []) as SpeciesDictionaryRow[]).filter(
-    isPublicBiologicalSpeciesRow,
-  );
+  return rows;
 }
 
 export async function fetchUserScannedSpeciesDictionaryTree(

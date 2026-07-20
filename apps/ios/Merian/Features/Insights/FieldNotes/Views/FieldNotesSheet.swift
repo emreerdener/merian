@@ -14,6 +14,8 @@ struct FieldNotesSheet: View {
     @Environment(SpeechManager.self) private var speechManager
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isTextFieldFocused: Bool
+    @State private var initialText: String
+    @State private var initialIsPublic: Bool
     @State private var draftText: String
     @State private var draftIsPublic: Bool
     @State private var isSaving = false
@@ -21,7 +23,7 @@ struct FieldNotesSheet: View {
     @State private var dictationTask: Task<Void, Never>?
     @State private var dictationErrorMessage: String?
     @State private var saveErrorMessage: String?
-    @State private var didSaveBeforeDismiss = false
+    @State private var didFinalizeBeforeDismiss = false
 
     init(
         text: Binding<String>,
@@ -31,6 +33,8 @@ struct FieldNotesSheet: View {
         self._text = text
         self.promptContext = promptContext
         self.visibilityConfiguration = visibilityConfiguration
+        self._initialText = State(initialValue: text.wrappedValue)
+        self._initialIsPublic = State(initialValue: visibilityConfiguration?.initialIsPublic ?? false)
         self._draftText = State(initialValue: text.wrappedValue)
         self._draftIsPublic = State(initialValue: visibilityConfiguration?.initialIsPublic ?? false)
     }
@@ -41,6 +45,15 @@ struct FieldNotesSheet: View {
 
     private var hasNotes: Bool {
         !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var draftChanges: FieldNotesEditChanges {
+        FieldNotesEditPolicy.changes(
+            initialText: initialText,
+            initialIsPublic: initialIsPublic,
+            draftText: draftText,
+            draftIsPublic: draftIsPublic
+        )
     }
 
     var body: some View {
@@ -342,10 +355,16 @@ struct FieldNotesSheet: View {
         saveErrorMessage = nil
 
         let shouldPublish = hasNotes && draftIsPublic
+        guard !draftChanges.isEmpty else {
+            didFinalizeBeforeDismiss = true
+            dismiss()
+            return
+        }
+
         commitDraft()
 
         guard let visibilityConfiguration else {
-            didSaveBeforeDismiss = true
+            didFinalizeBeforeDismiss = true
             dismiss()
             return
         }
@@ -357,7 +376,7 @@ struct FieldNotesSheet: View {
         switch feedback {
         case .success(let isPublic):
             draftIsPublic = isPublic
-            didSaveBeforeDismiss = true
+            didFinalizeBeforeDismiss = true
             dismiss()
         case .failure(let message):
             saveErrorMessage = message
@@ -367,7 +386,7 @@ struct FieldNotesSheet: View {
     private func saveDraftOnDisappearIfNeeded() {
         stopDictation()
 
-        guard !didSaveBeforeDismiss else { return }
+        guard !didFinalizeBeforeDismiss, !draftChanges.isEmpty else { return }
 
         let textToSave = draftText
         let shouldPublish = hasNotes && draftIsPublic

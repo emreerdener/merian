@@ -344,6 +344,26 @@ to type-check deploy-time configs and select transitive runtime consumers.
 | Scan media assets               | `services/supabase/migrations/20260705100000_add_scan_media_assets.sql`, `services/supabase/migrations/20260710120000_add_explore_audio_moderation.sql`, `services/supabase/migrations/20260711143348_repair_scan_media_assets_audio_constraints.sql`, `services/supabase/migrations/20260711171512_backfill_missing_ready_audio_assets.sql`, `services/supabase/functions/_shared/scanMediaAssets.ts`, `services/supabase/functions/identify-multimodal/`, `services/supabase/functions/reconcile-scan-media-assets/`, `services/supabase/functions/scan-media-health/` | Normalized image/video/audio lifecycle. Standalone audio is promoted into `audio_storage_urls`, `captured_media`, and ready owner-scoped audio assets; extracted video audio remains inference-only. The explicit constraint repair upgrades early production tables that `CREATE TABLE IF NOT EXISTS` could not reshape, and the follow-up refresh migration makes audio part of the canonical RPC and backfills durable recordings that lack normalized rows. Repair and health paths retain their existing staged-media responsibilities. |
 | Explore post media              | `services/supabase/migrations/20260703130000_add_explore_post_media.sql`, `services/supabase/migrations/20260710120000_add_explore_audio_moderation.sql`, `services/supabase/migrations/20260711055524_add_explore_audio_moderation_attestations.sql`, `services/supabase/functions/_shared/explorePostMedia.ts`, `services/supabase/functions/_shared/exploreComposerMedia.ts`, `services/supabase/functions/_shared/audioModeration.ts`, `services/supabase/functions/_shared/audioSpectrogram.ts`, `services/supabase/functions/share-scan-to-explore/`, `services/supabase/functions/update-explore-field-notes/`, `services/supabase/functions/backfill-explore-audio-spectrograms/` | Post-owned image/video/audio snapshots. Audible media must have a matching content-addressed attestation or pass the dedicated Gemini speech/non-speech classifier before share/edit replacement; changed bytes, model, or policy contract force re-moderation. Approved WAV audio gets a deterministic persisted spectrogram poster shared by web and normalized media; a bounded service-role repair worker fills historical blanks while unsupported legacy codecs keep playback and the icon fallback. Legacy local audio can be repaired through owner-scoped staging into `audio_storage_urls`, canonical `captured_media`, and normalized assets before the same gate runs. Failed attempts create no pending/public media state; maps, widgets, profile grids, and compact previews remain thumbnail-first. |
 
+## Internal admin surface
+
+- `apps/admin/`: isolated Next.js + Mantine SSR admin for
+  `admin.naturebook.earth`, with Google OAuth, TOTP AAL2, role-aware navigation,
+  strict response headers, CSRF/origin-checked Server Actions, and no
+  service-role key.
+- `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`:
+  internal membership/session/audit/review/feedback/pricing schema, narrow admin
+  RPCs, reversible post moderation, and canonical AI usage ledger.
+- `services/supabase/functions/report-user/`: authenticated non-self visible
+  profile reporting endpoint.
+- `services/supabase/functions/_shared/aiUsage.ts`: normalized Gemini modality
+  accounting and bounded best-effort writers for independent operations.
+- `services/supabase/tests/admin_foundation_security.sql` and
+  `admin_review_ai.sql`: live pgTAP authorization/session and grouped
+  review/moderation/ledger contracts.
+- `docs/backend-and-data/10-internal-admin.md` and
+  `11-internal-admin-operations.md`: architecture/data contract and the
+  setup/deployment/recovery operator runbook.
+
 ## Test Inventory
 
 Swift unit tests live under `apps/ios/MerianTests/` and cover:

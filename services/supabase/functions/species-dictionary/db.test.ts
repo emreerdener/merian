@@ -1,13 +1,16 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildExternalSpeciesDictionaryPayload,
   buildSpeciesDictionaryCatalogItem,
   buildSpeciesDictionaryOverview,
   buildSpeciesDictionaryPayload,
   buildSpeciesDictionaryTree,
+  fetchAllPublicSpeciesDictionaryRows,
   firstReferenceImageUrl,
   firstReferenceImageUrlsBySpeciesId,
   parseSpeciesDictionaryRequest,
+  PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE,
   publicSpeciesProjectionForbiddenKeys,
   referenceImagesFrom,
   referenceImagesFromRows,
@@ -500,6 +503,55 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
 Deno.test("species-dictionary helpers - tree scope auth policy", () => {
   assertEquals(speciesDictionaryTreeRequiresAuth("all_species"), false);
   assertEquals(speciesDictionaryTreeRequiresAuth("my_scans"), true);
+});
+
+Deno.test("species-dictionary db - fetches every public row across response pages", async () => {
+  const allRows = Array.from(
+    { length: PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE * 2 + 1 },
+    (_, index) =>
+      speciesRow({
+        id: `00000000-0000-0000-0000-${String(index + 1).padStart(12, "0")}`,
+        scientific_name: `Species paginated ${
+          String(index + 1).padStart(4, "0")
+        }`,
+      }),
+  );
+  const pages = [
+    allRows.slice(0, PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE),
+    allRows.slice(
+      PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE,
+      PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE * 2,
+    ),
+    allRows.slice(PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE * 2),
+  ];
+  const requestedRanges: Array<[number, number]> = [];
+  const query = {
+    select: () => query,
+    or: () => query,
+    order: () => query,
+    range: (from: number, to: number) => {
+      requestedRanges.push([from, to]);
+      return Promise.resolve({ data: pages.shift() ?? [], error: null });
+    },
+  };
+  const supabaseAdmin = {
+    from: () => query,
+  } as unknown as SupabaseClient;
+
+  const rows = await fetchAllPublicSpeciesDictionaryRows(supabaseAdmin);
+
+  assertEquals(rows.length, PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE * 2 + 1);
+  assertEquals(requestedRanges, [
+    [0, PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE - 1],
+    [
+      PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE,
+      PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE * 2 - 1,
+    ],
+    [
+      PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE * 2,
+      PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE * 3 - 1,
+    ],
+  ]);
 });
 
 Deno.test("species-dictionary helpers - builds overview categories and regions", () => {

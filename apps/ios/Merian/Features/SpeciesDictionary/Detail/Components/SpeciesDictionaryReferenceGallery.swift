@@ -4,6 +4,7 @@ struct SpeciesDictionaryReferenceGallery: View {
     let scientificName: String
     let images: [SpeciesDictionaryReferenceImage]
     let onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)?
+    let onHeroBottomChange: ((CGFloat) -> Void)?
     let onImageTap: ((InsightImageGalleryPresentation) -> Void)?
 
     @State private var selectedImageId: String?
@@ -13,11 +14,13 @@ struct SpeciesDictionaryReferenceGallery: View {
         scientificName: String,
         images: [SpeciesDictionaryReferenceImage],
         onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)? = nil,
+        onHeroBottomChange: ((CGFloat) -> Void)? = nil,
         onImageTap: ((InsightImageGalleryPresentation) -> Void)? = nil
     ) {
         self.scientificName = scientificName
         self.images = SpeciesDictionaryImageGalleryBuilder.allowedImages(from: images)
         self.onImageLoadFailed = onImageLoadFailed
+        self.onHeroBottomChange = onHeroBottomChange
         self.onImageTap = onImageTap
     }
 
@@ -35,7 +38,8 @@ struct SpeciesDictionaryReferenceGallery: View {
     var body: some View {
         VStack(spacing: 10) {
             GeometryReader { proxy in
-                let scrollY = proxy.frame(in: .named("SpeciesDictionaryScrollSpace")).minY
+                let heroFrame = proxy.frame(in: .named("SpeciesDictionaryScrollSpace"))
+                let scrollY = heroFrame.minY
 
                 carousel
                     .frame(
@@ -45,6 +49,9 @@ struct SpeciesDictionaryReferenceGallery: View {
                     .overlay(alignment: .bottom) { paginationDots }
                     .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
                     .ignoresSafeArea(.all, edges: .top)
+                    .onChange(of: heroFrame.maxY, initial: true) { _, newMaxY in
+                        onHeroBottomChange?(newMaxY)
+                    }
             }
             .frame(height: imageSize)
             .ignoresSafeArea(.all, edges: .top)

@@ -5,6 +5,7 @@ struct GoalProgressRing: View {
     let targetCount: Int
     var lineWidth: CGFloat = 3.5
     var labelFontSize: CGFloat = 9
+    var tint: Color = .primary
 
     private var fractionComplete: CGFloat {
         guard targetCount > 0 else { return 0 }
@@ -22,7 +23,7 @@ struct GoalProgressRing: View {
             Circle()
                 .trim(from: 0, to: fractionComplete)
                 .stroke(
-                    .primary,
+                    tint,
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))

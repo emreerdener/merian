@@ -1229,6 +1229,12 @@ Manual-share public feed wrapper around `scans`. Added in migration
 - `shared_at` (TIMESTAMPTZ): Reverse-chronological feed ordering key.
 - `unshared_at` (TIMESTAMPTZ, nullable): Soft-removes the post from the public
   feed without deleting the scan.
+- `moderated_at` (TIMESTAMPTZ, nullable): Reversible internal-admin hide marker.
+  Every public feed, map, profile, detail, notification, and web projection
+  requires this value to be `NULL`.
+- `moderated_by_user_id` (UUID FK → `auth.users.id`, nullable): Admin Auth
+  user who most recently hid the post. Restore clears this together with
+  `moderated_at`.
 - `species_common_name` (TEXT, nullable): Author-selected public common-name
   snapshot for the post. Added by
   `20260614120000_snapshot_explore_species_common_name.sql`. Share/edit Edge
@@ -2109,6 +2115,170 @@ general media classifier or a taxon-wide block. A future outlier requires a new
 forward migration and matching server/iOS policy tests; never edit this applied
 migration to add another ID.
 
+## Internal administration, reporting, and AI usage
+
+Migration `20260719161112_add_internal_admin_foundation.sql` introduces a
+private, non-exposed `internal` schema plus two service-owned public tables.
+`PUBLIC`, `anon`, and `authenticated` have no direct access to the internal
+schema, `user_reports`, or `ai_usage_events`. Browser access is limited to the
+explicitly granted admin RPC wrappers documented in
+[`05-api-contracts.md`](./05-api-contracts.md).
+
+### `user_reports`
+
+One intake row is retained per reporter/target pair:
+
+- `id UUID PRIMARY KEY`
+- `reporter_user_id UUID NOT NULL` → `public.users(id)` with cascade delete
+- `reported_user_id UUID NOT NULL` → `public.users(id)` with cascade delete
+- `reason TEXT NOT NULL`: `Spam`, `Harassment`, `Impersonation`,
+  `Inappropriate profile`, or `Other`
+- `details TEXT`: optional, at most 1,000 characters
+- `status TEXT NOT NULL`: `PENDING_REVIEW`, `DISMISSED`, or `ACTIONED`
+- `created_at`, `updated_at TIMESTAMPTZ NOT NULL`
+
+The table rejects self-reports and has a unique constraint on
+`(reporter_user_id, reported_user_id)`. `/report-user` upserts evidence without
+writing `status`, preserving terminal moderation state. An insert trigger
+attaches the row to a grouped private `user` review case.
+
+### `ai_usage_events`
+
+Append-only source of truth for internal AI analytics:
+
+- Identity/time: `id`, `occurred_at`, nullable `user_id`, `created_at`
+- Classification: `operation`, `model`, `effective_plan`, `input_modality`,
+  `outcome`
+- Tokens: `prompt_tokens`, `cached_tokens`, `candidate_tokens`,
+  `thinking_tokens`, `tool_tokens`, `total_tokens`
+- Modality detail: `prompt_tokens_by_modality JSONB`
+- Durable linkage: nullable `scan_id`, `conversation_id`, `message_id`,
+  `source_type`, and `source_id`
+- Coverage: `is_backfilled`, `coverage_scope` (`complete`, `primary_only`, or
+  `partial`)
+- Estimate: `estimated_cost_microusd`, `pricing_version`
+- Non-content extension data: `metadata JSONB`
+
+`effective_plan` is `free`, `pro_paid`, `pro_trial`, or `unknown`;
+`input_modality` is `text`, `image`, `audio`, `video`, `mixed`, or `unknown`;
+`outcome` is `success`, `refusal`, or `error`. Token/cost values are nullable
+but cannot be negative.
+
+Despite its legacy column name, `prompt_tokens_by_modality` stores the complete
+normalized modality breakdown:
+
+```json
+{
+  "prompt": { "text": 120, "image": 258 },
+  "cached": { "text": 40 },
+  "candidates": { "text": 80 },
+  "tool": {}
+}
+```
+
+Missing Gemini detail arrays normalize to empty objects; no prompt or response
+content belongs in this field.
+
+The unique key `(source_type, source_id, operation)` makes durable retries and
+backfills idempotent. Indexes cover event time, operation/time, scan, and
+user/time. An append-only trigger rejects arbitrary updates/deletes; the account
+deletion trigger may clear identifying linkage while preserving anonymous
+aggregates.
+
+### `internal.admin_memberships`
+
+- `user_id UUID PRIMARY KEY` → `auth.users(id)`
+- `role TEXT NOT NULL`: `owner`, `moderator`, or `analyst`
+- `is_active BOOLEAN NOT NULL`
+- `created_by UUID`, `created_at`, `updated_at`
+
+The first row is created only by `internal.bootstrap_first_admin_owner`; later
+changes use the owner RPC. Direct database enforcement prevents disabling or
+demoting the final active owner.
+
+### `internal.admin_sessions`
+
+- `session_id UUID PRIMARY KEY`: Supabase JWT/Auth session ID
+- `user_id UUID NOT NULL`
+- `created_at`, `last_seen_at`, `expires_at`
+- nullable `revoked_at`
+
+An active session requires no revocation, an absolute expiry in the future, a
+`last_seen_at` within 30 minutes, and a matching live `auth.sessions` row.
+
+### `internal.admin_audit_log`
+
+- identity: generated `id`, `actor_user_id`, `actor_role`
+- action/target: `action`, nullable `target_type`, nullable `target_id`
+- correlation: `request_id UUID NOT NULL`
+- change record: nullable `before_state`, `after_state`, and bounded `reason`
+- `created_at`
+
+The table is immutable after insert; a trigger rejects update/delete. Indexes
+support descending history and actor/time queries.
+
+### `internal.review_cases` and `review_case_sources`
+
+`review_cases` stores one row per `(case_type, subject_id)`:
+
+- `case_type`: `identification`, `post`, `comment`, or `user`
+- `status`: `open`, `in_review`, `resolved`, or `dismissed`
+- `priority`: `low`, `normal`, `high`, or `urgent`
+- nullable `subject_user_id`, active moderator/owner `assigned_to`,
+  `resolution_code`, and `resolved_at`
+- independent-reporter `report_count`
+- `created_at`, `updated_at`
+
+`review_case_sources` maps immutable intake source rows to a case and records
+the reporter/time. Source types are `flagged_review`, `explore_post_report`,
+`explore_comment_report`, and `user_report`. The source primary key is
+`(source_type, source_id)`.
+
+An independent new reporter increments `report_count` and reopens terminal
+state; another source from an already attached reporter neither increments the
+count nor reopens the case. Advisory transaction locks serialize grouping.
+
+### `internal.feedback_state` and `admin_notes`
+
+`feedback_state` overlays immutable source feedback with:
+
+- composite key `(source_type, source_id)` where source type is `community`,
+  `survey`, `chat_message`, or `chat_feature`
+- status `new`, `reviewed`, `planned`, or `closed`
+- nullable active admin `assigned_to`
+- `tags TEXT[]` and `updated_at`
+
+`admin_notes` stores append-only, 1–4,000 character notes for `review_case` or
+`feedback` parents with author and timestamp. A trigger rejects note
+update/delete.
+
+### `internal.ai_model_pricing` and `admin_aggregate_cache`
+
+`ai_model_pricing` stores exact model/modality Standard prices per million input,
+cached, and output tokens with `effective_from`, optional `effective_to`, and a
+version label. Overlapping ranges are prohibited operationally; pricing changes
+must close the old row and insert a new version in one migration.
+
+`admin_aggregate_cache` stores a private JSON payload by cache key and
+`created_at`. Overview and AI summary RPCs accept cache entries only for five
+minutes after authorization. Raw review/feedback/user/audit results never use
+this cache.
+
+### Moderation and durable usage columns
+
+`explore_posts` adds nullable `moderated_at` and
+`moderated_by_user_id`. Visible public-post indexes and every public Explore
+projection require `moderated_at IS NULL` as well as the prior visibility
+rules. Existing reversible comment moderation columns are reused.
+
+`scans` and `insight_chat_messages` add non-null
+`llm_usage_metadata JSONB DEFAULT '{}'`. Durable insert triggers normalize
+these values into `ai_usage_events` transactionally.
+
+For authorization, review behavior, anonymization, retention boundaries, and
+pricing semantics, see
+[`10-internal-admin.md`](./10-internal-admin.md).
+
 ## SwiftData Schema (Local Offline Queue)
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in
@@ -2339,6 +2509,7 @@ mirror for migration safety and compatibility.
 
 - `id`: String (UUID)
 - `timestamp`: Date
+
 - `capturedMediaJSON`: String? (Added in `MerianSchemaV40`. Preferred scalar
   read source for the ordered mixed-media timeline. Still written alongside
   relationship rows so UI, migration, and lightweight fetch paths can

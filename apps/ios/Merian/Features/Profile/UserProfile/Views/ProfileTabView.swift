@@ -187,7 +187,9 @@ struct ProfileTabView: View {
             .onReceive(AppEventPublisher.shared.publisher) { event in
                 guard FieldTripsAvailability.isEnabled else { return }
                 switch event {
-                case .fieldTripProgressUpdated, .fieldTripChallengeProgressUpdated:
+                case .fieldTripProgressUpdated,
+                     .fieldTripChallengeProgressUpdated,
+                     .captureGoalContextInvalidated(.fieldTrip):
                     profileRefreshToken = UUID()
                 default:
                     break

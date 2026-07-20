@@ -157,6 +157,7 @@ for dictionary links, stats, and taxonomy displays.
 Every mode excludes:
 
 - unshared posts
+- administratively hidden posts (`moderated_at IS NOT NULL`)
 - tombstoned scans
 - posts with no saved public `explore_post_media` rows
 - scans without a species key

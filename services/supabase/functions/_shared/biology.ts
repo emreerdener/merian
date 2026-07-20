@@ -1,5 +1,6 @@
 import { Schema, Type } from "@google/genai";
-import { User } from "@supabase/supabase-js";
+import { SupabaseClient, User } from "@supabase/supabase-js";
+import { recordAIUsageBestEffort } from "./aiUsage.ts";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";
 import { normalizeTaxonomyValue } from "./taxonomy.ts";
@@ -364,6 +365,7 @@ function normalizeLookalikeConfidence(value: unknown): number | null {
 export async function fetchGroupTags(
   user: User | string,
   scientificName: string,
+  supabaseAdmin?: SupabaseClient,
 ): Promise<{ group_tags: string[] | null; usage?: UsageMetadata } | null> {
   const model = createFlashModel(
     'You are a world-class biologist. Given a species scientific name, return 1–5 categorical group labels ordered from most broad to most specific (e.g. ["animal", "bird", "songbird", "warbler"]). Use plain lowercase English nouns only. Omit proper names and scientific names.',
@@ -410,6 +412,15 @@ export async function fetchGroupTags(
       }).catch((e) =>
         console.error("PostHog GroupTagsLLMCompleted failed:", e)
       );
+      if (supabaseAdmin) {
+        recordAIUsageBestEffort(supabaseAdmin, {
+          operation: "scan_group_tag_enrichment",
+          model: "gemini-2.5-flash",
+          usage,
+          inputModality: "text",
+          userId: typeof user === "string" ? null : user.id,
+        });
+      }
     }
 
     const parsed = extractJson<{ group_tags: string[] }>(

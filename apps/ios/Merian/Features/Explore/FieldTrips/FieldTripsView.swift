@@ -4,17 +4,105 @@ import SwiftUI
 enum FieldTripTemplatePresentation {
     static let backyardSafariSlug = "backyard_safari"
     static let parkPollinatorsSlug = "park_pollinators"
+    static let backyardSafariSubtitle = "Observe local species often found in your own backyard."
 
     static func title(_ title: String, slug: String) -> String {
-        guard slug == backyardSafariSlug, title == "Backyard Safari" else {
+        slug == backyardSafariSlug ? "Backyard Safari" : title
+    }
+
+    static func currentLevel(for template: FieldTripTemplate) -> FieldTripLevel? {
+        if let levelNumber = template.viewerProgress?.currentLevelNumber {
+            return template.levels.first(where: { $0.levelNumber == levelNumber })
+        }
+
+        return template.levels.min(by: { $0.levelNumber < $1.levelNumber })
+    }
+
+    static func previewLevel(for template: FieldTripTemplate) -> FieldTripLevel? {
+        currentLevel(for: template)
+            ?? template.levels.min(by: { $0.levelNumber < $1.levelNumber })
+    }
+
+    static func targetCount(for template: FieldTripTemplate) -> Int {
+        if let targetCount = template.viewerProgress?.targetCount, targetCount > 0 {
+            return targetCount
+        }
+
+        return previewLevel(for: template)?.items.count ?? 0
+    }
+
+    static func completedCount(for template: FieldTripTemplate) -> Int {
+        max(0, template.viewerProgress?.completedCount ?? 0)
+    }
+
+    static func currentLevelTitle(for template: FieldTripTemplate) -> String {
+        if let title = currentLevel(for: template)?.title
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !title.isEmpty {
             return title
         }
-        return "Backyard safari"
+
+        let levelNumber = template.viewerProgress?.currentLevelNumber
+            ?? template.levels.map(\.levelNumber).min()
+            ?? 1
+        return "Level \(max(1, levelNumber))"
+    }
+
+    static func subtitle(for template: FieldTripTemplate) -> String? {
+        guard template.slug == backyardSafariSlug else { return template.subtitle }
+
+        let targetCount = targetCount(for: template)
+        guard targetCount > 0 else { return backyardSafariSubtitle }
+        return "Observe \(targetCount) local species often found in your own backyard."
+    }
+
+    static func cardTags(
+        for template: FieldTripTemplate,
+        locationLabel: String?
+    ) -> [FieldTripTemplateTagPresentation] {
+        var tags: [FieldTripTemplateTagPresentation] = []
+
+        if !template.viewerHasAccess,
+           template.isProOnly || template.accessKind.lowercased() == "pro" {
+            tags.append(.init(kind: .access, title: "Pro", systemImage: "lock.fill"))
+        }
+
+        tags.append(.init(kind: .difficulty, title: template.difficultyTitle))
+        tags.append(.init(kind: .level, title: currentLevelTitle(for: template)))
+        if template.viewerProgress?.isPublished == true {
+            tags.append(.init(kind: .visibility, title: "Public", systemImage: "globe.americas.fill"))
+        } else {
+            tags.append(.init(kind: .visibility, title: "Private", systemImage: "lock.fill"))
+        }
+
+        if let locationLabel = locationLabel?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !locationLabel.isEmpty {
+            tags.append(.init(kind: .location, title: locationLabel))
+        }
+
+        return tags
     }
 
     static func bundledCoverImageName(for slug: String?) -> String? {
         slug == backyardSafariSlug ? "fieldtrip-backyard-safari" : nil
     }
+}
+
+struct FieldTripTemplateTagPresentation: Equatable, Identifiable {
+    enum Kind: String, Equatable {
+        case access
+        case difficulty
+        case level
+        case visibility
+        case location
+    }
+
+    let kind: Kind
+    let title: String
+    var systemImage: String?
+
+    var id: String { "\(kind.rawValue):\(title)" }
 }
 
 struct FieldTripsView: View {
@@ -25,10 +113,12 @@ struct FieldTripsView: View {
     let onOpenPublication: (String) -> Void
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
+    @Environment(EnvironmentContextManager.self) private var environmentContextManager
     @Query private var localScans: [LocalScanRecord]
     @State private var viewModel = FieldTripsViewModel()
     @State private var filters = FieldTripCatalogFilters()
     @State private var isShowingFilterSheet = false
+    @State private var cardLocationLabel: String?
 
     private var eventsEnabled: Bool {
         FieldTripEventsAvailability.isEnabled
@@ -53,12 +143,21 @@ struct FieldTripsView: View {
             }
             await viewModel.load(userRegion: userRegion, eventsEnabled: eventsEnabled)
         }
+        .task(id: environmentContextManager.locationAuthorizationStatus) {
+            let locationName = await environmentContextManager.currentAuthorizedLocationName()
+            guard !Task.isCancelled else { return }
+            cardLocationLabel = locationName
+        }
         .onChange(of: selectedSection) { _, _ in
             HapticManager.shared.triggerSelectionPulse()
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
             switch event {
             case .fieldTripProgressUpdated:
+                Task {
+                    await viewModel.refresh(userRegion: userRegion, eventsEnabled: eventsEnabled)
+                }
+            case .captureGoalContextInvalidated(let source) where source == .fieldTrip:
                 Task {
                     await viewModel.refresh(userRegion: userRegion, eventsEnabled: eventsEnabled)
                 }
@@ -114,6 +213,7 @@ struct FieldTripsView: View {
                             ForEach(filteredTemplates) { template in
                                 FieldTripTemplateCard(
                                     template: template,
+                                    locationLabel: cardLocationLabel,
                                     localScansById: localScansById,
                                     onOpenTemplate: {
                                         HapticManager.shared.triggerLightImpact(
@@ -403,6 +503,13 @@ struct FieldTripsView: View {
     }
 }
 
+private enum FieldTripLifecycleConfirmation: String, Identifiable {
+    case stop
+    case reset
+
+    var id: String { rawValue }
+}
+
 struct FieldTripTemplateDetailView: View {
     let reference: FieldTripTemplateReference
     let focusedChecklistItemId: String?
@@ -415,6 +522,8 @@ struct FieldTripTemplateDetailView: View {
     @State private var communityPreview: [FieldTripRecentPublication] = []
     @State private var isLoading = false
     @State private var isStarting = false
+    @State private var isStopping = false
+    @State private var isResetting = false
     @State private var isLoadingCommunityPreview = false
     @State private var errorMessage: String?
     @State private var publishingTemplate: FieldTripTemplate?
@@ -426,6 +535,7 @@ struct FieldTripTemplateDetailView: View {
     @State private var pendingObjectiveItemId: String?
     @State private var highlightedObjectiveItemId: String?
     @State private var didApplyInitialFocus = false
+    @State private var lifecycleConfirmation: FieldTripLifecycleConfirmation?
 
     init(
         reference: FieldTripTemplateReference,
@@ -485,6 +595,15 @@ struct FieldTripTemplateDetailView: View {
             )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let template {
+                    primaryActionBar(template)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+                        .background(.bar)
+                }
+            }
             .task {
                 await load(force: false)
             }
@@ -502,6 +621,9 @@ struct FieldTripTemplateDetailView: View {
                     onOpenPublication(publication.publicationId)
                     Task { await load(force: true) }
                 }
+            }
+            .alert(item: $lifecycleConfirmation) { confirmation in
+                lifecycleAlert(for: confirmation)
             }
             .merianSystemFeedback(
                 toastMessage: Binding(
@@ -523,11 +645,11 @@ struct FieldTripTemplateDetailView: View {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
                     FieldTripPublicationStatusBadge(
-                        isPublished: template.activeProgress?.isPublished == true
+                        isPublished: template.viewerProgress?.isPublished == true
                     )
 
                     Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
-                        .font(.title2.weight(.bold))
+                        .font(.largeTitle.weight(.bold))
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -541,9 +663,9 @@ struct FieldTripTemplateDetailView: View {
 
                 FieldTripLevelsSection(
                     template: template,
-                    currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1,
-                    isTripComplete: template.activeProgress?.isComplete ?? false,
-                    progress: template.activeProgress.map(FieldTripLevelProgressPresentation.init),
+                    currentLevelNumber: template.viewerProgress?.currentLevelNumber ?? 1,
+                    isTripComplete: template.viewerProgress?.isComplete ?? false,
+                    progress: template.viewerProgress.map(FieldTripLevelProgressPresentation.init),
                     progressPlacement: .headerRing,
                     highlightedItemId: highlightedObjectiveItemId,
                     localScansById: localScansById,
@@ -564,8 +686,8 @@ struct FieldTripTemplateDetailView: View {
         case .tips:
             FieldTripGuideSections(
                 template: template,
-                currentLevelNumber: template.activeProgress?.currentLevelNumber ?? 1,
-                isTripComplete: template.activeProgress?.isComplete ?? false,
+                currentLevelNumber: template.viewerProgress?.currentLevelNumber ?? 1,
+                isTripComplete: template.viewerProgress?.isComplete ?? false,
                 expandedItemId: $expandedGuideItemId,
                 highlightedItemId: highlightedGuideItemId
             )
@@ -660,44 +782,125 @@ struct FieldTripTemplateDetailView: View {
         }
 
         if let template {
-            ToolbarItem(placement: .bottomBar) {
-                primaryActionBar(template)
+            if FieldTripDetailLifecyclePresentation.showsOptionsMenu(template) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    lifecycleOptionsMenu(template)
+                }
             }
         }
     }
 
+    private func lifecycleOptionsMenu(_ template: FieldTripTemplate) -> some View {
+        Menu {
+            if FieldTripDetailLifecyclePresentation.canStop(template) {
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    lifecycleConfirmation = .stop
+                } label: {
+                    Label("Stop field trip", systemImage: "stop.circle")
+                }
+            }
+
+            if FieldTripDetailLifecyclePresentation.canStop(template),
+               FieldTripDetailLifecyclePresentation.canReset(template) {
+                Divider()
+            }
+
+            if FieldTripDetailLifecyclePresentation.canReset(template) {
+                Button(role: .destructive) {
+                    HapticManager.shared.triggerSelectionPulse()
+                    lifecycleConfirmation = .reset
+                } label: {
+                    Label("Reset field trip", systemImage: "arrow.counterclockwise")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .tint(.primary)
+        .disabled(isLifecycleMutating)
+        .accessibilityLabel("Field trip options")
+        .accessibilityIdentifier("FieldTripDetailOptions")
+    }
+
     @ViewBuilder
     private func primaryActionBar(_ template: FieldTripTemplate) -> some View {
-        if !template.viewerHasAccess {
+        switch FieldTripDetailLifecyclePresentation.primaryAction(for: template) {
+        case .unlock:
             FieldTripDetailPrimaryActionBar(
                 title: "Unlock with Pro",
-                systemImage: "lock.fill"
+                systemImage: "lock.fill",
+                isEnabled: !isLifecycleMutating
             ) {
                 AppEventPublisher.shared.send(.triggerPaywall)
             }
-        } else if template.activeProgress == nil {
+        case .start:
             FieldTripDetailPrimaryActionBar(
                 title: "Start outing",
                 systemImage: "play.fill",
                 isLoading: isStarting,
-                isEnabled: !isStarting
+                isEnabled: !isLifecycleMutating
             ) {
                 Task { await start(template) }
             }
-        } else if let progress = template.activeProgress, progress.isComplete {
+        case .resume:
+            FieldTripDetailPrimaryActionBar(
+                title: "Resume outing",
+                systemImage: "play.fill",
+                isLoading: isStarting,
+                isEnabled: !isLifecycleMutating
+            ) {
+                Task { await start(template) }
+            }
+        case .publish:
             FieldTripDetailPrimaryActionBar(
                 title: "Publish outing",
-                systemImage: "square.and.arrow.up"
+                systemImage: "square.and.arrow.up",
+                isEnabled: !isLifecycleMutating
             ) {
                 publishingTemplate = template
             }
-        } else {
+        case .scan:
             FieldTripDetailPrimaryActionBar(
                 title: "Start scanning",
-                systemImage: nil
+                systemImage: nil,
+                isEnabled: !isLifecycleMutating
             ) {
                 openScanner()
             }
+        }
+    }
+
+    private var isLifecycleMutating: Bool {
+        isStarting || isStopping || isResetting
+    }
+
+    private func lifecycleAlert(for confirmation: FieldTripLifecycleConfirmation) -> Alert {
+        switch confirmation {
+        case .stop:
+            Alert(
+                title: Text("Stop this field trip?"),
+                message: Text(
+                    "Your progress will be saved. Scans taken before you stop can still count if you approve their identification later, and you can resume anytime."
+                ),
+                primaryButton: .default(Text("Stop field trip")) {
+                    guard let template else { return }
+                    Task { await stop(template) }
+                },
+                secondaryButton: .cancel()
+            )
+        case .reset:
+            Alert(
+                title: Text("Reset this field trip?"),
+                message: Text(
+                    "This clears all goal progress for this unfinished field trip and returns it to its initial state. This can’t be undone."
+                ),
+                primaryButton: .destructive(Text("Reset field trip")) {
+                    guard let template else { return }
+                    Task { await reset(template) }
+                },
+                secondaryButton: .cancel()
+            )
         }
     }
 
@@ -734,7 +937,8 @@ struct FieldTripTemplateDetailView: View {
     }
 
     private func start(_ template: FieldTripTemplate) async {
-        guard !isStarting else { return }
+        guard !isLifecycleMutating else { return }
+        let wasStopped = template.isStopped
         isStarting = true
         errorMessage = nil
         defer { isStarting = false }
@@ -742,6 +946,50 @@ struct FieldTripTemplateDetailView: View {
         do {
             self.template = try await MerianNetworkClient.shared.startFieldTrip(templateId: template.templateId)
             HapticManager.shared.triggerSuccessPulse()
+            if wasStopped {
+                toastMessage = "Field trip resumed."
+            }
+            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            toastMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    private func stop(_ template: FieldTripTemplate) async {
+        guard !isLifecycleMutating,
+              let progress = template.activeProgress,
+              !progress.isComplete else { return }
+        isStopping = true
+        defer { isStopping = false }
+
+        do {
+            self.template = try await MerianNetworkClient.shared.stopFieldTrip(
+                userFieldTripId: progress.userFieldTripId
+            )
+            HapticManager.shared.triggerSuccessPulse()
+            toastMessage = "Field trip stopped. Your progress is saved."
+            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            toastMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    private func reset(_ template: FieldTripTemplate) async {
+        guard !isLifecycleMutating,
+              let progress = template.viewerProgress,
+              !progress.isComplete,
+              progress.publicationId == nil else { return }
+        isResetting = true
+        defer { isResetting = false }
+
+        do {
+            self.template = try await MerianNetworkClient.shared.resetFieldTrip(
+                userFieldTripId: progress.userFieldTripId
+            )
+            HapticManager.shared.triggerSuccessPulse()
+            toastMessage = "Field trip reset."
             AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
@@ -810,6 +1058,15 @@ struct FieldTripChallengeDetailView: View {
             .navigationTitle(viewModel.challenge?.title ?? "Challenge")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let challenge = viewModel.challenge {
+                    primaryActionBar(challenge)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+                        .background(.bar)
+                }
+            }
             .task {
                 await viewModel.load()
             }
@@ -925,7 +1182,7 @@ struct FieldTripChallengeDetailView: View {
 
             HStack(alignment: .top, spacing: 10) {
                 Text(challenge.title)
-                    .font(.title2.weight(.bold))
+                    .font(.largeTitle.weight(.bold))
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -980,11 +1237,6 @@ struct FieldTripChallengeDetailView: View {
             }
         }
 
-        if let challenge = viewModel.challenge {
-            ToolbarItem(placement: .bottomBar) {
-                primaryActionBar(challenge)
-            }
-        }
     }
 
     @ViewBuilder
@@ -1266,62 +1518,69 @@ enum FieldTripObjectiveArtwork {
 
 private struct FieldTripTemplateCard: View {
     let template: FieldTripTemplate
+    let locationLabel: String?
     let localScansById: [String: LocalScanRecord]
     let onOpenTemplate: () -> Void
     let onOpenCompletedScan: (String) -> Void
 
     private var previewTargetCount: Int {
-        if let activeProgress = template.activeProgress {
-            return max(0, activeProgress.targetCount)
-        }
-
-        return template.levels
-            .min(by: { $0.levelNumber < $1.levelNumber })?
-            .items.count ?? 0
+        FieldTripTemplatePresentation.targetCount(for: template)
     }
 
     private var previewItems: [FieldTripChecklistItem] {
-        if let activeLevelNumber = template.activeProgress?.currentLevelNumber,
-           let activeLevel = template.levels.first(where: { $0.levelNumber == activeLevelNumber }) {
-            return activeLevel.items
-        }
-
-        return template.levels
-            .min(by: { $0.levelNumber < $1.levelNumber })?
-            .items ?? []
+        FieldTripTemplatePresentation.previewLevel(for: template)?.items ?? []
     }
 
     private var showsScanPreview: Bool {
         previewTargetCount > 0
     }
 
+    private var tags: [FieldTripTemplateTagPresentation] {
+        FieldTripTemplatePresentation.cardTags(
+            for: template,
+            locationLabel: locationLabel
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .center) {
-                        FieldTripAccessBadge(template: template)
+                HStack(alignment: .top, spacing: 16) {
+                    GoalProgressRing(
+                        completedCount: FieldTripTemplatePresentation.completedCount(for: template),
+                        targetCount: previewTargetCount,
+                        lineWidth: 4.5,
+                        labelFontSize: 16,
+                        tint: .accentColor
+                    )
+                    .frame(width: 64, height: 64)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Field trip progress")
+                    .accessibilityValue(
+                        "\(FieldTripTemplatePresentation.completedCount(for: template)) of \(previewTargetCount) goals complete"
+                    )
 
-                        Spacer(minLength: 16)
-
-                        Image(systemName: "chevron.right")
-                            .font(.title3.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
+                            .font(.headline.weight(.bold))
                             .foregroundStyle(.primary)
-                            .accessibilityHidden(true)
-                    }
+                            .lineLimit(2)
 
-                    Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
-                        .font(.title3.weight(.bold))
+                        if let subtitle = FieldTripTemplatePresentation.subtitle(for: template) {
+                            Text(subtitle)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
+
+                    Image(systemName: "chevron.right")
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
-                        .lineLimit(2)
-
-                    if let subtitle = template.subtitle {
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                        .accessibilityHidden(true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -1329,7 +1588,7 @@ private struct FieldTripTemplateCard: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 16)
             .padding(.top, 16)
-            .padding(.bottom, showsScanPreview || template.activeProgress != nil ? 12 : 16)
+            .padding(.bottom, 12)
 
             if showsScanPreview {
                 FieldTripScanPreviewStrip(
@@ -1340,22 +1599,47 @@ private struct FieldTripTemplateCard: View {
                     onOpenTemplate: onOpenTemplate,
                     onOpenCompletedScan: onOpenCompletedScan
                 )
-                .padding(.bottom, template.activeProgress == nil ? 16 : 12)
+                .padding(.bottom, 12)
             }
 
-            if let activeProgress = template.activeProgress {
-                Button(action: onOpenTemplate) {
-                    FieldTripProgressBar(progress: activeProgress)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
+            FieldTripTemplateTagRow(tags: tags)
                 .padding(.bottom, 16)
-            }
         }
         .frame(maxWidth: .infinity)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
         .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+    }
+}
+
+private struct FieldTripTemplateTagRow: View {
+    let tags: [FieldTripTemplateTagPresentation]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                ForEach(tags) { tag in
+                    HStack(spacing: 4) {
+                        if let systemImage = tag.systemImage {
+                            Image(systemName: systemImage)
+                                .font(.caption2.weight(.bold))
+                        }
+
+                        Text(tag.title)
+                            .lineLimit(1)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(tag.kind == .access ? .primary : .secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .scrollClipDisabled()
     }
 }
 
@@ -1418,7 +1702,11 @@ struct FieldTripScanPreviewStrip: View {
                 Color(uiColor: .tertiarySystemGroupedBackground)
 
                 if let completedScan {
-                    ScanThumbnail(record: completedScan, maxDimension: 300)
+                    ScanThumbnail(
+                        record: completedScan,
+                        maxDimension: 300,
+                        mediaBadgeAlignment: .topTrailing
+                    )
                 } else {
                     Image(
                         FieldTripObjectiveArtwork.imageName(
@@ -2480,7 +2768,11 @@ private struct FieldTripChecklistGridTile: View {
     private var tileContent: some View {
         if item.isCompleted, let completedScan {
             ZStack(alignment: .bottom) {
-                ScanThumbnail(record: completedScan, maxDimension: 600)
+                ScanThumbnail(
+                    record: completedScan,
+                    maxDimension: 600,
+                    mediaBadgeAlignment: .topTrailing
+                )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 LinearGradient(
@@ -2650,7 +2942,11 @@ private struct FieldTripCompactLevelStrip: View {
             if presentationState == .completed,
                let completedScanId = item.completedScanId,
                let completedScan = localScansById[completedScanId] {
-                ScanThumbnail(record: completedScan, maxDimension: 300)
+                ScanThumbnail(
+                    record: completedScan,
+                    maxDimension: 300,
+                    mediaBadgeAlignment: .topTrailing
+                )
             } else {
                 Image(
                     FieldTripObjectiveArtwork.imageName(
@@ -2729,34 +3025,6 @@ private struct FieldTripMetadataPill: View {
     }
 }
 
-private struct FieldTripAccessBadge: View {
-    let template: FieldTripTemplate
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if template.viewerHasAccess {
-                Text(template.difficultyTitle)
-            } else {
-                HStack(spacing: 4) {
-                    Image(systemName: "lock.fill")
-                    Text("Pro")
-                }
-            }
-        }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.primary)
-        .lineLimit(2)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.regularMaterial)
-        .clipShape(Capsule())
-        .overlay {
-            Capsule()
-                .strokeBorder(.primary.opacity(0.12), lineWidth: 0.75)
-        }
-    }
-}
-
 private struct FieldTripTagRow: View {
     let tags: [String]
 
@@ -2831,16 +3099,6 @@ struct FieldTripCoverImage: View {
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
-    }
-}
-
-private struct FieldTripProgressBar: View {
-    let progress: FieldTripProgress
-
-    var body: some View {
-        FieldTripLevelProgressBar(
-            progress: FieldTripLevelProgressPresentation(progress)
-        )
     }
 }
 
@@ -3020,7 +3278,7 @@ private struct FieldTripPublishSheet: View {
     }
 
     private func publish() async {
-        guard let progress = template.activeProgress else { return }
+        guard let progress = template.viewerProgress else { return }
         isPublishing = true
         errorMessage = nil
         defer { isPublishing = false }
@@ -3139,27 +3397,34 @@ private struct FieldTripUnavailableCard: View {
 private struct FieldTripTemplateSkeletonCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .center) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.18))
-                        .frame(width: 68, height: 25)
+            HStack(alignment: .top, spacing: 16) {
+                Circle()
+                    .stroke(Color.secondary.opacity(0.18), lineWidth: 4.5)
+                    .frame(width: 64, height: 64)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(Color.secondary.opacity(0.14))
+                            .frame(width: 30, height: 17)
+                    }
 
-                    Spacer(minLength: 16)
-
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                VStack(alignment: .leading, spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.secondary.opacity(0.16))
-                        .frame(width: 8, height: 22)
+                        .frame(width: 164, height: 17)
+
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 12)
+
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(width: 140, height: 12)
                 }
 
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(Color.secondary.opacity(0.16))
-                    .frame(width: 180, height: 20)
-
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.secondary.opacity(0.12))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 14)
+                    .frame(width: 8, height: 22)
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -3192,24 +3457,17 @@ private struct FieldTripTemplateSkeletonCard: View {
             .scrollDisabled(true)
             .padding(.bottom, 12)
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.secondary.opacity(0.14))
-                        .frame(width: 48, height: 12)
-
-                    Spacer()
-
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.secondary.opacity(0.14))
-                        .frame(width: 30, height: 12)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach([CGFloat(58), CGFloat(64), CGFloat(88), CGFloat(72)], id: \.self) { width in
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.12))
+                            .frame(width: width, height: 27)
+                    }
                 }
-
-                Capsule()
-                    .fill(Color.secondary.opacity(0.12))
-                    .frame(height: 7)
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
+            .scrollDisabled(true)
             .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)

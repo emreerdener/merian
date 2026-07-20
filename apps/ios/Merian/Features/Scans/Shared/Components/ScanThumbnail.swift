@@ -167,6 +167,7 @@ struct ScanThumbnail: View {
     let hasAudio: Bool
     let prefersReferenceForAudio: Bool
     let showsAudioBadge: Bool
+    let mediaBadgeAlignment: Alignment
     let maxDimension: Int
     let placeholderStyle: ScanThumbnailPlaceholderStyle
 
@@ -182,6 +183,7 @@ struct ScanThumbnail: View {
         hasAudio: Bool = false,
         prefersReferenceForAudio: Bool = false,
         showsAudioBadge: Bool = false,
+        mediaBadgeAlignment: Alignment = .bottomTrailing,
         maxDimension: Int = 600,
         placeholderStyle: ScanThumbnailPlaceholderStyle = .archived
     ) {
@@ -192,6 +194,7 @@ struct ScanThumbnail: View {
         self.hasAudio = hasAudio
         self.prefersReferenceForAudio = prefersReferenceForAudio
         self.showsAudioBadge = showsAudioBadge
+        self.mediaBadgeAlignment = mediaBadgeAlignment
         self.maxDimension = maxDimension
         self.placeholderStyle = placeholderStyle
     }
@@ -200,7 +203,8 @@ struct ScanThumbnail: View {
         record: LocalScanRecord,
         maxDimension: Int = 600,
         prefersReferenceForAudio: Bool = false,
-        showsAudioBadge: Bool = false
+        showsAudioBadge: Bool = false,
+        mediaBadgeAlignment: Alignment = .bottomTrailing
     ) {
         let presentation = record.scanThumbnailPresentation
         self.init(
@@ -211,6 +215,7 @@ struct ScanThumbnail: View {
             hasAudio: presentation.hasAudio,
             prefersReferenceForAudio: prefersReferenceForAudio,
             showsAudioBadge: showsAudioBadge,
+            mediaBadgeAlignment: mediaBadgeAlignment,
             maxDimension: maxDimension,
             placeholderStyle: presentation.placeholderStyle
         )
@@ -234,7 +239,7 @@ struct ScanThumbnail: View {
                 }
             )
             .clipped()
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: mediaBadgeAlignment) {
                 if hasVideo || (hasAudio && showsAudioBadge), thumbnail != nil {
                     Image(systemName: hasVideo ? "play.fill" : "waveform")
                         .font(.system(size: 11, weight: .bold))

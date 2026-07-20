@@ -763,6 +763,76 @@ pooler connection string in CI when a runner cannot reach IPv6. The warning
 parsing the local Auth config and is not fatal for `db push`; only treat it as
 actionable if a command fails while applying Auth provider config.
 
+## Internal Admin Release
+
+The private admin system has a strict dependency order because the browser must
+never receive direct table access or a service-role key:
+
+1. Apply `20260719161112_add_internal_admin_foundation.sql` before exposing any
+   admin route or deploying `/report-user`.
+2. Confirm the private schema, explicit RPC grants, direct-table denial,
+   moderation projection filters, usage triggers, price seeds, and historical
+   backfill completed.
+3. Deploy `/report-user` and every changed transitive consumer of
+   `_shared/aiUsage.ts` immediately after the schema. Do not deploy a writer
+   before `record_ai_usage_event` exists.
+4. Deploy public-web/iOS projection consumers and the native Report user UI.
+5. Deploy `apps/admin` as a separate project rooted at `apps/admin`; attach only
+   `admin.naturebook.earth` and only the three public environment variables.
+6. Add the exact production Auth callback, verify Google/TOTP, bootstrap the
+   first owner only after their first Google sign-in, and complete the role and
+   revocation smoke matrix.
+
+Required local checks before the database push:
+
+```bash
+supabase --workdir services db reset
+supabase --workdir services test db \
+  services/supabase/tests/admin_foundation_security.sql \
+  services/supabase/tests/admin_review_ai.sql \
+  --local
+supabase --workdir services db lint --local --schema public,internal
+supabase --workdir services db advisors --local --type security
+supabase --workdir services db advisors --local --type performance
+
+deno test \
+  --allow-read=services/supabase/migrations \
+  --config services/supabase/functions/deno.json \
+  services/supabase/functions/_tests/adminFoundationMigration.test.ts \
+  services/supabase/functions/_shared/aiUsage_test.ts \
+  services/supabase/functions/report-user/db.test.ts
+
+cd apps/admin
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
+After the migration, query grants as a non-owner runtime role or run the pgTAP
+security suite against the candidate database. `anon` must not execute admin
+RPCs; `authenticated` must not select `internal`, `user_reports`, or
+`ai_usage_events`; and `record_ai_usage_event` must remain service-role-only.
+
+The admin app is a separate Next.js deployment, not part of the public web
+project. Its environment allowlist is:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_ADMIN_ORIGIN=https://admin.naturebook.earth
+```
+
+Fail the release if the deployment includes `SUPABASE_SERVICE_ROLE_KEY`, direct
+database credentials, a Gemini key, or analytics credentials. Roll back the
+frontend/DNS independently if needed; preserve the internal schema, audit rows,
+review history, notes, moderation fields, and AI ledger. Database correction is
+always a forward migration.
+
+The complete owner-bootstrap, smoke-test, pricing, recovery, incident, and
+rollback procedures are in
+[`11-internal-admin-operations.md`](./11-internal-admin-operations.md).
+
 ## Post-Deploy Smoke Checks
 
 After deployment:
@@ -888,3 +958,7 @@ After deployment:
 - Smoke-test `/insight-chat` with `action: "load"` and
   `action:
   "suggest_prompts"` against an owned completed biological scan.
+- For an admin release, complete the authentication/role, security-header,
+  grouped-review, hidden-content projection, feedback/user audit, and AI-ledger
+  smoke matrices in `11-internal-admin-operations.md`. Confirm the deployment
+  contains no service-role/direct-database/model/analytics secret.

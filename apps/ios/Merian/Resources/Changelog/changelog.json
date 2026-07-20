@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-19-field-notes-save-feedback",
+      "date": "2026-07-19",
+      "title": "Reliable Field notes editing",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Closing Field notes without making changes no longer shows a visibility message or refreshes the Explore post.",
+            "Edited notes still save automatically, with clear feedback that distinguishes text updates from public or private visibility changes."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-19-field-trip-events-preview",
       "date": "2026-07-19",
       "title": "Field trip Events preview",

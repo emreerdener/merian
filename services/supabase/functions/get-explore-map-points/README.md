@@ -102,6 +102,7 @@ derives map output from raw scan GPS at read time.
 Map rows require:
 
 - active shared post;
+- no internal-admin moderation hide (`moderated_at IS NULL`);
 - non-tombstoned backing scan;
 - published image, video, or audio media and resolved species;
 - non-shadowbanned author;

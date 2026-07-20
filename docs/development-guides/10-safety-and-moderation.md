@@ -384,6 +384,53 @@ same reporter update one row without reopening a report that moderators already
 dismissed or actioned. Post reporting must never call `/flag-issue`, set
 `scans.is_flagged`, or create an identification-review record.
 
+User-profile reports follow the same separation rule. `/report-user` accepts
+only a visible non-self author profile and writes `user_reports`; it does not
+block the user automatically. Identification, post, comment, and user intake
+rows are grouped into private `internal.review_cases`. Moderator hide/restore is
+reversible and independent of explicit case resolution. A hidden post is
+excluded from feed, map, profile, detail, notification, community, and public
+web projections through the shared `moderated_at IS NULL` visibility contract.
+All review reads and transitions are audited, and raw report text is never
+placed in application logs or URLs.
+
+### Internal review operating contract
+
+The admin case is the workflow source of truth; legacy intake `status` columns
+remain source-specific evidence state and are not a substitute for the grouped
+case. Moderators use this sequence:
+
+1. Open the case, review all source rows and the minimum subject/account context
+   needed for the decision. Exact location is permitted only on identification
+   detail and the access is audited.
+2. Move the case to `in_review`, set priority, and assign an active moderator or
+   owner when ownership is clear.
+3. Append notes instead of editing prior notes. Do not paste report/chat text or
+   coordinates into external logs, URLs, or unapproved tickets.
+4. Hide a post/comment immediately when public harm warrants it. Hiding is
+   reversible and does not imply that the report is substantiated or resolved.
+5. Set `resolved` or `dismissed` explicitly with a meaningful resolution code.
+   Identification resolution only clears `scans.is_flagged` when no other
+   open/in-review identification case exists; it does not rewrite the species.
+6. Restore content only through the audited restore action and only after the
+   visibility decision is independently justified.
+
+A new source from a reporter already represented in the case updates evidence
+without incrementing independent report count or reopening terminal state. The
+first source from a different reporter reopens a resolved/dismissed case. This
+rule prevents one user from repeatedly reopening a case while preserving new
+independent safety signals.
+
+Hidden posts must remain absent from Recent/Following/trending/nearby feeds,
+maps, author profiles, post detail, community-identification surfaces, derived
+notifications, widgets, and public web. A release that changes an Explore
+projection must run the moderation projection contract before deployment.
+
+Owners may revoke an admin session or disable membership during a suspected
+staff-account compromise. Audit and note rows are immutable evidence and must
+never be deleted as part of incident cleanup. Full incident procedures are in
+[`../backend-and-data/11-internal-admin-operations.md`](../backend-and-data/11-internal-admin-operations.md#incident-response).
+
 ## Database Columns
 
 ### `users` table additions

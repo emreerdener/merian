@@ -1,4 +1,5 @@
 import { Schema, Type } from "@google/genai";
+import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 
 import {
   jsonResponse,
@@ -240,6 +241,7 @@ Deno.serve((req: Request) =>
     let llmCandidateTokens: number | null = null;
     let llmThinkingTokens: number | null = null;
     let llmTotalTokens: number | null = null;
+    let llmUsageMetadata: Record<string, unknown> = {};
     let finishReason: string | undefined;
 
     try {
@@ -297,6 +299,7 @@ Deno.serve((req: Request) =>
 
       const usage = result.usageMetadata;
       if (usage) {
+        llmUsageMetadata = geminiUsageModalityBreakdown(usage);
         llmPromptTokens = usage.promptTokenCount ?? null;
         llmCandidateTokens = usage.candidatesTokenCount ?? null;
         llmThinkingTokens = usage.thoughtsTokenCount ?? null;
@@ -605,7 +608,7 @@ Deno.serve((req: Request) =>
         // Group tags (species-level, fire-and-forget)
         const groupTagsPromise =
           (needsGroupTags && !cachedSpecies?.group_tags?.length)
-            ? fetchGroupTags(user, parsedData.scientific_name!)
+            ? fetchGroupTags(user, parsedData.scientific_name!, supabaseAdmin)
             : Promise.resolve(null);
 
         await insertScan(
@@ -642,6 +645,7 @@ Deno.serve((req: Request) =>
             llm_thinking_tokens: llmThinkingTokens,
             llm_cached_tokens: null,
             llm_total_tokens: llmTotalTokens,
+            llm_usage_metadata: llmUsageMetadata,
             image_storage_urls: [],
             life_stage: "unknown",
             reproductive_condition: "not_applicable",

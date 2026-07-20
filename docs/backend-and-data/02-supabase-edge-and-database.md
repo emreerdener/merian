@@ -1357,7 +1357,7 @@ after a new same-user custom avatar has been promoted. Deno tests load
 `docs/r2-lifecycle.json` and fail if any enabled expiration rule targets the
 `avatars/` prefix.
 
-## Identification Review and Explore Content Reports
+## Internal Review, Feedback, and Admin Boundary
 
 Users can flag incorrect taxonomy results from `InsightSheetView`:
 
@@ -1376,13 +1376,34 @@ Users can flag incorrect taxonomy results from `InsightSheetView`:
   `PENDING_REVIEW`. Explore post-content reports do not use this table.
 - **`scans` table update**: Sets `is_flagged = true` and writes review context to
   `human_intervention_notes` when an identification is flagged for review.
+  After the internal-admin migration, `is_flagged` is recomputed from whether a
+  grouped identification case remains `open` or `in_review`.
 - **`explore_post_reports` table**: Stores native Explore post-content reports
   submitted through `/report-explore-post`, without changing `scans.is_flagged`.
+- **`explore_comment_reports` table**: Stores comment abuse intake separately
+  from post and identification reports.
+- **`user_reports` table**: Stores authenticated non-self visible-profile reports
+  submitted through `/report-user`. Reporting does not block the target.
 - **Duplicate lifecycle**: One row is retained per post and reporter. Repeat
   reports refresh context without resetting a moderator's `DISMISSED` or
   `ACTIONED` status to `PENDING_REVIEW`.
 - **Public web boundary**: Anonymous web visitors report by support email with
   the immutable post id; the public web route does not write this queue.
+
+Migration `20260719161112_add_internal_admin_foundation.sql` attaches all four
+intake families to one private `internal.review_cases` model. A case is unique by
+type/subject, retains immutable source links and append-only notes, supports
+assignment/priority/status/resolution, and reopens terminal state only when a
+new independent reporter arrives. Reversible post/comment hide/restore is a
+separate audited action and never resolves the case automatically.
+
+`apps/admin` is the only product UI for raw queues. It authenticates through
+Google OAuth cookies plus TOTP AAL2 and calls narrow `SECURITY DEFINER` RPCs.
+It has no service-role key or direct table grants. Analysts receive only
+aggregates; moderators and owners may access raw review/feedback/user context;
+owners additionally manage memberships, sessions, and audit history. The
+private `internal` schema is not a Data API schema and remains inaccessible to
+browser roles.
 
 The one-time beta product survey uses a separate feedback path rather than the
 moderation queue:
@@ -1392,8 +1413,17 @@ moderation queue:
   and stores the response under the JWT user id.
 - **`feedback_survey_responses` table**: Stores private product feedback with
   app/build/device context, ratings, selected answers, free text, and
-  `created_at`. RLS allows users to insert/read only their own rows; product
-  review happens through Supabase dashboard/service-role tooling.
+  `created_at`. RLS allows users to insert/read only their own rows.
+
+The admin feedback inbox unifies community feedback, surveys, Field
+message-level feedback, and Field feature feedback. Original submissions stay
+immutable; private `feedback_state` and append-only `admin_notes` provide
+workflow state, assignment, tags, and history.
+
+See [`10-internal-admin.md`](./10-internal-admin.md) for the complete database
+and authorization contract and
+[`11-internal-admin-operations.md`](./11-internal-admin-operations.md) for
+deployment and incident response.
 
 ## Account Deletion & Data Preservation (`safe-delete`)
 
@@ -1404,6 +1434,13 @@ reassigns the user's scans to a permanent anonymous tombstone user
 original user record and telemetry are then deleted without losing the
 biological observation data. The tombstone user targets the
 `current_streak_count` column, not any legacy field.
+
+The internal-admin foundation extends this deletion boundary to the append-only
+AI ledger. When the `public.users` row is deleted, a protected trigger clears
+the matching event's user, scan, conversation, message, source, and identifying
+metadata linkage. Token totals, operation/model classifications, and estimated
+cost remain available for anonymous aggregate analysis; the ledger cannot be
+updated or deleted through ordinary service-role writes.
 
 **Operation order**: The `safe-delete` function executes in the following
 sequence to minimise the window in which a revoked user can still issue API

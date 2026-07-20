@@ -69,7 +69,7 @@ struct FieldTripCaptureGoalProvider: CaptureGoalContextProviding {
     private func makeIntroduction(from template: FieldTripTemplate) -> CaptureGoalIntroduction? {
         guard template.slug == FieldTripTemplatePresentation.backyardSafariSlug,
               template.viewerHasAccess,
-              template.activeProgress == nil,
+              template.viewerProgress == nil,
               let firstLevel = template.levels.min(by: { $0.levelNumber < $1.levelNumber }),
               !firstLevel.items.isEmpty else {
             return nil

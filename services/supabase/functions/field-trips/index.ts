@@ -36,10 +36,12 @@ import {
   joinFieldTripChallenge,
   publishFieldTrip,
   publishFieldTripChallengeEntry,
+  resetFieldTrip,
   setFieldTripChallengeEntryLike,
   setFieldTripLike,
   setPinnedFieldTripPublications,
   startFieldTrip,
+  stopFieldTrip,
 } from "./db.ts";
 
 type FieldTripAction =
@@ -49,6 +51,8 @@ type FieldTripAction =
   | "challenges_catalog"
   | "template_detail"
   | "start"
+  | "stop"
+  | "reset"
   | "challenge_detail"
   | "join_challenge"
   | "community_publications"
@@ -90,6 +94,8 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
     case "challenges_catalog":
     case "template_detail":
     case "start":
+    case "stop":
+    case "reset":
     case "challenge_detail":
     case "join_challenge":
     case "community_publications":
@@ -298,6 +304,36 @@ Deno.serve((req: Request) =>
         const data = await startFieldTrip(
           user.id,
           templateId,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "stop": {
+        const actionErr = requireParams(body, ["user_field_trip_id"]);
+        if (actionErr) return actionErr;
+        const userFieldTripId = requireUuid(
+          body.user_field_trip_id,
+          "user_field_trip_id",
+        );
+        const data = await stopFieldTrip(
+          user.id,
+          userFieldTripId,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
+      }
+
+      case "reset": {
+        const actionErr = requireParams(body, ["user_field_trip_id"]);
+        if (actionErr) return actionErr;
+        const userFieldTripId = requireUuid(
+          body.user_field_trip_id,
+          "user_field_trip_id",
+        );
+        const data = await resetFieldTrip(
+          user.id,
+          userFieldTripId,
           supabaseAdmin,
         );
         return jsonResponse({ data });

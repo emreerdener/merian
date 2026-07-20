@@ -1,0 +1,12 @@
+@import "@mantine/core/styles.css";
+
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body { margin: 0; background: #f5f7f2; color: #18211b; }
+a { color: inherit; text-decoration: none; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+.table-scroll { overflow-x: auto; }
+.json-context { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, monospace; }
+.trend { display: flex; align-items: end; gap: 5px; min-height: 150px; padding-top: 18px; }
+.trend-bar { flex: 1; min-width: 5px; border-radius: 4px 4px 0 0; background: #3b7d58; }

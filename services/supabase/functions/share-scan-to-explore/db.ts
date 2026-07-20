@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
@@ -22,6 +23,8 @@ export interface ApprovedAudioMediaOptions {
   telemetryUserId?: string;
   trackEvent?: TrackEvent;
   cache?: AudioModerationCache;
+  supabaseAdmin?: SupabaseClient;
+  scanId?: string;
 }
 
 export interface ShareEligibleScanRow {
@@ -408,6 +411,8 @@ export async function upsertExplorePost(
     {
       telemetryUserId: userId,
       cache: exploreAudioModerationCache(supabaseAdmin),
+      supabaseAdmin,
+      scanId: scan.id,
     },
   );
   mediaRows = await attachAudioSpectrogramThumbnails(
@@ -513,7 +518,7 @@ export async function requireApprovedAudioMedia(
 ): Promise<void> {
   const moderate = options.moderate ?? moderateExploreAudioUrl;
   const trackEvent = options.trackEvent ?? trackPostHogEvent;
-  const { telemetryUserId, cache } = options;
+  const { telemetryUserId, cache, supabaseAdmin, scanId } = options;
   const audibleRows = rows.filter((row) =>
     row.kind === "audio" || (row.kind === "video" && row.has_audio)
   );
@@ -522,6 +527,21 @@ export async function requireApprovedAudioMedia(
     for (const row of audibleRows) {
       const startedAt = performance.now();
       const decision = await moderate(row.url, cache);
+      if (supabaseAdmin && !decision.cacheHit && decision.usage) {
+        recordAIUsageBestEffort(supabaseAdmin, {
+          operation: "explore_audio_moderation",
+          model: decision.model,
+          usage: decision.usage,
+          inputModality: row.kind === "video" ? "video" : "audio",
+          outcome: decision.approved ? "success" : "refusal",
+          userId: telemetryUserId ?? null,
+          scanId: scanId ?? null,
+          sourceType: decision.checksumSha256 ? "media_checksum" : null,
+          sourceId: decision.checksumSha256
+            ? uuidFromSha256(decision.checksumSha256)
+            : null,
+        });
+      }
       if (telemetryUserId) {
         runBackground(trackEvent(
           telemetryUserId,
@@ -566,6 +586,14 @@ export async function requireApprovedAudioMedia(
       "Audio moderation is temporarily unavailable. Nothing was shared.",
     );
   }
+}
+
+function uuidFromSha256(checksum: string): string | null {
+  const hex = checksum.toLowerCase().replace(/[^0-9a-f]/g, "").slice(0, 32);
+  if (hex.length !== 32) return null;
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${
+    hex.slice(16, 20)
+  }-${hex.slice(20, 32)}`;
 }
 
 export function exploreAudioModerationCache(

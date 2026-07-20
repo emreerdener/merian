@@ -12,6 +12,10 @@ The first route is the public Explore share page:
 It fetches the public Explore post and detail projections from Supabase on the
 server, renders a rich read-only post page with default Mantine components, and
 emits Open Graph metadata so Messages/social shares can render a clean preview.
+Unshared, administratively hidden, tombstoned, blocked, and otherwise
+privacy-filtered posts resolve to the application not-found page with
+non-indexable metadata; server code must not reconstruct them from direct table
+reads.
 Standalone-audio post details and social previews consume the persisted
 `media_items.thumbnail_url` spectrogram. The home grid uses the public species
 reference thumbnail instead, with the spectrogram as a legacy fallback. The
@@ -202,6 +206,9 @@ raw scan telemetry, auth data, private email, or server credentials.
 
 The Explore share page intentionally uses default Mantine components and
 component props instead of route-specific CSS classes or custom page chrome.
+Post visibility comes exclusively from the public projection contract. In
+particular, do not bypass its `moderated_at IS NULL` rule with service-role table
+queries or cached page data.
 
 See
 `../../docs/system-architecture/08-public-brand-compatibility.md` for the

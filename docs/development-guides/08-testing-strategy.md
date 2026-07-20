@@ -780,6 +780,28 @@ published case shows the green globe badge; VoiceOver must distinguish a public
 snapshot from a private outing, and long titles must wrap without compressing
 the fixed-size badge.
 
+Field Notes editor policy coverage lives in
+`MerianTests/Features/Insights/FieldNotesEditPolicyTests.swift`. It locks
+unchanged public/private drafts as no-ops, distinguishes content edits from
+effective visibility transitions, covers clearing public notes, and keeps
+content-only feedback separate from public/private transition feedback. Run the
+focused suite after changing `FieldNotesSheet`, Explore detail field-note saves,
+or shared field-note feedback:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/FieldNotesEditPolicyTests test
+```
+
+Manual QA must cover owned Explore posts with both Published and Private notes.
+Open the editor and close it unchanged with X and with a swipe; neither path may
+show a toast, invoke the public update, clear/reload detail content, or move the
+detail scroll position. Editing text without changing visibility must autosave
+and show `Field notes updated`; changing visibility must show only the matching
+public/private transition message. Clearing notes and a failed public save must
+retain their existing confirmation and inline-error behavior.
+
 Explore audio poster coverage is split by contract seam:
 `_shared/audioSpectrogram_test.ts` validates PCM WAV decoding, iOS-compatible
 FFT raster dimensions, PNG decompression, deterministic R2 keys, cache reuse,

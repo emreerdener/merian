@@ -1172,6 +1172,7 @@ struct MerianNetworkClientTests {
                 "follower_count": 7,
                 "following_count": 3,
                 "viewer_is_following": true,
+                "viewer_can_report": true,
                 "heatmap": {
                     "total_captures": 17,
                     "current_month_captures": 3,
@@ -1244,6 +1245,7 @@ struct MerianNetworkClientTests {
         #expect(profile.followerCount == 7)
         #expect(profile.followingCount == 3)
         #expect(profile.viewerIsFollowing == true)
+        #expect(profile.viewerCanReport == true)
         #expect(profile.profileHeatmapData.totalCaptures == 17)
         #expect(profile.profileHeatmapData.weeks.count == 1)
         #expect(profile.awardPayloads.count == AchievementType.allCases.count)

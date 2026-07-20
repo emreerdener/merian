@@ -57,6 +57,60 @@ export interface FirstFieldTripAchievementProgress {
   challenge_id: string | null;
 }
 
+interface StoppedFieldTripProgressRow {
+  template_id: string;
+  stopped_progress: unknown;
+  levels: unknown[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function mergeStoppedFieldTripProgress(
+  template: unknown,
+  stoppedRows: StoppedFieldTripProgressRow[],
+): unknown {
+  if (!isRecord(template) || typeof template.template_id !== "string") {
+    return template;
+  }
+
+  const stopped = stoppedRows.find((row) =>
+    row.template_id === template.template_id
+  );
+  if (!stopped) return template;
+
+  return {
+    ...template,
+    stopped_progress: stopped.stopped_progress,
+    levels: stopped.levels,
+  };
+}
+
+async function fetchStoppedFieldTripProgress(
+  userId: string,
+  templateId: string | null,
+  slug: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<StoppedFieldTripProgressRow[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_stopped_field_trip_progress",
+    {
+      self_id: userId,
+      target_template_id: templateId,
+      target_slug: slug,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch stopped Field trip progress: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) ? data as StoppedFieldTripProgressRow[] : [];
+}
+
 function makeHttpError(
   status: number,
   message: string,
@@ -72,17 +126,24 @@ export async function fetchFieldTripCatalog(
   limit: number,
   supabaseAdmin: SupabaseClient,
 ): Promise<unknown[]> {
-  const { data, error } = await supabaseAdmin.rpc("get_field_trip_catalog", {
-    self_id: userId,
-    user_region: userRegion,
-    max_limit: limit,
-  });
+  const [{ data, error }, stoppedRows] = await Promise.all([
+    supabaseAdmin.rpc("get_field_trip_catalog", {
+      self_id: userId,
+      user_region: userRegion,
+      max_limit: limit,
+    }),
+    fetchStoppedFieldTripProgress(userId, null, null, supabaseAdmin),
+  ]);
 
   if (error) {
     throw new Error(`Failed to fetch Field trip catalog: ${error.message}`);
   }
 
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data)
+    ? data.map((template) =>
+      mergeStoppedFieldTripProgress(template, stoppedRows)
+    )
+    : [];
 }
 
 export async function fetchFieldTripCaptureContext(
@@ -109,14 +170,22 @@ export async function fetchFieldTripTemplateDetail(
   slug: string | null,
   supabaseAdmin: SupabaseClient,
 ): Promise<unknown | null> {
-  const { data, error } = await supabaseAdmin.rpc(
-    "get_field_trip_template_detail",
-    {
-      self_id: userId,
-      target_template_id: templateId,
-      target_slug: slug,
-    },
-  );
+  const [{ data, error }, stoppedRows] = await Promise.all([
+    supabaseAdmin.rpc(
+      "get_field_trip_template_detail",
+      {
+        self_id: userId,
+        target_template_id: templateId,
+        target_slug: slug,
+      },
+    ),
+    fetchStoppedFieldTripProgress(
+      userId,
+      templateId,
+      slug,
+      supabaseAdmin,
+    ),
+  ]);
 
   if (error) {
     throw new Error(
@@ -124,7 +193,7 @@ export async function fetchFieldTripTemplateDetail(
     );
   }
 
-  return data ?? null;
+  return data == null ? null : mergeStoppedFieldTripProgress(data, stoppedRows);
 }
 
 export async function startFieldTrip(
@@ -146,6 +215,70 @@ export async function startFieldTrip(
   }
 
   return data;
+}
+
+export async function stopFieldTrip(
+  userId: string,
+  userFieldTripId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown> {
+  const { data: templateId, error } = await supabaseAdmin.rpc(
+    "stop_field_trip",
+    {
+      self_id: userId,
+      target_user_field_trip_id: userFieldTripId,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Failed to stop Field trip: ${error.message}`);
+  }
+  if (typeof templateId !== "string") {
+    throw new Error("Failed to stop Field trip: missing template id.");
+  }
+
+  const detail = await fetchFieldTripTemplateDetail(
+    userId,
+    templateId,
+    null,
+    supabaseAdmin,
+  );
+  if (!detail) {
+    throw new Error("Failed to stop Field trip: missing template detail.");
+  }
+  return detail;
+}
+
+export async function resetFieldTrip(
+  userId: string,
+  userFieldTripId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown> {
+  const { data: templateId, error } = await supabaseAdmin.rpc(
+    "reset_field_trip",
+    {
+      self_id: userId,
+      target_user_field_trip_id: userFieldTripId,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Failed to reset Field trip: ${error.message}`);
+  }
+  if (typeof templateId !== "string") {
+    throw new Error("Failed to reset Field trip: missing template id.");
+  }
+
+  const detail = await fetchFieldTripTemplateDetail(
+    userId,
+    templateId,
+    null,
+    supabaseAdmin,
+  );
+  if (!detail) {
+    throw new Error("Failed to reset Field trip: missing template detail.");
+  }
+  return detail;
 }
 
 export async function applyFieldTripScanProgress(

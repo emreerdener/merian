@@ -115,3 +115,13 @@ apps/web/yarn-debug.log*
 apps/web/yarn-error.log*
 apps/web/pnpm-debug.log*
 !apps/web/.env.example
+
+# Next.js internal admin app
+apps/admin/.next/
+apps/admin/.turbo/
+apps/admin/.vercel/
+apps/admin/out/
+apps/admin/coverage/
+apps/admin/tsconfig.tsbuildinfo
+apps/admin/npm-debug.log*
+!apps/admin/.env.example

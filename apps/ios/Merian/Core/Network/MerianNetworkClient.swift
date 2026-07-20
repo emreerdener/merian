@@ -2251,6 +2251,40 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripStartResponse.self, from: data).data
     }
 
+    func stopFieldTrip(userFieldTripId: String) async throws -> FieldTripTemplate {
+        try await updateFieldTripLifecycle(
+            action: "stop",
+            userFieldTripId: userFieldTripId
+        )
+    }
+
+    func resetFieldTrip(userFieldTripId: String) async throws -> FieldTripTemplate {
+        try await updateFieldTripLifecycle(
+            action: "reset",
+            userFieldTripId: userFieldTripId
+        )
+    }
+
+    private func updateFieldTripLifecycle(
+        action: String,
+        userFieldTripId: String
+    ) async throws -> FieldTripTemplate {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": action,
+            "user_field_trip_id": userFieldTripId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData
+        )
+        return try makeExploreDecoder().decode(
+            FieldTripTemplateDetailResponse.self,
+            from: data
+        ).data
+    }
+
     func getFieldTripChallenges(userRegion: String? = nil, limit: Int = 20) async throws -> [FieldTripChallenge] {
         let functionUrl = try endpointURL("field-trips")
         var payload: [String: Any] = [
@@ -3046,6 +3080,23 @@ final class MerianNetworkClient {
             "reason": reason,
             "details": details
         ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
+    func reportUser(
+        reportedUserId: String,
+        reason: ExploreUserReportReason,
+        details: String?
+    ) async throws {
+        let functionUrl = try endpointURL("report-user")
+        var payload: [String: Any] = [
+            "reported_user_id": reportedUserId,
+            "reason": reason.rawValue
+        ]
+        if let details = details?.trimmingCharacters(in: .whitespacesAndNewlines), !details.isEmpty {
+            payload["details"] = details
+        }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
     }

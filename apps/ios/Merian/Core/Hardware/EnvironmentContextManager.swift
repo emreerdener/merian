@@ -111,21 +111,16 @@ import WeatherKit
     /// Resolves the user's physical ISO country/region code only when location access is already authorized.
     /// This intentionally avoids requesting location permission so passive surfaces can fall back to locale.
     func currentAuthorizedRegionIdentifier() async -> String? {
-        checkAuthorization()
-        guard Self.allowsPassiveRegionResolution(for: locationAuthorizationStatus) else { return nil }
-
-        let location: CLLocation?
-        if let lastKnownLocation {
-            location = lastKnownLocation
-        } else {
-            location = await requestSingleLocation()
-            if let location {
-                cachedLocation = location
-            }
-        }
-
-        guard let location else { return nil }
+        guard let location = await currentAuthorizedLocation() else { return nil }
         return await reverseGeocodeRegionIdentifier(location: location)
+    }
+
+    /// Resolves a city/administrative-area label only when location access is already authorized.
+    /// Passive surfaces use this without ever presenting the location permission prompt.
+    func currentAuthorizedLocationName() async -> String? {
+        guard let location = await currentAuthorizedLocation() else { return nil }
+        let locationName = await reverseGeocode(location: location)
+        return ExploreLocationPrivacy.displayLabel(from: locationName)
     }
 
     // MARK: - Live Location Tracking
@@ -324,6 +319,21 @@ import WeatherKit
 
     nonisolated static func allowsPassiveRegionResolution(for status: CLAuthorizationStatus) -> Bool {
         status == .authorizedWhenInUse || status == .authorizedAlways
+    }
+
+    private func currentAuthorizedLocation() async -> CLLocation? {
+        checkAuthorization()
+        guard Self.allowsPassiveRegionResolution(for: locationAuthorizationStatus) else { return nil }
+
+        if let lastKnownLocation {
+            return lastKnownLocation
+        }
+
+        let location = await requestSingleLocation()
+        if let location {
+            cachedLocation = location
+        }
+        return location
     }
 
     private func requestSingleLocation() async -> CLLocation? {

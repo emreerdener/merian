@@ -31,7 +31,7 @@ Response:
       "template_id": "uuid",
       "slug": "backyard_safari",
       "title": "Backyard Safari",
-      "subtitle": "Find nearby everyday wildlife",
+      "subtitle": "Observe local species often found in your own backyard.",
       "description": "A starter checklist for neighborhood discoveries.",
       "cover_image_url": "https://...",
       "estimated_duration_minutes": 30,
@@ -55,6 +55,7 @@ Response:
         "completed_count": 2,
         "target_count": 4
       },
+      "stopped_progress": null,
       "levels": [
         {
           "level_id": "uuid",
@@ -110,6 +111,13 @@ renders **Published**. Completion alone must not imply publication. These fields
 are detail-only private viewer metadata and are not added to catalog, capture
 context, public profile, or Explore-post projections.
 
+An unfinished stopped outing has `active_progress: null` and an optional
+`stopped_progress` object with the same saved checklist counts plus
+`stopped_at`. Its `levels` include the saved completion state. Clients use
+active-or-stopped viewer progress for catalog status, filters, and detail cards,
+but active-only surfaces such as Capture and public active summaries continue
+to read only active progress.
+
 ### Template Detail and Explicit Start
 
 Template detail request:
@@ -148,8 +156,23 @@ Start request:
 
 The start action is idempotent for an existing trip. It creates or unhides the
 caller's `user_field_trips` row for an accessible template and returns the
-refreshed template detail. Auto-start from matching scans remains supported as a
-fallback.
+refreshed template detail. For a stopped outing it acts as Resume and opens a
+new activity period. Auto-start from matching scans remains supported after a
+Reset as a fallback.
+
+Lifecycle requests:
+
+```json
+{ "action": "stop", "user_field_trip_id": "uuid" }
+{ "action": "reset", "user_field_trip_id": "uuid" }
+```
+
+Stop preserves standard checklist progress, closes the open activity period,
+and removes the outing from Capture/profile active projections. Reset rejects
+completed or published outings, clears only unfinished standard progress and
+activity periods, and retains the shared outing row so Seasonal Challenge data
+is not cascaded away. Both responses contain refreshed template detail and use
+the verified Edge caller for ownership.
 
 ### Capture Context
 
@@ -170,7 +193,7 @@ Response:
       "user_field_trip_id": "uuid",
       "template_id": "uuid",
       "template_slug": "backyard_safari",
-      "outing_title": "Backyard safari",
+      "outing_title": "Backyard Safari",
       "last_engaged_at": "2026-07-17T18:00:00.000Z",
       "level_number": 1,
       "level_title": "Level 1",
@@ -197,6 +220,10 @@ labels, and challenge-specific completions are not projected. Joining a
 challenge reuses the underlying standard `user_field_trips` row, so that
 standard field trip remains eligible and continues to show only its normal Field
 Trip progress.
+
+Stopped trips are deliberately absent. A reset Backyard Safari can qualify for
+the unstarted introduction again; a stopped one cannot because its
+`stopped_progress` proves it has saved viewer progress.
 
 Field trips order by `last_engaged_at DESC`, where engagement is the later of the
 trip start and any item completion. `user_field_trip_id` is the stable tie
@@ -239,7 +266,7 @@ Response:
       "user_field_trip_id": "uuid",
       "template_id": "uuid",
       "slug": "backyard_safari",
-      "title": "Backyard safari",
+      "title": "Backyard Safari",
       "current_level_number": 2,
       "current_level_title": "Level 2",
       "completed_count": 0,
@@ -2656,8 +2683,9 @@ Validation and availability rules:
 
 - `author_user_id` is required and must be a UUID.
 - `preview_limit` is optional, defaults to `9`, and is capped at `30`.
-- The endpoint returns `404` if the target author has no currently visible
-  Explore post for the requesting viewer.
+- The endpoint returns `404` if the target author has neither a currently
+  visible Explore post nor a visible Field trip profile surface for the
+  requesting viewer.
 - Shadowbanned authors and either direction of user blocking return no profile.
 - Profile aggregates are computed from all non-tombstoned scans owned by the
   author.
@@ -2667,12 +2695,16 @@ Validation and availability rules:
   including domestic cat and dog scan achievements.
 - Preview posts use the same Explore visibility rules as feed/library posts and
   never include private, unshared, tombstoned, media-less, or non-species-backed
-  posts.
+  posts. Administratively hidden posts (`moderated_at IS NOT NULL`) are also
+  excluded from both profile discoverability and previews.
 - Achievement progress never includes qualifying scan IDs.
 - Follower/following counts are aggregate-only and do not expose browsable
   identities.
 - `viewer_is_following` is specific to the requesting viewer and drives the
   profile sheet follow button.
+- `viewer_can_report` is viewer-scoped and is `true` only for a non-self profile
+  returned by this visibility contract. It controls whether the overflow menu
+  offers **Report user**; `/report-user` independently revalidates the target.
 
 Current response shape:
 
@@ -2689,6 +2721,7 @@ Current response shape:
     "follower_count": 124,
     "following_count": 17,
     "viewer_is_following": true,
+    "viewer_can_report": true,
     "heatmap": {
       "total_captures": 124,
       "current_month_captures": 8,
@@ -2735,7 +2768,12 @@ Current response shape:
         "is_owned_by_viewer": false,
         "ranking_value": null
       }
-    ]
+    ],
+    "field_trips": {
+      "pinned": [],
+      "active": [],
+      "published": []
+    }
   }
 }
 ```
@@ -2748,7 +2786,11 @@ to UTC when no timezone is available.
 `follower_count` and `following_count` are public aggregate counts on visible
 profiles only. They do not imply browsable lists. `viewer_is_following` is
 specific to the requesting user and should replace any optimistic client follow
-state after a write.
+state after a write. `viewer_can_report` is an authorization-aware UI hint, not
+authority to bypass the report endpoint's self-report and visibility checks.
+`field_trips` is hydrated separately after the core profile RPC and contains
+only privacy-scoped active progress and published snapshots; it never exposes
+scan IDs, field notes, exact coordinates, or private evidence.
 
 ### `/get-explore-author-posts`
 
@@ -5634,6 +5676,167 @@ No JSON body is required. The cron trigger issues an empty POST request.
 4. Executes the discrete `.delete().in("id", [...])` cascade against PostgreSQL
    only after successfully purging the R2 remote hashes, preventing orphan
    binaries.
+
+## Deno `/report-user`
+
+Authenticated Explore viewers report a visible, non-self author profile. The
+function has `verify_jwt = false` because it uses the repository's shared custom
+Edge authentication wrapper; it is not an anonymous endpoint.
+
+### Request payload
+
+```json
+{
+  "reported_user_id": "6a4a8da6-41f5-45de-9569-5f77a60519c1",
+  "reason": "Harassment",
+  "details": "Optional context, at most 1,000 characters."
+}
+```
+
+| Field | Required | Contract |
+|---|---:|---|
+| `reported_user_id` | Yes | UUID; must differ from authenticated user |
+| `reason` | Yes | `Spam`, `Harassment`, `Impersonation`, `Inappropriate profile`, or `Other` |
+| `details` | No | Trimmed text, maximum 1,000 characters; blank becomes `null` |
+
+Before persisting, the function calls
+`get_explore_author_profile(self_id, target_author_user_id, 1)` with the service
+client. A syntactically valid but non-visible/arbitrary target returns 404. This
+reuses the profile's block, shadowban, post-moderation, and discoverability
+rules instead of introducing a user lookup surface.
+
+Success returns HTTP 200:
+
+```json
+{
+  "success": true,
+  "reported_user_id": "6a4a8da6-41f5-45de-9569-5f77a60519c1",
+  "message": "Report submitted for moderation."
+}
+```
+
+Validation/self-report errors return 400, missing/invalid authentication returns
+401, and a non-visible profile returns 404.
+
+The service-role upsert key is `(reporter_user_id, reported_user_id)`. The write
+updates reason/details/time but deliberately omits `status`, so repeat evidence
+from the same reporter does not reset `DISMISSED` or `ACTIONED`. A database
+insert trigger attaches a new intake source to the private grouped user case.
+The reporting action never blocks the target or modifies abuse state.
+
+`get-explore-author-profile` includes `viewer_can_report`; it is true only when
+the current viewer can use this endpoint for the non-self target.
+
+## Internal admin RPCs
+
+All RPCs use the normal authenticated Supabase client. The admin deployment has
+no service-role key and does not read tables directly.
+
+`admin_get_access_state` is the restricted pre-MFA routing check. It returns:
+
+```json
+{
+  "is_authenticated": true,
+  "is_member": true,
+  "role": "moderator",
+  "aal": "aal1",
+  "session_active": false
+}
+```
+
+It does not return raw application data. At `aal2`, `admin_begin_session`
+creates/refreshes the internal session for the JWT `session_id` and returns the
+role plus absolute expiry.
+
+Every remaining RPC calls `internal.require_admin`, which verifies:
+
+- immutable `auth.uid()` and valid JWT `session_id`;
+- registered, active Google user and private membership;
+- `aal2`;
+- matching live `auth.sessions` row;
+- internal session not revoked, not over eight hours, and active within 30
+  minutes;
+- minimum role.
+
+### Aggregate RPCs
+
+| RPC | Parameters | Minimum role | Response |
+|---|---|---|---|
+| `admin_get_overview` | `p_days`, `p_timezone`, `p_refresh` | Analyst | Range, account/plan counts, open reviews, new feedback, AI totals, prior period, daily rows |
+| `admin_ai_usage_summary` | `p_days`, optional operation/model/plan/modality, `p_scan_scope`, `p_refresh` | Analyst | Token categories, cache rate, scan avg/p50/p95, modality totals, daily rows, coverage cutover |
+
+`p_days` is clamped from 0 (all time) through 36,500. Overview daily rows use
+the requested IANA timezone; AI summary daily rows currently use database time.
+`p_scan_scope` is `primary` or `all_scan_related`. Authorized results are cached
+for five minutes by the full filter key; `p_refresh = true` bypasses the cache.
+
+### Review RPCs
+
+| RPC | Important parameters | Minimum role |
+|---|---|---:|
+| `admin_list_review_cases` | Optional status/type/priority/assignee/reason/from/to, tuple cursor, limit | Moderator |
+| `admin_get_review_case` | `p_case_id` | Moderator |
+| `admin_update_review_case` | Case ID, optional status/priority/assignee change/resolution/note | Moderator |
+| `admin_set_content_visibility` | Case ID, hidden boolean, required reason | Moderator |
+
+Review list responses use:
+
+```json
+{
+  "items": [],
+  "limit": 100,
+  "next_cursor": {
+    "updated_at": "2026-07-19T12:00:00Z",
+    "id": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+Case detail returns `case`, `subject`, `sources`, `notes`, and a nullable `scan`.
+The scan object, available only for identification review, may include exact
+coordinates; the read is audited. Assignments accept only active moderator or
+owner UUIDs. Note storage permits 4,000 characters, but the current transition
+RPC mirrors the note into the audit `reason` field and therefore has an
+effective 1,000-character limit. Hide/restore is valid only for post/comment
+cases, requires a reason of at least three characters, and never changes case
+status.
+
+### Feedback and user RPCs
+
+| RPC | Parameters | Minimum role |
+|---|---|---:|
+| `admin_list_feedback` | Optional source/status/rating/app-version, tuple cursor, limit | Moderator |
+| `admin_update_feedback` | Source type/ID, state, assignee, tags, optional note | Moderator |
+| `admin_list_users` | Search, `(created_at,id)` cursor, limit | Moderator |
+| `admin_get_user_detail` | User UUID | Moderator |
+
+Feedback states are `new`, `reviewed`, `planned`, and `closed`; original
+submissions are never changed. User search matches partial/exact email, Auth UUID,
+and public handle. Search input is sent through a server action rather than a URL
+query. Both search and detail access are audited.
+
+### Owner RPCs
+
+| RPC | Parameters | Purpose |
+|---|---|---|
+| `admin_list_members` | None | Membership inventory |
+| `admin_upsert_member` | Exact email, role, active state | Add/update an existing verified Google user |
+| `admin_list_sessions` | None | Supabase/internal admin sessions |
+| `admin_revoke_session` | Session UUID, reason | Revoke internal session and delete Auth session |
+| `admin_list_audit` | Optional exact action, tuple cursor, limit | Immutable audit history |
+
+The member RPC accepts roles `analyst`, `moderator`, and `owner`, and prevents
+disabling/demoting the final active owner. Revocation reasons must contain at
+least three characters.
+
+All list limits are clamped to 1–100. Callers must pass back the complete
+`next_cursor`; there is no offset pagination. Sensitive list/detail access and
+mutations write an audit row. Browser server actions additionally enforce an
+exact same-host `Origin` check before mutation.
+
+See [`10-internal-admin.md`](./10-internal-admin.md) for the data/security model
+and [`11-internal-admin-operations.md`](./11-internal-admin-operations.md) for
+setup, deployment, and recovery.
 
 ## Deno `/revenuecat-webhook` Edge Node
 

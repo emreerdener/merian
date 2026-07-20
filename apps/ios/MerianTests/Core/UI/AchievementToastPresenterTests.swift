@@ -285,7 +285,7 @@ struct AchievementToastPresenterTests {
             return
         }
         #expect(fieldTrip.title == "Spider goal complete")
-        #expect(fieldTrip.tripTitle == "Backyard safari")
+        #expect(fieldTrip.tripTitle == "Backyard Safari")
         #expect(fieldTrip.artwork == .bundledImage(name: "fieldtrip-backyard-spider"))
 
         presenter.dismissActiveItem(id: presenter.activeItem?.id)
@@ -516,7 +516,7 @@ struct AchievementToastPresenterTests {
         let milestones = ScanMilestoneCoordinator.milestones(from: result)
 
         #expect(milestones.count == 2)
-        #expect(milestones[0].tripTitle == "Backyard safari")
+        #expect(milestones[0].tripTitle == "Backyard Safari")
         #expect(milestones[0].goalLabel == "Spider")
         #expect(milestones[0].title == "Spider goal complete")
         #expect(milestones[0].artwork == .bundledImage(name: "fieldtrip-backyard-spider"))
@@ -635,7 +635,7 @@ struct AchievementToastPresenterTests {
                     userFieldTripId: "trip-1",
                     templateId: "template-1",
                     slug: "backyard_safari",
-                    title: "Backyard safari",
+                    title: "Backyard Safari",
                     currentLevelNumber: 2,
                     currentLevelTitle: "Level 2",
                     completedCount: 0,

@@ -4,6 +4,7 @@ import {
   runBackground,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
+import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
@@ -167,6 +168,7 @@ Deno.serve((req: Request) =>
     let llmTotalTokens: number | null = null;
     let llmThinkingTokens: number | null = null;
     let llmCachedTokens: number | null = null;
+    let llmUsageMetadata: Record<string, unknown> = {};
 
     try {
       const result = await _genAI.models.generateContent({
@@ -194,6 +196,7 @@ Deno.serve((req: Request) =>
 
       const usage = result.usageMetadata;
       if (usage) {
+        llmUsageMetadata = geminiUsageModalityBreakdown(usage);
         llmPromptTokens = usage.promptTokenCount ?? null;
         llmCandidateTokens = usage.candidatesTokenCount ?? null;
         llmTotalTokens = usage.totalTokenCount ?? null;
@@ -516,7 +519,7 @@ Deno.serve((req: Request) =>
         const needsGroupTags = isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
-          ? fetchGroupTags(user, parsedData.scientific_name!)
+          ? fetchGroupTags(user, parsedData.scientific_name!, supabaseAdmin)
           : Promise.resolve(null);
 
         if (!speciesId && isIdentifiedBio) {
@@ -608,6 +611,7 @@ Deno.serve((req: Request) =>
             llm_thinking_tokens: llmThinkingTokens,
             llm_cached_tokens: llmCachedTokens,
             llm_total_tokens: llmTotalTokens,
+            llm_usage_metadata: llmUsageMetadata,
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ??
               "not_applicable",

@@ -5,6 +5,7 @@ import {
   fetchStaticEncyclopedicData,
   type SimilarSpeciesEntry,
 } from "../_shared/biology.ts";
+import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { updateGroupTags } from "../_shared/identify/db.ts";
 import { hasUsableLookalikeTaxonomy } from "../_shared/taxonomy.ts";
 import {
@@ -203,6 +204,12 @@ async function refreshHabitat(
     "system:refresh-species-model-content",
     job.scientific_name,
   );
+  recordAIUsageBestEffort(supabaseAdmin, {
+    operation: "scan_overview_enrichment",
+    model: "gemini-2.5-flash",
+    usage: enrichment.usage,
+    inputModality: "text",
+  });
   await updateSpeciesEnrichment(
     job.scientific_name,
     enrichment,
@@ -245,6 +252,15 @@ async function refreshLookalikes(
       family: cachedSpecies.family,
     },
   );
+
+  if (similarResult?.usage) {
+    recordAIUsageBestEffort(supabaseAdmin, {
+      operation: "scan_lookalike_enrichment",
+      model: "gemini-2.5-flash",
+      usage: similarResult.usage,
+      inputModality: "text",
+    });
+  }
 
   if (!similarResult?.similar_species?.length) {
     return baseResult(job, "no_data", false);
@@ -297,6 +313,7 @@ async function refreshGroupTags(
   const result = await fetchGroupTags(
     "system:refresh-species-model-content",
     job.scientific_name,
+    supabaseAdmin,
   );
   const groupTags = sanitizeGroupTags(result?.group_tags);
   if (groupTags.length === 0) {

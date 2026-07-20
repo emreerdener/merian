@@ -80,7 +80,6 @@ export async function insertSpecies(
         "order",
         family,
         genus,
-        descriptions,
         native_region,
         iucn_red_list_status
       )
@@ -94,7 +93,6 @@ export async function insertSpecies(
         'Rosales',
         'Rosaceae',
         'Rosa',
-        '{}'::jsonb,
         'North America',
         $3
       )

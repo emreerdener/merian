@@ -133,7 +133,9 @@ steps are tracked in the
 - Author profiles open inside the Explore navigation stack, expose
   privacy-scoped public stats, non-opening public achievements, and
   active/published Field trip previews, and cap profile-to-scan nesting after
-  one profile hop.
+  one profile hop. A non-self visible profile can be reported from its overflow
+  menu with a bounded reason/detail form; reporting opens a grouped internal
+  review case and does not block the user automatically.
 - Home Screen widget caches thumbnail-first visual Explore snapshots through the
   shared App Group, renders video posts as clean still thumbnails, and excludes
   audio-only posts.
@@ -317,6 +319,26 @@ attach `naturebook.earth`, `naturebook.app`, their `www` aliases, and the legacy
 `merian.earth` aliases to that project. A plain Vercel
 `404: NOT_FOUND` response means the request has not reached the Next.js app.
 
+### Local Internal Admin
+
+The private operations application lives in `apps/admin/` and is deployed as a
+separate project at `admin.naturebook.earth`.
+
+```bash
+cd apps/admin
+cp .env.example .env.local
+npm ci
+npm run dev
+```
+
+The admin app accepts only the public Supabase URL/key and requires an existing
+Google Auth user, private admin membership, and verified TOTP AAL2. Never add a
+service-role key or analytics token to this deployment. See
+`apps/admin/README.md`,
+`docs/backend-and-data/10-internal-admin.md`, and
+`docs/backend-and-data/11-internal-admin-operations.md` for setup, role,
+security, bootstrap, deployment, and recovery procedures.
+
 ### Local Backend
 
 From the repo root, point the Supabase CLI at the backend service directory:
@@ -356,6 +378,8 @@ Extended architecture documentation lives in `docs/`:
 | `docs/features-and-hardware/` | Camera pipeline, hardware orchestration, feature module breakdowns |
 | `docs/features-and-hardware/17-public-web-share-pages.md` | Public `naturebook.earth` share page contract and Universal Links compatibility |
 | `docs/backend-and-data/` | Edge function contracts, database schema, offline sync, API contracts |
+| `docs/backend-and-data/10-internal-admin.md` | Internal admin architecture, security boundary, roles, metrics, moderation, and AI ledger |
+| `docs/backend-and-data/11-internal-admin-operations.md` | Internal admin setup, deployment, access recovery, pricing, and incident runbook |
 | `docs/development-guides/` | Core managers reference, app lifecycle, testing strategy |
 | `docs/rfcs/active-capture-goal-context.md` | Long-term source-agnostic Capture goal architecture and extension contract |
 

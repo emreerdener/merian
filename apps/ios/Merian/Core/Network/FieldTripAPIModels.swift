@@ -372,6 +372,7 @@ struct FieldTripTemplate: Decodable, Identifiable, Equatable, Sendable {
     let viewerHasAccess: Bool
     let accessKind: String
     let activeProgress: FieldTripProgress?
+    let stoppedProgress: FieldTripProgress?
     let levels: [FieldTripLevel]
 
     var id: String { templateId }
@@ -380,8 +381,16 @@ struct FieldTripTemplate: Decodable, Identifiable, Equatable, Sendable {
     }
 
     var catalogState: FieldTripCatalogState {
-        guard let activeProgress else { return .incomplete }
-        return activeProgress.isComplete ? .completed : .inProgress
+        guard let viewerProgress else { return .incomplete }
+        return viewerProgress.isComplete ? .completed : .inProgress
+    }
+
+    var viewerProgress: FieldTripProgress? {
+        activeProgress ?? stoppedProgress
+    }
+
+    var isStopped: Bool {
+        stoppedProgress != nil
     }
 
     var difficultyTitle: String {
@@ -483,12 +492,44 @@ struct FieldTripProgress: Decodable, Equatable, Sendable {
     let targetCount: Int
     let publicationId: String?
     let publishedAt: String?
+    let stoppedAt: String?
 
     var isComplete: Bool { completedAt != nil }
     var isPublished: Bool { publicationId != nil }
     var fractionComplete: Double {
         guard targetCount > 0 else { return 0 }
         return min(1, max(0, Double(completedCount) / Double(targetCount)))
+    }
+}
+
+enum FieldTripDetailPrimaryAction: Equatable {
+    case unlock
+    case start
+    case resume
+    case publish
+    case scan
+}
+
+enum FieldTripDetailLifecyclePresentation {
+    static func primaryAction(for template: FieldTripTemplate) -> FieldTripDetailPrimaryAction {
+        guard template.viewerHasAccess else { return .unlock }
+        if template.isStopped { return .resume }
+        guard let progress = template.viewerProgress else { return .start }
+        return progress.isComplete ? .publish : .scan
+    }
+
+    static func canStop(_ template: FieldTripTemplate) -> Bool {
+        guard let progress = template.activeProgress else { return false }
+        return !progress.isComplete
+    }
+
+    static func canReset(_ template: FieldTripTemplate) -> Bool {
+        guard let progress = template.viewerProgress else { return false }
+        return !progress.isComplete && progress.publicationId == nil
+    }
+
+    static func showsOptionsMenu(_ template: FieldTripTemplate) -> Bool {
+        canStop(template) || canReset(template)
     }
 }
 

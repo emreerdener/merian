@@ -10,6 +10,7 @@ services/supabase/
   functions/       # Deno Edge Functions (e.g., identify-multimodal)
   migrations/      # PostgreSQL database migrations
   scripts/         # Helper scripts for backend tasks
+  tests/           # pgTAP database authorization/behavior contracts
   test_auth.ts     # Auth testing utilities
 ```
 
@@ -47,6 +48,25 @@ for required video durability. `/update-scan-context` applies or stages late
 owner weather/location fields without rerunning inference. See the function-
 local READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
 contract.
+
+### Internal Admin Boundary
+
+Migration `20260719161112_add_internal_admin_foundation.sql` owns the private
+membership/session/audit/review/feedback/pricing schema, service-owned user
+report intake, reversible Explore moderation, and append-only AI usage ledger.
+The browser admin has no service-role key and reaches this state only through
+the explicitly granted authenticated RPCs.
+
+`functions/report-user/` is the authenticated visible-profile intake endpoint;
+`functions/_shared/aiUsage.ts` normalizes Gemini usage for durable or bounded
+best-effort ledger writes. Database authorization and behavior coverage lives
+in `tests/admin_foundation_security.sql` and `tests/admin_review_ai.sql`.
+
+See [`docs/backend-and-data/10-internal-admin.md`](../../docs/backend-and-data/10-internal-admin.md)
+and the
+[`docs/backend-and-data/11-internal-admin-operations.md`](../../docs/backend-and-data/11-internal-admin-operations.md)
+runbook before changing grants, roles, sessions, review transitions, visibility,
+pricing, or auditing.
 
 ### Testing Edge Functions
 

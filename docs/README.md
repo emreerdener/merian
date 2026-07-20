@@ -15,6 +15,12 @@ as their permanent engineering identity.
 - **Web frontend**: Next.js + Mantine app in `apps/web/`, serving public Explore
   share pages on the canonical `naturebook.earth` origin while retaining
   `merian.earth` as a legacy redirect and AASA compatibility host.
+- **Internal admin**: isolated Next.js + Mantine app in `apps/admin/`, intended
+  for `admin.naturebook.earth`; Google OAuth + TOTP AAL2 and narrow database RPCs
+  only. See [`backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)
+  and the
+  [`backend-and-data/11-internal-admin-operations.md`](./backend-and-data/11-internal-admin-operations.md)
+  operator runbook.
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the
   companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is
@@ -87,8 +93,12 @@ as their permanent engineering identity.
 - **Moderation routing contract**: Native Explore post-content reports write the
   service-only `explore_post_reports` queue through `/report-explore-post`.
   Identification disputes alone use `/flag-issue`, `flagged_reviews`, and
-  `scans.is_flagged`. Anonymous public-web reports remain support emails with
-  the immutable post id rather than authenticated database writes.
+  `scans.is_flagged`. Visible non-self author reports use `/report-user` and
+  `user_reports` without automatically blocking the target. Identification,
+  post, comment, and user sources are grouped into private review cases;
+  hide/restore remains separate from explicit resolution. Anonymous public-web
+  reports remain support emails with the immutable post id rather than
+  authenticated database writes.
 
 ## Directory Structure
 
@@ -139,15 +149,16 @@ as their permanent engineering identity.
   inference fields, V48 offline job records/events, V49 startup store repair,
   private Insight chat tables, scan media assets, and Explore Community
   Identification versioned taxonomy, consensus jobs, projections, and request
-  tables, atomic ingestion setup/dictionary RPCs, and deferred scan-context
-  staging.
+  tables, atomic ingestion setup/dictionary RPCs, deferred scan-context staging,
+  and the private admin/review/audit schema plus canonical AI usage ledger.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/update-public-avatar`,
   Community Identification endpoints, `/species-dictionary`,
-  `/species-observation-stats`, Explore detail similar species, and internal
-  cron workers such as Merian reference-image refresh, diagnostic
-  `Server-Timing`, and `/update-scan-context`.
+  `/species-observation-stats`, `/report-user`, the internal admin RPC surface,
+  Explore detail similar species, and internal cron workers such as Merian
+  reference-image refresh, diagnostic `Server-Timing`, and
+  `/update-scan-context`.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — CI-first Supabase deployment path, required GitHub secrets, local emergency
   fallback, frozen function-local dependency configs, dependency-aware batched
@@ -161,6 +172,13 @@ as their permanent engineering identity.
   migration selection, duplicate-checksum fallbacks, corruption-gated
   quarantine, legacy-store rescue, safe mode, auth isolation, manifest,
   telemetry, and verification.
+- **[`/backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)**
+  — Private admin architecture: Google/TOTP session boundary, RBAC, admin RPCs,
+  grouped review and feedback workflows, audit trail, metrics, and AI ledger.
+- **[`/backend-and-data/11-internal-admin-operations.md`](./backend-and-data/11-internal-admin-operations.md)**
+  — Internal admin setup and operations: environment, owner bootstrap,
+  deployment ordering, production smoke tests, price maintenance, recovery,
+  incident response, rollback, and troubleshooting.
 
 ### Features & Hardware
 

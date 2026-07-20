@@ -1,4 +1,5 @@
 import { encodeBase64 } from "@std/encoding-base64";
+import type { GeminiUsageMetadata } from "./aiUsage.ts";
 import { readResponseArrayBufferWithinBudget } from "./mediaBudgets.ts";
 
 export const AUDIO_MODERATION_MODEL = "gemini-2.5-flash";
@@ -54,6 +55,7 @@ export interface AudioModerationDecision {
   policyVersion: string;
   checksumSha256?: string;
   cacheHit?: boolean;
+  usage?: GeminiUsageMetadata;
 }
 
 export interface AudioModerationCache {
@@ -75,7 +77,9 @@ export interface AudioModerationCache {
 type GeminiGenerate = (
   audioBase64: string,
   mimeType: string,
-) => Promise<string>;
+) => Promise<
+  string | { text: string; usage?: GeminiUsageMetadata }
+>;
 
 export async function fetchBoundedModerationMedia(
   url: string,
@@ -182,7 +186,7 @@ const generateGeminiClassification: GeminiGenerate = async (
       },
     },
   });
-  return result.text ?? "";
+  return { text: result.text ?? "", usage: result.usageMetadata };
 };
 
 export function parseGeminiAudioClassification(
@@ -228,10 +232,11 @@ export async function classifyExploreAudio(
   mimeType: string,
   generate: GeminiGenerate = generateGeminiClassification,
 ): Promise<AudioModerationDecision> {
+  const generated = await generate(encodeBase64(bytes), mimeType);
   const classification = parseGeminiAudioClassification(
-    await generate(encodeBase64(bytes), mimeType),
+    typeof generated === "string" ? generated : generated.text,
   );
-  return {
+  const decision: AudioModerationDecision = {
     approved: classification.approved &&
       !classification.requires_review &&
       classification.policy_categories.length === 0 &&
@@ -239,6 +244,10 @@ export async function classifyExploreAudio(
     model: AUDIO_MODERATION_MODEL,
     policyVersion: await policyVersionPromise,
   };
+  if (typeof generated !== "string" && generated.usage) {
+    decision.usage = generated.usage;
+  }
+  return decision;
 }
 
 export async function moderateExploreAudioUrl(

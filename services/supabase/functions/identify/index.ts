@@ -4,6 +4,7 @@ import {
   Part,
   SafetyRating,
 } from "@google/genai";
+import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
 import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import {
@@ -322,6 +323,7 @@ Deno.serve((req: Request) =>
     let llmTotalTokens: number | null = null;
     let llmThinkingTokens: number | null = null;
     let llmCachedTokens: number | null = null;
+    let llmUsageMetadata: Record<string, unknown> = {};
 
     try {
       const result = await _genAI.models.generateContent({
@@ -356,6 +358,7 @@ Deno.serve((req: Request) =>
 
       const usage = result.usageMetadata;
       if (usage) {
+        llmUsageMetadata = geminiUsageModalityBreakdown(usage);
         llmPromptTokens = usage.promptTokenCount ?? null;
         llmCandidateTokens = usage.candidatesTokenCount ?? null;
         llmTotalTokens = usage.totalTokenCount ?? null;
@@ -791,7 +794,7 @@ Deno.serve((req: Request) =>
         const needsGroupTags = isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
-          ? fetchGroupTags(user, parsedData.scientific_name!)
+          ? fetchGroupTags(user, parsedData.scientific_name!, supabaseAdmin)
           : Promise.resolve(null);
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
@@ -936,6 +939,7 @@ Deno.serve((req: Request) =>
             llm_thinking_tokens: llmThinkingTokens,
             llm_cached_tokens: llmCachedTokens,
             llm_total_tokens: llmTotalTokens,
+            llm_usage_metadata: llmUsageMetadata,
             image_storage_urls: modResult.publicUrls ?? [],
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ??

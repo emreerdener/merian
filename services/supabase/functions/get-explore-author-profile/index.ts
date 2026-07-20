@@ -43,31 +43,36 @@ Deno.serve((req: Request) =>
 
     // These enrichments are independent. Running them together keeps profile latency
     // bounded by the slowest lookup instead of adding every database round trip.
-    const [profileWithProBadge, [authorWithUsername], previewPosts, fieldTrips] =
-      await Promise.all([
-        withExploreAuthorProfileProBadge(profile, supabaseAdmin),
-        withExploreAuthorUsernames(
-          [{ author_user_id: profile.author_user_id }],
+    const [
+      profileWithProBadge,
+      [authorWithUsername],
+      previewPosts,
+      fieldTrips,
+    ] = await Promise.all([
+      withExploreAuthorProfileProBadge(profile, supabaseAdmin),
+      withExploreAuthorUsernames(
+        [{ author_user_id: profile.author_user_id }],
+        supabaseAdmin,
+      ),
+      Array.isArray(profile.preview_posts)
+        ? withExploreAuthorUsernames(
+          profile.preview_posts as Array<{ author_user_id: string }>,
           supabaseAdmin,
-        ),
-        Array.isArray(profile.preview_posts)
-          ? withExploreAuthorUsernames(
-            profile.preview_posts as Array<{ author_user_id: string }>,
-            supabaseAdmin,
-          )
-          : Promise.resolve(profile.preview_posts),
-        fetchFieldTripProfileSummaries(
-          user.id,
-          authorUserId,
-          6,
-          supabaseAdmin,
-        ),
-      ]);
+        )
+        : Promise.resolve(profile.preview_posts),
+      fetchFieldTripProfileSummaries(
+        user.id,
+        authorUserId,
+        6,
+        supabaseAdmin,
+      ),
+    ]);
     const data = {
       ...profileWithProBadge,
       author_username: authorWithUsername.author_username,
       preview_posts: previewPosts,
       field_trips: fieldTrips,
+      viewer_can_report: profile.author_user_id !== user.id,
     };
 
     return jsonResponse({ data }, 200);

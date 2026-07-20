@@ -10,6 +10,7 @@ interface ExplorePostLookupRow {
   id: string;
   user_id: string;
   unshared_at: string | null;
+  moderated_at?: string | null;
   scan?: NestedRelation<
     {
       image_storage_urls?: string[] | null;
@@ -443,7 +444,9 @@ export async function withExplorePostMediaItems<
 
   const { data, error } = await supabaseAdmin
     .from("explore_post_media")
-    .select("post_id,kind,url,thumbnail_url,order_index,duration_seconds,has_audio")
+    .select(
+      "post_id,kind,url,thumbnail_url,order_index,duration_seconds,has_audio",
+    )
     .in("post_id", postIds)
     .order("order_index", { ascending: true });
 
@@ -569,6 +572,7 @@ export async function fetchInteractiveExplorePost(
       id,
       user_id,
       unshared_at,
+      moderated_at,
       scan:scans!inner(is_tombstoned),
       author:users!explore_posts_user_id_fkey!inner(is_shadowbanned)
     `)
@@ -590,6 +594,10 @@ export async function fetchInteractiveExplorePost(
 
   if (typedRow.unshared_at != null) {
     throw makeHttpError(404, "Explore post is no longer shared.");
+  }
+
+  if (typedRow.moderated_at != null) {
+    throw makeHttpError(404, "Explore post is no longer available.");
   }
 
   if (scan?.is_tombstoned) {

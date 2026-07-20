@@ -1064,3 +1064,74 @@ metrics remain neutral, and missing remote scans/stuck ingestion jobs do not
 increase. Automatic nearest-user Edge execution remains the baseline; a forced
 database-region deployment requires an A/B p95 improvement of at least 150 ms
 without higher failures.
+
+## Canonical usage ledger
+
+`public.ai_usage_events` is the source of truth for internal AI analytics. Scan
+and Field assistant-message inserts populate it from database triggers so the
+durable application row and successful usage event share a database write
+boundary. Independent overview/lookalike/group-tag enrichment, Field prompts and
+summaries, and Explore audio moderation use bounded background RPC writes.
+Gemini `usageMetadata` is normalized into prompt, cached, candidate, thinking,
+tool, total, and per-modality counts; prompts and responses are never stored.
+Effective-dated model prices produce clearly labeled estimates. Historical
+token columns are idempotently backfilled as partial/primary-only, and account
+deletion removes linkage while retaining anonymous aggregate usage.
+
+`geminiUsageModalityBreakdown(...)` stores `prompt`, `cached`, `candidates`, and
+`tool` objects inside the ledger's legacy-named
+`prompt_tokens_by_modality` column. Preserve that nested shape when adding a
+writer; do not flatten categories or put content into the JSON.
+
+Canonical operations currently include:
+
+- `scan_identification`
+- `scan_overview_enrichment`
+- `scan_lookalike_enrichment`
+- `scan_group_tag_enrichment`
+- `insight_chat_reply`
+- `insight_chat_prompt_suggestions`
+- `insight_chat_summary`
+- `explore_audio_moderation`
+
+Do not create a new spelling for an existing semantic operation. New Gemini
+call sites must choose an operation, exact returned model, effective plan,
+input modality, outcome, durable linkage, coverage scope, and normalized
+`usageMetadata`. The ledger metadata field may contain non-content execution
+facts, but never prompts, responses, report text, chat text, coordinates, or
+media URLs.
+
+Primary scan and assistant-message events use database triggers over durable
+rows. Other operations call `recordAIUsageBestEffort` with a bounded background
+write and structured failure logging. A best-effort writer is acceptable only
+when the application result is durably independent of the ledger write; a
+primary durable scan/message insert must not silently skip its transactional
+event.
+
+The unique source key `(source_type, source_id, operation)` makes retries and
+backfill idempotent. When no stable source row exists, design one before relying
+on retry deduplication. Account deletion invokes the tightly scoped
+anonymization path; arbitrary event update/delete remains prohibited.
+
+Admin analytics distinguish:
+
+- **Primary per-scan usage**: successful `scan_identification` events grouped by
+  scan.
+- **All scan-related usage**: every filtered event carrying the same `scan_id`.
+- **Cache hit rate**: events with cached tokens divided by events whose cached
+  token field is known.
+- **Complete coverage from**: earliest non-backfilled event in the selected
+  range. Earlier historical rows remain explicitly partial.
+
+Estimated cost uses the exact price row effective at `occurred_at`. Non-cached
+prompt tokens use input price, cached tokens use cached-input price, and
+candidate/thinking/tool tokens use output price. The seed represents Gemini 2.5
+Standard pricing; it does not model long-context tiers, grounding/search/maps,
+cache storage time, batch/flex/priority service, tax, credits, or negotiated
+discounts. Price changes append a new effective-dated version rather than
+rewriting historical rows. The maintenance procedure is in
+[`../backend-and-data/11-internal-admin-operations.md`](../backend-and-data/11-internal-admin-operations.md#pricing-maintenance).
+
+Google's authoritative references are the
+[GenerateContent usage metadata](https://ai.google.dev/api/generate-content)
+and [Gemini pricing table](https://ai.google.dev/gemini-api/docs/pricing).

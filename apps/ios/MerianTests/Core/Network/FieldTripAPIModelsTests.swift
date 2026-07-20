@@ -129,6 +129,55 @@ struct FieldTripAPIModelsTests {
         #expect(response.data.activeProgress?.isPublished == true)
     }
 
+    @Test func templateDetailDecodesStoppedProgressAsSavedViewerProgress() throws {
+        let json = Data("""
+        {
+          "data": {
+            "template_id": "template-1",
+            "slug": "backyard_safari",
+            "title": "Backyard Safari",
+            "subtitle": null,
+            "description": null,
+            "cover_image_url": null,
+            "estimated_duration_minutes": null,
+            "guide_where_to_look": null,
+            "guide_why_it_matters": null,
+            "guide_safety_ethics": null,
+            "region_tags": [],
+            "season_tags": [],
+            "habitat_tags": [],
+            "difficulty": "starter",
+            "is_pro_only": false,
+            "is_rotating_free": true,
+            "viewer_has_access": true,
+            "access_kind": "starter",
+            "active_progress": null,
+            "stopped_progress": {
+              "user_field_trip_id": "trip-1",
+              "started_at": "2026-07-08T00:00:00Z",
+              "current_level_number": 1,
+              "completed_at": null,
+              "is_profile_visible": true,
+              "completed_count": 2,
+              "target_count": 4,
+              "publication_id": null,
+              "published_at": null,
+              "stopped_at": "2026-07-08T00:30:00Z"
+            },
+            "levels": []
+          }
+        }
+        """.utf8)
+
+        let response = try decoder.decode(FieldTripTemplateDetailResponse.self, from: json)
+
+        #expect(response.data.activeProgress == nil)
+        #expect(response.data.isStopped)
+        #expect(response.data.viewerProgress?.completedCount == 2)
+        #expect(response.data.viewerProgress?.stoppedAt == "2026-07-08T00:30:00Z")
+        #expect(response.data.catalogState == .inProgress)
+    }
+
     @Test func legacyProgressWithoutPublicationStatusDecodesAsPrivate() throws {
         let json = Data("""
         {
@@ -465,7 +514,7 @@ struct FieldTripAPIModelsTests {
               "user_field_trip_id": "trip-1",
               "template_id": "template-1",
               "slug": "backyard_safari",
-              "title": "Backyard safari",
+              "title": "Backyard Safari",
               "current_level_number": 2,
               "current_level_title": "Level 2",
               "completed_count": 0,
@@ -647,24 +696,155 @@ struct FieldTripAPIModelsTests {
         #expect(unknownTemplate.difficultyTitle == "Expert Level")
     }
 
-    @Test func backyardSafariPresentationUsesSentenceCaseAndBundledCover() {
+    @Test func backyardSafariPresentationUsesCanonicalCopyAndBundledCover() {
         #expect(
             FieldTripTemplatePresentation.title(
                 "Backyard Safari",
                 slug: "backyard_safari"
-            ) == "Backyard safari"
+            ) == "Backyard Safari"
         )
         #expect(
             FieldTripTemplatePresentation.title(
-                "My backyard discoveries",
+                "Backyard safari",
                 slug: "backyard_safari"
-            ) == "My backyard discoveries"
+            ) == "Backyard Safari"
+        )
+        #expect(
+            FieldTripTemplatePresentation.title(
+                "Park Pollinators",
+                slug: "park_pollinators"
+            ) == "Park Pollinators"
         )
         #expect(
             FieldTripTemplatePresentation.bundledCoverImageName(for: "backyard_safari")
                 == "fieldtrip-backyard-safari"
         )
         #expect(FieldTripTemplatePresentation.bundledCoverImageName(for: "park_pollinators") == nil)
+    }
+
+    @Test func backyardSafariCardPresentationTracksCurrentLevelProgress() {
+        let unstarted = makeCardTemplate()
+        let activeLevelTwo = makeCardTemplate(
+            activeProgress: makeCardProgress(
+                currentLevelNumber: 2,
+                completedCount: 2,
+                targetCount: 6
+            ),
+            secondLevelPrompts: ["Flower", "Fungus", "Dog", "Bee", "Squirrel", "Moss"]
+        )
+        let stoppedLevelTwo = makeCardTemplate(
+            stoppedProgress: makeCardProgress(
+                currentLevelNumber: 2,
+                completedCount: 3,
+                targetCount: 6,
+                stoppedAt: "2026-07-18T12:30:00Z"
+            ),
+            secondLevelPrompts: ["Flower", "Fungus", "Dog", "Bee", "Squirrel", "Moss"]
+        )
+
+        #expect(FieldTripTemplatePresentation.completedCount(for: unstarted) == 0)
+        #expect(FieldTripTemplatePresentation.targetCount(for: unstarted) == 4)
+        #expect(FieldTripTemplatePresentation.currentLevelTitle(for: unstarted) == "Level 1")
+        #expect(
+            FieldTripTemplatePresentation.subtitle(for: unstarted) ==
+                "Observe 4 local species often found in your own backyard."
+        )
+
+        #expect(FieldTripTemplatePresentation.completedCount(for: activeLevelTwo) == 2)
+        #expect(FieldTripTemplatePresentation.targetCount(for: activeLevelTwo) == 6)
+        #expect(FieldTripTemplatePresentation.currentLevelTitle(for: activeLevelTwo) == "Level 2")
+        #expect(
+            FieldTripTemplatePresentation.subtitle(for: activeLevelTwo) ==
+                "Observe 6 local species often found in your own backyard."
+        )
+
+        #expect(FieldTripTemplatePresentation.completedCount(for: stoppedLevelTwo) == 3)
+        #expect(FieldTripTemplatePresentation.targetCount(for: stoppedLevelTwo) == 6)
+        #expect(FieldTripTemplatePresentation.currentLevelTitle(for: stoppedLevelTwo) == "Level 2")
+    }
+
+    @Test func fieldTripCardPresentationHandlesCompletionAndMissingLevels() {
+        let completed = makeCardTemplate(
+            activeProgress: makeCardProgress(
+                isComplete: true,
+                currentLevelNumber: 2,
+                completedCount: 6,
+                targetCount: 6
+            ),
+            secondLevelPrompts: ["Flower", "Fungus", "Dog", "Bee", "Squirrel", "Moss"]
+        )
+        let missingLevels = makeCardTemplate(
+            activeProgress: makeCardProgress(
+                currentLevelNumber: 2,
+                completedCount: 1,
+                targetCount: 6
+            ),
+            prompts: []
+        )
+        let empty = makeCardTemplate(prompts: [])
+        let other = makeTemplate(
+            id: "park_pollinators",
+            difficulty: "easy",
+            subtitle: "Flowers and their pollinators."
+        )
+
+        #expect(FieldTripTemplatePresentation.completedCount(for: completed) == 6)
+        #expect(FieldTripTemplatePresentation.targetCount(for: completed) == 6)
+        #expect(FieldTripTemplatePresentation.currentLevelTitle(for: completed) == "Level 2")
+        #expect(FieldTripTemplatePresentation.targetCount(for: missingLevels) == 6)
+        #expect(FieldTripTemplatePresentation.currentLevelTitle(for: missingLevels) == "Level 2")
+        #expect(FieldTripTemplatePresentation.targetCount(for: empty) == 0)
+        #expect(FieldTripTemplatePresentation.currentLevelTitle(for: empty) == "Level 1")
+        #expect(
+            FieldTripTemplatePresentation.subtitle(for: empty) ==
+                FieldTripTemplatePresentation.backyardSafariSubtitle
+        )
+        #expect(
+            FieldTripTemplatePresentation.subtitle(for: other) ==
+                "Flowers and their pollinators."
+        )
+    }
+
+    @Test func fieldTripCardTagsPreserveLockedAccessAndOptionalLocation() {
+        let locked = makeCardTemplate(viewerHasAccess: false, isProOnly: true)
+        let published = makeCardTemplate(
+            activeProgress: makeCardProgress(
+                completedCount: 4,
+                targetCount: 4,
+                publicationId: "publication-backyard"
+            )
+        )
+
+        let locatedTags = FieldTripTemplatePresentation.cardTags(
+            for: locked,
+            locationLabel: " Austin, TX "
+        )
+        let unlocatedTags = FieldTripTemplatePresentation.cardTags(
+            for: locked,
+            locationLabel: "   "
+        )
+
+        let expectedLocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
+            .access, .difficulty, .level, .visibility, .location
+        ]
+        let expectedUnlocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
+            .access, .difficulty, .level, .visibility
+        ]
+
+        #expect(locatedTags.map(\.kind) == expectedLocatedKinds)
+        #expect(
+            locatedTags.map(\.title) == [
+                "Pro", "Starter", "Level 1", "Private", "Austin, TX"
+            ]
+        )
+        #expect(locatedTags.first?.systemImage == "lock.fill")
+        #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
+        #expect(
+            FieldTripTemplatePresentation.cardTags(
+                for: published,
+                locationLabel: nil
+            ).map(\.title) == ["Starter", "Level 1", "Public"]
+        )
     }
 
     @Test func difficultyFilteringPreservesCatalogOrderAndKeepsUnknownValuesInAll() {
@@ -715,6 +895,52 @@ struct FieldTripAPIModelsTests {
         #expect(startedAtZero.catalogState == .inProgress)
         #expect(partiallyCompleted.catalogState == .inProgress)
         #expect(completed.catalogState == .completed)
+    }
+
+    @Test func lifecyclePresentationDistinguishesActiveStoppedAndTerminalOutings() {
+        let unstarted = makeTemplate(id: "unstarted", difficulty: "starter")
+        let activeProgress = makeProgress(id: "active", completedCount: 1)
+        let active = makeTemplate(
+            id: "active",
+            difficulty: "starter",
+            activeProgress: activeProgress
+        )
+        let stopped = makeTemplate(
+            id: "stopped",
+            difficulty: "starter",
+            stoppedProgress: FieldTripProgress(
+                userFieldTripId: "stopped",
+                startedAt: activeProgress.startedAt,
+                currentLevelNumber: activeProgress.currentLevelNumber,
+                completedAt: nil,
+                isProfileVisible: true,
+                completedCount: 1,
+                targetCount: 4,
+                publicationId: nil,
+                publishedAt: nil,
+                stoppedAt: "2026-07-19T10:00:00Z"
+            )
+        )
+        let completed = makeTemplate(
+            id: "completed",
+            difficulty: "starter",
+            activeProgress: makeProgress(
+                id: "completed",
+                completedCount: 4,
+                completedAt: "2026-07-19T10:00:00Z"
+            )
+        )
+
+        #expect(FieldTripDetailLifecyclePresentation.primaryAction(for: unstarted) == .start)
+        #expect(!FieldTripDetailLifecyclePresentation.showsOptionsMenu(unstarted))
+        #expect(FieldTripDetailLifecyclePresentation.primaryAction(for: active) == .scan)
+        #expect(FieldTripDetailLifecyclePresentation.canStop(active))
+        #expect(FieldTripDetailLifecyclePresentation.canReset(active))
+        #expect(FieldTripDetailLifecyclePresentation.primaryAction(for: stopped) == .resume)
+        #expect(!FieldTripDetailLifecyclePresentation.canStop(stopped))
+        #expect(FieldTripDetailLifecyclePresentation.canReset(stopped))
+        #expect(FieldTripDetailLifecyclePresentation.primaryAction(for: completed) == .publish)
+        #expect(!FieldTripDetailLifecyclePresentation.showsOptionsMenu(completed))
     }
 
     @Test func stateFilteringIsSingleSelectAndPreservesCatalogOrder() {
@@ -818,16 +1044,107 @@ struct FieldTripAPIModelsTests {
         ])
     }
 
+    private func makeCardTemplate(
+        viewerHasAccess: Bool = true,
+        isProOnly: Bool = false,
+        activeProgress: FieldTripProgress? = nil,
+        stoppedProgress: FieldTripProgress? = nil,
+        prompts: [String] = ["Butterfly", "Bird", "Cat", "Spider"],
+        secondLevelPrompts: [String] = []
+    ) -> FieldTripTemplate {
+        var levels: [FieldTripLevel] = []
+        if !prompts.isEmpty {
+            levels.append(makeCardLevel(number: 1, prompts: prompts))
+        }
+        if !secondLevelPrompts.isEmpty {
+            levels.append(makeCardLevel(number: 2, prompts: secondLevelPrompts))
+        }
+
+        return FieldTripTemplate(
+            templateId: "template-backyard-card",
+            slug: "backyard_safari",
+            title: "Backyard Safari",
+            subtitle: FieldTripTemplatePresentation.backyardSafariSubtitle,
+            description: "Find familiar animals and small wild neighbors.",
+            coverImageUrl: nil,
+            estimatedDurationMinutes: 30,
+            guideWhereToLook: nil,
+            guideWhyItMatters: nil,
+            guideSafetyEthics: nil,
+            regionTags: ["global"],
+            seasonTags: ["spring", "summer", "fall"],
+            habitatTags: ["urban", "yard"],
+            difficulty: "starter",
+            isProOnly: isProOnly,
+            isRotatingFree: !isProOnly,
+            viewerHasAccess: viewerHasAccess,
+            accessKind: viewerHasAccess ? "free" : (isProOnly ? "pro" : "locked"),
+            activeProgress: activeProgress,
+            stoppedProgress: stoppedProgress,
+            levels: levels
+        )
+    }
+
+    private func makeCardProgress(
+        isComplete: Bool = false,
+        currentLevelNumber: Int = 1,
+        completedCount: Int,
+        targetCount: Int,
+        publicationId: String? = nil,
+        stoppedAt: String? = nil
+    ) -> FieldTripProgress {
+        FieldTripProgress(
+            userFieldTripId: "outing-backyard-card",
+            startedAt: "2026-07-18T12:00:00Z",
+            currentLevelNumber: currentLevelNumber,
+            completedAt: isComplete ? "2026-07-18T13:00:00Z" : nil,
+            isProfileVisible: false,
+            completedCount: completedCount,
+            targetCount: targetCount,
+            publicationId: publicationId,
+            publishedAt: publicationId == nil ? nil : "2026-07-18T13:00:00Z",
+            stoppedAt: stoppedAt
+        )
+    }
+
+    private func makeCardLevel(
+        number: Int,
+        prompts: [String]
+    ) -> FieldTripLevel {
+        FieldTripLevel(
+            levelId: "card-level-\(number)",
+            levelNumber: number,
+            title: "Level \(number)",
+            description: nil,
+            items: prompts.enumerated().map { index, prompt in
+                FieldTripChecklistItem(
+                    itemId: "card-item-\(number)-\(index)",
+                    prompt: prompt,
+                    matchType: "taxonomy",
+                    guideTip: nil,
+                    guide: nil,
+                    isCompleted: false,
+                    completedAt: nil,
+                    completedCommonName: nil,
+                    completedScientificName: nil,
+                    completedScanId: nil
+                )
+            }
+        )
+    }
+
     private func makeTemplate(
         id: String,
         difficulty: String,
-        activeProgress: FieldTripProgress? = nil
+        subtitle: String? = nil,
+        activeProgress: FieldTripProgress? = nil,
+        stoppedProgress: FieldTripProgress? = nil
     ) -> FieldTripTemplate {
-        FieldTripTemplate(
+        return FieldTripTemplate(
             templateId: id,
             slug: id,
             title: id.capitalized,
-            subtitle: nil,
+            subtitle: subtitle,
             description: nil,
             coverImageUrl: nil,
             estimatedDurationMinutes: nil,
@@ -843,6 +1160,7 @@ struct FieldTripAPIModelsTests {
             viewerHasAccess: true,
             accessKind: "free",
             activeProgress: activeProgress,
+            stoppedProgress: stoppedProgress,
             levels: []
         )
     }
@@ -862,7 +1180,8 @@ struct FieldTripAPIModelsTests {
             completedCount: completedCount,
             targetCount: targetCount,
             publicationId: nil,
-            publishedAt: nil
+            publishedAt: nil,
+            stoppedAt: nil
         )
     }
 
@@ -882,7 +1201,7 @@ struct FieldTripCaptureContextModelsTests {
               "user_field_trip_id": "trip-1",
               "template_id": "template-1",
               "template_slug": "backyard_safari",
-              "outing_title": "Backyard safari",
+              "outing_title": "Backyard Safari",
               "last_engaged_at": "2026-07-17T18:00:00Z",
               "level_number": 1,
               "level_title": "Level 1",
@@ -906,7 +1225,7 @@ struct FieldTripCaptureContextModelsTests {
         let response = try decoder.decode(FieldTripCaptureContextResponse.self, from: json)
 
         #expect(response.data.count == 1)
-        #expect(response.data[0].outingTitle == "Backyard safari")
+        #expect(response.data[0].outingTitle == "Backyard Safari")
         #expect(response.data[0].completedCount == 1)
         #expect(response.data[0].targets[0].prompt == "Butterfly")
         #expect(response.data[0].targets[0].hasGuide)
@@ -914,38 +1233,29 @@ struct FieldTripCaptureContextModelsTests {
 }
 
 struct ActiveFieldTripProfilePresentationTests {
-    @Test func activeProfilePreservesRecentContextOrderAndFiltersUnavailableOrCompletedTrips() {
-        let outings = [
-            makeOuting(id: "recent"),
-            makeOuting(id: "completed"),
-            makeOuting(id: "older"),
-            makeOuting(id: "third"),
-            makeOuting(id: "locked")
-        ]
+    @Test func activeProfileOrdersOldestStartedFirstAndFiltersUnavailableOrCompletedTrips() {
         let templates = [
-            makeTemplate(id: "older"),
+            makeTemplate(id: "pollinators", startedAt: "2026-07-18T20:00:00Z"),
             makeTemplate(id: "locked", viewerHasAccess: false),
-            makeTemplate(id: "recent"),
+            makeTemplate(id: "backyard", startedAt: "2026-07-18T18:00:00Z"),
             makeTemplate(id: "completed", isComplete: true),
-            makeTemplate(id: "third")
+            makeTemplate(id: "fungi", startedAt: "2026-07-18T22:00:00Z")
         ]
 
         let items = ActiveFieldTripProfilePresentation.items(
-            outings: outings,
             templates: templates
         )
 
-        #expect(items.map(\.id) == ["recent", "older", "third"])
+        #expect(items.map(\.id) == ["backyard", "pollinators", "fungi"])
         #expect(
             ActiveFieldTripProfilePresentation.previewItems(from: items).map(\.id) ==
-                ["recent"]
+                ["backyard"]
         )
         #expect(ActiveFieldTripProfilePresentation.shouldShowViewAll(for: items))
         #expect(!ActiveFieldTripProfilePresentation.shouldShowViewAll(for: Array(items.prefix(1))))
     }
 
     @Test func activeProfileUsesTheCurrentLevelItemsIncludingCompletedScanLinks() throws {
-        let outing = makeOuting(id: "recent", levelNumber: 2)
         let template = makeTemplate(
             id: "recent",
             levelNumber: 2,
@@ -954,7 +1264,6 @@ struct ActiveFieldTripProfilePresentationTests {
 
         let item = try #require(
             ActiveFieldTripProfilePresentation.items(
-                outings: [outing],
                 templates: [template]
             ).first
         )
@@ -963,18 +1272,17 @@ struct ActiveFieldTripProfilePresentationTests {
         #expect(item.currentLevelItems.first?.completedScanId == "scan-1")
     }
 
-    @Test func activeCatalogProgressStillProducesCardsWithoutCaptureContext() {
+    @Test func activeCatalogProgressProducesCardsInStartedOrder() {
         let templates = [
             makeTemplate(id: "older", startedAt: "2026-07-18T18:00:00Z"),
             makeTemplate(id: "recent", startedAt: "2026-07-18T20:00:00Z")
         ]
 
         let items = ActiveFieldTripProfilePresentation.items(
-            outings: [],
             templates: templates
         )
 
-        #expect(items.map(\.id) == ["recent", "older"])
+        #expect(items.map(\.id) == ["older", "recent"])
         #expect(items.first?.completedCount == 1)
         #expect(items.first?.targetCount == 4)
         #expect(items.first?.currentLevelItems.map(\.prompt) == ["Bird"])
@@ -998,24 +1306,6 @@ struct ActiveFieldTripProfilePresentationTests {
                 completedScanId: nil,
                 hasLocalScan: true
             ) == .openTemplate
-        )
-    }
-
-    private func makeOuting(
-        id: String,
-        levelNumber: Int = 1
-    ) -> FieldTripCaptureOuting {
-        FieldTripCaptureOuting(
-            userFieldTripId: id,
-            templateId: "template-\(id)",
-            templateSlug: id,
-            outingTitle: id.capitalized,
-            lastEngagedAt: "2026-07-18T20:00:00Z",
-            levelNumber: levelNumber,
-            levelTitle: "Level \(levelNumber)",
-            completedCount: 1,
-            targetCount: 4,
-            targets: []
         )
     }
 
@@ -1056,8 +1346,10 @@ struct ActiveFieldTripProfilePresentationTests {
                 completedCount: isComplete ? 4 : 1,
                 targetCount: 4,
                 publicationId: nil,
-                publishedAt: nil
+                publishedAt: nil,
+                stoppedAt: nil
             ),
+            stoppedProgress: nil,
             levels: [
                 FieldTripLevel(
                     levelId: "level-\(levelNumber)",
@@ -1135,7 +1427,7 @@ struct ActiveCaptureGoalStoreTests {
 
         #expect(context.goals.isEmpty)
         #expect(introduction.headline == "Start an outing")
-        #expect(introduction.subheadline == "Backyard safari · 4 goals")
+        #expect(introduction.subheadline == "Backyard Safari · 4 goals")
         #expect(introduction.progress == CaptureGoalProgress(completedCount: 0, targetCount: 4))
         #expect(introduction.artworks == [
             .bundledImage(name: "fieldtrip-backyard-butterfly"),
@@ -1144,12 +1436,12 @@ struct ActiveCaptureGoalStoreTests {
             .bundledImage(name: "fieldtrip-backyard-spider")
         ])
         #expect(introduction.destination == .fieldTripTemplate(slug: "backyard_safari"))
-        #expect(introduction.accessibilityLabel == "Start an outing. Backyard safari, 4 goals.")
+        #expect(introduction.accessibilityLabel == "Start an outing. Backyard Safari, 4 goals.")
         #expect(introduction.accessibilityValue == "0 of 4 goals complete.")
         #expect(introduction.accessibilityHint == "Opens outing details.")
     }
 
-    @Test func fieldTripProviderSuppressesIntroductionForUnavailableStartedOrEmptyTemplates() async throws {
+    @Test func fieldTripProviderSuppressesIntroductionForUnavailableStartedStoppedOrEmptyTemplates() async throws {
         let unavailableProvider = FieldTripCaptureGoalProvider(
             fetchContext: { [] },
             fetchTemplate: { _ in makeTemplate(viewerHasAccess: false) }
@@ -1162,6 +1454,12 @@ struct ActiveCaptureGoalStoreTests {
             fetchContext: { [] },
             fetchTemplate: { _ in makeTemplate(activeProgress: makeProgress(isComplete: true)) }
         )
+        let stoppedProvider = FieldTripCaptureGoalProvider(
+            fetchContext: { [] },
+            fetchTemplate: { _ in
+                makeTemplate(stoppedProgress: makeProgress(stoppedAt: "2026-07-19T10:00:00Z"))
+            }
+        )
         let emptyProvider = FieldTripCaptureGoalProvider(
             fetchContext: { [] },
             fetchTemplate: { _ in makeTemplate(prompts: []) }
@@ -1170,6 +1468,7 @@ struct ActiveCaptureGoalStoreTests {
         #expect(try await unavailableProvider.fetchCaptureGoalContext().introduction == nil)
         #expect(try await startedProvider.fetchCaptureGoalContext().introduction == nil)
         #expect(try await completedProvider.fetchCaptureGoalContext().introduction == nil)
+        #expect(try await stoppedProvider.fetchCaptureGoalContext().introduction == nil)
         #expect(try await emptyProvider.fetchCaptureGoalContext().introduction == nil)
     }
 
@@ -1450,7 +1749,7 @@ struct ActiveCaptureGoalStoreTests {
             source: CaptureGoalSource(
                 kind: .fieldTrip,
                 id: "outing",
-                title: "Backyard safari"
+                title: "Backyard Safari"
             ),
             prompt: id.uppercased(),
             progress: CaptureGoalProgress(
@@ -1470,7 +1769,7 @@ struct ActiveCaptureGoalStoreTests {
             id: "field_trip_introduction:backyard_safari",
             sourceKind: .fieldTrip,
             headline: "Start an outing",
-            subheadline: "Backyard safari · 4 goals",
+            subheadline: "Backyard Safari · 4 goals",
             progress: CaptureGoalProgress(completedCount: 0, targetCount: 4),
             artworks: [
                 .bundledImage(name: "fieldtrip-backyard-butterfly"),
@@ -1479,7 +1778,7 @@ struct ActiveCaptureGoalStoreTests {
                 .bundledImage(name: "fieldtrip-backyard-spider")
             ],
             destination: .fieldTripTemplate(slug: "backyard_safari"),
-            accessibilityLabel: "Start an outing. Backyard safari, 4 goals.",
+            accessibilityLabel: "Start an outing. Backyard Safari, 4 goals.",
             accessibilityValue: "0 of 4 goals complete.",
             accessibilityHint: "Opens outing details."
         )
@@ -1488,13 +1787,14 @@ struct ActiveCaptureGoalStoreTests {
     nonisolated private func makeTemplate(
         viewerHasAccess: Bool = true,
         activeProgress: FieldTripProgress? = nil,
+        stoppedProgress: FieldTripProgress? = nil,
         prompts: [String] = ["Butterfly", "Bird", "Cat", "Spider"]
     ) -> FieldTripTemplate {
         FieldTripTemplate(
             templateId: "template-backyard",
             slug: "backyard_safari",
-            title: "Backyard safari",
-            subtitle: "A starter trip for everyday neighborhood life.",
+            title: "Backyard Safari",
+            subtitle: FieldTripTemplatePresentation.backyardSafariSubtitle,
             description: "Find familiar animals and small wild neighbors.",
             coverImageUrl: nil,
             estimatedDurationMinutes: 30,
@@ -1510,6 +1810,7 @@ struct ActiveCaptureGoalStoreTests {
             viewerHasAccess: viewerHasAccess,
             accessKind: viewerHasAccess ? "free" : "locked",
             activeProgress: activeProgress,
+            stoppedProgress: stoppedProgress,
             levels: prompts.isEmpty ? [] : [
                 FieldTripLevel(
                     levelId: "level-1",
@@ -1535,7 +1836,10 @@ struct ActiveCaptureGoalStoreTests {
         )
     }
 
-    nonisolated private func makeProgress(isComplete: Bool = false) -> FieldTripProgress {
+    nonisolated private func makeProgress(
+        isComplete: Bool = false,
+        stoppedAt: String? = nil
+    ) -> FieldTripProgress {
         FieldTripProgress(
             userFieldTripId: "outing-backyard",
             startedAt: "2026-07-18T12:00:00Z",
@@ -1545,7 +1849,8 @@ struct ActiveCaptureGoalStoreTests {
             completedCount: isComplete ? 4 : 0,
             targetCount: 4,
             publicationId: nil,
-            publishedAt: nil
+            publishedAt: nil,
+            stoppedAt: stoppedAt
         )
     }
 

@@ -576,6 +576,33 @@ struct SpeciesDictionaryTests {
         #expect(viewModel.state == .notFound)
     }
 
+    @Test func testSpeciesDictionaryHeroScrollEdgeEffectPolicyUsesClearanceHysteresis() {
+        #expect(DictionaryHeroEdgePolicy.shouldHideEffect(
+            heroMaxY: 45,
+            isCurrentlyHidden: true
+        ) == true)
+        #expect(DictionaryHeroEdgePolicy.shouldHideEffect(
+            heroMaxY: 44,
+            isCurrentlyHidden: true
+        ) == false)
+        #expect(DictionaryHeroEdgePolicy.shouldHideEffect(
+            heroMaxY: 47,
+            isCurrentlyHidden: false
+        ) == false)
+        #expect(DictionaryHeroEdgePolicy.shouldHideEffect(
+            heroMaxY: 48,
+            isCurrentlyHidden: false
+        ) == true)
+        #expect(DictionaryHeroEdgePolicy.shouldHideEffect(
+            heroMaxY: .infinity,
+            isCurrentlyHidden: true
+        ) == nil)
+        #expect(DictionaryHeroEdgePolicy.shouldHideEffect(
+            heroMaxY: .nan,
+            isCurrentlyHidden: true
+        ) == nil)
+    }
+
     @Test func testCommunitySightingsViewModelLoadsPaginatesAndDeduplicates() async throws {
         let firstCursor = ExploreSpeciesPostCursor(
             imageQualityScore: 88,

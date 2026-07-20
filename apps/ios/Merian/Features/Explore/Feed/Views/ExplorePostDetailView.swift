@@ -30,6 +30,7 @@ struct ExplorePostDetailView: View {
     @State private var isSavingPostContent = false
     @State private var postComposerMediaItems: [ExplorePostComposerMediaDraft] = []
     @State private var localFieldNotes: String?
+    @State private var fieldNotesEditorInitialText = ""
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var selectedNotificationReplyThreadRoute: ExploreNotificationReplyThreadRoute?
@@ -441,16 +442,7 @@ struct ExplorePostDetailView: View {
         .sheet(item: $selectedNotificationReplyThreadRoute) { route in
             ExploreNotificationReplyThreadSheet(viewModel: viewModel, route: route)
         }
-        .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
-            Task {
-                if let post = currentPost {
-                    syncLocalFieldNotes(for: post)
-                    await loadPostDetail()
-                } else {
-                    await loadPostDetail()
-                }
-            }
-        }) {
+        .sheet(isPresented: $showFieldNotesEditor) {
             if let post = currentPost {
                 FieldNotesSheet(
                     text: Binding(
@@ -717,13 +709,38 @@ struct ExplorePostDetailView: View {
             return .failure("Field notes visibility is already updating")
         }
 
-        updateLocalFieldNotes(notes)
-
-        let notesToPublish = FieldNotesRepository.trimmedNonEmptyText(notes)
+        let previousLocalNotes = FieldNotesEditPolicy.normalizedText(fieldNotesEditorInitialText)
+        let previousPublicNotes = FieldNotesEditPolicy.normalizedText(detail?.fieldNotes)
+        let wasPublic = previousPublicNotes != nil
+        let notesToPublish = FieldNotesEditPolicy.normalizedText(notes)
         let shouldPublish = isPublic && notesToPublish != nil
 
         guard !isPublic || notesToPublish != nil else {
             return .failure("Add field notes before publishing them")
+        }
+
+        let desiredPublicNotes = shouldPublish ? notesToPublish : nil
+        let contentChanged = previousLocalNotes != notesToPublish
+        let publicPayloadChanged = previousPublicNotes != desiredPublicNotes
+
+        updateLocalFieldNotes(notes)
+
+        guard contentChanged || publicPayloadChanged else {
+            return .success(isPublic: wasPublic)
+        }
+
+        guard publicPayloadChanged else {
+            HapticManager.shared.triggerSuccessPulse()
+            if let message = FieldNotesEditPolicy.successMessage(
+                wasPublic: wasPublic,
+                isPublic: wasPublic,
+                contentChanged: contentChanged
+            ) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    viewModel.toastMessage = message
+                }
+            }
+            return .success(isPublic: wasPublic)
         }
 
         isUpdatingFieldNotesVisibility = true
@@ -736,20 +753,25 @@ struct ExplorePostDetailView: View {
 
             let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
                 postId: post.id,
-                fieldNotes: shouldPublish ? notesToPublish : nil
+                fieldNotes: desiredPublicNotes
             )
             if response.postId == post.id {
                 detail?.fieldNotes = response.fieldNotes
             } else {
-                detail?.fieldNotes = shouldPublish ? notesToPublish : nil
+                detail?.fieldNotes = desiredPublicNotes
             }
+            let isNowPublic = detail?.trimmedFieldNotes != nil
             HapticManager.shared.triggerSuccessPulse()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.toastMessage = detail?.trimmedFieldNotes == nil
-                    ? "Field notes are now private"
-                    : "Field notes are now public on Explore"
+            if let message = FieldNotesEditPolicy.successMessage(
+                wasPublic: wasPublic,
+                isPublic: isNowPublic,
+                contentChanged: contentChanged
+            ) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    viewModel.toastMessage = message
+                }
             }
-            return .success(isPublic: detail?.trimmedFieldNotes != nil)
+            return .success(isPublic: isNowPublic)
         } catch {
             HapticManager.shared.triggerErrorThump()
             return .failure(ExploreErrorFormatter.message(for: error))
@@ -776,6 +798,7 @@ struct ExplorePostDetailView: View {
         if localFieldNotes == nil, let publicNotes = detail?.trimmedFieldNotes {
             preserveLocalFieldNotes(publicNotes, for: post)
         }
+        fieldNotesEditorInitialText = localFieldNotes ?? detail?.trimmedFieldNotes ?? ""
 
         HapticManager.shared.triggerSelectionPulse()
         showFieldNotesEditor = true

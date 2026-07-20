@@ -114,6 +114,7 @@ window.
 The endpoint returns only posts currently visible to the requester:
 
 - unshared posts excluded
+- administratively hidden posts (`moderated_at IS NOT NULL`) excluded
 - tombstoned scans excluded
 - scans without public post-owned media excluded
 - scans without a species key excluded

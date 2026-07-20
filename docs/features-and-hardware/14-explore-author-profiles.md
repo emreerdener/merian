@@ -22,6 +22,8 @@ achievement evidence.
   - persona derived from species discovered
   - follower and following counts
   - a `Follow` / `Following` button for non-self profiles
+  - a non-self overflow menu with `Report user` when
+    `viewer_can_report == true`
   - species discovered
   - current streak
   - 52-week scan heatmap
@@ -40,6 +42,10 @@ achievement evidence.
   detail, but they are not overlaid on profile preview thumbnails.
 - Follow counts are display-only in v1. They do not open follower/following lists.
 - The follow button is asymmetric and does not create friend requests, mutual-only states, DMs, or access to private scans.
+- Reporting opens a reason selector plus optional details (maximum 1,000
+  characters), shows loading/error/success state, and dismisses after successful
+  submission. It does not automatically block, unfollow, hide, or navigate away
+  from the profile.
 - Logged-in/provider-derived authors keep display names such as `Emre E.` as
   the primary profile/feed label. Default/ghost identities render as
   `@public_username`.
@@ -68,6 +74,13 @@ The backend returns a profile only when the target author has at least one
 Explore post currently visible to the requesting viewer or at least one visible
 Field trip profile surface. This prevents the endpoint from becoming a user
 lookup API while allowing active or published Field trips to make a profile
+discoverable.
+
+The response also includes viewer-scoped `viewer_can_report`. It is false for
+self profiles and absent/non-actionable profiles. `/report-user` independently
+rechecks the same visibility contract, so the flag is a UI capability hint and
+not the security boundary. A hidden last post can make a profile no longer
+reportable unless a visible Field trip profile surface still makes that author
 discoverable.
 
 The same Explore visibility rules apply to both profile and library reads:
@@ -132,6 +145,18 @@ New Edge Functions:
 - `services/supabase/functions/update-public-username`
 - `services/supabase/functions/update-public-avatar`
 - `services/supabase/functions/check-public-username`
+- `services/supabase/functions/report-user`
+
+User-report extension:
+
+- `20260719161112_add_internal_admin_foundation.sql` adds service-owned
+  `public.user_reports`, grouped private review cases, and the reversible post
+  moderation boundary.
+- `get-explore-author-profile` includes `viewer_can_report`.
+- `/report-user` accepts only a visible non-self profile, one of the five
+  allowed reasons, and optional details capped at 1,000 characters.
+- One intake row is upserted per reporter/target without resetting terminal
+  moderator state. The action does not call `/block-user`.
 
 The author profile RPC computes species count from distinct biological species-backed scans using `COALESCE(confirmed_species_id, species_id)`. The heatmap and current streak are computed from all non-tombstoned scans and use the author's latest valid persisted `device_time_zone`, falling back to UTC. Current streak accepts today or yesterday as the anchor day, matching local profile grace behavior.
 
@@ -214,6 +239,7 @@ Primary files:
 Important model types:
 
 - `ExploreAuthorProfile`
+- `ExploreUserReportReason`
 - `ExploreFollowState`
 - `ExploreAuthorProfileAward`
 - `ExploreAuthorProfileHeatmap`
@@ -241,6 +267,9 @@ Conversion rules:
 - Remote author rows decode optional `fieldTrips`. The public profile route and
   the local Profile tab render active status-only progress and published cards
   through `FieldTripProfilePreview` / `CurrentUserFieldTripProfilePreview`.
+- Remote author rows decode `viewerCanReport`. The profile overflow action calls
+  `MerianNetworkClient.reportUser(reportedUserId:reason:details:)`; the server
+  remains authoritative if visibility changes after the profile loaded.
 - `ExploreAuthorProfileRoute.navigationDepth` and
   `ExplorePostRoute.authorProfileDepth` carry profile nesting depth through the
   Explore stack. `ExploreAuthorProfileNavigationPolicy` gates profile opens at
@@ -268,6 +297,7 @@ The iOS client methods are:
 MerianNetworkClient.shared.getExploreAuthorProfile(authorUserId:previewLimit:)
 MerianNetworkClient.shared.getExploreAuthorPosts(authorUserId:limit:cursor:)
 MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
+MerianNetworkClient.shared.reportUser(reportedUserId:reason:details:)
 MerianNetworkClient.shared.updatePublicUsername(_:)
 MerianNetworkClient.shared.updatePublicAvatar(r2ObjectKey:mimeType:)
 MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
@@ -316,6 +346,11 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic
 Deploy the migrations before deploying the profile and Field trips Edge
 Functions. The functions depend on the RPCs and on the `device_time_zone`
 column existing.
+
+Deploy `20260719161112_add_internal_admin_foundation.sql` before `/report-user`
+or the iOS report action. Reverify author-profile visibility after the migration
+because moderated posts must no longer make a profile reportable/public unless
+another visible profile surface remains.
 
 For Field trips, deploy `20260708021110_field_trips_v1.sql`,
 `20260708033451_field_trips_v2.sql`, and

@@ -64,6 +64,7 @@ export interface DescribeScanInsertRow {
   llm_thinking_tokens?: number | null;
   llm_cached_tokens?: number | null;
   llm_total_tokens?: number | null;
+  llm_usage_metadata?: Record<string, unknown>;
   life_stage?: string;
   reproductive_condition?: string;
   sex?: string | null;

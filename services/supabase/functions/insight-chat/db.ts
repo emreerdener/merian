@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 import {
   ChatScanContext,
   InsightChatConversationRow,
@@ -215,6 +216,7 @@ export async function insertAssistantMessage(
       llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,
       llm_total_tokens: usage?.totalTokenCount ?? null,
       llm_cached_tokens: usage?.cachedContentTokenCount ?? null,
+      llm_usage_metadata: geminiUsageModalityBreakdown(usage),
       is_refusal: result.isRefusal,
       refusal_reason: result.refusalReason,
       safety_metadata: result.isRefusal

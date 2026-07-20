@@ -321,6 +321,7 @@ export interface ScanInsertRow {
   llm_thinking_tokens?: number | null;
   llm_cached_tokens?: number | null;
   llm_total_tokens?: number | null;
+  llm_usage_metadata?: Record<string, unknown>;
   image_storage_urls: string[];
   video_storage_urls?: string[];
   audio_storage_urls?: string[];

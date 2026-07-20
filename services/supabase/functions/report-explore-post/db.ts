@@ -1,6 +1,9 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -13,10 +16,12 @@ export async function fetchReportablePost(
 ): Promise<{ postAuthorUserId: string }> {
   const { data, error } = await supabaseAdmin
     .from("explore_posts")
-    .select("id,user_id,unshared_at")
+    .select("id,user_id,unshared_at,moderated_at")
     .eq("id", postId)
     .single();
-  if (error || !data || data.unshared_at != null) {
+  if (
+    error || !data || data.unshared_at != null || data.moderated_at != null
+  ) {
     throw makeHttpError(404, "Explore post not found.");
   }
   if (data.user_id === reporterUserId) {

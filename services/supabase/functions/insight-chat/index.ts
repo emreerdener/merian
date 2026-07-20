@@ -1,4 +1,5 @@
 import { Type } from "@google/genai";
+import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
@@ -352,6 +353,16 @@ Deno.serve((req: Request) =>
           messages,
         );
         const usage = suggestions.usage;
+        recordAIUsageBestEffort(supabaseAdmin, {
+          operation: "insight_chat_prompt_suggestions",
+          model: INSIGHT_CHAT_MODEL,
+          usage,
+          effectivePlan: tier.plan,
+          inputModality: "text",
+          userId: user.id,
+          scanId,
+          conversationId: existingConversation?.id ?? null,
+        });
         trackPostHogEvent(user, "InsightChatPromptsGenerated", {
           scan_id: scanId,
           conversation_id: existingConversation?.id ?? null,
@@ -494,6 +505,16 @@ Deno.serve((req: Request) =>
         messages,
       );
       const usage = summary.usage;
+      recordAIUsageBestEffort(supabaseAdmin, {
+        operation: "insight_chat_summary",
+        model: INSIGHT_CHAT_MODEL,
+        usage,
+        effectivePlan: tier.plan,
+        inputModality: "text",
+        userId: user.id,
+        scanId,
+        conversationId: existingConversation.id,
+      });
       trackPostHogEvent(user, "InsightChatNotesSummarized", {
         scan_id: scanId,
         conversation_id: existingConversation.id,
@@ -588,6 +609,16 @@ Deno.serve((req: Request) =>
           buildUserPrompt(beforeMessages, messageText),
         );
       } catch (error) {
+        recordAIUsageBestEffort(supabaseAdmin, {
+          operation: "insight_chat_reply",
+          model: INSIGHT_CHAT_MODEL,
+          effectivePlan: tier.plan,
+          inputModality: "text",
+          outcome: "error",
+          userId: user.id,
+          scanId,
+          conversationId: resolvedConversation.id,
+        });
         trackPostHogEvent(user, "InsightChatModelError", {
           scan_id: scanId,
           conversation_id: resolvedConversation.id,

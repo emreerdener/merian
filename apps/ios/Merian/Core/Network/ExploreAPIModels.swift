@@ -997,6 +997,7 @@ struct ExploreAuthorProfile: Decodable, Equatable {
     var followerCount: Int
     var followingCount: Int
     var viewerIsFollowing: Bool
+    let viewerCanReport: Bool?
     let previewPosts: [ExplorePost]
     let fieldTrips: FieldTripProfileSummaries?
 
@@ -1027,6 +1028,16 @@ struct ExploreAuthorProfile: Decodable, Equatable {
             payloadsByType[type] ?? AwardPayload(type: type, currentCount: 0, lastInteractionDate: nil)
         }
     }
+}
+
+enum ExploreUserReportReason: String, CaseIterable, Identifiable {
+    case spam = "Spam"
+    case harassment = "Harassment"
+    case impersonation = "Impersonation"
+    case inappropriateProfile = "Inappropriate profile"
+    case other = "Other"
+
+    var id: String { rawValue }
 }
 
 struct ExploreAuthorProfileAward: Decodable, Equatable {

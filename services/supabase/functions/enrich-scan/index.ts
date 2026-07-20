@@ -1,15 +1,27 @@
-import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
-import { fetchSimilarSpecies, fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/biology.ts";
+import {
+  jsonResponse,
+  runBackground,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
+import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
+import {
+  EncyclopedicData,
+  fetchSimilarSpecies,
+  fetchStaticEncyclopedicData,
+} from "../_shared/biology.ts";
 import { fetchGBIFVernacularNames } from "../_shared/external.ts";
 import { requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { hasUsableLookalikeTaxonomy, normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
 import {
-  getCachedSpecies,
-  updateSpeciesEnrichment,
-  fetchLookalikesFromJoinTable,
-  resolveLookalikesToJoinTable,
+  hasUsableLookalikeTaxonomy,
+  normalizeTaxonomyValue,
+} from "../_shared/taxonomy.ts";
+import {
   clearLookalikesForSpecies,
+  fetchLookalikesFromJoinTable,
+  getCachedSpecies,
+  resolveLookalikesToJoinTable,
+  updateSpeciesEnrichment,
 } from "./db.ts";
 import { CachedSpeciesData, LookalikeSummary } from "./types.ts";
 
@@ -23,18 +35,23 @@ function formatEnrichmentOnlyPayload(
 ) {
   return {
     scope: "enrichment" as const,
-    habitat_description:
-      enrichmentResult?.habitat_description ??
+    habitat_description: enrichmentResult?.habitat_description ??
       cachedSpecies?.habitat_description ??
       "No habitat data available.",
     gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
     taxonomy: {
-      kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ?? "Unknown",
-      phylum: enrichmentResult?.taxonomy?.phylum ?? cachedSpecies?.phylum ?? "Unknown",
-      class: enrichmentResult?.taxonomy?.class ?? cachedSpecies?.class ?? "Unknown",
-      order: enrichmentResult?.taxonomy?.order ?? cachedSpecies?.order ?? "Unknown",
-      family: enrichmentResult?.taxonomy?.family ?? cachedSpecies?.family ?? "Unknown",
-      genus: enrichmentResult?.taxonomy?.genus ?? cachedSpecies?.genus ?? "Unknown",
+      kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ??
+        "Unknown",
+      phylum: enrichmentResult?.taxonomy?.phylum ?? cachedSpecies?.phylum ??
+        "Unknown",
+      class: enrichmentResult?.taxonomy?.class ?? cachedSpecies?.class ??
+        "Unknown",
+      order: enrichmentResult?.taxonomy?.order ?? cachedSpecies?.order ??
+        "Unknown",
+      family: enrichmentResult?.taxonomy?.family ?? cachedSpecies?.family ??
+        "Unknown",
+      genus: enrichmentResult?.taxonomy?.genus ?? cachedSpecies?.genus ??
+        "Unknown",
     },
     // Caller resolves altNames from DB cache or live GBIF fetch so this is always
     // the freshest available value. Null when GBIF has no English entries.
@@ -50,15 +67,14 @@ function formatLookalikesOnlyPayload(
   // resolution failed (lookalike species not yet in species_dictionary). This ensures
   // clients always receive at least species names rather than null, which prevents
   // the UI from going blank when the join table is sparsely populated.
-  const resolvedLookalikes: LookalikeSummary[] =
-    lookalikes.length > 0
-      ? lookalikes
-      : (cachedSpecies?.similar_species ?? []).map((name) => ({
-          scientific_name: name,
-          common_name: null,
-          reference_image_url: null,
-          iucn_red_list_status: null,
-        }));
+  const resolvedLookalikes: LookalikeSummary[] = lookalikes.length > 0
+    ? lookalikes
+    : (cachedSpecies?.similar_species ?? []).map((name) => ({
+      scientific_name: name,
+      common_name: null,
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    }));
 
   return {
     scope: "lookalikes" as const,
@@ -90,12 +106,20 @@ Deno.serve((req: Request) =>
       scope: "enrichment" | "lookalikes";
     };
 
-    if (typeof scientific_name !== "string" || scientific_name.length === 0 || scientific_name.length > 500) {
-      return jsonResponse({ error: "scientific_name must be a non-empty string under 500 characters." }, 400);
+    if (
+      typeof scientific_name !== "string" || scientific_name.length === 0 ||
+      scientific_name.length > 500
+    ) {
+      return jsonResponse({
+        error:
+          "scientific_name must be a non-empty string under 500 characters.",
+      }, 400);
     }
 
     if (scope !== "enrichment" && scope !== "lookalikes") {
-      return jsonResponse({ error: "scope must be \"enrichment\" or \"lookalikes\"" }, 400);
+      return jsonResponse({
+        error: 'scope must be "enrichment" or "lookalikes"',
+      }, 400);
     }
 
     let cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
@@ -115,12 +139,16 @@ Deno.serve((req: Request) =>
       //
       // The result is persisted via updateSpeciesEnrichment so subsequent requests are served
       // from the DB (path 1) without another GBIF round-trip.
-      let altNames: string[] | null = cachedSpecies?.alternative_common_names ?? null;
+      let altNames: string[] | null = cachedSpecies?.alternative_common_names ??
+        null;
       let altNamesFetched = false;
       if (altNames === null && cachedSpecies?.gbif_taxon_key != null) {
-        const fetched = await fetchGBIFVernacularNames(cachedSpecies.gbif_taxon_key);
+        const fetched = await fetchGBIFVernacularNames(
+          cachedSpecies.gbif_taxon_key,
+        );
         if (fetched.length > 0) {
-          const primaryEn = (cachedSpecies.common_names?.en ?? "").toLowerCase();
+          const primaryEn = (cachedSpecies.common_names?.en ?? "")
+            .toLowerCase();
           altNames = fetched.filter((n) => n.toLowerCase() !== primaryEn);
           if (altNames.length === 0) altNames = null;
         }
@@ -129,8 +157,7 @@ Deno.serve((req: Request) =>
         altNamesFetched = true;
       }
 
-      const hasEnrichment =
-        cachedSpecies?.habitat_description !== null &&
+      const hasEnrichment = cachedSpecies?.habitat_description !== null &&
         cachedSpecies?.habitat_description !== undefined &&
         hasUsableLookalikeTaxonomy({
           kingdom: cachedSpecies?.kingdom,
@@ -139,15 +166,26 @@ Deno.serve((req: Request) =>
         });
 
       if (hasEnrichment) {
-        console.log(`[enrich-scan:enrichment] CACHE HIT for ${scientific_name}`);
+        console.log(
+          `[enrich-scan:enrichment] CACHE HIT for ${scientific_name}`,
+        );
         // Persist freshly fetched alt names so future requests hit DB path 1.
         if (altNamesFetched) {
           runBackground(
-            updateSpeciesEnrichment(scientific_name, null, null, supabaseAdmin, altNames),
+            updateSpeciesEnrichment(
+              scientific_name,
+              null,
+              null,
+              supabaseAdmin,
+              altNames,
+            ),
           );
         }
         return jsonResponse(
-          { success: true, data: formatEnrichmentOnlyPayload(cachedSpecies, null, altNames) },
+          {
+            success: true,
+            data: formatEnrichmentOnlyPayload(cachedSpecies, null, altNames),
+          },
           200,
         );
       }
@@ -158,11 +196,22 @@ Deno.serve((req: Request) =>
       if (inFlightEnrichment) {
         try {
           await inFlightEnrichment;
-          const refreshed = await getCachedSpecies(scientific_name, supabaseAdmin);
+          const refreshed = await getCachedSpecies(
+            scientific_name,
+            supabaseAdmin,
+          );
           // Re-resolve altNames from the refreshed row (background write may have landed).
-          const refreshedAltNames = refreshed?.alternative_common_names ?? altNames;
+          const refreshedAltNames = refreshed?.alternative_common_names ??
+            altNames;
           return jsonResponse(
-            { success: true, data: formatEnrichmentOnlyPayload(refreshed, null, refreshedAltNames) },
+            {
+              success: true,
+              data: formatEnrichmentOnlyPayload(
+                refreshed,
+                null,
+                refreshedAltNames,
+              ),
+            },
             200,
           );
         } catch {
@@ -174,14 +223,25 @@ Deno.serve((req: Request) =>
       let rejectEnrichmentInFlight!: (e: Error) => void;
       _enrichmentInFlight.set(
         scientific_name,
-        new Promise<void>((resolve, reject) => { 
-          resolveEnrichmentInFlight = resolve; 
-          rejectEnrichmentInFlight = reject; 
+        new Promise<void>((resolve, reject) => {
+          resolveEnrichmentInFlight = resolve;
+          rejectEnrichmentInFlight = reject;
         }),
       );
 
       try {
-        const enrichmentResult = await fetchStaticEncyclopedicData(_user, scientific_name);
+        const enrichmentResult = await fetchStaticEncyclopedicData(
+          _user,
+          scientific_name,
+        );
+
+        recordAIUsageBestEffort(supabaseAdmin, {
+          operation: "scan_overview_enrichment",
+          model: "gemini-2.5-flash",
+          usage: enrichmentResult.usage,
+          inputModality: "text",
+          userId: _user.id,
+        });
 
         if (enrichmentResult?.usage?.totalTokenCount) {
           trackPostHogEvent(_user, "EnrichmentCostAnalyzed", {
@@ -189,7 +249,9 @@ Deno.serve((req: Request) =>
             scope: "enrichment",
             encyclopedic_tokens: enrichmentResult.usage.totalTokenCount,
             cumulative_scan_tokens: enrichmentResult.usage.totalTokenCount,
-          }).catch((e) => console.error("PostHog EnrichmentCostAnalyzed failed:", e));
+          }).catch((e) =>
+            console.error("PostHog EnrichmentCostAnalyzed failed:", e)
+          );
         }
 
         // Await the DB write before resolving the singleflight promise. Any concurrent
@@ -199,18 +261,35 @@ Deno.serve((req: Request) =>
         // updateSpeciesEnrichment is a targeted UPDATE on a single row; awaiting it adds
         // only one lightweight DB round-trip of latency to the primary request, which is
         // already on the cache-miss path (Gemini just ran).
-        await updateSpeciesEnrichment(scientific_name, enrichmentResult, null, supabaseAdmin, altNames);
+        await updateSpeciesEnrichment(
+          scientific_name,
+          enrichmentResult,
+          null,
+          supabaseAdmin,
+          altNames,
+        );
 
-        console.log(`[enrich-scan:enrichment] CACHE MISS for ${scientific_name}`);
+        console.log(
+          `[enrich-scan:enrichment] CACHE MISS for ${scientific_name}`,
+        );
         resolveEnrichmentInFlight();
         return jsonResponse(
-          { success: true, data: formatEnrichmentOnlyPayload(cachedSpecies, enrichmentResult, altNames) },
+          {
+            success: true,
+            data: formatEnrichmentOnlyPayload(
+              cachedSpecies,
+              enrichmentResult,
+              altNames,
+            ),
+          },
           200,
         );
       } catch (e: unknown) {
         console.error("[enrich-scan:enrichment] LLM error:", e);
         rejectEnrichmentInFlight(e instanceof Error ? e : new Error(String(e)));
-        const message = e instanceof Error ? e.message : "Failed to process enrichment.";
+        const message = e instanceof Error
+          ? e.message
+          : "Failed to process enrichment.";
         return jsonResponse({ success: false, error: message }, 500);
       } finally {
         _enrichmentInFlight.delete(scientific_name);
@@ -221,7 +300,10 @@ Deno.serve((req: Request) =>
     let lookalikes: LookalikeSummary[] = [];
 
     if (speciesId) {
-      const rawLookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
+      const rawLookalikes = await fetchLookalikesFromJoinTable(
+        speciesId,
+        supabaseAdmin,
+      );
 
       // Stale contamination detection: if the primary species has a usable order/family and
       // EVERY cached join-table entry disagrees at that same rank, the cached set predates
@@ -232,29 +314,40 @@ Deno.serve((req: Request) =>
         const stale = rawLookalikes.filter(
           (l) => {
             if (primaryOrder) {
-              return normalizeTaxonomyValue(l._order)?.toLowerCase() !== primaryOrder.toLowerCase();
+              return normalizeTaxonomyValue(l._order)?.toLowerCase() !==
+                primaryOrder.toLowerCase();
             }
-            return normalizeTaxonomyValue(l._family)?.toLowerCase() !== primaryFamily!.toLowerCase();
+            return normalizeTaxonomyValue(l._family)?.toLowerCase() !==
+              primaryFamily!.toLowerCase();
           },
         );
         if (stale.length === rawLookalikes.length) {
           console.warn(
             `[enrich-scan:lookalikes] Stale cross-order contamination for ${scientific_name} ` +
-            `(primary order: ${primaryOrder ?? "n/a"}, primary family: ${primaryFamily ?? "n/a"}). ` +
-            `Clearing ${rawLookalikes.length} entries and re-running Flash.`,
+              `(primary order: ${primaryOrder ?? "n/a"}, primary family: ${
+                primaryFamily ?? "n/a"
+              }). ` +
+              `Clearing ${rawLookalikes.length} entries and re-running Flash.`,
           );
           await clearLookalikesForSpecies(speciesId, supabaseAdmin);
           await supabaseAdmin
             .from("species_dictionary")
-            .update({ lookalikes_flash_attempted: false, similar_species: null })
+            .update({
+              lookalikes_flash_attempted: false,
+              similar_species: null,
+            })
             .eq("id", speciesId);
           lookalikes = [];
         } else {
           // Strip the internal taxonomy fields before serving to client.
-          lookalikes = rawLookalikes.map(({ _order: _o, _family: _f, ...rest }) => rest);
+          lookalikes = rawLookalikes.map((
+            { _order: _o, _family: _f, ...rest },
+          ) => rest);
         }
       } else {
-        lookalikes = rawLookalikes.map(({ _order: _o, _family: _f, ...rest }) => rest);
+        lookalikes = rawLookalikes.map(({ _order: _o, _family: _f, ...rest }) =>
+          rest
+        );
       }
 
       // Migration path: join table is empty but TEXT[] has names from the old pipeline —
@@ -266,7 +359,10 @@ Deno.serve((req: Request) =>
       ) {
         const migrationResult = await resolveLookalikesToJoinTable(
           speciesId,
-          cachedSpecies.similar_species.map((name) => ({ scientific_name: name, common_name: null })),
+          cachedSpecies.similar_species.map((name) => ({
+            scientific_name: name,
+            common_name: null,
+          })),
           supabaseAdmin,
           cachedSpecies?.kingdom,
           cachedSpecies?.order,
@@ -284,14 +380,16 @@ Deno.serve((req: Request) =>
     // - lookalikes_flash_attempted: Flash has already run for this species and returned
     //   all-null common names (legitimately obscure lookalikes). Without this flag,
     //   the .some() check would never become true and Flash would re-run on every call.
-    const hasLookalikes =
-      lookalikes.some((l) => l.common_name !== null) ||
+    const hasLookalikes = lookalikes.some((l) => l.common_name !== null) ||
       cachedSpecies?.lookalikes_flash_attempted === true;
 
     if (hasLookalikes) {
       console.log(`[enrich-scan:lookalikes] CACHE HIT for ${scientific_name}`);
       return jsonResponse(
-        { success: true, data: formatLookalikesOnlyPayload(cachedSpecies, lookalikes) },
+        {
+          success: true,
+          data: formatLookalikesOnlyPayload(cachedSpecies, lookalikes),
+        },
         200,
       );
     }
@@ -299,11 +397,13 @@ Deno.serve((req: Request) =>
     // Accuracy-first guard: never ask Flash for durable lookalikes unless the primary
     // species has real taxonomy. Returning null here is safer than surfacing provisional
     // cards that would otherwise be cached locally and require a later cleanup.
-    if (!hasUsableLookalikeTaxonomy({
-      kingdom: cachedSpecies?.kingdom,
-      order: cachedSpecies?.order,
-      family: cachedSpecies?.family,
-    })) {
+    if (
+      !hasUsableLookalikeTaxonomy({
+        kingdom: cachedSpecies?.kingdom,
+        order: cachedSpecies?.order,
+        family: cachedSpecies?.family,
+      })
+    ) {
       console.log(
         `[enrich-scan:lookalikes] Skipping Flash for ${scientific_name} until validated taxonomy exists.`,
       );
@@ -319,13 +419,23 @@ Deno.serve((req: Request) =>
     if (inFlightLookalikes) {
       try {
         await inFlightLookalikes;
-        const refreshedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
+        const refreshedSpecies = await getCachedSpecies(
+          scientific_name,
+          supabaseAdmin,
+        );
         const refreshedId = refreshedSpecies?.id ?? speciesId;
         const refreshedLookalikes = refreshedId
-          ? (await fetchLookalikesFromJoinTable(refreshedId, supabaseAdmin)).map(({ _order: _o, _family: _f, ...rest }) => rest)
+          ? (await fetchLookalikesFromJoinTable(refreshedId, supabaseAdmin))
+            .map(({ _order: _o, _family: _f, ...rest }) => rest)
           : [];
         return jsonResponse(
-          { success: true, data: formatLookalikesOnlyPayload(refreshedSpecies, refreshedLookalikes) },
+          {
+            success: true,
+            data: formatLookalikesOnlyPayload(
+              refreshedSpecies,
+              refreshedLookalikes,
+            ),
+          },
           200,
         );
       } catch {
@@ -344,13 +454,27 @@ Deno.serve((req: Request) =>
     );
 
     try {
-      let validatedSimilarResult: { similar_species: Array<{ scientific_name: string; common_name: string | null }> } | null = null;
+      let validatedSimilarResult: {
+        similar_species: Array<
+          { scientific_name: string; common_name: string | null }
+        >;
+      } | null = null;
       const similarResult = await fetchSimilarSpecies(_user, scientific_name, {
         kingdom: cachedSpecies?.kingdom,
         class: cachedSpecies?.class,
         order: cachedSpecies?.order,
         family: cachedSpecies?.family,
       });
+
+      if (similarResult?.usage) {
+        recordAIUsageBestEffort(supabaseAdmin, {
+          operation: "scan_lookalike_enrichment",
+          model: "gemini-2.5-flash",
+          usage: similarResult.usage,
+          inputModality: "text",
+          userId: _user.id,
+        });
+      }
 
       if (similarResult?.similar_species) {
         if (speciesId) {
@@ -364,7 +488,9 @@ Deno.serve((req: Request) =>
           );
           lookalikes = resolveResult.lookalikes;
           if (resolveResult.persisted && lookalikes.length > 0) {
-            const persistedLookalikes = lookalikes.filter((entry) => entry.species_id);
+            const persistedLookalikes = lookalikes.filter((entry) =>
+              entry.species_id
+            );
             validatedSimilarResult = {
               similar_species: persistedLookalikes.map((entry) => ({
                 scientific_name: entry.scientific_name,
@@ -399,28 +525,40 @@ Deno.serve((req: Request) =>
           scope: "lookalikes",
           similar_species_tokens: similarResult.usage.totalTokenCount,
           cumulative_scan_tokens: similarResult.usage.totalTokenCount,
-        }).catch((e) => console.error("PostHog EnrichmentCostAnalyzed failed:", e));
+        }).catch((e) =>
+          console.error("PostHog EnrichmentCostAnalyzed failed:", e)
+        );
       }
 
       // Await before resolving for the same reason as the enrichment scope — any waiter
       // re-reads species_dictionary immediately after resolution, and must see the updated
       // similar_species TEXT[] to avoid a stale cache miss on the next call. Persist only
       // validated lookalike names — never raw LLM output.
-      await updateSpeciesEnrichment(scientific_name, null, validatedSimilarResult, supabaseAdmin);
+      await updateSpeciesEnrichment(
+        scientific_name,
+        null,
+        validatedSimilarResult,
+        supabaseAdmin,
+      );
 
       console.log(`[enrich-scan:lookalikes] CACHE MISS for ${scientific_name}`);
       resolveLookalikesInFlight();
       return jsonResponse(
-        { success: true, data: formatLookalikesOnlyPayload(cachedSpecies, lookalikes) },
+        {
+          success: true,
+          data: formatLookalikesOnlyPayload(cachedSpecies, lookalikes),
+        },
         200,
       );
     } catch (e: unknown) {
       console.error("[enrich-scan:lookalikes] LLM error:", e);
       rejectLookalikesInFlight(e instanceof Error ? e : new Error(String(e)));
-      const message = e instanceof Error ? e.message : "Failed to process lookalikes.";
+      const message = e instanceof Error
+        ? e.message
+        : "Failed to process lookalikes.";
       return jsonResponse({ success: false, error: message }, 500);
     } finally {
       _lookalikesInFlight.delete(scientific_name);
     }
-  }),
+  })
 );

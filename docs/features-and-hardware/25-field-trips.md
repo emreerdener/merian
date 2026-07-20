@@ -39,10 +39,14 @@ only a camera/performance setting.
   excluded from this first capture integration. Joining a challenge does not
   hide the linked standard outing or its normal progress.
 - When no active goal exists, the same Scan position can introduce an accessible,
-  unstarted Backyard safari as an outing with four goals. This introduction is
+  unstarted Backyard Safari as an outing with four goals. This introduction is
   validated from template detail and remains distinct from progress-bearing goals.
 - Users can explicitly start an outing from the template detail page before
   their first matching scan.
+- Unfinished active outings expose a trailing ellipsis with **Stop field trip**
+  and destructive **Reset field trip**. Stopped outings preserve their visible
+  checklist state, show **Resume outing**, and expose Reset without an empty
+  menu. Completed and unstarted outings have no lifecycle menu.
 - Levels unlock sequentially. Every completion belongs to a started
   `user_field_trips` row. For an eligible unstarted outing, the first matching
   scan starts the outing at that scan's timestamp and can complete its matching
@@ -133,10 +137,15 @@ migration filenames may still use `objective` or `challenge`:
   targets. Never label this tab **Objectives**.
 - **Tips** is the curated-guide tab.
 - Standard-outing actions are **Start outing**, **Start scanning**,
-  and **Publish outing**. Never use **Start challenge** or
+  **Resume outing**, and **Publish outing**. Never use **Start challenge** or
   **Publish challenge** for a standard outing.
 - The active Scan capsule uses **Goal: {target}**. The empty introduction uses
-  **Start an outing** with **Backyard safari · 4 goals**.
+  **Start an outing** with **Backyard Safari · 4 goals**.
+- Standard catalog cards show an accent progress ring beside the title and a
+  current-level subtitle: **Observe {target count} local species often found in
+  your own backyard.** The thumbnail strip remains horizontally scrollable,
+  followed by Pro access when locked, difficulty, current level, public/private
+  publication status, and an optional privacy-filtered city/state tag.
 
 ## Difficulty
 
@@ -172,7 +181,12 @@ difficulty.
    state.
 4. Tapping **Start outing** calls `action: "start"`. Auto-start from matching
    scans remains as a fallback. Standard outings never use Start/Publish
-   Challenge copy; that language is reserved for Seasonal Events.
+   Challenge copy; that language is reserved for Seasonal Events. An unfinished
+   active outing can be stopped after confirmation; the backend saves its
+   checklist, closes its activity period, and hides it from Capture and active
+   profile summaries. **Resume outing** calls `action: "start"` and opens a new
+   period. Destructive Reset clears only unfinished standard outing progress and
+   returns the detail to its initial state.
 5. The idle visual Scan page loads `action: "capture_context"` without blocking
    the camera. When unfinished standard goals exist, a `Goal: {target}` label is
    shown beneath the capture-mode picker with its outing title and aggregate
@@ -181,13 +195,14 @@ difficulty.
    when that template is accessible and unstarted.
 6. Swiping an active indicator cycles through all unfinished targets in server
    order; tapping it opens the owning outing and focuses that goal's guide.
-   The introduction has no swipe behavior and opens Backyard safari detail without
+   The introduction has no swipe behavior and opens Backyard Safari detail without
    starting it.
 7. A new scan or later confirmed/corrected identification calls
    `action: "apply_scan_progress"` with the saved scan ID.
-8. The backend verifies scan ownership, compares the scan against the current
-   unlocked level, writes item completions, advances levels when needed, and
-   returns newly completed items.
+8. The backend verifies scan ownership and requires the scan's capture timestamp
+   to fall within one of the outing's activity periods before comparing it
+   against the current unlocked level, writing item completions, advancing
+   levels when needed, and returning newly completed items.
 9. The shared `ScanMilestoneCoordinator` waits for that progress attempt,
    publishes refresh events, evaluates newly unlocked achievements without
    presenting them early, and batches the scan's notifications in strict order:
@@ -261,11 +276,11 @@ Presentation contract:
   the `binoculars.fill` symbol. Turning
   it off removes the entire target capsule from Scan without changing outing
   progress, cached goal context, or server state.
-- For the validated unstarted Backyard safari zero state, show **Start an outing**
-  over **Backyard safari · 4 goals**, rotate the first-level artwork by cross-fade
+- For the validated unstarted Backyard Safari zero state, show **Start an outing**
+  over **Backyard Safari · 4 goals**, rotate the first-level artwork by cross-fade
   every three seconds, and show `0/4` in the shared progress ring. Reduce Motion
   keeps the first artwork static. VoiceOver announces “Start an outing. Backyard
-  safari, 4 goals.”, “0 of 4 goals complete.”, and “Opens outing details.”
+  Safari, 4 goals.”, “0 of 4 goals complete.”, and “Opens outing details.”
 
 Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
 flattens the server-ordered outing response into `CaptureGoal` values containing
@@ -332,7 +347,11 @@ remains optional for ordinary outing navigation.
 
 - Progress is server-authoritative.
 - Only scans owned by the requesting user can count.
-- Only scans created at or after `user_field_trips.started_at` can count.
+- A standard scan counts only when its capture timestamp falls within one of
+  the outing's `user_field_trip_active_periods`. Pre-stop scans can receive late
+  approval; scans captured during stopped gaps stay excluded after Resume.
+- Reset removes all prior periods and moves the automatic-start boundary to the
+  reset timestamp, preventing historical scans from rebuilding cleared progress.
 - Matching is limited to the current unlocked level. Later levels cannot fill
   early.
 - Eligibility is media-kind agnostic after a scan is saved and has a resolved
@@ -462,6 +481,9 @@ security-definer/search-path contract, or existing execute permissions.
 `services/supabase/migrations/20260718162409_scope_credited_progress_to_current_attempt.sql`
 then scopes the credited level to checklist items matched by the current
 application attempt, including re-identification after level advancement.
+`services/supabase/migrations/20260719160750_field_trip_lifecycle_controls.sql`
+adds private activity periods, Stop/Reset lifecycle RPCs, stopped-progress
+projection, Resume period creation, and capture-time progress gating.
 
 Core tables:
 
@@ -470,6 +492,7 @@ Core tables:
 - `field_trip_checklist_items`
 - `user_field_trips`
 - `user_field_trip_item_completions`
+- `user_field_trip_active_periods`
 - `field_trip_publications`
 - `field_trip_publication_items`
 - `field_trip_publication_likes`
@@ -490,6 +513,9 @@ Core RPCs and helpers:
 - `public.get_field_trip_template_detail(...)`
 - `public.get_field_trip_capture_context(...)`
 - `public.start_field_trip(...)`
+- `public.stop_field_trip(...)`
+- `public.reset_field_trip(...)`
+- `public.get_stopped_field_trip_progress(...)`
 - `public.get_field_trip_community_publications(...)`
 - `public.get_recent_field_trip_publications(...)`
 - `public.apply_field_trip_scan_progress(...)`
@@ -538,6 +564,10 @@ Actions:
   `publication_id` and `published_at` for the title badge.
 - `start`: explicitly starts or unhides the caller's progress row for an
   accessible template.
+- `stop`: closes an unfinished outing's open period and returns its saved
+  stopped detail.
+- `reset`: clears unfinished, unpublished standard progress without deleting
+  the shared outing row or Seasonal Challenge data.
 - `community_publications`: returns visible published completed Field trips for
   `smart`, `following`, or `recent` mode with optional template filtering and
   stable `(rank_bucket, published_at, publication_id)` pagination.
@@ -658,6 +688,8 @@ MerianNetworkClient.shared.getFieldTripCaptureContext()
 MerianNetworkClient.shared.getFieldTrips(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripTemplate(templateId:)
 MerianNetworkClient.shared.startFieldTrip(templateId:)
+MerianNetworkClient.shared.stopFieldTrip(userFieldTripId:)
+MerianNetworkClient.shared.resetFieldTrip(userFieldTripId:)
 MerianNetworkClient.shared.getFieldTripChallenges(userRegion:limit:)
 MerianNetworkClient.shared.getFieldTripChallenge(challengeId:entriesLimit:)
 MerianNetworkClient.shared.joinFieldTripChallenge(challengeId:)
@@ -786,12 +818,15 @@ Deploy in this order:
 10. `20260718051748_expose_field_trip_publication_status.sql`
 11. `20260718150932_add_credited_field_trip_progress.sql`
 12. `20260718162409_scope_credited_progress_to_current_attempt.sql`
-13. `field-trips` Edge Function
-14. `get-explore-author-profile` so public profiles include Field trip
+13. `20260719045306_first_field_trip_achievement.sql`
+14. `20260719160750_field_trip_lifecycle_controls.sql`
+15. `20260720014446_update_backyard_safari_copy.sql`
+16. `field-trips` Edge Function
+17. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-15. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+18. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-16. iOS client update
+19. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
@@ -823,11 +858,12 @@ any rollback; do not drop completion rows or rewrite scan history.
 Backend:
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
-deno test --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
+deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripProgressDb.test.ts
+deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 supabase db lint --workdir services
 ```
 

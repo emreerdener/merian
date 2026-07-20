@@ -4,7 +4,7 @@ import SwiftUI
 struct ActiveFieldTripProfileItem: Identifiable, Equatable {
     let userFieldTripId: String
     let template: FieldTripTemplate
-    let lastEngagedAt: String
+    let startedAt: String
     let currentLevelNumber: Int
     let completedCount: Int
     let targetCount: Int
@@ -21,18 +21,7 @@ struct ActiveFieldTripProfileItem: Identifiable, Equatable {
 enum ActiveFieldTripProfilePresentation {
     static let previewLimit = 1
 
-    static func items(
-        outings: [FieldTripCaptureOuting],
-        templates: [FieldTripTemplate]
-    ) -> [ActiveFieldTripProfileItem] {
-        var outingByTemplateId: [String: FieldTripCaptureOuting] = [:]
-        var contextOrderByTemplateId: [String: Int] = [:]
-        for (index, outing) in outings.enumerated()
-        where outingByTemplateId[outing.templateId] == nil {
-            outingByTemplateId[outing.templateId] = outing
-            contextOrderByTemplateId[outing.templateId] = index
-        }
-
+    static func items(templates: [FieldTripTemplate]) -> [ActiveFieldTripProfileItem] {
         let items = templates.compactMap { template -> ActiveFieldTripProfileItem? in
             guard template.viewerHasAccess,
                   let progress = template.activeProgress,
@@ -40,11 +29,10 @@ enum ActiveFieldTripProfilePresentation {
                 return nil
             }
 
-            let outing = outingByTemplateId[template.templateId]
             return ActiveFieldTripProfileItem(
                 userFieldTripId: progress.userFieldTripId,
                 template: template,
-                lastEngagedAt: outing?.lastEngagedAt ?? progress.startedAt,
+                startedAt: progress.startedAt,
                 currentLevelNumber: progress.currentLevelNumber,
                 completedCount: progress.completedCount,
                 targetCount: progress.targetCount
@@ -52,22 +40,10 @@ enum ActiveFieldTripProfilePresentation {
         }
 
         return items.sorted { lhs, rhs in
-            let lhsContextOrder = contextOrderByTemplateId[lhs.template.templateId]
-            let rhsContextOrder = contextOrderByTemplateId[rhs.template.templateId]
-
-            switch (lhsContextOrder, rhsContextOrder) {
-            case let (.some(lhsOrder), .some(rhsOrder)):
-                return lhsOrder < rhsOrder
-            case (.some, .none):
-                return true
-            case (.none, .some):
-                return false
-            case (.none, .none):
-                if lhs.lastEngagedAt != rhs.lastEngagedAt {
-                    return lhs.lastEngagedAt > rhs.lastEngagedAt
-                }
-                return lhs.template.templateId < rhs.template.templateId
+            if lhs.startedAt != rhs.startedAt {
+                return lhs.startedAt < rhs.startedAt
             }
+            return lhs.template.templateId < rhs.template.templateId
         }
     }
 
@@ -218,10 +194,8 @@ struct ActiveFieldTripsProfilePreview: View {
         }
 
         do {
-            async let outings = captureContextOrEmpty()
-            async let templates = MerianNetworkClient.shared.getFieldTrips(limit: 80)
-            let loadedItems = try await ActiveFieldTripProfilePresentation.items(
-                outings: outings,
+            let templates = try await MerianNetworkClient.shared.getFieldTrips(limit: 80)
+            let loadedItems = ActiveFieldTripProfilePresentation.items(
                 templates: templates
             )
             guard !Task.isCancelled else { return }
@@ -231,17 +205,6 @@ struct ActiveFieldTripsProfilePreview: View {
             )
         } catch {
             MerianLog.network.warning("Failed to load active Profile Field trips: \(error.localizedDescription, privacy: .private)")
-        }
-    }
-
-    private func captureContextOrEmpty() async -> [FieldTripCaptureOuting] {
-        do {
-            return try await MerianNetworkClient.shared.getFieldTripCaptureContext()
-        } catch {
-            MerianLog.network.warning(
-                "Profile Field trip recency context unavailable; using catalog order: \(error.localizedDescription, privacy: .private)"
-            )
-            return []
         }
     }
 }

@@ -657,7 +657,7 @@ private struct SpeciesDictionaryRegionMapCard: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.82)
 
-                        Text("\(category.count) species")
+                        Text("\(category.count.formatted()) species")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -828,9 +828,9 @@ private struct SpeciesDictionaryOverviewRow: View {
     private var countLabel: String {
         switch category.id {
         case .recentlyAdded:
-            "Newest \(category.count) species"
+            "Newest \(category.count.formatted()) species"
         default:
-            "\(category.count) species"
+            "\(category.count.formatted()) species"
         }
     }
 
@@ -863,7 +863,7 @@ private struct SpeciesDictionaryGroupCard: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.76)
 
-                Text("\(group.count) species discovered")
+                Text("\(group.count.formatted()) species discovered")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -967,7 +967,7 @@ private struct SpeciesDictionaryRegionRow: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                Text("\(count)")
+                Text(count.formatted())
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

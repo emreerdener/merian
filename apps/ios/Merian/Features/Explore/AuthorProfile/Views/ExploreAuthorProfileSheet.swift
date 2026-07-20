@@ -155,6 +155,7 @@ struct ExploreAuthorProfileContent: View {
     @State private var isLoadingLibrary = false
     @State private var hasReachedEndOfLibrary = false
     @State private var isUpdatingFollow = false
+    @State private var isReportUserPresented = false
 
     private let previewLimit = 9
     private let libraryPageSize = 30
@@ -194,6 +195,13 @@ struct ExploreAuthorProfileContent: View {
         .toolbar { toolbarContent }
         .task(id: route.authorUserId) {
             await loadProfile()
+        }
+        .sheet(isPresented: $isReportUserPresented) {
+            if let profile {
+                ExploreReportUserSheet(profile: profile) {
+                    viewModel.toastMessage = "Report submitted for review."
+                }
+            }
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
             guard case .publicAuthorIdentityChanged(let previousUserId, let currentUserId) = event,
@@ -263,6 +271,21 @@ struct ExploreAuthorProfileContent: View {
                         .font(.system(size: 16, weight: .bold))
                 }
                 .accessibilityLabel(mode == .library ? "Back to profile" : "Close")
+            }
+        }
+
+        if mode == .profile, let profile, profile.viewerCanReport == true {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(role: .destructive) {
+                        isReportUserPresented = true
+                    } label: {
+                        Label("Report user", systemImage: "flag")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Profile actions")
             }
         }
     }
@@ -862,6 +885,110 @@ struct ExploreAuthorProfileContent: View {
             targetReplyParentCommentId: nil,
             authorProfileDepth: route.navigationDepth
         ))
+    }
+}
+
+private struct ExploreReportUserSheet: View {
+    let profile: ExploreAuthorProfile
+    let onReported: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var reason = ExploreUserReportReason.spam
+    @State private var details = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    private let detailsLimit = 1_000
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Reason", selection: $reason) {
+                        ForEach(ExploreUserReportReason.allCases) { reportReason in
+                            Text(reportReason.rawValue).tag(reportReason)
+                        }
+                    }
+                } header: {
+                    Text("Why are you reporting this profile?")
+                }
+
+                Section {
+                    TextField(
+                        "Add optional context",
+                        text: $details,
+                        axis: .vertical
+                    )
+                    .lineLimit(4...8)
+                    .onChange(of: details) { _, newValue in
+                        if newValue.count > detailsLimit {
+                            details = String(newValue.prefix(detailsLimit))
+                        }
+                    }
+
+                    Text("\(details.count)/\(detailsLimit)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                } header: {
+                    Text("Details")
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                            .accessibilityLabel("Report error: \(errorMessage)")
+                    }
+                }
+
+                Section {
+                    Text("Reporting does not automatically block this person. Naturebook moderators will review the report.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Report \(profile.publicAuthorDisplayName)")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isSubmitting)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isSubmitting)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Submit") {
+                        Task { await submit() }
+                    }
+                    .disabled(isSubmitting)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    @MainActor
+    private func submit() async {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+
+        do {
+            try await MerianNetworkClient.shared.reportUser(
+                reportedUserId: profile.authorUserId,
+                reason: reason,
+                details: details
+            )
+            guard !Task.isCancelled else { return }
+            HapticManager.shared.triggerSuccessPulse()
+            onReported()
+            dismiss()
+        } catch {
+            guard !Task.isCancelled else { return }
+            HapticManager.shared.triggerErrorThump()
+            errorMessage = ExploreErrorFormatter.message(for: error)
+        }
     }
 }
 

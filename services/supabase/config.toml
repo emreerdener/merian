@@ -523,6 +523,9 @@ verify_jwt = false
 [functions.report-explore-post]
 verify_jwt = false
 
+[functions.report-user]
+verify_jwt = false
+
 [functions.toggle-explore-comment-reaction]
 verify_jwt = false
 

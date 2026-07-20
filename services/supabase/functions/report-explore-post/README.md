@@ -23,7 +23,7 @@ This pipeline is deliberately separate from identification review:
 Allowed reasons are `Spam`, `Harassment`, `Inappropriate content`, and `Other`.
 The shared Edge handler requires a valid user session. The function rejects an
 invalid post id, an unavailable/unshared post, and attempts to report one's own
-post.
+post. An administratively hidden post is unavailable and returns `404`.
 
 ## Persistence and moderation lifecycle
 
