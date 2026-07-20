@@ -37,7 +37,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          # Deployment plans compare against the last successful production
+          # run, which may be more than one commit behind after a failed run.
+          fetch-depth: 0
 
       - name: Summarize workflow context
         env:
@@ -243,8 +245,9 @@ jobs:
         id: function-plan
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BEFORE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           plan_file="$RUNNER_TEMP/merian-supabase-functions.txt"
 
@@ -254,12 +257,35 @@ jobs:
               supabase/scripts/plan_function_deploy.ts \
               --all > "$plan_file"
           else
-            deno run --frozen --config supabase/functions/deno.json \
-              --allow-read=supabase \
-              --allow-run=git \
-              supabase/scripts/plan_function_deploy.ts \
-              --base "$BEFORE_SHA" \
-              --head "$HEAD_SHA" > "$plan_file"
+            successful_runs_url="https://api.github.com/repos/${REPOSITORY}/actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=1"
+            successful_runs_json="$(
+              curl -fsSL --retry 3 \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$successful_runs_url" || true
+            )"
+            last_success_sha="$(
+              jq -r '.workflow_runs[0].head_sha // empty' \
+                <<< "$successful_runs_json" 2>/dev/null || true
+            )"
+
+            if [[ "$last_success_sha" =~ ^[0-9a-f]{40}$ ]] && \
+               git merge-base --is-ancestor "$last_success_sha" "$HEAD_SHA"; then
+              echo "Planning from last successful production deploy: $last_success_sha"
+              deno run --frozen --config supabase/functions/deno.json \
+                --allow-read=supabase \
+                --allow-run=git \
+                supabase/scripts/plan_function_deploy.ts \
+                --base "$last_success_sha" \
+                --head "$HEAD_SHA" > "$plan_file"
+            else
+              echo "Unable to resolve a safe successful deploy baseline; planning a full deployment."
+              deno run --frozen --config supabase/functions/deno.json \
+                --allow-read=supabase \
+                supabase/scripts/plan_function_deploy.ts \
+                --all > "$plan_file"
+            fi
           fi
 
           function_count="$(grep -cve '^[[:space:]]*$' "$plan_file" || true)"

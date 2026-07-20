@@ -118,17 +118,6 @@ struct FieldNotesSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(action: {
-                            Task { await saveDraftAndClose() }
-                        }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 16, weight: .bold))
-                        }
-                        .disabled(isSaving)
-                        .accessibilityLabel("Close field notes")
-                    }
-
-                    ToolbarItem(placement: .topBarTrailing) {
                         Button(role: .destructive, action: {
                             guard hasNotes, !isSaving else { return }
                             withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
@@ -144,6 +133,20 @@ struct FieldNotesSheet: View {
                         .disabled(!hasNotes || isSaving)
                         .opacity(hasNotes ? 1 : 0.35)
                         .accessibilityLabel("Clear field notes")
+                    }
+
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: {
+                            Task { await saveDraftAndClose() }
+                        }) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 16, weight: .bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.circle)
+                        .tint(.accentColor)
+                        .disabled(isSaving)
+                        .accessibilityLabel("Done editing field notes")
                     }
                     ToolbarItemGroup(placement: .keyboard) {
                         Spacer()

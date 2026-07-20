@@ -117,7 +117,7 @@ function normalizeAction(rawAction: unknown): FieldTripAction {
     case "create_challenge_entry_comment":
       return rawAction;
     default:
-      throw makeHttpError(400, "Unsupported Field trip action.");
+      throw makeHttpError(400, "Unsupported field trip action.");
   }
 }
 

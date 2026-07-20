@@ -1,5 +1,4 @@
 import { Badge, Button, Card, Group, NativeSelect, Stack, Table, Text, TextInput, Title } from "@mantine/core";
-import Link from "next/link";
 import { revokeAdminSession, upsertMember } from "@/app/actions";
 import { adminRpc } from "@/lib/admin";
 import { dateTime, text } from "@/lib/format";
@@ -69,7 +68,7 @@ export default async function AccessPage({ searchParams }: { searchParams: Promi
             <Table.Tbody>{audit.items.map((entry) => <Table.Tr key={String(entry.id)}><Table.Td>{dateTime(entry.created_at)}</Table.Td><Table.Td>{text(entry.actor_email)} <Badge size="xs" variant="light">{text(entry.actor_role)}</Badge></Table.Td><Table.Td>{text(entry.action)}</Table.Td><Table.Td>{text(entry.target_type)} {text(entry.target_id, "")}</Table.Td><Table.Td>{text(entry.request_id)}</Table.Td></Table.Tr>)}</Table.Tbody>
           </Table>
         </div>
-        {audit.next_cursor && audit.items.length === audit.limit && <Button component={Link} href={`/access?${auditNext.toString()}`} variant="subtle" mt="md">Next audit page</Button>}
+        {audit.next_cursor && audit.items.length === audit.limit && <Button component="a" href={`/access?${auditNext.toString()}`} variant="subtle" mt="md">Next audit page</Button>}
       </Card>
     </Stack>
   );

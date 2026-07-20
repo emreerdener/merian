@@ -1,5 +1,4 @@
 import { Anchor, Badge, Button, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
-import Link from "next/link";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { adminRpc } from "@/lib/admin";
 import { dateTime, text } from "@/lib/format";
@@ -67,10 +66,10 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
       <div className="table-scroll">
         <Table striped highlightOnHover>
           <Table.Thead><Table.Tr><Table.Th>Updated</Table.Th><Table.Th>Type</Table.Th><Table.Th>Status</Table.Th><Table.Th>Priority</Table.Th><Table.Th>Reports</Table.Th><Table.Th>Account</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>{data.items.map((item) => <Table.Tr key={String(item.id)}><Table.Td>{dateTime(item.updated_at)}</Table.Td><Table.Td><Anchor component={Link} href={`/reviews/${String(item.id)}`}>{text(item.case_type)}</Anchor></Table.Td><Table.Td><Badge variant="light">{text(item.status)}</Badge></Table.Td><Table.Td>{text(item.priority)}</Table.Td><Table.Td>{String(item.report_count ?? 0)}</Table.Td><Table.Td>{text(item.public_username, text(item.email))}</Table.Td></Table.Tr>)}</Table.Tbody>
+          <Table.Tbody>{data.items.map((item) => <Table.Tr key={String(item.id)}><Table.Td>{dateTime(item.updated_at)}</Table.Td><Table.Td><Anchor href={`/reviews/${String(item.id)}`}>{text(item.case_type)}</Anchor></Table.Td><Table.Td><Badge variant="light">{text(item.status)}</Badge></Table.Td><Table.Td>{text(item.priority)}</Table.Td><Table.Td>{String(item.report_count ?? 0)}</Table.Td><Table.Td>{text(item.public_username, text(item.email))}</Table.Td></Table.Tr>)}</Table.Tbody>
         </Table>
       </div>
-      {data.next_cursor && data.items.length === data.limit && <Button component={Link} href={`/reviews?${nextParams.toString()}`} variant="subtle" ml="auto">Next page</Button>}
+      {data.next_cursor && data.items.length === data.limit && <Button component="a" href={`/reviews?${nextParams.toString()}`} variant="subtle" ml="auto">Next page</Button>}
     </Stack>
   );
 }

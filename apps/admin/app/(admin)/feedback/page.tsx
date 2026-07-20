@@ -1,5 +1,4 @@
 import { Badge, Button, Card, Group, NativeSelect, Stack, Text, Textarea, TextInput, Title } from "@mantine/core";
-import Link from "next/link";
 import { updateFeedback } from "@/app/actions";
 import { adminRpc } from "@/lib/admin";
 import { dateTime, text } from "@/lib/format";
@@ -68,7 +67,7 @@ export default async function FeedbackPage({ searchParams }: { searchParams: Pro
           </form>
         </Card>
       ))}
-      {data.next_cursor && data.items.length === data.limit && <Button component={Link} href={`/feedback?${nextParams.toString()}`} variant="subtle" ml="auto">Next page</Button>}
+      {data.next_cursor && data.items.length === data.limit && <Button component="a" href={`/feedback?${nextParams.toString()}`} variant="subtle" ml="auto">Next page</Button>}
     </Stack>
   );
 }

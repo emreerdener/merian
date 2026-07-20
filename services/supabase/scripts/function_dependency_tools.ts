@@ -145,6 +145,7 @@ export function planAffectedFunctions(
 ): string[] {
   const allNames = graphs.map((graph) => graph.name).sort();
   const controlPaths = new Set([
+    ".github/workflows/deploy.yml",
     "services/supabase/config.toml",
     "services/supabase/functions/deno.json",
     "services/supabase/functions/dependencies.lock",

@@ -60,6 +60,13 @@ Deno.test("shared dependency policy changes deploy the complete fleet", () => {
   );
 });
 
+Deno.test("deployment workflow changes deploy the complete fleet", () => {
+  assertEquals(
+    planAffectedFunctions([".github/workflows/deploy.yml"], graphs).length,
+    graphs.length,
+  );
+});
+
 Deno.test("removed function directories require explicit decommissioning", () => {
   let message = "";
   try {

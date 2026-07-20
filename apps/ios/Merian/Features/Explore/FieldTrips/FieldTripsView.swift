@@ -818,8 +818,8 @@ struct FieldTripTemplateDetailView: View {
             }
         } label: {
             Image(systemName: "ellipsis")
+                .foregroundStyle(.primary)
         }
-        .tint(.primary)
         .disabled(isLifecycleMutating)
         .accessibilityLabel("Field trip options")
         .accessibilityIdentifier("FieldTripDetailOptions")

@@ -61,6 +61,17 @@ test("review, feedback, user, and audit lists use bounded cursor pagination", as
   for (const text of [reviews, feedback, access]) assert.match(text, /p_limit: 100/);
 });
 
+test("server-rendered admin pages pass only serializable component props", async () => {
+  const pages = await Promise.all([
+    source("app/(admin)/reviews/page.tsx"),
+    source("app/(admin)/feedback/page.tsx"),
+    source("app/(admin)/access/page.tsx"),
+  ]);
+  for (const page of pages) {
+    assert.doesNotMatch(page, /component=\{Link\}/);
+  }
+});
+
 test("the admin bundle never references a Supabase service-role secret", async () => {
   const files = await Promise.all([
     source("lib/env.ts"),
