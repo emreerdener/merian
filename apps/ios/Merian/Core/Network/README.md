@@ -123,3 +123,20 @@ headers. TLS pin failures, invalid HTTPS URLs, and response validation failures
 remain fail-closed. Upload-completion callbacks release queue ownership on
 failure, but they do not delete the durable row; the existing live-success path
 alone performs queue cleanup and task cancellation.
+
+## Sign-out transition
+
+`SupabaseManager` closes the authenticated-request gate and clears observable
+account state before asking Supabase Auth to invalidate the local session. It
+cancels its ghost-session and public-author refresh tasks first, ignores late
+authenticated SDK events while sign-out is active, and serializes concurrent
+sign-out callers through one task. `getValidAuthHeaders()` fails closed during
+that interval, checking both before and after asynchronous token retrieval, and
+session-refresh retries cannot reopen authenticated state. Explore, Field trip,
+and profile Edge requests therefore cannot launch with a token that is being
+invalidated.
+
+Call `transitionToGhostSession()` for user-facing sign-out or anonymous-session
+recovery. It creates the replacement guest identity only after sign-out and
+external identity cleanup finish. Account deletion intentionally calls
+`signOut()` alone so it does not recreate an identity during deletion.

@@ -52,3 +52,20 @@ cleans abandoned staging artifacts. Sanitized `scan_ingestion_intents` rows give
 request shape; this worker does not consume those intents. Inline/redacted scans
 still depend on the iOS offline queue, while resumable staged media/audio/video
 and text-only scans are retried by `replay-scan-ingestion`.
+
+## Uniqueness invariant
+
+Generated `scan_refresh`/`backfill` rows and promoted `capture_upload` lifecycle
+rows are separate records and may legitimately share a scan `order_index`.
+Migration `20260720230648_repair_scan_media_asset_uniqueness.sql` removes the
+legacy global `UNIQUE (scan_id, order_index)` rule and replaces it with:
+
+- source-aware generated uniqueness on
+  `(scan_id, source, role, order_index)` for `scan_refresh` and `backfill`;
+- staged-session uniqueness on `(upload_session_id, order_index)` when an upload
+  session is present.
+
+If consecutive reconciliation runs report PostgreSQL `23505` errors naming
+`scan_media_assets_scan_id_order_index_key`, deploy that migration before
+rerunning the worker. Start with `dryRun: true`; proceed with a live invocation
+only when the dry run reports the expected candidate count and zero errors.

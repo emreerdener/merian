@@ -1305,6 +1305,13 @@ repairs early production tables whose existing `kind`, `role`, kind/role, ready
 URL, and ready-order index definitions predated standalone audio. This explicit
 replacement is required because the original `CREATE TABLE IF NOT EXISTS`
 migration cannot alter constraints on an already-existing table.
+Migration `20260720230648_repair_scan_media_asset_uniqueness.sql` removes an
+early global `UNIQUE (scan_id, order_index)` constraint that prevented promoted
+capture-upload lifecycle rows from coexisting with generated ready rows. It
+restores the intended partial unique indexes: generated rows are unique by
+`(scan_id, source, role, order_index)` within `scan_refresh`/`backfill`, and
+staged upload rows are unique by `(upload_session_id, order_index)` when the
+session exists.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until
@@ -1375,7 +1382,9 @@ video-audio rows become `deleted`; failed moderation/promotion/insert paths mark
 remaining staged rows as `failed`. The scheduled `reconcile-scan-media-assets` worker revisits
 old staged rows: existing scan rows can be repaired from surviving staged
 playback videos, while abandoned upload sessions are failed and garbage
-collected after their TTL.
+collected after their TTL. A generated row and its promoted capture-upload audit
+row may share the same scan position; consumers should select by lifecycle
+source/status rather than assuming `(scan_id, order_index)` identifies one row.
 
 Operational note: `20260705110000_schedule_scan_media_asset_reconciliation.sql`
 also repairs early deployed `scan_media_assets` tables that were created before

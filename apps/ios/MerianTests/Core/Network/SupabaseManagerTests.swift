@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 @testable import Merian
+import XCTest
 
 @MainActor
 final class SupabaseManagerTests: XCTestCase {
@@ -33,5 +33,37 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertEqual(headers["Authorization"], "Bearer merian-test-session")
         XCTAssertEqual(headers["apikey"], MerianEnvironment.supabaseAnonKey)
         XCTAssertEqual(headers["Content-Type"], "application/json")
+    }
+
+    func testSignOutClosesAuthenticatedRequestGateBeforeRemoteInvalidation() async {
+        guard let manager = supabaseManager else {
+            XCTFail("Supabase manager was not initialized")
+            return
+        }
+
+        manager.isAuthenticated = true
+        var observedLocalSignOutBeforeRemoteCall = false
+        var requestWasBlockedDuringRemoteCall = false
+
+        await manager.signOut(
+            performRemoteSignOut: { [manager] in
+                observedLocalSignOutBeforeRemoteCall =
+                    !manager.isAuthenticated && manager.isSigningOut
+
+                do {
+                    _ = try await manager.getValidAuthHeaders()
+                } catch SupabaseAuthTransitionError.signOutInProgress {
+                    requestWasBlockedDuringRemoteCall = true
+                } catch {
+                    XCTFail("Unexpected auth transition error: \(error)")
+                }
+            },
+            performExternalSignOut: {}
+        )
+
+        XCTAssertTrue(observedLocalSignOutBeforeRemoteCall)
+        XCTAssertTrue(requestWasBlockedDuringRemoteCall)
+        XCTAssertFalse(manager.isSigningOut)
+        XCTAssertFalse(manager.isAuthenticated)
     }
 }

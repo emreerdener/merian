@@ -104,8 +104,7 @@ final class ProfileViewModel {
     }
     
     func signOut() async {
-        await supabase.signOut()
-        await supabase.initializeGhostSession()
+        await supabase.transitionToGhostSession()
     }
     
     /// Establishes a secure TCP/IP connection to the Supabase Edge natively pulling dynamic cloud-bound preferences 

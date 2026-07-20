@@ -180,6 +180,16 @@ production. A database-only deploy leaves clients on the old signing cap; a
 function-only deploy can still fail staged row creation if an early production
 table kept `scan_id NOT NULL` or `url NOT NULL`.
 
+The scan-media uniqueness repair is database-only. Apply
+`20260720230648_repair_scan_media_asset_uniqueness.sql` when reconciliation
+reports `23505` against `scan_media_assets_scan_id_order_index_key`. Verify the
+legacy table constraint is absent and both partial indexes named in the
+migration have the expected definitions. Then invoke
+`reconcile-scan-media-assets` with `dryRun: true`; run the live repair only when
+the candidate count is expected and `error_count = 0`. The live run should leave
+no stale `capture_upload` rows for that incident and should write a `success`
+row to `scan_media_reconciliation_runs`.
+
 Video audio-metadata fixes are also migration-plus-function releases. The
 `20260707041259_fix_video_has_audio_metadata.sql` helper/backfill and the
 composer/share/edit function bundles must deploy together so
@@ -587,7 +597,11 @@ service-role endpoint. Start triage from the issue code:
   intentionally keep playback plus the volume fallback rather than failing
   publication.
 - `latest_reconciliation_run_not_clean`: inspect
-  `scan_media_reconciliation_runs.errors` before rerunning the worker.
+  `scan_media_reconciliation_runs.errors` before rerunning the worker. Repeated
+  `23505` errors naming `scan_media_assets_scan_id_order_index_key` indicate the
+  legacy global scan/order constraint is still deployed; apply
+  `20260720230648_repair_scan_media_asset_uniqueness.sql`, verify its partial
+  indexes, and use a zero-error dry run before the live reconciliation.
 
 Manual dispatch can use `fail_on = warning` for stricter validation before a
 media-path release, or `fail_on = never` to collect a non-gating diagnostic

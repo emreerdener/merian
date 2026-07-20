@@ -75,7 +75,6 @@ struct DangerZone: View {
     }
 
     private func performSignOut() async {
-        await supabase.signOut()
-        await supabase.initializeGhostSession()
+        await supabase.transitionToGhostSession()
     }
 }

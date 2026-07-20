@@ -22,6 +22,17 @@ private struct RevenueCatPublicIdentity: Decodable {
     }
 }
 
+enum SupabaseAuthTransitionError: LocalizedError {
+    case signOutInProgress
+
+    var errorDescription: String? {
+        switch self {
+        case .signOutInProgress:
+            return "Authentication is changing. Try again in a moment."
+        }
+    }
+}
+
 // MARK: - Supabase Manager
 
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
@@ -83,8 +94,12 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// `initializeGhostSession()` while the first network round-trip is suspended; without this
     /// handle they each attempt a fresh anonymous sign-in and race to replace the active session.
     @ObservationIgnored private var ghostSessionTask: Task<Void, Never>?
+    /// Single-flight sign-out handle. Authenticated request creation is closed as
+    /// soon as this transition begins, before the SDK invalidates the session.
+    @ObservationIgnored private var signOutTask: Task<Void, Never>?
     @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
     private var lastPublicAuthorIdentityRefreshUserId: String?
+    @ObservationIgnored private(set) var isSigningOut = false
 
     // MARK: - Initialization
 
@@ -110,6 +125,10 @@ private struct RevenueCatPublicIdentity: Decodable {
     private func setupAuthStateListener() async {
         for await state in client.auth.authStateChanges {
             if let session = state.session, !session.isExpired {
+                guard !isSigningOut else {
+                    MerianLog.auth.debug("Ignored authenticated SDK event while sign-out is in progress.")
+                    continue
+                }
                 self.currentUser = session.user
                 self.isAuthenticated = true
                 schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
@@ -215,6 +234,10 @@ private struct RevenueCatPublicIdentity: Decodable {
     func initializeGhostSession() async {
         guard !TestExecutionCoordinator.isRunningTests else { return }
 
+        if let signOutTask {
+            await signOutTask.value
+        }
+
         if let existingTask = ghostSessionTask {
             await existingTask.value
             return
@@ -232,8 +255,11 @@ private struct RevenueCatPublicIdentity: Decodable {
     }
 
     private func performGhostSessionInitialization() async {
+        guard !Task.isCancelled else { return }
+
         do {
             let session = try await client.auth.session
+            guard !Task.isCancelled else { return }
             MerianLog.auth.debug("Existing session resolved on device.")
             schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
@@ -248,8 +274,10 @@ private struct RevenueCatPublicIdentity: Decodable {
             }()
 
             if isSessionMissing {
+                guard !Task.isCancelled else { return }
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
+                    guard !Task.isCancelled else { return }
                     MerianLog.auth.debug("Ghost session established: \(authResponse.user.id.uuidString, privacy: .private)")
                     _ = await ensureTelemetryLinkedIfNeeded(for: authResponse.user)
                 } catch {
@@ -264,25 +292,76 @@ private struct RevenueCatPublicIdentity: Decodable {
     // MARK: - Session Utilities
 
     func signOut() async {
-        defer {
-            currentUser = nil
-            isAuthenticated = false
-            lastLinkedUserId = nil
-            lastPublicAuthorIdentityRefreshUserId = nil
-            publicAuthorIdentityRefreshTask?.cancel()
-            publicAuthorIdentityRefreshTask = nil
-            KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
-            PostHogManager.shared.reset()
+        await signOut(
+            performRemoteSignOut: { [client] in
+                try await client.auth.signOut(scope: .local)
+            },
+            performExternalSignOut: {
+                await RevenueCatManager.shared.handleSupabaseSignOut()
+            }
+        )
+    }
+
+    /// Internal dependency seam used by tests to prove local auth closes before
+    /// the remote session invalidation begins.
+    func signOut(
+        performRemoteSignOut: @MainActor @escaping () async throws -> Void,
+        performExternalSignOut: @MainActor @escaping () async -> Void
+    ) async {
+        if let signOutTask {
+            await signOutTask.value
+            return
         }
 
-        do {
-            try await client.auth.signOut(scope: .local)
-        } catch {
-            MerianLog.auth.debug("Supabase sign-out failed; continuing local cleanup: \(error.localizedDescription, privacy: .private)")
-        }
+        let cancelledGhostSessionTask = beginLocalSignOutTransition()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.isSigningOut = false
+                self.signOutTask = nil
+            }
 
-        await RevenueCatManager.shared.handleSupabaseSignOut()
-        MerianLog.auth.debug("User signed out.")
+            if let cancelledGhostSessionTask {
+                await cancelledGhostSessionTask.value
+            }
+
+            do {
+                try await performRemoteSignOut()
+            } catch {
+                MerianLog.auth.debug("Supabase sign-out failed; continuing local cleanup: \(error.localizedDescription, privacy: .private)")
+            }
+
+            await performExternalSignOut()
+            MerianLog.auth.debug("User signed out.")
+        }
+        signOutTask = task
+        await task.value
+    }
+
+    /// Replaces the active account with a fresh anonymous identity only after
+    /// local cleanup and remote sign-out have completed.
+    func transitionToGhostSession() async {
+        await signOut()
+        await initializeGhostSession()
+    }
+
+    @discardableResult
+    private func beginLocalSignOutTransition() -> Task<Void, Never>? {
+        isSigningOut = true
+        currentUser = nil
+        isAuthenticated = false
+        lastLinkedUserId = nil
+        lastPublicAuthorIdentityRefreshUserId = nil
+
+        let cancelledGhostSessionTask = ghostSessionTask
+        cancelledGhostSessionTask?.cancel()
+        ghostSessionTask = nil
+
+        publicAuthorIdentityRefreshTask?.cancel()
+        publicAuthorIdentityRefreshTask = nil
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
+        PostHogManager.shared.reset()
+        return cancelledGhostSessionTask
     }
 
     /// Returns the JWT access token from the active session.
@@ -295,8 +374,11 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// function reports that the backing Auth session is missing.
     @discardableResult
     func refreshActiveSessionForRetry() async -> Bool {
+        guard !isSigningOut else { return false }
+
         do {
             let session = try await client.auth.refreshSession()
+            guard !isSigningOut else { return false }
             currentUser = session.user
             isAuthenticated = true
             schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
@@ -312,8 +394,7 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// Clears a broken anonymous session and creates a fresh ghost identity.
     @discardableResult
     func resetGhostSessionForRetry() async -> Bool {
-        await signOut()
-        await initializeGhostSession()
+        await transitionToGhostSession()
 
         do {
             let session = try await client.auth.session
@@ -348,6 +429,10 @@ private struct RevenueCatPublicIdentity: Decodable {
 
     /// Builds authenticated REST headers, initializing a ghost session if no token exists.
     func getValidAuthHeaders() async throws -> [String: String] {
+        guard !isSigningOut else {
+            throw SupabaseAuthTransitionError.signOutInProgress
+        }
+
         if TestExecutionCoordinator.isRunningTests {
             return [
                 "Authorization": "Bearer merian-test-session",
@@ -367,6 +452,10 @@ private struct RevenueCatPublicIdentity: Decodable {
             } else {
                 throw error
             }
+        }
+
+        guard !isSigningOut else {
+            throw SupabaseAuthTransitionError.signOutInProgress
         }
 
         return [

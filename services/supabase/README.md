@@ -123,8 +123,9 @@ deno test --config deno.json --allow-env --allow-net \
 
 Media durability migrations have an additional static contract test that runs
 without a local Postgres instance. It checks the normalized scan-media lifecycle
-schema, the scan-ingestion job ledger, and the drift-repair SQL that must run
-before media reconciliation indexes are created.
+schema, the scan-ingestion job ledger, the drift-repair SQL that must run before
+media reconciliation indexes are created, and the source-aware uniqueness
+repair for generated versus promoted capture-upload rows.
 
 The same migration contract suite covers the identification-latency migration:
 service-role-only RPC grants, the atomic ingestion setup function, combined
@@ -142,6 +143,8 @@ make validate-supabase-migrations
 supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/push_device_registration.sql
+supabase --workdir services test db --local \
+  services/supabase/tests/scan_media_asset_uniqueness.sql
 ```
 
 Keep the pgTAP fixture local; do not substitute `--linked`. Before deploying a
@@ -153,6 +156,15 @@ and confirm only the reviewed migrations appear. After deployment, run
 `user_push_devices_device_token_length_check` must exist with
 `convalidated = true`. The migration is database-only; the existing
 `register-push-device` Edge Function does not need redeployment.
+
+For the scan-media uniqueness repair, the legacy
+`scan_media_assets_scan_id_order_index_key` constraint must be absent. The
+`idx_scan_media_assets_generated_unique` partial unique index must cover
+`(scan_id, source, role, order_index)` only for `scan_refresh` and `backfill`,
+and `idx_scan_media_assets_upload_session_unique` must cover
+`(upload_session_id, order_index)` only when the upload session is present. This
+allows a promoted `capture_upload` audit row to coexist with its generated ready
+row while still rejecting duplicate positions within either writer contract.
 
 Field trips migrations also have static contract coverage. The current chain is
 V1 template/progress/publication storage, V2 guided detail/start/pins, V3

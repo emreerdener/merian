@@ -478,6 +478,45 @@ Deno.test("scan media reconciliation migration keeps the scheduled worker idempo
   }
 });
 
+Deno.test("scan media uniqueness repair removes the legacy global position constraint", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260720230648_repair_scan_media_asset_uniqueness.sql",
+    ),
+  );
+
+  const dropLegacyConstraint =
+    "DROP CONSTRAINT IF EXISTS scan_media_assets_scan_id_order_index_key";
+  const createGeneratedIndex =
+    "CREATE UNIQUE INDEX idx_scan_media_assets_generated_unique ON public.scan_media_assets(scan_id, source, role, order_index) WHERE scan_id IS NOT NULL AND source IN ('scan_refresh', 'backfill')";
+
+  assertBefore(
+    sql,
+    dropLegacyConstraint,
+    createGeneratedIndex,
+    "the legacy global position constraint must be removed before source-aware uniqueness is restored",
+  );
+
+  for (
+    const fragment of [
+      "DROP INDEX IF EXISTS public.idx_scan_media_assets_generated_unique",
+      createGeneratedIndex,
+      "DROP INDEX IF EXISTS public.idx_scan_media_assets_upload_session_unique",
+      "CREATE UNIQUE INDEX idx_scan_media_assets_upload_session_unique ON public.scan_media_assets(upload_session_id, order_index) WHERE upload_session_id IS NOT NULL",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(
+      "ADD CONSTRAINT scan_media_assets_scan_id_order_index_key UNIQUE (scan_id, order_index)",
+    ),
+    "the repair must not restore the legacy global scan/order uniqueness rule",
+  );
+});
+
 Deno.test("scan_ingestion_jobs migration declares the status ledger used by client recovery", async () => {
   const sql = normalized(
     await migrationSql("20260705120000_add_scan_ingestion_jobs.sql"),

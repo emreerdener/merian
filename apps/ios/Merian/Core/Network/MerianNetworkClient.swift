@@ -868,8 +868,7 @@ final class MerianNetworkClient {
                 let isGuest = await SupabaseManager.shared.isGuestUser
                 if isGuest {
                     MerianLog.network.debug("Zombie session detected — regenerating ghost session.")
-                    await SupabaseManager.shared.signOut()
-                    await SupabaseManager.shared.initializeGhostSession()
+                    await SupabaseManager.shared.transitionToGhostSession()
 
                     // Allow ~1.5s for the API gateway to recognize the new token signature.
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
