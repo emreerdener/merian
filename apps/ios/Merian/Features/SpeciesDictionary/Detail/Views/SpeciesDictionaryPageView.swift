@@ -56,6 +56,7 @@ struct SpeciesDictionaryPageContentView: View {
     @State private var isCommonNameScrolledPast = false
     @State private var isTopScrollEdgeEffectHidden = true
     @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
+    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
 
     init(
         scientificName: String,
@@ -142,6 +143,9 @@ struct SpeciesDictionaryPageContentView: View {
             .fullScreenCover(item: $fullscreenGalleryPresentation) { presentation in
                 InsightFullscreenImageCarousel(presentation: presentation)
             }
+            .sheet(item: $selectedAuthorProfileRoute) { route in
+                ExploreAuthorProfileSheet(viewModel: effectiveExploreViewModel, route: route)
+            }
     }
 
     @ViewBuilder
@@ -189,6 +193,9 @@ struct SpeciesDictionaryPageContentView: View {
                     onHeroBottomChange: evaluateHeroScrollOffset,
                     onImageTap: { presentation in
                         fullscreenGalleryPresentation = presentation
+                    },
+                    onAuthorTap: { image in
+                        presentAuthorProfile(for: image)
                     }
                 )
 
@@ -251,6 +258,21 @@ struct SpeciesDictionaryPageContentView: View {
             isCommonNameScrolledPast = false
             isTopScrollEdgeEffectHidden = true
         }
+    }
+
+    private func presentAuthorProfile(for image: SpeciesDictionaryReferenceImage) {
+        guard image.source == .merian,
+              let authorUserId = image.authorUserId?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmedNonEmpty,
+              let authorUsername = image.naturebookAuthorUsername else { return }
+
+        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
+            authorUserId: authorUserId,
+            authorName: authorUsername,
+            authorUsername: authorUsername,
+            authorAvatarUrl: nil
+        )
     }
 
     private func header(for species: SpeciesDictionaryEntry) -> some View {

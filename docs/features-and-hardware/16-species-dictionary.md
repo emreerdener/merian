@@ -627,7 +627,9 @@ Reference image mapping:
 - The Edge Function prefers ordered rows from `species_reference_images`.
 - Each normalized row becomes
   `{ "url": "...", "source": "merian" | "wikipedia" | "gbif" }` with optional
-  `license`, `attribution`, `width`, and `height`.
+  `license`, `attribution`, `width`, and `height`. Promoted Naturebook rows also
+  carry optional `author_user_id` and the current `author_username` resolved
+  from their private source link; external rows never carry contributor fields.
 - Normalized rows are ordered Merian first, then Wikipedia, then GBIF.
 - If no normalized rows exist, the function falls back to the legacy
   comma-separated `species_dictionary.reference_image_url`, then splits, trims,
@@ -663,13 +665,14 @@ Reference image attribution:
 
 - `license` and `attribution` come from normalized `species_reference_images`
   rows.
-- Rows with the stable technical `source = "merian"` use
-  `license = "Used with permission via Naturebook"` and the
-  source author's public Explore label as attribution.
-- `SpeciesDictionaryReferenceGallery` shows the current image's
-  attribution/license below the carousel when either value exists.
-- The footer follows carousel paging, so multi-image galleries show attribution
-  for the active image only.
+- Rows with the stable technical `source = "merian"` retain
+  `license = "Used with permission via Naturebook"` and the source author's
+  public Explore label as canonical rights metadata.
+- The username capsule truncates to one line and opens
+  `ExploreAuthorProfileSheet`. iOS renders no attribution/license footer below
+  the species gallery. The fullscreen image viewer shows fuller credit in its
+  bottom overlay: `@username · Naturebook` without permission wording for
+  Naturebook, or attribution/license/source for external images.
 - Legacy fallback images may not have attribution metadata. iOS can still render
   those images with source labeling, but the public web frontend runs
   `publicWebReferenceImageAttributionIssues(...)` and omits every image missing

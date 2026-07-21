@@ -170,3 +170,23 @@ struct InsightChatRequestBody: Encodable {
         case featureFeedbackSentiment = "feature_feedback_sentiment"
     }
 }
+
+struct ExplorePostChatRequestBody: Encodable {
+    let action: String
+    let postId: String
+    let messageText: String?
+    let clientMessageId: String?
+    let messageId: String?
+    let feedbackRating: InsightChatFeedbackRating?
+    let feedbackNote: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case action
+        case postId = "post_id"
+        case messageText = "message_text"
+        case clientMessageId = "client_message_id"
+        case messageId = "message_id"
+        case feedbackRating = "feedback_rating"
+        case feedbackNote = "feedback_note"
+    }
+}

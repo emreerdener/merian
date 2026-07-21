@@ -8,9 +8,13 @@ enum InsightChatFieldNotesAppendKind {
 struct InsightChatSheet: View {
     @Bindable var viewModel: InsightChatViewModel
     let scanId: String
-    let speciesData: SpeciesData
+    let speciesData: SpeciesData?
     let displayName: String
     let timestamp: Date?
+    // swiftlint:disable:next implicit_optional_initialization
+    var publicScientificName: String? = nil
+    var publicAlternativeNames: [String] = []
+    var allowsOwnerActions = true
     let onToast: (String) -> Void
     let onAppendToFieldNotes: (String, InsightChatFieldNotesAppendKind) -> Void
     let onReviewAlternatives: (() -> Void)?
@@ -20,13 +24,17 @@ struct InsightChatSheet: View {
     @FocusState private var composerFocused: Bool
     @State private var pendingFeedbackMessage: InsightChatMessage?
     @State private var isFeatureFeedbackSheetPresented = false
+    @State private var isDeleteConversationConfirmationPresented = false
 
     private var chips: [String] {
-        viewModel.suggestionChips(
-            for: speciesData,
-            timestamp: timestamp,
-            displayName: displayName
-        )
+        if let speciesData {
+            return viewModel.suggestionChips(
+                for: speciesData,
+                timestamp: timestamp,
+                displayName: displayName
+            )
+        }
+        return viewModel.publicPostSuggestionChips(displayName: displayName)
     }
 
     private var hasVisibleMessages: Bool {
@@ -59,11 +67,14 @@ struct InsightChatSheet: View {
     }
 
     private var scientificNames: [String] {
-        [
-            speciesData.scientificName,
-            speciesData.aiScientificName
-        ] + (speciesData.candidates?.map(\.scientificName) ?? [])
-            + (speciesData.similarSpecies?.lookalikes ?? [])
+        if let speciesData {
+            return [
+                speciesData.scientificName,
+                speciesData.aiScientificName
+            ] + (speciesData.candidates?.map(\.scientificName) ?? [])
+                + (speciesData.similarSpecies?.lookalikes ?? [])
+        }
+        return [publicScientificName].compactMap { $0 } + publicAlternativeNames
     }
 
     var body: some View {
@@ -110,6 +121,19 @@ struct InsightChatSheet: View {
             Button("Cancel", role: .cancel) {
                 pendingFeedbackMessage = nil
             }
+        }
+        .alert("Delete conversation?", isPresented: $isDeleteConversationConfirmationPresented) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await viewModel.deleteCurrentConversation(scanId: scanId)
+                    if viewModel.errorMessage == nil {
+                        onToast("Field chat deleted")
+                    }
+                }
+            }
+        } message: {
+            Text("This permanently removes your private Field chat conversation.")
         }
         .sheet(isPresented: $isFeatureFeedbackSheetPresented) {
             InsightChatFeatureFeedbackSheet { sentiment, note in
@@ -166,35 +190,48 @@ struct InsightChatSheet: View {
             }
         }
 
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button {
-                    HapticManager.shared.triggerSelectionPulse()
-                    trackAction("summarize_to_field_notes", message: nil)
-                    Task {
-                        if await viewModel.summarizeForFieldNotes(scanId: scanId) {
-                            onToast("Summary ready to review")
+        if allowsOwnerActions || !viewModel.messages.isEmpty {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if allowsOwnerActions {
+                        Button {
+                            HapticManager.shared.triggerSelectionPulse()
+                            trackAction("summarize_to_field_notes", message: nil)
+                            Task {
+                                if await viewModel.summarizeForFieldNotes(scanId: scanId) {
+                                    onToast("Summary ready to review")
+                                }
+                            }
+                        } label: {
+                            Label(
+                                viewModel.isSummarizingNotes ? "Summarizing..." : "Summarize to notes",
+                                systemImage: "text.badge.plus"
+                            )
+                        }
+                        .disabled(viewModel.messages.isEmpty || viewModel.isSummarizingNotes)
+
+                        Button {
+                            HapticManager.shared.triggerSelectionPulse()
+                            isFeatureFeedbackSheetPresented = true
+                        } label: {
+                            Label("Give feedback", systemImage: "message")
+                        }
+                    }
+
+                    if !viewModel.messages.isEmpty {
+                        Button(role: .destructive) {
+                            HapticManager.shared.triggerSelectionPulse()
+                            isDeleteConversationConfirmationPresented = true
+                        } label: {
+                            Label("Delete conversation", systemImage: "trash")
                         }
                     }
                 } label: {
-                    Label(
-                        viewModel.isSummarizingNotes ? "Summarizing..." : "Summarize to notes",
-                        systemImage: "text.badge.plus"
-                    )
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
                 }
-                .disabled(viewModel.messages.isEmpty || viewModel.isSummarizingNotes)
-
-                Button {
-                    HapticManager.shared.triggerSelectionPulse()
-                    isFeatureFeedbackSheetPresented = true
-                } label: {
-                    Label("Give feedback", systemImage: "message")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .bold))
+                .accessibilityLabel("Field chat options")
             }
-            .accessibilityLabel("Field chat options")
         }
     }
 
@@ -301,6 +338,14 @@ struct InsightChatSheet: View {
                 .font(.title2)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
+
+            if !allowsOwnerActions {
+                Text("Answers use the published observation and Species Dictionary. Field chat can't inspect the post's photo, video, or audio.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
         }
     }
 
@@ -513,7 +558,7 @@ struct InsightChatSheet: View {
             "scan_id": scanId,
             "message_id": message?.id ?? "",
             "is_refusal": message?.isRefusal ?? false,
-            "has_lookalikes": InsightChatViewModel.hasLookalikeContext(speciesData)
+            "has_lookalikes": speciesData.map { InsightChatViewModel.hasLookalikeContext($0) } ?? false
         ])
     }
 
@@ -540,7 +585,7 @@ struct InsightChatSheet: View {
             "scan_id": scanId,
             "message_id": "",
             "is_refusal": false,
-            "has_lookalikes": InsightChatViewModel.hasLookalikeContext(speciesData)
+            "has_lookalikes": speciesData.map { InsightChatViewModel.hasLookalikeContext($0) } ?? false
         ])
     }
 }

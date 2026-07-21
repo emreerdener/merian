@@ -26,7 +26,7 @@ Free inference remains `gemini-2.5-flash` and Pro remains
 `gemini-2.5-pro`. The latency path does not change prompts, schema, thinking
 budgets, image resolution, output limits, or the one-model-call contract.
 
-The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
+The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images. The public species payload never exposes source scan/post/location provenance; for a currently promoted Naturebook image it purposefully resolves only the contributor's public user ID and current public username so iOS can link the photo badge to the existing public profile sheet.
 
 Naturebook also has a small public web frontend in `apps/web/`.
 `https://naturebook.earth/explore/post/{postId}` server-renders a public Explore

@@ -71,6 +71,8 @@ Deno.test("public species projection - reference image rows normalize and preser
         source: "merian",
         license: "Used with permission via Naturebook",
         attribution: "Explorer ABC123",
+        author_user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+        author_username: "ayla",
         sort_order: 0,
       },
     ],
@@ -83,6 +85,8 @@ Deno.test("public species projection - reference image rows normalize and preser
       source: "merian",
       license: "Used with permission via Naturebook",
       attribution: "Explorer ABC123",
+      author_user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+      author_username: "ayla",
     },
     {
       url: "https://example.org/reference.jpg",
@@ -95,6 +99,48 @@ Deno.test("public species projection - reference image rows normalize and preser
     {
       url: "https://static.inaturalist.org/photo.jpg",
       source: "gbif",
+    },
+  ]);
+});
+
+Deno.test("public species projection - contributor identity is limited to Naturebook reference images", () => {
+  const images = referenceImagesFromRows(
+    [
+      {
+        url: "https://upload.wikimedia.org/photo.jpg",
+        source: "wikipedia",
+        author_user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+        author_username: "should-not-leak",
+      },
+      {
+        url: "https://media.merian.app/public_uploads/pro/photo.webp",
+        source: "merian",
+        author_user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+        author_username: "ayla",
+      },
+      {
+        url: "https://media.merian.app/public_uploads/pro/incomplete.webp",
+        source: "merian",
+        author_user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+      },
+    ],
+    null,
+  );
+
+  assertEquals(images, [
+    {
+      url: "https://media.merian.app/public_uploads/pro/photo.webp",
+      source: "merian",
+      author_user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+      author_username: "ayla",
+    },
+    {
+      url: "https://media.merian.app/public_uploads/pro/incomplete.webp",
+      source: "merian",
+    },
+    {
+      url: "https://upload.wikimedia.org/photo.jpg",
+      source: "wikipedia",
     },
   ]);
 });

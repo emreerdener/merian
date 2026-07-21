@@ -3292,6 +3292,110 @@ final class MerianNetworkClient {
         return data
     }
 
+    func loadExplorePostChat(postId: String) async throws -> InsightChatResponse {
+        try await performExplorePostChat(
+            action: "load",
+            postId: postId
+        )
+    }
+
+    func sendExplorePostChatMessage(
+        postId: String,
+        messageText: String,
+        clientMessageId: String
+    ) async throws -> InsightChatResponse {
+        try await performExplorePostChat(
+            action: "send",
+            postId: postId,
+            messageText: messageText,
+            clientMessageId: clientMessageId
+        )
+    }
+
+    func deleteExplorePostChat(postId: String) async throws -> InsightChatResponse {
+        try await performExplorePostChat(action: "delete", postId: postId)
+    }
+
+    func submitExplorePostChatFeedback(
+        postId: String,
+        messageId: String,
+        rating: InsightChatFeedbackRating,
+        note: String? = nil
+    ) async throws -> InsightChatFeedbackResponse {
+        let body = ExplorePostChatRequestBody(
+            action: "feedback",
+            postId: postId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: messageId,
+            feedbackRating: rating,
+            feedbackNote: note
+        )
+        let data = try await performExplorePostChatRequest(body)
+        return try JSONDecoder().decode(InsightChatFeedbackEnvelope.self, from: data).data
+    }
+
+    func suggestExplorePostChatPrompts(postId: String) async throws -> InsightChatPromptSuggestionsResponse {
+        let body = ExplorePostChatRequestBody(
+            action: "suggest_prompts",
+            postId: postId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try await performExplorePostChatRequest(body, timeoutInterval: 30.0)
+        return try JSONDecoder().decode(InsightChatPromptSuggestionsEnvelope.self, from: data).data
+    }
+
+    private func performExplorePostChat(
+        action: String,
+        postId: String,
+        messageText: String? = nil,
+        clientMessageId: String? = nil
+    ) async throws -> InsightChatResponse {
+        let body = ExplorePostChatRequestBody(
+            action: action,
+            postId: postId,
+            messageText: messageText,
+            clientMessageId: clientMessageId,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try await performExplorePostChatRequest(body)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            if let date = DateUtilities.iso8601FractionalFormatter.date(from: value)
+                ?? DateUtilities.iso8601Formatter.date(from: value) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid ISO 8601 date: \(value)"
+            )
+        }
+        return try decoder.decode(InsightChatEnvelope.self, from: data).data
+    }
+
+    private func performExplorePostChatRequest(
+        _ body: ExplorePostChatRequestBody,
+        timeoutInterval: TimeInterval = 20.0
+    ) async throws -> Data {
+        let functionUrl = try endpointURL("explore-post-chat")
+        let bodyData = try JSONEncoder().encode(body)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: timeoutInterval
+        )
+        return data
+    }
+
     private func shouldAttemptExploreMediaRestore(after error: Error) -> Bool {
         guard case let MerianError.httpError(statusCode, message) = error else {
             return false

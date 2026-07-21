@@ -45,6 +45,9 @@ struct ExplorePostDetailView: View {
     @State private var focusedComposerIsSticky: Bool?
     @State private var isAudioBoostEnabled = false
     @State private var audioBoostActionToken: UUID?
+    @State private var exploreChatViewModel = InsightChatViewModel(source: .explorePost)
+    @State private var isExploreChatPresented = false
+    @State private var isExploreChatPaywallPresented = false
 
     private var isComposerSticky: Bool {
         commentsSectionMinY <= viewportHeight - 150
@@ -59,7 +62,9 @@ struct ExplorePostDetailView: View {
             selectedAuthorProfileRoute != nil ||
             selectedNotificationReplyThreadRoute != nil ||
             showFieldNotesEditor ||
-            showPostComposer
+            showPostComposer ||
+            isExploreChatPresented ||
+            isExploreChatPaywallPresented
     }
 
     private var canOpenAuthorProfileRoutes: Bool {
@@ -319,6 +324,15 @@ struct ExplorePostDetailView: View {
                                 }
                             )
                         }
+
+                        if !isOwnedByCurrentUser(post), !isComposerFocused {
+                            ToolbarItemGroup(placement: .bottomBar) {
+                                Spacer()
+                                FieldChatToolbarButton {
+                                    openExploreFieldChat(for: post)
+                                }
+                            }
+                        }
                     }
                     .task(id: post.id) {
                         async let detailTask: Void = loadPostDetail()
@@ -482,6 +496,34 @@ struct ExplorePostDetailView: View {
                     }
                 )
             }
+        }
+        .sheet(isPresented: $isExploreChatPresented) {
+            if let post = currentPost {
+                InsightChatSheet(
+                    viewModel: exploreChatViewModel,
+                    scanId: post.id,
+                    speciesData: nil,
+                    displayName: viewModel.resolvedSpeciesCommonName(for: post),
+                    timestamp: post.sharedAtDate,
+                    publicScientificName: post.speciesScientificName,
+                    publicAlternativeNames: detail?.similarSpecies?.map(\.scientificName) ?? [],
+                    allowsOwnerActions: false,
+                    onToast: { message in
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            viewModel.toastMessage = message
+                        }
+                    },
+                    onAppendToFieldNotes: { _, _ in },
+                    onReviewAlternatives: nil,
+                    onReanalyzeSpecies: nil,
+                    onClose: { isExploreChatPresented = false }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+            }
+        }
+        .sheet(isPresented: $isExploreChatPaywallPresented) {
+            PaywallView()
         }
         .alert(
             "Unpublish Post?",
@@ -983,6 +1025,35 @@ struct ExplorePostDetailView: View {
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
+    }
+
+    private func openExploreFieldChat(for post: ExplorePost) {
+        guard !isOwnedByCurrentUser(post) else { return }
+        HapticManager.shared.triggerSelectionPulse()
+        PostHogManager.shared.capture("ExplorePostFieldChatTapped", properties: [
+            "post_id": post.id,
+            "species_scientific_name": post.speciesScientificName,
+            "is_pro": RevenueCatManager.shared.isProActive
+        ])
+
+        guard RevenueCatManager.shared.isProActive else {
+            isExploreChatPaywallPresented = true
+            return
+        }
+
+        Task { @MainActor in
+            let canPresent = await exploreChatViewModel.prepareForPresentation(scanId: post.id)
+            if canPresent {
+                HapticManager.shared.triggerSheetSpring()
+                isExploreChatPresented = true
+            } else {
+                HapticManager.shared.triggerErrorThump()
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    viewModel.toastMessage = exploreChatViewModel.errorMessage
+                        ?? "Field chat isn't available for this post."
+                }
+            }
+        }
     }
 
     private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {

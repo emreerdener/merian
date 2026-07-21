@@ -66,6 +66,49 @@ interface LookalikeSpeciesRow {
   iucn_red_list_status?: string | null;
 }
 
+export interface ReferenceImageAuthorRow {
+  reference_image_id?: string | null;
+  user_id?: string | null;
+  author?: ReferenceImageAuthorUserRow | ReferenceImageAuthorUserRow[] | null;
+}
+
+interface ReferenceImageAuthorUserRow {
+  public_username?: string | null;
+}
+
+export function referenceImageRowsWithAuthors(
+  rows: SpeciesReferenceImageRow[],
+  authorRows: ReferenceImageAuthorRow[],
+): SpeciesReferenceImageRow[] {
+  const authorsByReferenceImageId = new Map(
+    authorRows.flatMap((row) => {
+      const referenceImageId = stringValue(row.reference_image_id);
+      const authorUserId = stringValue(row.user_id);
+      const author = Array.isArray(row.author) ? row.author[0] : row.author;
+      const authorUsername = stringValue(author?.public_username);
+      return referenceImageId && authorUserId && authorUsername
+        ? [[referenceImageId, { authorUserId, authorUsername }] as const]
+        : [];
+    }),
+  );
+
+  return rows.map((row) => {
+    if (row.source !== "merian") return row;
+
+    const referenceImageId = stringValue(row.id);
+    const author = referenceImageId
+      ? authorsByReferenceImageId.get(referenceImageId)
+      : undefined;
+    return author
+      ? {
+        ...row,
+        author_user_id: author.authorUserId,
+        author_username: author.authorUsername,
+      }
+      : row;
+  });
+}
+
 export interface SpeciesDictionaryCatalogCursor {
   scientificName: string;
   speciesId: string;
@@ -1133,8 +1176,38 @@ async function fetchReferenceImages(
     );
   }
 
+  const referenceImageRows = (data ?? []) as SpeciesReferenceImageRow[];
+  const merianReferenceImageIds = referenceImageRows.flatMap((row) => {
+    const id = stringValue(row.id);
+    return row.source === "merian" && id ? [id] : [];
+  });
+
+  let rowsWithAuthors = referenceImageRows;
+  if (merianReferenceImageIds.length > 0) {
+    const { data: authorData, error: authorError } = await supabaseAdmin
+      .from("species_reference_image_merian_sources")
+      .select(
+        "reference_image_id, user_id, author:users!user_id(public_username)",
+      )
+      .in("reference_image_id", merianReferenceImageIds)
+      .eq("is_promoted", true)
+      .is("disqualified_at", null)
+      .limit(merianReferenceImageIds.length);
+
+    if (authorError) {
+      throw new Error(
+        `Failed to fetch Naturebook reference image authors: ${authorError.message}`,
+      );
+    }
+
+    rowsWithAuthors = referenceImageRowsWithAuthors(
+      referenceImageRows,
+      (authorData ?? []) as ReferenceImageAuthorRow[],
+    );
+  }
+
   const normalizedImages = referenceImagesFromRows(
-    data as SpeciesReferenceImageRow[] | null,
+    rowsWithAuthors,
     wikipediaUrl,
   );
   return normalizedImages.length > 0

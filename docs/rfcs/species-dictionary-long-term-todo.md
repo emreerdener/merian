@@ -213,8 +213,11 @@ Current rules:
   are the canonical public media rights fields.
 - `/species-dictionary` includes `license` and `attribution` on each normalized
   `reference_images` item when stored metadata exists.
-- iOS shows the active reference image's attribution/license below the gallery
-  when either field is present.
+- iOS renders no attribution/license footer below the species gallery.
+  Naturebook images show a truncated, tappable `@username` capsule and route to
+  the existing public profile sheet. The fullscreen viewer's bottom overlay
+  shows `@username · Naturebook` without permission wording, while external
+  images can show their photographer/license/source credit.
 - Web species pages run
   `publicWebReferenceImageAttributionIssues(...)` from
   `_shared/publicSpeciesProjection.ts` before rendering public reference media,

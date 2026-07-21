@@ -92,6 +92,10 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Added the floating **Field chat** control to other users' Explore post
+  details. Pro viewers can privately ask follow-up questions grounded in the
+  published observation and Species Dictionary without exposing owner scan
+  data, exact locations, media, comments, or chat history.
 - Fixed remote push-device registration failing with a Supabase 500 by replacing
   an unsupported PostgreSQL `{32,512}` regex bound with separate hex-format and
   length constraints; added static migration and executable database coverage,

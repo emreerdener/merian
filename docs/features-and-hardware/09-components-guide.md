@@ -158,7 +158,9 @@ Displays public species reference images from `/species-dictionary`.
 - **Source label**: Each image keeps the existing source pill (`Naturebook`,
   `Wikipedia`, or `GBIF`) over the image. Unknown future source values decode as
   `Reference` so additive backend sources do not break the page.
-- **Attribution footer**: When the active `SpeciesDictionaryReferenceImage` has `attribution` or `license`, the gallery renders a compact caption below the carousel. Multi-image galleries update the caption as paging changes.
+- **Naturebook contributor badge**: A Naturebook-sourced image shows the contributor's current `@username` in a leading material capsule, truncated to one line. Tapping it opens `ExploreAuthorProfileSheet`; the trailing `Naturebook` source pill remains unchanged.
+- **No page attribution footer**: The species page does not render attribution/license text below the gallery. The source and contributor capsules are the only attribution treatment on the page.
+- **Fullscreen attribution**: Opening an image shows its fuller credit in the existing bottom overlay. Naturebook uses `@username · Naturebook` and never displays the stored “Used with permission” text; external images can include photographer, license, and source.
 - **Fallback behavior**: Images without attribution metadata still render in iOS with source labeling. Future web renderers must run the shared public projection attribution audit before publishing reference media.
 
 ## 15. Candidate Swipe Experience: `CandidateSwipeModal`

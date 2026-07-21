@@ -19,6 +19,11 @@ struct PendingInsightChatMessage: Identifiable, Equatable {
     }
 }
 
+enum FieldChatSource: Equatable {
+    case insightScan
+    case explorePost
+}
+
 @MainActor
 @Observable
 final class InsightChatViewModel {
@@ -53,8 +58,10 @@ final class InsightChatViewModel {
     @ObservationIgnored private let monitorQueue = DispatchQueue(label: "com.merian.insight-chat.network")
     @ObservationIgnored private var loadedScanId: String?
     @ObservationIgnored private var promptRequestGeneration = 0
+    @ObservationIgnored private let source: FieldChatSource
 
-    init() {
+    init(source: FieldChatSource = .insightScan) {
+        self.source = source
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
                 self?.isOffline = path.status != .satisfied
@@ -103,6 +110,12 @@ final class InsightChatViewModel {
 
         isCheckingAvailability = true
         defer { isCheckingAvailability = false }
+
+        if source == .explorePost {
+            loadedScanId = scanId
+            await load(scanId: scanId)
+            return errorMessage == nil && !isUnavailable(for: scanId)
+        }
 
         do {
             let status = try await MerianNetworkClient.shared.checkScanStatus(scanId: scanId)
@@ -153,7 +166,13 @@ final class InsightChatViewModel {
         defer { isLoading = false }
 
         do {
-            apply(try await MerianNetworkClient.shared.loadInsightChat(scanId: scanId))
+            let response = switch source {
+            case .insightScan:
+                try await MerianNetworkClient.shared.loadInsightChat(scanId: scanId)
+            case .explorePost:
+                try await MerianNetworkClient.shared.loadExplorePostChat(postId: scanId)
+            }
+            apply(response)
             refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: false)
         } catch {
             loadedScanId = nil
@@ -186,11 +205,21 @@ final class InsightChatViewModel {
         }
 
         do {
-            apply(try await MerianNetworkClient.shared.sendInsightChatMessage(
-                scanId: scanId,
-                messageText: trimmed,
-                clientMessageId: clientMessageId
-            ))
+            let response = switch source {
+            case .insightScan:
+                try await MerianNetworkClient.shared.sendInsightChatMessage(
+                    scanId: scanId,
+                    messageText: trimmed,
+                    clientMessageId: clientMessageId
+                )
+            case .explorePost:
+                try await MerianNetworkClient.shared.sendExplorePostChatMessage(
+                    postId: scanId,
+                    messageText: trimmed,
+                    clientMessageId: clientMessageId
+                )
+            }
+            apply(response)
             isSending = false
             refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: true)
             HapticManager.shared.triggerSuccessPulse()
@@ -237,7 +266,13 @@ final class InsightChatViewModel {
         defer { isDeleting = false }
 
         do {
-            apply(try await MerianNetworkClient.shared.deleteInsightChat(scanId: scanId))
+            let response = switch source {
+            case .insightScan:
+                try await MerianNetworkClient.shared.deleteInsightChat(scanId: scanId)
+            case .explorePost:
+                try await MerianNetworkClient.shared.deleteExplorePostChat(postId: scanId)
+            }
+            apply(response)
             HapticManager.shared.triggerSuccessPulse()
         } catch {
             handle(error, scanId: scanId, playHaptic: true)
@@ -264,12 +299,22 @@ final class InsightChatViewModel {
         defer { isSubmittingFeedback = false }
 
         do {
-            let response = try await MerianNetworkClient.shared.submitInsightChatFeedback(
-                scanId: scanId,
-                messageId: messageId,
-                rating: rating,
-                note: note
-            )
+            let response = switch source {
+            case .insightScan:
+                try await MerianNetworkClient.shared.submitInsightChatFeedback(
+                    scanId: scanId,
+                    messageId: messageId,
+                    rating: rating,
+                    note: note
+                )
+            case .explorePost:
+                try await MerianNetworkClient.shared.submitExplorePostChatFeedback(
+                    postId: scanId,
+                    messageId: messageId,
+                    rating: rating,
+                    note: note
+                )
+            }
             submittedFeedback[response.messageId] = response.rating
             HapticManager.shared.triggerSuccessPulse()
             return true
@@ -284,6 +329,7 @@ final class InsightChatViewModel {
         sentiment: InsightChatFeatureFeedbackSentiment?,
         note: String
     ) async -> Bool {
+        guard source == .insightScan else { return false }
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         guard sentiment != nil || !trimmedNote.isEmpty else { return false }
         guard !isOffline else {
@@ -310,6 +356,7 @@ final class InsightChatViewModel {
     }
 
     func summarizeForFieldNotes(scanId: String) async -> Bool {
+        guard source == .insightScan else { return false }
         guard !isOffline else {
             HapticManager.shared.triggerErrorThump()
             errorMessage = "Connect to summarize chat."
@@ -358,6 +405,22 @@ final class InsightChatViewModel {
         }
 
         return chips
+    }
+
+    func publicPostSuggestionChips(displayName: String) -> [String] {
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? "this species"
+        let fallback = [
+            "What traits are characteristic of \(name)?",
+            "What habitat does \(name) prefer?",
+            "What is most interesting about \(name)?"
+        ]
+        let sentTexts = Set(sentAndPendingPromptTexts)
+        var seen = Set<String>()
+        return (suggestedPrompts.map(\.text) + fallback).filter { prompt in
+            let key = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return !key.isEmpty && !sentTexts.contains(key) && seen.insert(key).inserted
+        }.prefix(3).map { $0 }
     }
 
     var sentAndPendingPromptTexts: [String] {
@@ -739,7 +802,12 @@ final class InsightChatViewModel {
         }
 
         do {
-            let response = try await MerianNetworkClient.shared.suggestInsightChatPrompts(scanId: scanId)
+            let response = switch source {
+            case .insightScan:
+                try await MerianNetworkClient.shared.suggestInsightChatPrompts(scanId: scanId)
+            case .explorePost:
+                try await MerianNetworkClient.shared.suggestExplorePostChatPrompts(postId: scanId)
+            }
             guard promptRequestGeneration == requestGeneration else { return }
             suggestedPrompts = response.prompts
         } catch {
@@ -752,7 +820,13 @@ final class InsightChatViewModel {
         if playHaptic {
             HapticManager.shared.triggerErrorThump()
         }
-        errorMessage = Self.userFacingMessage(for: error)
+        if source == .explorePost,
+           case let MerianError.httpError(statusCode, _) = error,
+           statusCode == 403 || statusCode == 404 {
+            errorMessage = "This Explore post isn't available for Field chat."
+        } else {
+            errorMessage = Self.userFacingMessage(for: error)
+        }
         if Self.isDeterministicallyUnavailable(error) {
             unavailableScanId = scanId
         }

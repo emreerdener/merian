@@ -44,7 +44,9 @@ struct SpeciesDictionaryTests {
                         "url": "https://media.merian.app/public_uploads/pro/test.webp",
                         "source": "merian",
                         "license": "Used with permission via Naturebook",
-                        "attribution": "Explorer ABC123"
+                        "attribution": "Explorer ABC123",
+                        "author_user_id": "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+                        "author_username": "ayla"
                     },
                     {
                         "url": "https://upload.wikimedia.org/test.jpg",
@@ -86,10 +88,15 @@ struct SpeciesDictionaryTests {
         #expect(response.data.effectiveContentQuality == .complete)
         #expect(response.data.referenceImages.map(\.source) == [.merian, .wikipedia, .gbif])
         #expect(response.data.referenceImages[0].source.label == "Naturebook")
-        #expect(response.data.referenceImages[0].attributionCaption == "Explorer ABC123 - Used with permission via Naturebook")
+        #expect(response.data.referenceImages[0].authorUserId == "66a06afc-a56f-4d19-bfc3-07cf32c1f458")
+        #expect(response.data.referenceImages[0].naturebookAuthorUsername == "ayla")
+        #expect(response.data.referenceImages[0].fullscreenAttributionLabel == "@ayla · Naturebook")
         #expect(response.data.referenceImages[1].license == "CC BY-SA 4.0")
         #expect(response.data.referenceImages[1].attribution == "Example Photographer")
-        #expect(response.data.referenceImages[1].attributionCaption == "Example Photographer - CC BY-SA 4.0")
+        #expect(
+            response.data.referenceImages[1].fullscreenAttributionLabel ==
+                "Example Photographer · CC BY-SA 4.0 · Wikipedia"
+        )
         #expect(response.data.referenceImages[1].width == 1200)
         #expect(response.data.referenceImages[1].height == 800)
         #expect(response.data.taxonomyData?.genus == "Testus")
@@ -223,7 +230,10 @@ struct SpeciesDictionaryTests {
             "species-reference-https://example.com/first.jpg",
             "species-reference-https://example.com/second.jpg"
         ])
-        #expect(presentation.items.map(\.referenceAttributionLabel) == ["Wikipedia", "GBIF"])
+        #expect(presentation.items.map(\.referenceAttributionLabel) == [
+            "First Photographer · CC BY-SA · Wikipedia",
+            "GBIF"
+        ])
         #expect(presentation.initialSelectedIndex == 1)
         #expect(presentation.items.map(\.source) == [
             .referenceURL("https://example.com/first.jpg"),

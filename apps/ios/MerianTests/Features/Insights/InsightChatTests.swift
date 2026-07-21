@@ -5,6 +5,32 @@ import Testing
 
 @MainActor
 struct InsightChatTests {
+    @Test func explorePostRequestUsesPostIdentifierContract() throws {
+        let body = ExplorePostChatRequestBody(
+            action: "send",
+            postId: "post-123",
+            messageText: "What habitat does it prefer?",
+            clientMessageId: "message-123",
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try JSONEncoder().encode(body)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(json["post_id"] as? String == "post-123")
+        #expect(json["scan_id"] == nil)
+    }
+
+    @Test func explorePostSuggestionChipsReturnThreeDistinctQuestions() {
+        let viewModel = InsightChatViewModel(source: .explorePost)
+        let chips = viewModel.publicPostSuggestionChips(displayName: "Monarch")
+
+        #expect(chips.count == 3)
+        #expect(Set(chips).count == 3)
+        #expect(chips.allSatisfy { $0.contains("Monarch") })
+    }
+
     @Test func testSuggestionChipsRankCandidateHazardAndEvidencePrompts() {
         let species = SpeciesData(
             scanId: "chat_scan",

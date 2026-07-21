@@ -400,6 +400,9 @@ verify_jwt = false
 [functions.insight-chat]
 verify_jwt = false
 
+[functions.explore-post-chat]
+verify_jwt = false
+
 [functions.safe-delete]
 verify_jwt = false
 

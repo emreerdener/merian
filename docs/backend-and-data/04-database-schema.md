@@ -428,8 +428,10 @@ provenance fields were added in
 - `(species_id, image_url)` is unique so duplicate Explore media for the same
   species collapse to the best candidate.
 - RLS is enabled with no anon/authenticated read policy; only `service_role`
-  receives table grants. Public APIs expose only the safe
-  `species_reference_images` row fields.
+  receives table grants. `/species-dictionary` uses the linked promoted row to
+  resolve only the contributor's public user ID and current public username;
+  the source scan/post IDs, confidence snapshot, and other provenance are not
+  exposed.
 
 ### `species_observation_stats_cache`
 

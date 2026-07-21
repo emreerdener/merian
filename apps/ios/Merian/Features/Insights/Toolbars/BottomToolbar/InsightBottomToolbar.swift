@@ -84,7 +84,7 @@ struct InsightBottomToolbar: ToolbarContent {
                 Spacer()
 
                 if canShowInsightChat {
-                    InsightChatToolbarButton(action: onInsightChat)
+                    FieldChatToolbarButton(action: onInsightChat)
                 }
             }
         }
@@ -106,7 +106,7 @@ struct InsightBottomToolbar: ToolbarContent {
     }
 }
 
-private struct InsightChatToolbarButton: View {
+struct FieldChatToolbarButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shimmerPhase: CGFloat = -1.0
 

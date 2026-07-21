@@ -349,15 +349,22 @@ export async function countUserSendsToday(
 ): Promise<number> {
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
-  const { count, error } = await supabaseAdmin
-    .from("insight_chat_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("role", "user")
-    .gte("created_at", start.toISOString());
+  const countTable = async (table: string): Promise<number> => {
+    const { count, error } = await supabaseAdmin
+      .from(table)
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("role", "user")
+      .gte("created_at", start.toISOString());
+    if (error) {
+      throw new Error(`Failed to count daily chat sends: ${error.message}`);
+    }
+    return count ?? 0;
+  };
 
-  if (error) {
-    throw new Error(`Failed to count daily chat sends: ${error.message}`);
-  }
-  return count ?? 0;
+  const [insightSends, exploreSends] = await Promise.all([
+    countTable("insight_chat_messages"),
+    countTable("explore_post_chat_messages"),
+  ]);
+  return insightSends + exploreSends;
 }

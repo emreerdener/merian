@@ -424,19 +424,61 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
     let source: Source
     let license: String?
     let attribution: String?
+    let authorUserId: String?
+    let authorUsername: String?
     let width: Int?
     let height: Int?
 
+    init(
+        url: String,
+        source: Source,
+        license: String?,
+        attribution: String?,
+        authorUserId: String? = nil,
+        authorUsername: String? = nil,
+        width: Int?,
+        height: Int?
+    ) {
+        self.url = url
+        self.source = source
+        self.license = license
+        self.attribution = attribution
+        self.authorUserId = authorUserId
+        self.authorUsername = authorUsername
+        self.width = width
+        self.height = height
+    }
+
     var id: String { url }
 
-    var attributionCaption: String? {
-        [
-            attribution?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
-            license?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    var naturebookAuthorUsername: String? {
+        guard source == .merian else { return nil }
+        return authorUsername?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+            .nilIfEmpty
+    }
+
+    var fullscreenAttributionLabel: String {
+        if let username = naturebookAuthorUsername {
+            return "@\(username) · \(source.label)"
+        }
+
+        func displayableCredit(_ value: String?) -> String? {
+            guard let value = value?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty,
+                !value.localizedCaseInsensitiveContains("used with permission") else { return nil }
+            return value
+        }
+
+        return [
+            displayableCredit(attribution),
+            displayableCredit(license),
+            source.label
         ]
         .compactMap { $0 }
-        .joined(separator: " - ")
-        .nilIfEmpty
+        .joined(separator: " · ")
     }
 }
 

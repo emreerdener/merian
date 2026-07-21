@@ -6,6 +6,7 @@ struct SpeciesDictionaryReferenceGallery: View {
     let onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)?
     let onHeroBottomChange: ((CGFloat) -> Void)?
     let onImageTap: ((InsightImageGalleryPresentation) -> Void)?
+    let onAuthorTap: ((SpeciesDictionaryReferenceImage) -> Void)?
 
     @State private var selectedImageId: String?
     @State private var failedImageIds = Set<String>()
@@ -15,13 +16,15 @@ struct SpeciesDictionaryReferenceGallery: View {
         images: [SpeciesDictionaryReferenceImage],
         onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)? = nil,
         onHeroBottomChange: ((CGFloat) -> Void)? = nil,
-        onImageTap: ((InsightImageGalleryPresentation) -> Void)? = nil
+        onImageTap: ((InsightImageGalleryPresentation) -> Void)? = nil,
+        onAuthorTap: ((SpeciesDictionaryReferenceImage) -> Void)? = nil
     ) {
         self.scientificName = scientificName
         self.images = SpeciesDictionaryImageGalleryBuilder.allowedImages(from: images)
         self.onImageLoadFailed = onImageLoadFailed
         self.onHeroBottomChange = onHeroBottomChange
         self.onImageTap = onImageTap
+        self.onAuthorTap = onAuthorTap
     }
 
     private let imageSize: CGFloat = UIScreen.main.bounds.width
@@ -31,43 +34,26 @@ struct SpeciesDictionaryReferenceGallery: View {
         selectedImageId ?? images.first?.id
     }
 
-    private var currentImage: SpeciesDictionaryReferenceImage? {
-        images.first { $0.id == currentImageId } ?? images.first
-    }
-
     var body: some View {
-        VStack(spacing: 10) {
-            GeometryReader { proxy in
-                let heroFrame = proxy.frame(in: .named("SpeciesDictionaryScrollSpace"))
-                let scrollY = heroFrame.minY
+        GeometryReader { proxy in
+            let heroFrame = proxy.frame(in: .named("SpeciesDictionaryScrollSpace"))
+            let scrollY = heroFrame.minY
 
-                carousel
-                    .frame(
-                        width: imageSize,
-                        height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer
-                    )
-                    .overlay(alignment: .bottom) { paginationDots }
-                    .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
-                    .ignoresSafeArea(.all, edges: .top)
-                    .onChange(of: heroFrame.maxY, initial: true) { _, newMaxY in
-                        onHeroBottomChange?(newMaxY)
-                    }
-            }
-            .frame(height: imageSize)
-            .ignoresSafeArea(.all, edges: .top)
-            .zIndex(0)
-
-            if let attributionCaption = currentImage?.attributionCaption {
-                Text(attributionCaption)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 16)
-                    .accessibilityLabel("Reference image attribution: \(attributionCaption)")
-            }
+            carousel
+                .frame(
+                    width: imageSize,
+                    height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer
+                )
+                .overlay(alignment: .bottom) { paginationDots }
+                .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
+                .ignoresSafeArea(.all, edges: .top)
+                .onChange(of: heroFrame.maxY, initial: true) { _, newMaxY in
+                    onHeroBottomChange?(newMaxY)
+                }
         }
+        .frame(height: imageSize)
+        .ignoresSafeArea(.all, edges: .top)
+        .zIndex(0)
         .frame(maxWidth: .infinity)
     }
 
@@ -129,7 +115,7 @@ struct SpeciesDictionaryReferenceGallery: View {
     }
 
     private func page(for image: SpeciesDictionaryReferenceImage) -> some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .bottom) {
             GeometryReader { proxy in
                 AsyncLocalImageView(
                     path: nil,
@@ -142,27 +128,71 @@ struct SpeciesDictionaryReferenceGallery: View {
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .background(Color(uiColor: .secondarySystemBackground))
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                presentFullscreenGallery(startingAt: image.id)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(accessibilityLabel(for: image))
 
-            Text(image.source.label)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(.regularMaterial, in: Capsule(style: .continuous))
-                .padding(14)
+            HStack(spacing: 8) {
+                authorBadge(for: image)
+
+                Spacer(minLength: 44)
+
+                sourceBadge(for: image)
+            }
+            .padding(14)
         }
         .frame(maxWidth: .infinity)
         .frame(maxHeight: .infinity)
         .clipped()
-        .contentShape(Rectangle())
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                presentFullscreenGallery(startingAt: image.id)
+    }
+
+    @ViewBuilder
+    private func authorBadge(for image: SpeciesDictionaryReferenceImage) -> some View {
+        if let username = image.naturebookAuthorUsername {
+            if let onAuthorTap,
+               let authorUserId = image.authorUserId?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !authorUserId.isEmpty {
+                Button {
+                    onAuthorTap(image)
+                } label: {
+                    authorBadgeLabel(username: username)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open @\(username)’s profile")
+            } else {
+                authorBadgeLabel(username: username)
+                    .accessibilityLabel("Photo by @\(username)")
             }
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel(for: image))
+        }
+    }
+
+    private func authorBadgeLabel(username: String) -> some View {
+        Text("@\(username)")
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: 132)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.regularMaterial, in: Capsule(style: .continuous))
+    }
+
+    private func sourceBadge(for image: SpeciesDictionaryReferenceImage) -> some View {
+        Text(image.source.label)
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.regularMaterial, in: Capsule(style: .continuous))
+            .accessibilityHidden(true)
     }
 
     private var placeholder: some View {
@@ -177,9 +207,6 @@ struct SpeciesDictionaryReferenceGallery: View {
     }
 
     private func accessibilityLabel(for image: SpeciesDictionaryReferenceImage) -> String {
-        if let attributionCaption = image.attributionCaption {
-            return "\(image.source.label) reference image for \(scientificName), \(attributionCaption)"
-        }
         return "\(image.source.label) reference image for \(scientificName)"
     }
 
@@ -211,7 +238,7 @@ struct SpeciesDictionaryImageGalleryBuilder {
             InsightImageGalleryItem(
                 id: "species-reference-\(image.id)",
                 source: .referenceURL(image.url),
-                referenceAttributionLabel: image.source.label
+                referenceAttributionLabel: image.fullscreenAttributionLabel
             )
         }
     }

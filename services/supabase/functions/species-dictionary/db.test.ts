@@ -12,6 +12,7 @@ import {
   parseSpeciesDictionaryRequest,
   PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE,
   publicSpeciesProjectionForbiddenKeys,
+  referenceImageRowsWithAuthors,
   referenceImagesFrom,
   referenceImagesFromRows,
   resolveCommonName,
@@ -102,6 +103,35 @@ Deno.test("species-dictionary helpers - map normalized reference image rows with
       source: "gbif",
     },
   ]);
+});
+
+Deno.test("species-dictionary helpers - attach current Naturebook contributor usernames", () => {
+  const rows = referenceImageRowsWithAuthors(
+    [
+      {
+        id: "reference-id",
+        url: "https://media.merian.app/public_uploads/pro/photo.webp",
+        source: "merian",
+      },
+      {
+        id: "wikipedia-id",
+        url: "https://upload.wikimedia.org/photo.jpg",
+        source: "wikipedia",
+      },
+    ],
+    [
+      {
+        reference_image_id: "reference-id",
+        user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
+        author: { public_username: "ayla" },
+      },
+    ],
+  );
+
+  assertEquals(rows[0].author_user_id, "66a06afc-a56f-4d19-bfc3-07cf32c1f458");
+  assertEquals(rows[0].author_username, "ayla");
+  assertEquals(rows[1].author_user_id, undefined);
+  assertEquals(rows[1].author_username, undefined);
 });
 
 Deno.test("species-dictionary helpers - first reference image reads legacy cache", () => {

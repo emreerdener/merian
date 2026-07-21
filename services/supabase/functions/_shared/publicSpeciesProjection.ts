@@ -23,6 +23,8 @@ export interface PublicSpeciesReferenceImage {
   source: PublicReferenceImageSource;
   license?: string;
   attribution?: string;
+  author_user_id?: string;
+  author_username?: string;
   width?: number;
   height?: number;
 }
@@ -34,6 +36,8 @@ export interface PublicSpeciesReferenceImageRow {
   source?: string | null;
   license?: string | null;
   attribution?: string | null;
+  author_user_id?: string | null;
+  author_username?: string | null;
   width?: number | null;
   height?: number | null;
   sort_order?: number | null;
@@ -46,6 +50,8 @@ interface PublicSpeciesReferenceImageCandidate {
   source: PublicReferenceImageSource;
   license?: string;
   attribution?: string;
+  authorUserId?: string;
+  authorUsername?: string;
   width?: number;
   height?: number;
   sortOrder: number;
@@ -349,6 +355,13 @@ export function referenceImagesFromRows(
     const attribution = stringValue(row.attribution);
     if (attribution) candidate.attribution = attribution;
 
+    const authorUserId = stringValue(row.author_user_id);
+    const authorUsername = stringValue(row.author_username);
+    if (source === "merian" && authorUserId && authorUsername) {
+      candidate.authorUserId = authorUserId;
+      candidate.authorUsername = authorUsername;
+    }
+
     const width = positiveInteger(row.width);
     if (width !== null) candidate.width = width;
 
@@ -369,6 +382,10 @@ export function referenceImagesFromRows(
 
     if (candidate.license) image.license = candidate.license;
     if (candidate.attribution) image.attribution = candidate.attribution;
+    if (candidate.authorUserId && candidate.authorUsername) {
+      image.author_user_id = candidate.authorUserId;
+      image.author_username = candidate.authorUsername;
+    }
     if (candidate.width !== undefined) image.width = candidate.width;
     if (candidate.height !== undefined) image.height = candidate.height;
 
