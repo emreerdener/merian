@@ -847,7 +847,7 @@ struct FieldTripAPIModelsTests {
             for: privateStarted,
             locationLabel: nil
         )
-        #expect(privateStartedTags.map(\.title) == ["Starter", "Level 1", "Private"])
+        #expect(privateStartedTags.map(\.title) == ["Private", "Starter", "Level 1"])
         #expect(
             privateStartedTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.slash.fill"
@@ -856,7 +856,7 @@ struct FieldTripAPIModelsTests {
             for: published,
             locationLabel: nil
         )
-        #expect(publishedTags.map(\.title) == ["Starter", "Level 1", "Public"])
+        #expect(publishedTags.map(\.title) == ["Public", "Starter", "Level 1"])
         #expect(
             publishedTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.fill"

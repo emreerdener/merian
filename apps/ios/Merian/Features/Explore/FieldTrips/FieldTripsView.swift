@@ -62,13 +62,6 @@ enum FieldTripTemplatePresentation {
     ) -> [FieldTripTemplateTagPresentation] {
         var tags: [FieldTripTemplateTagPresentation] = []
 
-        if !template.viewerHasAccess,
-           template.isProOnly || template.accessKind.lowercased() == "pro" {
-            tags.append(.init(kind: .access, title: "Pro", systemImage: "lock.fill"))
-        }
-
-        tags.append(.init(kind: .difficulty, title: template.difficultyTitle))
-        tags.append(.init(kind: .level, title: currentLevelTitle(for: template)))
         if let progress = template.viewerProgress {
             if progress.isPublished {
                 tags.append(.init(kind: .visibility, title: "Public", systemImage: "eye.fill"))
@@ -76,6 +69,14 @@ enum FieldTripTemplatePresentation {
                 tags.append(.init(kind: .visibility, title: "Private", systemImage: "eye.slash.fill"))
             }
         }
+
+        if !template.viewerHasAccess,
+           template.isProOnly || template.accessKind.lowercased() == "pro" {
+            tags.append(.init(kind: .access, title: "Pro", systemImage: "lock.fill"))
+        }
+
+        tags.append(.init(kind: .difficulty, title: template.difficultyTitle))
+        tags.append(.init(kind: .level, title: currentLevelTitle(for: template)))
 
         if let locationLabel = locationLabel?
             .trimmingCharacters(in: .whitespacesAndNewlines),
