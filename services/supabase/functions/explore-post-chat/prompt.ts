@@ -1,4 +1,7 @@
-import type { ExplorePostChatContext, ExplorePostChatMessageRow } from "./types.ts";
+import type {
+  ExplorePostChatContext,
+  ExplorePostChatMessageRow,
+} from "./types.ts";
 
 function clean(value: unknown, max = 900): string {
   if (typeof value !== "string") return "Unavailable";
@@ -17,7 +20,9 @@ function list(value: unknown, max = 8): string {
   return items.length ? items.join(", ") : "Unavailable";
 }
 
-export function buildExplorePostContextBlock(context: ExplorePostChatContext): string {
+export function buildExplorePostContextBlock(
+  context: ExplorePostChatContext,
+): string {
   const { post, detail } = context;
   const taxonomy = [
     detail.taxonomy_kingdom,
@@ -26,8 +31,11 @@ export function buildExplorePostContextBlock(context: ExplorePostChatContext): s
     detail.taxonomy_order,
     detail.taxonomy_family,
     detail.taxonomy_genus,
-  ].map((value) => clean(value, 100)).filter((value) => value !== "Unavailable").join(" > ");
-  const similarSpecies = (detail.similar_species ?? []).slice(0, 6).map((entry) => ({
+  ].map((value) => clean(value, 100)).filter((value) => value !== "Unavailable")
+    .join(" > ");
+  const similarSpecies = (detail.similar_species ?? []).slice(0, 6).map((
+    entry,
+  ) => ({
     scientific_name: clean(entry.scientific_name, 160),
     common_name: clean(entry.common_name, 160),
     reason: clean(entry.reason, 300),
@@ -58,7 +66,9 @@ export function buildExplorePostContextBlock(context: ExplorePostChatContext): s
   ].join("\n");
 }
 
-export function buildSystemInstruction(context: ExplorePostChatContext): string {
+export function buildSystemInstruction(
+  context: ExplorePostChatContext,
+): string {
   return `Naturebook Field chat for a public Explore observation.
 Answer educational questions about the published species using only the public
 text context below. You cannot inspect the post's photo, video, or audio and must
@@ -83,7 +93,11 @@ export function buildUserPrompt(
   question: string,
 ): string {
   const history = messages.slice(-12).map((message) =>
-    `${message.role === "user" ? "User" : "Naturebook"}: ${clean(message.message_text)}`
+    `${message.role === "user" ? "User" : "Naturebook"}: ${
+      clean(message.message_text)
+    }`
   );
-  return `[CHAT HISTORY]\n${history.length ? history.join("\n") : "No prior messages."}\n\n[CURRENT USER QUESTION]\n${question}`;
+  return `[CHAT HISTORY]\n${
+    history.length ? history.join("\n") : "No prior messages."
+  }\n\n[CURRENT USER QUESTION]\n${question}`;
 }

@@ -100,7 +100,9 @@ export async function fetchMessages(
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  if (error) throw new Error(`Failed to fetch Explore chat messages: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to fetch Explore chat messages: ${error.message}`);
+  }
   return (data ?? []) as ExplorePostChatMessageRow[];
 }
 
@@ -124,7 +126,9 @@ export async function insertUserMessage(
     })
     .select(MESSAGE_SELECT)
     .single();
-  if (error) throw new Error(`Failed to save Explore chat message: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to save Explore chat message: ${error.message}`);
+  }
   return data as ExplorePostChatMessageRow;
 }
 
@@ -136,30 +140,35 @@ export async function insertAssistantMessage(
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
   const usage = result.usage;
-  const { error } = await supabaseAdmin.from("explore_post_chat_messages").insert({
-    conversation_id: conversationId,
-    post_id: postId,
-    user_id: userId,
-    role: "assistant",
-    message_text: result.answer,
-    model: usage ? "gemini-2.5-flash" : null,
-    llm_prompt_tokens: usage?.promptTokenCount ?? null,
-    llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
-    llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,
-    llm_total_tokens: usage?.totalTokenCount ?? null,
-    llm_cached_tokens: usage?.cachedContentTokenCount ?? null,
-    is_refusal: result.isRefusal,
-    refusal_reason: result.refusalReason,
-    safety_metadata: usage
-      ? { prompt_tokens_by_modality: geminiUsageModalityBreakdown(usage) }
-      : null,
-  });
-  if (error) throw new Error(`Failed to save Explore chat answer: ${error.message}`);
+  const { error } = await supabaseAdmin.from("explore_post_chat_messages")
+    .insert({
+      conversation_id: conversationId,
+      post_id: postId,
+      user_id: userId,
+      role: "assistant",
+      message_text: result.answer,
+      model: usage ? "gemini-2.5-flash" : null,
+      llm_prompt_tokens: usage?.promptTokenCount ?? null,
+      llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
+      llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,
+      llm_total_tokens: usage?.totalTokenCount ?? null,
+      llm_cached_tokens: usage?.cachedContentTokenCount ?? null,
+      is_refusal: result.isRefusal,
+      refusal_reason: result.refusalReason,
+      safety_metadata: usage
+        ? { prompt_tokens_by_modality: geminiUsageModalityBreakdown(usage) }
+        : null,
+    });
+  if (error) {
+    throw new Error(`Failed to save Explore chat answer: ${error.message}`);
+  }
   const { error: touchError } = await supabaseAdmin
     .from("explore_post_chat_conversations")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", conversationId);
-  if (touchError) throw new Error(`Failed to update Explore chat: ${touchError.message}`);
+  if (touchError) {
+    throw new Error(`Failed to update Explore chat: ${touchError.message}`);
+  }
 }
 
 export async function deleteConversation(
@@ -189,7 +198,9 @@ export async function fetchAssistantMessage(
     .eq("user_id", userId)
     .eq("role", "assistant")
     .maybeSingle();
-  if (error) throw new Error(`Failed to fetch Explore chat answer: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to fetch Explore chat answer: ${error.message}`);
+  }
   return (data as ExplorePostChatMessageRow | null) ?? null;
 }
 
@@ -210,7 +221,9 @@ export async function upsertFeedback(
       rating,
       note,
     }, { onConflict: "message_id,user_id" });
-  if (error) throw new Error(`Failed to save Explore chat feedback: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to save Explore chat feedback: ${error.message}`);
+  }
 }
 
 async function countTableSendsToday(
@@ -225,7 +238,9 @@ async function countTableSendsToday(
     .eq("user_id", userId)
     .eq("role", "user")
     .gte("created_at", start);
-  if (error) throw new Error(`Failed to count Field chat sends: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to count Field chat sends: ${error.message}`);
+  }
   return count ?? 0;
 }
 
@@ -238,7 +253,12 @@ export async function countAllFieldChatSendsToday(
   const iso = start.toISOString();
   const [insight, explore] = await Promise.all([
     countTableSendsToday("insight_chat_messages", userId, iso, supabaseAdmin),
-    countTableSendsToday("explore_post_chat_messages", userId, iso, supabaseAdmin),
+    countTableSendsToday(
+      "explore_post_chat_messages",
+      userId,
+      iso,
+      supabaseAdmin,
+    ),
   ]);
   return insight + explore;
 }

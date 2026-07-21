@@ -101,6 +101,7 @@ jobs:
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/update-scan-context/index.ts \
+            supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
             supabase/functions/scan-media-health
 
@@ -141,6 +142,7 @@ jobs:
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/update-scan-context/index.ts \
+            supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
             supabase/functions/scan-media-health
 
@@ -181,6 +183,7 @@ jobs:
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/update-scan-context/index.ts \
+            supabase/functions/explore-post-chat/index.ts \
             supabase/functions/insight-chat/index.ts \
             supabase/functions/scan-media-health/index.ts
 
@@ -221,6 +224,7 @@ jobs:
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
+            supabase/functions/explore-post-chat/prompt_test.ts \
             supabase/functions/insight-chat/guards_test.ts \
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
@@ -239,6 +243,7 @@ jobs:
         run: |
           deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/migrations \
+            supabase/functions/_tests/explorePostChatMigration.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts
 
       - name: Plan affected Edge Function deployment

@@ -81,7 +81,10 @@ function promptSuggestions(context: ExplorePostChatContext) {
       category: hasLookalikes ? "lookalike_compare" : "evidence",
     },
     { text: `What habitat does ${commonName} prefer?`, category: "habitat" },
-    { text: `What is most interesting about ${commonName}?`, category: "ecology" },
+    {
+      text: `What is most interesting about ${commonName}?`,
+      category: "ecology",
+    },
   ];
 }
 
@@ -133,24 +136,38 @@ Deno.serve((req: Request) =>
 
     const action = normalizeAction(body.action);
     if (!ALLOWED_ACTIONS.has(action)) {
-      return jsonResponse({ code: "unsupported_action", error: "Unsupported Explore Field chat action." }, 400);
+      return jsonResponse({
+        code: "unsupported_action",
+        error: "Unsupported Explore Field chat action.",
+      }, 400);
     }
     const postId = requireUuid(body.post_id, "post_id");
     const context = await fetchPublicContext(user.id, postId, supabaseAdmin);
     if (!context || context.post.is_owned_by_viewer) {
-      return jsonResponse({ code: "post_not_available", error: "This Explore post is not available for Field chat." }, 404);
+      return jsonResponse({
+        code: "post_not_available",
+        error: "This Explore post is not available for Field chat.",
+      }, 404);
     }
 
     const tier = await resolveTierForUser(user.id, supabaseAdmin);
     if (tier.effective_tier !== "pro") {
-      return jsonResponse({ code: "pro_required", error: "Naturebook Pro is required." }, 402);
+      return jsonResponse({
+        code: "pro_required",
+        error: "Naturebook Pro is required.",
+      }, 402);
     }
 
-    const sendsToday = await countAllFieldChatSendsToday(user.id, supabaseAdmin);
+    const sendsToday = await countAllFieldChatSendsToday(
+      user.id,
+      supabaseAdmin,
+    );
     const speciesId = context.detail.species_dictionary_id ?? null;
     let conversation = await fetchConversation(user.id, postId, supabaseAdmin);
     if (conversation?.species_dictionary_id !== speciesId) {
-      if (conversation) await deleteConversation(user.id, postId, supabaseAdmin);
+      if (conversation) {
+        await deleteConversation(user.id, postId, supabaseAdmin);
+      }
       conversation = null;
     }
 
@@ -188,7 +205,10 @@ Deno.serve((req: Request) =>
         supabaseAdmin,
       );
       if (!message) {
-        return jsonResponse({ code: "message_not_found", error: "Assistant message not found." }, 404);
+        return jsonResponse({
+          code: "message_not_found",
+          error: "Assistant message not found.",
+        }, 404);
       }
       await upsertFeedback(user.id, message, rating, note, supabaseAdmin);
       trackPostHogEvent(user, "ExplorePostChatFeedbackSubmitted", {
@@ -196,8 +216,12 @@ Deno.serve((req: Request) =>
         conversation_id: message.conversation_id,
         message_id: message.id,
         rating,
-      }).catch((error) => console.error("Explore post chat feedback telemetry failed:", error));
-      return jsonResponse({ data: { ok: true, message_id: message.id, rating } }, 200);
+      }).catch((error) =>
+        console.error("Explore post chat feedback telemetry failed:", error)
+      );
+      return jsonResponse({
+        data: { ok: true, message_id: message.id, rating },
+      }, 200);
     }
 
     if (sendsToday >= DAILY_SEND_LIMIT) {
@@ -206,7 +230,9 @@ Deno.serve((req: Request) =>
         error: "Daily Field chat limit reached.",
         data: responsePayload(
           conversation?.id ?? null,
-          conversation ? await fetchMessages(conversation.id, supabaseAdmin) : [],
+          conversation
+            ? await fetchMessages(conversation.id, supabaseAdmin)
+            : [],
           sendsToday,
         ),
       }, 429);
@@ -222,10 +248,22 @@ Deno.serve((req: Request) =>
       speciesId,
       supabaseAdmin,
     );
-    const beforeMessages = await fetchMessages(resolvedConversation.id, supabaseAdmin);
-    if (clientMessageId && beforeMessages.some((message) => message.client_message_id === clientMessageId)) {
+    const beforeMessages = await fetchMessages(
+      resolvedConversation.id,
+      supabaseAdmin,
+    );
+    if (
+      clientMessageId &&
+      beforeMessages.some((message) =>
+        message.client_message_id === clientMessageId
+      )
+    ) {
       return jsonResponse({
-        data: responsePayload(resolvedConversation.id, beforeMessages, sendsToday),
+        data: responsePayload(
+          resolvedConversation.id,
+          beforeMessages,
+          sendsToday,
+        ),
       }, 200);
     }
     assertConversationHasRoom(beforeMessages.length);
@@ -243,7 +281,10 @@ Deno.serve((req: Request) =>
     let assistant: ModelChatResult;
     if (refusalReason) {
       assistant = {
-        answer: refusalAnswer(refusalReason).replaceAll("saved scan", "public observation"),
+        answer: refusalAnswer(refusalReason).replaceAll(
+          "saved scan",
+          "public observation",
+        ),
         isRefusal: true,
         refusalReason,
         usage: null,
@@ -277,7 +318,10 @@ Deno.serve((req: Request) =>
       assistant,
       supabaseAdmin,
     );
-    const messages = await fetchMessages(resolvedConversation.id, supabaseAdmin);
+    const messages = await fetchMessages(
+      resolvedConversation.id,
+      supabaseAdmin,
+    );
     recordAIUsageBestEffort(supabaseAdmin, {
       operation: "explore_post_chat_reply",
       model: INSIGHT_CHAT_MODEL,
@@ -298,7 +342,9 @@ Deno.serve((req: Request) =>
       is_refusal: assistant.isRefusal,
       latency_ms: Date.now() - startedAt,
       plan: tier.plan,
-    }).catch((error) => console.error("Explore post chat telemetry failed:", error));
+    }).catch((error) =>
+      console.error("Explore post chat telemetry failed:", error)
+    );
 
     return jsonResponse({
       data: responsePayload(resolvedConversation.id, messages, sendsToday + 1),
