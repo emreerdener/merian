@@ -4854,6 +4854,49 @@ flows and do not change the `/insight-chat` response payload.
 
 ---
 
+## Deno `/explore-post-chat` Edge Node
+
+Private Pro Field chat for another user's active Explore post. The endpoint
+authenticates with `withEdgeHandler`, derives the viewer from the verified JWT,
+rejects posts owned by that viewer, and resolves Pro/trial access server-side.
+Each `(post_id, viewer user_id)` pair has its own conversation. The post author
+and other viewers cannot load or mutate it.
+
+Request bodies use `post_id` and support `load`, `send`, `delete`, `feedback`,
+and `suggest_prompts`:
+
+```json
+{
+  "action": "send",
+  "post_id": "22222222-2222-4222-8222-222222222222",
+  "message_text": "How can I distinguish this species from lookalikes?",
+  "client_message_id": "11111111-1111-4111-8111-111111111111"
+}
+```
+
+The response reuses the iOS `InsightChatResponse` envelope. For compatibility,
+each message's `scan_id` field contains the Explore post ID; it never exposes
+the owner's source scan ID. Conversations allow 600 characters per user
+message, 30 total messages, and share the 20-send UTC daily allowance with the
+viewer's Insight chats. Prompt suggestions and feedback do not consume a send.
+
+The model context is built from the privacy-filtered `get_explore_post` and
+`get_explore_post_detail` projections plus public Species Dictionary fields.
+It excludes private owner scan rows, exact coordinates, unpublished notes,
+comments, owner chat history, and media bytes/URLs. Questions that require
+direct inspection of the post's media must be answered without claiming media
+access. These technical boundaries remain server-enforced even though the iOS
+empty state presents only the concise trust message: `This Field chat is
+private and visible only to you.`
+
+`404 post_not_available` covers missing, unpublished, blocked, or viewer-owned
+posts; `402 pro_required` covers non-Pro viewers; `404 message_not_found`
+covers feedback targeting a non-owned assistant message; and
+`429 daily_limit_reached` returns the current conversation envelope with no new
+send. Unpublishing a post deletes all of its private viewer conversations.
+
+---
+
 ## Deno `/sync-collections` Edge Node
 
 Synchronizes locally created Scan Collections with the PostgreSQL `collections`

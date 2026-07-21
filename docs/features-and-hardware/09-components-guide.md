@@ -246,3 +246,19 @@ A pill-shaped drag-to-confirm control that replicates the iPhone unlock gesture,
 - **Haptics**: `triggerSuccessPulse()` on threshold reached; `triggerLightImpact()` on snap-back.
 - **Label**: Accepts dynamically injected strings (e.g. `"Confirm \(viewModel.resolvedHeaderTitle)"`). To handle long scientific names without breaking the UI pill geometry on single lines, the `<Text>` label aggressively shrinks typography via `.minimumScaleFactor(0.6)` before resorting to truncation.
 - **Disabled**: Once `isCompleted = true`, the component ignores further drag input.
+
+## 20. Field Chat: `FieldChatToolbarButton` and `InsightChatSheet`
+
+**Location**: `Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift`
+and `Features/Insights/Chat/Views/InsightChatSheet.swift`
+
+The floating Field chat button and sheet are shared by eligible Insight scans
+and other users' Explore post details. Explore creates a private conversation
+owned by the requesting viewer. The author and other viewers cannot see it.
+On Explore detail, the button is shown while browsing post content and is
+removed when the comment composer becomes sticky or receives focus. It returns
+after scrolling back above the sticky-comment threshold.
+When an Explore thread has no messages, the only explanatory copy below the
+question is `This Field chat is private and visible only to you.` Technical
+model-context limitations are enforced by `/explore-post-chat` and belong in
+engineering/API documentation rather than additional empty-state disclaimers.

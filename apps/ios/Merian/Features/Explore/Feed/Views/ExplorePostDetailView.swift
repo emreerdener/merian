@@ -325,7 +325,9 @@ struct ExplorePostDetailView: View {
                             )
                         }
 
-                        if !isOwnedByCurrentUser(post), !isComposerFocused {
+                        if !isOwnedByCurrentUser(post),
+                           !presentedComposerIsSticky,
+                           !isComposerFocused {
                             ToolbarItemGroup(placement: .bottomBar) {
                                 Spacer()
                                 FieldChatToolbarButton {

@@ -93,9 +93,12 @@ TestFlight, App Store, support, and QA.
 ### Explore
 
 - Added the floating **Field chat** control to other users' Explore post
-  details. Pro viewers can privately ask follow-up questions grounded in the
-  published observation and Species Dictionary without exposing owner scan
-  data, exact locations, media, comments, or chat history.
+  details. Each Pro viewer gets a private conversation visible only to them,
+  grounded in the published observation and Species Dictionary.
+- Simplified the Explore Field chat empty-state message to clearly say the
+  conversation is private and visible only to the viewer.
+- Field chat now hides when the sticky comment composer appears, keeping the
+  public comment action visually primary at the bottom of an Explore post.
 - Fixed remote push-device registration failing with a Supabase 500 by replacing
   an unsupported PostgreSQL `{32,512}` regex bound with separate hex-format and
   length constraints; added static migration and executable database coverage,

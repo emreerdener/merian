@@ -951,6 +951,33 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
 These tables are private scan data. They are not read by Explore, public species
 dictionary endpoints, public web pages, or Darwin Core exports.
 
+### `explore_post_chat_conversations`, `explore_post_chat_messages`, `explore_post_chat_message_feedback`
+
+Private per-viewer Field chat for another user's active Explore post, added in
+`20260721141655_add_explore_post_chat.sql`.
+
+- `explore_post_chat_conversations` is unique on `(post_id, user_id)`, so each
+  viewer has one thread per post. `user_id` is the conversation owner; it is not
+  the post author's ID.
+- `species_dictionary_id` records the public species context used by the
+  thread. A context change causes the Edge Function to replace the stale
+  conversation.
+- `explore_post_chat_messages` stores owner-bound user and assistant messages,
+  optional idempotent `client_message_id` values, refusal metadata, and Gemini
+  token telemetry.
+- `explore_post_chat_message_feedback` stores one private rating per viewer and
+  assistant message, with an optional note capped at 500 characters.
+- All three tables enable RLS with `auth.uid() = user_id` ownership checks and
+  revoke direct `anon` and `authenticated` table privileges. Only the
+  authenticated Edge Function uses service-role access. Neither the post author
+  nor another viewer can load the conversation.
+- Foreign-key cascades remove messages and feedback with their conversation.
+  An `explore_posts.unshared_at` trigger deletes every viewer conversation when
+  the source post is unpublished.
+
+These rows are private conversation data, not Explore comments, notifications,
+public profile content, web post data, or Species Dictionary contributions.
+
 ### `flagged_reviews`
 
 Captures user feedback disputing an identification or inference. It is not the

@@ -157,8 +157,8 @@ as their permanent engineering identity.
   ownership, and AppDelegate background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)**
   — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species
-  dictionary workers, Insight chat rollout controls, and cron/webhook
-  boundaries.
+  dictionary workers, private Insight and Explore Field chat boundaries, and
+  cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)**
   — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`,
   and `FileIOActor`.
@@ -166,14 +166,15 @@ as their permanent engineering identity.
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
   inference fields, V48 offline job records/events, V49 startup store repair,
-  private Insight chat tables, scan media assets, and Explore Community
-  Identification versioned taxonomy, consensus jobs, projections, and request
-  tables, atomic ingestion setup/dictionary RPCs, deferred scan-context staging,
-  and the private admin/review/audit schema plus canonical AI usage ledger.
+  private Insight and per-viewer Explore Field chat tables, scan media assets,
+  and Explore Community Identification versioned taxonomy, consensus jobs,
+  projections, and request tables, atomic ingestion setup/dictionary RPCs,
+  deferred scan-context staging, and the private admin/review/audit schema plus
+  canonical AI usage ledger.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
-  including `/identify-multimodal`, `/insight-chat`, `/update-public-avatar`,
-  Community Identification endpoints, `/species-dictionary`,
+  including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,
+  `/update-public-avatar`, Community Identification endpoints, `/species-dictionary`,
   `/species-observation-stats`, `/report-user`, the internal admin RPC surface,
   Explore detail similar species, and internal cron workers such as Merian
   reference-image refresh, diagnostic `Server-Timing`, and

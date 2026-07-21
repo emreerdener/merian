@@ -51,6 +51,13 @@ These web surfaces are public projections only. They must never expose exact
 coordinates, private notes, raw scan telemetry, authenticated Community
 sightings, local observation aggregates, user media, or server credentials.
 
+In the native app, other users' Explore post details can open a Pro Field chat.
+This is not a public comment or a thread shared with the post author: each
+conversation is keyed to the authenticated viewer and post, and is visible only
+to that viewer. `/explore-post-chat` builds answers from privacy-filtered public
+post/detail and Species Dictionary text, while owner scan data and every other
+viewer's conversation remain outside the context and response.
+
 ## Core Decoupling (AppDIContainer)
 
 The Merian app module does not use `@EnvironmentObject` for its core architectural engines. All complex business logic is bound using `@Observable` macros and `@Environment()` injection to keep the `View` lifecycle free from recursive updates or `EXC_BAD_ACCESS` warnings.

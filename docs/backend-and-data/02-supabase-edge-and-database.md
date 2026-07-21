@@ -861,8 +861,18 @@ the identify pipeline. The current shipped surface includes:
   `report-explore-post`
 - activity reads: `get-explore-notifications`,
   `get-explore-unread-notification-count`, `mark-explore-notifications-read`
+- private viewer tools: `explore-post-chat`
 - device registration and delivery: `register-push-device`,
   `send-push-notification`
+
+`explore-post-chat` creates one private conversation per requesting viewer and
+active post. The authenticated viewer ID is supplied by `withEdgeHandler`, not
+the request body. The post author and other viewers cannot read that thread.
+The Edge Function uses service-role access internally, while its three storage
+tables retain RLS ownership policies and revoke direct `anon` and
+`authenticated` Data API access. Chat context comes only from the same public
+post/detail projections used by Explore plus Species Dictionary fields;
+unpublishing the post deletes all attached viewer conversations.
 
 The in-app notifications feed is backed by server tables, not by local client
 state. Explore post activity lives in `public.explore_post_notifications`.
