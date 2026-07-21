@@ -319,6 +319,80 @@ struct SpeciesDictionaryTests {
         #expect(defaultRoute.entryPoint == .unknown)
     }
 
+    @Test func testSpeciesDictionaryShareContentUsesCanonicalPublicURL() throws {
+        let url = try #require(
+            SpeciesDictionaryShareContent.url(
+                speciesId: " 1CF79982-E5EE-4E3D-8D65-274527E6AE01 ",
+                commonName: "Mwanza flat-headed rock agama",
+                scientificName: "Agama mwanzae"
+            )
+        )
+
+        #expect(
+            url.absoluteString ==
+                "https://naturebook.earth/species/1cf79982-e5ee-4e3d-8d65-274527e6ae01/mwanza-flat-headed-rock-agama"
+        )
+        #expect(
+            SpeciesDictionaryShareContent.url(
+                speciesId: "not-a-uuid",
+                commonName: "Field Test",
+                scientificName: "Testus floridus"
+            ) == nil
+        )
+        #expect(
+            SpeciesDictionaryShareContent.slug(
+                commonName: "Café-à-lait!",
+                scientificName: "Testus floridus"
+            ) == "cafe-a-lait"
+        )
+        #expect(
+            SpeciesDictionaryShareContent.slug(
+                commonName: "",
+                scientificName: "Agama mwanzae"
+            ) == "agama-mwanzae"
+        )
+        #expect(
+            SpeciesDictionaryShareContent.slug(
+                commonName: "東京",
+                scientificName: "Agama mwanzae"
+            ) == "agama-mwanzae"
+        )
+        #expect(
+            SpeciesDictionaryShareContent.slug(commonName: "東京", scientificName: "") == "species"
+        )
+        #expect(
+            SpeciesDictionaryShareContent.slug(
+                commonName: String(repeating: "a ", count: 100),
+                scientificName: ""
+            ).count <= 80
+        )
+        #expect(
+            SpeciesDictionaryShareContent.message(commonName: "Field Test") ==
+                "Learn about Field Test on Naturebook."
+        )
+    }
+
+    @Test func testSpeciesDictionaryDeepLinkSelectsDictionaryTab() {
+        let route = SpeciesDictionaryRoute(
+            scientificName: "",
+            speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+            entryPoint: .deepLink
+        )
+
+        #expect(
+            ExploreInitialTabPolicy.resolve(
+                requestedTab: .feed,
+                speciesDictionaryRoute: route
+            ) == .dictionary
+        )
+        #expect(
+            ExploreInitialTabPolicy.resolve(
+                requestedTab: .community,
+                speciesDictionaryRoute: nil
+            ) == .community
+        )
+    }
+
     @Test func testGetSpeciesDictionaryCanPreferSpeciesIdPayload() async throws {
         let testData = Data("""
         {

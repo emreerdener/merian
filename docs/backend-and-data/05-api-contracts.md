@@ -1822,9 +1822,11 @@ and causes `CaptureWorkspaceView` to prompt re-authentication instead.
 ## Public Species Dictionary Edge Node
 
 The `/species-dictionary` Edge Function returns species-level dictionary data
-for the standalone Species Dictionary Page, Explore Dictionary catalog, and Tree
-of Life canvas. It is deliberately separate from both the Insight scan and
-Explore post-detail contracts:
+for the standalone Species Dictionary Page, Explore Dictionary catalog, Tree of
+Life canvas, and server-rendered `/species/[speciesId]/[slug]` web route. The
+UUID-only web route is retained as a permanent compatibility redirect. It is
+deliberately separate from both the Insight scan and Explore post-detail
+contracts:
 
 - Insight scan data can include local media, user review state, field notes, and
   per-scan AI reasoning.
@@ -1928,11 +1930,38 @@ Current response shape:
 ```
 
 `schema_version = 1` marks the current public species contract shared by
-`/species-dictionary`, Explore detail similar species, and the future web
+`/species-dictionary`, Explore detail similar species, and the public web
 species surface. Within this version, new response keys must be additive,
 existing nullable fields may remain `null`, and clients should ignore unknown
 keys. A versioned endpoint path should be introduced only for a breaking change
 such as removing/renaming fields or changing a field's type.
+
+#### Public web consumer
+
+`apps/web/lib/species.ts` validates the route segment as a UUID before invoking
+the Edge Function with `{ "species_id": "..." }` through the server-only
+Supabase client. It requires `schema_version = 1`, validates the returned
+identity, and explicitly maps only public fields. The web route must never query
+`species_dictionary`, scan, profile, or Explore tables directly to reconstruct
+this response.
+
+The mapper runs `publicWebReferenceImageAttributionIssues(...)` before any
+reference image is rendered or selected for Open Graph/Twitter metadata. Images
+missing `license` or `attribution` are omitted. Similar-species thumbnails are
+not rendered because the current lookalike payload does not carry those rights
+fields; name and canonical UUID navigation remain available.
+
+The web canonical path is `/species/{speciesId}/{slug}`. The UUID remains the
+only Edge request and identity field; the web layer derives its lowercase ASCII
+slug from `common_name`, then `scientific_name`, then `species`. UUID-only and
+stale-slug requests redirect after successful UUID resolution, so name changes
+require neither a database migration nor an Edge contract revision.
+
+Invalid route UUIDs and Edge `404` responses map to a non-indexable Next.js
+not-found page. Missing server configuration, network errors, non-404 Edge
+errors, unsupported schema versions, malformed payloads, and identity mismatch
+remain server failures so transient errors are never cached as missing species.
+Successful pages revalidate every 300 seconds.
 
 Catalog mode:
 
@@ -2033,11 +2062,11 @@ Image licensing and attribution:
   fallback images usually have only `url` and `source`.
 - iOS displays the active image's attribution/license below the species
   dictionary gallery when either field is present.
-- Future web species pages must call
+- The web species mapper calls
   `publicWebReferenceImageAttributionIssues(...)` from
-  `_shared/publicSpeciesProjection.ts` before rendering reference media. Web
-  must not publish an image with missing license or attribution unless the web
-  renderer supplies an equivalent source-specific attribution path.
+  `_shared/publicSpeciesProjection.ts` before rendering reference media or
+  selecting metadata images, and omits any image with missing license or
+  attribution.
 
 Provenance and refresh metadata:
 
@@ -2642,8 +2671,20 @@ Explore copy.
 `reference_image_url` remains a comma-separated compatibility field for Explore
 detail clients, but the RPC now composes it from ordered
 `species_reference_images` rows first and falls back to
-`species_dictionary.reference_image_url` for older species rows. Explore detail
-uses it to render the public reference gallery below the post's AI reasoning
+`species_dictionary.reference_image_url` for older species rows. Before
+returning the field, the RPC passes that ordered projection and the backing
+scan's `image_storage_urls` through
+`public.public_species_reference_image_urls_excluding_media(...)`. Exact current
+scan URLs are removed while other scans' Merian references and external
+Wikipedia/GBIF references retain their order. The helper reuses the existing
+projection, so blocked-image filtering and legacy fallback behavior are
+unchanged. If every candidate belongs to the current scan, the field is `null`.
+
+This is a read-time, exact-scan exclusion. It does not remove normalized rows,
+filter all contributions by the author, or perform perceptual matching across
+different storage objects. The response keys and types are unchanged, allowing
+the backend, iOS, and web changes to roll out independently. Explore detail uses
+the field to render the public reference gallery below the post's AI reasoning
 without making an extra authenticated scan fetch.
 
 `similar_species` is hydrated from `species_lookalikes` for the post's resolved

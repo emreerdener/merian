@@ -320,6 +320,27 @@ Deno.test("public Explore detail keeps reasoning visible for flagged scans", asy
   assertStringIncludes(sql, "NOTIFY pgrst, 'reload schema'");
 });
 
+Deno.test("public Explore detail excludes the current scan reference media", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260721033935_exclude_current_scan_reference_images.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.public_species_reference_image_urls_excluding_media",
+      "public.public_species_reference_image_urls( target_species_id, legacy_reference_image_url )",
+      "UNNEST(COALESCE(excluded_image_urls, ARRAY[]::TEXT[]))",
+      "STRING_AGG(projected.url, ',' ORDER BY projected.ordinality)",
+      "s.image_storage_urls",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("Explore post reports are separate from identification flags", async () => {
   const sql = normalized(
     await migrationSql(

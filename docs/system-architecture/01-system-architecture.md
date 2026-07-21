@@ -192,7 +192,7 @@ single-responsibility functions under `/services/supabase/functions/`.
     captures while preserving biological sighting evidence.
 - **Public Species Content**
   - `/species-dictionary`: Public species-level dictionary projection for the
-    in-app species page and future web frontend.
+    in-app species page and server-rendered web species route.
   - `/refresh-species-content`: Internal service-role cron worker that consumes
     `species_enrichment_jobs` plus legacy `species_content_provenance`,
     refreshes GBIF/Wikipedia-backed fields, and synchronizes normalized
@@ -211,15 +211,24 @@ single-responsibility functions under `/services/supabase/functions/`.
     ordered image/video/audio carousel, emits Open Graph metadata, and links
     back into the native app with `naturebook://explore/post/{postId}` while the
     app continues accepting `merian://` as a legacy alias.
+  - `/species/[speciesId]/[slug]`: Server-rendered public Species Dictionary
+    route. It invokes `/species-dictionary` with the canonical UUID, treats the
+    readable slug as presentation-only, publishes only attribution-approved
+    reference imagery, emits canonical/Open Graph/Twitter metadata, and links
+    back with `naturebook://species/{speciesId}`. `/species/[speciesId]` and
+    stale slugs permanently redirect to the current canonical path after a
+    successful UUID lookup.
   - `/api/explore/audio`: Exact-host/public-path WAV stream used only for
     browser-local Boost Audio. Web Audio applies gain, a 35 Hz high-pass filter,
     and peak limiting without storing or uploading a derived recording.
   - `MerianMessagesExtension` reads the App Group scan cache and inserts image,
     card, or description content into Messages without sending automatically.
-  - Universal Links bind `https://naturebook.earth/explore/post/{postId}` to the
-    same native Explore detail router while preserving the web page as the
-    fallback for users without the app. `https://merian.earth` remains a legacy
-    redirect and associated-domain compatibility host.
+  - Universal Links bind both
+    `https://naturebook.earth/explore/post/{postId}` and
+    `https://naturebook.earth/species/{speciesId}/{slug}` to their native Explore
+    routes while preserving web fallbacks for users without the app.
+    `https://merian.earth` remains a legacy redirect and associated-domain
+    compatibility host. AASA routes exactly `/explore/post/*` and `/species/*`.
 - **Moderation & Social**
   - `/get-filtered-discovery-feed`: Paginates public discovery queries from
     post-owned sharing fields, handles blocking mechanisms, and uses scrubbed or

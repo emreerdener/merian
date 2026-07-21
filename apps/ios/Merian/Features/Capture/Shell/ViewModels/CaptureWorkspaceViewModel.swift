@@ -154,6 +154,7 @@ final class CaptureWorkspaceViewModel {
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet?
     var pendingExplorePostId: String?
+    var pendingSpeciesDictionaryRoute: SpeciesDictionaryRoute?
     var pendingCommunityIdentificationRequestId: String?
     var pendingExploreTargetCommentId: String?
     var pendingExploreTargetReplyParentCommentId: String?
@@ -303,6 +304,8 @@ final class CaptureWorkspaceViewModel {
                         targetCommentId: targetCommentId,
                         targetReplyParentCommentId: targetReplyParentCommentId
                     )
+                case .appDidEnterActivePhaseWithSpeciesDictionary(let speciesId):
+                    self?.handleSpeciesDictionaryDeepLinkRoute(speciesId: speciesId)
                 case .openCommunityIdentificationRequest(let requestId):
                     self?.handleCommunityIdentificationRoute(requestId: requestId)
                 case .triggerRefinement(let scanId, let initialDescription, let entryPoint):
@@ -381,6 +384,8 @@ final class CaptureWorkspaceViewModel {
         // Clear all sheets and UI modals instantly when the session times out
         activeSheet = nil
         pendingExplorePostId = nil
+        pendingSpeciesDictionaryRoute = nil
+        pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
         pendingCaptureGoalDestination = nil
@@ -433,6 +438,7 @@ final class CaptureWorkspaceViewModel {
     ) {
         protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = postId
+        pendingSpeciesDictionaryRoute = nil
         pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = targetCommentId
         pendingExploreTargetReplyParentCommentId = targetReplyParentCommentId
@@ -442,9 +448,34 @@ final class CaptureWorkspaceViewModel {
         activeSheet = .explore
     }
 
+    private func handleSpeciesDictionaryDeepLinkRoute(speciesId: String) {
+        guard let uuid = UUID(
+            uuidString: speciesId.trimmingCharacters(in: .whitespacesAndNewlines)
+        ) else {
+            return
+        }
+        let canonicalSpeciesId = uuid.uuidString.lowercased()
+
+        protectExternalRouteFromImmediateSessionTimeoutReset()
+        pendingExplorePostId = nil
+        pendingSpeciesDictionaryRoute = SpeciesDictionaryRoute(
+            scientificName: "",
+            speciesId: canonicalSpeciesId,
+            entryPoint: .deepLink
+        )
+        pendingCommunityIdentificationRequestId = nil
+        pendingExploreTargetCommentId = nil
+        pendingExploreTargetReplyParentCommentId = nil
+        pendingCaptureGoalDestination = nil
+        pendingExploreShowsFieldTrips = false
+        explorePresentationIdentity = UUID()
+        activeSheet = .explore
+    }
+
     private func handleCommunityIdentificationRoute(requestId: String) {
         protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = nil
+        pendingSpeciesDictionaryRoute = nil
         pendingCommunityIdentificationRequestId = requestId
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
@@ -471,6 +502,7 @@ final class CaptureWorkspaceViewModel {
         }
         protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = nil
+        pendingSpeciesDictionaryRoute = nil
         pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil
@@ -590,6 +622,7 @@ final class CaptureWorkspaceViewModel {
 
     private func clearExplorePresentationRoute() {
         pendingExplorePostId = nil
+        pendingSpeciesDictionaryRoute = nil
         pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = nil
         pendingExploreTargetReplyParentCommentId = nil

@@ -10,10 +10,16 @@ test("redirects public aliases to the canonical Naturebook origin", () => {
     "merian.earth",
     "www.merian.earth",
   ]) {
-    assert.equal(
-      canonicalRedirectURL(host, "/explore/post/123", "?theme=dark")?.href,
-      "https://naturebook.earth/explore/post/123?theme=dark",
-    );
+    for (const path of [
+      "/explore/post/123",
+      "/species/1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      "/species/1cf79982-e5ee-4e3d-8d65-274527e6ae01/monarch-butterfly",
+    ]) {
+      assert.equal(
+        canonicalRedirectURL(host, path, "?theme=dark")?.href,
+        `https://naturebook.earth${path}?theme=dark`,
+      );
+    }
   }
 });
 

@@ -103,6 +103,22 @@ The app accepts all four compatibility forms:
 - `naturebook://explore/post/{id}`
 - `merian://explore/post/{id}`
 
+Species Dictionary links follow the same compatibility rule:
+
+- `https://naturebook.earth/species/{speciesId}`
+- `https://naturebook.earth/species/{speciesId}/{slug}`
+- `https://merian.earth/species/{speciesId}`
+- `https://merian.earth/species/{speciesId}/{slug}`
+- `naturebook://species/{speciesId}`
+- `merian://species/{speciesId}`
+
+New species shares emit the canonical Naturebook HTTPS form with the normalized
+dictionary UUID followed by a lowercase ASCII name slug. The UUID remains the
+only identity and lookup key. UUID-only and stale-slug browser requests
+permanently redirect to the current canonical path; native routing accepts the
+optional slug but carries only the normalized UUID. Custom-scheme links remain
+UUID-only.
+
 Internal route types such as `MerianDeepLinkRoute` remain technical names.
 Compatibility aliases are indefinite and must not be removed during ordinary
 cleanup.
@@ -132,7 +148,8 @@ The following endpoints must return HTTP 200 directly on both
 - `/.well-known/apple-app-site-association`
 
 They must not redirect. Both responses use app ID
-`TA8S64ST9W.app.merian.Merian` and route `/explore/post/*`. The app declares
+`TA8S64ST9W.app.merian.Merian` and route the exact path list
+`["/explore/post/*", "/species/*"]`. The app declares
 `applinks:naturebook.earth` and retains `applinks:merian.earth`.
 `naturebook.app` is redirect-only and is not an associated domain.
 
@@ -142,7 +159,9 @@ They must not redirect. Both responses use app ID
   `NEXT_PUBLIC_SUPPORT_EMAIL=support@naturebook.earth`.
 - Canonical, Open Graph, Twitter, structured-data, navigation, waitlist,
   support, legal, and native-open metadata use Naturebook.
-- Public Explore pages consume only privacy-safe public projections.
+- Public Explore pages consume only privacy-safe public projections. Public
+  species pages consume only the existing versioned `species-dictionary` Edge
+  response and publish only attribution-approved reference images.
 - Public media continues to use `media.merian.app`; do not rewrite durable
   media URLs as part of the product rebrand.
 - Alias redirects use HTTP 308 and preserve both path and query.

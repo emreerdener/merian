@@ -30,6 +30,13 @@ struct ExplorePostDetailInsightSection: View {
         )
     }
 
+    private var referenceGalleryImages: [ExploreReferenceGalleryImage] {
+        let mediaIdentifiers = [post.heroImageUrl] + post.resolvedMediaItems.flatMap { item in
+            [item.url, item.thumbnailUrl].compactMap { $0 }
+        }
+        return detail?.referenceGalleryImages(excluding: mediaIdentifiers) ?? []
+    }
+
     var body: some View {
         if shouldShowSection {
             VStack(alignment: .leading, spacing: 24) {
@@ -50,8 +57,7 @@ struct ExplorePostDetailInsightSection: View {
         if isLoading && detail == nil {
             ExploreLoadingInsightCard()
         } else {
-            if let referenceGalleryImages = detail?.referenceGalleryImages,
-               !referenceGalleryImages.isEmpty {
+            if !referenceGalleryImages.isEmpty {
                 ExploreReferenceGallery(
                     scientificName: scientificName,
                     images: referenceGalleryImages

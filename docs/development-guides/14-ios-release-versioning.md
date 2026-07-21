@@ -227,8 +227,8 @@ Confirm these App Store Connect values before submitting:
 
 Do not change product IDs, entitlement IDs, RevenueCat offering identifiers, or
 the App Store Connect app record. Confirm the canonical domains, direct AASA
-responses, support mailbox, and export sender are live before releasing the
-renamed binary. Use
+responses with exact Explore/species paths, support mailbox, and export sender
+are live before releasing the renamed binary. Use
 [`15-naturebook-rebrand-rollout.md`](./15-naturebook-rebrand-rollout.md) as the
 release checklist and
 [`08-public-brand-compatibility.md`](../system-architecture/08-public-brand-compatibility.md)

@@ -1,17 +1,20 @@
 # Public Web Share Pages
 
-Naturebook's public web surface lives in `apps/web/`. It is a Next.js + Mantine app for public, shareable Naturebook pages, starting with Explore post links on `naturebook.earth`.
+Naturebook's public web surface lives in `apps/web/`. It is a Next.js + Mantine
+app for public, shareable Explore posts and Species Dictionary references on
+`naturebook.earth`.
 
-The first shipped route is:
+The shipped share routes are:
 
 ```text
 https://naturebook.earth/explore/post/{postId}
+https://naturebook.earth/species/{speciesId}/{slug}
 ```
 
-This URL is the long-term share target for Explore posts. It renders a useful
-web page for recipients without the app, provides Open Graph metadata for
-Messages/social previews, and is the Universal Link that opens the native iOS
-detail page when Naturebook is installed.
+These are the long-term share targets for Explore posts and dictionary species.
+They render useful pages for recipients without the app, provide Open Graph
+metadata for Messages/social previews, and act as Universal Links that open the
+matching native detail when Naturebook is installed.
 
 The permanent public-name and stable-identifier rules live in
 [`08-public-brand-compatibility.md`](../system-architecture/08-public-brand-compatibility.md).
@@ -26,11 +29,15 @@ for DNS, Vercel, AASA, mail, App Store, rollout, and rollback operations.
   legacy `merian.earth` hosts. Redirects preserve the path and query.
 - App location: `apps/web/`.
 - Frameworks: Next.js App Router, React, Mantine, and Supabase JS.
-- Initial route: `/explore/post/[postId]`.
+- Share routes: `/explore/post/[postId]` and
+  `/species/[speciesId]/[slug]`, with `/species/[speciesId]` retained as a
+  permanent compatibility redirect.
 - Policy/support routes: `/privacy`, `/privacy-choices`, `/terms`, `/guidelines`,
   `/support`, and `/legal`.
-- Native fallback button: `naturebook://explore/post/{postId}` via the page's "Open in Naturebook" action.
-- Web page audience: anonymous recipients of shared Explore posts.
+- Native fallback buttons: `naturebook://explore/post/{postId}` and
+  `naturebook://species/{speciesId}` via each page's "Open in Naturebook" action.
+- Web page audience: anonymous recipients of shared Explore posts or species
+  references.
 - Metadata audience: iMessage, social crawlers, link unfurlers, and search previews.
 
 The public web page is not the full Explore product yet. It is a rich read-only
@@ -80,6 +87,15 @@ poster-only so browsing it does not fetch or autoplay video. The detail carousel
 uses one responsive square frame for post-owned images, videos, audio spectrograms,
 posters, and eligible species reference images.
 
+`get_explore_post_detail` excludes the backing scan's
+`scans.image_storage_urls` from its ordered reference-image compatibility field
+before the web page maps carousel slides. The exclusion is exact to the current
+scan: another scan's Naturebook reference and Wikipedia/GBIF images retain their
+existing order. If every reference is excluded, the page renders only the
+post-owned media and does not reserve a reference slide or indicator. The RPC
+shape is unchanged, so this protection applies to web independently of the iOS
+client rollout.
+
 If the RPC returns no visible row—including when a post is unshared,
 administratively hidden, tombstoned, blocked, or otherwise privacy-filtered—the
 route returns a not-found page and marks metadata as non-indexable. The route
@@ -93,6 +109,38 @@ slides fill the frame with their persisted spectrogram and anchor native
 playback controls over a bottom gradient. Legacy non-WAV posts or failed poster
 generation retain the speaker fallback and normal playback. Audio uses
 `preload="metadata"` and never autoplays.
+
+## Species Dictionary Pages
+
+`/species/[speciesId]/[slug]` validates the dictionary UUID and invokes the
+existing public `species-dictionary` Edge Function server-side with
+`species_id`. It does not query broad Supabase tables or reconstruct the
+response with service-role reads. The slug is derived from the common name,
+falling back to the scientific name and then `species`; it is lowercase ASCII,
+bounded to 80 characters, and never used for lookup. UUID-only requests and
+requests with a stale or incorrect slug permanently redirect to the current
+canonical URL only after a successful UUID lookup. This adds no database
+migration or Edge response-contract change. Successful pages revalidate every
+five minutes.
+
+The page maps only the versioned public payload: canonical and alternate names,
+content quality, conservation and hazard status, overview/source link, habitat,
+taxonomy, and similar-species names/links. It intentionally excludes local
+observations, authenticated Community sightings, user media, locations, field
+notes, comments, and scan-specific data.
+
+Before any reference image enters HTML or metadata,
+`apps/web/lib/species.ts` runs
+`publicWebReferenceImageAttributionIssues(...)` from the shared public species
+projection. Images missing either license or attribution are omitted. Similar
+species remain textual because their current payload does not carry equivalent
+rights fields for thumbnails.
+
+Invalid UUIDs and Edge `404` responses become non-indexable application 404s.
+Configuration, network, malformed-payload, and other transient upstream errors
+remain server errors instead of being cached as missing content. Successful
+metadata includes canonical, Open Graph, and Twitter fields and uses only an
+attribution-approved image.
 
 ## Environment Variables
 
@@ -196,12 +244,14 @@ For the best long-term user experience, iOS share payloads should use the HTTPS 
 
 ```text
 https://naturebook.earth/explore/post/{postId}
+https://naturebook.earth/species/{speciesId}/{slug}
 ```
 
 The web page can include an "Open in Naturebook" button using:
 
 ```text
 naturebook://explore/post/{postId}
+naturebook://species/{speciesId}
 ```
 
 Custom schemes are useful as an explicit button target, but they should not be the primary shared link. They do not unfurl well, they fail for recipients without the app, and they cannot serve public web previews.
@@ -228,7 +278,9 @@ system preference.
 
 ## Universal Links Configuration
 
-Universal Links are fully configured for `naturebook.earth`, allowing shared explore posts to open seamlessly in the native iOS app when installed, and falling back to the web preview for everyone else.
+Universal Links are configured for `naturebook.earth`, allowing shared Explore
+posts and species pages to open in the native iOS app when installed and fall
+back to their public web pages for everyone else.
 
 ### Implementation Details
 
@@ -250,16 +302,28 @@ Universal Links are fully configured for `naturebook.earth`, allowing shared exp
    retain Universal Link compatibility; those requests must never redirect.
 
 3. **Active Path Mapping**:
-   The AASA details are configured to route `/explore/post/*` path patterns directly to the app:
+   The AASA details route Explore and species path patterns directly to the app:
    - App ID: `TA8S64ST9W.app.merian.Merian`
-   - Paths: `["/explore/post/*"]`
+   - Paths: `["/explore/post/*", "/species/*"]`
 
 4. **Deep Linking Route Handler**:
-   Incoming `NSUserActivityTypeBrowsingWeb` web links route through the same native Explore post router that handles `naturebook://explore/post/{postId}`. The native deep-link parser accepts both Naturebook and legacy Merian hosts/schemes and ignores unrelated policy routes.
+   Incoming `NSUserActivityTypeBrowsingWeb` web links route through the same
+   typed native router as custom-scheme links. Species routes carry only the
+   validated canonical UUID, ignore the optional descriptive slug, select
+   Explore's Dictionary tab, and push
+   `SpeciesDictionaryRoute(entryPoint: .deepLink)`. The parser accepts both
+   Naturebook and legacy Merian hosts/schemes and ignores unrelated policy
+   routes.
 
 The app emits `naturebook://` and `https://naturebook.earth` links. It continues
 to accept `merian://` and `https://merian.earth` indefinitely for older shared
 payloads, widgets, app versions, and push actions.
+
+Rollout note: publishing `/species/*` in AASA can cause an older installed build
+to claim a species HTTPS link even though that build does not understand the
+species route. This risk is accepted for the initial rollout. Keep the web page
+deployed before sharing is enabled in the current iOS build, and verify the
+installed current build during release QA.
 
 ## Local Development
 
@@ -302,6 +366,34 @@ is not the app-level Explore not-found state. The app-level 404 renders
 indicates the domain is not attached to a valid production deployment or the
 project is building the wrong directory.
 
+### Species deployment verification
+
+After deployment, choose a real canonical dictionary UUID with complete public
+content and verify:
+
+1. `https://naturebook.earth/species/{speciesId}/{slug}` returns the Naturebook
+   page, canonical metadata points to the same UUID-plus-current-slug URL, and
+   Open Graph/Twitter images are present only when the rendered image shows
+   license and attribution.
+2. Every linked similar species with a UUID opens its own textual
+   `/species/{speciesId}/{slug}` route; no lookalike thumbnail is rendered.
+3. UUID-only and stale-slug Naturebook requests return a permanent redirect to
+   the current readable canonical URL. The equivalent `merian.earth` URL first
+   preserves the complete UUID-plus-slug path in its 308 to `naturebook.earth`;
+   both AASA paths on `merian.earth` still return 200 directly.
+4. An invalid UUID and a missing UUID resolve to the styled, non-indexable app
+   404. A forced transient Edge failure produces a server error, never a cached
+   not-found page.
+5. With the current app installed, canonical, UUID-only, and stale-slug HTTPS
+   links open Explore, select Index/Dictionary, and push the matching species
+   page by UUID. Without the app, or when opened explicitly in a browser, the
+   canonical URL remains on the web fallback and compatibility forms redirect
+   there. The page's **Open in Naturebook** action targets
+   `naturebook://species/{speciesId}`.
+6. All four associated-domain AASA responses return the exact path list
+   `["/explore/post/*", "/species/*"]` for
+   `TA8S64ST9W.app.merian.Merian`.
+
 ## Public Policy Pages
 
 The public web app includes App Store-ready policy/support routes:
@@ -323,6 +415,9 @@ the `theme` query parameter; public share URLs should not.
 - Keep `apps/web/.env.example`, `apps/web/README.md`, root `README.md`, and this doc aligned when adding public web routes or env variables.
 - Keep Open Graph metadata server-rendered. Messages and social crawlers need HTML metadata before client-side hydration.
 - Treat `apps/web/lib/explore.ts` as a public projection mapper, not a place to expose raw database rows.
+- Treat `apps/web/lib/species.ts` as a strict mapper for the versioned public
+  Edge payload. Keep UUID validation, attribution filtering, 404 mapping, and
+  transient failure behavior covered together.
 - Keep `apps/web/lib/exploreMedia.ts` pure and covered by Node tests so visual
   heroes remain canonical for visual posts, audio grids prefer species reference
   thumbnails, and detail/social surfaces retain spectrogram posters.

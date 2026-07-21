@@ -121,6 +121,8 @@ final class MessageScanShareCacheTests: XCTestCase {
     }
 
     func testMerianDeepLinkParsingAcceptsNaturebookAndLegacyLinks() {
+        let speciesId = "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+
         XCTAssertEqual(
             MerianDeepLinkRoute(url: URL(string: "naturebook://scan/abc-123")!),
             .scan("abc-123")
@@ -153,7 +155,40 @@ final class MessageScanShareCacheTests: XCTestCase {
             MerianDeepLinkRoute(url: URL(string: "https://merian.earth/explore/post/post-123")!),
             .explorePost("post-123")
         )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "https://naturebook.earth/species/\(speciesId)")!),
+            .speciesDictionary(speciesId)
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(
+                url: URL(
+                    string: "https://naturebook.earth/species/\(speciesId)/mwanza-flat-headed-rock-agama"
+                )!
+            ),
+            .speciesDictionary(speciesId)
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(
+                url: URL(string: "https://merian.earth/species/\(speciesId.uppercased())/stale-name")!
+            ),
+            .speciesDictionary(speciesId)
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "naturebook://species/\(speciesId)")!),
+            .speciesDictionary(speciesId)
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "merian://species/\(speciesId)")!),
+            .speciesDictionary(speciesId)
+        )
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "merian://scan")!))
+        XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "naturebook://species/not-a-uuid")!))
+        XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://naturebook.earth/species/not-a-uuid")!))
+        XCTAssertNil(
+            MerianDeepLinkRoute(
+                url: URL(string: "https://naturebook.earth/species/\(speciesId)/extra/path")!
+            )
+        )
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://merian.earth")!))
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://merian.earth/privacy")!))
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://naturebook.app/explore/post/post-123")!))
@@ -168,6 +203,10 @@ final class MessageScanShareCacheTests: XCTestCase {
         XCTAssertEqual(
             MerianDeepLinkRoute.scansLibrary.url?.absoluteString,
             "naturebook://scans"
+        )
+        XCTAssertEqual(
+            MerianDeepLinkRoute.speciesDictionary("1cf79982-e5ee-4e3d-8d65-274527e6ae01").url?.absoluteString,
+            "naturebook://species/1cf79982-e5ee-4e3d-8d65-274527e6ae01"
         )
     }
 

@@ -512,8 +512,8 @@ The `/identify` Edge Function acts as the inference proxy:
 The `/species-dictionary` Edge Function is a public read-only projection over
 species-level dictionary data. It powers the standalone
 `SpeciesDictionaryPageView` opened from Insight similar-species cards and
-Explore post detail similar-species cards, and is safe for a future web
-frontend.
+Explore post detail similar-species cards, plus the server-rendered
+`/species/[speciesId]/[slug]` web route and its UUID-only compatibility redirect.
 
 Key rules:
 
@@ -552,10 +552,19 @@ Key rules:
   lookalike thumbnails use the same exact external-media policy. A denied first
   URL is omitted and the next permitted ordered URL is promoted; the response
   schema and species/navigation rows are unchanged.
+- The Next.js server invokes this function with `species_id`; it does not query
+  broad species, scan, profile, or Explore tables. Invalid UUIDs and function
+  `404` responses become non-indexable web 404s, while transient failures stay
+  server errors.
+- The web mapper runs `publicWebReferenceImageAttributionIssues(...)` before
+  page or metadata use, omits every image missing license or attribution, and
+  does not render lookalike thumbnails because that payload lacks equivalent
+  rights fields.
 
-See `docs/backend-and-data/05-api-contracts.md` and
-`docs/features-and-hardware/16-species-dictionary.md` for the request/response
-contract and iOS surface.
+See `docs/backend-and-data/05-api-contracts.md`,
+`docs/features-and-hardware/16-species-dictionary.md`, and
+`docs/features-and-hardware/17-public-web-share-pages.md` for the
+request/response, iOS, and web contracts.
 
 ## The Authenticated Species Sightings Node (`get-explore-species-posts`)
 

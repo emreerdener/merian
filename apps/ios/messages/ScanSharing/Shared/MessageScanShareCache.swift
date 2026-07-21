@@ -203,6 +203,7 @@ enum MessageScanShareTextBuilder {
 
 enum MerianDeepLinkRoute: Equatable {
     case explorePost(String)
+    case speciesDictionary(String)
     case scan(String)
     case scansLibrary
 
@@ -215,14 +216,23 @@ enum MerianDeepLinkRoute: Equatable {
         let pathComponents = url.pathComponents.filter { $0 != "/" }
 
         if scheme == "https", PublicBrand.acceptedWebHosts.contains(host) {
-            guard pathComponents.count == 3,
-                  pathComponents[0] == "explore",
-                  pathComponents[1] == "post",
-                  !pathComponents[2].isEmpty else {
-                return nil
+            if pathComponents.count == 3,
+               pathComponents[0] == "explore",
+               pathComponents[1] == "post",
+               !pathComponents[2].isEmpty {
+                self = .explorePost(pathComponents[2])
+                return
             }
-            self = .explorePost(pathComponents[2])
-            return
+
+            if (pathComponents.count == 2 || pathComponents.count == 3),
+               pathComponents[0] == "species",
+               let speciesId = Self.normalizedSpeciesDictionaryID(pathComponents[1]),
+               pathComponents.count == 2 || !pathComponents[2].isEmpty {
+                self = .speciesDictionary(speciesId)
+                return
+            }
+
+            return nil
         }
 
         guard PublicBrand.acceptedSchemes.contains(scheme) else {
@@ -243,6 +253,12 @@ enum MerianDeepLinkRoute: Equatable {
                 return nil
             }
             self = .scan(pathComponents[0])
+        case "species":
+            guard pathComponents.count == 1,
+                  let speciesId = Self.normalizedSpeciesDictionaryID(pathComponents[0]) else {
+                return nil
+            }
+            self = .speciesDictionary(speciesId)
         case "scans":
             guard pathComponents.isEmpty else {
                 return nil
@@ -261,6 +277,9 @@ enum MerianDeepLinkRoute: Equatable {
         case .explorePost(let postId):
             components.host = "explore"
             components.path = "/post/\(postId)"
+        case .speciesDictionary(let speciesId):
+            components.host = "species"
+            components.path = "/\(speciesId)"
         case .scan(let scanId):
             components.host = "scan"
             components.path = "/\(scanId)"
@@ -269,5 +288,10 @@ enum MerianDeepLinkRoute: Equatable {
         }
 
         return components.url
+    }
+
+    private static func normalizedSpeciesDictionaryID(_ value: String) -> String? {
+        guard let uuid = UUID(uuidString: value) else { return nil }
+        return uuid.uuidString.lowercased()
     }
 }

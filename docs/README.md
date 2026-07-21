@@ -13,8 +13,9 @@ as their permanent engineering identity.
   (`apps/ios/widgets/Explore/`), Messages extension
   (`apps/ios/messages/MerianMessagesExtension/`), unit tests, and UI tests.
 - **Web frontend**: Next.js + Mantine app in `apps/web/`, serving public Explore
-  share pages on the canonical `naturebook.earth` origin while retaining
-  `merian.earth` as a legacy redirect and AASA compatibility host.
+  share pages and UUID-first readable Species Dictionary pages on the canonical
+  `naturebook.earth` origin while retaining `merian.earth` as a legacy redirect
+  and AASA compatibility host.
 - **Internal admin**: isolated Next.js + Mantine app in `apps/admin/`, intended
   for `admin.naturebook.earth`; Google OAuth + TOTP AAL2 and narrow database RPCs
   only. See [`backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)
@@ -251,8 +252,10 @@ as their permanent engineering identity.
   attribution, enrichment queue/backfill, and refresh provenance.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**
   — Next.js public web share pages for `naturebook.earth`, including Explore
-  post links, legacy-domain compatibility, Supabase server reads, metadata,
-  privacy boundaries, and Universal Links.
+  posts, UUID-first readable Species Dictionary references, legacy-domain and
+  UUID-only route compatibility,
+  Supabase server reads, media-rights filtering, metadata, privacy boundaries,
+  and Universal Links.
 - **[`/features-and-hardware/18-species-observation-charts.md`](./features-and-hardware/18-species-observation-charts.md)**
   — Reusable species observation charts, local-on-device aggregation, public
   iNaturalist stats cache, annotation mappings, privacy boundaries, and

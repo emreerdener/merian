@@ -476,6 +476,11 @@ struct MerianNetworkClientTests {
         #expect(response.data.hazardType == "poisonous")
         #expect(response.data.referenceGalleryImages.map(\.source) == [.merian, .wikipedia])
         #expect(response.data.referenceGalleryImages.first?.source.label == "Naturebook")
+        let filteredReferences = response.data.referenceGalleryImages(excluding: [
+            "https://media.merian.app/public_uploads/pro/rosa.webp?width=1200#capture"
+        ])
+        #expect(filteredReferences.map(\.url) == ["https://upload.wikimedia.org/rosa.jpg"])
+        #expect(filteredReferences.map(\.source) == [.wikipedia])
         #expect(similar.entries.count == 1)
         #expect(similar.entries[0].speciesId == "species-rosa-minor")
         #expect(similar.entries[0].scientificName == "Rosa minor")

@@ -829,6 +829,38 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.pendingExplorePostId, postId)
     }
 
+    func testSpeciesDictionaryDeepLinkOverridesConflictsAndSurvivesTimeoutReset() async throws {
+        let speciesId = "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .explore
+        )
+        viewModel.pendingExplorePostId = "stale-post"
+        viewModel.pendingCommunityIdentificationRequestId = "stale-request"
+        viewModel.pendingExploreShowsFieldTrips = true
+
+        AppEventPublisher.shared.send(
+            .appDidEnterActivePhaseWithSpeciesDictionary(speciesId: speciesId)
+        )
+        try await waitUntil {
+            viewModel.activeSheet == .explore &&
+                viewModel.pendingSpeciesDictionaryRoute?.speciesId == speciesId
+        }
+
+        XCTAssertEqual(viewModel.pendingSpeciesDictionaryRoute?.entryPoint, .deepLink)
+        XCTAssertNil(viewModel.pendingExplorePostId)
+        XCTAssertNil(viewModel.pendingCommunityIdentificationRequestId)
+        XCTAssertFalse(viewModel.pendingExploreShowsFieldTrips)
+
+        AppEventPublisher.shared.send(.appDidResumeAfterTimeout)
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(viewModel.activeSheet, .explore)
+        XCTAssertEqual(viewModel.pendingSpeciesDictionaryRoute?.speciesId, speciesId)
+    }
+
     func testCommunityAndLibraryRoutesOverrideGenericLaunchExplore() async throws {
         let requestId = "community-request-123"
         let viewModel = CaptureWorkspaceViewModel(

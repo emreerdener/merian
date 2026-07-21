@@ -29,16 +29,27 @@ budgets, image resolution, output limits, or the one-model-call contract.
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
 
 Naturebook also has a small public web frontend in `apps/web/`.
-`https://naturebook.earth/explore/post/{postId}` server-renders a public Explore post
-from the `get_explore_post` RPC, emits Open Graph metadata, and hydrates a square
-ordered image/video/audio carousel. Public video autoplays muted and loops only
-while selected; audio uses the persisted spectrogram, native controls, and an
-optional browser-local Boost Audio graph. The allowlisted `/api/explore/audio`
-route exists only to provide same-origin public WAV bytes for that graph. This
-web surface is a public projection only: it may consume public species, media,
-author, engagement, and privacy-filtered location fields, but it does not render
-engagement counts and must never expose exact coordinates, private notes, raw
-scan telemetry, or server credentials.
+`https://naturebook.earth/explore/post/{postId}` server-renders a public Explore
+post from the `get_explore_post` RPC, emits Open Graph metadata, and hydrates a
+square ordered image/video/audio carousel. Public video autoplays muted and
+loops only while selected; audio uses the persisted spectrogram, native
+controls, and an optional browser-local Boost Audio graph. The allowlisted
+`/api/explore/audio` route exists only to provide same-origin public WAV bytes
+for that graph.
+
+`https://naturebook.earth/species/{speciesId}/{slug}` server-renders the
+versioned public `/species-dictionary` Edge response. The UUID is authoritative;
+the lowercase ASCII slug is derived from public names, is never used for lookup,
+and UUID-only or stale-slug browser requests permanently redirect to the current
+canonical path. The page exposes species reference data only, audits image
+license and attribution before page or metadata use, omits lookalike thumbnails
+without rights fields, and offers a `naturebook://species/{speciesId}` native
+CTA. Invalid/missing species are non-indexable 404s; transient Edge failures
+remain server errors.
+
+These web surfaces are public projections only. They must never expose exact
+coordinates, private notes, raw scan telemetry, authenticated Community
+sightings, local observation aggregates, user media, or server credentials.
 
 ## Core Decoupling (AppDIContainer)
 

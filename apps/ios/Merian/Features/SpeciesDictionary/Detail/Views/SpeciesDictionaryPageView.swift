@@ -109,6 +109,29 @@ struct SpeciesDictionaryPageContentView: View {
                         isVisible: isCommonNameScrolledPast
                     )
                 }
+
+                if let species = viewModel.loadedSpecies,
+                   let shareURL = SpeciesDictionaryShareContent.url(
+                    speciesId: species.id,
+                    commonName: species.commonName,
+                    scientificName: species.scientificName
+                   ) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ShareLink(
+                            item: shareURL,
+                            subject: Text(species.commonName),
+                            message: Text(SpeciesDictionaryShareContent.message(commonName: species.commonName))
+                        ) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 14, weight: .bold))
+                                .frame(width: 32, height: 32)
+                                .imageOverlayToolbarIconChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
+                        }
+                        .buttonStyle(.plain)
+                        .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
+                        .accessibilityLabel("Share species page")
+                    }
+                }
             }
             .task(id: speciesId ?? scientificName) {
                 isCommonNameScrolledPast = false
@@ -323,6 +346,77 @@ struct SpeciesDictionaryPageContentView: View {
             speciesId: entry.speciesId,
             entryPoint: .speciesDictionarySimilarSpecies
         )
+    }
+}
+
+enum SpeciesDictionaryShareContent {
+    private static let slugMaximumLength = 80
+
+    static func url(
+        speciesId: String,
+        commonName: String,
+        scientificName: String
+    ) -> URL? {
+        guard let uuid = UUID(uuidString: speciesId.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
+        let slug = slug(commonName: commonName, scientificName: scientificName)
+        return PublicBrand.websiteURL(path: "species/\(uuid.uuidString.lowercased())/\(slug)")
+    }
+
+    static func slug(commonName: String, scientificName: String) -> String {
+        for candidate in [commonName, scientificName] {
+            if let slug = slugCandidate(candidate) {
+                return slug
+            }
+        }
+        return "species"
+    }
+
+    private static func slugCandidate(_ value: String) -> String? {
+        let folded = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(
+                options: [.diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .decomposedStringWithCompatibilityMapping
+            .lowercased()
+
+        var result = ""
+        var needsSeparator = false
+
+        for scalar in folded.unicodeScalars {
+            if CharacterSet.nonBaseCharacters.contains(scalar) {
+                continue
+            }
+
+            let value = scalar.value
+            let isASCIILetter = (97...122).contains(value)
+            let isASCIIDigit = (48...57).contains(value)
+            guard isASCIILetter || isASCIIDigit else {
+                needsSeparator = !result.isEmpty
+                continue
+            }
+
+            let requiredCharacters = needsSeparator && !result.isEmpty ? 2 : 1
+            guard result.count + requiredCharacters <= slugMaximumLength else {
+                break
+            }
+            if needsSeparator && !result.isEmpty {
+                result.append("-")
+            }
+            result.unicodeScalars.append(scalar)
+            needsSeparator = false
+        }
+
+        return result.isEmpty ? nil : result
+    }
+
+    static func message(commonName: String) -> String {
+        let name = commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "this species" : name
+        return "Learn about \(displayName) on Naturebook."
     }
 }
 

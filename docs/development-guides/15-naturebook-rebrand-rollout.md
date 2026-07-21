@@ -101,6 +101,9 @@ curl -sS -I 'https://naturebook.app/explore/post/example?ref=qa'
 curl -sS -I 'https://www.naturebook.app/explore/post/example?ref=qa'
 curl -sS -I 'https://merian.earth/explore/post/example?ref=qa'
 curl -sS -I 'https://www.merian.earth/explore/post/example?ref=qa'
+curl -sS -I 'https://naturebook.earth/species/00000000-0000-0000-0000-000000000000?ref=qa'
+curl -sS -I 'https://merian.earth/species/00000000-0000-0000-0000-000000000000?ref=qa'
+curl -sS -I 'https://merian.earth/species/{real-species-uuid}/{current-slug}?ref=qa'
 ```
 
 Expected results:
@@ -109,6 +112,8 @@ Expected results:
 - Each alias returns 308 with the exact path and query on
   `https://naturebook.earth`.
 - No alias redirects to a `www` canonical URL.
+- A real UUID-only or stale-slug request on the canonical host returns a
+  permanent redirect to its current UUID-plus-slug species path.
 
 ## Phase 2: AASA and Universal Links
 
@@ -126,9 +131,14 @@ For all four responses verify:
 - Status is HTTP 200, not 301, 302, 307, or 308.
 - `Content-Type` is JSON-compatible.
 - The payload contains `TA8S64ST9W.app.merian.Merian`.
-- The path contract contains `/explore/post/*`.
+- The path contract is exactly `["/explore/post/*", "/species/*"]`.
 
 Do not add `applinks:naturebook.app`. It is redirect-only.
+
+`/species/*` is intentionally enabled immediately. Older installed builds may
+claim that Universal Link without a native species router; the rollout accepts
+this compatibility window. Deploy the browser fallback first and verify the
+current signed app before enabling user-facing species sharing.
 
 After the production app is signed, verify the associated-domain entitlement in
 the archive rather than relying only on the source plist:
@@ -295,10 +305,23 @@ https://naturebook.earth/explore/post/{real-public-id}
 https://merian.earth/explore/post/{real-public-id}
 naturebook://explore/post/{real-public-id}
 merian://explore/post/{real-public-id}
+https://naturebook.earth/species/{real-species-uuid}
+https://naturebook.earth/species/{real-species-uuid}/{current-slug}
+https://naturebook.earth/species/{real-species-uuid}/{stale-slug}
+https://merian.earth/species/{real-species-uuid}
+https://merian.earth/species/{real-species-uuid}/{current-slug}
+naturebook://species/{real-species-uuid}
+merian://species/{real-species-uuid}
 ```
 
 Also test canonical `naturebook://scan/{id}` and `naturebook://scans`, plus their
 legacy `merian://` equivalents where applicable.
+
+For species links, verify the UUID-only and stale-slug browser forms permanently
+redirect to `/species/{real-species-uuid}/{current-slug}`. With the current app
+installed, all accepted HTTPS forms must route directly by UUID without relying
+on the slug. The legacy host must preserve both UUID and slug while redirecting
+to `naturebook.earth`.
 
 ### Generation audit
 
@@ -306,6 +329,7 @@ Create new content through every outward path and verify it emits Naturebook
 only:
 
 - Explore sharing
+- Species Dictionary sharing
 - Messages extension cards
 - Referrals
 - Support and public reporting email

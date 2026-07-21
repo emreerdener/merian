@@ -40,6 +40,7 @@ struct CameraSheetRouter: ViewModifier {
                     case .explore:
                         ExploreView(
                             initialPostId: viewModel.pendingExplorePostId,
+                            initialSpeciesDictionaryRoute: viewModel.pendingSpeciesDictionaryRoute,
                             initialCommunityRequestId: viewModel.pendingCommunityIdentificationRequestId,
                             initialTargetCommentId: viewModel.pendingExploreTargetCommentId,
                             initialTargetReplyParentCommentId: viewModel.pendingExploreTargetReplyParentCommentId,
@@ -52,6 +53,7 @@ struct CameraSheetRouter: ViewModifier {
                             }
                             .onDisappear {
                                 viewModel.pendingExplorePostId = nil
+                                viewModel.pendingSpeciesDictionaryRoute = nil
                                 viewModel.pendingCommunityIdentificationRequestId = nil
                                 viewModel.pendingExploreTargetCommentId = nil
                                 viewModel.pendingExploreTargetReplyParentCommentId = nil

@@ -23,7 +23,7 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 Camera session startup is owned by `CaptureWorkspaceView` / `CaptureWorkspaceViewModel.handleScenePhaseChange`, not by `AppLifecycleManager`. `handleActivePhase()` should not directly start AVFoundation hardware.
 
 **Deep links and intents:**
-`MerianApp.handleMerianDeepLink(_:)`, `PushNotificationManager.handleNotificationAction(...)`, and App Intents publish typed `AppEventPublisher` events. `CaptureWorkspaceViewModel` consumes scan and Explore events to present the appropriate sheet. `CaptureWorkspaceView` consumes identify/recall intent events that need to modify the pager or reuse current insight state.
+`MerianApp.handleMerianDeepLink(_:)`, `PushNotificationManager.handleNotificationAction(...)`, and App Intents publish typed `AppEventPublisher` events. `CaptureWorkspaceViewModel` consumes scan, Explore-post, and Species Dictionary events to present the appropriate sheet and stack route. Species events contain only the validated canonical dictionary UUID. `CaptureWorkspaceView` consumes identify/recall intent events that need to modify the pager or reuse current insight state.
 
 **Photos document import:**
 `MerianApp.onOpenURL` handles Google Sign-In and Merian deep links before
@@ -52,7 +52,8 @@ Launch presentation precedence is:
 1. A Photos/Files image handoff clears or dismisses generic Explore and
    continues into the durable pending-import staging and crop flow.
 2. Deep links and tapped notifications replace generic Explore with their
-   requested Explore post, community request, scan Insight, or Scans library.
+   requested Explore post, Species Dictionary page, community request, scan
+   Insight, or Scans library.
 3. The generic Explore feed remains only when no explicit intent supersedes it.
 
 When adding a new external route, clear any generic launch destination before
@@ -122,13 +123,15 @@ prevents the same foreground timeout from clearing the crop presentation after
 the import is staged. The import also clears a generic launch-time Explore
 sheet before beginning the Capture workflow.
 
-`CaptureWorkspaceViewModel.protectExternalRouteFromImmediateSessionTimeoutReset()` creates a short one-shot suppression deadline when a scan or Explore deep link is handled. If `.appDidResumeAfterTimeout` arrives during that window, `handleSessionTimeoutReset()` consumes the suppression and skips the reset. This prevents the sequence `widget URL -> activeSheet = .explore -> timeout reset -> activeSheet = nil`.
+`CaptureWorkspaceViewModel.protectExternalRouteFromImmediateSessionTimeoutReset()` creates a short one-shot suppression deadline when a scan, Explore post, or Species Dictionary deep link is handled. If `.appDidResumeAfterTimeout` arrives during that window, `handleSessionTimeoutReset()` consumes the suppression and skips the reset. This prevents the sequence `external URL -> activeSheet = .explore -> timeout reset -> activeSheet = nil`.
 
 The suppression is intentionally narrow:
 - It applies only to the next timeout reset after an external route.
 - It is cleared whether it is consumed or expired.
 - Ordinary stale sheets still clear on timeout.
-- `resetModalsForSessionTimeout()` clears `pendingExplorePostId`, preventing old widget post ids from carrying into a later manual Explore open.
+- `resetModalsForSessionTimeout()` clears `pendingExplorePostId` and
+  `pendingSpeciesDictionaryRoute`, preventing old external destinations from
+  carrying into a later manual Explore open.
 
 **Scan durability note:** This handler is a no-op for scan durability. Scans are made durable at submission time in `CaptureWorkspaceViewModel.submitActiveScan` — the background URLSession upload is dispatched while the app is still in the foreground, before any async boundary is crossed. It does not cancel inference, enqueue captures, or modify `InferenceEngine` state.
 

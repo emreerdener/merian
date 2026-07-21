@@ -1,11 +1,11 @@
 # Species Dictionary Long-Term TODO
 
-This TODO tracks the work needed to turn the in-app Species Dictionary Page into
-a durable public content layer for iOS and the future web frontend.
+This TODO tracks the durable public species content layer shared by iOS and the
+web frontend, plus the remaining enrichment and curation work.
 
 ## Scope 1 — Canonical Species Identity
 
-Status: iOS/Edge implemented; public web slugs still planned.
+Status: UUID-based iOS/Edge/web routing and readable public slugs implemented.
 
 - [x] Keep `scientific_name` lookup backward compatible.
 - [x] Allow `/species-dictionary` requests to use `species_id` as the canonical
@@ -15,11 +15,17 @@ Status: iOS/Edge implemented; public web slugs still planned.
 - [x] Include `species_id` in hydrated similar-species payloads from
       `/enrich-scan`, `/get-explore-post-detail`, and `/species-dictionary` when
       the entry is backed by `species_dictionary`.
-- [ ] Add public web/deep-link slugs after the first web routing design lands.
+- [x] Ship stable UUID web/deep-link routing at `/species/{speciesId}`.
+- [x] Add readable canonical paths at `/species/{speciesId}/{slug}` without
+      replacing the stable UUID identity. Slugs are derived from the current
+      common name with scientific-name and `species` fallbacks; UUID-only and
+      stale-slug browser requests permanently redirect after UUID lookup.
 
 Why it matters: scientific names can change, collide across stale caches, or be
 corrected after review. Stable dictionary IDs let the app route by identity
-while still displaying canonical names.
+while still displaying canonical names. Because slugs are descriptive and are
+not stored or queried, name corrections require no migration and cannot break
+an existing UUID link.
 
 ## Scope 2 — Normalize Reference Images
 
@@ -45,17 +51,16 @@ licensing before the same data is exposed on the public web.
 
 ## Scope 3 — Shared Public Species Projection
 
-Status: Edge shared module and SQL helper projection implemented; future web
-should consume the same contract.
+Status: Edge shared module, SQL helper projection, and web consumer implemented.
 
 - [x] Define one public species projection used by `/species-dictionary`,
-      Explore detail similar species, and the future web frontend.
+      Explore detail similar species, and the web frontend.
 - [x] Centralize common-name fallback, image source mapping, nullable taxonomy
       handling, and privacy filtering.
 - [x] Add contract tests proving scan-specific fields never leak into the public
       projection.
-- [ ] Reuse the shared projection directly from the first web species endpoint
-      when web routing lands.
+- [x] Reuse the shared projection and attribution audit from the first web
+      species endpoint.
 
 Why it matters: the same species data should not be reshaped in three subtly
 different ways across Edge Functions and SQL RPCs.
@@ -132,8 +137,7 @@ only list names and photos.
 Status: implemented for current public species surfaces.
 
 - [x] Add response `schema_version` to `/species-dictionary` and Explore post
-      detail's public species payload wrapper before the web frontend depends on
-      the contract.
+      detail's public species payload wrapper, and require it in the web mapper.
 - [x] Document compatibility expectations for nullable fields and additive
       response keys.
 - [ ] Introduce a versioned endpoint path only if a future breaking response
@@ -143,8 +147,8 @@ Why it matters: iOS and web clients will update on different schedules.
 
 ## Scope 7 — Caching Strategy
 
-Status: implemented for the public Edge response and the iOS in-memory route
-cache.
+Status: implemented for the public Edge response, iOS in-memory route cache,
+and five-minute web revalidation.
 
 - [x] Add safe HTTP cache headers for public dictionary responses.
 - [x] Add iOS client memoization for recently opened species pages.
@@ -161,14 +165,15 @@ Current rules:
 - Refreshed species rows become visible after the shorter of the iOS memo TTL
   and any downstream HTTP/browser cache freshness window. Manual curation or
   scheduled refreshes that need immediate global visibility should pair the data
-  write with CDN/cache purge tooling once the public web frontend exists.
+  write with CDN/cache purge tooling when immediate web invalidation is needed.
 
 Why it matters: species dictionary data is public and slow-changing, so it
 should be cheap to reopen and cheap to serve.
 
 ## Scope 8 — Content Quality States
 
-Status: implemented for the species dictionary API and iOS page.
+Status: implemented for the species dictionary API, iOS page, and public web
+page.
 
 - [x] Classify species rows as `complete`, `sparse`, or `needs_enrichment`.
 - [x] Render sparse pages intentionally instead of making missing sections feel
@@ -195,8 +200,8 @@ the dictionary rollout.
 
 ## Scope 9 — Web-Safe Licensing
 
-Status: implemented for normalized media metadata, iOS display, and future web
-audit hooks.
+Status: implemented for normalized media metadata, iOS display, and public web
+rendering/metadata.
 
 - [x] Store image licenses and attribution beside each reference image.
 - [x] Render attribution in iOS where appropriate and require it on web.
@@ -210,19 +215,19 @@ Current rules:
   `reference_images` item when stored metadata exists.
 - iOS shows the active reference image's attribution/license below the gallery
   when either field is present.
-- Future web species pages must run
+- Web species pages run
   `publicWebReferenceImageAttributionIssues(...)` from
   `_shared/publicSpeciesProjection.ts` before rendering public reference media,
-  and must not publish an image unless license and attribution are present or a
-  source-specific renderer supplies an equivalent attribution.
+  omit any image without license and attribution, and do not render lookalike
+  thumbnails while their payload lacks those rights fields.
 
 Why it matters: Wikimedia and GBIF-backed imagery can have attribution
 obligations that become more important on a public website.
 
 ## Scope 10 — Analytics
 
-Status: implemented for current iOS entry points; future search, web, and deep
-links have reserved entry-point values.
+Status: implemented for current iOS entry points, including deep links; future
+search and web-origin analytics retain reserved values.
 
 - [x] Track dictionary opens by entry point: Insight, Explore detail, future
       search, web, and deep links.
@@ -233,8 +238,8 @@ links have reserved entry-point values.
 Current rules:
 
 - `SpeciesDictionaryRoute` carries a zero-PII `entryPoint` enum. Current iOS
-  values are `insight_similar_species` and `explore_detail_similar_species`;
-  reserved values are `search`, `deep_link`, `web`, and `unknown`.
+  values are `insight_similar_species`, `explore_detail_similar_species`, and
+  `deep_link`; reserved values are `search`, `web`, and `unknown`.
 - `SpeciesDictionaryOpened` tracks sheet opens once per route/view-model
   lifecycle.
 - `SpeciesDictionaryPageLoaded` tracks successful loads with `entryPoint` and

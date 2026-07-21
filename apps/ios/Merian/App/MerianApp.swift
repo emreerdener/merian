@@ -1196,6 +1196,10 @@ struct MerianApp: App {
                     targetReplyParentCommentId: nil
                 )
             )
+        case .speciesDictionary(let speciesId):
+            diContainer.appEventPublisher.send(
+                .appDidEnterActivePhaseWithSpeciesDictionary(speciesId: speciesId)
+            )
         case .scan(let scanId):
             diContainer.appEventPublisher.send(
                 .appDidEnterActivePhaseWithScan(scanId: scanId)

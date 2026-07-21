@@ -9,6 +9,15 @@ enum ExploreTab: Hashable {
     case dictionary
 }
 
+enum ExploreInitialTabPolicy {
+    static func resolve(
+        requestedTab: ExploreTab,
+        speciesDictionaryRoute: SpeciesDictionaryRoute?
+    ) -> ExploreTab {
+        speciesDictionaryRoute == nil ? requestedTab : .dictionary
+    }
+}
+
 private enum ExploreDiscoveryMode: Hashable {
     case feed
     case map
@@ -67,6 +76,7 @@ struct ExploreView: View {
 
     init(
         initialPostId: String? = nil,
+        initialSpeciesDictionaryRoute: SpeciesDictionaryRoute? = nil,
         initialCommunityRequestId: String? = nil,
         initialTargetCommentId: String? = nil,
         initialTargetReplyParentCommentId: String? = nil,
@@ -77,11 +87,18 @@ struct ExploreView: View {
     ) {
         self.allowsInsightPresentation = allowsInsightPresentation
         self.onOpenOwnedPostInsight = onOpenOwnedPostInsight
-        _activeTab = State(initialValue: initialTab)
+        _activeTab = State(initialValue: ExploreInitialTabPolicy.resolve(
+            requestedTab: initialTab,
+            speciesDictionaryRoute: initialSpeciesDictionaryRoute
+        ))
         if initialTab == .fieldTrips {
             _activeFieldTripsSection = State(initialValue: .fieldTrips)
         }
-        if let initialCaptureGoalDestination {
+        if let initialSpeciesDictionaryRoute {
+            var initialPath = NavigationPath()
+            initialPath.append(initialSpeciesDictionaryRoute)
+            _navigationPath = State(initialValue: initialPath)
+        } else if let initialCaptureGoalDestination {
             var initialPath = NavigationPath()
             switch initialCaptureGoalDestination {
             case .fieldTrip(let templateId, let checklistItemId):

@@ -1467,12 +1467,25 @@ struct ExplorePostDetail: Decodable {
     }
 
     var referenceGalleryImages: [ExploreReferenceGalleryImage] {
+        referenceGalleryImages(excluding: [])
+    }
+
+    func referenceGalleryImages(excluding mediaIdentifiers: [String]) -> [ExploreReferenceGalleryImage] {
         let rawUrls = ExternalReferenceImagePolicy.allowedURLStrings(from: referenceImageUrl)
+        let visibleUrls = ReferenceImageDeduplicationPolicy.filteredReferenceURLs(
+            rawUrls,
+            excluding: mediaIdentifiers
+        )
+        let originalIndexes = Dictionary(
+            rawUrls.enumerated().map { ($0.element, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         var seen = Set<String>()
 
-        return rawUrls.enumerated().compactMap { index, rawUrl in
+        return visibleUrls.compactMap { rawUrl in
             guard !rawUrl.isEmpty, seen.insert(rawUrl).inserted else { return nil }
+            let index = originalIndexes[rawUrl] ?? 0
 
             return ExploreReferenceGalleryImage(
                 id: rawUrl,

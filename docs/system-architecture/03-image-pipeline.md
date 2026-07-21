@@ -233,6 +233,22 @@ becomes the card thumbnail. If the first candidate is denied or fails, the next
 successful permitted candidate wins. If none load, existing callers render
 their leaf/reference-unavailable placeholder.
 
+**Current-scan/reference ownership policy:** The external denylist answers
+whether a remote asset is permitted at all; the separate
+`ReferenceImageDeduplicationPolicy` answers whether an otherwise permitted
+reference is already owned by the scan being displayed. Explore passes the
+post hero, canonical media URLs, and media thumbnails as exclusions. Insight
+passes its image/video item paths plus persisted/queued thumbnails and cover
+path. Naturebook media identity is the normalized host and encoded object path,
+so signed, resized, or fragmented variants do not repeat the same storage
+object. External media keeps strict full-URL identity. Filtering precedes page
+counts and inline/fullscreen page construction, preserves reference ordering,
+and converts an all-duplicate loaded set into the normal empty state.
+
+This boundary is intentionally exact-scan only. It does not remove every image
+by the same author and does not perform perceptual matching across separately
+uploaded objects.
+
 Both local and downloaded files enter the same decode boundary. `AsyncPermitPool`
 admits at most four images, suspends additional tasks without tying up an OS
 thread, removes cancelled waiters safely, and dispatches admitted synchronous

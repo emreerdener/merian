@@ -73,7 +73,9 @@ are documented in
   - Inline comments with an inline composer
 - Broad time context and weather data remain available as optional feed metadata. They are not rendered on the primary feed card UI, but they may appear as sanitized telemetry on the detail page.
 - Any imported or captured photo already present in the scan library should be eligible for sharing.
-- Future scope: feed cards can open a public species page once that separate species-page project exists.
+- Feed cards continue opening post detail. Similar-species cards already push
+  the shipped Species Dictionary route; optional species-first feed navigation
+  remains future scope.
 
 ## Goals
 
@@ -285,6 +287,8 @@ It should contain:
 - Optional public hashtag chips that wrap and route to tagged-post collections
 - Common and scientific names
 - Public species insight cards backed by `species_dictionary`
+- A species reference gallery containing eligible images not already presented
+  as this post's hero, canonical media, or media thumbnail
 - Privacy-safe telemetry such as general location, broad time context, weather, and shared date
 - An inline comment thread with an inline composer
 
@@ -293,6 +297,14 @@ Interaction model:
 - Feed comment taps intentionally stay in a bottom sheet for quick engagement without leaving the feed.
 - Detail-page comment taps should scroll/focus the inline composer rather than opening another modal.
 - The detail page should not mount private `InferenceEngine` state. It should use a public Explore detail payload.
+- The post's own scan media appears only in the primary media area. Reference
+  filtering is exact-scan only: Naturebook media from another scan and unrelated
+  Wikipedia/GBIF images remain visible in their existing order. If no reference
+  survives, the gallery and its page indicators are omitted.
+- iOS excludes the hero, resolved media URLs, and media thumbnails by shared
+  Naturebook object identity. The backend independently excludes the current
+  scan's `image_storage_urls`, keeping web and older clients protected without
+  changing the response shape.
 
 ## Public Metadata Rules
 
@@ -507,7 +519,15 @@ Recommended V1 endpoints:
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
-  - Returns public species-detail data for a single Explore post, including `alternative_common_names` for the detail header, per-scan `ai_reasoning` unless the user has overridden the AI identification (report flags do not hide it), normalized-reference-image-backed `reference_image_url` compatibility output, plus public `similar_species` hydrated from the species dictionary lookalike join table with `species_id` for canonical dictionary routing
+  - Returns public species-detail data for a single Explore post, including
+    `alternative_common_names` for the detail header, per-scan `ai_reasoning`
+    unless the user has overridden the AI identification (report flags do not
+    hide it), normalized-reference-image-backed `reference_image_url`
+    compatibility output with the current scan's `image_storage_urls` removed,
+    plus public `similar_species` hydrated from the species dictionary lookalike
+    join table with `species_id` for canonical dictionary routing. The contract
+    shape is unchanged; source order, blocked-image handling, and legacy fallback
+    are preserved.
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `field-trips`
@@ -1122,19 +1142,22 @@ Client behavior:
 
 ### Phase 7: Fast Follow Ups
 
-- Public species page route from Explore cards
+- Optional species-first route from top-level Explore feed cards
 - Standalone public user pages, if Explore later grows beyond the current sheet model
 - Audio Explore posts
 - Ranking and recommendation logic
 
-## Future Species Page Integration
+## Species Page Integration
 
-When the public species-page project exists:
-
-- The Explore detail page can route from its species section into `species_dictionary`'s future public page
-- Feed cards can either continue opening detail first or optionally deep-link through the same route later
-- The Explore data model does not need to change
-- The feed can keep reading species metadata from the underlying scan and species join
+- Explore detail similar-species cards route into the shipped in-app Species
+  Dictionary stack by canonical dictionary UUID when available.
+- Shared dictionary links use
+  `https://naturebook.earth/species/{speciesId}/{slug}` and fall back to the
+  server-rendered web page when the app is unavailable.
+- Feed cards continue opening post detail first; a future species-first feed
+  action can reuse the same UUID route without changing the Explore data model.
+- The feed continues reading its display snapshot from the underlying public
+  post/species projection rather than loading a dictionary page per card.
 
 ## Acceptance Criteria For V1
 

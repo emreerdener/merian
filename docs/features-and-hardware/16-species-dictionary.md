@@ -1,8 +1,8 @@
 # Species Dictionary Page
 
-The Species Dictionary Page is the standalone in-app page for a discovered
-species. Its primary content remains canonical public species-level dictionary
-data and reference imagery. A separate authenticated **Community sightings**
+The Species Dictionary Page is the standalone in-app and public-web reference
+page for a discovered species. Its primary content remains canonical public
+species-level dictionary data and licensed reference imagery. A separate authenticated **Community sightings**
 request adds visibility-safe Explore cards without placing viewer-sensitive
 data in the cacheable dictionary response. The on-device local-observation
 overlay inside `SpeciesObservationChartsCard` remains local; those counts are
@@ -15,14 +15,15 @@ This creates three separate species surfaces in the iOS app:
 | Insight scan            | A user's specific scan result | `InferenceEngine.shared.speciesData`, local scan media, and per-scan AI reasoning |
 | Explore post            | A public shared scan          | Explore post/detail endpoints plus the backing public scan projection             |
 | Species dictionary page | General species reference     | `species_dictionary`, `species_lookalikes`, public reference imagery, local on-device observation aggregates, cached global public iNaturalist stats, and a separate authenticated Explore species-post projection |
+| Public species page      | Anonymous species reference   | Versioned public `/species-dictionary` Edge response only                         |
 
 ## Product Scope
 
-V1 entry is intentionally narrow: a user taps a similar-species card in either
-the Insight sheet or an Explore post detail page, and Merian pushes the public
-species dictionary page inside that sheet's existing navigation stack. The
-standalone dictionary presenter still uses a large-detent sheet when opened
-directly.
+In-app entry includes similar-species cards in Insight and Explore, Dictionary
+browsing, and canonical or legacy external species links. An external link
+selects Explore's Dictionary tab and pushes the page in the existing Explore
+navigation stack. The standalone dictionary presenter still uses a
+large-detent sheet when opened directly.
 
 Included in V1:
 
@@ -39,6 +40,9 @@ Included in V1:
 - IUCN Red List status
 - hazard status
 - similar species that route to another dictionary page in the same stack
+- a top-right native share action after the canonical UUID and names have loaded
+- a server-rendered browser fallback at
+  `https://naturebook.earth/species/{speciesId}/{slug}`
 
 Excluded in V1:
 
@@ -50,7 +54,12 @@ Excluded in V1:
 - preferred-name editing
 - user-specific review state
 
-## iOS Architecture
+The public web page additionally excludes local observation charts,
+authenticated Community sightings, all user media, and similar-species
+thumbnails. Those thumbnails are withheld until their payload includes public
+license and attribution fields.
+
+## Architecture
 
 Primary files:
 
@@ -58,6 +67,10 @@ Primary files:
 - `apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift`
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Utilities/AppEventPublisher.swift`
+- `apps/ios/Merian/App/MerianApp.swift`
+- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
@@ -69,6 +82,10 @@ Primary files:
 - `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SimilarSpeciesGallery.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
+- `apps/ios/messages/ScanSharing/Shared/MessageScanShareCache.swift`
+- `apps/web/lib/species.ts`
+- `apps/web/app/species/[speciesId]/page.tsx`
+- `apps/web/app/species/[speciesId]/[slug]/page.tsx`
 
 `SpeciesDictionaryPageView` is the standalone sheet shell. It owns a
 `NavigationStack`, presents at `.large`, hides the sheet grabber, and renders
@@ -133,8 +150,35 @@ lookup fallback.
 
 Explore post detail uses the same route from its public
 `/get-explore-post-detail` similar-species payload. The Explore entry point is
-detail-only; feed cards, map previews, author profile previews, scan library,
-search, and external deep links do not open the species dictionary in V1.
+detail-only for internal post navigation; feed cards, map previews, author
+profile previews, and scan library do not open the species dictionary.
+
+External links accept canonical and legacy HTTPS/custom-scheme forms:
+
+```text
+https://naturebook.earth/species/{speciesId}
+https://naturebook.earth/species/{speciesId}/{slug}
+https://merian.earth/species/{speciesId}
+https://merian.earth/species/{speciesId}/{slug}
+naturebook://species/{speciesId}
+merian://species/{speciesId}
+```
+
+New shares emit the canonical UUID-first HTTPS form with a lowercase ASCII slug
+derived from the common name, or the scientific name and then `species` when a
+readable common-name slug is unavailable. The slug is presentation-only. The
+parser accepts the canonical form, UUID-only compatibility form, and legacy
+host/scheme forms, ignores the optional slug for identity, and publishes only
+the normalized UUID through `AppEventPublisher`. `CaptureWorkspaceViewModel`
+clears conflicting launch routes, protects the destination from the immediate
+foreground timeout reset, opens Explore, selects Dictionary, and pushes a
+`SpeciesDictionaryRoute(entryPoint: .deepLink)`.
+
+The share button appears only after the loaded response supplies a valid UUID
+and uses the loaded names to build its readable slug. Its primary item is the
+canonical HTTPS URL, its subject is the common name, and its message is brief
+Naturebook copy. A browser recipient gets the public page; an installed current
+app claims the same URL through Universal Links.
 
 ## Title And Alternate Names
 
@@ -228,7 +272,7 @@ species-level public dictionary data only.
 `schema_version = 1` is the shared public species contract used by the
 dictionary page and Explore detail similar-species projection. iOS treats the
 key as optional for backward compatibility with older mocks or deployed
-functions, and future web clients should use it before depending on new fields.
+functions; the web mapper requires version 1 before using the payload.
 
 Community sightings use a separate authenticated request:
 
@@ -550,7 +594,8 @@ Current iOS entry points are:
 - `insight_similar_species`
 - `explore_detail_similar_species`
 
-Reserved future entry points are `search`, `deep_link`, `web`, and `unknown`.
+The external-link entry point is `deep_link`. Reserved future entry points are
+`search`, `web`, and `unknown`.
 
 ## Data Mapping Rules
 
@@ -626,8 +671,9 @@ Reference image attribution:
 - The footer follows carousel paging, so multi-image galleries show attribution
   for the active image only.
 - Legacy fallback images may not have attribution metadata. iOS can still render
-  those images with source labeling, but the future public web frontend must use
-  the shared attribution audit before publishing them.
+  those images with source labeling, but the public web frontend runs
+  `publicWebReferenceImageAttributionIssues(...)` and omits every image missing
+  either required rights field from page content and metadata.
 
 Lookalikes:
 
@@ -700,8 +746,8 @@ The public `/species-dictionary` response must never expose:
 - preferred common-name overrides
 - scan-level pet-identification labels
 
-If a future web frontend consumes this endpoint, it should be able to use the
-same response safely without an authenticated session.
+The public web frontend consumes this endpoint without an authenticated user
+and maps only the documented versioned fields.
 
 The separate authenticated sightings endpoint may return standard public
 Explore card identifiers and media, but only through
@@ -727,6 +773,15 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platfo
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted simulator id>' CODE_SIGNING_ALLOWED=NO test -only-testing:merianTests/LocalImageLoaderTests -only-testing:merianTests/SpeciesDataTests -only-testing:merianTests/SpeciesDictionaryTests
 ```
 
+Web:
+
+```sh
+cd apps/web
+npm test
+npm run typecheck
+npm run build
+```
+
 Manual acceptance:
 
 - Open a biological Insight scan with similar species.
@@ -743,3 +798,11 @@ Manual acceptance:
   gallery. Confirm the next live image is used when available and the leaf
   placeholder appears when every candidate is blocked or fails.
 - Confirm a missing dictionary row shows the not-found/retry state.
+- Share a loaded dictionary page and confirm the payload uses the canonical
+  UUID HTTPS URL and common-name subject.
+- Open canonical and legacy HTTPS/custom-scheme species links and confirm
+  Explore selects Dictionary, pushes the species, and survives an immediate
+  session-timeout event.
+- In a browser, confirm canonical metadata, licensed image attribution, textual
+  similar-species navigation, native-app CTA, and clean omission of absent
+  optional sections.

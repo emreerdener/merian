@@ -198,9 +198,9 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 | Parameter | Type | Source |
 |---|---|---|
 | `scanId` | `String?` | `viewModel.persistentScanId` — prefers `queuedScan.id`, then `activeLocalRecord?.id`, then `inferenceEngine.speciesData?.scanId` |
-| `refUrls` | `[String]` | `viewModel.refUrls` |
-| `activeMedia` | `ActiveScanMedia` | `viewModel.resolvedMedia(for:)` — queued scans seed this from `QueuedScanContext.capturedMediaSnapshot`, while completed scans hydrate it from `record.capturedMediaSnapshot` |
-| `totalImages` | `Int` | `viewModel.totalImages` |
+| `refUrls` | `[String]` | `viewModel.refUrls` — the filtered `activeMedia.referenceState.urls`, never the raw species URL list |
+| `activeMedia` | `ActiveScanMedia` | `viewModel.resolvedMedia(for:)` — queued scans seed this from `QueuedScanContext.capturedMediaSnapshot`, while completed scans hydrate it from `record.capturedMediaSnapshot`; `displayMedia(_:)` applies reference suppression and current-scan deduplication before returning it |
+| `totalImages` | `Int` | `viewModel.totalImages`, derived from the same filtered `ActiveScanMedia` used by inline and fullscreen galleries |
 | `isProcessing` | `Bool` | `viewModel.isProcessing` |
 | `onImageFailure` | `(String) -> Void` | Closure injected by `InsightContentView`; no-op when `queuedScan != nil` (guard prevents engine call) |
 
@@ -210,6 +210,12 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 - **Snap-back**: `scrollViewDidEndZooming` (pinch release) and `scrollViewDidEndDragging` (drag release while zoomed) both call `snapBackToIdentity`: pending deceleration is cancelled first, then `UIView.animate(usingSpringWithDamping: 0.72)` restores `zoomScale → 1.0` and `contentOffset → .zero` simultaneously.
 - **Async page growth**: `updateUIViewController` handles the user-media page model resolving asynchronously after `makeCoordinator`. New controllers are appended and `UIPageViewController.dataSource` is nil-reset to force neighbor re-queries.
 - **Image failure handling**: `handleImageFailure(identifier:)` calls the injected `onImageFailure` closure and adjusts `selectedIndex`. `InsightContentView` passes `{ path in inferenceEngine.dropInvalidCarouselImage(path) }` for the live path; the queued-scan path passes a no-op. `updateUIViewController` trims the controller pool and navigates away with `.reverse` if the displayed page was removed.
+- **Current-scan ownership boundary**: `ReferenceImageDeduplicationPolicy` removes
+  loaded reference URLs matching the active scan's visual media before page
+  construction. Naturebook media matches by normalized host/object path while
+  external URLs retain strict identity. This preserves other scans' references,
+  ordering, and attribution; an all-duplicate set becomes `.empty` and cannot
+  create a stale page indicator.
 - **`LiveCapturePageView`**: Asynchronously downsamples live capture `Data` in `DetachedWork.value(category: .imagePreparation)` and commits only the final `UIImage` to `@State`. It remains backed by `NSCache<NSNumber, UIImage>` keyed by `data.hashValue`, but ImageIO decode no longer runs from `body` layout evaluation.
 
 ## 18. Analyzing Content View: `AnalyzingContentView`

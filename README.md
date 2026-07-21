@@ -151,6 +151,12 @@ steps are tracked in the
   posts, while social metadata retains the spectrogram. Legacy non-WAV posts
   keep playback plus the speaker fallback. Audio-only posts remain excluded
   from Home Screen widgets.
+- Loaded Species Dictionary pages share readable UUID-first links at
+  `https://naturebook.earth/species/{speciesId}/{slug}`. The UUID stays
+  authoritative, while UUID-only and stale-slug browser links permanently
+  redirect to the current readable canonical URL. Installed apps open Explore's
+  Dictionary stack; browser recipients get the server-rendered public reference
+  page with attribution-approved imagery and no scan- or user-specific data.
 
 ### Native Share Extensions
 - Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Naturebook card, or text description into the compose field.
@@ -310,7 +316,9 @@ npm run dev
 ```
 
 The web routes include `/explore/post/[postId]`, a server-rendered public Explore
-share page with Open Graph metadata, and the allowlisted
+share page with Open Graph metadata; `/species/[speciesId]/[slug]`, the licensed
+public Species Dictionary page, with `/species/[speciesId]` retained as a
+permanent compatibility redirect; and the allowlisted
 `/api/explore/audio` stream used only for browser-local Boost Audio processing,
 plus public policy/support pages at `/privacy`, `/terms`, `/guidelines`,
 `/privacy-choices`, `/support`, and `/legal`.
@@ -383,7 +391,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/codebase-map.md` | Current target/module/function/schema map generated from this repo state |
 | `docs/system-architecture/` | Data flow, concurrency model, zero-OOM patterns, AI engineering |
 | `docs/features-and-hardware/` | Camera pipeline, hardware orchestration, feature module breakdowns |
-| `docs/features-and-hardware/17-public-web-share-pages.md` | Public `naturebook.earth` share page contract and Universal Links compatibility |
+| `docs/features-and-hardware/17-public-web-share-pages.md` | Public Explore/species share-page contracts, media/privacy rules, and Universal Links compatibility |
 | `docs/backend-and-data/` | Edge function contracts, database schema, offline sync, API contracts |
 | `docs/backend-and-data/10-internal-admin.md` | Internal admin architecture, security boundary, roles, metrics, moderation, and AI ledger |
 | `docs/backend-and-data/11-internal-admin-operations.md` | Internal admin setup, deployment, access recovery, pricing, and incident runbook |

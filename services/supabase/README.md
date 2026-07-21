@@ -49,6 +49,33 @@ owner weather/location fields without rerunning inference. See the function-
 local READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
 contract.
 
+### Public Species Contract
+
+`species-dictionary` is an intentionally public, read-only Edge Function with
+`verify_jwt = false`. Detail requests do not read viewer identity and return
+only the versioned species-level projection built by
+`functions/_shared/publicSpeciesProjection.ts`. Do not add scan, user, Explore
+post, location, field-note, comment, local-media, AI-reasoning, or preferred-name
+fields to that response.
+
+The iOS Species Dictionary and the server-rendered
+`https://naturebook.earth/species/{speciesId}/{slug}` route share this contract.
+The web server invokes the function with `species_id`; the readable slug is
+derived from response names and is never sent to Supabase or used for lookup.
+UUID-only and stale-slug browser routes redirect to the current canonical path
+after a successful response. The web server does not query broad tables. Before
+rendering or choosing social metadata imagery, the web mapper runs
+`publicWebReferenceImageAttributionIssues(...)` and omits incomplete rights
+rows. Similar-species thumbnails stay hidden until their payload carries
+equivalent license and attribution fields.
+
+Contract coverage lives in
+`functions/_shared/publicSpeciesProjection_test.ts` and
+`apps/web/lib/species.test.ts`. The former locks privacy, schema, content
+quality, and attribution auditing; the latter locks UUID validation, public
+mapping, slug generation and compatibility redirects, 404/transient error
+semantics, metadata helpers, native URLs, and the exact AASA path list.
+
 ### Internal Admin Boundary
 
 Migration `20260719161112_add_internal_admin_foundation.sql` owns the private
@@ -134,6 +161,20 @@ It also guards the APNs device-token repair so PostgreSQL format validation and
 32...512 character length validation remain separate. The executable pgTAP
 coverage in `tests/push_device_registration.sql` accepts a normal 64-character
 hex token and rejects short, oversized, and non-hex tokens.
+
+The suite also locks the Explore current-scan reference exclusion helper and
+the unchanged `get_explore_post_detail` response projection. Run the static
+contract plus the executable DB case after changing species-reference ordering,
+blocked-media handling, legacy fallback, or scan media fields:
+
+```bash
+deno test --allow-read \
+  services/supabase/functions/_tests/migrationMediaContract.test.ts
+SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  deno test --allow-env --allow-net \
+  --filter "excludes only the current scan media" \
+  services/supabase/functions/_tests/explorePostDetailDb.test.ts
+```
 
 Run the focused checks from the repository root after the local Supabase stack
 is available:

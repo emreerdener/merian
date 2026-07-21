@@ -220,9 +220,9 @@ migration `20260513030000_add_species_reference_images.sql`.
   verified occurrence imagery such as iNaturalist-hosted records returned by
   GBIF.
 - `license` / `attribution` (TEXT, nullable): Media rights metadata for iOS
-  attribution display and future web-safe public species pages. Web renderers
-  must treat missing values as an attribution audit failure unless they can
-  provide an equivalent source-specific attribution.
+  attribution display and the public web species page. The current web mapper
+  treats either missing value as an attribution audit failure and omits that
+  image from both page content and metadata.
 - `width` / `height` (INTEGER, nullable): Optional pixel dimensions.
 - `sort_order` (INTEGER): Display order for galleries and thumbnails.
 - `created_at` / `last_verified_at` (TIMESTAMPTZ): Creation and health-check
@@ -232,6 +232,27 @@ migration `20260513030000_add_species_reference_images.sql`.
 Ordering uses `public.public_species_reference_image_source_rank(...)`: Merian
 images first, then Wikipedia, then GBIF, with `sort_order`, `created_at`, and
 `id` as tie-breakers.
+
+### Current-scan exclusion projection
+
+Migration
+`20260721033935_exclude_current_scan_reference_images.sql` adds
+`public.public_species_reference_image_urls_excluding_media(...)`. The helper
+accepts a species ID, the legacy comma-separated fallback, and an array of media
+URLs owned by the current scan. It delegates source selection to
+`public.public_species_reference_image_urls(...)`, then removes exact trimmed
+URL matches while retaining the base projection's ordinality.
+
+Because the helper wraps the existing projection, Merian-first/Wikipedia/GBIF
+ordering, the blocked-image policy, and legacy fallback behavior remain
+unchanged. An all-excluded result is `NULL`, which is the existing no-reference
+contract. The helper does not mutate `species_reference_images`, remove another
+scan's promoted source, or add persisted provenance columns.
+
+`public.get_explore_post_detail(...)` passes the backing scan's
+`image_storage_urls` to this helper. The exclusion is therefore scoped to the
+post being read and keeps the RPC result shape compatible with existing iOS and
+web clients.
 
 Exact external-media suppression is a defense-in-depth exception to normal
 ordering. Migration

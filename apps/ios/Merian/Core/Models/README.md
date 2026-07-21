@@ -6,6 +6,28 @@ The `Models` directory contains shared entity definitions and domain models util
 
 This area houses definitions that don't belong strictly to a single feature (like a standard `User` model, or generic error types). If a model is only used by `Scans`, it should live in `Features/Scans/Models`. But if it's passed between `Explore`, `Scans`, and `Profile`, it belongs here in `Core/Models`.
 
+## Reference media identity
+
+`ActiveScanMedia.swift` owns the shared reference-image deduplication boundary
+used by Explore and Insight. `ReferenceImageDeduplicationPolicy` compares a
+reference URL with the current scan's visual media identifiers before any
+carousel pages are constructed:
+
+- Naturebook media URLs use a normalized, lowercased host plus the encoded
+  object path. Scheme, query strings, and fragments do not change the media
+  identity, so resized or signed variants of the same stored object match.
+- External URLs keep their complete trimmed URL identity. Query strings and
+  fragments remain significant because external providers may use them to
+  select different assets.
+- Matching is provenance/URL based. A separately uploaded copy with a different
+  object path remains eligible; no perceptual image comparison is performed.
+
+`ActiveScanMedia.removingDuplicateReferenceImages(excluding:)` applies the
+policy to a loaded `ReferenceState`. It leaves `.loading` and `.empty`
+unchanged, preserves the surviving reference order, and converts an emptied
+`.loaded` state to `.empty` so page counts and gallery visibility remain
+consistent.
+
 ## Capture goal context
 
 `CaptureGoalContext.swift` is the source-agnostic contract between Capture and

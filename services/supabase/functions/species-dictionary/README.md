@@ -1,8 +1,8 @@
 # Species Dictionary
 
-Returns public species-level dictionary data for the standalone species
-dictionary page. The endpoint is intentionally shared-safe for a future web
-frontend and must not expose user-specific scan data.
+Returns public species-level dictionary data for the standalone iOS and public
+web species pages. The endpoint is intentionally shared-safe and must not
+expose user-specific scan data.
 
 ## Request
 
@@ -125,11 +125,10 @@ taxonomy. `complete` means all four are present, `sparse` means two or three are
 present, and `needs_enrichment` means fewer than two are present.
 
 `license` and `attribution` are preserved on normalized `reference_images` when
-stored in `species_reference_images`. Future web species pages must run
+stored in `species_reference_images`. The web species mapper runs
 `publicWebReferenceImageAttributionIssues(...)` from
-`_shared/publicSpeciesProjection.ts` before rendering public reference media and
-must not publish images with missing rights metadata unless they provide an
-equivalent source-specific attribution path.
+`_shared/publicSpeciesProjection.ts` before rendering public reference media or
+using it in metadata and omits images with missing rights metadata.
 
 If no `species_dictionary` row exists for the scientific name, the function
 returns:
@@ -139,6 +138,30 @@ returns:
 ```
 
 with status `404`.
+
+## Public Web Consumer
+
+`apps/web/lib/species.ts` is the server-only consumer for
+`/species/[speciesId]/[slug]` and its UUID-only compatibility route. It validates
+the route UUID before invoking this function with `species_id`, requires
+`schema_version = 1`, verifies the returned identity, and maps only the
+documented public fields. The slug is derived from returned names and is never
+part of this function's request or identity contract. It must not replace the
+Edge call with direct service-role table reads.
+
+Invalid UUIDs and this function's `404` response become non-indexable Next.js
+not-found pages. Configuration failures, network failures, non-404 responses,
+malformed payloads, unsupported schema versions, and identity mismatches remain
+server errors so transient failures are not cached as missing species.
+Successful UUID-only or stale-slug requests permanently redirect to the current
+canonical UUID-plus-slug path. Successful web pages revalidate every five
+minutes.
+
+The web mapper audits every candidate reference image with
+`publicWebReferenceImageAttributionIssues(...)` before page or metadata use and
+omits rows missing `license` or `attribution`. It renders lookalikes as text
+links only because `similar_species.reference_image_url` does not currently
+carry those rights fields.
 
 ## Data Sources
 

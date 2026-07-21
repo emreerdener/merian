@@ -5,6 +5,22 @@ The `Feed` directory drives the core social timeline of the application.
 ## Purpose
 This area manages the discovery of community observations. It supports multiple feed variants: the global public feed, a following-only feed, trending observations, and geographically nearby posts. It handles pagination, likes, and comment interactions backed by Supabase RPCs.
 
+## Post-detail reference gallery
+
+An Explore post owns its primary media presentation. Its hero URL, every
+resolved media-item URL, and every media-item thumbnail URL are therefore passed
+to `ExplorePostDetail.referenceGalleryImages(excluding:)` before
+`ExploreReferenceGallery` is constructed. The shared reference-media policy
+removes Naturebook URL variants that resolve to the same host/object path while
+keeping other scans' Naturebook images and unrelated external references.
+
+The filtered list retains server order and the existing Naturebook, Wikipedia,
+and GBIF attribution mapping. When no references survive, post detail omits the
+reference gallery and its page indicators entirely. The iOS filtering remains
+a client-side defense even though `get_explore_post_detail` also excludes the
+backing scan's `image_storage_urls`, allowing backend and app changes to roll out
+independently.
+
 ## Video Playback
 
 `ExplorePublicMediaView` is the shared media host for feed cards, post detail,

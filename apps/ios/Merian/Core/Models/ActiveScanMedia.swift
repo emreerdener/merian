@@ -26,6 +26,38 @@ enum ReferenceState: Equatable {
     }
 }
 
+enum ReferenceImageDeduplicationPolicy {
+    static func filteredReferenceURLs(
+        _ referenceURLs: [String],
+        excluding mediaIdentifiers: [String]
+    ) -> [String] {
+        let excludedIdentities = Set(mediaIdentifiers.compactMap(mediaIdentity))
+        guard !excludedIdentities.isEmpty else { return referenceURLs }
+
+        return referenceURLs.filter { referenceURL in
+            guard let identity = mediaIdentity(referenceURL) else { return true }
+            return !excludedIdentities.contains(identity)
+        }
+    }
+
+    private static func mediaIdentity(_ rawValue: String) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        guard let components = URLComponents(string: trimmed),
+              let host = components.host?.lowercased(),
+              !host.isEmpty else {
+            return "path:\(trimmed)"
+        }
+
+        if host == "media.merian.app" || host.hasSuffix(".merian.app") {
+            return "naturebook:\(host)\(components.percentEncodedPath)"
+        }
+
+        return "external:\(trimmed)"
+    }
+}
+
 /// The unified structural representation of all multi-modal visual and audio data actively loaded into the interface.
 /// Encapsulates discrete modalities (images, audio, context) dynamically into an ordered array sequence natively,
 /// replacing structurally fragmented `hasLive` branching or multi-array property synchronization patterns.
@@ -61,6 +93,31 @@ struct ActiveScanMedia: Equatable {
         ActiveScanMedia(
             items: items,
             referenceState: .empty,
+            focusRegionsBySourceIndex: focusRegionsBySourceIndex
+        )
+    }
+
+    func removingDuplicateReferenceImages(
+        excluding additionalMediaIdentifiers: [String] = []
+    ) -> ActiveScanMedia {
+        guard case .loaded(let urls) = referenceState else { return self }
+
+        let itemIdentifiers = items.compactMap { item -> String? in
+            switch item {
+            case .image(let path), .video(let path):
+                return path
+            case .liveImage, .audio, .description:
+                return nil
+            }
+        }
+        let filteredURLs = ReferenceImageDeduplicationPolicy.filteredReferenceURLs(
+            urls,
+            excluding: itemIdentifiers + additionalMediaIdentifiers
+        )
+
+        return ActiveScanMedia(
+            items: items,
+            referenceState: filteredURLs.isEmpty ? .empty : .loaded(filteredURLs),
             focusRegionsBySourceIndex: focusRegionsBySourceIndex
         )
     }

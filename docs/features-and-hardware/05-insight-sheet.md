@@ -343,7 +343,30 @@ Playback taps use the shared Merian haptic vocabulary: medium feedback for play
 or enabling boost, light feedback for pause, mute, or disabling boost, and a
 single begin/commit pair for a scrub gesture. Timer updates, playhead movement,
 silent preference restoration, and carousel hydration do not generate haptics.
-3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF occurrence hydration. **Suppressed for humans and domestic cats/dogs**: `viewModel.refUrls` returns `[]` when `speciesData.shouldSuppressReferenceImages` is true. Beyond the existing human rule, suppression matches only the normalized scientific names `Felis catus` and `Canis lupus familiaris`; wild felids and canids retain their reference galleries. The user's captured media remains visible in every case.
+3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated
+   verified field observations (e.g. iNaturalist) and Wikimedia images populated
+   natively via GBIF occurrence hydration. **Suppressed for humans and domestic
+   cats/dogs**: `viewModel.refUrls` returns `[]` when
+   `speciesData.shouldSuppressReferenceImages` is true. Beyond the existing human
+   rule, suppression matches only the normalized scientific names `Felis catus`
+   and `Canis lupus familiaris`; wild felids and canids retain their reference
+   galleries. The user's captured media remains visible in every case. Before
+   counts or pages are derived, `InsightSheetViewModel` also removes references
+   matching the exact scan's image/video paths, persisted or queued thumbnails,
+   and cover image. Other scans' Naturebook media and unrelated Wikipedia/GBIF
+   references remain eligible.
+
+**Current-scan reference deduplication**: `ReferenceImageDeduplicationPolicy`
+identifies Naturebook media by normalized host and encoded object path, ignoring
+scheme, query strings, and fragments. External references use their complete
+trimmed URL identity. This is URL/provenance deduplication, not perceptual image
+matching: a separately uploaded copy with a different object path remains
+visible. `ActiveScanMedia.removingDuplicateReferenceImages(excluding:)` runs
+before `refUrls`, `totalImages`, `CarouselPageBuilder`, and
+`InsightImageGalleryBuilder` consume the state. Surviving references keep their
+source order and attribution; an emptied `.loaded` state becomes `.empty`, so
+inline and fullscreen galleries report the same corrected count without an
+empty reference page.
 
 **Seamless user-media handoff**: On a live scan, the saved on-disk media is rebuilt into `ActiveScanMedia` before `speciesData` is assigned and before the transient live image is cleared. On queued scans, `InsightSheetViewModel` seeds `cachedActiveMedia` directly from `queuedContext.capturedMediaSnapshot.activeScanMedia`. On completed records, `fetchLocalRecord` hydrates the same structure from `record.capturedMediaSnapshot.activeScanMedia`. That shared read path is what keeps the playback video clip, standalone audio clip, or mixed-media order intact while the sheet transitions from queued/analyzing state to results. Pending video paths may move from temporary capture storage into Documents during queue persistence, so the resolver falls back by filename before declaring video unavailable.
 
@@ -636,6 +659,12 @@ Extended ecological media data is loaded in three passes:
 1. **Cached with the inference response** (live scans): the post-Gemini dictionary RPC includes an already-cached primary species row, so existing `wikipedia_overview`, `wikipedia_url`, and reference imagery can populate immediately. A cache miss is not fetched synchronously; Edge Wikipedia/GBIF work runs behind `EdgeRuntime.waitUntil` and cannot delay the response.
 2. **Retroactive Wikipedia hydration** (live scans where Wikipedia was missing, and all historical scans): `InferenceEngine.fetchWikipediaAndHydrate` fires a `GET` to `en.wikipedia.org/api/rest_v1/page/mobile-sections/<scientific_name>` with an 8-second timeout. The response includes all article sections; the function finds the first section whose `title` case-insensitively equals `"Description"` and strips its HTML to plain text via `InferenceEngine.stripHTML(_:)`. If no "Description" section exists, hydration is skipped entirely. On success it commits `speciesData.wikipediaOverview` (the stripped description body), `speciesData.wikipediaUrl` (constructed from `lead.normalizedtitle`), and `speciesData.referenceImageUrl` (`lead.originalimage.source`) in a single full-value replacement on `@MainActor`.
 3. **Dynamic GBIF Native Hydration**: When the species' `gbif_taxon_key` is available (either instantly on a Cache Hit, or returned seconds later by the `enrich-scan` API), the iOS client calls `InferenceEngine.fetchGBIFImagesAndHydrate(for:)`. This queries the `api.gbif.org/v1/occurrence/search` API for 3-4 high-quality iNaturalist field photos, dynamically injecting them into the carousel to ensure highly accurate visual context.
+
+Hydration may append a URL that also exists in the scan's own media timeline.
+Callers must expose hydrated references through `InsightSheetViewModel.activeMedia`
+rather than reading `speciesData.referenceImageUrl` directly; the view-model
+boundary applies suppression, current-scan deduplication, and empty-state
+normalization before either carousel is built.
 
 ---
 

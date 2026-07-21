@@ -19,6 +19,8 @@ enum AppEvent {
         targetCommentId: String?,
         targetReplyParentCommentId: String?
     )
+    /// Dispatched from a Universal Link or custom-scheme URL to open a public species page.
+    case appDidEnterActivePhaseWithSpeciesDictionary(speciesId: String)
     
     /// Dispatched when the app wakes up after being in the background for longer than the session timeout limit.
     /// Used to snap the UI back to a clean camera state.

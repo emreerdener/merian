@@ -48,9 +48,7 @@ extension InsightSheetViewModel {
     }
 
     var refUrls: [String] {
-        guard let data = inferenceEngine?.speciesData else { return [] }
-        guard !data.shouldSuppressReferenceImages else { return [] }
-        return ExternalReferenceImagePolicy.allowedURLStrings(from: data.referenceImageUrl)
+        activeMedia.referenceState.urls
     }
 
     var shouldSuppressReferenceImages: Bool {
@@ -61,7 +59,21 @@ extension InsightSheetViewModel {
     }
 
     private func displayMedia(_ media: ActiveScanMedia) -> ActiveScanMedia {
-        shouldSuppressReferenceImages ? media.withoutReferenceImages : media
+        let visibleMedia = shouldSuppressReferenceImages ? media.withoutReferenceImages : media
+        return visibleMedia.removingDuplicateReferenceImages(
+            excluding: additionalUserMediaIdentifiers
+        )
+    }
+
+    private var additionalUserMediaIdentifiers: [String] {
+        var identifiers = activeLocalRecord?.capturedMediaSnapshot.thumbnailImagePaths ?? []
+        if let queuedContext {
+            identifiers.append(contentsOf: queuedContext.capturedMediaSnapshot.thumbnailImagePaths)
+        }
+        if let coverImagePath = toolbarRecordSnapshot?.coverImagePath {
+            identifiers.append(coverImagePath)
+        }
+        return identifiers
     }
 
     var activeMedia: ActiveScanMedia {

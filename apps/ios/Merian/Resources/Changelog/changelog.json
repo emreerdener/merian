@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-20-species-dictionary-sharing",
+      "date": "2026-07-20",
+      "title": "Share the Species Dictionary",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Species Dictionary pages can now be shared with readable links. A link opens the matching page in Naturebook when installed or a rich public reference page in the browser."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-20-reference-image-deduplication",
+      "date": "2026-07-20",
+      "title": "Cleaner scan galleries",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Your scan's own photo now appears only once in Insight and Explore post galleries, while other Naturebook observations and eligible reference images remain available."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-19-field-notes-save-feedback",
       "date": "2026-07-19",
       "title": "Reliable Field notes editing",

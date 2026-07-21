@@ -27,6 +27,13 @@ credentials, and unsupported formats. Browser
 verification should cover Boost → Boosted → original transitions because Web
 Audio context activation cannot be proven by TypeScript alone.
 
+`lib/species.test.ts` locks canonical/native UUID URLs, versioned Edge response
+mapping, 404-versus-transient failure behavior, shared attribution filtering,
+and the exact AASA path list. The corresponding iOS suites cover canonical and
+legacy HTTPS/custom-scheme parsing, malformed UUID rejection, share URL copy,
+conflicting-route cleanup, Dictionary-tab presentation state, and survival of
+the immediate foreground timeout reset.
+
 ## In-Memory Database Containers (`SwiftData`)
 
 Test suites must not pollute the local iOS file system or SQLite databases. All
@@ -955,13 +962,13 @@ and detail seeking still behaves as documented.
   are not projected. It also verifies
   `publicSpeciesProjectionForbiddenKeys(...)` catches explicit leaks such as
   `scan_id`, `field_notes`, coordinates, and per-scan AI reasoning. This
-  protects `/species-dictionary`, Explore detail similar species, and the future
-  web species endpoint from mixing species-level dictionary data with
+  protects `/species-dictionary`, Explore detail similar species, and the
+  shipped web species endpoint from mixing species-level dictionary data with
   scan-specific content.
 - **Public species content quality**: `_shared/publicSpeciesProjection_test.ts`
   classifies dictionary rows as `complete`, `sparse`, or `needs_enrichment` from
   public reference-image, overview, habitat/distribution, and taxonomy signals.
-  This keeps sparse-page UI behavior deterministic across iOS and the future web
+  This keeps sparse-page UI behavior deterministic across iOS and the web
   frontend.
 - **Exact external reference-media policy**:
   `_shared/externalImagePolicy_test.ts` covers original/resized/query variants
@@ -970,11 +977,30 @@ and detail seeking still behaves as documented.
   `_shared/publicSpeciesProjection_test.ts` covers normalized, legacy, and
   first-image promotion; and `refresh-species-content/db.test.ts` verifies
   neither cache nor normalized RPC writes receive the denied media.
+- **Current-scan reference-image exclusion**:
+  `InsightSheetViewModelTests` verifies Naturebook host/object-path matching,
+  strict external URL identity, corrected page counts, shared inline/fullscreen
+  ordering, preservation of other-scan and Wikipedia references, and
+  `.loaded`-to-`.empty` normalization for all-duplicate sets.
+  `MerianNetworkClientTests` verifies Explore reference attribution survives
+  client-side filtering. On the backend,
+  `_tests/migrationMediaContract.test.ts` locks the helper and unchanged RPC
+  projection contract, while `_tests/explorePostDetailDb.test.ts` covers exact
+  current-scan exclusion, other-scan preservation, ordered external references,
+  and legacy fallback against Postgres.
 - **Public web media attribution audit**:
   `_shared/publicSpeciesProjection_test.ts` covers
-  `publicWebReferenceImageAttributionIssues(...)`, which future web species
-  pages must run before rendering reference images. The audit flags every public
-  image missing `license` or `attribution`.
+  `publicWebReferenceImageAttributionIssues(...)`, which the web species mapper
+  runs before rendering or selecting metadata images. The audit flags every
+  public image missing `license` or `attribution`.
+- **Public species URL compatibility**: `apps/web/lib/species.test.ts` verifies
+  lowercase ASCII slug generation, common/scientific/generic fallbacks, the
+  80-character bound, canonical UUID-plus-slug paths, UUID-only and stale-slug
+  redirect decisions, UUID validation, native UUID URLs, metadata, and the
+  exact AASA path list. `SpeciesDictionaryTests` locks the same canonical iOS
+  share URL and slug rules, while `MessageScanShareCacheTests` verifies
+  canonical, UUID-only, stale-slug, legacy-host, and custom-scheme parsing all
+  produce only the normalized UUID.
 - **Species content provenance contract**:
   `_shared/speciesContentProvenance_test.ts` verifies source assignment and
   refresh windows for dictionary fields, group tags, and lookalikes. It should

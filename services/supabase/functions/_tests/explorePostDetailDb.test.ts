@@ -217,7 +217,10 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
         row.ai_reasoning,
         "Petal shape and thorn spacing match Rosa galeria.",
       );
-      assertEquals(row.alternative_common_names, ["Garden Rose", "Meadow Rose"]);
+      assertEquals(row.alternative_common_names, [
+        "Garden Rose",
+        "Meadow Rose",
+      ]);
       assertEquals(row.gbif_taxon_key, 424242);
       assertEquals(row.hazard_type, "poisonous");
       assertEquals(row.wikipedia_url, wikipediaUrl);
@@ -296,6 +299,98 @@ Deno.test("Explore post detail DB - returns an empty similar_species array when 
       assertEquals(row.post_id, postId);
       assertEquals(row.alternative_common_names, []);
       assertEquals(row.similar_species, []);
+    },
+  );
+});
+
+Deno.test("Explore post detail DB - excludes only the current scan media from references", async () => {
+  await withExploreDbTest(
+    "explorePostDetailDb.currentScanReferenceDeduplication.test",
+    async (client: Client) => {
+      const ownerId = crypto.randomUUID();
+      const viewerId = crypto.randomUUID();
+      const speciesId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+      const postId = crypto.randomUUID();
+      const currentPhoto =
+        "https://media.merian.app/public_uploads/pro/owner/current.webp";
+      const currentVideoFrame =
+        "https://media.merian.app/public_uploads/pro/owner/frame.webp";
+      const otherCommunityPhoto =
+        "https://media.merian.app/public_uploads/pro/other/reference.webp";
+      const wikipediaPhoto = "https://upload.wikimedia.org/species.jpg";
+
+      await insertUser(client, ownerId, "Reference Owner");
+      await insertUser(client, viewerId, "Reference Viewer");
+      await insertSpecies(client, speciesId, "Rosa distincta");
+      await insertScan(client, {
+        id: scanId,
+        userId: ownerId,
+        speciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        imageUrls: [currentPhoto, currentVideoFrame],
+      });
+      await insertExplorePost(client, {
+        id: postId,
+        userId: ownerId,
+        scanId,
+      });
+
+      await client.queryArray(
+        `
+          INSERT INTO public.species_reference_images (
+            species_id,
+            url,
+            source,
+            sort_order
+          )
+          VALUES
+            ($1, $2, 'merian', 0),
+            ($1, $3, 'merian', 1),
+            ($1, $4, 'merian', 2),
+            ($1, $5, 'wikipedia', 0)
+          ON CONFLICT DO NOTHING
+        `,
+        [
+          speciesId,
+          currentPhoto,
+          currentVideoFrame,
+          otherCommunityPhoto,
+          wikipediaPhoto,
+        ],
+      );
+
+      const result = await client.queryObject<ExplorePostDetailRow>(
+        `
+          SELECT post_id, reference_image_url
+          FROM public.get_explore_post_detail($1, $2)
+        `,
+        [viewerId, postId],
+      );
+
+      assertEquals(result.rows[0]?.post_id, postId);
+      assertEquals(
+        result.rows[0]?.reference_image_url,
+        [otherCommunityPhoto, wikipediaPhoto].join(","),
+      );
+
+      const legacyFallback = await client.queryObject<{ urls: string | null }>(
+        `
+          SELECT public.public_species_reference_image_urls_excluding_media(
+            $1,
+            $2,
+            $3::TEXT[]
+          ) AS urls
+        `,
+        [
+          crypto.randomUUID(),
+          [currentPhoto, wikipediaPhoto].join(","),
+          [currentPhoto],
+        ],
+      );
+      assertEquals(legacyFallback.rows[0]?.urls, wikipediaPhoto);
     },
   );
 });

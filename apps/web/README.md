@@ -3,15 +3,20 @@
 Next.js + Mantine web surface for public Naturebook pages. The package and
 repository continue to use Merian as their stable engineering identity.
 
-The first route is the public Explore share page:
+The public share routes are:
 
 ```text
 /explore/post/[postId]
+/species/[speciesId]/[slug]
 ```
 
-It fetches the public Explore post and detail projections from Supabase on the
-server, renders a rich read-only post page with default Mantine components, and
-emits Open Graph metadata so Messages/social shares can render a clean preview.
+`/species/[speciesId]` remains a UUID-only compatibility route and permanently
+redirects to the current readable canonical path after resolving the species.
+
+The Explore route fetches the public post and detail projections from Supabase
+on the server, renders a rich read-only post page with default Mantine
+components, and emits Open Graph metadata so Messages/social shares can render
+a clean preview.
 Unshared, administratively hidden, tombstoned, blocked, and otherwise
 privacy-filtered posts resolve to the application not-found page with
 non-indexable metadata; server code must not reconstruct them from direct table
@@ -33,6 +38,11 @@ The production domain is:
 ```text
 https://naturebook.earth
 ```
+
+Species pages are server-rendered from the existing privacy-safe
+`species-dictionary` Edge Function. They publish only licensed reference
+imagery with complete attribution and intentionally omit observations,
+Community sightings, user media, locations, and scan-specific data.
 
 ## Setup
 
@@ -114,20 +124,29 @@ curl -I 'https://naturebook.app/explore/post/example?source=docs'
 curl -I 'https://www.naturebook.app/explore/post/example?source=docs'
 curl -I 'https://merian.earth/explore/post/example?source=docs'
 curl -I 'https://www.merian.earth/explore/post/example?source=docs'
+curl -I 'https://naturebook.earth/species/00000000-0000-0000-0000-000000000000'
+curl -I 'https://merian.earth/species/00000000-0000-0000-0000-000000000000'
+curl -I 'https://merian.earth/species/{real-species-uuid}/{current-slug}?source=docs'
+curl -I 'https://naturebook.earth/apple-app-site-association'
 curl -I 'https://naturebook.earth/.well-known/apple-app-site-association'
+curl -I 'https://merian.earth/apple-app-site-association'
 curl -I 'https://merian.earth/.well-known/apple-app-site-association'
 ```
 
 The canonical host may return the route's normal status. Every alias must
 permanently redirect to the matching path and query on `naturebook.earth`.
-Both AASA checks must return HTTP 200 directly with JSON content and no redirect.
-The AASA payload must continue to use
-`TA8S64ST9W.app.merian.Merian`.
+All four AASA checks must return HTTP 200 directly with JSON content and no redirect.
+The AASA payload must continue to use `TA8S64ST9W.app.merian.Merian` with the
+exact path list `["/explore/post/*", "/species/*"]`.
+
+For a real species UUID, also verify the UUID-only and stale-slug Naturebook
+paths return a permanent redirect to the current UUID-plus-slug canonical path.
 
 ## Scripts
 
 ```bash
 npm run dev
+npm test
 npm run typecheck
 npm run build
 npm audit --audit-level=moderate
@@ -139,6 +158,7 @@ Use this public URL in iOS share payloads:
 
 ```text
 https://naturebook.earth/explore/post/{postId}
+https://naturebook.earth/species/{speciesId}/{slug}
 ```
 
 Universal Links are active, meaning the HTTPS URL opens the native iOS app when installed, and gracefully falls back to the public web preview otherwise.
@@ -147,6 +167,7 @@ The web page includes a native-app CTA using:
 
 ```text
 naturebook://explore/post/{postId}
+naturebook://species/{speciesId}
 ```
 
 Keep the HTTPS URL as the primary shared link so recipients without the app still get a real page and a rich Open Graph preview.
@@ -179,6 +200,15 @@ omit this parameter so recipients see their own browser/system preference.
   remains poster-only and uses species reference images for audio posts. Audio
   detail slides retain their spectrogram, bottom-anchored controls, and optional
   browser-local Boost Audio toggle.
+- `/species/[speciesId]/[slug]` — public Species Dictionary reference page. The
+  lowercase ASCII slug is derived from the common name, with the scientific
+  name and then `species` as fallbacks; it is descriptive only and never used
+  for lookup. UUID-only and stale-slug requests permanently redirect to the
+  current canonical path. Successful pages revalidate every five minutes, emit
+  canonical/Open Graph/Twitter metadata, link similar species textually, and
+  filter every rendered or metadata image through the shared attribution audit.
+  Invalid IDs and missing species are non-indexable 404s; transient Edge
+  failures remain server errors.
 - `/api/explore/audio?url={canonicalWavUrl}` — range-capable same-origin stream
   used only by Boost Audio. It accepts canonical public Naturebook WAV URLs on
   the stable `media.merian.app` infrastructure host, is not
@@ -203,6 +233,12 @@ reference images, overview text, conservation status, taxonomy labels, and
 alternate names. If the public projection supplies `author_username`, render it
 only as a public handle. Do not expose exact coordinates, private field notes,
 raw scan telemetry, auth data, private email, or server credentials.
+
+Species pages consume only the versioned public payload returned by the
+`species-dictionary` Edge Function with `species_id`. Server code must not query
+broad species, scan, profile, or Explore tables to reconstruct that payload.
+Similar-species thumbnails are intentionally omitted because the current
+lookalike payload does not carry the required license and attribution fields.
 
 The Explore share page intentionally uses default Mantine components and
 component props instead of route-specific CSS classes or custom page chrome.

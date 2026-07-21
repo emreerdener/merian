@@ -30,8 +30,21 @@ TestFlight, App Store, support, and QA.
   package set, and missing required `pro_week` / `pro_annual` products so beta
   store-configuration failures are visible before release.
 
+### Species Dictionary
+
+- Added sharing to Species Dictionary pages. Shared links open the matching
+  Dictionary page in Naturebook when installed and otherwise show a rich public
+  web reference with licensed imagery, attribution, taxonomy, conservation and
+  safety details, habitat, overview, and linked similar species.
+- Species share links now include a readable name slug after the stable UUID.
+  Existing UUID-only links and links carrying an older name keep working and
+  redirect to the current canonical URL in browsers.
+
 ### Media & Performance
 
+- Fixed a scan's own photo appearing again as a reference image in Insight and
+  Explore post galleries. Other Naturebook observations and eligible Wikipedia
+  and GBIF references remain available.
 - Hid third-party reference images for domestic cat and dog identifications
   across Insight and shared Explore pages, while keeping the user's captured
   media and retaining reference galleries for wild felids and canids.

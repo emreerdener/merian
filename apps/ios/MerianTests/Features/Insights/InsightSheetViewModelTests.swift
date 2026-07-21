@@ -1156,6 +1156,87 @@ struct InsightSheetViewModelTests {
         #expect(pages.map(\.referenceAttributionLabel) == ["Naturebook", "Wikipedia", "GBIF"])
     }
 
+    @Test func testReferenceDeduplicationIgnoresNaturebookURLDecorationsButKeepsStrictExternalIdentity() {
+        let references = [
+            "https://media.merian.app/public_uploads/pro/user/photo.webp?width=900",
+            "https://example.com/species.jpg?size=small#first"
+        ]
+
+        let filtered = ReferenceImageDeduplicationPolicy.filteredReferenceURLs(
+            references,
+            excluding: [
+                "HTTPS://MEDIA.MERIAN.APP/public_uploads/pro/user/photo.webp?width=1800#capture",
+                "https://example.com/species.jpg?size=small#second"
+            ]
+        )
+
+        #expect(filtered == ["https://example.com/species.jpg?size=small#first"])
+    }
+
+    @Test func testInsightMediaRemovesCurrentScanReferencesFromInlineAndFullscreenCarousels() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        let captureURL = "https://media.merian.app/public_uploads/pro/user/capture.webp"
+        let communityURL = "https://media.merian.app/public_uploads/pro/other/reference.webp"
+        let wikipediaURL = "https://upload.wikimedia.org/species.jpg"
+
+        viewModel.inferenceEngine = engine
+        engine.activeMedia = ActiveScanMedia(
+            items: [.image("\(captureURL)?download=1")],
+            referenceState: .loaded([
+                "\(captureURL)?width=1200",
+                communityURL,
+                wikipediaURL
+            ])
+        )
+        engine.speciesData = SpeciesData(
+            scanId: "reference_deduplication",
+            commonName: "Test species",
+            scientificName: "Testus species",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.96,
+            referenceImageUrl: [captureURL, communityURL, wikipediaURL].joined(separator: ","),
+            isBiological: true,
+            isLiveCapture: false,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let visibleMedia = viewModel.activeMedia
+        #expect(visibleMedia.referenceState == .loaded([communityURL, wikipediaURL]))
+        #expect(viewModel.refUrls == [communityURL, wikipediaURL])
+        #expect(viewModel.totalImages == 3)
+
+        let pageIDs = CarouselPageBuilder.buildPages(
+            for: visibleMedia,
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        ).map(\.id)
+        #expect(pageIDs == [
+            "image-\(captureURL)?download=1",
+            "reference-\(communityURL)",
+            "reference-\(wikipediaURL)"
+        ])
+
+        let fullscreenIDs = InsightImageGalleryBuilder.buildItems(
+            for: visibleMedia,
+            referenceWikipediaUrl: nil
+        ).map(\.id)
+        #expect(fullscreenIDs == pageIDs)
+    }
+
+    @Test func testInsightMediaConvertsAnAllDuplicateReferenceSetToEmpty() {
+        let captureURL = "https://media.merian.app/public_uploads/free/user/capture.webp"
+        let media = ActiveScanMedia(
+            items: [.image(captureURL)],
+            referenceState: .loaded(["\(captureURL)?width=640"])
+        ).removingDuplicateReferenceImages()
+
+        #expect(media.referenceState == .empty)
+        #expect(media.totalItems == 1)
+    }
+
     @Test func testNativeCarouselResetsDataSourceWhenReferencesAppendAfterAudioPage() {
         let audioPath = "documents/audio_only.wav"
         let audioOnlyPages = CarouselPageBuilder.buildPages(

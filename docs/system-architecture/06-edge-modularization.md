@@ -415,8 +415,8 @@ species-level public data should route its mapping through
 `_shared/publicSpeciesProjection.ts` or an equivalent SQL helper. This keeps
 common-name fallback, reference-image source mapping, nullable taxonomy shape,
 and private-field exclusions consistent across `/species-dictionary`,
-`/enrich-scan` lookalikes, Explore detail similar species, and the future web
-frontend. Tests in `_shared/publicSpeciesProjection_test.ts` must fail if scan
+`/enrich-scan` lookalikes, Explore detail similar species, and the public web
+species mapper. Tests in `_shared/publicSpeciesProjection_test.ts` must fail if scan
 IDs, user IDs, field notes, coordinates, AI reasoning, or preference fields leak
 into a public species projection.
 
