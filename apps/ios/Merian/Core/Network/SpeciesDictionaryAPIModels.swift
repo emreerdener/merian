@@ -460,8 +460,9 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
     }
 
     var fullscreenAttributionLabel: String {
-        if let username = naturebookAuthorUsername {
-            return "@\(username) · \(source.label)"
+        if source == .merian {
+            return naturebookAuthorUsername
+                .map { "@\($0) · \(source.label)" } ?? source.label
         }
 
         func displayableCredit(_ value: String?) -> String? {

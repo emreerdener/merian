@@ -708,11 +708,12 @@ Key rules:
   the display label itself is the default username. Source scan/post/user IDs
   remain in the private `species_reference_image_merian_sources` table along
   with the private confidence/provenance snapshot used for promotion.
-- `/species-dictionary` performs one bounded lookup through the promoted
-  source's `reference_image_id` and joins `users.public_username`. Its public
-  image item adds only `author_user_id` and the current `author_username`, which
-  powers the tappable iOS contributor badge. The source scan/post IDs and all
-  other provenance stay out of the response.
+- `/species-dictionary` performs one bounded lookup by the promoted source's
+  stable `(species_id, image_url)` key and joins `users.public_username`. This
+  still resolves legacy promoted rows whose nullable `reference_image_id` link
+  has not been repaired. The public image item adds only `author_user_id` and the
+  current `author_username`; source scan/post IDs and all other provenance stay
+  out of the response.
 - If an Explore post is unshared, media is cleared, the source scan geoprivacy
   becomes private, the scan is tombstoned, or the author is shadowbanned, the
   next refresh removes the corresponding Merian public reference image. This

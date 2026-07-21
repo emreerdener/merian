@@ -340,7 +340,7 @@ struct InsightChatSheet: View {
                 .padding(.horizontal, 24)
 
             if !allowsOwnerActions {
-                Text("Answers use the published observation and Species Dictionary. Field chat can't inspect the post's photo, video, or audio.")
+                Text("This Field chat is private and visible only to you.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

@@ -107,6 +107,19 @@ struct SpeciesDictionaryTests {
         #expect(response.data.similarSpeciesData?.entries.first?.similarityConfidence == 0.78)
     }
 
+    @Test func testNaturebookFullscreenAttributionNeverFallsBackToDisplayName() {
+        let image = SpeciesDictionaryReferenceImage(
+            url: "https://media.merian.app/public_uploads/pro/test.webp",
+            source: .merian,
+            license: "Used with permission via Naturebook",
+            attribution: "Ayla E.",
+            width: nil,
+            height: nil
+        )
+
+        #expect(image.fullscreenAttributionLabel == "Naturebook")
+    }
+
     @Test func testAlternativeCommonNamesLineSanitizesNames() {
         let displayNames = AlternativeCommonNamesLine.displayNames(
             from: [

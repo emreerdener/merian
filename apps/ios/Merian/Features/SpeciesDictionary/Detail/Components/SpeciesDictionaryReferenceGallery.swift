@@ -177,10 +177,10 @@ struct SpeciesDictionaryReferenceGallery: View {
             .foregroundStyle(.primary)
             .lineLimit(1)
             .truncationMode(.tail)
-            .frame(maxWidth: 132)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(.regularMaterial, in: Capsule(style: .continuous))
+            .frame(maxWidth: 132, alignment: .leading)
     }
 
     private func sourceBadge(for image: SpeciesDictionaryReferenceImage) -> some View {

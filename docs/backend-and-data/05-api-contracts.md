@@ -2038,7 +2038,8 @@ Name and imagery mapping:
   item includes `url` and `source`, plus optional `license`, `attribution`,
   `width`, and `height` when present. A currently promoted `merian` item also
   includes `author_user_id` and the contributor's current `author_username` when
-  its private source link is intact; external items never receive those fields.
+  its promoted private source row matches the species and exact image URL;
+  external items never receive those fields.
 - If no normalized image rows exist, `reference_images` falls back to the
   comma-separated `species_dictionary.reference_image_url` field by splitting,
   trimming, and deduping URLs.
@@ -2070,16 +2071,18 @@ Image licensing and attribution:
 - `/species-dictionary` preserves `license` and `attribution` on each normalized
   `reference_images` item when the metadata exists. Legacy comma-separated
   fallback images usually have only `url` and `source`.
-- For a promoted Naturebook image, the Edge data layer uses
-  `species_reference_image_merian_sources.reference_image_id` to resolve only
-  the public author ID and current username. Scan IDs, post IDs, source media
-  indexes, confidence data, and locations remain private.
+- For a promoted Naturebook image, the Edge data layer uses the private source
+  row's stable `(species_id, image_url)` key to resolve only the public author ID
+  and current username. This works even if the nullable `reference_image_id`
+  link is absent. Scan IDs, post IDs, source media indexes, confidence data, and
+  locations remain private.
 - iOS shows a truncated, tappable `@username` badge over Naturebook images and
   opens the existing public profile sheet. It renders no attribution/license
   footer below the species gallery. The fullscreen viewer uses its bottom
   overlay for fuller credit: `@username · Naturebook` for Naturebook images,
-  without the stored permission wording, or external attribution/license/source
-  metadata when present.
+  without falling back to stored display-name or permission wording, or external
+  attribution/license/source metadata when present. A Naturebook image missing
+  username data shows only the source label.
 - The web species mapper calls
   `publicWebReferenceImageAttributionIssues(...)` from
   `_shared/publicSpeciesProjection.ts` before rendering reference media or

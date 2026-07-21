@@ -114,6 +114,11 @@ Deno.test("species-dictionary helpers - attach current Naturebook contributor us
         source: "merian",
       },
       {
+        id: "legacy-unlinked-reference-id",
+        url: "https://media.merian.app/public_uploads/pro/legacy.webp",
+        source: "merian",
+      },
+      {
         id: "wikipedia-id",
         url: "https://upload.wikimedia.org/photo.jpg",
         source: "wikipedia",
@@ -125,13 +130,21 @@ Deno.test("species-dictionary helpers - attach current Naturebook contributor us
         user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f458",
         author: { public_username: "ayla" },
       },
+      {
+        reference_image_id: null,
+        image_url: "https://media.merian.app/public_uploads/pro/legacy.webp",
+        user_id: "66a06afc-a56f-4d19-bfc3-07cf32c1f459",
+        author: { public_username: "legacy_author" },
+      },
     ],
   );
 
   assertEquals(rows[0].author_user_id, "66a06afc-a56f-4d19-bfc3-07cf32c1f458");
   assertEquals(rows[0].author_username, "ayla");
-  assertEquals(rows[1].author_user_id, undefined);
-  assertEquals(rows[1].author_username, undefined);
+  assertEquals(rows[1].author_user_id, "66a06afc-a56f-4d19-bfc3-07cf32c1f459");
+  assertEquals(rows[1].author_username, "legacy_author");
+  assertEquals(rows[2].author_user_id, undefined);
+  assertEquals(rows[2].author_username, undefined);
 });
 
 Deno.test("species-dictionary helpers - first reference image reads legacy cache", () => {

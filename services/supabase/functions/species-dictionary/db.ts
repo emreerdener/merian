@@ -68,6 +68,7 @@ interface LookalikeSpeciesRow {
 
 export interface ReferenceImageAuthorRow {
   reference_image_id?: string | null;
+  image_url?: string | null;
   user_id?: string | null;
   author?: ReferenceImageAuthorUserRow | ReferenceImageAuthorUserRow[] | null;
 }
@@ -80,25 +81,38 @@ export function referenceImageRowsWithAuthors(
   rows: SpeciesReferenceImageRow[],
   authorRows: ReferenceImageAuthorRow[],
 ): SpeciesReferenceImageRow[] {
+  const normalizedAuthors = authorRows.flatMap((row) => {
+    const referenceImageId = stringValue(row.reference_image_id);
+    const imageUrl = stringValue(row.image_url);
+    const authorUserId = stringValue(row.user_id);
+    const author = Array.isArray(row.author) ? row.author[0] : row.author;
+    const authorUsername = stringValue(author?.public_username);
+    return (referenceImageId || imageUrl) && authorUserId && authorUsername
+      ? [{ referenceImageId, imageUrl, authorUserId, authorUsername }]
+      : [];
+  });
   const authorsByReferenceImageId = new Map(
-    authorRows.flatMap((row) => {
-      const referenceImageId = stringValue(row.reference_image_id);
-      const authorUserId = stringValue(row.user_id);
-      const author = Array.isArray(row.author) ? row.author[0] : row.author;
-      const authorUsername = stringValue(author?.public_username);
-      return referenceImageId && authorUserId && authorUsername
-        ? [[referenceImageId, { authorUserId, authorUsername }] as const]
-        : [];
-    }),
+    normalizedAuthors.flatMap((author) =>
+      author.referenceImageId
+        ? [[author.referenceImageId, author] as const]
+        : []
+    ),
+  );
+  const authorsByImageUrl = new Map(
+    normalizedAuthors.flatMap((author) =>
+      author.imageUrl ? [[author.imageUrl, author] as const] : []
+    ),
   );
 
   return rows.map((row) => {
     if (row.source !== "merian") return row;
 
     const referenceImageId = stringValue(row.id);
-    const author = referenceImageId
+    const imageUrl = stringValue(row.url);
+    const author = (referenceImageId
       ? authorsByReferenceImageId.get(referenceImageId)
-      : undefined;
+      : undefined) ??
+      (imageUrl ? authorsByImageUrl.get(imageUrl) : undefined);
     return author
       ? {
         ...row,
@@ -1177,22 +1191,23 @@ async function fetchReferenceImages(
   }
 
   const referenceImageRows = (data ?? []) as SpeciesReferenceImageRow[];
-  const merianReferenceImageIds = referenceImageRows.flatMap((row) => {
-    const id = stringValue(row.id);
-    return row.source === "merian" && id ? [id] : [];
+  const merianReferenceImageUrls = referenceImageRows.flatMap((row) => {
+    const url = stringValue(row.url);
+    return row.source === "merian" && url ? [url] : [];
   });
 
   let rowsWithAuthors = referenceImageRows;
-  if (merianReferenceImageIds.length > 0) {
+  if (merianReferenceImageUrls.length > 0) {
     const { data: authorData, error: authorError } = await supabaseAdmin
       .from("species_reference_image_merian_sources")
       .select(
-        "reference_image_id, user_id, author:users!user_id(public_username)",
+        "reference_image_id, image_url, user_id, author:users!user_id(public_username)",
       )
-      .in("reference_image_id", merianReferenceImageIds)
+      .eq("species_id", speciesId)
+      .in("image_url", merianReferenceImageUrls)
       .eq("is_promoted", true)
       .is("disqualified_at", null)
-      .limit(merianReferenceImageIds.length);
+      .limit(merianReferenceImageUrls.length);
 
     if (authorError) {
       throw new Error(
