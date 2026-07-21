@@ -4856,11 +4856,13 @@ flows and do not change the `/insight-chat` response payload.
 
 ## Deno `/explore-post-chat` Edge Node
 
-Private Pro Field chat for another user's active Explore post. The endpoint
+Private Pro Field chat for any active Explore post visible to the viewer,
+including their own. The endpoint
 authenticates with `withEdgeHandler`, derives the viewer from the verified JWT,
-rejects posts owned by that viewer, and resolves Pro/trial access server-side.
-Each `(post_id, viewer user_id)` pair has its own conversation. The post author
-and other viewers cannot load or mutate it.
+requires the post to be visible to that viewer, and resolves Pro/trial access
+server-side. Each `(post_id, viewer user_id)` pair has its own conversation.
+Other viewers cannot load or mutate it; the post author may own a conversation
+when viewing their own published post.
 
 Request bodies use `post_id` and support `load`, `send`, `delete`, `feedback`,
 and `suggest_prompts`:
@@ -4889,8 +4891,8 @@ access. These technical boundaries remain server-enforced even though the iOS
 empty state presents only the concise trust message: `This Field chat is
 private and visible only to you.`
 
-`404 post_not_available` covers missing, unpublished, blocked, or viewer-owned
-posts; `402 pro_required` covers non-Pro viewers; `404 message_not_found`
+`404 post_not_available` covers missing, unpublished, or blocked posts; `402
+pro_required` covers non-Pro viewers; `404 message_not_found`
 covers feedback targeting a non-owned assistant message; and
 `429 daily_limit_reached` returns the current conversation envelope with no new
 send. Unpublishing a post deletes all of its private viewer conversations.

@@ -51,8 +51,8 @@ These web surfaces are public projections only. They must never expose exact
 coordinates, private notes, raw scan telemetry, authenticated Community
 sightings, local observation aggregates, user media, or server credentials.
 
-In the native app, other users' Explore post details can open a Pro Field chat.
-This is not a public comment or a thread shared with the post author: each
+In the native app, every visible Explore post detail can open a Pro Field chat,
+including a post authored by the viewer. This is not a public comment: each
 conversation is keyed to the authenticated viewer and post, and is visible only
 to that viewer. `/explore-post-chat` builds answers from privacy-filtered public
 post/detail and Species Dictionary text, while owner scan data and every other

@@ -867,7 +867,8 @@ the identify pipeline. The current shipped surface includes:
 
 `explore-post-chat` creates one private conversation per requesting viewer and
 active post. The authenticated viewer ID is supplied by `withEdgeHandler`, not
-the request body. The post author and other viewers cannot read that thread.
+the request body. Other viewers cannot read that thread; when the viewer is the
+post author, they can use their own private post-scoped conversation.
 The Edge Function uses service-role access internally, while its three storage
 tables retain RLS ownership policies and revoke direct `anon` and
 `authenticated` Data API access. Chat context comes only from the same public

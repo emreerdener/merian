@@ -80,10 +80,10 @@ steps are tracked in the
 
 ### Explore
 - Public feed, following feed, trending, nearby, and map views backed by Supabase RPCs and Edge Functions.
-- Other users' post details expose the same floating Field chat entry point as
+- Explore post details expose the same floating Field chat entry point as
   Insights. Each Pro viewer gets a private per-post conversation visible only
-  to them—not to the post author or other viewers—grounded in the public
-  observation and Species Dictionary context.
+  to them—not to other viewers—grounded in the public observation and Species
+  Dictionary context. Authors can use it on their own published posts too.
 - Share/unshare scans to Explore with optional public hashtags and a selectable
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.

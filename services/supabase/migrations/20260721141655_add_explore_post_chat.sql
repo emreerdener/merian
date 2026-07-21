@@ -1,5 +1,5 @@
 -- Private per-viewer Field chat conversations grounded only in the public
--- projection of another user's active Explore post.
+-- projection of an active Explore post, including the viewer's own post.
 
 CREATE TABLE public.explore_post_chat_conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

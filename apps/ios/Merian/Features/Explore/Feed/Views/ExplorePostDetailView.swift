@@ -310,6 +310,11 @@ struct ExplorePostDetailView: View {
                                 onOpenInsight: { openInsight(for: post) },
                                 onEditPost: { openPostComposer(for: post) },
                                 onUnpublish: { postToUnpublish = post },
+                                showsFieldChatAction: ExplorePostFieldChatPresentationPolicy.showsMenuAction(
+                                    isCommentComposerSticky: presentedComposerIsSticky,
+                                    isCommentComposerFocused: isComposerFocused
+                                ),
+                                onFieldChat: { openExploreFieldChat(for: post) },
                                 onBlockAuthor: {
                                     Task { await viewModel.blockAuthor(of: post) }
                                 },
@@ -325,9 +330,10 @@ struct ExplorePostDetailView: View {
                             )
                         }
 
-                        if !isOwnedByCurrentUser(post),
-                           !presentedComposerIsSticky,
-                           !isComposerFocused {
+                        if ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
+                            isCommentComposerSticky: presentedComposerIsSticky,
+                            isCommentComposerFocused: isComposerFocused
+                        ) {
                             ToolbarItemGroup(placement: .bottomBar) {
                                 Spacer()
                                 FieldChatToolbarButton {
@@ -1030,7 +1036,6 @@ struct ExplorePostDetailView: View {
     }
 
     private func openExploreFieldChat(for post: ExplorePost) {
-        guard !isOwnedByCurrentUser(post) else { return }
         HapticManager.shared.triggerSelectionPulse()
         PostHogManager.shared.capture("ExplorePostFieldChatTapped", properties: [
             "post_id": post.id,

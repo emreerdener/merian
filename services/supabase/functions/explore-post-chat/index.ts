@@ -34,6 +34,7 @@ import {
   insertUserMessage,
   upsertFeedback,
 } from "./db.ts";
+import { isExplorePostChatContextAvailable } from "./eligibility.ts";
 import { buildSystemInstruction, buildUserPrompt } from "./prompt.ts";
 import type {
   ExplorePostChatContext,
@@ -143,7 +144,7 @@ Deno.serve((req: Request) =>
     }
     const postId = requireUuid(body.post_id, "post_id");
     const context = await fetchPublicContext(user.id, postId, supabaseAdmin);
-    if (!context || context.post.is_owned_by_viewer) {
+    if (!isExplorePostChatContextAvailable(context)) {
       return jsonResponse({
         code: "post_not_available",
         error: "This Explore post is not available for Field chat.",

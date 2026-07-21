@@ -6,6 +6,8 @@ struct ExplorePostDetailMenuButton: View {
     let onOpenInsight: () -> Void
     let onEditPost: () -> Void
     let onUnpublish: () -> Void
+    let showsFieldChatAction: Bool
+    let onFieldChat: () -> Void
     let onBlockAuthor: () -> Void
     let onReportPost: () -> Void
     let audioBoostEnabled: Binding<Bool>?
@@ -37,6 +39,14 @@ struct ExplorePostDetailMenuButton: View {
                 }
             }
 
+            if showsFieldChatAction {
+                Button(action: onFieldChat) {
+                    Label("Field chat", systemImage: "sparkles")
+                }
+
+                Divider()
+            }
+
             if isOwnedByCurrentUser {
                 ownedPostActions
             } else {
@@ -66,17 +76,16 @@ struct ExplorePostDetailMenuButton: View {
         .tint(.red)
     }
 
+    @ViewBuilder
     private var moderationActions: some View {
-        Group {
-            Button(role: .destructive, action: onBlockAuthor) {
-                Label("Block user", systemImage: "person.crop.circle.badge.xmark")
-            }
-            .tint(.red)
-
-            Button(role: .destructive, action: onReportPost) {
-                Label("Report post", systemImage: "flag")
-            }
-            .tint(.red)
+        Button(role: .destructive, action: onBlockAuthor) {
+            Label("Block user", systemImage: "person.crop.circle.badge.xmark")
         }
+        .tint(.red)
+
+        Button(role: .destructive, action: onReportPost) {
+            Label("Report post", systemImage: "flag")
+        }
+        .tint(.red)
     }
 }

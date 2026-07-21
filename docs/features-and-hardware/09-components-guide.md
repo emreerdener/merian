@@ -253,11 +253,15 @@ A pill-shaped drag-to-confirm control that replicates the iPhone unlock gesture,
 and `Features/Insights/Chat/Views/InsightChatSheet.swift`
 
 The floating Field chat button and sheet are shared by eligible Insight scans
-and other users' Explore post details. Explore creates a private conversation
-owned by the requesting viewer. The author and other viewers cannot see it.
+and every visible Explore post detail, including the viewer's own posts. Explore
+creates a private conversation owned by the requesting viewer. Other viewers
+cannot see it.
 On Explore detail, the button is shown while browsing post content and is
 removed when the comment composer becomes sticky or receives focus. It returns
-after scrolling back above the sticky-comment threshold.
+after scrolling back above the sticky-comment threshold. While the floating
+control is hidden, `ExplorePostDetailMenuButton` exposes the same Field chat
+action. Media type does not participate in Field chat eligibility; image,
+video, audio, and mixed-media posts use the same presentation rules.
 When an Explore thread has no messages, the only explanatory copy below the
 question is `This Field chat is private and visible only to you.` Technical
 model-context limitations are enforced by `/explore-post-chat` and belong in
