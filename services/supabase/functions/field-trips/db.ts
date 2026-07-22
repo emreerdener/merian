@@ -284,6 +284,10 @@ export async function resetFieldTrip(
 export async function applyFieldTripScanProgress(
   userId: string,
   scanId: string,
+  preferredGoal: {
+    userFieldTripId: string;
+    itemId: string;
+  } | null,
   supabaseAdmin: SupabaseClient,
 ): Promise<{
   fieldTripUpdates: unknown[];
@@ -296,10 +300,12 @@ export async function applyFieldTripScanProgress(
     supabaseAdmin,
   );
   const { data, error } = await supabaseAdmin.rpc(
-    "apply_field_trip_scan_progress",
+    "apply_field_trip_scan_progress_v2",
     {
       self_id: userId,
       target_scan_id: scanId,
+      preferred_user_field_trip_id: preferredGoal?.userFieldTripId ?? null,
+      preferred_item_id: preferredGoal?.itemId ?? null,
     },
   );
 
@@ -342,6 +348,28 @@ export async function applyFieldTripScanProgress(
       firstFieldTripAchievement !== null &&
       currentMutationCompletedTrip,
   };
+}
+
+export async function fetchFieldTripScanContributions(
+  userId: string,
+  scanId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_field_trip_scan_contributions",
+    {
+      self_id: userId,
+      target_scan_id: scanId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Field trip scan contributions: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) ? data : [];
 }
 
 export async function fetchFirstFieldTripAchievementProgress(

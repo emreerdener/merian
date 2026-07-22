@@ -94,9 +94,13 @@ steps are tracked in the
   relevant field trip guide. The active level shows a circular progress ring;
   completed standard goals use the exact device-local scan thumbnail and open
   that Insight inside the same Explore sheet when the record is available.
-  Saved scans that advance an outing show contextual progress toasts with a
-  credited ring and tap-through navigation before any achievement or New to
-  Naturebook notification from the same scan.
+  Saved biological Insights also keep a persistent Field trip progress card
+  listing every outing or visible Event credited by that scan. Standard outings
+  require explicit start and Events require join; a scan may advance several
+  active experiences but credits at most one goal in each. Saved scans still
+  show contextual progress toasts with a credited ring and tap-through
+  navigation before any achievement or New to Naturebook notification from the
+  same scan.
   Publication storage stays separate from Explore posts; typed Field trip cards
   can appear in unfiltered Recent and Following, but not in Explore maps or the
   other post-only surfaces. Events remain a client-gated preview for
@@ -177,7 +181,7 @@ steps are tracked in the
 ### Settings
 **General preferences** — theme (system/light/dark), an optional fresh-launch Explore destination, Notifications, system haptics, and geoprivacy.
 **Pro** — multi-capture scans and expedition mode.
-**Workspace** — camera and audio preferences, **Reorder modes**, the on-by-default field trip-progress overlay, and scan-submission confirmation.
+**Workspace** — camera and audio preferences, **Reorder modes**, the on-by-default Camera field trip-goal overlay and selected-goal preference, and scan-submission confirmation. This setting does not disable server-side progress or the persistent Insight card.
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account and synced to Supabase.
 **Notifications** — species discovery alerts, achievement milestone alerts.
 **Changelog** — bundled feature notes, release notes, and selected in-progress work.

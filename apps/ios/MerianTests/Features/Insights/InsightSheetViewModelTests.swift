@@ -18,6 +18,53 @@ struct InsightSheetViewModelTests {
         return context
     }
 
+    private func contribution(
+        kind: FieldTripScanContribution.SourceKind,
+        sourceId: String,
+        title: String
+    ) -> FieldTripScanContribution {
+        let isEvent = kind == .event
+        return FieldTripScanContribution(
+            sourceKind: kind,
+            sourceId: sourceId,
+            userFieldTripId: isEvent ? "linked-trip" : sourceId,
+            participationId: isEvent ? sourceId : nil,
+            templateId: "template-\(sourceId)",
+            challengeId: isEvent ? "challenge-\(sourceId)" : nil,
+            title: title,
+            slug: title.lowercased().replacingOccurrences(of: " ", with: "_"),
+            itemId: "item-\(sourceId)",
+            prompt: isEvent ? "Bird" : "Butterfly or moth",
+            levelNumber: 1,
+            levelTitle: "Level 1",
+            completedCount: isEvent ? 2 : 3,
+            targetCount: isEvent ? 6 : 4,
+            isComplete: false,
+            artworkPrompt: isEvent ? "Bird" : "Butterfly or moth",
+            artworkTemplateSlug: nil,
+            destinationKind: isEvent ? "field_trip_challenge" : "field_trip",
+            destinationTemplateId: isEvent ? nil : "template-\(sourceId)",
+            destinationChecklistItemId: isEvent ? nil : "item-\(sourceId)",
+            destinationChallengeId: isEvent ? "challenge-\(sourceId)" : nil
+        )
+    }
+
+    private func biologicalEngine(scanId: String) -> InferenceEngine {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: scanId,
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "A butterfly.", hazardType: "none"),
+            confidenceScore: 0.98,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        return engine
+    }
+
     @Test func testEvaluateScrollOffset() {
         let viewModel = InsightSheetViewModel()
         #expect(viewModel.state.isCommonNameScrolledPast == false)
@@ -54,6 +101,74 @@ struct InsightSheetViewModelTests {
 
         viewModel.reset()
         #expect(viewModel.state.isTopScrollEdgeEffectHidden == true)
+    }
+
+    @Test func fieldTripContributionsLoadEveryCreditedExperience() async {
+        let standard = contribution(
+            kind: .standardOuting,
+            sourceId: "trip-1",
+            title: "Park Pollinators"
+        )
+        let event = contribution(
+            kind: .event,
+            sourceId: "participation-1",
+            title: "Summer Bird Count"
+        )
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: biologicalEngine(scanId: "saved-scan"),
+            fieldTripContributionLoader: { scanId in
+                #expect(scanId == "saved-scan")
+                return [standard, event]
+            },
+            fieldTripAuthenticationResolver: { true },
+            fieldTripAvailabilityResolver: { true },
+            fieldTripEventsAvailabilityResolver: { true }
+        )
+
+        await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
+
+        #expect(viewModel.fieldTripScanContributions == [standard, event])
+        #expect(viewModel.isLoadingFieldTripScanContributions == false)
+    }
+
+    @Test func fieldTripContributionsHideEventRowsWhenEventsAreDisabled() async {
+        let standard = contribution(
+            kind: .standardOuting,
+            sourceId: "trip-1",
+            title: "Park Pollinators"
+        )
+        let event = contribution(
+            kind: .event,
+            sourceId: "participation-1",
+            title: "Summer Bird Count"
+        )
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: biologicalEngine(scanId: "saved-scan"),
+            fieldTripContributionLoader: { _ in [standard, event] },
+            fieldTripAuthenticationResolver: { true },
+            fieldTripAvailabilityResolver: { true },
+            fieldTripEventsAvailabilityResolver: { false }
+        )
+
+        await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
+
+        #expect(viewModel.fieldTripScanContributions == [standard])
+    }
+
+    @Test func fieldTripContributionsHideSilentlyOnNetworkFailure() async {
+        struct ExpectedFailure: Error {}
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: biologicalEngine(scanId: "saved-scan"),
+            fieldTripContributionLoader: { _ in throw ExpectedFailure() },
+            fieldTripAuthenticationResolver: { true },
+            fieldTripAvailabilityResolver: { true },
+            fieldTripEventsAvailabilityResolver: { true }
+        )
+
+        await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
+
+        #expect(viewModel.fieldTripScanContributions.isEmpty)
+        #expect(viewModel.isLoadingFieldTripScanContributions == false)
     }
 
     @Test func testToggleScanInCollection() async throws {

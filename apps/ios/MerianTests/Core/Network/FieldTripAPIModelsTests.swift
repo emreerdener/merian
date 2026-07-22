@@ -550,6 +550,105 @@ struct FieldTripAPIModelsTests {
         #expect(update.toastTargetCount == 4)
     }
 
+    @Test func progressResponseDecodesCorrectionInvalidationMetadata() throws {
+        let json = Data("""
+        {
+          "data": [
+            {
+              "user_field_trip_id": "trip-1",
+              "template_id": "template-1",
+              "slug": "park_pollinators",
+              "title": "Park Pollinators",
+              "current_level_number": 1,
+              "current_level_title": "Level 1",
+              "completed_count": 0,
+              "target_count": 4,
+              "is_complete": false,
+              "credited_level_number": 1,
+              "credited_level_title": "Level 1",
+              "credited_completed_count": 0,
+              "credited_target_count": 4,
+              "newly_completed_items": [],
+              "removed_item_ids": ["item-before-correction"]
+            }
+          ],
+          "challenge_updates": []
+        }
+        """.utf8)
+
+        let response = try decoder.decode(FieldTripProgressUpdatesResponse.self, from: json)
+
+        #expect(response.data.first?.removedItemIds == ["item-before-correction"])
+    }
+
+    @Test func scanContributionsDecodeTypedStandardAndEventDestinations() throws {
+        let json = Data("""
+        {
+          "data": [
+            {
+              "source_kind": "standard_outing",
+              "source_id": "trip-1",
+              "user_field_trip_id": "trip-1",
+              "participation_id": null,
+              "template_id": "template-1",
+              "challenge_id": null,
+              "title": "Park Pollinators",
+              "slug": "park_pollinators",
+              "item_id": "item-1",
+              "prompt": "Butterfly or moth",
+              "level_number": 1,
+              "level_title": "Level 1",
+              "completed_count": 3,
+              "target_count": 4,
+              "is_complete": false,
+              "artwork_prompt": "Butterfly or moth",
+              "artwork_template_slug": "park_pollinators",
+              "destination_kind": "field_trip",
+              "destination_template_id": "template-1",
+              "destination_checklist_item_id": "item-1",
+              "destination_challenge_id": null
+            },
+            {
+              "source_kind": "event",
+              "source_id": "participation-1",
+              "user_field_trip_id": "trip-2",
+              "participation_id": "participation-1",
+              "template_id": "template-2",
+              "challenge_id": "challenge-1",
+              "title": "Summer Bird Count",
+              "slug": "summer_bird_count",
+              "item_id": "item-2",
+              "prompt": "Bird",
+              "level_number": 1,
+              "level_title": null,
+              "completed_count": 2,
+              "target_count": 6,
+              "is_complete": false,
+              "artwork_prompt": "Bird",
+              "artwork_template_slug": "bird_count",
+              "destination_kind": "field_trip_challenge",
+              "destination_template_id": null,
+              "destination_checklist_item_id": null,
+              "destination_challenge_id": "challenge-1"
+            }
+          ]
+        }
+        """.utf8)
+
+        let response = try decoder.decode(FieldTripScanContributionsResponse.self, from: json)
+
+        #expect(response.data.count == 2)
+        #expect(
+            response.data[0].destination == .fieldTrip(
+                templateId: "template-1",
+                checklistItemId: "item-1"
+            )
+        )
+        #expect(
+            response.data[1].destination == .fieldTripChallenge(challengeId: "challenge-1")
+        )
+    }
+
     @Test func progressResponseDecodesStandardAchievementDestination() throws {
         let json = Data("""
         {
@@ -1740,6 +1839,53 @@ struct ActiveCaptureGoalStoreTests {
             isRefining: false,
             isVideoRecording: false
         ))
+    }
+
+    @Test func selectedStandardGoalRemainsPreferredAfterCameraMediaIsStaged() {
+        let goal = makeGoal(id: "butterfly")
+
+        let preferred = CaptureGoalPreferencePolicy.preferredGoal(
+            goalsEnabled: true,
+            isUserVisible: true,
+            isVisualMode: true,
+            isRefining: false,
+            selectedGoal: goal
+        )
+
+        #expect(preferred == FieldTripPreferredGoal(
+            userFieldTripId: "outing",
+            itemId: "butterfly"
+        ))
+        #expect(CaptureGoalPreferencePolicy.preferredGoal(
+            goalsEnabled: true,
+            isUserVisible: false,
+            isVisualMode: true,
+            isRefining: false,
+            selectedGoal: goal
+        ) == nil)
+        #expect(CaptureGoalPreferencePolicy.preferredGoal(
+            goalsEnabled: true,
+            isUserVisible: true,
+            isVisualMode: true,
+            isRefining: true,
+            selectedGoal: goal
+        ) == nil)
+
+        let challengeGoal = CaptureGoal(
+            id: "challenge",
+            source: goal.source,
+            prompt: goal.prompt,
+            progress: goal.progress,
+            artwork: goal.artwork,
+            destination: .fieldTripChallenge(challengeId: "challenge")
+        )
+        #expect(CaptureGoalPreferencePolicy.preferredGoal(
+            goalsEnabled: true,
+            isUserVisible: true,
+            isVisualMode: true,
+            isRefining: false,
+            selectedGoal: challengeGoal
+        ) == nil)
     }
 
     @Test func captureIndicatorOnlyClaimsHorizontalDominantSwipes() {

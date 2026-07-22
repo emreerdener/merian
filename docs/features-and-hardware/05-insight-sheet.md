@@ -37,6 +37,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `SpeciesObservationChartsCard` | Reusable Swift Charts card rendered after Habitat & Distribution for known biological species. `SpeciesObservationStatsViewModel` coordinates loading, `SpeciesObservationStatsDatabaseActor` fetches local SwiftData projections off the main actor, and `SpeciesObservationStatsReducer` computes on-device aggregates before combining them with cached global public iNaturalist stats from `/species-observation-stats`. Tabs are Seasonality, History, and Life Stage; per-scan sex is shown in `OverviewCard` instead. |
 | `ToxicityBanner` | Glassmorphic hazard warning banner shown when `insightData.hazardType != "none"`. Implements a premium liquid-glass design using `.regularMaterial` and dynamic tinting (`.red` for severe threats like venomous/poisonous, `.yellow` for allergens/irritants), explicitly constrained using `maxWidth: .infinity` full-bleed bounds. Displays hazard-specific copy. |
 | `ConservationBanner` | IUCN Red List status banner |
+| `FieldTripProgressCard` | Persistent server-backed card for a saved biological scan's standard-outing and Event credits. It reuses Insight card chrome, objective artwork, a green completion badge, and `GoalProgressRing`; every contribution remains visible as its own row. |
 | `MilestoneToastBanner` / `MilestoneToastPresenter` | Shared bottom in-app milestone notification for Field trip progress, achievement unlocks, and `New to Naturebook`. `ScanMilestoneCoordinator`, not the Insight lifecycle, batches scan milestones after remote progress finishes. |
 
 ---
@@ -56,6 +57,35 @@ and interactive back gesture. Back returns to the existing outing detail and
 sheet state. No Field trips payload supplies or downloads media. If the local
 record cannot be found, Explore shows the non-destructive unavailable message
 and does not push an empty Insight route.
+
+## Persistent Field Trip Progress Card
+
+`InsightSheetViewModel` loads `field-trips` action `scan_contributions` whenever
+the persistent scan ID changes. The read is attempted only for authenticated,
+saved biological Insights while Field trips are enabled. Queued scans,
+non-biological results, missing IDs, unauthenticated sessions, empty responses,
+and network failures render no placeholder or error. Event rows are filtered
+when `FieldTripEventsAvailability` is disabled.
+
+The card is rendered after toxicity and identification-review content and
+before Field notes and educational cards. It shows all returned contributions
+without collapsing or selecting a primary experience. Every row uses
+`{prompt} goal complete`, the experience title and credited level, the credited
+level's current count, exact objective artwork when available, and a green
+completion badge. Its VoiceOver label follows the form
+`Butterfly or moth goal complete in Park Pollinators, 3 of 4`. The card adds no
+haptic, confetti, or milestone notification; the existing transient milestone
+queue remains the only immediate celebration surface.
+
+Each row carries a typed `CaptureGoalDestination`. Standard outings open the
+template detail focused on the credited checklist item; Event rows open the
+challenge detail. An Insight already embedded in Explore reuses that navigation
+stack. A root modal Insight dismisses/routes through its optional
+`onOpenCaptureGoal` callback so it does not build a second Explore stack.
+`fieldTripScanContributionsInvalidated(scanId:)` reloads only the matching open
+Insight after scan progress or correction completes. Contributions are never
+cached in SwiftData in this release; historical reopening always asks the
+private server read model.
 
 ## Data Source
 

@@ -198,7 +198,8 @@ Only use `typealias` for models that are **unchanged AND not referenced by any r
 `apps/ios/MerianTests/Models/MigrationPlanTests.swift` must pass on an iOS 26
 simulator on every schema bump. It covers fresh-store initialization, historical
 disk-store migrations, V42/V43/V44/V45/V46/V47 source-isolated recent plans,
-direct V42/V43/V44/V45/V46/V47→V49 queue migrations, and source scans for migration safety invariants:
+direct V42/V43/V44/V45/V46/V47→V49 queue repairs followed by the shared
+V49→V50 lightweight stage, and source scans for migration safety invariants:
 no silent custom-stage saves, no active/global fetch descriptors or active model
 convenience helpers in `MerianMigrationPlan`, and no bare active
 `CapturedMediaEntry` relationship targets in retired schemas. The full
@@ -224,7 +225,7 @@ from `capturedMediaJSON` after snapshotting and replacing the V47 queued rows.
 stores open without a migration plan and known recent stores use a
 source-isolated V48/V47/V46/V45/V44/V43/V42 plan; V42 and V43 jump directly to
 V49, and the V45 and V46 plans use one matching source representative each with
-a direct V49 target internally. Quarantine remains corruption-gated: only
+a direct V49 target internally before advancing to V50. Quarantine remains corruption-gated: only
 verified SQLite/Core Data corruption signatures may quarantine `default.store`
 artifacts. Non-corrupt failures on legacy migration strategies may archive those
 artifacts under `store-rescue/` before rebuilding a fresh persistent store. Each

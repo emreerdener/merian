@@ -25,11 +25,27 @@ final class InsightSheetViewModel {
     init(
         queuedContext: QueuedScanContext? = nil,
         inferenceEngine: InferenceEngine? = nil,
-        appSettings: AppSettings? = nil
+        appSettings: AppSettings? = nil,
+        fieldTripContributionLoader: @escaping (String) async throws -> [FieldTripScanContribution] = {
+            try await MerianNetworkClient.shared.getFieldTripScanContributions(scanId: $0)
+        },
+        fieldTripAuthenticationResolver: @MainActor @escaping () -> Bool = {
+            SupabaseManager.shared.isAuthenticated
+        },
+        fieldTripAvailabilityResolver: @MainActor @escaping () -> Bool = {
+            FieldTripsAvailability.isEnabled
+        },
+        fieldTripEventsAvailabilityResolver: @MainActor @escaping () -> Bool = {
+            FieldTripEventsAvailability.isEnabled
+        }
     ) {
         self.queuedContext = queuedContext
         self.inferenceEngine = inferenceEngine
         self.appSettings = appSettings ?? AppSettings.shared
+        self.fieldTripContributionLoader = fieldTripContributionLoader
+        self.fieldTripAuthenticationResolver = fieldTripAuthenticationResolver
+        self.fieldTripAvailabilityResolver = fieldTripAvailabilityResolver
+        self.fieldTripEventsAvailabilityResolver = fieldTripEventsAvailabilityResolver
         self.cachedActiveMedia = queuedContext?.capturedMediaSnapshot.activeScanMedia
     }
 
@@ -40,6 +56,7 @@ final class InsightSheetViewModel {
     func reset() {
         sharedExploreStateRevision = 0
         sharedExploreStateRequestToken = 0
+        fieldTripContributionRequestToken &+= 1
         boundFieldNotesScanId = nil
         state = UIState()
         toastActionTitle = nil
@@ -49,6 +66,8 @@ final class InsightSheetViewModel {
         toolbarRecordSnapshot = nil
         queuedContext = nil
         cachedActiveMedia = nil
+        fieldTripScanContributions = []
+        isLoadingFieldTripScanContributions = false
     }
 
     // MARK: - Internal Cached State
@@ -59,7 +78,12 @@ final class InsightSheetViewModel {
     @ObservationIgnored var sharedExploreStateRevision: UInt64 = 0
     @ObservationIgnored var sharedExploreStateRequestToken: UInt64 = 0
     @ObservationIgnored var boundFieldNotesScanId: String?
+    @ObservationIgnored var fieldTripContributionRequestToken: UInt64 = 0
     @ObservationIgnored var appSettings: AppSettings
+    @ObservationIgnored private var fieldTripContributionLoader: (String) async throws -> [FieldTripScanContribution]
+    @ObservationIgnored private var fieldTripAuthenticationResolver: @MainActor () -> Bool
+    @ObservationIgnored private var fieldTripAvailabilityResolver: @MainActor () -> Bool
+    @ObservationIgnored private var fieldTripEventsAvailabilityResolver: @MainActor () -> Bool
 
     // MARK: - Interface State
     struct UIState: Equatable {
@@ -105,6 +129,47 @@ final class InsightSheetViewModel {
     }
 
     var state = UIState()
+
+    private(set) var fieldTripScanContributions: [FieldTripScanContribution] = []
+    private(set) var isLoadingFieldTripScanContributions = false
+
+    func loadFieldTripScanContributions(scanId: String?) async {
+        fieldTripContributionRequestToken &+= 1
+        let requestToken = fieldTripContributionRequestToken
+        fieldTripScanContributions = []
+
+        guard fieldTripAvailabilityResolver(),
+              fieldTripAuthenticationResolver(),
+              queuedContext == nil,
+              inferenceEngine?.speciesData?.isBiological == true,
+              let scanId,
+              !scanId.isEmpty else {
+            isLoadingFieldTripScanContributions = false
+            return
+        }
+
+        isLoadingFieldTripScanContributions = true
+        defer {
+            if requestToken == fieldTripContributionRequestToken {
+                isLoadingFieldTripScanContributions = false
+            }
+        }
+
+        do {
+            let contributions = try await fieldTripContributionLoader(scanId)
+            guard requestToken == fieldTripContributionRequestToken,
+                  persistentScanId == scanId else { return }
+            fieldTripScanContributions = contributions.filter {
+                $0.sourceKind == .standardOuting || fieldTripEventsAvailabilityResolver()
+            }
+        } catch {
+            guard requestToken == fieldTripContributionRequestToken else { return }
+            fieldTripScanContributions = []
+            MerianLog.general.debug(
+                "Insight Field trip contributions unavailable: \(error, privacy: .private)"
+            )
+        }
+    }
 
     func presentCandidateSwipe(source: CandidateSwipePresentationSource = .standard) {
         state.candidateSwipePresentationSource = source

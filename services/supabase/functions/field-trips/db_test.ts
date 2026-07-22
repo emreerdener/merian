@@ -58,9 +58,11 @@ Deno.test("apply progress reports newly unlocked only for the completing mutatio
             data: achievementReads === 1 ? null : achievement,
             error: null,
           });
-        case "apply_field_trip_scan_progress":
+        case "apply_field_trip_scan_progress_v2":
           standardMutations += 1;
           assertEquals(args.target_scan_id, scanId);
+          assertEquals(args.preferred_user_field_trip_id, null);
+          assertEquals(args.preferred_item_id, null);
           return Promise.resolve({
             data: standardMutations === 1 ? [{ is_complete: true }] : [],
             error: null,
@@ -73,8 +75,18 @@ Deno.test("apply progress reports newly unlocked only for the completing mutatio
     },
   } as unknown as SupabaseClient;
 
-  const first = await applyFieldTripScanProgress(userId, scanId, supabase);
-  const second = await applyFieldTripScanProgress(userId, scanId, supabase);
+  const first = await applyFieldTripScanProgress(
+    userId,
+    scanId,
+    null,
+    supabase,
+  );
+  const second = await applyFieldTripScanProgress(
+    userId,
+    scanId,
+    null,
+    supabase,
+  );
 
   assertEquals(first.firstFieldTripAchievement, achievement);
   assertEquals(first.firstFieldTripAchievementNewlyUnlocked, true);

@@ -28,6 +28,7 @@ import {
   fetchFieldTripProfileSummaries,
   fetchFieldTripPublicationCounts,
   fetchFieldTripPublicationDetail,
+  fetchFieldTripScanContributions,
   fetchFieldTripTemplateDetail,
   fetchFirstFieldTripAchievementProgress,
   fetchRecentFieldTripPublications,
@@ -155,6 +156,24 @@ function requireUuidArray(
   return rawValue.map((value, index) =>
     requireUuid(value, `${fieldName}[${index}]`)
   );
+}
+
+function normalizePreferredGoal(
+  rawValue: unknown,
+): { userFieldTripId: string; itemId: string } | null {
+  if (rawValue == null) return null;
+  if (typeof rawValue !== "object" || Array.isArray(rawValue)) {
+    throw makeHttpError(400, "preferred_goal must be an object.");
+  }
+
+  const value = rawValue as Record<string, unknown>;
+  return {
+    userFieldTripId: requireUuid(
+      value.user_field_trip_id,
+      "preferred_goal.user_field_trip_id",
+    ),
+    itemId: requireUuid(value.item_id, "preferred_goal.item_id"),
+  };
 }
 
 Deno.serve((req: Request) =>
@@ -429,9 +448,11 @@ Deno.serve((req: Request) =>
         const actionErr = requireParams(body, ["scan_id"]);
         if (actionErr) return actionErr;
         const scanId = requireUuid(body.scan_id, "scan_id");
+        const preferredGoal = normalizePreferredGoal(body.preferred_goal);
         const progress = await applyFieldTripScanProgress(
           user.id,
           scanId,
+          preferredGoal,
           supabaseAdmin,
         );
         return jsonResponse({
@@ -445,6 +466,18 @@ Deno.serve((req: Request) =>
             }
             : {}),
         });
+      }
+
+      case "scan_contributions": {
+        const actionErr = requireParams(body, ["scan_id"]);
+        if (actionErr) return actionErr;
+        const scanId = requireUuid(body.scan_id, "scan_id");
+        const data = await fetchFieldTripScanContributions(
+          user.id,
+          scanId,
+          supabaseAdmin,
+        );
+        return jsonResponse({ data });
       }
 
       case "scan_challenge_hashtags": {

@@ -19,6 +19,15 @@ current Explore sheet and returns to the outing on back. Missing local records
 must be handled before navigation; the Insight shell does not fetch Field-trip
 evidence or reconstruct media from a remote URL.
 
+Saved biological Insights load private scan contribution rows through
+`InsightSheetViewModel`. `InsightSheetView` accepts an optional capture-goal
+routing callback: embedded Explore Insights push the focused outing goal or
+Event detail on their existing stack, while root modal Insights dismiss and
+route through the app's existing capture-goal event. Empty results, queued
+scans, unauthenticated state, feature gating, and request failure are silent.
+A scan-specific invalidation event reloads the open Insight after progress or
+identification correction finishes.
+
 ## Scan milestones
 
 The Insight lifecycle owns result VoiceOver and haptic presentation, but it does

@@ -19,12 +19,14 @@ The backing SQL lives in this ordered migration chain:
 12. `20260718162409_scope_credited_progress_to_current_attempt.sql`
 13. `20260719045306_first_field_trip_achievement.sql`
 14. `20260719160750_field_trip_lifecycle_controls.sql`
+15. `20260720014446_update_backyard_safari_copy.sql`
+16. `20260722025411_persistent_field_trip_scan_contributions.sql`
 
-Deploy the migrations before deploying this function. Existing installations
-with the current V4 function do not require a function redeploy because the two
-credited-progress migrations change only database responses.
+Deploy the migrations before deploying this function. The persistent
+contribution migration and the function must be deployed together before the
+iOS client begins sending preferred-goal hints or requesting contribution rows.
 
-## Client Rollout State (2026-07-19)
+## Client Rollout State (2026-07-21)
 
 - The backend supports standard Outings and Seasonal Challenge Events and is
   deployed before the full Events UI release.
@@ -79,6 +81,9 @@ credited-progress migrations change only database responses.
 - Standard outing activity periods are private, protected by RLS, and available
   only to `service_role`. Stopped progress is returned only to the owning caller
   through the authenticated Edge Function.
+- Scan goal preferences and scan contribution lookup are private,
+  `service_role`-only contracts. Contribution rows contain typed routing and
+  checklist progress, never media, notes, or location evidence.
 
 ## Actions
 
@@ -86,12 +91,12 @@ credited-progress migrations change only database responses.
 handler. Add or retire an action there and update
 `_tests/fieldTripActions.test.ts` in the same change. That test contains a
 manually maintained snapshot of the actions emitted by the iOS client; reviewers
-must compare Swift call sites when the contract changes because the test does not
-parse Swift source. A missing or
-non-string action returns `HTTP 400`. An unknown string also returns `HTTP 400`
-and emits the structured warning `field_trip_action_rejected` with only the
-first 64 characters of the rejected action. Use that event to identify a stale
-client or undeployed server action; do not log the full request body or user ID.
+must compare Swift call sites when the contract changes because the test does
+not parse Swift source. A missing or non-string action returns `HTTP 400`. An
+unknown string also returns `HTTP 400` and emits the structured warning
+`field_trip_action_rejected` with only the first 64 characters of the rejected
+action. Use that event to identify a stale client or undeployed server action;
+do not log the full request body or user ID.
 
 ```json
 { "action": "achievement_progress" }
@@ -115,6 +120,30 @@ Challenge destination wins deterministically.
 
 For `kind: "seasonal_challenge"`, `template_slug` is null and `challenge_id`
 contains the destination ID.
+
+```json
+{
+  "action": "apply_scan_progress",
+  "scan_id": "uuid",
+  "preferred_goal": {
+    "user_field_trip_id": "uuid",
+    "item_id": "uuid"
+  }
+}
+```
+
+The preference is optional and is honored only when it is owned, active at the
+scan timestamp, current, visible, and matching. A scan can advance multiple
+active experiences, but receives at most one credit per standard outing and one
+per joined Event.
+
+```json
+{ "action": "scan_contributions", "scan_id": "uuid" }
+```
+
+Returns every standard outing and Event credit owned by the scan, including the
+credited item and level counts plus a typed destination. Missing, unauthorized,
+non-biological, or uncredited scans return an empty array.
 
 ```json
 { "action": "capture_context" }
@@ -198,8 +227,8 @@ only when that ID is non-null. `slug` may be supplied instead of `template_id`.
 
 Explicitly starts or unhides the caller's progress for an accessible template
 and returns the refreshed template detail. Starting a stopped outing resumes it
-by opening a new activity period. Matching scans can still auto-start eligible
-reset trips as a fallback.
+by opening a new activity period. Matching scans never create or restart a
+standard outing.
 
 ```json
 { "action": "stop", "user_field_trip_id": "uuid" }
@@ -251,7 +280,14 @@ filters results for template-detail Community previews.
 `community_publications` with `mode: "recent"`.
 
 ```json
-{ "action": "apply_scan_progress", "scan_id": "uuid" }
+{
+  "action": "apply_scan_progress",
+  "scan_id": "uuid",
+  "preferred_goal": {
+    "user_field_trip_id": "uuid",
+    "item_id": "uuid"
+  }
+}
 ```
 
 Applies the Field trip progress rules for one saved scan. The backing RPC only
@@ -260,10 +296,15 @@ that outing's activity periods, and only for the current unlocked level. This
 allows a pre-stop scan to count after late approval while permanently excluding
 scans captured during a stopped gap. V4 also updates joined live challenge
 progress for the same scan when the scan was created after `joined_at` and
-before `ends_at`. Eligibility is independent of photo/video modality once the
-biological scan is saved. One scan can complete every matching current-level
-item across multiple eligible standard outings, and independently in joined live
-challenges; all created completion rows retain the same scan ID.
+before `ends_at`; upload after the period/Event closes remains eligible because
+the scan timestamp, not request time, owns the boundary. Eligibility is independent of photo/video modality once the
+biological scan is saved. One scan can complete at most one current-level item
+per eligible standard outing and one per joined live challenge; it may still
+advance several experiences, and every created completion row retains the same
+scan ID. The optional preference is honored only for its owned, active,
+current, visible, matching standard goal. Otherwise the database ranks exact
+species, scientific name, taxonomy from genus through kingdom, semantic tag,
+ecology, habitat, curated checklist order, and item ID.
 
 Returns:
 
@@ -284,6 +325,7 @@ Returns:
       "credited_level_title": "Level 1",
       "credited_completed_count": 3,
       "credited_target_count": 4,
+      "removed_item_ids": [],
       "newly_completed_items": [
         {
           "item_id": "uuid",
@@ -315,18 +357,29 @@ clients can continue using the existing fields. The response is scoped to rows
 inserted by the current application attempt so re-identifying an older scan
 cannot return its historical level again alongside a newly credited item.
 
-The `apply_scan_progress` request is unchanged. Clients should treat a progress
-update as newly credited only when `newly_completed_items` is nonempty; an
-idempotent reapplication returns no update. Within each update, that array keeps
-curated checklist order, so its first item is the canonical label/focus target
-for scan-completion UI. The credited fields are response additions only and do
-not change the Edge Function request contract.
+`preferred_goal` is an optional additive request field; legacy clients continue
+to omit it and receive deterministic fallback ranking. Clients should treat a
+progress update as newly credited only when `newly_completed_items` is
+nonempty; an idempotent reapplication returns no update. `removed_item_ids`
+identifies prior unfinished credit invalidated by an identification correction.
+Completed outings and Events are immutable.
 
 The two `first_field_trip_achievement*` response fields are additive and may be
 absent when the caller has no completed outing or challenge. The payload always
 describes the earliest qualifying completion. `newly_unlocked` is true only when
 this request's progress mutation created the first completion; idempotent,
 non-final, and later completions return false.
+
+```json
+{ "action": "scan_contributions", "scan_id": "uuid" }
+```
+
+Returns every credit currently owned by one saved biological scan. Each row
+contains `source_kind` (`standard_outing` or `event`), source/template/challenge
+IDs, title/slug, credited item and level, credited-level counts, completion
+state, artwork inputs, and typed-routing inputs. It returns no media, notes,
+coordinates, place labels, or public evidence. Missing, unauthorized,
+non-biological, queued, and uncredited scans produce an empty array.
 
 ```json
 { "action": "challenges_catalog", "user_region": "optional", "limit": 20 }
@@ -438,7 +491,8 @@ MerianNetworkClient.shared.getFieldTripChallenge(challengeId:entriesLimit:)
 MerianNetworkClient.shared.joinFieldTripChallenge(challengeId:)
 MerianNetworkClient.shared.getFieldTripCommunityPublications(mode:templateId:userRegion:habitatTags:seasonTags:limit:beforeRankBucket:beforePublishedAt:beforePublicationId:)
 MerianNetworkClient.shared.getRecentFieldTripPublications(userRegion:habitatTags:limit:beforePublishedAt:beforePublicationId:)
-MerianNetworkClient.shared.applyFieldTripProgress(scanId:)
+MerianNetworkClient.shared.applyFieldTripProgress(scanId:preferredGoal:)
+MerianNetworkClient.shared.getFieldTripScanContributions(scanId:)
 MerianNetworkClient.shared.getFieldTripChallengeHashtags(scanId:)
 MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
 MerianNetworkClient.shared.setPinnedFieldTripPublications(publicationIds:)
@@ -474,13 +528,15 @@ not fail scan persistence.
 12. Apply `20260718162409_scope_credited_progress_to_current_attempt.sql`.
 13. Apply `20260719045306_first_field_trip_achievement.sql`.
 14. Apply `20260719160750_field_trip_lifecycle_controls.sql`.
-15. Deploy this function.
-16. Deploy `get-explore-author-profile` so profile responses include
+15. Apply `20260720014446_update_backyard_safari_copy.sql`.
+16. Apply `20260722025411_persistent_field_trip_scan_contributions.sql`.
+17. Deploy this function.
+18. Deploy `get-explore-author-profile` so profile responses include
     `field_trips`.
-17. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+19. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-18. Ship the iOS client.
+20. Ship the iOS client.
 
 ## Verification
 
@@ -490,8 +546,8 @@ deno check --config services/supabase/functions/field-trips/deno.json services/s
 deno test services/supabase/functions/_tests/fieldTripActions.test.ts
 deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripProgressDb.test.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripProgressDb.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 supabase db lint --workdir services
 ```
 

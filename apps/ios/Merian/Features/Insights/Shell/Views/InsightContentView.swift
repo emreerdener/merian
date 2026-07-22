@@ -12,6 +12,7 @@ struct InsightContentView: View {
     /// the current struct value — unaffected by the `@State` initialization timing issue
     /// where `.sheet(isPresented:)` pre-evaluates the body with `scanToManage = nil`.
     var queuedScan: QueuedScanContext?
+    var onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)?
 
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
@@ -72,7 +73,11 @@ struct InsightContentView: View {
                 .zIndex(0)
 
                 // 2. OVERLAPPING BOTTOM SHEET CONTENT
-                InsightContentRouterView(viewModel: viewModel, queuedScan: presentationQueuedScan)
+                InsightContentRouterView(
+                    viewModel: viewModel,
+                    queuedScan: presentationQueuedScan,
+                    onOpenCaptureGoal: onOpenCaptureGoal
+                )
                     .padding(.top, overlapRadius)
                     .frame(maxWidth: .infinity)
                     .background(contentSheetBackground)

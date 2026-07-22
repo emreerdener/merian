@@ -22,6 +22,7 @@ type StandardProgressUpdate = {
   credited_completed_count: number;
   credited_target_count: number;
   newly_completed_items: ProgressItem[];
+  removed_item_ids: string[];
 };
 
 type ChallengeProgressUpdate = {
@@ -32,9 +33,16 @@ type ChallengeProgressUpdate = {
   credited_completed_count: number;
   credited_target_count: number;
   newly_completed_items: ProgressItem[];
+  removed_item_ids: string[];
 };
 
-Deno.test("Field trip credited progress only returns rows inserted by the current attempt", async () => {
+type ScanContribution = {
+  source_kind: "standard_outing" | "event";
+  source_id: string;
+  item_id: string;
+};
+
+Deno.test("Field trip progress requires starts and corrections remove original-level credit", async () => {
   await withExploreDbTest(
     "fieldTripProgressDb.test",
     async (client: Client) => {
@@ -49,6 +57,7 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
       const secondItemId = crypto.randomUUID();
       const challengeId = crypto.randomUUID();
       const participationId = crypto.randomUUID();
+      const userFieldTripId = crypto.randomUUID();
       const suffix = templateId.slice(0, 8);
 
       await insertUser(client, userId, "Progress Viewer");
@@ -66,6 +75,10 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
         longitude: -97.7431,
         geoprivacy: "private",
       });
+      await client.queryArray(
+        `UPDATE public.scans SET timestamp = NOW() - INTERVAL '30 minutes' WHERE id = $1`,
+        [scanId],
+      );
 
       await client.queryArray(
         `
@@ -105,6 +118,55 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
         ],
       );
 
+      const beforeExplicitStart = await applyStandardProgress(
+        client,
+        userId,
+        scanId,
+      );
+      assertEquals(
+        beforeExplicitStart.filter((update) =>
+          update.template_id === templateId
+        ),
+        [],
+      );
+      const autoStarted = await client.queryObject<{ count: bigint }>(
+        `
+        SELECT COUNT(*)::bigint AS count
+        FROM public.user_field_trips
+        WHERE user_id = $1 AND template_id = $2
+        `,
+        [userId, templateId],
+      );
+      assertEquals(autoStarted.rows[0].count, 0n);
+
+      await client.queryArray(
+        `
+        INSERT INTO public.user_field_trips (
+          id, user_id, template_id, started_at, current_level_number,
+          is_profile_visible, hidden_at
+        )
+        VALUES ($1, $2, $3, NOW() - INTERVAL '1 hour', 1, TRUE, NULL)
+        `,
+        [userFieldTripId, userId, templateId],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.user_field_trip_active_periods (
+          user_field_trip_id, started_at, stopped_at
+        )
+        VALUES (
+          $1,
+          NOW() - INTERVAL '1 hour',
+          NOW() - INTERVAL '10 minutes'
+        )
+        `,
+        [userFieldTripId],
+      );
+      await client.queryArray(
+        `UPDATE public.user_field_trips SET hidden_at = NOW() - INTERVAL '10 minutes' WHERE id = $1`,
+        [userFieldTripId],
+      );
+
       const firstStandard = await applyStandardProgress(client, userId, scanId);
       const firstStandardFixture = firstStandard.find((update) =>
         update.template_id === templateId
@@ -121,7 +183,7 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
         )
         VALUES (
           $1, $2, $3, 'Credited progress challenge',
-          NOW() - INTERVAL '1 day', NOW() + INTERVAL '1 day',
+          NOW() - INTERVAL '1 hour', NOW() - INTERVAL '10 minutes',
           ARRAY['creditedprogress'], TRUE
         )
         `,
@@ -139,7 +201,7 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
           participationId,
           challengeId,
           userId,
-          firstStandardFixture.user_field_trip_id,
+          userFieldTripId,
         ],
       );
 
@@ -155,6 +217,38 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
       assertEquals(firstChallengeFixture.current_level_number, 2);
       assertCreditedUpdate(firstChallengeFixture, 1, firstItemId);
 
+      const contributions = await getScanContributions(client, userId, scanId);
+      assertEquals(contributions.length, 2);
+      const standardContribution = contributions.find((row) =>
+        row.source_kind === "standard_outing"
+      );
+      const eventContribution = contributions.find((row) =>
+        row.source_kind === "event"
+      );
+      assert(standardContribution);
+      assert(eventContribution);
+      assertEquals(standardContribution.source_id, userFieldTripId);
+      assertEquals(standardContribution.item_id, firstItemId);
+      assertEquals(eventContribution.source_id, participationId);
+      assertEquals(eventContribution.item_id, firstItemId);
+      assertEquals(
+        await getScanContributions(client, crypto.randomUUID(), scanId),
+        [],
+      );
+
+      await client.queryArray(
+        `UPDATE public.field_trip_templates SET is_active = FALSE WHERE id = $1`,
+        [templateId],
+      );
+      await client.queryArray(
+        `UPDATE public.field_trip_challenges SET is_active = FALSE WHERE id = $1`,
+        [challengeId],
+      );
+      await client.queryArray(
+        `UPDATE public.field_trip_challenge_participants SET hidden_at = NOW() WHERE id = $1`,
+        [participationId],
+      );
+
       await client.queryArray(
         `UPDATE public.scans SET confirmed_species_id = $1 WHERE id = $2`,
         [secondSpeciesId, scanId],
@@ -169,7 +263,7 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
         update.template_id === templateId
       );
       assertEquals(secondStandardFixtures.length, 1);
-      assertCreditedUpdate(secondStandardFixtures[0], 2, secondItemId);
+      assertCorrectionRemoval(secondStandardFixtures[0], 1, firstItemId);
 
       const secondChallenge = await applyChallengeProgress(
         client,
@@ -180,7 +274,9 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
         update.challenge_id === challengeId
       );
       assertEquals(secondChallengeFixtures.length, 1);
-      assertCreditedUpdate(secondChallengeFixtures[0], 2, secondItemId);
+      assertCorrectionRemoval(secondChallengeFixtures[0], 1, firstItemId);
+
+      assertEquals(await getScanContributions(client, userId, scanId), []);
 
       const idempotentStandard = await applyStandardProgress(
         client,
@@ -208,6 +304,123 @@ Deno.test("Field trip credited progress only returns rows inserted by the curren
   );
 });
 
+Deno.test("Field trip progress prefers the visible Capture goal before specificity fallback", async () => {
+  await withExploreDbTest(
+    "fieldTripPreferredGoalDb.test",
+    async (client: Client) => {
+      const userId = crypto.randomUUID();
+      const speciesId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+      const templateId = crypto.randomUUID();
+      const levelId = crypto.randomUUID();
+      const exactItemId = crypto.randomUUID();
+      const taxonomyItemId = crypto.randomUUID();
+      const userFieldTripId = crypto.randomUUID();
+      const suffix = templateId.slice(0, 8);
+
+      await insertUser(client, userId, "Preferred Goal Viewer");
+      await insertSpecies(client, speciesId, `Rosa preferata ${suffix}`);
+      await insertScan(client, {
+        id: scanId,
+        userId,
+        speciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "private",
+      });
+      await client.queryArray(
+        `
+        INSERT INTO public.field_trip_templates (
+          id, slug, title, difficulty, is_pro_only, is_rotating_free,
+          is_active, sort_order
+        )
+        VALUES ($1, $2, 'Preferred goal fixture', 'starter', FALSE, FALSE, TRUE, 998)
+        `,
+        [templateId, `preferred_goal_${suffix}`],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.field_trip_levels (id, template_id, level_number, title)
+        VALUES ($1, $2, 1, 'Fixture level')
+        `,
+        [levelId, templateId],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.field_trip_checklist_items (
+          id, level_id, prompt, match_type, species_id,
+          taxonomy_kingdom, sort_order
+        )
+        VALUES
+          ($1, $3, 'Exact rose', 'species', $4, NULL, 90),
+          ($2, $3, 'Any plant', 'taxonomy', NULL, 'Plantae', 1)
+        `,
+        [exactItemId, taxonomyItemId, levelId, speciesId],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.user_field_trips (
+          id, user_id, template_id, started_at, current_level_number,
+          is_profile_visible, hidden_at
+        )
+        VALUES ($1, $2, $3, NOW() - INTERVAL '1 hour', 1, TRUE, NULL)
+        `,
+        [userFieldTripId, userId, templateId],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.user_field_trip_active_periods (
+          user_field_trip_id, started_at
+        )
+        VALUES ($1, NOW() - INTERVAL '1 hour')
+        `,
+        [userFieldTripId],
+      );
+
+      const fallback = await applyStandardProgressV2(
+        client,
+        userId,
+        scanId,
+        null,
+        null,
+      );
+      assertEquals(
+        fallback.find((update) => update.template_id === templateId)
+          ?.newly_completed_items[0].item_id,
+        exactItemId,
+      );
+
+      await client.queryArray(
+        `DELETE FROM public.user_field_trip_item_completions WHERE user_field_trip_id = $1`,
+        [userFieldTripId],
+      );
+
+      const preferred = await applyStandardProgressV2(
+        client,
+        userId,
+        scanId,
+        userFieldTripId,
+        taxonomyItemId,
+      );
+      assertEquals(
+        preferred.find((update) => update.template_id === templateId)
+          ?.newly_completed_items[0].item_id,
+        taxonomyItemId,
+      );
+
+      const completionCount = await client.queryObject<{ count: bigint }>(
+        `
+        SELECT COUNT(*)::bigint AS count
+        FROM public.user_field_trip_item_completions
+        WHERE user_field_trip_id = $1 AND scan_id = $2
+        `,
+        [userFieldTripId, scanId],
+      );
+      assertEquals(completionCount.rows[0].count, 1n);
+    },
+  );
+});
+
 async function applyStandardProgress(
   client: Client,
   userId: string,
@@ -215,6 +428,36 @@ async function applyStandardProgress(
 ): Promise<StandardProgressUpdate[]> {
   const result = await client.queryObject<{ data: StandardProgressUpdate[] }>(
     `SELECT public.apply_field_trip_scan_progress($1, $2)::jsonb AS data`,
+    [userId, scanId],
+  );
+  return result.rows[0].data;
+}
+
+async function applyStandardProgressV2(
+  client: Client,
+  userId: string,
+  scanId: string,
+  preferredUserFieldTripId: string | null,
+  preferredItemId: string | null,
+): Promise<StandardProgressUpdate[]> {
+  const result = await client.queryObject<{ data: StandardProgressUpdate[] }>(
+    `
+    SELECT public.apply_field_trip_scan_progress_v2(
+      $1, $2, $3::uuid, $4::uuid
+    )::jsonb AS data
+    `,
+    [userId, scanId, preferredUserFieldTripId, preferredItemId],
+  );
+  return result.rows[0].data;
+}
+
+async function getScanContributions(
+  client: Client,
+  userId: string,
+  scanId: string,
+): Promise<ScanContribution[]> {
+  const result = await client.queryObject<{ data: ScanContribution[] }>(
+    `SELECT public.get_field_trip_scan_contributions($1, $2)::jsonb AS data`,
     [userId, scanId],
   );
   return result.rows[0].data;
@@ -243,4 +486,18 @@ function assertCreditedUpdate(
   assertEquals(update.newly_completed_items.map((item) => item.item_id), [
     expectedItemId,
   ]);
+  assertEquals(update.removed_item_ids, []);
+}
+
+function assertCorrectionRemoval(
+  update: StandardProgressUpdate | ChallengeProgressUpdate,
+  expectedLevel: number,
+  expectedRemovedItemId: string,
+): void {
+  assertEquals(update.current_level_number, expectedLevel);
+  assertEquals(update.credited_level_number, expectedLevel);
+  assertEquals(update.credited_completed_count, 0);
+  assertEquals(update.credited_target_count, 1);
+  assertEquals(update.newly_completed_items, []);
+  assertEquals(update.removed_item_ids, [expectedRemovedItemId]);
 }

@@ -1892,9 +1892,16 @@ coordinates to the client contract.
   completion time, and denormalized progress counts.
 - `public.user_field_trip_item_completions`:
   Idempotent item completion rows linking a Field trip item to the saved scan
-  that completed it. Rows are written only for caller-owned scans made after the
-  Field trip start time. The same scan may link to multiple matching items or
-  outings; uniqueness is by user Field trip and checklist item, not by scan.
+  that completed it. Rows are written only for caller-owned scans whose capture
+  timestamp belongs to an explicit activity period. A unique
+  `(user_field_trip_id, scan_id)` index limits the scan to one credit in that
+  outing, while a scan-first `(scan_id, user_field_trip_id)` index supports
+  Insight lookup. The same scan may still link to one item in several outings.
+- `public.field_trip_scan_goal_preferences`:
+  Private scan-keyed live-Capture preference with owner, standard outing, and
+  checklist item IDs. It contains no media, coordinates, notes, or public
+  evidence. RLS is enabled, all access is revoked from `PUBLIC`, `anon`, and
+  `authenticated`, and only `service_role` may read or mutate it.
 - `public.field_trip_publications`:
   Published Field trip snapshot headers with user-editable title, optional
   description, optional AI summary, counts, author/template linkage, and
@@ -1931,7 +1938,8 @@ coordinates to the client contract.
   Challenge-specific item completions keyed by participation and checklist item.
   Rows link to caller-owned scans made after `joined_at` and before the
   challenge `ends_at`; they do not retroactively satisfy normal Field trip
-  progress.
+  progress. A unique `(participation_id, scan_id)` index limits the scan to one
+  Event credit, with a scan-first lookup index for Insight contributions.
 - `public.field_trip_challenge_badges`:
   Completion badge rows for non-competitive challenges. Profile-visible badges
   expose no scan IDs, media, exact locations, notes, or private evidence.
@@ -1998,21 +2006,29 @@ coordinates to the client contract.
   Internal matcher used by progress application. It checks species,
   scientific-name, taxonomy/group, habitat/ecology, and prompt-text signals
   against the saved scan.
+- `public.apply_field_trip_scan_progress_v2(self_id UUID, target_scan_id UUID, preferred_user_field_trip_id UUID, preferred_item_id UUID)`:
+  Applies server-authoritative progress for one caller-owned saved biological
+  scan. Standard outings must already exist and the scan timestamp must belong
+  to an activity period; joined Events use `joined_at` through `ends_at`.
+  Exactly one current-level match can be credited per outing/Event. A valid
+  visible Capture preference wins inside its own standard outing. Otherwise the
+  matcher ranks exact species, scientific name, taxonomy from genus through
+  kingdom, semantic tag, ecology, habitat, curated checklist order, then item
+  ID. The same scan may still advance several eligible experiences.
+  Reapplication is idempotent. While an experience remains unfinished,
+  identification correction can move or remove credit in the original credited
+  level and recompute the earliest incomplete level; completed experiences are
+  immutable. Responses preserve current and credited-level counts and may add
+  `removed_item_ids`.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
-  Applies server-authoritative progress for one caller-owned scan. It counts
-  only scans made after the trip starts and only against the current unlocked
-  level. A saved biological photo or video can qualify. The scan is evaluated
-  against every matching current-level item across every eligible active
-  standard outing, so one scan may create multiple completion rows that all
-  retain the same `scan_id`. The response preserves current-level fields and
-  adds the optional credited level number/title and completed/target counts for
-  the level changed by this scan. If completion advances the trip, credited
-  counts retain the just-completed full level while current counts describe the
-  next level. Reapplication is idempotent and returns no update when no new
-  completion row is inserted. The response contract is introduced by
-  `20260718150932_add_credited_field_trip_progress.sql` and scoped to items
-  matched by the current attempt in
-  `20260718162409_scope_credited_progress_to_current_attempt.sql`.
+  Compatibility wrapper that calls V2 without a preference, preserving older
+  Edge/client behavior.
+- `public.get_field_trip_scan_contributions(self_id UUID, target_scan_id UUID)`:
+  Private service-role-only read model returning every standard outing/Event
+  credit owned by one saved biological scan. Rows contain source and routing
+  IDs, labels, credited item/level counts, completion state, and artwork inputs;
+  they exclude media, storage URLs, coordinates, place labels, and notes.
+  Execute is revoked from `PUBLIC`, `anon`, and `authenticated`.
 - `public.get_field_trip_profile_summaries(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
   Returns active status-only, pinned published, and general published Field trip
   summaries visible to the requester. Pinned publications are omitted from the
@@ -2415,7 +2431,7 @@ each new row into the migration `ModelContext` before assigning the relationship
 relationship assignment alone is not a durable insert path while SwiftData is
 inside staged store migration.
 
-The current active schema is `MerianSchemaV49`. Recent milestones:
+The current active schema is `MerianSchemaV50`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -2477,6 +2493,10 @@ The current active schema is `MerianSchemaV49`. Recent milestones:
   redacted store metadata, model-version fingerprints, attempted plan names, and
   error-domain/code fingerprints so failing devices can share evidence without
   exposing local paths, account IDs, scan text, or media URLs.
+- V50 adds the scan-keyed `OfflineQueuedScanGoalHint` companion through a
+  lightweight V49→V50 migration. The released V49 `OfflineQueuedScan` model is
+  reused unchanged. Every source-isolated recent recovery plan reaches V49
+  first and then applies the same lightweight V50 stage.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
@@ -2683,9 +2703,25 @@ the source rows, and recreates V49 queued scans with non-optional defaults
 (`queueAttemptCount = 0`, `queueUpdatedAt = now`, `queueNeedsAttention = false`)
 when the optional source stored `nil`.
 
+### `OfflineQueuedScanGoalHint`
+
+Added in `MerianSchemaV50`. This optional companion exists only for a queued
+scan submitted from an eligible live Capture goal selection.
+
+- `scanId`: String, unique and equal to the queued scan ID.
+- `userFieldTripId`: String identifying the selected standard outing.
+- `itemId`: String identifying the selected current checklist goal.
+
+Foreground and background completion fetch this row by scan ID and pass it to
+Field trip progress after remote scan persistence. Queue deletion, successful
+handoff, explicit cancellation, and orphan repair delete the companion. It is
+not related to `OfflineQueuedScan` through a SwiftData relationship, does not
+contain media or inference input, and is not a cache for Insight contribution
+cards.
+
 ### `OfflineJobRecord`
 
-Added in `MerianSchemaV48` and carried forward unchanged in V49.
+Added in `MerianSchemaV48` and carried forward unchanged through V50.
 Scheduler/control-plane row for media-agnostic
 offline work. Current `kindRaw` values are `scanIngestion`, `cloudDeletion`,
 `collectionSync`, `speciesPreferenceSync`, and `future`; current `statusRaw`

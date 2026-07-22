@@ -29,7 +29,10 @@ Tracks device-local discovery milestones and achievement notification state.
   routing, refresh publication, or presentation when Events are staged off. Both
   foreground and background scan completion use this boundary and deduplicate
   by final scan ID. The old local `CelebrationBanner` confetti overlay has been
-  removed.
+  removed. A scan may enqueue progress for several eligible experiences, with
+  at most one credited goal in each. The persistent Insight contribution card
+  reloads from server-backed completion rows and does not enqueue another
+  milestone, haptic, or celebration.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
 - The profile `Terrarium` presents bundled asset-catalog artwork selected by

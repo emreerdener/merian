@@ -11,6 +11,7 @@ struct BiologicalView: View {
 
     // MARK: - Context State
     var timestamp: Date?
+    var onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -102,6 +103,16 @@ struct BiologicalView: View {
                     .cardEntrance(index: 2)
                 }
 
+                if !viewModel.fieldTripScanContributions.isEmpty {
+                    FieldTripProgressCard(
+                        contributions: viewModel.fieldTripScanContributions,
+                        onOpen: { destination in
+                            onOpenCaptureGoal?(destination)
+                        }
+                    )
+                    .cardEntrance(index: 3)
+                }
+
                 if viewModel.shouldShowFieldNotesCard {
                     FieldNotesCard(
                         previewText: viewModel.fieldNotesText,
@@ -118,7 +129,7 @@ struct BiologicalView: View {
                             viewModel.state.isFieldNotesSheetPresented = true
                         }
                     )
-                    .cardEntrance(index: 3)
+                    .cardEntrance(index: 4)
                 }
 
                 // MARK: - Educational Reference
@@ -126,7 +137,7 @@ struct BiologicalView: View {
                     isSafariPresented: $isSafariPresented,
                     selectedWikiURL: $selectedWikiURL
                 )
-                .cardEntrance(index: 4)
+                .cardEntrance(index: 5)
 
                 // MARK: - Habitat & Distribution
                 if !isUnknownSubject {
@@ -198,5 +209,148 @@ struct BiologicalView: View {
             speciesId: entry.speciesId,
             entryPoint: .insightSimilarSpecies
         )
+    }
+}
+
+struct FieldTripProgressCard: View {
+    let contributions: [FieldTripScanContribution]
+    let onOpen: (CaptureGoalDestination) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            InsightCardHeader(systemImage: "map.fill", title: "Field trip progress")
+
+            VStack(spacing: 0) {
+                ForEach(Array(contributions.enumerated()), id: \.element.id) { index, contribution in
+                    if let destination = contribution.destination {
+                        Button {
+                            onOpen(destination)
+                        } label: {
+                            FieldTripProgressContributionRow(contribution: contribution)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        FieldTripProgressContributionRow(contribution: contribution)
+                    }
+
+                    if index < contributions.count - 1 {
+                        Divider().padding(.leading, 58)
+                    }
+                }
+            }
+        }
+        .card()
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct FieldTripProgressContributionRow: View {
+    let contribution: FieldTripScanContribution
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var goalTitle: String { "\(contribution.prompt) goal complete" }
+    private var sourceSubtitle: String {
+        "\(contribution.title) · Level \(contribution.levelNumber)"
+    }
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        artwork
+                        labels
+                    }
+                    HStack {
+                        Spacer()
+                        progressAndDisclosure
+                    }
+                }
+            } else {
+                HStack(spacing: 12) {
+                    artwork
+                    labels
+                    Spacer(minLength: 8)
+                    progressAndDisclosure
+                }
+            }
+        }
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(contribution.prompt) goal complete in \(contribution.title), "
+                + "\(contribution.completedCount) of \(contribution.targetCount)"
+        )
+        .accessibilityHint(contribution.destination == nil ? "" : "Opens Field trip details")
+        .accessibilityAddTraits(contribution.destination == nil ? [] : .isButton)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(goalTitle)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(sourceSubtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var progressAndDisclosure: some View {
+        HStack(spacing: 8) {
+            GoalProgressRing(
+                completedCount: contribution.completedCount,
+                targetCount: contribution.targetCount,
+                tint: .green
+            )
+            .frame(width: 46, height: 46)
+            .accessibilityHidden(true)
+
+            if contribution.destination != nil {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var artwork: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let imageName = FieldTripObjectiveArtwork.exactImageName(
+                    for: contribution.artworkPrompt,
+                    templateSlug: contribution.artworkTemplateSlug
+                ) {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(4)
+                } else {
+                    Image(systemName: "binoculars.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 46, height: 46)
+            .background(.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 18, height: 18)
+                .background(.green, in: Circle())
+                .overlay { Circle().stroke(.background, lineWidth: 2) }
+                .offset(x: 3, y: 3)
+        }
+        .frame(width: 50, height: 50)
+        .accessibilityHidden(true)
     }
 }

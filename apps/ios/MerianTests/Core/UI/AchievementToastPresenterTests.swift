@@ -253,7 +253,7 @@ struct AchievementToastPresenterTests {
         var progressContinuation: CheckedContinuation<FieldTripProgressResult?, Never>?
         let achievement = completedAward(.domesticDog)
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _ in
+            progressResolver: { _, _ in
                 await withCheckedContinuation { continuation in
                     progressContinuation = continuation
                 }
@@ -310,7 +310,7 @@ struct AchievementToastPresenterTests {
         let presenter = MilestoneToastPresenter()
         let achievement = completedAward(.domesticCat)
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _ in nil },
+            progressResolver: { _, _ in nil },
             achievementResolver: { _ in [achievement] },
             presenter: presenter
         )
@@ -335,7 +335,7 @@ struct AchievementToastPresenterTests {
         let presenter = MilestoneToastPresenter()
         let achievement = completedAward(.domesticDog)
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _ in
+            progressResolver: { _, _ in
                 FieldTripProgressResult(fieldTripUpdates: [], challengeUpdates: [])
             },
             achievementResolver: { _ in [achievement] },
@@ -363,7 +363,7 @@ struct AchievementToastPresenterTests {
         var progressResolverCalls = 0
         let achievement = completedAward(.domesticDog)
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _ in
+            progressResolver: { _, _ in
                 progressResolverCalls += 1
                 return nil
             },
@@ -399,7 +399,7 @@ struct AchievementToastPresenterTests {
         )
         let fieldTripProgress = progressResult()
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _ in
+            progressResolver: { _, _ in
                 FieldTripProgressResult(
                     fieldTripUpdates: fieldTripProgress.fieldTripUpdates,
                     challengeUpdates: fieldTripProgress.challengeUpdates,
@@ -472,7 +472,7 @@ struct AchievementToastPresenterTests {
         var resolverCalls = 0
         var progressContinuation: CheckedContinuation<FieldTripProgressResult?, Never>?
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _ in
+            progressResolver: { _, _ in
                 resolverCalls += 1
                 return await withCheckedContinuation { continuation in
                     progressContinuation = continuation
@@ -645,7 +645,8 @@ struct AchievementToastPresenterTests {
                     creditedLevelTitle: "Level 1",
                     creditedCompletedCount: 4,
                     creditedTargetCount: 4,
-                    newlyCompletedItems: standardIncludesNewItem ? [standardItem] : []
+                    newlyCompletedItems: standardIncludesNewItem ? [standardItem] : [],
+                    removedItemIds: nil
                 )
             ],
             challengeUpdates: [
@@ -665,7 +666,8 @@ struct AchievementToastPresenterTests {
                     creditedLevelTitle: "Level 1",
                     creditedCompletedCount: 2,
                     creditedTargetCount: 4,
-                    newlyCompletedItems: [challengeItem]
+                    newlyCompletedItems: [challengeItem],
+                    removedItemIds: nil
                 )
             ]
         )

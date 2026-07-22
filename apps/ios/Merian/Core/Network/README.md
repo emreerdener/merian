@@ -57,12 +57,15 @@ render Private during a staged backend/client rollout.
 
 ## Field trip scan progress
 
-`applyFieldTripProgress(scanId:)` keeps the existing
-`{"action":"apply_scan_progress","scan_id":"..."}` request and decodes
+`applyFieldTripProgress(scanId:preferredGoal:)` posts
+`{"action":"apply_scan_progress","scan_id":"..."}` and may add an optional
+`preferred_goal` object containing `user_field_trip_id` and `item_id`. The hint
+is best effort and server-validated; older callers omit it. The client decodes
 standard updates from `data` plus Seasonal Challenge updates from
 `challenge_updates`. Both update models optionally decode
 `creditedLevelNumber`, `creditedLevelTitle`, `creditedCompletedCount`, and
-`creditedTargetCount`. These fields describe the level changed by the scan;
+`creditedTargetCount`, plus removed-item metadata used when a correction
+invalidates earlier unfinished credit. These fields describe the level changed by the scan;
 when a completion advances immediately, current counts describe the next level
 while credited counts preserve the just-completed full ring. Toast accessors
 fall back to current counts against the legacy response shape.
@@ -71,6 +74,14 @@ Only updates with nonempty `newlyCompletedItems` represent a new credit. The
 first item is in server checklist order and supplies the toast label/focus
 target, with its prompt as the common-name fallback. Reapplying an already
 credited scan is idempotent and yields no progress toast.
+
+`getFieldTripScanContributions(scanId:)` posts
+`{"action":"scan_contributions","scan_id":"..."}` and decodes one
+`FieldTripScanContribution` per credited standard outing or Event. The DTO
+contains only source IDs, labels, credited item/level counts, artwork inputs,
+and typed-routing inputs. It must never grow media, coordinates, notes, or
+public evidence. The Insight view model silently treats empty and failed reads
+as no card.
 
 ## Field trip capture context
 

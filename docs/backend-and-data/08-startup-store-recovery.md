@@ -35,6 +35,8 @@ verification.
    source. V42 and V43 use short direct V49 plans to avoid validating older
    full-historical custom stages; V42 deliberately skips the older V42→V43
    bridge because real TestFlight V42 stores still fell back to safe mode there.
+   Every selected repair lane then applies the shared lightweight V49→V50 stage;
+   stores already stamped V50 open as current stores without a plan.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption
@@ -154,7 +156,8 @@ representatives out of that full path, verifies V42/V43/V44/V45/V46/V47
 source-isolated plans target V49 directly, verifies the known-good and
 optional-queue V48 recovery plan source, guards the legacy migration-rescue
 escape hatch, and guards the disk-backed migration tests from unlinking SQLite
-files during the test process. Runtime tests separately assert that V48
+files during the test process while also requiring the shared V49→V50 stage.
+Runtime tests separately assert that V48
 required-value validation failures are rescue-eligible because current SwiftData
 may reject malformed historical V48 rows before a repair migration can run.
 

@@ -82,6 +82,11 @@ A structured schema built on native SwiftData migrations:
   standard outings, Events-visible Seasonal Challenges, achievements, and
   **New to Naturebook** in that order. This prevents the live inference task and
   background URLSession completion from presenting duplicate notifications.
+- *Persistent Field Trip Attribution*: after progress settles, saved biological
+  Insights query the private scan-contribution projection and render every
+  credited outing/Event. The read model contains labels, counts, artwork, and
+  typed routes only; it is not local cache data and exposes no media, location,
+  or notes.
 - Schema versioning handles migrations cleanly.
 - `#Predicate` constraints use `.localizedStandardContains()` for robust case-insensitive SQLite matches across `ScanRepository`.
 - Keeps biological scan media durable in cloud storage; `ArchiveManager.swift` is limited to generated dataset archive downloads rather than timed scan-media rescue.

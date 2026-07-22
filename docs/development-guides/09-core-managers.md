@@ -341,7 +341,10 @@ triggering excessive SwiftUI view rebuilds.
   awards and batches standard outings, Events-visible Seasonal Challenges,
   achievements, and
   **New to Naturebook**. Tools requiring server persistence stay disabled until
-  the existing ingestion ledger confirms the final scan ID.
+  the existing ingestion ledger confirms the final scan ID. The progress call
+  may carry the durable camera-only selected-goal hint, and its completion
+  publishes a scan-specific contribution invalidation so an open historical
+  Insight reloads without replaying milestone celebrations.
 - **Inline/background upload handoff**: `analyze()` installs a two-second
   fail-safe, then asks `MerianNetworkClient` to release the live scan's deferred
   queue row when request-body upload completes. Network failure releases the row
@@ -803,7 +806,7 @@ triggering excessive SwiftUI view rebuilds.
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors. |
 | `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                               |
-| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule; default `true`.                    |
+| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off.                    |
 | `legacyMultiImageScanMode`             | `"multiImageScanMode"`                   | one-time migration in `MerianApp`                                                                                                                                                   |
 | `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"` | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                         |
 | `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`             | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                              |

@@ -49,7 +49,7 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
 1. A stable `scanId` UUID is generated. This UUID is shared by both the offline
    queue record and the concurrent live inference request.
-2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:startSyncImmediately:onQueued:)`
+2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:startSyncImmediately:onQueued:)`
    is called **synchronously on the main actor**, before any `async` boundary is
    crossed. It wraps its work in a `.userInitiated` priority
    `BackgroundTaskWrapper`, dispatching disk writes to `FileIOActor` to prevent
@@ -98,6 +98,17 @@ Gallery images and audio-bearing or video visual submissions keep the existing
 full-context wait and immediate queue-sync race in this first optimization pass.
 They still emit the same pipeline timing instrumentation.
 
+An eligible live visual Capture can also supply a selected standard-outing goal
+as `preferredGoal`. V50 stores the two goal IDs in the scan-keyed companion
+model `OfflineQueuedScanGoalHint`, leaving the released V49
+`OfflineQueuedScan` entity byte-for-byte stable. The companion row is inserted
+in the same model-context transaction as the queued scan, read by foreground
+and background completion paths, and forwarded only to the later
+`apply_scan_progress` call. It is not inference input and never changes upload
+eligibility. Camera-only still evidence may retain the hint; gallery, audio,
+video, Describe, Record, refinement, and mixed camera/gallery evidence must
+discard it before queue insertion.
+
 For an eligible live-camera still, the live inference path owns the uplink
 initially. The durable background path
 is handed off as soon as the inline request body has finished sending:
@@ -121,8 +132,8 @@ After handoff, either path can finish first:
 - **Live wins**: `analyze()` calls
   `OfflineQueueManager.shared.deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)`
   on success, which cancels any in-flight URLSession tasks, removes the
-  SwiftData record, deletes queue-only inference frames, and preserves media
-  adopted by the final `LocalScanRecord`.
+  SwiftData record and its goal-hint companion, deletes queue-only inference
+  frames, and preserves media adopted by the final `LocalScanRecord`.
 - **Background wins** (user backgrounded or dismissed): the upload completes via
   the OS-managed background URLSession, `dispatchInferenceDownloadTask` issues a
   background URLSession download task for inference, and the OS delivers the
@@ -147,6 +158,11 @@ telemetry payload attached. On a successful `context.save()`,
 to measure offline usage rate. If the save fails, the main context rolls
 back, any consumed free-tier quota token is refunded, and staged files are
 deleted without dispatching sync.
+
+If cleanup encounters an orphaned hint after its queued scan was already
+removed, `flushOfflineQueuedScan` deletes the companion and saves that repair.
+This keeps later scan-ID reuse or correction work from observing a stale local
+preference.
 
 All queued-capture file I/O is now actor-owned. `enqueueCapture` writes staged
 image bytes through `FileIOActor.writeTemporaryImages(imageDatas:)`, adopts

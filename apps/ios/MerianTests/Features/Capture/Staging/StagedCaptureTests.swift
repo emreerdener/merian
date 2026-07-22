@@ -34,6 +34,42 @@ struct StagedCaptureTests {
         ))
     }
 
+    @Test func preferredGoalRequiresCameraOnlyStillMedia() {
+        let preferredGoal = FieldTripPreferredGoal(
+            userFieldTripId: "outing",
+            itemId: "butterfly"
+        )
+
+        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
+            preferredGoal,
+            hasCameraStill: true,
+            hasGalleryStill: false,
+            hasAudio: false,
+            hasVideo: false
+        ) == preferredGoal)
+        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
+            preferredGoal,
+            hasCameraStill: true,
+            hasGalleryStill: true,
+            hasAudio: false,
+            hasVideo: false
+        ) == nil)
+        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
+            preferredGoal,
+            hasCameraStill: true,
+            hasGalleryStill: false,
+            hasAudio: true,
+            hasVideo: false
+        ) == nil)
+        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
+            preferredGoal,
+            hasCameraStill: false,
+            hasGalleryStill: false,
+            hasAudio: false,
+            hasVideo: true
+        ) == nil)
+    }
+
     // MARK: - isEmpty
 
     @Test func isEmptyWhenAllModalitiesAreEmpty() {
@@ -321,8 +357,20 @@ struct StagedCaptureTests {
         let descriptionA = ObservationContext(freeText: "description A")
         let descriptionB = ObservationContext(freeText: "description B")
 
-        let scenarios: [(name: String, capture: StagedCapture, expectedCount: Int)] = [
-            (
+        struct Scenario {
+            let name: String
+            let capture: StagedCapture
+            let expectedCount: Int
+
+            init(_ name: String, _ capture: StagedCapture, _ expectedCount: Int) {
+                self.name = name
+                self.capture = capture
+                self.expectedCount = expectedCount
+            }
+        }
+
+        let scenarios: [Scenario] = [
+            .init(
                 "audio only",
                 StagedCapture(
                     images: [],
@@ -332,7 +380,7 @@ struct StagedCaptureTests {
                 ),
                 1
             ),
-            (
+            .init(
                 "audio and audio",
                 StagedCapture(
                     images: [],
@@ -345,7 +393,7 @@ struct StagedCaptureTests {
                 ),
                 2
             ),
-            (
+            .init(
                 "audio and description",
                 StagedCapture(
                     images: [],
@@ -355,7 +403,7 @@ struct StagedCaptureTests {
                 ),
                 2
             ),
-            (
+            .init(
                 "audio and image",
                 StagedCapture(
                     images: [makeImage(addedAt: 20)],
@@ -365,7 +413,7 @@ struct StagedCaptureTests {
                 ),
                 2
             ),
-            (
+            .init(
                 "description only",
                 StagedCapture(
                     images: [],
@@ -375,7 +423,7 @@ struct StagedCaptureTests {
                 ),
                 1
             ),
-            (
+            .init(
                 "description and description",
                 StagedCapture(
                     images: [],
@@ -388,7 +436,7 @@ struct StagedCaptureTests {
                 ),
                 2
             ),
-            (
+            .init(
                 "description and image",
                 StagedCapture(
                     images: [makeImage(addedAt: 20)],
@@ -398,7 +446,7 @@ struct StagedCaptureTests {
                 ),
                 2
             ),
-            (
+            .init(
                 "image only",
                 StagedCapture(
                     images: [makeImage(addedAt: 10)],
@@ -408,7 +456,7 @@ struct StagedCaptureTests {
                 ),
                 1
             ),
-            (
+            .init(
                 "image and image",
                 StagedCapture(
                     images: [makeImage(addedAt: 10), makeImage(addedAt: 20)],

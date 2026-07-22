@@ -360,7 +360,20 @@ For credited scan-progress notifications, apply
 `20260718162409_scope_credited_progress_to_current_attempt.sql` before releasing
 the iOS toast surface. Verify partial progress, level advancement, final
 completion, multiple standard/challenge destinations, re-identification after
-level advancement, and idempotent reapplication. The existing
-`apply_scan_progress` request does not change; legacy clients ignore the
-additional response fields and the new iOS client falls back to current counts
-until the migrations are live.
+level advancement, and idempotent reapplication. Those two migrations add only
+response fields; legacy clients ignore them and newer clients fall back to
+current counts until the migrations are live. The later persistent-
+contribution release adds optional `preferred_goal` to the request.
+
+For persistent Insight contribution cards and selected-goal preference, apply
+`20260719045306_first_field_trip_achievement.sql`,
+`20260719160750_field_trip_lifecycle_controls.sql`,
+`20260720014446_update_backyard_safari_copy.sql`, and
+`20260722025411_persistent_field_trip_scan_contributions.sql` in order. Then
+deploy `field-trips` before the iOS client. Smoke-test optional
+`preferred_goal`, one credit per outing/Event, deterministic fallback,
+correction removal/move, and `scan_contributions`. Direct client roles must not
+read `field_trip_scan_goal_preferences` or execute
+`get_field_trip_scan_contributions`; contribution payloads must contain no
+media, coordinates, place labels, notes, or public evidence. Older clients omit
+the preference and remain compatible.

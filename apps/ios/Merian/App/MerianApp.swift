@@ -93,6 +93,7 @@ enum UITestSeedCoordinator {
             try context.delete(model: LocalScanRecord.self)
             try context.delete(model: ScanCollection.self)
             try context.delete(model: OfflineQueuedScan.self)
+            try context.delete(model: ActiveOfflineQueuedScanGoalHint.self)
             try context.delete(model: PendingCloudDeletionTask.self)
 
             if arguments.contains("-seedAchievementDetailFlow") {

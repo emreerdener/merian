@@ -1,6 +1,10 @@
 import Foundation
 import SwiftData
 
+/// Released V49 queue model reused unchanged by V50.
+///
+/// The V50 goal preference is stored in `ActiveOfflineQueuedScanGoalHint` so this
+/// type retains its released identity and SwiftData checksum during migration.
 @Model
 public final class OfflineQueuedScan {
     @Attribute(.unique) public var id: String

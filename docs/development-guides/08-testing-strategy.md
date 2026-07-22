@@ -182,6 +182,10 @@ MerianTests/
     queued rows as the current model during `didMigrate`. This is the preferred
     place for schema-version
     migration fixtures and SwiftData checksum regressions.
+  - V49→V50 coverage verifies the lightweight migration preserves existing
+    queued scans and permits a new `OfflineQueuedScanGoalHint` companion with
+    the same scan ID. Queue tests must cover hint persistence through foreground
+    and background completion plus deletion/orphan cleanup.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged and legacy-unmigratable local stores. It verifies corruption-only
   quarantine, legacy migration rescue for generic SwiftData migration failures,
@@ -219,7 +223,8 @@ MerianTests/
     whole test runner. V47 must reuse the V45 checksum representative for
     unchanged local-scan, captured-media, and collection models, while V45 and
     V46 recent plans must keep those sources isolated from each other and route
-    directly to V49. Disk-backed SwiftData migration tests should use unique
+    directly to V49 before the shared lightweight V49→V50 stage. Disk-backed
+    SwiftData migration tests should use unique
     temporary store URLs and must not unlink the `.sqlite`, `.sqlite-shm`, or
     `.sqlite-wal` files during the test process. Core Data may keep those file
     descriptors alive after the visible `ModelContainer` scope ends; deleting
@@ -752,36 +757,50 @@ progress, the non-destructive retirement of placeholder templates, and the
 evidence-free capture projection. It also locks the private catalog/detail
 `completed_scan_id` projection, detail-only publication status, owner/non-deleted
 join, service-role-only grants, and credited-level/count fields in both scan-
-progress RPCs.
+progress RPCs. The persistent-contribution contract additionally locks the
+migration abort guard, private preference table, one-credit uniqueness and
+scan-first indexes, preferred-goal validation/ranking, correction invalidation,
+service-role-only contribution RPC, and evidence-minimal projection.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
 `_tests/fieldTripProgressDb.test.ts` exercises standard and challenge
-credited-level responses across advancement, scan re-identification, and
-idempotent reapplication under the same local-stack requirement.
+credited-level responses across explicit-start/join eligibility, one credit per
+experience, several active experiences, delayed upload after an outing/Event
+ends, preferred-goal priority, deterministic fallback, advancement, unfinished
+correction removal/move after deactivation, completed-experience immutability,
+ownership isolation, concurrency, and idempotent reapplication under the same
+local-stack requirement.
 `_tests/fieldTripActions.test.ts` compares the complete Edge allowlist with a
 manually maintained snapshot of the actions emitted by iOS and verifies that
 missing and unknown actions are rejected. It does not parse Swift source, so
 review the client call sites and update both arrays whenever an action is added,
 renamed, or retired.
 `FieldTripCaptureContextModelsTests` covers capture-context decoding, while
-`FieldTripAPIModelsTests.catalogDecodesActiveProgressAndChecklistItems` covers
-the optional completing scan ID used by catalog/detail thumbnails and published
-status. A separate legacy-payload test ensures absent publication fields decode
-as Private during rollout.
+`FieldTripAPIModelsTests` covers the optional completing scan ID used by
+catalog/detail thumbnails, published status, optional removed-item metadata,
+and standard/Event contribution decoding plus typed destinations. A separate
+legacy-payload test ensures absent publication fields decode as Private during
+rollout.
 The progress-response tests cover both the legacy shape and an extended level-
 advancement shape where current counts are `0/N` but credited counts are the
 completed full level. `AchievementToastPresenterTests` covers delayed strict
 ordering, multiple standard/challenge destinations, common-name fallback,
 progress failure, empty matches, completed-level rings, and foreground/background
-scan-ID deduplication. `InsightSheetViewModelTests` keeps the dictionary
-eligibility policy covered after presentation moved out of the sheet lifecycle.
+scan-ID deduplication. `InsightSheetViewModelTests` covers contribution loading,
+scan-change race rejection, silent error/empty states, queued/unauthenticated/
+non-biological gates, Events filtering, invalidation reload, and root/embedded
+routing in addition to the dictionary eligibility policy.
 `ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
 refresh-failure retention, single-fetch coalescing for overlapping startup
 freshness checks, indicator presentation/gesture policy, exact-art
 fallback, user-visibility gating, and focused Explore route compatibility.
+Capture preference tests cover visible selected-goal priority across automatic,
+crop-confirmed, and manual camera-still submission. `StagedCaptureTests` locks
+the camera-only media gate so gallery, mixed camera/gallery, audio, video,
+Describe, Record, refinement, and missing selections cannot persist a hint.
 Capture startup diagnostics must also exercise the user-configurable first-mode
 matrix. For each of Camera, Audio, and Description, persist that mode first,
 cold-launch with `AG_PRINT_CYCLES=3`, leave the default page idle long enough for

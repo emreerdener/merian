@@ -13,8 +13,9 @@ containing progress-bearing `CaptureGoal` values and an optional non-progress-be
 `CaptureGoalIntroduction`.
 Features that own goals remain responsible for eligibility, ordering,
 completion, artwork mapping, and destination construction. Capture owns only
-presentation, local selection, account-scoped caching, refresh timing, and the
-typed hand-off to the destination feature.
+presentation, local selection, account-scoped caching, refresh timing, the
+bounded submission preference, and the typed hand-off to the destination
+feature.
 
 The Field trips feature is the first source. It exposes a private, authenticated
 `capture_context` action backed by
@@ -58,11 +59,13 @@ needed.
 
 ## Non-goals
 
-- Selecting which outing receives scan progress. Progress remains
-  server-authoritative and evaluates every eligible active outing.
+- Selecting which experiences are eligible for scan progress. Progress remains
+  server-authoritative and evaluates every explicitly started standard outing
+  and explicitly joined live Event independently.
 - Showing Seasonal Challenge targets in the first release.
-- Supporting Record, Describe, staged capture, refinement, or active video
-  recording.
+- Treating Record, Describe, gallery import, refinement, active video, or mixed
+  non-camera evidence as eligible for the preferred-goal hint. A camera-only
+  still may retain the goal selected before it entered the staging tray.
 - Realtime subscriptions, background fetch, push-driven refresh, or camera
   startup blocking.
 - User-generated checklists, unlimited target catalogs, or a universal goal
@@ -103,6 +106,7 @@ Primary implementation files:
 - `services/supabase/functions/field-trips/`
 - `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`
 - `services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`
+- `services/supabase/migrations/20260722025411_persistent_field_trip_scan_contributions.sql`
 
 ## Capture-facing domain contract
 
@@ -162,6 +166,37 @@ understandable when a swipe crosses outing boundaries.
 Exact bundled artwork is used only when the source adapter has a semantic
 mapping. Unknown targets use `binoculars.fill`; they must never borrow an image
 from an unrelated target.
+
+## Submission Preference Contract
+
+The visible selection is an optional tie breaker inside its own standard
+outing, not an eligibility override and not a cross-experience winner. A saved
+scan can still advance one goal in every eligible standard outing and one goal
+in every joined live Event. Within each experience the server credits at most
+one goal.
+
+Capture may attach `preferred_goal: { user_field_trip_id, item_id }` only when:
+
+- the **Field trip goals** setting and Field trips feature are enabled;
+- visual Scan is active and the target was visibly selected before camera media
+  was staged (the capsule may be hidden while a nonempty tray is submitted);
+- the selected target is a standard-outing goal;
+- Capture is not refining an existing scan; and
+- the submitted evidence contains camera still images only, with no gallery
+  image, video, audio, Describe item, or Record item.
+
+Automatic single-shot submission, crop-confirmed camera submission, and manual
+camera-still submission all use the same policy. Gallery, Describe, Record,
+hidden-goal UI, missing selections, mixed camera/gallery trays, and any audio or
+video discard the preference and use deterministic server ranking.
+
+The Edge action validates the preference against ownership, visibility, the
+scan timestamp's active period, the current unlocked level, and identification
+matching. Invalid, stale, unauthorized, completed, or nonmatching preferences
+are ignored. Fallback order is exact species, scientific name, taxonomy from
+genus through kingdom, semantic tag, ecology, habitat, then curated checklist
+order and item ID. Events always use fallback ranking because their targets are
+not exposed in the current Capture context.
 
 ## State, caching, and refresh
 
@@ -225,10 +260,12 @@ later, with a neutral material fallback on earlier supported versions. Text and
 symbols use semantic foreground styles rather than a fixed brand color so the
 system can maintain contrast over the live camera scene.
 
-The on-by-default **Field trip goals** setting controls only presentation of the
-capsule. Disabling it does not clear the account cache, alter selection, stop
-normal refreshes, or mutate outing progress, so re-enabling is immediate and
-does not create a separate server preference contract.
+The on-by-default **Field trip goals** setting controls presentation of the
+capsule and whether Capture may forward that visible selection as a preferred
+goal. Disabling it does not clear the account cache, alter stored selection,
+stop normal refreshes, or disable server progress; saved scans use deterministic
+fallback ranking instead. Re-enabling is immediate and does not create a
+separate server preference setting.
 
 An active target is rendered as `Goal: {target}` while the
 outing title remains centered beneath it between symmetric artwork and progress
@@ -302,6 +339,14 @@ The response and cache must never include:
 - completed common or scientific names;
 - evidence timestamps or evidence metadata; or
 - account identifiers other than the local cache namespace.
+
+The scan-submission preference is a separate write contract, not part of the
+capture-context response or its `UserDefaults` cache. V50 persists its two IDs
+beside an accepted queued scan in `OfflineQueuedScanGoalHint`, and the backend
+copies a validated hint into the private
+`field_trip_scan_goal_preferences` table. Both rows are owner-scoped control
+data; neither contains media, coordinates, notes, identification evidence, or a
+public route. Queue success/deletion removes the local companion row.
 
 The locally cached prompt, outing title, and aggregate progress are
 account-related but deliberately low-sensitivity. If a future source needs

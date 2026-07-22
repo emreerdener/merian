@@ -1,11 +1,11 @@
 # Naturebook Master Product Document
 
-Repository-aligned edition - 20 July 2026
+Repository-aligned edition - 21 July 2026
 
 > Turn everyday curiosity into field science.
 
 Document owner: Product and Engineering  
-Review basis: Merian monorepo as inspected on 20 July 2026  
+Review basis: Merian monorepo as inspected on 21 July 2026
 Public product name: Naturebook  
 Engineering identity: Merian  
 Document status: Replacement for the stale master product document
@@ -31,7 +31,7 @@ The repository is the authority for implementation status. Product strategy, mar
 
 ## Snapshot and precedence
 
-- This edition reflects the visible monorepo on 20 July 2026.
+- This edition reflects the visible monorepo on 21 July 2026.
 - Current source code, schemas, migrations, configuration, tests, and release guardrails take precedence over older prose documents.
 - Where the repository contains conflicting prose, executable behavior and the newest explicit compatibility contract take precedence.
 - Public-facing copy must use Naturebook. Merian remains the stable internal and technical identity where renaming would break compatibility.
@@ -47,7 +47,7 @@ The repository is the authority for implementation status. Product strategy, mar
 | iOS build | 235 |
 | Minimum iOS deployment | iOS 17.2 |
 | Device family | iPhone |
-| SwiftData schema | MerianSchemaV49 |
+| SwiftData schema | MerianSchemaV50 |
 | Local Supabase Postgres | 17 |
 | Website | https://naturebook.earth |
 | Support | support@naturebook.earth |
@@ -74,7 +74,7 @@ The product should be managed around four truths:
 
 The public product is Naturebook. User-facing copy, app display names, marketing pages, support references, web URLs, and preferred deep links should use the Naturebook identity.
 
-Merian is the permanent engineering identity. The Xcode project and scheme, targets, bundle identifiers, app group, SwiftData schema names, backend resource names, RevenueCat identifiers, and existing media host remain Merian where compatibility depends on them. The main application bundle identifier is `app.merian.Merian`, the shared app group is `group.app.merian.shared`, and the current schema is `MerianSchemaV49`.
+Merian is the permanent engineering identity. The Xcode project and scheme, targets, bundle identifiers, app group, SwiftData schema names, backend resource names, RevenueCat identifiers, and existing media host remain Merian where compatibility depends on them. The main application bundle identifier is `app.merian.Merian`, the shared app group is `group.app.merian.shared`, and the current schema is `MerianSchemaV50`.
 
 Legacy `merian.earth` links and the `merian://` scheme remain accepted compatibility inputs. New links should use `naturebook.earth` and `naturebook://`.
 
@@ -247,7 +247,14 @@ Search and filtering should prioritize the mental model of "what I saw, where, a
 
 ## 6.2 Field trips - Implemented
 
-Field trips, also described in parts of the codebase as outings, group observations into a coherent activity. They are a standard product feature rather than a Pro-only expedition. The capture workspace can show progress against an active outing's capture goal.
+Field trips, also described in parts of the codebase as outings, group observations into a coherent activity. They are a standard product feature rather than a Pro-only expedition. Standard outings must be explicitly started; matching scans do not auto-start them. The capture workspace can show progress against an active outing's goal, and a saved biological Insight persistently lists every outing or joined Event credited by that scan.
+
+A scan can advance several deliberately active experiences, but it receives at
+most one goal credit per standard outing and one per joined Event. A visibly
+selected eligible camera goal wins inside its own outing; deterministic
+specificity and checklist ranking handles all other cases. Identification
+corrections may move or remove credit while an experience is unfinished.
+Completed experiences remain immutable.
 
 Seasonal Challenges and Events are separate concepts. Their current access is preview-gated for designated testers and simulator conditions, and that gate is not a server authorization boundary. Product marketing must not represent preview access as general availability or use the client gate as a security control.
 
@@ -650,7 +657,7 @@ Metrics should be defined with event contracts, denominators, exclusions, and pr
 | Stale claim | Repository-aligned correction |
 |---|---|
 | Product is publicly named Merian. | Public product is Naturebook; Merian remains the stable engineering identity. |
-| Current schema is V45. | Current SwiftData alias is `MerianSchemaV49`. |
+| Current schema is V45. | Current SwiftData alias is `MerianSchemaV50`. |
 | Two free scans are allowed per day. | Public policy is one per day; alpha/TestFlight currently has an unlimited override. |
 | Pro costs $2.99 weekly and $19.99 annually. | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually. |
 | Onboarding is six steps and requests all permissions. | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive. |

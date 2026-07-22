@@ -504,6 +504,8 @@ exception. The V46 plan keeps
 V46 as the only duplicate-cluster source representative and jumps directly to
 V49 because V46 was a shipped no-op schema, while true V47 stores use a
 source-isolated V47→V49 plan with a self-contained scalar queued-scan snapshot.
+Every chosen lane then uses the same lightweight V49→V50 stage for the queued
+goal-hint companion; current V50 stores open without migration.
 Duplicate-checksum failures retry through the same
 recent-plan ladder before legacy rescue or safe mode. This keeps the
 synchronous launch boundary bounded for normal upgrades while preserving a

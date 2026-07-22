@@ -65,6 +65,9 @@ enum AppEvent {
     case fieldTripProgressUpdated([FieldTripProgressUpdate])
     /// Dispatched after a scan completes one or more seasonal challenge items.
     case fieldTripChallengeProgressUpdated([FieldTripChallengeProgressUpdate])
+    /// Dispatched after a scan-specific progress mutation so an open Insight can
+    /// refresh persistent contribution rows, including correction removals.
+    case fieldTripScanContributionsInvalidated(scanId: String)
     /// Dispatched when a goal-producing feature changes eligibility or progress and
     /// Capture should refresh its source-agnostic goal context.
     case captureGoalContextInvalidated(source: CaptureGoalSourceKind)

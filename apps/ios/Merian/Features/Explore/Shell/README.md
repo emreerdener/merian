@@ -42,6 +42,13 @@ Seasonal Challenge detail only while Events are enabled. Do not expose `FieldTri
 refresh affected lists/details only. They must not produce a local plain toast;
 the global `MilestoneToastPresenter` already owns the user-facing notification.
 
+The persistent Insight contribution card uses the same destination conversion.
+When an Insight is already pushed inside Explore, its optional open-goal
+callback appends the standard outing or Event destination to this navigation
+stack. A root Insight instead dismisses through the existing
+`requestOpenCaptureGoal` event so `CameraSheetRouter` can present Explore. The
+card must not create a second Explore sheet around an embedded Insight.
+
 ## Completed Field-trip Scan Navigation
 
 Completed standard-outing goal tiles pass their private `completedScanId` to

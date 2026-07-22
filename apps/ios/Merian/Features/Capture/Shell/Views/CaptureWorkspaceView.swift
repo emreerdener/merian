@@ -37,6 +37,30 @@ enum ActiveCaptureGoalPresentationPolicy {
     }
 }
 
+enum CaptureGoalPreferencePolicy {
+    static func preferredGoal(
+        goalsEnabled: Bool,
+        isUserVisible: Bool,
+        isVisualMode: Bool,
+        isRefining: Bool,
+        selectedGoal: CaptureGoal?
+    ) -> FieldTripPreferredGoal? {
+        guard goalsEnabled,
+              isUserVisible,
+              isVisualMode,
+              !isRefining,
+              let selectedGoal,
+              case .fieldTrip(_, let checklistItemId) = selectedGoal.destination else {
+            return nil
+        }
+
+        return FieldTripPreferredGoal(
+            userFieldTripId: selectedGoal.source.id,
+            itemId: checklistItemId
+        )
+    }
+}
+
 struct CaptureWorkspaceView: View {
     // MARK: - Environment & Dependencies
     @Environment(CameraManager.self) var cameraManager
@@ -468,7 +492,10 @@ struct CaptureWorkspaceView: View {
             ),
             viewModel: viewModel,
             onRequiredCropReadyForSubmit: {
-                viewModel.submitStagedCapture(modelContext: modelContext)
+                viewModel.submitStagedCapture(
+                    modelContext: modelContext,
+                    preferredGoal: preferredFieldTripGoal
+                )
                 cameraManager.resetZoom()
             }
         ))
@@ -521,14 +548,20 @@ struct CaptureWorkspaceView: View {
             guard count == 1 else { return }
             guard viewModel.shouldAutoSubmitStagedCapture else { return }
 
-            viewModel.submitStagedCapture(modelContext: modelContext)
+            viewModel.submitStagedCapture(
+                modelContext: modelContext,
+                preferredGoal: preferredFieldTripGoal
+            )
             cameraManager.resetZoom()
         }
         .onChange(of: viewModel.stagedCapture.videos.count) { _, count in
             guard count == 1 else { return }
             guard viewModel.shouldAutoSubmitStagedCapture else { return }
 
-            viewModel.submitStagedCapture(modelContext: modelContext)
+            viewModel.submitStagedCapture(
+                modelContext: modelContext,
+                preferredGoal: preferredFieldTripGoal
+            )
             cameraManager.resetZoom()
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -685,8 +718,21 @@ struct CaptureWorkspaceView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         _ = viewModel.stagePendingDescribeDraftForActiveSubmission(observationContext)
         observationContext = ObservationContext()
-        viewModel.submitStagedCapture(modelContext: modelContext)
+        viewModel.submitStagedCapture(
+            modelContext: modelContext,
+            preferredGoal: preferredFieldTripGoal
+        )
         cameraManager.resetZoom()
+    }
+
+    private var preferredFieldTripGoal: FieldTripPreferredGoal? {
+        CaptureGoalPreferencePolicy.preferredGoal(
+            goalsEnabled: FieldTripsAvailability.isEnabled,
+            isUserVisible: appSettings.showsCaptureGoalProgress,
+            isVisualMode: captureMode == .visual,
+            isRefining: viewModel.baseRefinementContext != nil,
+            selectedGoal: activeCaptureGoalStore.selectedGoal
+        )
     }
 
     private func restoreBottomChrome(animated: Bool) {

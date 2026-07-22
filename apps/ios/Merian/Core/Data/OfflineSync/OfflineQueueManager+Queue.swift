@@ -8,6 +8,16 @@ import UIKit
 
 extension OfflineQueueManager {
 
+    private func deletePreferredGoalHint(scanId: String, in context: ModelContext) {
+        var descriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+            predicate: #Predicate { $0.scanId == scanId }
+        )
+        descriptor.fetchLimit = 1
+        if let hint = try? context.fetch(descriptor).first {
+            context.delete(hint)
+        }
+    }
+
     /// Deletes an `OfflineQueuedScan` from the **main context** and saves, reliably triggering
     /// `@Query queuedScans` (and `@Query rawRecords`) in any open sheet to re-evaluate.
     ///
@@ -40,10 +50,21 @@ extension OfflineQueueManager {
         }
 
         guard let scan else {
+            deletePreferredGoalHint(scanId: scanId, in: context)
+            do {
+                try context.save()
+            } catch {
+                context.rollback()
+                MerianLog.data.error(
+                    "flushOfflineQueuedScan: goal hint cleanup failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+                )
+                return false
+            }
             updateUnsyncedItemCount()
             return true
         }
 
+        deletePreferredGoalHint(scanId: scanId, in: context)
         context.delete(scan)
         do {
             try context.save()
@@ -244,6 +265,7 @@ extension OfflineQueueManager {
             kind: .cancelled,
             message: "Queued scan was removed locally."
         ))
+        deletePreferredGoalHint(scanId: scanId, in: context)
         context.delete(scan)
         do {
             try context.save()
@@ -274,6 +296,7 @@ extension OfflineQueueManager {
             guard !failedScans.isEmpty else { return }
             var pathsToDelete: [String] = []
             for scan in failedScans {
+                let scanId = scan.id
                 for item in scan.capturedMediaSnapshot.items {
                     switch item {
                     case .image(let reference), .audio(let reference):
@@ -294,8 +317,9 @@ extension OfflineQueueManager {
                         break
                     }
                 }
+                deletePreferredGoalHint(scanId: scanId, in: context)
                 context.delete(scan)
-                if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scan.id), context: context) {
+                if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId), context: context) {
                     job.status = .cancelled
                     job.updatedAt = Date()
                 }
@@ -521,7 +545,8 @@ extension OfflineQueueManager {
                         originalTimestamp: extracted.originalTimestamp,
                         capturedMediaItems: extracted.capturedMediaItems,
                         inferenceImagePaths: extracted.inferenceImagePaths,
-                        visualMediaItemsJSON: extracted.visualMediaItemsJSON
+                        visualMediaItemsJSON: extracted.visualMediaItemsJSON,
+                        preferredGoal: extracted.preferredGoal
                     )
                 } else {
                     finalExtracted = extracted
@@ -563,6 +588,7 @@ extension OfflineQueueManager {
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
+        preferredGoal: FieldTripPreferredGoal? = nil,
         captureDate: Date = Date(),
         startSyncImmediately: Bool = true,
         onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
@@ -662,6 +688,7 @@ extension OfflineQueueManager {
                     capturedMediaJSON: capturedMediaJSON,
                     inferenceImagePaths: inferenceFileNames,
                     visualMediaItemsJSON: visualMediaItemsJSON,
+                    preferredGoal: preferredGoal,
                     telemetry: telemetry,
                     blurScore: blurScore,
                     timestamp: captureDate,
@@ -1059,6 +1086,7 @@ extension OfflineQueueManager {
         capturedMediaJSON: String?,
         inferenceImagePaths: [String],
         visualMediaItemsJSON: String?,
+        preferredGoal: FieldTripPreferredGoal?,
         telemetry: CaptureTelemetry,
         blurScore: Double?,
         timestamp: Date,
@@ -1114,6 +1142,13 @@ extension OfflineQueueManager {
         }
         
         modelContext.insert(scan)
+        if let preferredGoal {
+            modelContext.insert(ActiveOfflineQueuedScanGoalHint(
+                scanId: scanId,
+                userFieldTripId: preferredGoal.userFieldTripId,
+                itemId: preferredGoal.itemId
+            ))
+        }
         do {
             let job = try modelContext.ensureOfflineJobRecord(
                 id: Self.scanIngestionJobId(scanId: scanId),

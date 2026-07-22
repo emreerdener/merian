@@ -2384,12 +2384,22 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(FieldTripCommunityPublicationsResponse.self, from: data).data
     }
 
-    func applyFieldTripProgress(scanId: String) async throws -> FieldTripProgressResult {
+    func applyFieldTripProgress(
+        scanId: String,
+        preferredGoal: FieldTripPreferredGoal? = nil
+    ) async throws -> FieldTripProgressResult {
         let functionUrl = try endpointURL("field-trips")
-        let bodyData = try JSONSerialization.data(withJSONObject: [
+        var payload: [String: Any] = [
             "action": "apply_scan_progress",
             "scan_id": scanId
-        ])
+        ]
+        if let preferredGoal {
+            payload["preferred_goal"] = [
+                "user_field_trip_id": preferredGoal.userFieldTripId,
+                "item_id": preferredGoal.itemId
+            ]
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 15.0)
         let response = try makeExploreDecoder().decode(FieldTripProgressUpdatesResponse.self, from: data)
         return FieldTripProgressResult(
@@ -2399,6 +2409,23 @@ final class MerianNetworkClient {
             firstFieldTripAchievementNewlyUnlocked:
                 response.firstFieldTripAchievementNewlyUnlocked
         )
+    }
+
+    func getFieldTripScanContributions(scanId: String) async throws -> [FieldTripScanContribution] {
+        let functionUrl = try endpointURL("field-trips")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "action": "scan_contributions",
+            "scan_id": scanId
+        ])
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: 15.0
+        )
+        return try makeExploreDecoder()
+            .decode(FieldTripScanContributionsResponse.self, from: data)
+            .data
     }
 
     func getFieldTripChallengeHashtags(scanId: String) async throws -> [String] {

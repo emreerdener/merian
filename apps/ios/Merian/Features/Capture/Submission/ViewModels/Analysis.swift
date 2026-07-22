@@ -48,7 +48,10 @@ extension CaptureWorkspaceViewModel {
     /// 5. Give shutter-prefetched context a 150 ms grace period for that live still
     ///    path, then fire `InferenceEngine.analyze`. Gallery, video, and audio-bearing
     ///    visual submissions retain their full-context wait and existing upload race.
-    func submitStagedCapture(modelContext: ModelContext) {
+    func submitStagedCapture(
+        modelContext: ModelContext,
+        preferredGoal: FieldTripPreferredGoal? = nil
+    ) {
         let analysisTappedAt = CFAbsoluteTimeGetCurrent()
         let stagedNodes = stagedCapture.orderedNodes
         var capturedMediaTimeline: [CaptureSubmissionMediaItem] = []
@@ -59,6 +62,8 @@ extension CaptureWorkspaceViewModel {
         var stillImageSourceIndex = 0
         var standaloneAudioSourceIndex = 0
         var videoClipIndex = 0
+        var hasCameraStillImage = false
+        var hasGalleryStillImage = false
 
         for node in stagedNodes {
             switch node {
@@ -67,6 +72,8 @@ extension CaptureWorkspaceViewModel {
                 capturedDisplayImages.append(stagedImage)
                 capturedInferenceImages.append(stagedImage)
                 let isGalleryImage = stagedImage.original.isFromGallery
+                hasGalleryStillImage = hasGalleryStillImage || isGalleryImage
+                hasCameraStillImage = hasCameraStillImage || !isGalleryImage
                 capturedVisualMediaItems.append(.image(
                     sourceIndex: stillImageSourceIndex,
                     focusRegion: stagedImage.focusRegion,
@@ -128,6 +135,13 @@ extension CaptureWorkspaceViewModel {
 
         // 2. Capture the context needed for inference before clearing the staging buffers.
         let primaryImageIsGalleryPhoto = capturedDisplayImages.first?.original.isFromGallery == true
+        let capturedPreferredGoal = Self.preferredGoalForSubmission(
+            preferredGoal,
+            hasCameraStill: hasCameraStillImage,
+            hasGalleryStill: hasGalleryStillImage,
+            hasAudio: !capturedAudioFilePaths.isEmpty,
+            hasVideo: !capturedVideoFilePaths.isEmpty
+        )
         let capturedPreFetchTask       = primaryImageIsGalleryPhoto ? nil : preFetchTask
         let targetEradicationScanId    = baseRefinementContext?.scanId
         let capturedZoomFactor         = diContainer.cameraManager.zoomFactor
@@ -152,6 +166,12 @@ extension CaptureWorkspaceViewModel {
         // 4. Generate a stable scanId shared by the queue record and live inference.
         let scanId = UUID().uuidString.lowercased()
         pendingAnalyzeScanId = scanId
+        if let capturedPreferredGoal {
+            ScanMilestoneCoordinator.shared.registerPreferredGoal(
+                capturedPreferredGoal,
+                for: scanId
+            )
+        }
         let capturedMediaFilePaths = capturedMediaTimeline.discardableLocalMediaFilePaths
 
         // 5. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
@@ -177,6 +197,7 @@ extension CaptureWorkspaceViewModel {
             observationContexts: capturedObservationContexts,
             mediaTimeline: capturedMediaTimeline,
             visualMediaItems: capturedVisualMediaItems,
+            preferredGoal: capturedPreferredGoal,
             captureDate: primaryHistoricalContext?.captureDate ?? Date(),
             startSyncImmediately: !shouldOptimizeLiveImageAnalysis,
             onQueued: { [weak self] didQueue in
@@ -362,6 +383,22 @@ extension CaptureWorkspaceViewModel {
         isGalleryPhoto: Bool
     ) -> Bool {
         hasStillImage && !hasAudio && !hasVideo && !isGalleryPhoto
+    }
+
+    nonisolated static func preferredGoalForSubmission(
+        _ preferredGoal: FieldTripPreferredGoal?,
+        hasCameraStill: Bool,
+        hasGalleryStill: Bool,
+        hasAudio: Bool,
+        hasVideo: Bool
+    ) -> FieldTripPreferredGoal? {
+        guard hasCameraStill,
+              !hasGalleryStill,
+              !hasAudio,
+              !hasVideo else {
+            return nil
+        }
+        return preferredGoal
     }
 
     // MARK: - Inference Processing Change

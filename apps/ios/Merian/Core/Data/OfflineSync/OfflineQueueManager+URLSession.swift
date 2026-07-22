@@ -260,7 +260,8 @@ extension OfflineQueueManager {
             originalTimestamp: extracted.originalTimestamp,
             capturedMediaItems: extracted.capturedMediaItems,
             inferenceImagePaths: extracted.inferenceImagePaths,
-            visualMediaItemsJSON: extracted.visualMediaItemsJSON
+            visualMediaItemsJSON: extracted.visualMediaItemsJSON,
+            preferredGoal: extracted.preferredGoal
         )
         await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
@@ -356,6 +357,19 @@ extension OfflineQueueManager {
     /// Maps a queued scan record to a Sendable `ExtractedScanData` snapshot.
     /// Must be called while `scan` is accessible on the main actor.
     func buildExtractedScanData(from scan: OfflineQueuedScan, container: ModelContainer) -> ExtractedScanData {
+        let preferredGoal: FieldTripPreferredGoal? = {
+            let hintContext = ModelContext(container)
+            let scanId = scan.id
+            var descriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+                predicate: #Predicate { $0.scanId == scanId }
+            )
+            descriptor.fetchLimit = 1
+            guard let hint = try? hintContext.fetch(descriptor).first else { return nil }
+            return FieldTripPreferredGoal(
+                userFieldTripId: hint.userFieldTripId,
+                itemId: hint.itemId
+            )
+        }()
         let visualMediaItems: [IdentifyVisualMediaItem]? = scan.visualMediaItemsJSON.flatMap { json in
             guard let data = json.data(using: .utf8) else { return nil }
             return try? JSONDecoder().decode([IdentifyVisualMediaItem].self, from: data)
@@ -385,7 +399,8 @@ extension OfflineQueueManager {
             originalTimestamp: scan.timestamp,
             capturedMediaItems: scan.serializedCapturedMediaItems,
             inferenceImagePaths: scan.inferenceImagePaths,
-            visualMediaItemsJSON: scan.visualMediaItemsJSON
+            visualMediaItemsJSON: scan.visualMediaItemsJSON,
+            preferredGoal: preferredGoal
         )
     }
 
@@ -722,7 +737,8 @@ extension OfflineQueueManager {
                     await ScanMilestoneCoordinator.shared.processCompletedScan(
                         scanId: dbScanId,
                         speciesData: processingResult.speciesData,
-                        modelContainer: capturedContainer
+                        modelContainer: capturedContainer,
+                        preferredGoal: extracted.preferredGoal
                     )
                 }
 

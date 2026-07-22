@@ -5,6 +5,13 @@ The `Data` directory manages the local persistence and offline-first data pipeli
 ## Purpose
 This area acts as the source of truth for app data. It encompasses SwiftData configurations, the `HistoricalDatabaseActor` for cloud sync reconciliation, and the `OfflineQueuedScan` persistence mechanism. It ensures that data remains durable even when inference fails or network connectivity is absent.
 
+The active V50 schema adds `OfflineQueuedScanGoalHint`, a scan-keyed companion
+that stores the optional standard-outing and checklist-item IDs selected in a
+qualifying live Capture. Keeping this separate preserves the released V49 queue
+entity. Foreground/background completion read the same hint, and every queued-
+scan deletion or orphan repair removes it. Persistent Insight contribution
+cards are server-backed and are intentionally not cached in SwiftData.
+
 ## External Image Import Inbox
 
 `Images/ExternalImageImportStore.swift` owns the app-sandbox copy of an image

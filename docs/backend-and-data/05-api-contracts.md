@@ -163,8 +163,8 @@ Start request:
 The start action is idempotent for an existing trip. It creates or unhides the
 caller's `user_field_trips` row for an accessible template and returns the
 refreshed template detail. For a stopped outing it acts as Resume and opens a
-new activity period. Auto-start from matching scans remains supported after a
-Reset as a fallback.
+new activity period. Matching scans never create or resume a standard outing,
+including after Reset.
 
 Lifecycle requests:
 
@@ -259,7 +259,11 @@ Request:
 ```json
 {
   "action": "apply_scan_progress",
-  "scan_id": "saved-scan-uuid"
+  "scan_id": "saved-scan-uuid",
+  "preferred_goal": {
+    "user_field_trip_id": "uuid",
+    "item_id": "uuid"
+  }
 }
 ```
 
@@ -282,6 +286,7 @@ Response:
       "credited_level_title": "Level 1",
       "credited_completed_count": 4,
       "credited_target_count": 4,
+      "removed_item_ids": [],
       "newly_completed_items": [
         {
           "item_id": "uuid",
@@ -310,6 +315,7 @@ Response:
       "credited_level_title": "Level 1",
       "credited_completed_count": 2,
       "credited_target_count": 4,
+      "removed_item_ids": [],
       "newly_completed_items": [
         {
           "item_id": "uuid",
@@ -329,11 +335,20 @@ Trip starts, and only against the current unlocked level. Matching accepts AI
 identifications and later user-confirmed/corrected identifications through the
 same scan row, then writes idempotent item completions. Eligibility is based on
 the saved biological scan, not its capture modality, so qualifying photos and
-videos can count. A single scan is evaluated against every matching current-
-level item in every eligible active standard outing; it may therefore satisfy
-two separate `Bird` goals at the same time, with both completion rows pointing
-to the same scan. Joined live challenges are evaluated independently and may
-also record matching current-level completions for that scan.
+videos can count. Upload/request time does not replace the scan timestamp, so a
+scan captured inside a now-closed outing period or Event window can receive
+delayed first credit. A single scan is evaluated against every matching current-
+level item in every eligible active standard outing, but receives at most one
+credit per outing and one per joined live challenge. It may still advance
+several deliberately active experiences, with every completion row pointing to
+the same scan.
+
+The optional `preferred_goal` is accepted only for an owned standard outing
+that was active at the scan timestamp and whose current visible item matches
+the saved identification. It wins inside that outing only. Missing, stale,
+unauthorized, completed, and nonmatching hints are ignored. Fallback selection
+is exact species, scientific name, taxonomy from genus through kingdom,
+semantic tag, ecology, habitat, curated checklist order, then item ID.
 
 V4 clients should continue reading `data` for normal Field trip progress and
 may read `challenge_updates` for joined live challenge progress. Older clients
@@ -353,11 +368,65 @@ inserted by the current application attempt. If an older scan is re-identified
 after level advancement, its historical completion rows cannot duplicate a
 destination or replace the new level's ring.
 
+Both update kinds may also include `removed_item_ids`. While an experience is
+unfinished, an identification correction can move or remove this scan's credit
+within its original credited level and reset progress to the earliest
+incomplete level. Completed outings and challenges are immutable.
+
 Only updates with a nonempty `newly_completed_items` array are eligible for a
 scan progress toast. Reapplying a scan whose completion rows already exist is
 idempotent and returns no updates, so it cannot generate a duplicate toast.
-The `apply_scan_progress` request body and Edge Function action shape are
-unchanged by the credited-level extension.
+`preferred_goal` is an optional additive request field. Older clients omit it
+and receive the deterministic fallback. The response remains backward-
+compatible because credited and removed-item fields decode optionally.
+
+### Scan Contributions
+
+Request:
+
+```json
+{ "action": "scan_contributions", "scan_id": "saved-scan-uuid" }
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "source_kind": "standard_outing",
+      "source_id": "uuid",
+      "user_field_trip_id": "uuid",
+      "participation_id": null,
+      "template_id": "uuid",
+      "challenge_id": null,
+      "title": "Park Pollinators",
+      "slug": "park_pollinators",
+      "item_id": "uuid",
+      "prompt": "Butterfly or moth",
+      "level_number": 1,
+      "level_title": "Level 1",
+      "completed_count": 3,
+      "target_count": 4,
+      "is_complete": false,
+      "artwork_prompt": "Butterfly or moth",
+      "artwork_template_slug": "park_pollinators",
+      "destination_kind": "field_trip",
+      "destination_template_id": "uuid",
+      "destination_checklist_item_id": "uuid",
+      "destination_challenge_id": null
+    }
+  ]
+}
+```
+
+The authenticated Edge action supplies the verified caller to the private
+service-role RPC. It returns one current credit per standard outing/Event for
+the supplied saved biological scan. Rows include only labels, counts, artwork
+inputs, and typed-routing inputs. They never include media, storage URLs,
+coordinates, place labels, notes, or public evidence. Missing, unauthorized,
+queued, non-biological, and uncredited scans return an empty array. Events-
+disabled clients filter Event rows before state or presentation.
 
 ### Seasonal Challenges
 
@@ -444,7 +513,8 @@ idempotent for repeated joins.
 Challenge progress is updated through `apply_scan_progress`. A scan counts only
 when it is owned by the caller, created at or after `joined_at`, created at or
 before `ends_at`, and matches the participant's current challenge level.
-Challenge completions are separate from normal Field trip completions.
+Challenge completions are separate from normal Field trip completions and are
+limited to one credited item per participation and scan.
 
 Challenge hashtag request:
 

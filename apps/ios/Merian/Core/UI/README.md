@@ -39,7 +39,8 @@ The Describe table-of-contents control exposes the accessibility label
 
 `Components/GoalProgressRing.swift` renders the compact circular
 `completedCount/targetCount` treatment shared by the visual Scan target capsule
-and the active Field-trip level header.
+the active Field-trip level header, and each persistent Insight contribution
+row.
 Feature callers own their accessibility label/value and frame; the primitive
 owns clamping, track/progress drawing, and the centered count text. Keep it
 domain-neutral so future goal providers can reuse it without importing Capture

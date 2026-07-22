@@ -353,6 +353,8 @@ struct ExtractedScanData: Sendable {
     let inferenceImagePaths: [String]?
     /// Encoded `[IdentifyVisualMediaItem]` aligned to `inferenceImagePaths`.
     let visualMediaItemsJSON: String?
+    /// Durable live-Capture preference carried through foreground and background completion.
+    let preferredGoal: FieldTripPreferredGoal?
 
     var capturedMediaSnapshot: CapturedMediaSnapshot {
         CapturedMediaSnapshot(items: capturedMediaItems)

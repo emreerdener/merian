@@ -4,6 +4,7 @@ import SwiftUI
 struct InsightContentRouterView: View {
     @Bindable var viewModel: InsightSheetViewModel
     var queuedScan: QueuedScanContext?
+    var onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)?
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     private var presentationQueuedScan: QueuedScanContext? {
@@ -52,7 +53,8 @@ struct InsightContentRouterView: View {
                         viewModel: viewModel,
                         isSafariPresented: $viewModel.state.isSafariPresented,
                         selectedWikiURL: $viewModel.state.selectedWikiURL,
-                        timestamp: viewModel.activeRecordTimestamp
+                        timestamp: viewModel.activeRecordTimestamp,
+                        onOpenCaptureGoal: onOpenCaptureGoal
                     )
                     .transition(.opacity)
                 }

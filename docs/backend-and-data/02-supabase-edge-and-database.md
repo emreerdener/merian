@@ -918,10 +918,29 @@ Seasonal Challenge progress RPCs retain their signatures, security-definer
 search paths, execute permissions, and existing response fields. They add the
 level number/title and completed/target counts credited by the scan so a client
 can distinguish a just-completed level from the next active level. The
-`/field-trips` `apply_scan_progress` request body is unchanged, and iOS decodes
-the additions optionally during staged rollout. The follow-up scope prevents a
+two migrations add response fields only, and iOS decodes those additions
+optionally during staged rollout. The follow-up scope prevents a
 re-identified scan with historical completions in an earlier level from
 duplicating a response destination or supplying the wrong progress ring.
+
+`20260722025411_persistent_field_trip_scan_contributions.sql` replaces the
+progress entry point with an additive preferred-goal contract and enforces one
+credit per scan per standard outing or Event participation. The preference is
+stored only in private `field_trip_scan_goal_preferences`, validated against
+the verified owner and scan-time activity window, and ignored when stale,
+hidden, completed, unauthorized, noncurrent, or nonmatching. Without a valid
+preference, the database uses deterministic specificity and checklist ranking.
+Unfinished identification corrections can move or remove credit in the original
+credited level; completed experiences are immutable.
+
+The same migration adds private
+`public.get_field_trip_scan_contributions(self_id, target_scan_id)`, with
+execute revoked from `PUBLIC`, `anon`, and `authenticated` and granted only to
+`service_role`. `/field-trips` action `scan_contributions` supplies the verified
+user ID and returns evidence-minimal labels, counts, artwork inputs, and typed
+routing. It returns no media, storage URLs, coordinates, place labels, or notes.
+The `/field-trips` `apply_scan_progress` body may now include optional
+`preferred_goal`; legacy clients omit it and receive deterministic fallback.
 
 These Seasonal Challenge contracts are already deployed while Events remain a
 client-staged iOS surface. Standard Outings are public; iOS requests and renders

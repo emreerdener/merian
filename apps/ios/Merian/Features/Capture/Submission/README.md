@@ -30,6 +30,21 @@ Gallery images and audio-bearing or video visual submissions retain the
 existing full-context wait and immediate queue-sync race. They receive latency
 instrumentation but no submission-behavior change in this pass.
 
+## Field Trip Goal Preference
+
+`CaptureGoalPreferencePolicy` may snapshot the visibly selected standard goal
+when Field trips and the **Field trip goals** setting are enabled, visual Scan
+is active, and Capture is not refining. `Analysis` performs the final media
+gate: only camera still images with no gallery still, audio, or video preserve
+the hint. Automatic single-shot, crop-confirmed, and manual submission share
+this path. Gallery, mixed camera/gallery, Describe, Record, refinement, hidden
+goal UI, and missing selections submit no preference.
+
+The optional value is queued durably and later sent to Field trip progress; it
+does not enter the identification request. It can choose the one credited item
+inside that standard outing only. The server still evaluates every eligible
+experience and ignores stale, unauthorized, completed, or nonmatching hints.
+
 The active live request temporarily owns the uplink. Its request-body completion
 callback releases the queue row for normal background upload; a two-second
 fail-safe covers missing progress callbacks. Request failure, connectivity loss,

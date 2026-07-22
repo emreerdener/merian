@@ -88,11 +88,13 @@ natively.
   and deterministic safety checks.
 - `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
   validates the action payload, user identity, UUIDs, cursor pairs, pin arrays,
-  habitat tags, and comment lengths; `db.ts` is the only layer that calls the
+  habitat tags, comment lengths, and optional preferred-goal pair; `db.ts` is
+  the only layer that calls the
   Field trip RPCs and publication/comment tables. The endpoint is intentionally
   action-based because the Field trips endpoint serves catalog, template detail, explicit
   start, Community publications, Recent compatibility, profile pins, scan
-  progress, publication detail, likes, and comments from one Field trips-native
+  progress, private scan contributions, publication detail, likes, and comments
+  from one Field trips-native
   surface without extending Explore feed functions. Catalog/detail can project
   the verified viewer's private `completed_scan_id` through service-role-only
   RPCs; `db.ts` must not copy that field into capture context, public profile,

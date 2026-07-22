@@ -388,14 +388,17 @@ Deno.test("Field trip lifecycle Edge actions are caller-scoped", async () => {
   const index = normalized(
     await Deno.readTextFile(new URL("index.ts", fieldTripsFunctionDir)),
   );
+  const actions = normalized(
+    await Deno.readTextFile(new URL("actions.ts", fieldTripsFunctionDir)),
+  );
   const db = normalized(
     await Deno.readTextFile(new URL("db.ts", fieldTripsFunctionDir)),
   );
 
   for (
     const fragment of [
-      '| "stop"',
-      '| "reset"',
+      '"stop"',
+      '"reset"',
       'case "stop":',
       'case "reset":',
       'body.user_field_trip_id, "user_field_trip_id"',
@@ -404,7 +407,7 @@ Deno.test("Field trip lifecycle Edge actions are caller-scoped", async () => {
       'supabaseAdmin.rpc( "get_stopped_field_trip_progress"',
     ]
   ) {
-    assertStringIncludes(`${index} ${db}`, fragment);
+    assertStringIncludes(`${actions} ${index} ${db}`, fragment);
   }
 
   assert(
@@ -492,11 +495,14 @@ Deno.test("Field trip capture context Edge action always uses the verified user"
   const index = normalized(
     await Deno.readTextFile(new URL("index.ts", fieldTripsFunctionDir)),
   );
+  const actions = normalized(
+    await Deno.readTextFile(new URL("actions.ts", fieldTripsFunctionDir)),
+  );
   const db = normalized(
     await Deno.readTextFile(new URL("db.ts", fieldTripsFunctionDir)),
   );
 
-  assertStringIncludes(index, '| "capture_context"');
+  assertStringIncludes(actions, '"capture_context"');
   assertStringIncludes(
     index,
     'case "capture_context": { const data = await fetchFieldTripCaptureContext( user.id, supabaseAdmin',
@@ -726,8 +732,11 @@ Deno.test("First Field trip Edge actions use only the verified user", async () =
   const index = normalized(
     await Deno.readTextFile(new URL("index.ts", fieldTripsFunctionDir)),
   );
+  const actions = normalized(
+    await Deno.readTextFile(new URL("actions.ts", fieldTripsFunctionDir)),
+  );
 
-  assertStringIncludes(index, '| "achievement_progress"');
+  assertStringIncludes(actions, '"achievement_progress"');
   assertStringIncludes(
     index,
     'case "achievement_progress": { const data = await fetchFirstFieldTripAchievementProgress( user.id, supabaseAdmin',
@@ -744,4 +753,86 @@ Deno.test("First Field trip Edge actions use only the verified user", async () =
     !index.includes("body.target_user_id") && !index.includes("body.user_id"),
     "Achievement progress must not accept an account id from the request body",
   );
+});
+
+Deno.test("Persistent scan contributions enforce one ranked credit per active experience", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260722025411_persistent_field_trip_scan_contributions.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE public.field_trip_scan_goal_preferences",
+      "CREATE UNIQUE INDEX user_field_trip_item_completions_one_credit_per_scan ON public.user_field_trip_item_completions(user_field_trip_id, scan_id)",
+      "CREATE UNIQUE INDEX field_trip_challenge_item_completions_one_credit_per_scan ON public.field_trip_challenge_item_completions(participation_id, scan_id)",
+      "CREATE INDEX user_field_trip_item_completions_scan_lookup ON public.user_field_trip_item_completions(scan_id, user_field_trip_id)",
+      "CREATE INDEX field_trip_challenge_item_completions_scan_lookup ON public.field_trip_challenge_item_completions(scan_id, participation_id)",
+      "CREATE OR REPLACE FUNCTION public.apply_field_trip_scan_progress_v2",
+      "stored_preferred_user_field_trip_id = trip_row.id AND stored_preferred_item_id = item.id",
+      "public.field_trip_checklist_match_rank",
+      "item.sort_order, item.id",
+      "FROM public.user_field_trip_active_periods period",
+      "scan_row.timestamp >= period.started_at",
+      "scan_row.timestamp <= period.stopped_at",
+      "scan_row.timestamp >= participation.joined_at",
+      "scan_row.timestamp BETWEEN challenge.starts_at AND challenge.ends_at",
+      "public.user_field_trip_item_completions existing_completion",
+      "public.field_trip_challenge_item_completions existing_completion",
+      "participation.hidden_at IS NULL AND challenge.is_active = TRUE",
+      "removed_item_ids",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("INSERT INTO public.user_field_trips(user_id, template_id"),
+    "Scan matching must not auto-start a standard outing",
+  );
+  assert(
+    !sql.includes("NOW() BETWEEN challenge.starts_at AND challenge.ends_at"),
+    "Offline Event scans must be evaluated by capture time, not upload time",
+  );
+});
+
+Deno.test("Persistent contribution lookup stays private and evidence-minimal", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260722025411_persistent_field_trip_scan_contributions.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "ALTER TABLE public.field_trip_scan_goal_preferences ENABLE ROW LEVEL SECURITY",
+      "REVOKE ALL ON TABLE public.field_trip_scan_goal_preferences FROM PUBLIC, anon, authenticated",
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_scan_contributions",
+      "scan.user_id = self_id",
+      "REVOKE ALL ON FUNCTION public.get_field_trip_scan_contributions(UUID, UUID) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.get_field_trip_scan_contributions(UUID, UUID) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const lookup = sql.split(
+    "CREATE OR REPLACE FUNCTION public.get_field_trip_scan_contributions",
+  )[1] ?? "";
+  for (
+    const forbidden of [
+      "image_storage_urls",
+      "gps_latitude",
+      "gps_longitude",
+      "field_notes",
+      "location_name",
+      "public_notes",
+    ]
+  ) {
+    assert(
+      !lookup.includes(forbidden),
+      `Scan contribution rows must not expose private evidence: ${forbidden}`,
+    );
+  }
 });

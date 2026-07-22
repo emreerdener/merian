@@ -14,6 +14,53 @@ struct OfflineQueuedScanDeletionTests {
         return context
     }
 
+    @Test func preferredFieldTripGoalSurvivesQueuePersistence() throws {
+        let context = try createIsolatedContext()
+        let scanId = "preferred-goal-queued-scan"
+        context.insert(OfflineQueuedScan(id: scanId))
+        context.insert(ActiveOfflineQueuedScanGoalHint(
+            scanId: scanId,
+            userFieldTripId: "user-field-trip-1",
+            itemId: "checklist-item-1"
+        ))
+        try context.save()
+
+        var descriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+            predicate: #Predicate { $0.scanId == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try #require(context.fetch(descriptor).first)
+
+        #expect(persisted.userFieldTripId == "user-field-trip-1")
+        #expect(persisted.itemId == "checklist-item-1")
+    }
+
+    @Test func persistedPreferredGoalIsRestoredForInferenceAfterContextReload() throws {
+        let context = try createIsolatedContext()
+        let scanId = "preferred-goal-inference-reload"
+        context.insert(OfflineQueuedScan(id: scanId))
+        context.insert(ActiveOfflineQueuedScanGoalHint(
+            scanId: scanId,
+            userFieldTripId: "user-field-trip-reloaded",
+            itemId: "checklist-item-reloaded"
+        ))
+        try context.save()
+
+        let reloadedContext = ModelContext(context.container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let reloadedScan = try #require(reloadedContext.fetch(descriptor).first)
+        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+            from: reloadedScan,
+            container: context.container
+        )
+
+        #expect(extracted.preferredGoal?.userFieldTripId == "user-field-trip-reloaded")
+        #expect(extracted.preferredGoal?.itemId == "checklist-item-reloaded")
+    }
+
     @Test func testDeleteQueuedScanCleansDatabaseAndDisk() async throws {
         // Arrange
         let ctx = try createIsolatedContext()
@@ -35,6 +82,11 @@ struct OfflineQueuedScanDeletionTests {
         )
         
         ctx.insert(queuedScan)
+        ctx.insert(ActiveOfflineQueuedScanGoalHint(
+            scanId: scanId,
+            userFieldTripId: "deletion-trip",
+            itemId: "deletion-item"
+        ))
         try ctx.save()
         
         let queueManager = OfflineQueueManager.shared
@@ -56,6 +108,10 @@ struct OfflineQueuedScanDeletionTests {
         let assertDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         let items = (try? ctx.fetch(assertDescriptor)) ?? []
         #expect(items.isEmpty == true, "SwiftData entity must be fully deleted")
+        let hintDescriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+            predicate: #Predicate { $0.scanId == scanId }
+        )
+        #expect((try? ctx.fetch(hintDescriptor))?.isEmpty == true, "Goal hint must be deleted with its queued scan")
         
         // Assert - Count propagation
         #expect(queueManager.unsyncedItemsCount == 0, "Unsynced items count must decrement")

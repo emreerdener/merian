@@ -151,6 +151,16 @@ TestFlight, App Store, support, and QA.
   order: outings, Seasonal Challenges, achievements, then New to Naturebook.
   Re-identifying an older scan scopes feedback to completion rows added by that
   attempt, preventing a prior level or destination from being announced again.
+- Added a persistent **Field trip progress** card to saved biological Insights.
+  It keeps every outing or visible Event credited by that scan together, shows
+  the credited level's current count, and opens the exact outing goal or Event
+  detail without replaying milestone feedback.
+- Standard outings now advance only after the user explicitly starts them, and
+  Events only after the user joins. One scan can count toward several active
+  experiences, but only one goal in each; a selected live Camera goal wins when
+  it is still eligible, with deterministic server matching otherwise. The
+  selection survives offline upload, and unfinished progress is re-evaluated
+  after identification corrections.
 - Added a left-aligned, above-title **Private** / **Published** badge to standard outing detail.
   Published is shown only when the owner has an active public outing snapshot;
   completion alone remains Private.

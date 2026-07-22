@@ -47,10 +47,9 @@ only a camera/performance setting.
   and destructive **Reset field trip**. Stopped outings preserve their visible
   checklist state, show **Resume outing**, and expose Reset without an empty
   menu. Completed and unstarted outings have no lifecycle menu.
-- Levels unlock sequentially. Every completion belongs to a started
-  `user_field_trips` row. For an eligible unstarted outing, the first matching
-  scan starts the outing at that scan's timestamp and can complete its matching
-  current-level goal in the same server transaction.
+- Levels unlock sequentially. Every standard completion belongs to an
+  explicitly started `user_field_trips` row. Matching scans never auto-start an
+  outing.
 - A checklist item can match by species, scientific name, taxonomy, ecology,
   habitat text, or dictionary group tag.
 - AI matches and later user confirmations/corrections both call the progress
@@ -63,7 +62,7 @@ only a camera/performance setting.
   trailing edge, showing completed/total outing progress consistently with
   the Scan target capsule.
 - A saved scan that completes at least one current-level goal queues one
-  progress toast for every matching standard outing and joined live Seasonal
+  progress toast for every credited standard outing and joined live Seasonal
   Challenge. Each toast shows **Field trip progress**, contextual species/trip
   copy, and the credited level's progress ring. Standard outings are queued
   before Seasonal Challenges, then achievement unlocks, then
@@ -71,6 +70,10 @@ only a camera/performance setting.
 - Tapping a completed goal with locally available evidence opens that scan's
   Insight view in the existing Explore navigation stack. Back returns to the
   outing without presenting another sheet.
+- Every saved biological Insight that owns Field trip credit shows one
+  persistent **Field trip progress** card after toxicity and identification
+  review content. The card keeps every credited outing/Event row visible and
+  routes each row to its typed destination.
 - Field trip comments and likes are separate from Explore post comments and
   likes, even though the iOS UI reuses the compact Explore comment presentation.
 - V4 supports profile showcase, up to 3 pinned published Field trips, completion
@@ -179,8 +182,8 @@ difficulty.
 3. Opening a catalog card loads `action: "template_detail"` and shows guide
    sections, levels, curated item tips, and the current start/continue/publish
    state.
-4. Tapping **Start outing** calls `action: "start"`. Auto-start from matching
-   scans remains as a fallback. Standard outings never use Start/Publish
+4. Tapping **Start outing** calls `action: "start"`. Matching scans never
+   auto-start an outing. Standard outings never use Start/Publish
    Challenge copy; that language is reserved for Seasonal Events. An unfinished
    active outing can be stopped after confirmation; the backend saves its
    checklist, closes its activity period, and hides it from Capture and active
@@ -198,11 +201,14 @@ difficulty.
    The introduction has no swipe behavior and opens Backyard Safari detail without
    starting it.
 7. A new scan or later confirmed/corrected identification calls
-   `action: "apply_scan_progress"` with the saved scan ID.
+   `action: "apply_scan_progress"` with the saved scan ID. An eligible live
+   Capture also sends the visibly selected standard goal as an optional
+   `preferred_goal`.
 8. The backend verifies scan ownership and requires the scan's capture timestamp
    to fall within one of the outing's activity periods before comparing it
-   against the current unlocked level, writing item completions, advancing
-   levels when needed, and returning newly completed items.
+   against the current unlocked level, choosing at most one matching item per
+   experience, writing item completions, advancing levels when needed, and
+   returning new plus optional removed-item metadata.
 9. The shared `ScanMilestoneCoordinator` waits for that progress attempt,
    publishes refresh events, evaluates newly unlocked achievements without
    presenting them early, and batches the scan's notifications in strict order:
@@ -219,13 +225,16 @@ difficulty.
     exact saved scan that completed it. iOS replaces that item's artwork with
     the scan thumbnail; completion order never determines which slot changes.
 12. Tapping a completed goal whose scan still exists on the device pushes the
-    existing Insight view inside Explore. The back arrow and swipe-back gesture
-    return to the same outing sheet.
-13. Once all levels are complete, **Publish outing** creates a Field trip snapshot
+   existing Insight view inside Explore. The back arrow and swipe-back gesture
+   return to the same outing sheet.
+13. Reopening a saved biological Insight loads `action: "scan_contributions"`.
+   A nonempty result renders the persistent progress card; failures and empty
+   results stay silent.
+14. Once all levels are complete, **Publish outing** creates a Field trip snapshot
    with an editable title and optional description or AI summary.
-14. After the detail refreshes, its title badge changes from **Private** to
-    **Published**. Deleting the publication returns it to **Private**.
-15. Published Field trips appear on public profiles and template Community
+15. After the detail refreshes, its title badge changes from **Private** to
+   **Published**. Deleting the publication returns it to **Private**.
+16. Published Field trips appear on public profiles and template Community
    previews. They open `FieldTripPublicationDetailView` with item cards,
    likes, comments, and author identity. Author taps open the existing Explore
    author-profile route.
@@ -233,12 +242,20 @@ difficulty.
 ## Active Target on Scan
 
 The capture indicator is orientation and motivation, not a scan requirement.
-It never changes which outing receives progress; the backend still matches
-every saved scan against eligible active trips.
+It never changes which experiences are eligible. For an eligible live visual
+Capture, however, its selected standard goal wins ties inside that outing; all
+other experiences still use deterministic specificity and checklist ranking.
 
 The canonical source-agnostic ownership, caching, navigation, security, and
 future-source decision is
 [`active-capture-goal-context.md`](../rfcs/active-capture-goal-context.md).
+
+The selected goal is captured when eligible camera media is staged and survives
+both foreground and background completion. `MerianSchemaV50` stores the two IDs
+in a scan-keyed `OfflineQueuedScanGoalHint` companion rather than changing the
+released V49 queue entity. The hint is removed with the queue row. Insight
+contributions are not cached in SwiftData; reopening the saved biological scan
+always reads the private server projection.
 
 Presentation contract:
 
@@ -353,17 +370,23 @@ remains optional for ordinary outing navigation.
 - A standard scan counts only when its capture timestamp falls within one of
   the outing's `user_field_trip_active_periods`. Pre-stop scans can receive late
   approval; scans captured during stopped gaps stay excluded after Resume.
-- Reset removes all prior periods and moves the automatic-start boundary to the
-  reset timestamp, preventing historical scans from rebuilding cleared progress.
+- A delayed first upload uses that scan timestamp even if the activity period
+  has since closed. Existing credit in an unfinished outing remains
+  correctable/removable after the template or outing is hidden or deactivated;
+  that does not authorize new credit outside the original scan-time period.
+- Reset removes all prior periods, preventing historical scans from rebuilding
+  cleared progress until the outing is explicitly started again.
 - Matching is limited to the current unlocked level. Later levels cannot fill
   early.
 - Eligibility is media-kind agnostic after a scan is saved and has a resolved
   biological identification. A qualifying photo or video can count; the
   camera-only active-target capsule does not restrict progress eligibility.
-- One scan is evaluated against every matching item in the current unlocked
-  level and every eligible active standard outing. The same scan may therefore
-  complete more than one `Bird` goal at the same time, and each completion row
-  links back to that same scan ID.
+- One scan is evaluated against every eligible active standard outing, but it
+  receives at most one checklist credit per outing. It may still advance
+  several deliberately active outings and a joined live Event.
+- Within an experience the selected live-Capture goal wins when valid. Fallback
+  order is exact species, scientific name, taxonomy from genus through kingdom,
+  semantic tag, ecology, habitat, then curated checklist order and item ID.
 - A checklist item can complete once. Reprocessing the same scan is idempotent.
 - A level unlocks only when all items in the current level are complete.
 - A trip completes when all levels and checklist items are complete.
@@ -376,6 +399,9 @@ remains optional for ordinary outing navigation.
   prompt as the empty/missing-name fallback and as the focused standard route.
 - The progress updater is best effort from iOS. If the toast fails, the scan
   still saves; catalog reloads can reconcile server progress.
+- Corrections may move or remove the scan's credit within its original credited
+  level while the outing remains unfinished, then reset the outing to its
+  earliest incomplete level. Completed outings are immutable.
 
 ## Challenge Progress Rules
 
@@ -383,15 +409,21 @@ remains optional for ordinary outing navigation.
 - Only scans owned by the requesting user can count.
 - Only scans created at or after `field_trip_challenge_participants.joined_at`
   and at or before `field_trip_challenges.ends_at` can count.
+- A delayed upload captured inside that window may receive its first credit
+  after the Event ends. Existing credit in an unfinished participation remains
+  correctable/removable after the challenge or participation is hidden or
+  deactivated.
 - Matching is limited to the participant's current challenge level. Later
   challenge levels cannot fill early.
-- One qualifying scan can complete every matching item in that current
-  challenge level. The same saved scan may also satisfy matching items in
-  eligible standard outings; challenge and standard completion rows remain
+- One qualifying scan can complete at most one matching item in that current
+  challenge level. The same saved scan may also satisfy one item in each
+  eligible standard outing; challenge and standard completion rows remain
   separate even when they reference the same scan.
 - Challenge item completions are keyed by participation and checklist item; they
   do not retroactively satisfy or overwrite normal Field trip item completions.
 - Reprocessing the same scan is idempotent.
+- Corrections may move or remove credit from an unfinished Event's original
+  credited level. Completed Events are immutable.
 - The badge award is server-authoritative and occurs only after challenge
   completion.
 
@@ -487,6 +519,11 @@ application attempt, including re-identification after level advancement.
 `services/supabase/migrations/20260719160750_field_trip_lifecycle_controls.sql`
 adds private activity periods, Stop/Reset lifecycle RPCs, stopped-progress
 projection, Resume period creation, and capture-time progress gating.
+`services/supabase/migrations/20260722025411_persistent_field_trip_scan_contributions.sql`
+adds one-credit-per-scan uniqueness, deterministic selection, private Capture
+preferences, correction invalidation, and the scan-specific contribution read
+model. Its guarded data migration deduplicates only existing credit and aborts
+when completed or published artifacts exist.
 
 Core tables:
 
@@ -496,6 +533,7 @@ Core tables:
 - `user_field_trips`
 - `user_field_trip_item_completions`
 - `user_field_trip_active_periods`
+- `field_trip_scan_goal_preferences`
 - `field_trip_publications`
 - `field_trip_publication_items`
 - `field_trip_publication_likes`
@@ -522,6 +560,8 @@ Core RPCs and helpers:
 - `public.get_field_trip_community_publications(...)`
 - `public.get_recent_field_trip_publications(...)`
 - `public.apply_field_trip_scan_progress(...)`
+- `public.apply_field_trip_scan_progress_v2(...)`
+- `public.get_field_trip_scan_contributions(...)`
 - `public.get_field_trip_profile_summaries(...)`
 - `public.set_field_trip_pinned_publications(...)`
 - `public.publish_field_trip(...)`
@@ -580,8 +620,11 @@ Actions:
   caller. V4 keeps the existing `data` payload for normal Field trip progress
   and adds optional `challenge_updates` for joined live challenges. Both update
   arrays may include optional `credited_level_number`, `credited_level_title`,
-  `credited_completed_count`, and `credited_target_count`; the request shape is
-  unchanged.
+  `credited_completed_count`, `credited_target_count`, and `removed_item_ids`.
+  The request may include an optional validated `preferred_goal` with
+  `user_field_trip_id` and `item_id`.
+- `scan_contributions`: returns one private, evidence-minimal row for every
+  standard outing or Event credit owned by the supplied saved biological scan.
 - `challenges_catalog`: returns curated seasonal challenges with viewer
   participation summary and aggregate counts.
 - `challenge_detail`: returns one challenge, linked template guide context,
@@ -698,7 +741,8 @@ MerianNetworkClient.shared.getFieldTripChallenge(challengeId:entriesLimit:)
 MerianNetworkClient.shared.joinFieldTripChallenge(challengeId:)
 MerianNetworkClient.shared.getFieldTripCommunityPublications(mode:templateId:userRegion:habitatTags:seasonTags:limit:beforeRankBucket:beforePublishedAt:beforePublicationId:)
 MerianNetworkClient.shared.getRecentFieldTripPublications(userRegion:habitatTags:limit:beforePublishedAt:beforePublicationId:)
-MerianNetworkClient.shared.applyFieldTripProgress(scanId:)
+MerianNetworkClient.shared.applyFieldTripProgress(scanId:preferredGoal:)
+MerianNetworkClient.shared.getFieldTripScanContributions(scanId:)
 MerianNetworkClient.shared.getFieldTripChallengeHashtags(scanId:)
 MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
 MerianNetworkClient.shared.setPinnedFieldTripPublications(publicationIds:)
@@ -824,22 +868,20 @@ Deploy in this order:
 13. `20260719045306_first_field_trip_achievement.sql`
 14. `20260719160750_field_trip_lifecycle_controls.sql`
 15. `20260720014446_update_backyard_safari_copy.sql`
-16. `field-trips` Edge Function
-17. `get-explore-author-profile` so public profiles include Field trip
+16. `20260722025411_persistent_field_trip_scan_contributions.sql`
+17. `field-trips` Edge Function
+18. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-18. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+19. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-19. iOS client update
+20. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
-The credited-progress migration must precede the new iOS client so completed
-levels can render a full ring, although optional decoding allows the client to
-operate safely against the legacy response during a staged rollout. No
-`field-trips` Edge Function request-shape change is required for this migration.
-When steps 1-10 and the current V4 function are already live, the incremental
-toast release requires steps 11-12 before the iOS update; do not redeploy the
-function solely for the credited response fields.
+The persistent contribution migration and `field-trips` Edge Function must
+precede the new iOS client. Older clients omit `preferred_goal` and receive the
+deterministic fallback; the new client silently hides its Insight card until
+`scan_contributions` is deployed.
 
 Rollback should revert the iOS thumbnail route before rolling back the evidence
 link migration. Because `completed_scan_id` is optional, older clients tolerate
@@ -856,6 +898,16 @@ source of truth and the iOS fallback continues to render them. Preserve both
 progress functions' existing execute permissions and security contract during
 any rollback; do not drop completion rows or rewrite scan history.
 
+For the persistent-card release, roll back the iOS client surface first and the
+Edge action second while leaving the migration in place. The database remains
+compatible with clients that omit `preferred_goal`, and an unavailable
+`scan_contributions` action is already a silent client state. Do not reverse the
+deduplication or drop preferences/contribution functions after new credits
+exist. The forward migration is transactional and intentionally aborts before
+changing data when completed trips, publications, Event badges, or entries are
+present; treat that guard as a release blocker requiring product/data review,
+not something to bypass in production.
+
 ## Verification
 
 Backend:
@@ -865,8 +917,8 @@ deno fmt --check services/supabase/functions/field-trips services/supabase/funct
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
 deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripProgressDb.test.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripProgressDb.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 supabase db lint --workdir services
 ```
 
@@ -880,18 +932,24 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/FieldTripAPIModelsTests \
   -only-testing:merianTests/FieldTripCaptureContextModelsTests \
   -only-testing:merianTests/ActiveCaptureGoalStoreTests \
+  -only-testing:merianTests/StagedCaptureTests \
+  -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/AchievementToastPresenterTests \
   -only-testing:merianTests/InsightSheetViewModelTests \
+  -only-testing:merianTests/MigrationPlanTests \
   -only-testing:merianTests/AppTelemetryTests test
 ```
 
 The database integration tests require the local Supabase/Postgres stack. They
 report a skip when `127.0.0.1:54322` is unavailable; a skip is not production
 database validation. The progress test covers standard and challenge level
-advancement, re-identification of the same scan, and idempotent reapplication.
+advancement, explicit eligibility, one credit per experience, multi-experience
+credit, selected-goal and fallback ranking, delayed upload, correction
+move/removal, completed-state freezing, ownership, concurrency, and idempotent
+reapplication.
 
 For progress-toast QA, cover partial progress, level advancement, final
-completion, multiple standard/challenge matches, re-identification after level
+completion, multiple standard/challenge experiences, re-identification after level
 advancement, and idempotent reapplication.
 Confirm the response exposes credited counts for the changed level and that
 legacy responses still decode through the current-count fallback. For one scan,
@@ -902,6 +960,18 @@ background completion must enqueue once. Tap a standard toast to open its
 focused first credited goal and a challenge toast to open challenge detail.
 Use DEBUG Settings -> **Preview Field trip progress toast** for compact and
 large-width, long-name, timeout, swipe/close, haptic, and VoiceOver inspection.
+
+For the persistent Insight card, reopen a historical saved biological scan with
+one and then several standard/Event credits. Confirm every row remains visible,
+uses `Goal complete`, shows the credited-level count, and reloads after that
+scan's progress/correction invalidation. Exercise root modal and embedded
+Explore routing, Events-off filtering, queued/unauthenticated/non-biological
+gates, no-match and network failure, long goal/experience names, compact and
+large widths, dark mode, accessibility Dynamic Type, VoiceOver, and Reduce
+Motion. The card must add no haptic or confetti. Verify V49→V50 migration and
+both foreground/background queue paths preserve the eligible camera-only hint,
+while gallery, mixed camera/gallery, Describe, Record, audio, video, refinement,
+and deletion/orphan cleanup do not leak it.
 
 For completion-evidence QA, complete a non-leading goal such as Cat and confirm
 that only Cat changes in both the catalog card and detail grid. Test both photo

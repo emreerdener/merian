@@ -73,12 +73,12 @@ release checklist.
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV49
+typealias CurrentSchema = MerianSchemaV50
 ```
 
-`MerianSchemaV49` is declared in `apps/ios/Merian/Models/SchemaVersions.swift`
-and points at the global active model classes in
-`apps/ios/Merian/Models/ActiveSchema/`. V47 and V48 remain frozen in
+`MerianSchemaV50` is declared in `apps/ios/Merian/Models/SchemaVersions.swift`.
+It reuses the released V49 queue/global active models and adds one schema-scoped
+goal-hint companion. V47 through V49 remain available in
 `SchemaVersions.swift` for source-specific startup recovery.
 
 Active persistent models:
@@ -91,6 +91,7 @@ Active persistent models:
 - `ScanCollection`
 - `PendingCloudDeletionTask`
 - `UserSpeciesPreference`
+- `OfflineQueuedScanGoalHint`
 
 Recent schema milestones:
 
@@ -139,9 +140,14 @@ Recent schema milestones:
   audio, description-only, and mixed queued media, and
   `.github/workflows/ios-startup-safety.yml` runs that suite beside store
   recovery tests.
+- V50 adds `OfflineQueuedScanGoalHint`, a scan-keyed companion containing the
+  optional standard-outing and checklist-item preference for a queued scan. The
+  lightweight V49→V50 stage leaves `OfflineQueuedScan` unchanged. All recent
+  source-specific plans reach V49 first, then advance through the same V50
+  stage.
 
 Historical schema snapshots V1 through V39 live under
-`apps/ios/Merian/Models/Schema/`. V40 through V47 live in `SchemaVersions.swift`
+`apps/ios/Merian/Models/Schema/`. V40 through V50 live in `SchemaVersions.swift`
 alongside the migration plan.
 
 ## Feature Modules

@@ -235,7 +235,11 @@ Field trips releases are migration-plus-function releases too. Deploy
 `20260718043218_expose_field_trip_completion_scan_ids.sql` before
 `20260718051748_expose_field_trip_publication_status.sql` before
 `20260718150932_add_credited_field_trip_progress.sql` before
-`20260718162409_scope_credited_progress_to_current_attempt.sql`, then deploy the
+`20260718162409_scope_credited_progress_to_current_attempt.sql` before
+`20260719045306_first_field_trip_achievement.sql` before
+`20260719160750_field_trip_lifecycle_controls.sql` before
+`20260720014446_update_backyard_safari_copy.sql` before
+`20260722025411_persistent_field_trip_scan_contributions.sql`, then deploy the
 `field-trips` Edge Function and the updated Explore/profile activity bundles
 together. V1
 creates the Field trip tables, progress/publication/comment storage, profile
@@ -262,8 +266,17 @@ without changing their signatures or permissions and adds optional credited
 level/count fields for scan-completion feedback. Those values preserve the
 just-completed level when the existing current-level fields have already
 advanced to the next level and stay scoped to checklist items matched by the
-current attempt when an older scan is re-identified. A
-function-only deploy cannot serve `capture_context` or V4 actions until all
+current attempt when an older scan is re-identified. The first-achievement
+migration adds the server-authoritative earliest completion, and the lifecycle
+migration adds private active periods plus Stop/Reset. The persistent-
+contribution migration enforces one credit per scan per outing/Event, adds the
+private selected-goal preference, supports correction removal/move for
+unfinished experiences, and creates the service-role-only scan contribution
+read model used by Insight. It transactionally aborts if completed trips,
+publications, completed/badged Event participations, Event badges, or Event
+entries already exist. Confirm the expected empty-artifact assumption before
+deployment; an abort is a data/product review blocker and must not be bypassed.
+A function-only deploy cannot serve `capture_context` or V4 actions until all
 migrations are applied; a database-only deploy leaves the app without the
 Field trips action router. Do not release the indicator-enabled iOS client until
 both the capture-context migration and updated function are live. Do not release
@@ -274,11 +287,10 @@ migration; its optional fields render Private against the older payload.
 Deploy both credited-progress migrations, in order, before the progress-toast
 iOS client.
 The client can decode the legacy shape and fall back to current counts during a
-staged rollout, and no Edge Function request-shape change is required, but level
-completion will otherwise show the next level's `0/N` instead of a full ring.
-If the current V4 `field-trips` function is already deployed, this incremental
-release needs the two new migrations and iOS client only; the function does not
-need to be redeployed solely for the response additions.
+staged rollout. The persistent-contribution migration and updated Edge Function
+must both precede the Insight-card iOS client because that client may send
+optional `preferred_goal` and request `scan_contributions`. Older clients omit
+the hint and continue to receive deterministic fallback behavior.
 
 Current client rollout (2026-07-19): standard Field trips/Outings are public,
 while Seasonal Challenge Events remain staged through
@@ -876,9 +888,11 @@ After deployment:
   `template_detail`, `capture_context`, `start`, `community_publications`,
   `recent_publications`, `challenges_catalog`, `challenge_detail`,
   `join_challenge`, `challenge_publications`, `scan_challenge_hashtags`, and
-  `profile_summaries` after the V1, V2, V3, V4, contextual-guide, and
+  `profile_summaries`, plus `apply_scan_progress` and `scan_contributions`,
+  after the V1, V2, V3, V4, contextual-guide, and
   capture-context migrations plus the standard-preservation, Forest-retirement,
-  completion-evidence, and publication-status follow-ups. Verify
+  completion-evidence, publication-status, credited-progress, first-achievement,
+  lifecycle, and persistent-contribution follow-ups. Verify
   `capture_context` returns only accessible
   incomplete standard field trips and current-level unfinished targets, orders
   field trips by recent engagement, ignores Seasonal Challenge-specific completions
@@ -897,6 +911,19 @@ After deployment:
   requesting owner's active non-deleted snapshot. Catalog and public/capture
   projections must remain unchanged, and direct client roles must remain unable
   to execute template detail.
+  Start two standard outings and join one live Event, then submit one matching
+  scan and confirm at most one credit in each experience. Verify a valid visible
+  `preferred_goal` wins inside its standard outing, while missing/stale/foreign/
+  nonmatching hints fall back deterministically. Confirm a delayed upload uses
+  the scan timestamp even after the activity period or Event ends. Correct the
+  identification and verify unfinished credit moves or disappears, while a
+  completed experience remains unchanged. Reapply the same scan concurrently
+  and confirm the scan-first uniqueness constraints remain idempotent.
+  `scan_contributions` must return every owned standard/Event credit with typed
+  routing and credited-level counts, but no media, storage URL, coordinates,
+  place labels, or notes. Confirm `PUBLIC`, `anon`, and `authenticated` cannot
+  read `field_trip_scan_goal_preferences` or execute
+  `public.get_field_trip_scan_contributions(uuid, uuid)`; `service_role` can.
   While Events are staged, verify a physical non-allowlisted account and ghost
   user see Outings but not the Events segment, requests, badges, routes, or
   hashtag suggestions; verify the allowlisted tester and simulator still see

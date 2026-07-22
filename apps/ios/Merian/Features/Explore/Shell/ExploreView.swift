@@ -312,7 +312,8 @@ struct ExploreView: View {
                     initialScanId: route.scanId,
                     inferenceEngine: inferenceEngine,
                     allowsExplorePresentation: false,
-                    presentationStyle: .embeddedInScansLibrary
+                    presentationStyle: .embeddedInScansLibrary,
+                    onOpenCaptureGoal: openCaptureGoalDestination
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
@@ -442,6 +443,10 @@ struct ExploreView: View {
                 onOpenCommunityIdentificationRequest: { requestId in
                     selectedInsightRoute = nil
                     openCommunityIdentificationRequest(requestId)
+                },
+                onOpenCaptureGoal: { destination in
+                    selectedInsightRoute = nil
+                    openCaptureGoalDestination(destination)
                 }
             )
         }
@@ -470,6 +475,30 @@ struct ExploreView: View {
             ),
             toastAlignment: .top
         )
+    }
+
+    @MainActor
+    private func openCaptureGoalDestination(_ destination: CaptureGoalDestination) {
+        var nextPath = NavigationPath()
+        activeTab = .fieldTrips
+
+        switch destination {
+        case .fieldTrip(let templateId, let checklistItemId):
+            activeFieldTripsSection = .fieldTrips
+            nextPath.append(FieldTripTemplateRoute(
+                templateId: templateId,
+                focusedChecklistItemId: checklistItemId
+            ))
+        case .fieldTripTemplate(let slug):
+            activeFieldTripsSection = .fieldTrips
+            nextPath.append(FieldTripTemplateRoute(slug: slug))
+        case .fieldTripChallenge(let challengeId):
+            guard FieldTripEventsAvailability.isEnabled else { return }
+            activeFieldTripsSection = .seasonal
+            nextPath.append(FieldTripChallengeRoute(challengeId: challengeId))
+        }
+
+        navigationPath = nextPath
     }
 
     @ToolbarContentBuilder

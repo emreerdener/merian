@@ -19,6 +19,7 @@ struct InsightSheetView: View {
     var allowsExplorePresentation: Bool
     var presentationStyle: InsightPresentationStyle
     var onOpenCommunityIdentificationRequest: ((String) -> Void)?
+    var onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)?
 
     // MARK: - State
     @State var viewModel: InsightSheetViewModel
@@ -34,7 +35,8 @@ struct InsightSheetView: View {
         inferenceEngine: InferenceEngine? = nil,
         allowsExplorePresentation: Bool = true,
         presentationStyle: InsightPresentationStyle = .sheet,
-        onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil
+        onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil,
+        onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)? = nil
     ) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
@@ -42,6 +44,7 @@ struct InsightSheetView: View {
         self.allowsExplorePresentation = allowsExplorePresentation
         self.presentationStyle = presentationStyle
         self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
+        self.onOpenCaptureGoal = onOpenCaptureGoal
         _viewModel = State(
             initialValue: InsightSheetViewModel(
                 queuedContext: queuedScan,
@@ -358,6 +361,14 @@ private extension InsightSheetView {
             }
             .task(id: viewModel.persistentScanId) {
                 viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
+                await viewModel.loadFieldTripScanContributions(scanId: viewModel.persistentScanId)
+            }
+            .onReceive(AppEventPublisher.shared.publisher) { event in
+                guard case .fieldTripScanContributionsInvalidated(let scanId) = event,
+                      scanId == viewModel.persistentScanId else { return }
+                Task {
+                    await viewModel.loadFieldTripScanContributions(scanId: scanId)
+                }
             }
             .task(id: viewModel.audioBoostEligibleScanId) {
                 guard let scanId = viewModel.audioBoostEligibleScanId else {
@@ -410,13 +421,27 @@ private extension InsightSheetView {
     
     @ViewBuilder
     var mainContentStack: some View {
-        InsightContentView(viewModel: viewModel, queuedScan: queuedScan)
+        InsightContentView(
+            viewModel: viewModel,
+            queuedScan: queuedScan,
+            onOpenCaptureGoal: openCaptureGoal
+        )
             .merianSystemFeedback(
                 toastMessage: $viewModel.state.toastMessage,
                 toastActionTitle: $viewModel.toastActionTitle,
                 toastAction: toastActionBinding
             )
             .ignoresSafeArea(edges: .top)
+    }
+
+    private func openCaptureGoal(_ destination: CaptureGoalDestination) {
+        if let onOpenCaptureGoal {
+            onOpenCaptureGoal(destination)
+        } else {
+            AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
+            isPresented = false
+            dismiss()
+        }
     }
 
     @MainActor

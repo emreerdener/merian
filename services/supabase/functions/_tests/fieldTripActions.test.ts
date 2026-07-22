@@ -22,6 +22,7 @@ const IOS_FIELD_TRIP_ACTIONS = [
   "recent_publications",
   "challenge_publications",
   "apply_scan_progress",
+  "scan_contributions",
   "scan_challenge_hashtags",
   "profile_summaries",
   "set_pinned_publications",

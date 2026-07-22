@@ -105,6 +105,16 @@ the five-minute freshness path. Overlapping startup lifecycle callbacks share
 the in-flight provider fetch instead of scheduling a duplicate follow-up.
 Failures keep cached state without placing an error over the viewfinder.
 
+For a camera-only still submission, the selected standard-outing destination is
+converted to an optional `FieldTripPreferredGoal` containing only the owned
+`userFieldTripId` and checklist `itemId`. Selection is captured before the
+staging tray hides the capsule and is carried through foreground or queued
+completion. Gallery imports, Describe, Record, refinement, video, mixed media,
+hidden goal UI, and missing selections submit no preference. The preference is
+only a validated tie-breaker inside that outing; the server still determines
+eligibility, may reject stale or unauthorized hints, and independently chooses
+one goal for every other active outing or joined Event.
+
 Tapping the pill calls `CaptureWorkspaceViewModel.openCaptureGoal`, then
 `CameraSheetRouter` passes one typed destination to `ExploreView`. Explore owns
 converting the Field trip destination into its optional focused checklist-item

@@ -30,7 +30,7 @@ struct MigrationPlanTests {
         return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 
-    private func activeOfflineQueuedScanSource() throws -> String {
+    private func currentOfflineQueuedScanSource() throws -> String {
         let sourceURL = repositoryRoot
             .appendingPathComponent("Merian")
             .appendingPathComponent("Models")
@@ -1026,7 +1026,7 @@ struct MigrationPlanTests {
     }
 
     @Test func activeOfflineQueuedScanKeepsDurableRetryFieldsNonOptional() throws {
-        let source = try activeOfflineQueuedScanSource()
+        let source = try currentOfflineQueuedScanSource()
         let requiredSnippets = [
             "@Attribute public var queueAttemptCount: Int = 0",
             "@Attribute public var queueUpdatedAt: Date = Date()",
@@ -1048,11 +1048,11 @@ struct MigrationPlanTests {
 
         #expect(
             missing.isEmpty,
-            "Active V49 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "Active V50 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
             presentForbidden.isEmpty,
-            "Active V49 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
+            "Active V50 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
         )
     }
 
@@ -1584,6 +1584,34 @@ struct MigrationPlanTests {
             assertCurrentQueuedScanHasFreshRetryState(migratedQueuedScan)
             try assertCurrentScanIngestionJob(scanId: queuedId, context: store.context)
         }
+    }
+
+    @Test func migrationFromV49AddsOptionalPreferredGoalFieldsWithoutLosingQueueData() throws {
+        let url = migrationStoreURL(named: "v49_preferred_goal_migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let queuedId = "v49-preferred-goal-queued"
+        do {
+            let schema49 = Schema(versionedSchema: MerianSchemaV49.self)
+            let config49 = ModelConfiguration(schema: schema49, url: url)
+            let container49 = try makeModelContainer(for: schema49, configurations: [config49])
+            let context49 = ModelContext(container49)
+            let queuedScan = OfflineQueuedScan(id: queuedId)
+            queuedScan.coverImagePath = "v49-cover.webp"
+            queuedScan.stagedR2Keys = ["queued/v49/image.webp"]
+            queuedScan.fieldNotes = "queued before goal preferences"
+            context49.insert(queuedScan)
+            try context49.save()
+        }
+
+        let store = try openCurrentMigrationStore(at: url)
+        let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: store.context)
+
+        #expect(migratedQueuedScan.coverImagePath == "v49-cover.webp")
+        #expect(migratedQueuedScan.stagedR2Keys == ["queued/v49/image.webp"])
+        #expect(migratedQueuedScan.fieldNotes == "queued before goal preferences")
+        let migratedHints = try store.context.fetch(FetchDescriptor<ActiveOfflineQueuedScanGoalHint>())
+        #expect(migratedHints.isEmpty)
     }
 
     @Test func migrationFromV47PreservesAllQueuedMediaKinds() throws {

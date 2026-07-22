@@ -316,6 +316,7 @@ final class ScanRepository {
             try modelContext.delete(model: LocalScanRecord.self)
             try modelContext.delete(model: ScanCollection.self)
             try modelContext.delete(model: OfflineQueuedScan.self)
+            try modelContext.delete(model: ActiveOfflineQueuedScanGoalHint.self)
             try modelContext.delete(model: PendingCloudDeletionTask.self)
             try modelContext.save()
             ExploreShareStateStore.clearAll()

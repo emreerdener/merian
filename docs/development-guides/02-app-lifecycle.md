@@ -192,7 +192,9 @@ The full operating contract lives in `docs/backend-and-data/08-startup-store-rec
   SwiftData's equal-model-reference exception. V46 is a no-op checksum twin of V45, so its
   recent plan keeps V46 as the only duplicate-cluster source representative and
   jumps directly to V49. V47 has its own source-isolated plan for stores already
-  stamped V47.
+  stamped V47. Every selected migration path then applies the shared lightweight
+  V49→V50 stage that adds `OfflineQueuedScanGoalHint`; current V50 stores open
+  without a migration plan.
   Duplicate-checksum failures retry through the same recent-plan ladder before
   legacy rescue or safe mode.
 - Store quarantine remains corruption-only and is owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`. Non-corrupt failures on legacy migration strategies archive `default.store`, `default.store-shm`, and `default.store-wal` under `store-rescue/`, then recreate a fresh persistent current-schema store. Generic current-store failures still boot safe mode without moving user data.

@@ -107,6 +107,60 @@ struct FieldTripProgressUpdatesResponse: Decodable {
     }
 }
 
+struct FieldTripPreferredGoal: Codable, Equatable, Sendable {
+    let userFieldTripId: String
+    let itemId: String
+}
+
+struct FieldTripScanContributionsResponse: Decodable {
+    let data: [FieldTripScanContribution]
+}
+
+struct FieldTripScanContribution: Decodable, Identifiable, Equatable, Sendable {
+    enum SourceKind: String, Decodable, Sendable {
+        case standardOuting = "standard_outing"
+        case event
+    }
+
+    let sourceKind: SourceKind
+    let sourceId: String
+    let userFieldTripId: String?
+    let participationId: String?
+    let templateId: String
+    let challengeId: String?
+    let title: String
+    let slug: String
+    let itemId: String
+    let prompt: String
+    let levelNumber: Int
+    let levelTitle: String?
+    let completedCount: Int
+    let targetCount: Int
+    let isComplete: Bool
+    let artworkPrompt: String
+    let artworkTemplateSlug: String?
+    let destinationKind: String
+    let destinationTemplateId: String?
+    let destinationChecklistItemId: String?
+    let destinationChallengeId: String?
+
+    var id: String { "\(sourceKind.rawValue):\(sourceId)" }
+
+    var destination: CaptureGoalDestination? {
+        switch sourceKind {
+        case .standardOuting:
+            guard let destinationTemplateId, let destinationChecklistItemId else { return nil }
+            return .fieldTrip(
+                templateId: destinationTemplateId,
+                checklistItemId: destinationChecklistItemId
+            )
+        case .event:
+            guard let destinationChallengeId else { return nil }
+            return .fieldTripChallenge(challengeId: destinationChallengeId)
+        }
+    }
+}
+
 struct FieldTripProgressResult: Equatable {
     let fieldTripUpdates: [FieldTripProgressUpdate]
     let challengeUpdates: [FieldTripChallengeProgressUpdate]
@@ -548,6 +602,7 @@ struct FieldTripProgressUpdate: Decodable, Identifiable, Equatable {
     let creditedCompletedCount: Int?
     let creditedTargetCount: Int?
     let newlyCompletedItems: [FieldTripProgressCompletedItem]
+    let removedItemIds: [String]?
 
     var id: String { userFieldTripId }
 
@@ -582,6 +637,7 @@ struct FieldTripChallengeProgressUpdate: Decodable, Identifiable, Equatable {
     let creditedCompletedCount: Int?
     let creditedTargetCount: Int?
     let newlyCompletedItems: [FieldTripProgressCompletedItem]
+    let removedItemIds: [String]?
 
     var id: String { participationId }
 

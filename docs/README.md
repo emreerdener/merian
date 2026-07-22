@@ -38,12 +38,12 @@ as their permanent engineering identity.
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override
   both URL and client key to a matching local/staging project.
-- **Active SwiftData schema**: `MerianSchemaV49` via
-  `typealias CurrentSchema = MerianSchemaV49` in
-  `apps/ios/Merian/Models/Aliases.swift`. V49 preserves V48 durable offline
-  job/control-plane rows, adds a startup repair marker on queued scans, and
-  includes source-specific recovery for the accidental optional-queue V48
-  TestFlight shape.
+- **Active SwiftData schema**: `MerianSchemaV50` via
+  `typealias CurrentSchema = MerianSchemaV50` in
+  `apps/ios/Merian/Models/Aliases.swift`. V50 preserves the released V49 queue
+  entity and adds a scan-keyed `OfflineQueuedScanGoalHint` companion through a
+  lightweight migration. V49 remains the startup-repair target for older
+  source-specific recovery lanes before they advance to V50.
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio,
   describe, and mixed-media submissions. It owns staged media durability through
   `scan_ingestion_jobs`, sanitized `scan_ingestion_intents`, scheduled
@@ -166,6 +166,7 @@ as their permanent engineering identity.
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
   inference fields, V48 offline job records/events, V49 startup store repair,
+  V50 durable queued Field trip goal hints,
   private Insight and per-viewer Explore Field chat tables, scan media assets,
   and Explore Community Identification versioned taxonomy, consensus jobs,
   projections, and request tables, atomic ingestion setup/dictionary RPCs,
@@ -174,6 +175,7 @@ as their permanent engineering identity.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,
+  `/field-trips` preferred progress and scan contributions,
   `/update-public-avatar`, Community Identification endpoints, `/species-dictionary`,
   `/species-observation-stats`, `/report-user`, the internal admin RPC surface,
   Explore detail similar species, and internal cron workers such as Merian
@@ -214,7 +216,8 @@ as their permanent engineering identity.
   `hasCompletedOnboarding` gate.
 - **[`/features-and-hardware/05-insight-sheet.md`](./features-and-hardware/05-insight-sheet.md)**
   — InsightSheet view architecture, mixed-media carousel handoff, species data
-  rendering, Field chat, and graceful degradation states.
+  rendering, persistent Field trip progress, typed routing, Field chat, and
+  graceful degradation states.
 - **[`/features-and-hardware/06-profile-and-gamification.md`](./features-and-hardware/06-profile-and-gamification.md)**
   — Profile public avatars, heatmap, collections, and gamification award
   calculations.
@@ -287,8 +290,9 @@ as their permanent engineering identity.
   checklist, guided outing detail, progress
   matching, the account-cached active target indicator on visual Scan, focused
   Tips/Goals routing, active-level progress ring, private completed-scan
-  thumbnails and embedded Insight navigation, photo/video multi-goal
-  eligibility, seasonal challenges, challenge badges, publication snapshots,
+  thumbnails and embedded Insight navigation, persistent scan contribution
+  cards, one credit per experience with multi-experience eligibility, seasonal
+  challenges, challenge badges, publication snapshots,
   profile pins, access gating, in-app activity, and deferred leaderboard/prize
   scope.
 - **[`/features-and-hardware/26-photos-share-import.md`](./features-and-hardware/26-photos-share-import.md)**

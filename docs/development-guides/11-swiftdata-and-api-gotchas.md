@@ -12,6 +12,8 @@ same model checksum. Merian shipped V46 as a no-op after V45, so the primary
 of `schemas` and jumps older unknown stores from V43→V49. Source-isolated recent
 plans still handle V44, V45, and V46 stores directly; V44, V45, and V46 stores
 jump through separate direct V44→V49, V45→V49, and V46→V49 plans.
+Those repairs are intermediate targets: every selected plan then applies the
+lightweight V49→V50 stage, while a current V50 store opens without a plan.
 
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's
