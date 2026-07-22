@@ -397,7 +397,8 @@ remains optional for ordinary outing navigation.
   several deliberately active outings and a joined live Event.
 - Within an experience the selected live-Capture goal wins when valid. Fallback
   order is exact species, scientific name, taxonomy from genus through kingdom,
-  semantic tag, ecology, habitat, then curated checklist order and item ID.
+  taxonomy with an excluded family, conjunctive taxonomy-plus-signal, semantic
+  tag, ecology, habitat, then curated checklist order and item ID.
 - A checklist item can complete once. Reprocessing the same scan is idempotent.
 - A level unlocks only when all items in the current level are complete.
 - A trip completes when all levels and checklist items are complete.
@@ -416,6 +417,53 @@ remains optional for ordinary outing navigation.
 - Corrections may move or remove the scan's credit within its original credited
   level while the outing remains unfinished, then reset the outing to its
   earliest incomplete level. Completed outings are immutable.
+
+### Active Objective Matching Contract
+
+This table is the canonical review surface for the two active standard outings.
+The retired Forest Edges placeholder is not returned by active-template or
+Capture RPCs and is intentionally excluded. A populated taxonomy rank is an
+exact, case-insensitive constraint. `taxonomy_and_signal` requires at least one
+taxonomy constraint, at least one signal constraint, and every populated
+constraint to match; missing required evidence fails closed.
+
+| Outing | Level | Goal | Server-required match |
+| --- | ---: | --- | --- |
+| Backyard Safari | 1 | Butterfly | Class `Insecta` + order `Lepidoptera` + semantic category `butterfly` |
+| Backyard Safari | 1 | Bird | Class `Aves` |
+| Backyard Safari | 1 | Cat | Exact scientific name `Felis catus` |
+| Backyard Safari | 1 | Spider | Class `Arachnida` + order `Araneae` |
+| Backyard Safari | 2 | Flowering plant | Kingdom `Plantae` + semantic category `flower` |
+| Backyard Safari | 2 | Fungus | Kingdom `Fungi` |
+| Backyard Safari | 2 | Domesticated animal | Kingdom `Animalia` + scan ecology `domesticated` |
+| Backyard Safari | 2 | Insect | Class `Insecta` |
+| Backyard Safari | 2 | Urban wild animal | Kingdom `Animalia` + scan ecology `urban` |
+| Backyard Safari | 2 | Moss or lichen | Semantic category `moss` only; there is no broad taxonomy fallback |
+| Park Pollinators | 1 | Flowering plant | Kingdom `Plantae` + semantic category `flower` |
+| Park Pollinators | 1 | Butterfly or moth | Class `Insecta` + order `Lepidoptera` |
+| Park Pollinators | 1 | Bee or wasp | Class `Insecta` + order `Hymenoptera` + either semantic category `bee` or `wasp` |
+| Park Pollinators | 1 | Fly | Class `Insecta` + order `Diptera` |
+| Park Pollinators | 2 | Beetle | Class `Insecta` + order `Coleoptera` |
+| Park Pollinators | 2 | Spider | Class `Arachnida` + order `Araneae` |
+| Park Pollinators | 2 | Seed or fruiting plant | Kingdom `Plantae` + semantic category `fruit` |
+| Park Pollinators | 2 | Bird | Class `Aves` |
+| Park Pollinators | 2 | Wild plant | Kingdom `Plantae` + scan ecology `wild` |
+| Park Pollinators | 2 | Meadow plant | Kingdom `Plantae` + habitat token/category `meadow` |
+
+Semantic categories come from the resolved species' enriched `group_tags`, with
+the existing exact scientific/common-name fallback. Compound semantic criteria
+may use `|` for accepted alternatives; **Bee or wasp** uses `bee|wasp`. Ecology
+is observation-level `scans.ecology_type`. Habitat is species-level
+`species_dictionary.habitat_description` or an exact group category, not proof
+of scene composition in the captured image. For that reason, Park's former
+**Spider near flowers** and **Bird near flowers** labels are now **Spider** and
+**Bird**, and the former scene-based **Pollinator habitat** objective is the
+verifiable **Meadow plant** objective.
+
+The `Moss or lichen` row deliberately documents the current conservative legacy
+rule: moss can complete it, while an otherwise unmatched lichen cannot. That is
+a false-negative limitation, not a broad-completion path; widening it requires
+an explicit reviewed alternative and positive/negative database cases.
 
 ## Challenge Progress Rules
 
@@ -545,6 +593,14 @@ repair. It also replaces profile pinning's temporary-table implementation with
 an ordered UUID-array mutation and revokes every Field trip/Event
 `SECURITY DEFINER` function from `PUBLIC`, `anon`, and `authenticated`, granting
 execution only to `service_role`.
+`services/supabase/migrations/20260722195453_exclude_ants_from_bee_wasp_goal.sql`
+excludes the ant family from Park Pollinators' Hymenoptera objective and repairs
+earlier ant-backed credit.
+`services/supabase/migrations/20260722211636_tighten_field_trip_goal_matching.sql`
+adds conjunctive taxonomy-plus-signal rules for active objectives, requires
+`Araneae` for Spider goals and a butterfly tag for Backyard Butterfly, aligns
+contextual Park labels with evidence the scan contract can verify, and repairs
+credit that no longer matches.
 
 Core tables:
 
@@ -908,14 +964,16 @@ Deploy in this order:
 15. `20260720014446_update_backyard_safari_copy.sql`
 16. `20260722025411_persistent_field_trip_scan_contributions.sql`
 17. `20260722064704_harden_atomic_field_trip_progress.sql`
-18. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
+18. `20260722195453_exclude_ants_from_bee_wasp_goal.sql`
+19. `20260722211636_tighten_field_trip_goal_matching.sql`
+20. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
    `identify-describe`, `audio-spec`, and `replay-scan-ingestion`)
-19. `field-trips` Edge Function
-20. `get-explore-author-profile` so public profiles include Field trip
+21. `field-trips` Edge Function
+22. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-21. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+23. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-22. iOS client update
+24. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
@@ -962,6 +1020,7 @@ deno test --allow-env --allow-net --allow-read services/supabase/functions/_test
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 supabase db lint --workdir services
+supabase db advisors --local --workdir services --type all --level warn --fail-on none
 ```
 
 iOS:

@@ -244,13 +244,21 @@ repairs completed-outing publication item materialization, removes the pin RPC's
 temporary-table dependency, and revokes all Field
 trip/Event `SECURITY DEFINER` functions from `PUBLIC`, `anon`, and
 `authenticated`; only `service_role` may execute them.
+`20260722195453_exclude_ants_from_bee_wasp_goal.sql` first excludes `Formicidae`
+from Park Pollinators' Hymenoptera goal and repairs ant-backed progress.
+`20260722211636_tighten_field_trip_goal_matching.sql` adds conjunctive
+taxonomy-plus-signal matching, finalizes **Bee or wasp** as Hymenoptera plus
+`bee|wasp`, narrows active Spider/Butterfly/plant/animal goals, aligns
+unverifiable Park prompt copy with saved-scan evidence, and repairs progress
+credited by the former broader rules.
 The contract suite verifies caller identity, role grants, ordering/filtering
 clauses, private completion links/status, credited progress in both RPCs, and
 the absence of evidence from public/capture projections.
 `fieldTripCaptureContextDb.test.ts` additionally executes the
 filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
-standard/challenge credited counts, level advancement, re-identification, and
-idempotent reapplication. `fieldTripAtomicProgressDb.test.ts` proves rollback
+standard/challenge credited counts, level advancement, re-identification,
+idempotent reapplication, and representative positive/negative cases for every
+narrowed active goal. `fieldTripAtomicProgressDb.test.ts` proves rollback
 when the Event half fails, `fieldTripSecurityDb.test.ts` enumerates runtime
 execute privileges, and `fieldTripPublicationDb.test.ts` executes publication
 materialization. These require the local Postgres stack; a connection skip is
@@ -382,15 +390,17 @@ contribution release adds optional `preferred_goal` to the request.
 For persistent Insight contribution cards and selected-goal preference, apply
 `20260719045306_first_field_trip_achievement.sql`,
 `20260719160750_field_trip_lifecycle_controls.sql`,
-`20260720014446_update_backyard_safari_copy.sql`, and
-`20260722025411_persistent_field_trip_scan_contributions.sql`, and
-`20260722064704_harden_atomic_field_trip_progress.sql`, and
-`20260722195453_exclude_ants_from_bee_wasp_goal.sql` in order. Then deploy the
-scan-ingestion functions and `field-trips` before the iOS client. Smoke-test optional
-`preferred_goal`, one credit per outing/Event, deterministic fallback,
-correction removal/move, Bee/wasp acceptance with ant rejection, transactional
-rollback, receipt replay, publication, and `scan_contributions`. Direct client
-roles must not read either private progress table or execute any Field
-trip/Event `SECURITY DEFINER` RPC;
+`20260720014446_update_backyard_safari_copy.sql`,
+`20260722025411_persistent_field_trip_scan_contributions.sql`,
+`20260722064704_harden_atomic_field_trip_progress.sql`,
+`20260722195453_exclude_ants_from_bee_wasp_goal.sql`, and
+`20260722211636_tighten_field_trip_goal_matching.sql` in order. Then deploy the
+scan-ingestion functions and `field-trips` before the iOS client. Smoke-test
+optional `preferred_goal`, one credit per outing/Event, deterministic fallback,
+correction removal/move, bee/wasp acceptance with ant and sawfly rejection,
+the representative negative-match matrix, transactional rollback, receipt
+replay, publication, and `scan_contributions`. Direct client roles must not read
+either private progress table or execute any Field trip/Event
+`SECURITY DEFINER` RPC;
 contribution payloads must contain no media, coordinates, place labels, notes,
 or public evidence. Older clients omit the preference and remain compatible.

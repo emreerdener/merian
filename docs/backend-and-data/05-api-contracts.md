@@ -359,10 +359,17 @@ that was active at the scan timestamp and whose current visible item matches
 the saved identification. It wins inside that outing only. Missing, stale,
 unauthorized, completed, and nonmatching hints are ignored. Fallback selection
 is exact species, scientific name, taxonomy from genus through kingdom,
-taxonomy with an explicit excluded family, semantic tag, ecology, habitat,
-curated checklist order, then item ID. Park Pollinators' **Bee or wasp** goal
-matches order `Hymenoptera` while excluding family `Formicidae`, so ants and
-scans without family-level lineage do not satisfy it.
+including excluded-family and taxonomy-plus-signal variants, semantic tag,
+ecology, habitat, curated checklist order, then item ID. A
+`taxonomy_and_signal` goal requires at least one taxonomy constraint, at least
+one ecology/habitat/semantic constraint, and every populated constraint to
+match. The exact catalog is maintained in the
+[Field Trips matching contract](../features-and-hardware/25-field-trips.md#active-objective-matching-contract).
+Park Pollinators' **Bee or wasp** goal
+requires order `Hymenoptera` plus either the `bee` or `wasp` semantic category,
+so ants, sawflies, and other broader-order matches do not satisfy it. Compound
+semantic alternatives are `|`-separated. Spider goals require order `Araneae`;
+animal and plant signal goals also require their named kingdom.
 
 For new scans, the identify ingestion intent stores the validated preference
 and the scan-insert trigger invokes the same atomic RPC before scan persistence
@@ -400,7 +407,12 @@ one-time repair for ant scans credited before that family exclusion existed. It
 removes the standard/Event completion and its private preference/receipt,
 reopens the earliest incomplete level, clears any derived Event badge, and
 withdraws a now-invalid completion publication until an eligible scan completes
-the goal.
+the goal. Migration `20260722211636_tighten_field_trip_goal_matching.sql`
+applies the same repair policy to other active goals whose former taxonomy or
+signal rule was broader than its label. Park's unverifiable **Spider near
+flowers** and **Bird near flowers** prompts become **Spider** and **Bird**; the
+former **Pollinator habitat** scene prompt becomes the verifiable
+plant-plus-meadow **Meadow plant** goal.
 
 Only updates with a nonempty `newly_completed_items` array are eligible for a
 scan progress toast. Reapplying an unchanged scan is idempotent and returns its

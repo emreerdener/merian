@@ -88,6 +88,35 @@ Deno.test("Park Pollinators excludes ants from the Bee or wasp goal and repairs 
   }
 });
 
+Deno.test("Active Field Trip goals use narrow, verifiable compound rules", async () => {
+  const sql = normalized(
+    await migrationSql("20260722211636_tighten_field_trip_goal_matching.sql"),
+  );
+
+  for (
+    const fragment of [
+      "'taxonomy_and_signal'",
+      "WHEN 'Spider' THEN 'Araneae'",
+      "WHEN 'Domesticated animal' THEN 'Animalia'",
+      "WHEN 'Urban wild animal' THEN 'Animalia'",
+      "WHEN 'Bee or wasp' THEN 'bee|wasp'",
+      "WHEN 'Spider near flowers' THEN 'Spider'",
+      "WHEN 'Bird near flowers' THEN 'Bird'",
+      "WHEN 'Pollinator habitat' THEN 'Meadow plant'",
+      "WHEN 'Wild plant' THEN 'wild'",
+      "WHEN 'Pollinator habitat' THEN 'meadow'",
+      "JOIN tightened_field_trip_items AS tightened",
+      "DELETE FROM public.user_field_trip_item_completions",
+      "DELETE FROM public.field_trip_challenge_item_completions",
+      "DELETE FROM public.field_trip_scan_progress_receipts",
+      "completed_at = NULL",
+      "badge_awarded_at = NULL",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("Field trips migration preserves privacy and Explore separation contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),

@@ -1904,6 +1904,18 @@ struct ActiveCaptureGoalStoreTests {
         )
         #expect(
             FieldTripObjectiveArtwork.exactImageName(
+                for: "Spider",
+                templateSlug: "park_pollinators"
+            ) == "fieldtrip-park-spider"
+        )
+        #expect(
+            FieldTripObjectiveArtwork.exactImageName(
+                for: "Meadow plant",
+                templateSlug: "park_pollinators"
+            ) == "fieldtrip-park-habitat"
+        )
+        #expect(
+            FieldTripObjectiveArtwork.exactImageName(
                 for: "Unknown future target",
                 templateSlug: "backyard_safari"
             ) == nil

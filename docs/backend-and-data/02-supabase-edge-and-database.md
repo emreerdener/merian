@@ -962,11 +962,29 @@ the upsert.
 
 The follow-up
 `20260722195453_exclude_ants_from_bee_wasp_goal.sql` adds the generic
-`taxonomy_excluding_family` checklist criterion. Park Pollinators keeps
-`Hymenoptera` as the positive order for **Bee or wasp** but excludes
-`Formicidae`, preventing ants from matching. Family lineage is required for
-this negative criterion; an unknown family fails closed. The migration repairs
-existing ant-backed credit and its derived receipts/completion state.
+`taxonomy_excluding_family` checklist criterion. At that migration step, Park
+Pollinators keeps `Hymenoptera` as the positive order for **Bee or wasp** but
+excludes `Formicidae`, preventing ants from matching. Family lineage is required
+for this negative criterion; an unknown family fails closed. The migration
+repairs existing ant-backed credit and its derived receipts/completion state.
+
+`20260722211636_tighten_field_trip_goal_matching.sql` adds the conjunctive
+`taxonomy_and_signal` criterion. It requires at least one populated taxonomy
+rank, at least one ecology/habitat/semantic signal, and every populated
+constraint to match. Active Backyard Safari and Park Pollinators goals use it
+where a signal alone could accept the wrong kingdom or a broad taxonomy could
+accept the wrong group. Spider goals require order `Araneae`; Backyard
+**Butterfly** additionally requires the `butterfly` group tag. Context that the
+saved scan contract cannot prove is removed from Park prompt copy, and the old
+scene-based **Pollinator habitat** target becomes a plant-plus-meadow
+**Meadow plant** target. **Bee or wasp** is also finalized as Hymenoptera plus
+either the `bee` or `wasp` semantic category, preventing sawflies and other
+non-bee/non-wasp members of the order from receiving credit. Compound semantic
+criteria may separate accepted alternatives with `|`. The migration removes
+previously credited rows that no longer satisfy the corrected rules and repairs
+derived progress, receipts, badges, and publications. The exact active catalog
+is maintained in the
+[Field Trips matching contract](../features-and-hardware/25-field-trips.md#active-objective-matching-contract).
 
 These Seasonal Challenge contracts are already deployed while Events remain a
 client-staged iOS surface. Standard Outings are public; iOS requests and renders

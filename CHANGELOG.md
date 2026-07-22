@@ -184,8 +184,17 @@ TestFlight, App Store, support, and QA.
   remaining empty when a cached account session finished restoring after the
   screen appeared.
 - Fixed ants counting toward Park Pollinators' **Bee or wasp** goal. The goal
-  still accepts Hymenoptera such as bees and wasps, explicitly excludes the ant
-  family, and removes any earlier ant-backed credit from active progress.
+  now requires a Hymenoptera identification categorized as a bee or wasp, so
+  ants, sawflies, and other broader-order matches do not count, and any earlier
+  invalid credit is removed from active progress.
+- Tightened the rest of the active Outing checklist so labels and completion
+  rules agree. Moths no longer count as Backyard **Butterfly**, ticks and
+  scorpions no longer count as **Spider**, and animal/plant/ecology goals now
+  require both the named organism group and the matching signal. Park goals
+  that could not verify “near flowers” are now honestly labeled **Spider** and
+  **Bird**, and the scene-based **Pollinator habitat** target is now the
+  verifiable **Meadow plant** target. Earlier credit that fails the corrected
+  rules is removed from active progress.
 - Added a left-aligned, above-title **Private** / **Published** badge to standard outing detail.
   Published is shown only when the owner has an active public outing snapshot;
   completion alone remains Private.

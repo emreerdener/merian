@@ -240,7 +240,9 @@ Field trips releases are migration-plus-function releases too. Deploy
 `20260719160750_field_trip_lifecycle_controls.sql` before
 `20260720014446_update_backyard_safari_copy.sql` before
 `20260722025411_persistent_field_trip_scan_contributions.sql` before
-`20260722064704_harden_atomic_field_trip_progress.sql`, then deploy the updated
+`20260722064704_harden_atomic_field_trip_progress.sql` before
+`20260722195453_exclude_ants_from_bee_wasp_goal.sql` before
+`20260722211636_tighten_field_trip_goal_matching.sql`, then deploy the updated
 scan-ingestion functions, `field-trips`, and the Explore/profile activity
 bundles together. V1
 creates the Field trip tables, progress/publication/comment storage, profile
@@ -284,6 +286,15 @@ one transaction, repairs completed-outing publication materialization, and
 replaces the profile-pin RPC's temporary table with a lintable ordered-array
 mutation. It revokes every Field trip/Event `SECURITY DEFINER` routine from
 direct client roles. Only `service_role` retains execute.
+The ant-exclusion migration introduces the excluded-family matcher and repairs
+ant-backed Bee or wasp credit. The goal-hardening migration then makes the final
+active catalog authoritative: compound goals require both their taxonomy and
+their ecology/habitat/semantic signal; Spider requires `Araneae`; Backyard
+Butterfly requires the butterfly category; Bee or wasp requires Hymenoptera plus
+`bee|wasp`; unverifiable “near flowers” prompt text is removed; and Pollinator
+habitat becomes Meadow plant. It removes newly invalid standard/Event
+completions, reopens affected progress, clears stale preferences/receipts and
+badges, and withdraws invalid completion publications/entries.
 A function-only deploy cannot serve `capture_context` or V4 actions until all
 migrations are applied; a database-only deploy leaves the app without the
 Field trips action router. Do not release the indicator-enabled iOS client until
@@ -295,13 +306,15 @@ migration; its optional fields render Private against the older payload.
 Deploy both credited-progress migrations, in order, before the progress-toast
 iOS client.
 The client can decode the legacy shape and fall back to current counts during a
-staged rollout. Both final migrations, updated ingestion functions, and updated
-`field-trips` must precede the Insight-card iOS client because that client may
-send optional `preferred_goal`, retain it until acknowledgement, and request
+staged rollout. All Field Trip migrations through
+`20260722211636_tighten_field_trip_goal_matching.sql`, updated ingestion
+functions, and updated `field-trips` must precede the Insight-card iOS client
+because that client may send optional `preferred_goal`, retain it until
+acknowledgement, and request
 `scan_contributions`. Older clients omit the hint and continue to receive
 deterministic fallback behavior.
 
-Current client rollout (2026-07-19): standard Field trips/Outings are public,
+Current client rollout (2026-07-22): standard Field trips/Outings are public,
 while Seasonal Challenge Events remain staged through
 `FieldTripEventsAvailability.isReleased`. The tester account and simulator
 builds bypass that iOS flag. This is not a Supabase feature flag or an

@@ -1885,12 +1885,17 @@ coordinates to the client contract.
 - `public.field_trip_checklist_items`:
   Curated checklist prompts for each level. Items support species,
   scientific-name, taxonomy/group, taxonomy-with-one-excluded-family,
-  habitat/ecology, prompt-text matching, and optional curated item-level tips.
+  taxonomy combined with ecology/habitat/semantic evidence, habitat/ecology,
+  prompt-text matching, and optional curated item-level tips.
   `taxonomy_excluding_family` treats `taxonomy_family` as the excluded family
-  while the remaining populated taxonomy ranks stay positive constraints. Park
-  Pollinators uses this for its Hymenoptera-based **Bee or wasp** goal to reject
-  `Formicidae` (ants). Structured guides may provide Where to look, Best
-  conditions, What to notice, and Scan safely sections.
+  while the remaining populated taxonomy ranks stay positive constraints. It
+  was introduced to reject `Formicidae` (ants) from Park Pollinators before the
+  active goal was narrowed further. `taxonomy_and_signal` requires at least one
+  taxonomy rank, at least one ecology/habitat/semantic signal, and all populated
+  constraints to match. A compound semantic signal can contain `|`-separated
+  accepted alternatives; **Bee or wasp** uses `bee|wasp` together with order
+  `Hymenoptera`. Structured guides may provide Where to look, Best conditions,
+  What to notice, and Scan safely sections.
 - `public.user_field_trips`:
   Per-user progress rows with start time, current level, profile visibility,
   completion time, and denormalized progress counts.
@@ -2015,9 +2020,11 @@ coordinates to the client contract.
 - `public.field_trip_item_matches_scan(...)`:
   Internal matcher used by progress application. It checks species,
   scientific-name, positive taxonomy/group constraints, optional excluded
-  taxonomy family, habitat/ecology, and prompt-text signals against the saved
-  scan. An excluded-family match requires a populated scan family so missing
-  lineage cannot produce a false positive.
+  taxonomy family, conjunctive taxonomy-plus-signal rules, habitat/ecology, and
+  prompt-text signals against the saved scan. An excluded-family match requires
+  a populated scan family so missing lineage cannot produce a false positive.
+  A conjunctive match fails closed unless it has both kinds of configured
+  evidence and every configured constraint matches.
 - `public.apply_field_trip_scan_progress_v2(self_id UUID, target_scan_id UUID, preferred_user_field_trip_id UUID, preferred_item_id UUID)`:
   Applies server-authoritative progress for one caller-owned saved biological
   scan. Standard outings must already exist and the scan timestamp must belong
@@ -2025,8 +2032,11 @@ coordinates to the client contract.
   Exactly one current-level match can be credited per outing/Event. A valid
   visible Capture preference wins inside its own standard outing. Otherwise the
   matcher ranks exact species, scientific name, taxonomy from genus through
-  kingdom, semantic tag, ecology, habitat, curated checklist order, then item
-  ID. The same scan may still advance several eligible experiences.
+  kingdom (including excluded-family and taxonomy-plus-signal variants),
+  semantic tag, ecology, habitat, curated checklist order, then item ID. The
+  exact active objective criteria are maintained in the
+  [Field Trips matching contract](../features-and-hardware/25-field-trips.md#active-objective-matching-contract).
+  The same scan may still advance several eligible experiences.
   Reapplication is idempotent. While an experience remains unfinished,
   identification correction can move or remove credit in the original credited
   level and recompute the earliest incomplete level; completed experiences are
@@ -2035,8 +2045,11 @@ coordinates to the client contract.
   correction of ant-backed **Bee or wasp** completions, reopens affected
   standard/Event progress, clears derived receipts/preferences and badges, and
   hides any now-invalid completion publication until the goal is legitimately
-  completed again. Responses preserve current and credited-level counts and may
-  add `removed_item_ids`.
+  completed again. `20260722211636_tighten_field_trip_goal_matching.sql`
+  performs the equivalent repair for other corrected active goals, including
+  Butterfly, Spider, flowering/fruiting plants, animal ecology goals, wild
+  plants, and Meadow plant. Responses preserve current and credited-level
+  counts and may add `removed_item_ids`.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
   Compatibility wrapper that calls V2 without a preference, preserving older
   Edge/client behavior.

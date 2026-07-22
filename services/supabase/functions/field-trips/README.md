@@ -22,6 +22,8 @@ The backing SQL lives in this ordered migration chain:
 15. `20260720014446_update_backyard_safari_copy.sql`
 16. `20260722025411_persistent_field_trip_scan_contributions.sql`
 17. `20260722064704_harden_atomic_field_trip_progress.sql`
+18. `20260722195453_exclude_ants_from_bee_wasp_goal.sql`
+19. `20260722211636_tighten_field_trip_goal_matching.sql`
 
 Deploy the migrations, updated scan-ingestion functions, and then this function
 before the iOS client begins sending preferred-goal hints or requesting
@@ -312,10 +314,14 @@ advance several experiences, and every created completion row retains the same
 scan ID. The optional preference is honored only for its owned, active,
 current, visible, matching standard goal. Otherwise the database ranks exact
 species, scientific name, taxonomy from genus through kingdom, taxonomy with an
-explicit excluded family, semantic tag, ecology, habitat, curated checklist
-order, and item ID. Park Pollinators' **Bee or wasp** goal uses Hymenoptera with
-`Formicidae` excluded, so ants do not satisfy it and missing family lineage
-fails closed.
+explicit excluded family, taxonomy combined with a required
+ecology/habitat/semantic signal, semantic tag, ecology, habitat, curated
+checklist order, and item ID. Compound matching requires every populated
+taxonomy and signal constraint. Park Pollinators' **Bee or wasp** goal uses
+Hymenoptera plus either the `bee` or `wasp` semantic category, so ants,
+sawflies, and other broader-order members do not satisfy it. Compound semantic
+alternatives are separated with `|`. Spider goals require `Araneae`, and
+animal/plant signal goals require their named kingdom.
 
 Returns:
 
@@ -546,14 +552,16 @@ the ingestion retry remains authoritative.
 15. Apply `20260720014446_update_backyard_safari_copy.sql`.
 16. Apply `20260722025411_persistent_field_trip_scan_contributions.sql`.
 17. Apply `20260722064704_harden_atomic_field_trip_progress.sql`.
-18. Deploy the scan-ingestion functions.
-19. Deploy this function.
-20. Deploy `get-explore-author-profile` so profile responses include
+18. Apply `20260722195453_exclude_ants_from_bee_wasp_goal.sql`.
+19. Apply `20260722211636_tighten_field_trip_goal_matching.sql`.
+20. Deploy the scan-ingestion functions.
+21. Deploy this function.
+22. Deploy `get-explore-author-profile` so profile responses include
     `field_trips`.
-21. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+23. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-22. Ship the iOS client.
+24. Ship the iOS client.
 
 ## Verification
 
@@ -567,7 +575,18 @@ deno test --allow-env --allow-net --allow-read services/supabase/functions/_test
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 supabase db lint --workdir services
+supabase db advisors --local --workdir services --type all --level warn --fail-on none
 ```
+
+Before deployment, verify the active objective catalog against the canonical
+criteria table in
+[`docs/features-and-hardware/25-field-trips.md`](../../../../docs/features-and-hardware/25-field-trips.md#active-objective-matching-contract).
+At minimum, the database suite must prove that moths do not satisfy Backyard
+Butterfly;
+ticks/scorpions do not satisfy Spider; ants and sawflies do not satisfy Bee or
+wasp; cultivated/urban plants do not satisfy animal ecology goals; a fern does
+not satisfy Flowering plant; and a fruit fly, deer, or meadowlark does not
+satisfy the corresponding fruiting-, wild-, or meadow-plant goal.
 
 The capture-context, progress, lifecycle, atomic, security, and publication database integration tests require
 a running local Supabase/Postgres stack. A reported skip because port `54322` is

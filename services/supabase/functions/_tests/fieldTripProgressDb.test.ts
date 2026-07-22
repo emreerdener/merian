@@ -42,6 +42,22 @@ type ScanContribution = {
   item_id: string;
 };
 
+type CatalogGoalMatchInput = {
+  templateSlug: "backyard_safari" | "park_pollinators";
+  prompt: string;
+  scientificName: string;
+  commonName: string;
+  kingdom: string;
+  phylum?: string;
+  className?: string;
+  order?: string;
+  family?: string;
+  genus?: string;
+  ecologyType?: string;
+  habitatDescription?: string;
+  groupTags?: string[];
+};
+
 Deno.test("Field trip progress requires starts and corrections remove original-level credit", async () => {
   await withExploreDbTest(
     "fieldTripProgressDb.test",
@@ -422,7 +438,7 @@ Deno.test("Field trip progress prefers the visible Capture goal before specifici
   );
 });
 
-Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", async () => {
+Deno.test("Park Pollinators Bee or wasp rejects ants and sawflies", async () => {
   await withExploreDbTest(
     "fieldTripBeeWaspTaxonomyDb.test",
     async (client: Client) => {
@@ -430,6 +446,7 @@ Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", as
       const antSpeciesId = crypto.randomUUID();
       const beeSpeciesId = crypto.randomUUID();
       const waspSpeciesId = crypto.randomUUID();
+      const sawflySpeciesId = crypto.randomUUID();
       const antScanId = crypto.randomUUID();
       const beeScanId = crypto.randomUUID();
       const userFieldTripId = crypto.randomUUID();
@@ -438,6 +455,7 @@ Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", as
       await insertSpecies(client, antSpeciesId, "Dolichoderus bicolor");
       await insertSpecies(client, beeSpeciesId, "Bombus impatiens");
       await insertSpecies(client, waspSpeciesId, "Vespula maculifrons");
+      await insertSpecies(client, sawflySpeciesId, "Macremphytus tarsatus");
       await client.queryArray(
         `
         UPDATE public.species_dictionary
@@ -449,19 +467,28 @@ Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", as
               WHEN $1::uuid THEN 'Formicidae'
               WHEN $2::uuid THEN 'Apidae'
               WHEN $3::uuid THEN 'Vespidae'
+              WHEN $4::uuid THEN 'Tenthredinidae'
             END,
             genus = CASE id
               WHEN $1::uuid THEN 'Dolichoderus'
               WHEN $2::uuid THEN 'Bombus'
               WHEN $3::uuid THEN 'Vespula'
+              WHEN $4::uuid THEN 'Macremphytus'
+            END,
+            group_tags = CASE id
+              WHEN $1::uuid THEN ARRAY['animal', 'insect', 'ant']
+              WHEN $2::uuid THEN ARRAY['animal', 'insect', 'bee']
+              WHEN $3::uuid THEN ARRAY['animal', 'insect', 'wasp']
+              WHEN $4::uuid THEN ARRAY['animal', 'insect', 'sawfly']
             END
-        WHERE id = ANY($4::uuid[])
+        WHERE id = ANY($5::uuid[])
         `,
         [
           antSpeciesId,
           beeSpeciesId,
           waspSpeciesId,
-          [antSpeciesId, beeSpeciesId, waspSpeciesId],
+          sawflySpeciesId,
+          [antSpeciesId, beeSpeciesId, waspSpeciesId, sawflySpeciesId],
         ],
       );
 
@@ -508,7 +535,7 @@ Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", as
           AND species.id = ANY($1::uuid[])
         ORDER BY species.id
         `,
-        [[antSpeciesId, beeSpeciesId, waspSpeciesId]],
+        [[antSpeciesId, beeSpeciesId, waspSpeciesId, sawflySpeciesId]],
       );
 
       const matchBySpecies = new Map(
@@ -517,6 +544,7 @@ Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", as
       assertEquals(matchBySpecies.get(antSpeciesId), false);
       assertEquals(matchBySpecies.get(beeSpeciesId), true);
       assertEquals(matchBySpecies.get(waspSpeciesId), true);
+      assertEquals(matchBySpecies.get(sawflySpeciesId), false);
 
       const goal = await client.queryObject<{
         template_id: string;
@@ -594,6 +622,260 @@ Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", as
   );
 });
 
+Deno.test("Active Field Trip goals reject broader taxonomic and ecological lookalikes", async () => {
+  await withExploreDbTest(
+    "fieldTripNarrowGoalMatchingDb.test",
+    async (client: Client) => {
+      const cases: Array<{
+        label: string;
+        expected: boolean;
+        input: CatalogGoalMatchInput;
+      }> = [
+        {
+          label: "Backyard Butterfly accepts a butterfly",
+          expected: true,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Butterfly",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch butterfly",
+            kingdom: "Animalia",
+            className: "Insecta",
+            order: "Lepidoptera",
+            groupTags: ["animal", "insect", "butterfly"],
+          },
+        },
+        {
+          label: "Backyard Butterfly rejects a moth",
+          expected: false,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Butterfly",
+            scientificName: "Actias luna",
+            commonName: "Luna moth",
+            kingdom: "Animalia",
+            className: "Insecta",
+            order: "Lepidoptera",
+            groupTags: ["animal", "insect", "moth"],
+          },
+        },
+        {
+          label: "Backyard Spider accepts Araneae",
+          expected: true,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Spider",
+            scientificName: "Argiope aurantia",
+            commonName: "Yellow garden spider",
+            kingdom: "Animalia",
+            className: "Arachnida",
+            order: "Araneae",
+          },
+        },
+        {
+          label: "Backyard Spider rejects a tick",
+          expected: false,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Spider",
+            scientificName: "Amblyomma americanum",
+            commonName: "Lone star tick",
+            kingdom: "Animalia",
+            className: "Arachnida",
+            order: "Ixodida",
+          },
+        },
+        {
+          label: "Backyard Flowering plant rejects a fern",
+          expected: false,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Flowering plant",
+            scientificName: "Polystichum acrostichoides",
+            commonName: "Christmas fern",
+            kingdom: "Plantae",
+            className: "Polypodiopsida",
+            groupTags: ["plant", "fern"],
+          },
+        },
+        {
+          label: "Park Flowering plant accepts a flower",
+          expected: true,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Flowering plant",
+            scientificName: "Rudbeckia hirta",
+            commonName: "Black-eyed Susan",
+            kingdom: "Plantae",
+            className: "Magnoliopsida",
+            groupTags: ["plant", "flower"],
+          },
+        },
+        {
+          label: "Domesticated animal accepts a dog",
+          expected: true,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Domesticated animal",
+            scientificName: "Canis lupus familiaris",
+            commonName: "Dog",
+            kingdom: "Animalia",
+            className: "Mammalia",
+            ecologyType: "domesticated",
+          },
+        },
+        {
+          label: "Domesticated animal rejects a cultivated plant",
+          expected: false,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Domesticated animal",
+            scientificName: "Solanum lycopersicum",
+            commonName: "Tomato",
+            kingdom: "Plantae",
+            className: "Magnoliopsida",
+            ecologyType: "domesticated",
+          },
+        },
+        {
+          label: "Urban wild animal accepts an urban squirrel",
+          expected: true,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Urban wild animal",
+            scientificName: "Sciurus carolinensis",
+            commonName: "Eastern gray squirrel",
+            kingdom: "Animalia",
+            className: "Mammalia",
+            ecologyType: "urban",
+          },
+        },
+        {
+          label: "Urban wild animal rejects an urban plant",
+          expected: false,
+          input: {
+            templateSlug: "backyard_safari",
+            prompt: "Urban wild animal",
+            scientificName: "Taraxacum officinale",
+            commonName: "Common dandelion",
+            kingdom: "Plantae",
+            className: "Magnoliopsida",
+            ecologyType: "urban",
+          },
+        },
+        {
+          label: "Park Spider rejects a scorpion",
+          expected: false,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Spider",
+            scientificName: "Centruroides vittatus",
+            commonName: "Striped bark scorpion",
+            kingdom: "Animalia",
+            className: "Arachnida",
+            order: "Scorpiones",
+          },
+        },
+        {
+          label: "Seed or fruiting plant rejects a fruit fly",
+          expected: false,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Seed or fruiting plant",
+            scientificName: "Drosophila melanogaster",
+            commonName: "Common fruit fly",
+            kingdom: "Animalia",
+            className: "Insecta",
+            order: "Diptera",
+            groupTags: ["animal", "insect", "fruit"],
+          },
+        },
+        {
+          label: "Seed or fruiting plant accepts a fruit-bearing plant",
+          expected: true,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Seed or fruiting plant",
+            scientificName: "Malus domestica",
+            commonName: "Apple",
+            kingdom: "Plantae",
+            className: "Magnoliopsida",
+            groupTags: ["plant", "fruit"],
+          },
+        },
+        {
+          label: "Wild plant rejects a wild deer",
+          expected: false,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Wild plant",
+            scientificName: "Odocoileus virginianus",
+            commonName: "White-tailed deer",
+            kingdom: "Animalia",
+            className: "Mammalia",
+            ecologyType: "wild",
+          },
+        },
+        {
+          label: "Wild plant accepts a wild plant",
+          expected: true,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Wild plant",
+            scientificName: "Asclepias tuberosa",
+            commonName: "Butterfly weed",
+            kingdom: "Plantae",
+            className: "Magnoliopsida",
+            ecologyType: "wild",
+          },
+        },
+        {
+          label: "Meadow plant rejects a meadow animal",
+          expected: false,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Meadow plant",
+            scientificName: "Sturnella magna",
+            commonName: "Eastern meadowlark",
+            kingdom: "Animalia",
+            className: "Aves",
+            habitatDescription: "Grasslands and open meadows",
+          },
+        },
+        {
+          label: "Meadow plant accepts a meadow plant",
+          expected: true,
+          input: {
+            templateSlug: "park_pollinators",
+            prompt: "Meadow plant",
+            scientificName: "Schizachyrium scoparium",
+            commonName: "Little bluestem",
+            kingdom: "Plantae",
+            className: "Liliopsida",
+            habitatDescription: "Dry prairie and open meadow habitat",
+          },
+        },
+      ];
+
+      const results: Record<string, boolean> = {};
+      for (const testCase of cases) {
+        results[testCase.label] = await catalogGoalMatches(
+          client,
+          testCase.input,
+        );
+      }
+
+      assertEquals(
+        results,
+        Object.fromEntries(cases.map((testCase) => [
+          testCase.label,
+          testCase.expected,
+        ])),
+      );
+    },
+  );
+});
+
 async function applyStandardProgress(
   client: Client,
   userId: string,
@@ -604,6 +886,64 @@ async function applyStandardProgress(
     [userId, scanId],
   );
   return result.rows[0].data;
+}
+
+async function catalogGoalMatches(
+  client: Client,
+  input: CatalogGoalMatchInput,
+): Promise<boolean> {
+  const result = await client.queryObject<{ matches: boolean }>(
+    `
+    SELECT public.field_trip_item_matches_scan(
+      item.match_type,
+      item.species_id,
+      item.scientific_name,
+      item.taxonomy_kingdom,
+      item.taxonomy_phylum,
+      item.taxonomy_class,
+      item.taxonomy_order,
+      item.taxonomy_family,
+      item.taxonomy_genus,
+      item.ecology_type,
+      item.habitat_tag,
+      item.semantic_tag,
+      NULL::uuid,
+      $3::text,
+      jsonb_build_object('en', $4::text),
+      $5::text,
+      $6::text,
+      $7::text,
+      $8::text,
+      $9::text,
+      $10::text,
+      $11::text,
+      $12::text,
+      $13::text[]
+    ) AS matches
+    FROM public.field_trip_checklist_items AS item
+    JOIN public.field_trip_levels AS level ON level.id = item.level_id
+    JOIN public.field_trip_templates AS template ON template.id = level.template_id
+    WHERE template.slug = $1
+      AND item.prompt = $2
+    `,
+    [
+      input.templateSlug,
+      input.prompt,
+      input.scientificName,
+      input.commonName,
+      input.kingdom,
+      input.phylum ?? null,
+      input.className ?? null,
+      input.order ?? null,
+      input.family ?? null,
+      input.genus ?? null,
+      input.ecologyType ?? null,
+      input.habitatDescription ?? null,
+      input.groupTags ?? [],
+    ],
+  );
+  assertEquals(result.rows.length, 1);
+  return result.rows[0].matches;
 }
 
 async function applyStandardProgressV2(

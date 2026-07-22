@@ -773,7 +773,14 @@ experience, several active experiences, delayed upload after an outing/Event
 ends, preferred-goal priority, deterministic fallback, advancement, unfinished
 correction removal/move after deactivation, completed-experience immutability,
 ownership isolation, concurrency, and idempotent reapplication under the same
-local-stack requirement.
+local-stack requirement. Its active-catalog matrix also locks the narrow goal
+boundaries introduced by
+`20260722211636_tighten_field_trip_goal_matching.sql`: butterfly versus moth,
+spider versus tick/scorpion, bee/wasp versus ant/sawfly, animal versus plant for
+ecology goals, flowering/fruiting plant kingdom gates, and meadow plant versus
+meadow animal. Every narrowed rule has representative positive and negative
+coverage; additions or label changes must update both that matrix and the
+canonical criteria table in `docs/features-and-hardware/25-field-trips.md`.
 `_tests/fieldTripAtomicProgressDb.test.ts` executes ingestion-triggered standard
 and Event progress, preference and first-achievement evaluation, receipt replay,
 and an injected Event failure that must roll everything back.
@@ -812,7 +819,9 @@ mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
 refresh-failure retention, single-fetch coalescing for overlapping startup
 freshness checks, indicator presentation/gesture policy, exact-art
-fallback, user-visibility gating, and focused Explore route compatibility.
+fallback, user-visibility gating, and focused Explore route compatibility. The
+exact-art test includes the renamed Park **Spider**, **Bird**, and **Meadow
+plant** prompts while retaining aliases for historical publication snapshots.
 Capture preference tests cover visible selected-goal priority across automatic,
 crop-confirmed, and manual camera-still submission. `StagedCaptureTests` locks
 the camera-only media gate so gallery, mixed camera/gallery, audio, video,

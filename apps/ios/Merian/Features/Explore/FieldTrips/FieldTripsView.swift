@@ -1472,10 +1472,13 @@ enum FieldTripObjectiveArtwork {
         "bee or wasp": "fieldtrip-park-bee",
         "fly": "fieldtrip-park-fly",
         "beetle": "fieldtrip-park-beetle",
+        "spider": "fieldtrip-park-spider",
         "spider near flowers": "fieldtrip-park-spider",
         "seed or fruiting plant": "fieldtrip-park-seedpod",
+        "bird": "fieldtrip-park-hummingbird",
         "bird near flowers": "fieldtrip-park-hummingbird",
         "wild plant": "fieldtrip-park-dandelion",
+        "meadow plant": "fieldtrip-park-habitat",
         "pollinator habitat": "fieldtrip-park-habitat"
     ]
 
