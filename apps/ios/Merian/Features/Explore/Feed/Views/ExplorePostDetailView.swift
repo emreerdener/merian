@@ -311,6 +311,7 @@ struct ExplorePostDetailView: View {
                                 onEditPost: { openPostComposer(for: post) },
                                 onUnpublish: { postToUnpublish = post },
                                 showsFieldChatAction: ExplorePostFieldChatPresentationPolicy.showsMenuAction(
+                                    isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
                                     isCommentComposerSticky: presentedComposerIsSticky,
                                     isCommentComposerFocused: isComposerFocused
                                 ),
@@ -331,6 +332,7 @@ struct ExplorePostDetailView: View {
                         }
 
                         if ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
+                            isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
                             isCommentComposerSticky: presentedComposerIsSticky,
                             isCommentComposerFocused: isComposerFocused
                         ) {

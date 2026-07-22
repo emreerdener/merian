@@ -5,6 +5,7 @@ import Testing
 struct ExplorePostFieldChatPolicyTests {
     @Test func floatingButtonIsAvailableWhileBrowsingPostContent() {
         #expect(ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
+            isFieldChatAvailable: true,
             isCommentComposerSticky: false,
             isCommentComposerFocused: false
         ))
@@ -13,10 +14,12 @@ struct ExplorePostFieldChatPolicyTests {
     @Test func menuActionReplacesFloatingButtonForStickyOrFocusedComposer() {
         for state in [(true, false), (false, true), (true, true)] {
             #expect(!ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
+                isFieldChatAvailable: true,
                 isCommentComposerSticky: state.0,
                 isCommentComposerFocused: state.1
             ))
             #expect(ExplorePostFieldChatPresentationPolicy.showsMenuAction(
+                isFieldChatAvailable: true,
                 isCommentComposerSticky: state.0,
                 isCommentComposerFocused: state.1
             ))
@@ -25,8 +28,24 @@ struct ExplorePostFieldChatPolicyTests {
 
     @Test func menuActionStaysHiddenWhileFloatingButtonIsVisible() {
         #expect(!ExplorePostFieldChatPresentationPolicy.showsMenuAction(
+            isFieldChatAvailable: true,
             isCommentComposerSticky: false,
             isCommentComposerFocused: false
         ))
+    }
+
+    @Test func unavailablePostsHideBothFieldChatEntryPoints() {
+        for state in [(false, false), (true, false), (false, true), (true, true)] {
+            #expect(!ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
+                isFieldChatAvailable: false,
+                isCommentComposerSticky: state.0,
+                isCommentComposerFocused: state.1
+            ))
+            #expect(!ExplorePostFieldChatPresentationPolicy.showsMenuAction(
+                isFieldChatAvailable: false,
+                isCommentComposerSticky: state.0,
+                isCommentComposerFocused: state.1
+            ))
+        }
     }
 }

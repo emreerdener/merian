@@ -1,15 +1,17 @@
 enum ExplorePostFieldChatPresentationPolicy {
     static func showsFloatingButton(
+        isFieldChatAvailable: Bool,
         isCommentComposerSticky: Bool,
         isCommentComposerFocused: Bool
     ) -> Bool {
-        !isCommentComposerSticky && !isCommentComposerFocused
+        isFieldChatAvailable && !isCommentComposerSticky && !isCommentComposerFocused
     }
 
     static func showsMenuAction(
+        isFieldChatAvailable: Bool,
         isCommentComposerSticky: Bool,
         isCommentComposerFocused: Bool
     ) -> Bool {
-        isCommentComposerSticky || isCommentComposerFocused
+        isFieldChatAvailable && (isCommentComposerSticky || isCommentComposerFocused)
     }
 }
