@@ -66,6 +66,28 @@ Deno.test("Field Trip hardening makes progress transactional and RPCs service-ro
   }
 });
 
+Deno.test("Park Pollinators excludes ants from the Bee or wasp goal and repairs prior credit", async () => {
+  const sql = normalized(
+    await migrationSql("20260722195453_exclude_ants_from_bee_wasp_goal.sql"),
+  );
+
+  for (
+    const fragment of [
+      "'taxonomy_excluding_family'",
+      "taxonomy_family = 'Formicidae'",
+      "template.slug = 'park_pollinators'",
+      "item.prompt = 'Bee or wasp'",
+      "DELETE FROM public.user_field_trip_item_completions",
+      "DELETE FROM public.field_trip_challenge_item_completions",
+      "DELETE FROM public.field_trip_scan_progress_receipts",
+      "completed_at = NULL",
+      "badge_awarded_at = NULL",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("Field trips migration preserves privacy and Explore separation contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),

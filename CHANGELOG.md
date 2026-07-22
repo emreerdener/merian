@@ -183,6 +183,9 @@ TestFlight, App Store, support, and QA.
 - Fixed saved Insight Field trip cards and the first-Field-trip Profile award
   remaining empty when a cached account session finished restoring after the
   screen appeared.
+- Fixed ants counting toward Park Pollinators' **Bee or wasp** goal. The goal
+  still accepts Hymenoptera such as bees and wasps, explicitly excludes the ant
+  family, and removes any earlier ant-backed credit from active progress.
 - Added a left-aligned, above-title **Private** / **Published** badge to standard outing detail.
   Published is shown only when the owner has an active public outing snapshot;
   completion alone remains Private.

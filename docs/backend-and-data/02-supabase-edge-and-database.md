@@ -960,6 +960,14 @@ No direct client RPC is intentionally exposed. The same migration repairs
 `publish_field_trip(...)` so snapshot rows use the publication ID returned by
 the upsert.
 
+The follow-up
+`20260722195453_exclude_ants_from_bee_wasp_goal.sql` adds the generic
+`taxonomy_excluding_family` checklist criterion. Park Pollinators keeps
+`Hymenoptera` as the positive order for **Bee or wasp** but excludes
+`Formicidae`, preventing ants from matching. Family lineage is required for
+this negative criterion; an unknown family fails closed. The migration repairs
+existing ant-backed credit and its derived receipts/completion state.
+
 These Seasonal Challenge contracts are already deployed while Events remain a
 client-staged iOS surface. Standard Outings are public; iOS requests and renders
 challenge catalogs, details, badges, entries, routes, and hashtag suggestions

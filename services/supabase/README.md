@@ -384,11 +384,13 @@ For persistent Insight contribution cards and selected-goal preference, apply
 `20260719160750_field_trip_lifecycle_controls.sql`,
 `20260720014446_update_backyard_safari_copy.sql`, and
 `20260722025411_persistent_field_trip_scan_contributions.sql`, and
-`20260722064704_harden_atomic_field_trip_progress.sql` in order. Then deploy the
+`20260722064704_harden_atomic_field_trip_progress.sql`, and
+`20260722195453_exclude_ants_from_bee_wasp_goal.sql` in order. Then deploy the
 scan-ingestion functions and `field-trips` before the iOS client. Smoke-test optional
 `preferred_goal`, one credit per outing/Event, deterministic fallback,
-correction removal/move, transactional rollback, receipt replay, publication,
-and `scan_contributions`. Direct client roles must not read either private
-progress table or execute any Field trip/Event `SECURITY DEFINER` RPC;
+correction removal/move, Bee/wasp acceptance with ant rejection, transactional
+rollback, receipt replay, publication, and `scan_contributions`. Direct client
+roles must not read either private progress table or execute any Field
+trip/Event `SECURITY DEFINER` RPC;
 contribution payloads must contain no media, coordinates, place labels, notes,
 or public evidence. Older clients omit the preference and remain compatible.

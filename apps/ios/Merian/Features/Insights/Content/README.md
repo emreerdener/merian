@@ -12,6 +12,9 @@ lookalike species.
 after toxicity and identification-review content and before Field notes and
 educational cards when the view model has server-backed contribution rows. The
 card shows every credited outing/Event under the visible **Field trips** header.
+While eligible contribution rows are loading, the same position is reserved by
+a card-shaped, motion-aware skeleton so later content does not jump when the
+server response arrives; empty and failed responses still hide silently.
 The heading reuses `InsightCardHeader`; its undivided rows use an uppercase
 **GOAL COMPLETE** eyebrow, headline-sized goal name, enlarged objective
 artwork/check badge, experience-only subtitle, and a prominent trailing

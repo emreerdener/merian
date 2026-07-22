@@ -103,15 +103,25 @@ struct BiologicalView: View {
                     .cardEntrance(index: 2)
                 }
 
-                if !viewModel.fieldTripScanContributions.isEmpty {
-                    FieldTripProgressCard(
-                        contributions: viewModel.fieldTripScanContributions,
-                        onOpen: { destination in
-                            onOpenFieldTripOverview?(destination)
-                        }
-                    )
-                    .cardEntrance(index: 3)
+                Group {
+                    if viewModel.isLoadingFieldTripScanContributions {
+                        FieldTripProgressCardSkeleton()
+                            .transition(.opacity)
+                    } else if !viewModel.fieldTripScanContributions.isEmpty {
+                        FieldTripProgressCard(
+                            contributions: viewModel.fieldTripScanContributions,
+                            onOpen: { destination in
+                                onOpenFieldTripOverview?(destination)
+                            }
+                        )
+                        .transition(.opacity)
+                    }
                 }
+                .animation(
+                    .easeInOut(duration: 0.2),
+                    value: viewModel.isLoadingFieldTripScanContributions
+                )
+                .cardEntrance(index: 3)
 
                 if viewModel.shouldShowFieldNotesCard {
                     FieldNotesCard(
@@ -218,7 +228,7 @@ struct FieldTripProgressCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            InsightCardHeader(systemImage: "map.fill", title: "Field trips")
+            InsightCardHeader(systemImage: "map", title: "Field trips")
 
             VStack(spacing: 22) {
                 ForEach(contributions) { contribution in
@@ -226,6 +236,9 @@ struct FieldTripProgressCard: View {
                         contribution: contribution
                     ) {
                         Button {
+                            HapticManager.shared.triggerSelectionPulse(
+                                source: "insight.fieldTripProgress.open"
+                            )
                             onOpen(destination)
                         } label: {
                             FieldTripProgressContributionRow(contribution: contribution)
@@ -239,6 +252,82 @@ struct FieldTripProgressCard: View {
         }
         .card()
         .accessibilityElement(children: .contain)
+    }
+}
+
+private struct FieldTripProgressCardSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            InsightCardHeader(systemImage: "map", title: "Field trips")
+            FieldTripProgressContributionRowSkeleton()
+        }
+        .card()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading Field trip progress")
+    }
+}
+
+private struct FieldTripProgressContributionRowSkeleton: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        artwork
+                        labels
+                    }
+                    HStack {
+                        Spacer()
+                        progressRing
+                    }
+                }
+            } else {
+                HStack(spacing: 12) {
+                    artwork
+                    labels
+                    Spacer(minLength: 8)
+                    progressRing
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var artwork: some View {
+        GlowPulsingSkeletonView(cornerRadius: 14)
+            .frame(width: 68, height: 68)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            GlowPulsingSkeletonView(cornerRadius: 4)
+                .frame(width: 92, height: 10)
+
+            GlowPulsingSkeletonView(cornerRadius: 5)
+                .frame(maxWidth: 148)
+                .frame(height: 18)
+
+            GlowPulsingSkeletonView(cornerRadius: 4)
+                .frame(maxWidth: 116)
+                .frame(height: 13)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+    }
+
+    private var progressRing: some View {
+        ZStack {
+            GlowPulsingSkeletonView(cornerRadius: 32)
+                .mask {
+                    Circle().stroke(lineWidth: 5)
+                }
+
+            GlowPulsingSkeletonView(cornerRadius: 4)
+                .frame(width: 28, height: 16)
+        }
+        .frame(width: 64, height: 64)
     }
 }
 
@@ -311,7 +400,7 @@ private struct FieldTripProgressContributionRow: View {
             targetCount: contribution.targetCount,
             lineWidth: 5,
             labelFontSize: 18,
-            tint: .green
+            tint: .accentColor
         )
         .frame(width: 64, height: 64)
         .accessibilityHidden(true)
@@ -342,7 +431,10 @@ private struct FieldTripProgressContributionRow: View {
                 .foregroundStyle(.black)
                 .frame(width: 24, height: 24)
                 .background(.green, in: Circle())
-                .overlay { Circle().stroke(.black.opacity(0.8), lineWidth: 1.5) }
+                .overlay {
+                    Circle()
+                        .stroke(Color(uiColor: .systemBackground), lineWidth: 1.5)
+                }
                 .offset(x: 3, y: 3)
         }
         .frame(width: 68, height: 68)

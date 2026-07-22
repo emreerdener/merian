@@ -1107,11 +1107,13 @@ struct SpeciesDictionaryTests {
     @Test func testTaxonomyTreeGraphSearchVisibilityLayoutAndRouting() throws {
         let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
         let kingdomID = "taxonomy:kingdom:animalia"
+        let phylumID = "taxonomy:phylum:animalia/arthropoda"
         let classID = "taxonomy:class:animalia/arthropoda/insecta"
         let orderID = "taxonomy:order:animalia/arthropoda/insecta/lepidoptera"
         let familyID = "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae"
         let danausID = "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
         let monarchID = "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+        let queenID = "species:2cf79982-e5ee-4e3d-8d65-274527e6ae02"
         let danausNode = try #require(graph.node(id: danausID))
         let monarchNode = try #require(graph.node(id: monarchID))
 
@@ -1122,13 +1124,36 @@ struct SpeciesDictionaryTests {
         let distantIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6)
         #expect(distantIDs == Set([kingdomID]))
 
-        let overviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.82)
-        #expect(overviewIDs.contains(classID))
-        #expect(!overviewIDs.contains(orderID))
+        let overviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 1.1)
+        #expect(overviewIDs.contains(phylumID))
+        #expect(!overviewIDs.contains(classID))
 
-        let selectedClassIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: classID, scale: 0.82)
+        let closeOverviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 2.1)
+        #expect(closeOverviewIDs.contains(classID))
+        #expect(!closeOverviewIDs.contains(orderID))
+
+        let maximumOverviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 4)
+        #expect(maximumOverviewIDs.contains(monarchID))
+        #expect(maximumOverviewIDs.contains(queenID))
+
+        let selectedClassIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: classID, scale: 1.1)
         #expect(selectedClassIDs.contains(orderID))
         #expect(!selectedClassIDs.contains(familyID))
+
+        let zoomedClassIDs = graph.visibleNodeIDs(focusedNodeID: classID, selectedNodeID: classID, scale: 2.1)
+        #expect(zoomedClassIDs.contains(familyID))
+        #expect(!zoomedClassIDs.contains(danausID))
+
+        let closeClassIDs = graph.visibleNodeIDs(focusedNodeID: classID, selectedNodeID: classID, scale: 3.1)
+        #expect(closeClassIDs.contains(danausID))
+        #expect(!closeClassIDs.contains(monarchID))
+
+        let maximumKingdomIDs = graph.visibleNodeIDs(
+            focusedNodeID: kingdomID,
+            selectedNodeID: kingdomID,
+            scale: 4
+        )
+        #expect(maximumKingdomIDs == Set(graph.nodes.map(\.id)))
 
         #expect(graph.visibleNodeIDs(focusedNodeID: danausID, selectedNodeID: nil, scale: 0.6).count == graph.nodes.count)
 
@@ -1140,12 +1165,50 @@ struct SpeciesDictionaryTests {
         )
         let genusPosition = try #require(layout.positions[danausID])
         let speciesPosition = try #require(layout.positions[monarchID])
+        let siblingSpeciesPosition = try #require(layout.positions[queenID])
 
         #expect(abs(genusPosition.x - layout.size.width / 2) < 0.001)
         #expect(abs(genusPosition.y - layout.size.height / 2) < 0.001)
         #expect(abs(speciesPosition.x - genusPosition.x) > 1 || abs(speciesPosition.y - genusPosition.y) > 1)
+        #expect(hypot(
+            speciesPosition.x - siblingSpeciesPosition.x,
+            speciesPosition.y - siblingSpeciesPosition.y
+        ) * 4 >= 150)
         #expect(layout.size.width >= 320)
         #expect(layout.size.height >= 480)
+    }
+
+    @Test func testTaxonomyConstellationLaysOutHiddenDescendantsBeforeTheyBecomeVisible() throws {
+        let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
+        let kingdomID = "taxonomy:kingdom:animalia"
+        let monarchID = "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+        let beforeThreshold = graph.visibleNodeIDs(
+            focusedNodeID: kingdomID,
+            selectedNodeID: kingdomID,
+            scale: 3.89
+        )
+        let afterThreshold = graph.visibleNodeIDs(
+            focusedNodeID: kingdomID,
+            selectedNodeID: kingdomID,
+            scale: 4
+        )
+        var layoutNodeIDs: Set<String> = [kingdomID]
+        layoutNodeIDs.formUnion(graph.descendantIDs(of: kingdomID))
+        let layout = TaxonomyConstellationLayout.make(
+            graph: graph,
+            visibleNodeIDs: layoutNodeIDs,
+            focusedNodeID: kingdomID,
+            minimumSize: CGSize(width: 390, height: 760)
+        )
+        let kingdomPosition = try #require(layout.positions[kingdomID])
+
+        #expect(!beforeThreshold.contains(monarchID))
+        #expect(afterThreshold.contains(monarchID))
+        #expect(layout.positions[monarchID] != nil)
+        #expect(kingdomPosition == CGPoint(
+            x: layout.size.width / 2,
+            y: layout.size.height / 2
+        ))
     }
 
     @Test func testTaxonomyTreeZoomPreservesAnchorContentPoint() {
@@ -1171,12 +1234,98 @@ struct SpeciesDictionaryTests {
         #expect(viewModel.scale == 1.5)
     }
 
+    @Test func testTaxonomyTreePinchKeepsAnchorBetweenGestureUpdates() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        viewModel.scale = 1
+        viewModel.baseScale = 1
+        viewModel.offset = CGSize(width: -80, height: 40)
+        let anchor = CGPoint(x: 160, y: 240)
+        let anchoredContentPoint = CGPoint(
+            x: (anchor.x - viewModel.offset.width) / viewModel.scale,
+            y: (anchor.y - viewModel.offset.height) / viewModel.scale
+        )
+
+        viewModel.updateMagnification(1.5, anchoredAt: anchor)
+        viewModel.updateMagnification(2, anchoredAt: anchor)
+
+        let screenPosition = CGPoint(
+            x: anchoredContentPoint.x * viewModel.scale + viewModel.offset.width,
+            y: anchoredContentPoint.y * viewModel.scale + viewModel.offset.height
+        )
+        #expect(abs(screenPosition.x - anchor.x) < 0.001)
+        #expect(abs(screenPosition.y - anchor.y) < 0.001)
+        #expect(abs(viewModel.scale - 2) < 0.001)
+    }
+
+    @Test func testTaxonomyTreeZoomPercentageUsesInitialViewAsOneHundredPercent() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+
+        #expect(viewModel.zoomPercentage == 100)
+
+        viewModel.setScale(2.2)
+
+        #expect(viewModel.zoomPercentage == 200)
+    }
+
+    @Test func testTaxonomyTreePinchCanReverseAndBeginASecondGesture() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        let anchor = CGPoint(x: 160, y: 240)
+
+        viewModel.updateMagnification(1.8, anchoredAt: anchor)
+        viewModel.updateMagnification(1.2, anchoredAt: anchor)
+
+        #expect(abs(viewModel.scale - 1.32) < 0.001)
+
+        viewModel.endMagnification()
+        viewModel.updateMagnification(1.25, anchoredAt: anchor)
+
+        #expect(abs(viewModel.scale - 1.65) < 0.001)
+        #expect(viewModel.zoomPercentage == 150)
+    }
+
+    @Test func testTaxonomyTreeRelayoutCentersFocusedNode() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        viewModel.scale = 2
+        viewModel.baseScale = 2
+        viewModel.focusedNodeID = "focused"
+        let nextPosition = CGPoint(x: 360, y: 280)
+        let viewportSize = CGSize(width: 390, height: 760)
+
+        viewModel.reconcileLayoutChange(
+            from: [:],
+            to: ["focused": nextPosition],
+            viewportSize: viewportSize
+        )
+
+        let nextScreenPosition = CGPoint(
+            x: nextPosition.x * viewModel.scale + viewModel.offset.width,
+            y: nextPosition.y * viewModel.scale + viewModel.offset.height
+        )
+        #expect(abs(viewportSize.width / 2 - nextScreenPosition.x) < 0.001)
+        #expect(abs(viewportSize.height / 2 - nextScreenPosition.y) < 0.001)
+    }
+
+    @Test func testTaxonomyTreeNodeFocusZoomsIntoBranch() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+
+        viewModel.focus(on: "focused", viewportSize: CGSize(width: 390, height: 760))
+
+        #expect(viewModel.focusedNodeID == "focused")
+        #expect(viewModel.selectedNodeID == "focused")
+        #expect(viewModel.scale == 1.35)
+        #expect(viewModel.baseScale == 1.35)
+    }
+
     @Test func testTaxonomyTreeSupportsOverviewZoomOut() {
         let viewModel = TaxonomyTreeCanvasViewModel()
 
         viewModel.setScale(0.1)
 
-        #expect(viewModel.scale == 0.56)
+        #expect(viewModel.scale == 0.64)
+
+        viewModel.setScale(10)
+
+        #expect(viewModel.scale == 4)
     }
 
     @Test func testTaxonomyTreeDefaultsToAllSpeciesAndResetsOnScopeChange() {
@@ -1185,6 +1334,8 @@ struct SpeciesDictionaryTests {
         viewModel.focusedNodeID = "focused"
         viewModel.offset = CGSize(width: 24, height: -12)
         viewModel.dragOffset = CGSize(width: 4, height: 8)
+        viewModel.scale = 3.4
+        viewModel.baseScale = 3.4
 
         #expect(viewModel.selectedTreeScope == .allSpecies)
 
@@ -1195,12 +1346,14 @@ struct SpeciesDictionaryTests {
         #expect(viewModel.focusedNodeID == nil)
         #expect(viewModel.offset == .zero)
         #expect(viewModel.dragOffset == .zero)
+        #expect(viewModel.scale == 1.1)
+        #expect(viewModel.baseScale == 1.1)
         #expect(viewModel.isLoading)
     }
 
     @Test func testTaxonomyTreeCanCenterTopNodeAtInitialViewport() {
         let viewModel = TaxonomyTreeCanvasViewModel()
-        viewModel.scale = 0.82
+        viewModel.scale = 1.1
         let rootID = "taxonomy:kingdom:animalia"
         let rootPosition = CGPoint(x: 420, y: 100)
         let viewportSize = CGSize(width: 390, height: 760)
@@ -1214,7 +1367,7 @@ struct SpeciesDictionaryTests {
         let screenX = rootPosition.x * viewModel.scale + viewModel.offset.width
         let screenY = rootPosition.y * viewModel.scale + viewModel.offset.height
         #expect(abs(screenX - viewportSize.width / 2) < 0.001)
-        #expect(abs(screenY - 96) < 0.001)
+        #expect(abs(screenY - 180) < 0.001)
     }
 
     private static func taxonomyTreePayload() -> SpeciesDictionaryTreePayload {

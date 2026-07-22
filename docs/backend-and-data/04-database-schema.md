@@ -1884,9 +1884,13 @@ coordinates to the client contract.
   Sequential levels for a template. Levels unlock in `level_number` order.
 - `public.field_trip_checklist_items`:
   Curated checklist prompts for each level. Items support species,
-  scientific-name, taxonomy/group, habitat/ecology, prompt-text matching, and
-  optional curated item-level tips. Structured guides may provide Where to
-  look, Best conditions, What to notice, and Scan safely sections.
+  scientific-name, taxonomy/group, taxonomy-with-one-excluded-family,
+  habitat/ecology, prompt-text matching, and optional curated item-level tips.
+  `taxonomy_excluding_family` treats `taxonomy_family` as the excluded family
+  while the remaining populated taxonomy ranks stay positive constraints. Park
+  Pollinators uses this for its Hymenoptera-based **Bee or wasp** goal to reject
+  `Formicidae` (ants). Structured guides may provide Where to look, Best
+  conditions, What to notice, and Scan safely sections.
 - `public.user_field_trips`:
   Per-user progress rows with start time, current level, profile visibility,
   completion time, and denormalized progress counts.
@@ -2008,10 +2012,12 @@ coordinates to the client contract.
 - `public.get_recent_field_trip_publications(self_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], max_limit INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
   Compatibility wrapper for `get_field_trip_community_publications(...)` with
   `mode = 'recent'`.
-- `public.field_trip_item_matches_scan(target_item_id UUID, target_scan_id UUID)`:
+- `public.field_trip_item_matches_scan(...)`:
   Internal matcher used by progress application. It checks species,
-  scientific-name, taxonomy/group, habitat/ecology, and prompt-text signals
-  against the saved scan.
+  scientific-name, positive taxonomy/group constraints, optional excluded
+  taxonomy family, habitat/ecology, and prompt-text signals against the saved
+  scan. An excluded-family match requires a populated scan family so missing
+  lineage cannot produce a false positive.
 - `public.apply_field_trip_scan_progress_v2(self_id UUID, target_scan_id UUID, preferred_user_field_trip_id UUID, preferred_item_id UUID)`:
   Applies server-authoritative progress for one caller-owned saved biological
   scan. Standard outings must already exist and the scan timestamp must belong
@@ -2024,8 +2030,13 @@ coordinates to the client contract.
   Reapplication is idempotent. While an experience remains unfinished,
   identification correction can move or remove credit in the original credited
   level and recompute the earliest incomplete level; completed experiences are
-  immutable. Responses preserve current and credited-level counts and may add
-  `removed_item_ids`.
+  immutable during normal progress application. Migration
+  `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a one-time
+  correction of ant-backed **Bee or wasp** completions, reopens affected
+  standard/Event progress, clears derived receipts/preferences and badges, and
+  hides any now-invalid completion publication until the goal is legitimately
+  completed again. Responses preserve current and credited-level counts and may
+  add `removed_item_ids`.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
   Compatibility wrapper that calls V2 without a preference, preserving older
   Edge/client behavior.

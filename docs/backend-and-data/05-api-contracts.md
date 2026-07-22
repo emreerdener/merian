@@ -359,7 +359,10 @@ that was active at the scan timestamp and whose current visible item matches
 the saved identification. It wins inside that outing only. Missing, stale,
 unauthorized, completed, and nonmatching hints are ignored. Fallback selection
 is exact species, scientific name, taxonomy from genus through kingdom,
-semantic tag, ecology, habitat, curated checklist order, then item ID.
+taxonomy with an explicit excluded family, semantic tag, ecology, habitat,
+curated checklist order, then item ID. Park Pollinators' **Bee or wasp** goal
+matches order `Hymenoptera` while excluding family `Formicidae`, so ants and
+scans without family-level lineage do not satisfy it.
 
 For new scans, the identify ingestion intent stores the validated preference
 and the scan-insert trigger invokes the same atomic RPC before scan persistence
@@ -391,6 +394,13 @@ Both update kinds may also include `removed_item_ids`. While an experience is
 unfinished, an identification correction can move or remove this scan's credit
 within its original credited level and reset progress to the earliest
 incomplete level. Completed outings and challenges are immutable.
+
+Migration `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a
+one-time repair for ant scans credited before that family exclusion existed. It
+removes the standard/Event completion and its private preference/receipt,
+reopens the earliest incomplete level, clears any derived Event badge, and
+withdraws a now-invalid completion publication until an eligible scan completes
+the goal.
 
 Only updates with a nonempty `newly_completed_items` array are eligible for a
 scan progress toast. Reapplying an unchanged scan is idempotent and returns its

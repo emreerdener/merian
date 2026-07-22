@@ -311,8 +311,11 @@ per eligible standard outing and one per joined live challenge; it may still
 advance several experiences, and every created completion row retains the same
 scan ID. The optional preference is honored only for its owned, active,
 current, visible, matching standard goal. Otherwise the database ranks exact
-species, scientific name, taxonomy from genus through kingdom, semantic tag,
-ecology, habitat, curated checklist order, and item ID.
+species, scientific name, taxonomy from genus through kingdom, taxonomy with an
+explicit excluded family, semantic tag, ecology, habitat, curated checklist
+order, and item ID. Park Pollinators' **Bee or wasp** goal uses Hymenoptera with
+`Formicidae` excluded, so ants do not satisfy it and missing family lineage
+fails closed.
 
 Returns:
 

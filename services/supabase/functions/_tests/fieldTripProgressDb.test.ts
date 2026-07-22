@@ -422,6 +422,178 @@ Deno.test("Field trip progress prefers the visible Capture goal before specifici
   );
 });
 
+Deno.test("Park Pollinators Bee or wasp matches bees and wasps but not ants", async () => {
+  await withExploreDbTest(
+    "fieldTripBeeWaspTaxonomyDb.test",
+    async (client: Client) => {
+      const userId = crypto.randomUUID();
+      const antSpeciesId = crypto.randomUUID();
+      const beeSpeciesId = crypto.randomUUID();
+      const waspSpeciesId = crypto.randomUUID();
+      const antScanId = crypto.randomUUID();
+      const beeScanId = crypto.randomUUID();
+      const userFieldTripId = crypto.randomUUID();
+
+      await insertUser(client, userId, "Bee Wasp Viewer");
+      await insertSpecies(client, antSpeciesId, "Dolichoderus bicolor");
+      await insertSpecies(client, beeSpeciesId, "Bombus impatiens");
+      await insertSpecies(client, waspSpeciesId, "Vespula maculifrons");
+      await client.queryArray(
+        `
+        UPDATE public.species_dictionary
+        SET kingdom = 'Animalia',
+            phylum = 'Arthropoda',
+            class = 'Insecta',
+            "order" = 'Hymenoptera',
+            family = CASE id
+              WHEN $1::uuid THEN 'Formicidae'
+              WHEN $2::uuid THEN 'Apidae'
+              WHEN $3::uuid THEN 'Vespidae'
+            END,
+            genus = CASE id
+              WHEN $1::uuid THEN 'Dolichoderus'
+              WHEN $2::uuid THEN 'Bombus'
+              WHEN $3::uuid THEN 'Vespula'
+            END
+        WHERE id = ANY($4::uuid[])
+        `,
+        [
+          antSpeciesId,
+          beeSpeciesId,
+          waspSpeciesId,
+          [antSpeciesId, beeSpeciesId, waspSpeciesId],
+        ],
+      );
+
+      const matches = await client.queryObject<{
+        species_id: string;
+        matches: boolean;
+      }>(
+        `
+        SELECT
+          species.id::text AS species_id,
+          public.field_trip_item_matches_scan(
+            item.match_type,
+            item.species_id,
+            item.scientific_name,
+            item.taxonomy_kingdom,
+            item.taxonomy_phylum,
+            item.taxonomy_class,
+            item.taxonomy_order,
+            item.taxonomy_family,
+            item.taxonomy_genus,
+            item.ecology_type,
+            item.habitat_tag,
+            item.semantic_tag,
+            species.id,
+            species.scientific_name,
+            species.common_names,
+            species.kingdom,
+            species.phylum,
+            species."class",
+            species."order",
+            species.family,
+            species.genus,
+            NULL,
+            species.habitat_description,
+            species.group_tags
+          ) AS matches
+        FROM public.field_trip_checklist_items AS item
+        JOIN public.field_trip_levels AS level ON level.id = item.level_id
+        JOIN public.field_trip_templates AS template ON template.id = level.template_id
+        CROSS JOIN public.species_dictionary AS species
+        WHERE template.slug = 'park_pollinators'
+          AND level.level_number = 1
+          AND item.prompt = 'Bee or wasp'
+          AND species.id = ANY($1::uuid[])
+        ORDER BY species.id
+        `,
+        [[antSpeciesId, beeSpeciesId, waspSpeciesId]],
+      );
+
+      const matchBySpecies = new Map(
+        matches.rows.map((row) => [row.species_id, row.matches]),
+      );
+      assertEquals(matchBySpecies.get(antSpeciesId), false);
+      assertEquals(matchBySpecies.get(beeSpeciesId), true);
+      assertEquals(matchBySpecies.get(waspSpeciesId), true);
+
+      const goal = await client.queryObject<{
+        template_id: string;
+        item_id: string;
+      }>(
+        `
+        SELECT template.id::text AS template_id, item.id::text AS item_id
+        FROM public.field_trip_checklist_items AS item
+        JOIN public.field_trip_levels AS level ON level.id = item.level_id
+        JOIN public.field_trip_templates AS template ON template.id = level.template_id
+        WHERE template.slug = 'park_pollinators'
+          AND level.level_number = 1
+          AND item.prompt = 'Bee or wasp'
+        `,
+      );
+      const { template_id: templateId, item_id: itemId } = goal.rows[0];
+
+      await client.queryArray(
+        `
+        INSERT INTO public.user_field_trips (
+          id, user_id, template_id, started_at, current_level_number,
+          is_profile_visible, hidden_at
+        )
+        VALUES ($1, $2, $3, NOW() - INTERVAL '1 hour', 1, TRUE, NULL)
+        `,
+        [userFieldTripId, userId, templateId],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO public.user_field_trip_active_periods (
+          user_field_trip_id, started_at
+        )
+        VALUES ($1, NOW() - INTERVAL '1 hour')
+        `,
+        [userFieldTripId],
+      );
+
+      await insertScan(client, {
+        id: antScanId,
+        userId,
+        speciesId: antSpeciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "private",
+      });
+      const antProgress = await applyStandardProgress(
+        client,
+        userId,
+        antScanId,
+      );
+      assertEquals(
+        antProgress.some((update) => update.template_id === templateId),
+        false,
+      );
+
+      await insertScan(client, {
+        id: beeScanId,
+        userId,
+        speciesId: beeSpeciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "private",
+      });
+      const beeProgress = await applyStandardProgress(
+        client,
+        userId,
+        beeScanId,
+      );
+      assertEquals(
+        beeProgress.find((update) => update.template_id === templateId)
+          ?.newly_completed_items.map((item) => item.item_id),
+        [itemId],
+      );
+    },
+  );
+});
+
 async function applyStandardProgress(
   client: Client,
   userId: string,

@@ -131,6 +131,38 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.isLoadingFieldTripScanContributions == false)
     }
 
+    @Test func fieldTripContributionsExposeLoadingStateUntilRequestCompletes() async {
+        let standard = contribution(
+            kind: .standardOuting,
+            sourceId: "trip-1",
+            title: "Park Pollinators"
+        )
+        let loaderGate = FieldTripContributionLoaderGate()
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: biologicalEngine(scanId: "saved-scan"),
+            fieldTripContributionLoader: { _ in
+                await loaderGate.load()
+            },
+            fieldTripAuthenticationResolver: { true },
+            fieldTripAvailabilityResolver: { true },
+            fieldTripEventsAvailabilityResolver: { true }
+        )
+
+        let loadTask = Task {
+            await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
+        }
+        await loaderGate.waitUntilStarted()
+
+        #expect(viewModel.isLoadingFieldTripScanContributions)
+        #expect(viewModel.fieldTripScanContributions.isEmpty)
+
+        await loaderGate.finish(with: [standard])
+        await loadTask.value
+
+        #expect(viewModel.isLoadingFieldTripScanContributions == false)
+        #expect(viewModel.fieldTripScanContributions == [standard])
+    }
+
     @Test func fieldTripContributionsHideEventRowsWhenEventsAreDisabled() async {
         let standard = contribution(
             kind: .standardOuting,
@@ -1621,5 +1653,26 @@ struct InsightSheetViewModelTests {
         #expect(audioPresentation == nil)
         #expect(descriptionPresentation == nil)
         #expect(referencePresentation?.initialSelectedIndex == 0)
+    }
+}
+
+private actor FieldTripContributionLoaderGate {
+    private var continuation: CheckedContinuation<[FieldTripScanContribution], Never>?
+
+    func load() async -> [FieldTripScanContribution] {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        while continuation == nil {
+            await Task.yield()
+        }
+    }
+
+    func finish(with contributions: [FieldTripScanContribution]) {
+        continuation?.resume(returning: contributions)
+        continuation = nil
     }
 }

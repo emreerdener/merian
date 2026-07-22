@@ -111,6 +111,25 @@ struct TaxonomyTreeGraph: Equatable {
         return result
     }
 
+    func descendantIDs(of nodeID: String, maximumDepth: Int) -> Set<String> {
+        guard maximumDepth > 0 else { return [] }
+        var result = Set<String>()
+        var queue = (childrenByParentID[nodeID] ?? []).map { (id: $0, depth: 1) }
+        var queueIndex = 0
+
+        while queueIndex < queue.count {
+            let item = queue[queueIndex]
+            queueIndex += 1
+            guard item.depth <= maximumDepth, result.insert(item.id).inserted else { continue }
+            guard item.depth < maximumDepth else { continue }
+            queue.append(contentsOf: (childrenByParentID[item.id] ?? []).map {
+                (id: $0, depth: item.depth + 1)
+            })
+        }
+
+        return result
+    }
+
     func connectedIDs(for nodeID: String?) -> Set<String> {
         guard let nodeID else { return [] }
         var ids: Set<String> = [nodeID]
@@ -140,55 +159,66 @@ struct TaxonomyTreeGraph: Equatable {
     func visibleNodeIDs(focusedNodeID: String?, selectedNodeID: String?, scale: CGFloat) -> Set<String> {
         guard !nodes.isEmpty else { return [] }
 
-        let overviewRankIndex: Int
-        if scale < 0.68 {
-            overviewRankIndex = TaxonomyTreeRank.kingdom.sortIndex
-        } else if scale < 0.82 {
-            overviewRankIndex = TaxonomyTreeRank.phylum.sortIndex
-        } else {
-            overviewRankIndex = TaxonomyTreeRank.className.sortIndex
-        }
-
         let anchorID = focusedNodeID ?? selectedNodeID
-        let baselineRankIndex = focusedNodeID == nil
-            ? overviewRankIndex
-            : TaxonomyTreeRank.kingdom.sortIndex
-        var visibleIDs = Set(
-            nodes
-                .filter { $0.rank.sortIndex <= baselineRankIndex }
-                .map(\.id)
-        )
+        let overviewRankIndex: Int
+        if scale < 1 {
+            overviewRankIndex = TaxonomyTreeRank.kingdom.sortIndex
+        } else if scale < 1.6 {
+            overviewRankIndex = TaxonomyTreeRank.phylum.sortIndex
+        } else if scale < 2.4 {
+            overviewRankIndex = TaxonomyTreeRank.className.sortIndex
+        } else if scale < 2.8 {
+            overviewRankIndex = TaxonomyTreeRank.order.sortIndex
+        } else if scale < 3.2 {
+            overviewRankIndex = TaxonomyTreeRank.family.sortIndex
+        } else if scale < 3.6 {
+            overviewRankIndex = TaxonomyTreeRank.genus.sortIndex
+        } else {
+            overviewRankIndex = TaxonomyTreeRank.species.sortIndex
+        }
+        var visibleIDs = focusedNodeID == nil
+            ? Set(nodes.filter { $0.rank.sortIndex <= overviewRankIndex }.map(\.id))
+            : []
 
-        guard let anchorID, let anchorNode = node(id: anchorID) else {
+        guard let anchorID, node(id: anchorID) != nil else {
             return visibleIDs
         }
 
         visibleIDs.insert(anchorID)
         visibleIDs.formUnion(ancestorIDs(of: anchorID))
 
-        if let parentID = parentByChildID[anchorID] {
-            visibleIDs.formUnion(childrenByParentID[parentID] ?? [])
+        if focusedNodeID == nil {
+            visibleIDs.formUnion(contextualSiblingIDs(for: anchorID))
         }
 
-        let descendantRankLimit = min(
-            TaxonomyTreeRank.species.sortIndex,
-            anchorNode.rank.sortIndex + descendantExpansionDepth(for: scale)
-        )
         visibleIDs.formUnion(
-            descendantIDs(of: anchorID).filter { descendantID in
-                guard let descendant = node(id: descendantID) else { return false }
-                return descendant.rank.sortIndex <= descendantRankLimit
-            }
+            descendantIDs(
+                of: anchorID,
+                maximumDepth: descendantExpansionDepth(for: scale)
+            )
         )
 
         return visibleIDs
     }
 
+    private func contextualSiblingIDs(for nodeID: String, limit: Int = 12) -> Set<String> {
+        guard let parentID = parentByChildID[nodeID] else { return [] }
+        let siblings = childrenByParentID[parentID] ?? []
+        guard siblings.count > limit, let selectedIndex = siblings.firstIndex(of: nodeID) else {
+            return Set(siblings)
+        }
+
+        let halfWindow = limit / 2
+        let lowerBound = min(max(0, selectedIndex - halfWindow), siblings.count - limit)
+        return Set(siblings[lowerBound..<(lowerBound + limit)])
+    }
+
     private func descendantExpansionDepth(for scale: CGFloat) -> Int {
-        if scale < 1.05 { return 1 }
-        if scale < 1.35 { return 2 }
-        if scale < 1.7 { return 3 }
-        if scale < 2 { return 4 }
+        if scale < 1.6 { return 1 }
+        if scale < 2.4 { return 2 }
+        if scale < 3.2 { return 3 }
+        if scale < 3.6 { return 4 }
+        if scale < 3.9 { return 5 }
         return TaxonomyTreeRank.allCases.count
     }
 
@@ -262,21 +292,34 @@ struct TaxonomyConstellationLayout: Equatable {
         minimumSize: CGSize
     ) -> TaxonomyConstellationLayout {
         let roots = graph.rootNodeIDs.filter { visibleNodeIDs.contains($0) }
-        let maximumRelativeDepth = roots.reduce(0) { currentMaximum, rootID in
-            guard let root = graph.node(id: rootID) else { return currentMaximum }
-            let rootMaximum = graph.descendantIDs(of: rootID)
-                .filter { visibleNodeIDs.contains($0) }
-                .compactMap { graph.node(id: $0)?.rank.sortIndex }
-                .map { max(0, $0 - root.rank.sortIndex) }
-                .max() ?? 0
-            return max(currentMaximum, rootMaximum)
+        let semanticScale = stableLayoutScale
+        let rankSpacing: CGFloat = 158 / semanticScale
+        let descendantAngleSpan = roots.count == 1 ? CGFloat.pi : 2 * CGFloat.pi
+        let clusterRadius = roots
+            .map { rootID in
+                radialGeometry(
+                    rootID: rootID,
+                    graph: graph,
+                    visibleNodeIDs: visibleNodeIDs,
+                    rankSpacing: rankSpacing,
+                    angleSpan: descendantAngleSpan
+                ).maximumRadius
+            }
+            .max() ?? 0
+        let rootOrbitRadius: CGFloat
+        if roots.count <= 1 {
+            rootOrbitRadius = 0
+        } else {
+            let minimumClusterChord = max(
+                280 / semanticScale,
+                clusterRadius * 2 + 150 / semanticScale
+            )
+            rootOrbitRadius = max(
+                360 / semanticScale,
+                minimumClusterChord / (2 * sin(CGFloat.pi / CGFloat(roots.count)))
+            )
         }
-        let rankSpacing: CGFloat = 88
-        let clusterRadius = max(150, CGFloat(maximumRelativeDepth) * rankSpacing + 52)
-        let rootOrbitRadius: CGFloat = roots.count <= 1
-            ? 0
-            : max(270, CGFloat(roots.count) * 42)
-        let padding: CGFloat = 120
+        let padding: CGFloat = 180 / semanticScale
         let requiredDimension = (rootOrbitRadius + clusterRadius + padding) * 2
         let width = max(minimumSize.width, requiredDimension)
         let height = max(minimumSize.height, requiredDimension)
@@ -299,8 +342,8 @@ struct TaxonomyConstellationLayout: Equatable {
                 visibleNodeIDs: visibleNodeIDs,
                 positions: &positions,
                 rankSpacing: rankSpacing,
-                angleStart: -CGFloat.pi / 2,
-                angleSpan: 2 * CGFloat.pi
+                angleStart: roots.count == 1 ? 0 : -CGFloat.pi / 2,
+                angleSpan: descendantAngleSpan
             )
         }
 
@@ -324,7 +367,7 @@ struct TaxonomyConstellationLayout: Equatable {
         focusedNodeID: String,
         minimumSize: CGSize
     ) -> TaxonomyConstellationLayout {
-        guard let focusedNode = graph.node(id: focusedNodeID) else {
+        guard graph.node(id: focusedNodeID) != nil else {
             return overviewLayout(
                 graph: graph,
                 visibleNodeIDs: visibleNodeIDs,
@@ -332,16 +375,22 @@ struct TaxonomyConstellationLayout: Equatable {
             )
         }
 
-        let maximumRelativeDepth = graph.descendantIDs(of: focusedNodeID)
-            .filter { visibleNodeIDs.contains($0) }
-            .compactMap { graph.node(id: $0)?.rank.sortIndex }
-            .map { max(0, $0 - focusedNode.rank.sortIndex) }
-            .max() ?? 0
-        let rankSpacing: CGFloat = 108
-        let descendantRadius = max(210, CGFloat(maximumRelativeDepth) * rankSpacing + 70)
+        let semanticScale = stableLayoutScale
+        let rankSpacing: CGFloat = 168 / semanticScale
+        let descendantAngleSpan = CGFloat.pi
+        let descendantRadius = max(
+            240 / semanticScale,
+            radialGeometry(
+                rootID: focusedNodeID,
+                graph: graph,
+                visibleNodeIDs: visibleNodeIDs,
+                rankSpacing: rankSpacing,
+                angleSpan: descendantAngleSpan
+            ).maximumRadius
+        )
         let ancestorCount = graph.ancestorIDs(of: focusedNodeID).count
-        let ancestorRadius = CGFloat(ancestorCount) * 68 + 100
-        let requiredDimension = max(descendantRadius, ancestorRadius) * 2 + 240
+        let ancestorRadius = (CGFloat(ancestorCount) * 88 + 130) / semanticScale
+        let requiredDimension = max(descendantRadius, ancestorRadius) * 2 + 320 / semanticScale
         let width = max(minimumSize.width, requiredDimension)
         let height = max(minimumSize.height, requiredDimension)
         let center = CGPoint(x: width / 2, y: height / 2)
@@ -354,16 +403,16 @@ struct TaxonomyConstellationLayout: Equatable {
             visibleNodeIDs: visibleNodeIDs,
             positions: &positions,
             rankSpacing: rankSpacing,
-            angleStart: -CGFloat.pi / 3,
-            angleSpan: 5 * CGFloat.pi / 3
+            angleStart: 0,
+            angleSpan: descendantAngleSpan
         )
 
         var ancestorID = graph.parentByChildID[focusedNodeID]
         var ancestorIndex = 0
         while let currentAncestorID = ancestorID,
               visibleNodeIDs.contains(currentAncestorID) {
-            let radius = 118 + CGFloat(ancestorIndex) * 68
-            let angle = -CGFloat.pi / 2 - CGFloat(ancestorIndex) * CGFloat.pi / 18
+            let radius = (136 + CGFloat(ancestorIndex) * 88) / semanticScale
+            let angle = -CGFloat.pi / 2
             positions[currentAncestorID] = CGPoint(
                 x: center.x + cos(angle) * radius,
                 y: center.y + sin(angle) * radius
@@ -372,26 +421,12 @@ struct TaxonomyConstellationLayout: Equatable {
             ancestorIndex += 1
         }
 
-        if let parentID = graph.parentByChildID[focusedNodeID] {
-            let siblingIDs = (graph.childrenByParentID[parentID] ?? [])
-                .filter { visibleNodeIDs.contains($0) && $0 != focusedNodeID }
-            let siblingRadius = max(190, ancestorRadius + 46)
-            for (index, siblingID) in siblingIDs.enumerated() {
-                let fraction = CGFloat(index + 1) / CGFloat(siblingIDs.count + 1)
-                let angle = CGFloat.pi + fraction * CGFloat.pi
-                positions[siblingID] = CGPoint(
-                    x: center.x + cos(angle) * siblingRadius,
-                    y: center.y + sin(angle) * siblingRadius
-                )
-            }
-        }
-
         placeUnpositionedNodes(
             graph: graph,
             visibleNodeIDs: visibleNodeIDs,
             positions: &positions,
             center: center,
-            radius: max(descendantRadius, ancestorRadius) + 70
+            radius: max(descendantRadius, ancestorRadius) + 70 / semanticScale
         )
 
         return TaxonomyConstellationLayout(
@@ -410,7 +445,14 @@ struct TaxonomyConstellationLayout: Equatable {
         angleStart: CGFloat,
         angleSpan: CGFloat
     ) {
-        guard let rootNode = graph.node(id: rootID) else { return }
+        guard graph.node(id: rootID) != nil else { return }
+        let geometry = radialGeometry(
+            rootID: rootID,
+            graph: graph,
+            visibleNodeIDs: visibleNodeIDs,
+            rankSpacing: rankSpacing,
+            angleSpan: angleSpan
+        )
         var leafIndices: [String: CGFloat] = [:]
         var nextLeafIndex: CGFloat = 0
         assignLeafIndex(
@@ -423,16 +465,77 @@ struct TaxonomyConstellationLayout: Equatable {
         let leafCount = max(1, nextLeafIndex)
 
         for nodeID in leafIndices.keys where nodeID != rootID {
-            guard let node = graph.node(id: nodeID), let leafIndex = leafIndices[nodeID] else { continue }
-            let relativeDepth = max(1, node.rank.sortIndex - rootNode.rank.sortIndex)
+            guard let leafIndex = leafIndices[nodeID],
+                  let depth = geometry.depthByNodeID[nodeID],
+                  let radius = geometry.radiusByDepth[depth] else { continue }
             let angleFraction = leafCount <= 1 ? 0.5 : (leafIndex + 0.5) / leafCount
             let angle = angleStart + angleFraction * angleSpan
-            let radius = CGFloat(relativeDepth) * rankSpacing
             positions[nodeID] = CGPoint(
                 x: center.x + cos(angle) * radius,
                 y: center.y + sin(angle) * radius
             )
         }
+    }
+
+    private struct RadialGeometry {
+        let depthByNodeID: [String: Int]
+        let radiusByDepth: [Int: CGFloat]
+
+        var maximumRadius: CGFloat {
+            radiusByDepth.values.max() ?? 0
+        }
+    }
+
+    /// Geometry is calculated for the closest semantic level and remains fixed.
+    /// The view transform supplies the live zoom, so crossing a visibility threshold
+    /// cannot move the graph out from under the user's fingers.
+    private static let stableLayoutScale: CGFloat = 4
+
+    private static func radialGeometry(
+        rootID: String,
+        graph: TaxonomyTreeGraph,
+        visibleNodeIDs: Set<String>,
+        rankSpacing: CGFloat,
+        angleSpan: CGFloat
+    ) -> RadialGeometry {
+        var depthByNodeID: [String: Int] = [rootID: 0]
+        var queue: [(id: String, depth: Int)] = [(rootID, 0)]
+        var queueIndex = 0
+
+        while queueIndex < queue.count {
+            let item = queue[queueIndex]
+            queueIndex += 1
+            for childID in graph.childrenByParentID[item.id] ?? [] where visibleNodeIDs.contains(childID) {
+                guard depthByNodeID[childID] == nil else { continue }
+                let childDepth = item.depth + 1
+                depthByNodeID[childID] = childDepth
+                queue.append((childID, childDepth))
+            }
+        }
+
+        let nodeCountByDepth = Dictionary(grouping: depthByNodeID.values.filter { $0 > 0 }, by: { $0 })
+            .mapValues(\.count)
+        var radiusByDepth: [Int: CGFloat] = [:]
+        var previousRadius: CGFloat = 0
+        let safeAngleSpan = max(angleSpan, CGFloat.pi / 3)
+        let minimumArcSpacing = rankSpacing
+
+        for depth in nodeCountByDepth.keys.sorted() {
+            let nodeCount = CGFloat(nodeCountByDepth[depth] ?? 1)
+            let arcRequiredRadius = nodeCount * minimumArcSpacing / safeAngleSpan
+            let radius = max(
+                CGFloat(depth) * rankSpacing,
+                arcRequiredRadius,
+                previousRadius + rankSpacing
+            )
+            radiusByDepth[depth] = radius
+            previousRadius = radius
+        }
+
+        return RadialGeometry(
+            depthByNodeID: depthByNodeID,
+            radiusByDepth: radiusByDepth
+        )
     }
 
     @discardableResult
