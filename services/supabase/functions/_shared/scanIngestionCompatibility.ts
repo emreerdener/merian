@@ -58,6 +58,7 @@ export interface BuildCompatibilityScanIngestionIntentInput {
   mimeType?: unknown;
   telemetry?: CompatibilityScanIngestionTelemetry;
   uploadSessionIds?: string[];
+  preferredGoal?: unknown;
 }
 
 export interface CompatibilityScanIngestionIntent {
@@ -117,6 +118,28 @@ function cleanStringArray(values: string[] | undefined): string[] {
         .filter((value): value is string => value !== undefined),
     ),
   ];
+}
+
+function sanitizePreferredGoal(
+  value: unknown,
+): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const goal = value as Record<string, unknown>;
+  const userFieldTripId = cleanString(
+    goal.userFieldTripId ?? goal.user_field_trip_id,
+  );
+  const itemId = cleanString(goal.itemId ?? goal.item_id);
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (
+    !userFieldTripId || !itemId || !uuidPattern.test(userFieldTripId) ||
+    !uuidPattern.test(itemId)
+  ) {
+    return undefined;
+  }
+  return { userFieldTripId, itemId };
 }
 
 function stripUndefined(value: unknown): unknown {
@@ -284,6 +307,7 @@ export async function buildCompatibilityScanIngestionIntent(
     },
     telemetry: sanitizeTelemetry(input.telemetry),
     observationContexts,
+    preferredGoal: sanitizePreferredGoal(input.preferredGoal),
     mediaCounts,
     uploadSessionIds,
     manifestChecksum,

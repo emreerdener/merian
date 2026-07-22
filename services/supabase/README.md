@@ -233,14 +233,28 @@ completion toast show the completed level rather than the newly active level.
 credited counts to checklist items matched by the current application attempt,
 so re-identifying an older scan cannot duplicate a destination or reuse a
 previous level's ring.
+`20260722025411_persistent_field_trip_scan_contributions.sql` adds the private
+selected-goal preference, deterministic one-credit ranking, correction support,
+and scan contribution projection.
+`20260722064704_harden_atomic_field_trip_progress.sql` moves standard progress,
+Event progress, preference persistence, first-outing achievement evaluation,
+and the scan-revision receipt into one transaction. Scan insertion/correction
+triggers call that boundary from the ingestion pipeline. The migration also
+repairs completed-outing publication item materialization, removes the pin RPC's
+temporary-table dependency, and revokes all Field
+trip/Event `SECURITY DEFINER` functions from `PUBLIC`, `anon`, and
+`authenticated`; only `service_role` may execute them.
 The contract suite verifies caller identity, role grants, ordering/filtering
 clauses, private completion links/status, credited progress in both RPCs, and
 the absence of evidence from public/capture projections.
 `fieldTripCaptureContextDb.test.ts` additionally executes the
 filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
 standard/challenge credited counts, level advancement, re-identification, and
-idempotent reapplication. Both require the local Postgres stack; a connection
-skip is not database validation.
+idempotent reapplication. `fieldTripAtomicProgressDb.test.ts` proves rollback
+when the Event half fails, `fieldTripSecurityDb.test.ts` enumerates runtime
+execute privileges, and `fieldTripPublicationDb.test.ts` executes publication
+materialization. These require the local Postgres stack; a connection skip is
+not database validation.
 
 Explore identity integration coverage in `_tests/exploreIdentityDb.test.ts`
 executes the public projection and ownership-repair functions against Postgres.
@@ -369,11 +383,12 @@ For persistent Insight contribution cards and selected-goal preference, apply
 `20260719045306_first_field_trip_achievement.sql`,
 `20260719160750_field_trip_lifecycle_controls.sql`,
 `20260720014446_update_backyard_safari_copy.sql`, and
-`20260722025411_persistent_field_trip_scan_contributions.sql` in order. Then
-deploy `field-trips` before the iOS client. Smoke-test optional
+`20260722025411_persistent_field_trip_scan_contributions.sql`, and
+`20260722064704_harden_atomic_field_trip_progress.sql` in order. Then deploy the
+scan-ingestion functions and `field-trips` before the iOS client. Smoke-test optional
 `preferred_goal`, one credit per outing/Event, deterministic fallback,
-correction removal/move, and `scan_contributions`. Direct client roles must not
-read `field_trip_scan_goal_preferences` or execute
-`get_field_trip_scan_contributions`; contribution payloads must contain no
-media, coordinates, place labels, notes, or public evidence. Older clients omit
-the preference and remain compatible.
+correction removal/move, transactional rollback, receipt replay, publication,
+and `scan_contributions`. Direct client roles must not read either private
+progress table or execute any Field trip/Event `SECURITY DEFINER` RPC;
+contribution payloads must contain no media, coordinates, place labels, notes,
+or public evidence. Older clients omit the preference and remain compatible.

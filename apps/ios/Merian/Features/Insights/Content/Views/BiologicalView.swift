@@ -11,7 +11,7 @@ struct BiologicalView: View {
 
     // MARK: - Context State
     var timestamp: Date?
-    var onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)?
+    var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -107,7 +107,7 @@ struct BiologicalView: View {
                     FieldTripProgressCard(
                         contributions: viewModel.fieldTripScanContributions,
                         onOpen: { destination in
-                            onOpenCaptureGoal?(destination)
+                            onOpenFieldTripOverview?(destination)
                         }
                     )
                     .cardEntrance(index: 3)
@@ -214,15 +214,17 @@ struct BiologicalView: View {
 
 struct FieldTripProgressCard: View {
     let contributions: [FieldTripScanContribution]
-    let onOpen: (CaptureGoalDestination) -> Void
+    let onOpen: (InsightFieldTripOverviewDestination) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            InsightCardHeader(systemImage: "map.fill", title: "Field trip progress")
+        VStack(alignment: .leading, spacing: 22) {
+            InsightCardHeader(systemImage: "map.fill", title: "Field trips")
 
-            VStack(spacing: 0) {
-                ForEach(Array(contributions.enumerated()), id: \.element.id) { index, contribution in
-                    if let destination = contribution.destination {
+            VStack(spacing: 22) {
+                ForEach(contributions) { contribution in
+                    if let destination = InsightFieldTripOverviewDestination(
+                        contribution: contribution
+                    ) {
                         Button {
                             onOpen(destination)
                         } label: {
@@ -231,10 +233,6 @@ struct FieldTripProgressCard: View {
                         .buttonStyle(.plain)
                     } else {
                         FieldTripProgressContributionRow(contribution: contribution)
-                    }
-
-                    if index < contributions.count - 1 {
-                        Divider().padding(.leading, 58)
                     }
                 }
             }
@@ -248,9 +246,8 @@ private struct FieldTripProgressContributionRow: View {
     let contribution: FieldTripScanContribution
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var goalTitle: String { "\(contribution.prompt) goal complete" }
     private var sourceSubtitle: String {
-        "\(contribution.title) · Level \(contribution.levelNumber)"
+        contribution.title
     }
 
     var body: some View {
@@ -263,7 +260,7 @@ private struct FieldTripProgressContributionRow: View {
                     }
                     HStack {
                         Spacer()
-                        progressAndDisclosure
+                        progressRing
                     }
                 }
             } else {
@@ -271,11 +268,10 @@ private struct FieldTripProgressContributionRow: View {
                     artwork
                     labels
                     Spacer(minLength: 8)
-                    progressAndDisclosure
+                    progressRing
                 }
             }
         }
-        .padding(.vertical, 12)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -288,38 +284,37 @@ private struct FieldTripProgressContributionRow: View {
 
     private var labels: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(goalTitle)
-                .font(.subheadline.weight(.semibold))
+            Text("GOAL COMPLETE")
+                .font(.caption2.weight(.medium))
+                .tracking(0.8)
+                .foregroundStyle(.secondary)
+
+            Text(contribution.prompt)
+                .font(.headline)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(sourceSubtitle)
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
     }
 
-    private var progressAndDisclosure: some View {
-        HStack(spacing: 8) {
-            GoalProgressRing(
-                completedCount: contribution.completedCount,
-                targetCount: contribution.targetCount,
-                tint: .green
-            )
-            .frame(width: 46, height: 46)
-            .accessibilityHidden(true)
-
-            if contribution.destination != nil {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-        }
+    private var progressRing: some View {
+        GoalProgressRing(
+            completedCount: contribution.completedCount,
+            targetCount: contribution.targetCount,
+            lineWidth: 5,
+            labelFontSize: 18,
+            tint: .green
+        )
+        .frame(width: 64, height: 64)
+        .accessibilityHidden(true)
     }
 
     private var artwork: some View {
@@ -332,25 +327,25 @@ private struct FieldTripProgressContributionRow: View {
                     Image(imageName)
                         .resizable()
                         .scaledToFit()
-                        .padding(4)
+                        .padding(5)
                 } else {
                     Image(systemName: "binoculars.fill")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 46, height: 46)
-            .background(.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+            .frame(width: 64, height: 64)
+            .background(.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
 
             Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 18, height: 18)
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(.black)
+                .frame(width: 24, height: 24)
                 .background(.green, in: Circle())
-                .overlay { Circle().stroke(.background, lineWidth: 2) }
+                .overlay { Circle().stroke(.black.opacity(0.8), lineWidth: 1.5) }
                 .offset(x: 3, y: 3)
         }
-        .frame(width: 50, height: 50)
+        .frame(width: 68, height: 68)
         .accessibilityHidden(true)
     }
 }

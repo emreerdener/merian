@@ -71,9 +71,15 @@ only a camera/performance setting.
   Insight view in the existing Explore navigation stack. Back returns to the
   outing without presenting another sheet.
 - Every saved biological Insight that owns Field trip credit shows one
-  persistent **Field trip progress** card after toxicity and identification
-  review content. The card keeps every credited outing/Event row visible and
-  routes each row to its typed destination.
+  persistent **Field trips** card after toxicity and identification review
+  content. Each undivided row uses an uppercase **GOAL COMPLETE** eyebrow,
+  headline-sized goal name, enlarged objective art/check badge, an
+  experience-only subtitle, and prominent credited-level ring. Its heading
+  uses the same icon and headline sizing as other Insight cards. The card keeps
+  every credited outing/Event row visible and routes the full row to the
+  experience's Goals overview without a redundant chevron. It intentionally
+  drops the credited checklist focus so a completed row never opens Tips;
+  native Back returns to the originating Insight.
 - Field trip comments and likes are separate from Explore post comments and
   likes, even though the iOS UI reuses the compact Explore comment presentation.
 - V4 supports profile showcase, up to 3 pinned published Field trips, completion
@@ -200,15 +206,20 @@ difficulty.
    order; tapping it opens the owning outing and focuses that goal's guide.
    The introduction has no swipe behavior and opens Backyard Safari detail without
    starting it.
-7. A new scan or later confirmed/corrected identification calls
-   `action: "apply_scan_progress"` with the saved scan ID. An eligible live
-   Capture also sends the visibly selected standard goal as an optional
-   `preferred_goal`.
+7. An eligible live Capture includes the visibly selected standard goal as an
+   optional `preferred_goal` in the scan-ingestion request. The ingestion intent
+   stores the validated pair before model work begins. A database trigger then
+   applies progress inside the scan insert transaction; a later
+   confirmed/corrected identification re-enters the same transaction boundary.
+   iOS still calls `action: "apply_scan_progress"` after persistence to obtain
+   the stored result and support older ingestion paths.
 8. The backend verifies scan ownership and requires the scan's capture timestamp
    to fall within one of the outing's activity periods before comparing it
-   against the current unlocked level, choosing at most one matching item per
-   experience, writing item completions, advancing levels when needed, and
-   returning new plus optional removed-item metadata.
+   against the current unlocked level. One atomic RPC persists the preference,
+   chooses at most one match per standard outing/Event, writes both progress
+   families, evaluates the first-outing achievement, and saves an idempotency
+   receipt. A failure rolls back the whole mutation. A later retry for the same
+   scan revision returns the receipt, including the original unlock metadata.
 9. The shared `ScanMilestoneCoordinator` waits for that progress attempt,
    publishes refresh events, evaluates newly unlocked achievements without
    presenting them early, and batches the scan's notifications in strict order:
@@ -397,8 +408,11 @@ remains optional for ordinary outing navigation.
 - A progress toast requires a nonempty `newly_completed_items` array. The first
   item in curated checklist order supplies its common name, with the checklist
   prompt as the empty/missing-name fallback and as the focused standard route.
-- The progress updater is best effort from iOS. If the toast fails, the scan
-  still saves; catalog reloads can reconcile server progress.
+- Progress is server-owned, not best effort from iOS. New ingestion applies it
+  in the scan transaction, and the post-persistence Edge call retrieves the
+  durable receipt for UI feedback. The client retains its queued Capture hint
+  until success or a terminal server response and replays orphaned hints after
+  relaunch. Catalog reloads remain a read-side reconciliation path.
 - Corrections may move or remove the scan's credit within its original credited
   level while the outing remains unfinished, then reset the outing to its
   earliest incomplete level. Completed outings are immutable.
@@ -524,6 +538,13 @@ adds one-credit-per-scan uniqueness, deterministic selection, private Capture
 preferences, correction invalidation, and the scan-specific contribution read
 model. Its guarded data migration deduplicates only existing credit and aborts
 when completed or published artifacts exist.
+`services/supabase/migrations/20260722064704_harden_atomic_field_trip_progress.sql`
+adds a private scan-revision receipt, the atomic standard/Event/preference/
+achievement mutation, ingestion/correction triggers, and a publication runtime
+repair. It also replaces profile pinning's temporary-table implementation with
+an ordered UUID-array mutation and revokes every Field trip/Event
+`SECURITY DEFINER` function from `PUBLIC`, `anon`, and `authenticated`, granting
+execution only to `service_role`.
 
 Core tables:
 
@@ -534,6 +555,7 @@ Core tables:
 - `user_field_trip_item_completions`
 - `user_field_trip_active_periods`
 - `field_trip_scan_goal_preferences`
+- `field_trip_scan_progress_receipts`
 - `field_trip_publications`
 - `field_trip_publication_items`
 - `field_trip_publication_likes`
@@ -561,6 +583,7 @@ Core RPCs and helpers:
 - `public.get_recent_field_trip_publications(...)`
 - `public.apply_field_trip_scan_progress(...)`
 - `public.apply_field_trip_scan_progress_v2(...)`
+- `public.apply_field_trip_scan_progress_atomic(...)`
 - `public.get_field_trip_scan_contributions(...)`
 - `public.get_field_trip_profile_summaries(...)`
 - `public.set_field_trip_pinned_publications(...)`
@@ -617,12 +640,15 @@ Actions:
 - `recent_publications`: compatibility alias for `community_publications` with
   `mode: "recent"`.
 - `apply_scan_progress`: applies progress for one saved scan owned by the
-  caller. V4 keeps the existing `data` payload for normal Field trip progress
-  and adds optional `challenge_updates` for joined live challenges. Both update
+  caller through one transactional database RPC. V4 keeps the existing `data`
+  payload for normal Field trip progress and adds optional `challenge_updates`
+  for joined live challenges. Both update
   arrays may include optional `credited_level_number`, `credited_level_title`,
   `credited_completed_count`, `credited_target_count`, and `removed_item_ids`.
   The request may include an optional validated `preferred_goal` with
-  `user_field_trip_id` and `item_id`.
+  `user_field_trip_id` and `item_id`. New scan ingestion may already have
+  applied the mutation; in that case this action returns the scan-revision
+  receipt rather than re-announcing or partially reapplying it.
 - `scan_contributions`: returns one private, evidence-minimal row for every
   standard outing or Event credit owned by the supplied saved biological scan.
 - `challenges_catalog`: returns curated seasonal challenges with viewer
@@ -657,10 +683,11 @@ Actions:
 See `services/supabase/functions/field-trips/README.md` and
 `docs/backend-and-data/05-api-contracts.md` for payload examples.
 
-The database RPCs behind `catalog` and `template_detail` are revoked from
+Every Field trip/Event `SECURITY DEFINER` database function is revoked from
 `PUBLIC`, `anon`, and `authenticated` and granted only to `service_role`. The
 authenticated Edge Function supplies the verified user ID, so callers cannot
-request another user's completion evidence.
+invoke ownership-bearing RPCs directly or request another user's progress,
+publication, or completion evidence.
 
 ## Access
 
@@ -776,9 +803,20 @@ display the ring.
 `ScanMilestoneCoordinator` is the single scan-completion notification boundary
 for both `InferenceEngine` foreground completion and
 `OfflineQueueManager` background completion. It is main-actor isolated and
-keys in-flight/recently completed work by the final saved scan ID so live and
-background races cannot enqueue the same batch twice. It intentionally waits
-through the existing remote-persistence retry window before resolving progress,
+keys in-flight/recently resolved work by the final saved scan ID so live and
+background races cannot enqueue the same batch twice. Progress resolution has
+three explicit outcomes: success, retryable failure, and terminal ingestion
+failure. Only success or a terminal failure finalizes Field trip processing and
+discards the preferred Capture goal. A retryable persistence timeout, network
+failure, or cancellation preserves that goal, remains eligible for a later
+foreground/background callback, and schedules bounded automatic retries after
+2, 5, and 15 seconds. The SwiftData hint also acts as a durable progress outbox:
+queue finalization preserves it, startup/network recovery replays orphaned
+hints whose scan queue row is already gone, and only server acknowledgement or
+a terminal outcome deletes it. Ordinary achievement and dictionary milestones have a
+separate per-scan delivery guard, so they can appear during an outage without
+being duplicated when Field trip progress later succeeds. The coordinator
+waits through the existing remote-persistence polling window on every attempt,
 then collects achievement unlock payloads with
 `enqueueToasts: false`, evaluates the dictionary-contribution flag, and makes
 one synchronous presenter enqueue pass. An unrelated banner already on screen
@@ -869,19 +907,22 @@ Deploy in this order:
 14. `20260719160750_field_trip_lifecycle_controls.sql`
 15. `20260720014446_update_backyard_safari_copy.sql`
 16. `20260722025411_persistent_field_trip_scan_contributions.sql`
-17. `field-trips` Edge Function
-18. `get-explore-author-profile` so public profiles include Field trip
+17. `20260722064704_harden_atomic_field_trip_progress.sql`
+18. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
+   `identify-describe`, `audio-spec`, and `replay-scan-ingestion`)
+19. `field-trips` Edge Function
+20. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-19. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+21. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-20. iOS client update
+22. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
-The persistent contribution migration and `field-trips` Edge Function must
-precede the new iOS client. Older clients omit `preferred_goal` and receive the
-deterministic fallback; the new client silently hides its Insight card until
-`scan_contributions` is deployed.
+The persistent contribution and atomic-hardening migrations plus the ingestion
+and `field-trips` Edge Functions must precede the new iOS client. Older clients
+omit `preferred_goal` and receive deterministic fallback; the new client
+silently hides its Insight card until `scan_contributions` is deployed.
 
 Rollback should revert the iOS thumbnail route before rolling back the evidence
 link migration. Because `completed_scan_id` is optional, older clients tolerate
@@ -895,8 +936,8 @@ template graph.
 
 Rolling back credited progress is response-compatible: older fields remain the
 source of truth and the iOS fallback continues to render them. Preserve both
-progress functions' existing execute permissions and security contract during
-any rollback; do not drop completion rows or rewrite scan history.
+progress functions' service-role-only execute contract during any rollback; do
+not drop completion rows or rewrite scan history.
 
 For the persistent-card release, roll back the iOS client surface first and the
 Edge action second while leaving the migration in place. The database remains
@@ -913,12 +954,13 @@ not something to bypass in production.
 Backend:
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
 deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 supabase db lint --workdir services
 ```
 
@@ -947,6 +989,12 @@ advancement, explicit eligibility, one credit per experience, multi-experience
 credit, selected-goal and fallback ranking, delayed upload, correction
 move/removal, completed-state freezing, ownership, concurrency, and idempotent
 reapplication.
+The atomic test injects an Event-side exception and proves standard progress,
+preference, achievement/receipt state, and Event progress all roll back. The
+security test enumerates every matching `SECURITY DEFINER` function and requires
+`anon`/`authenticated` execute to be false and `service_role` execute to be
+true. The publication test executes the completed-outing publish path and
+asserts that snapshot items use the created publication ID.
 
 For progress-toast QA, cover partial progress, level advancement, final
 completion, multiple standard/challenge experiences, re-identification after level
@@ -963,12 +1011,19 @@ large-width, long-name, timeout, swipe/close, haptic, and VoiceOver inspection.
 
 For the persistent Insight card, reopen a historical saved biological scan with
 one and then several standard/Event credits. Confirm every row remains visible,
-uses `Goal complete`, shows the credited-level count, and reloads after that
-scan's progress/correction invalidation. Exercise root modal and embedded
-Explore routing, Events-off filtering, queued/unauthenticated/non-biological
-gates, no-match and network failure, long goal/experience names, compact and
-large widths, dark mode, accessibility Dynamic Type, VoiceOver, and Reduce
-Motion. The card must add no haptic or confetti. Verify V49→V50 migration and
+shows the **Field trips** header, an uppercase **GOAL COMPLETE** eyebrow above
+the headline-sized goal name, enlarged objective art/check badge, an
+experience-only subtitle with no level, and a prominent credited-level ring
+without separators or chevrons. Confirm the heading matches other Insight card
+headers and the card reloads after that scan's progress/correction invalidation.
+Every standard row must open at the top of Goals with no focused item; every
+Event row must open challenge overview. Root modal, Scans-embedded,
+Explore-embedded, and modal-from-Explore paths must retain the originating
+Insight beneath the detail so native Back returns to it. Also exercise
+Events-off filtering, queued/unauthenticated/non-biological gates, no-match and
+network failure, long goal/experience names, compact and large widths, dark
+mode, accessibility Dynamic Type, VoiceOver, and Reduce Motion. The card must
+add no haptic or confetti. Verify V49→V50 migration and
 both foreground/background queue paths preserve the eligible camera-only hint,
 while gallery, mixed camera/gallery, Describe, Record, audio, video, refinement,
 and deletion/orphan cleanup do not leak it.

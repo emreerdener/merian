@@ -254,25 +254,26 @@ Deno.test("Field trip progress requires starts and corrections remove original-l
         [secondSpeciesId, scanId],
       );
 
-      const secondStandard = await applyStandardProgress(
-        client,
-        userId,
-        scanId,
+      const correction = await client.queryObject<{
+        field_trip_updates: StandardProgressUpdate[];
+        challenge_updates: ChallengeProgressUpdate[];
+      }>(
+        `
+          SELECT
+            result -> 'field_trip_updates' AS field_trip_updates,
+            result -> 'challenge_updates' AS challenge_updates
+          FROM public.field_trip_scan_progress_receipts
+          WHERE scan_id = $1
+        `,
+        [scanId],
       );
-      const secondStandardFixtures = secondStandard.filter((update) =>
-        update.template_id === templateId
-      );
+      const secondStandardFixtures = correction.rows[0].field_trip_updates
+        .filter((update) => update.template_id === templateId);
       assertEquals(secondStandardFixtures.length, 1);
       assertCorrectionRemoval(secondStandardFixtures[0], 1, firstItemId);
 
-      const secondChallenge = await applyChallengeProgress(
-        client,
-        userId,
-        scanId,
-      );
-      const secondChallengeFixtures = secondChallenge.filter((update) =>
-        update.challenge_id === challengeId
-      );
+      const secondChallengeFixtures = correction.rows[0].challenge_updates
+        .filter((update) => update.challenge_id === challengeId);
       assertEquals(secondChallengeFixtures.length, 1);
       assertCorrectionRemoval(secondChallengeFixtures[0], 1, firstItemId);
 

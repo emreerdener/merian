@@ -65,6 +65,28 @@ function cleanBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function sanitizePreferredGoal(
+  value: unknown,
+): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const goal = value as Record<string, unknown>;
+  const userFieldTripId = cleanString(
+    goal.userFieldTripId ?? goal.user_field_trip_id,
+  );
+  const itemId = cleanString(goal.itemId ?? goal.item_id);
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (
+    !userFieldTripId || !itemId || !uuidPattern.test(userFieldTripId) ||
+    !uuidPattern.test(itemId)
+  ) {
+    return undefined;
+  }
+  return { userFieldTripId, itemId };
+}
+
 function cleanStringArray(values: string[] | undefined): string[] {
   return [
     ...new Set(
@@ -298,6 +320,7 @@ export async function buildScanIngestionIntent(
     observationContexts: sanitizeObservationContexts(
       payload.observation_contexts,
     ),
+    preferredGoal: sanitizePreferredGoal(payload.preferred_goal),
     mediaCounts: input.mediaCounts,
     uploadSessionIds: cleanStringArray(input.uploadSessionIds).sort(),
     manifestChecksum: cleanString(input.manifestChecksum ?? undefined),

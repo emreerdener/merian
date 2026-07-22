@@ -250,7 +250,7 @@ struct AchievementToastPresenterTests {
 
     @Test func scanMilestonesWaitForProgressThenPresentInRequiredOrder() async {
         let presenter = MilestoneToastPresenter()
-        var progressContinuation: CheckedContinuation<FieldTripProgressResult?, Never>?
+        var progressContinuation: CheckedContinuation<ScanMilestoneCoordinator.ProgressResolution, Never>?
         let achievement = completedAward(.domesticDog)
         let coordinator = ScanMilestoneCoordinator(
             progressResolver: { _, _ in
@@ -277,7 +277,7 @@ struct AchievementToastPresenterTests {
         }
         #expect(presenter.activeItem == nil)
 
-        progressContinuation?.resume(returning: progressResult())
+        progressContinuation?.resume(returning: .success(progressResult()))
         await task.value
 
         guard case .fieldTrip(let fieldTrip) = presenter.activeItem?.payload else {
@@ -306,12 +306,25 @@ struct AchievementToastPresenterTests {
         #expect(milestone == .newToMerian)
     }
 
-    @Test func failedProgressStillReleasesAchievementAndDictionaryMilestones() async {
+    @Test func transientProgressFailureRetriesWithoutDuplicatingOtherMilestones() async {
         let presenter = MilestoneToastPresenter()
         let achievement = completedAward(.domesticCat)
+        let preferredGoal = FieldTripPreferredGoal(
+            userFieldTripId: "trip-1",
+            itemId: "item-1"
+        )
+        var resolverCalls = 0
+        var receivedPreferredGoals: [FieldTripPreferredGoal?] = []
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _, _ in nil },
+            progressResolver: { _, receivedPreferredGoal in
+                resolverCalls += 1
+                receivedPreferredGoals.append(receivedPreferredGoal)
+                return resolverCalls == 1
+                    ? .retryableFailure
+                    : .success(progressResult())
+            },
             achievementResolver: { _ in [achievement] },
+            retryDelays: [],
             presenter: presenter
         )
         var species = milestoneSpecies()
@@ -320,7 +333,8 @@ struct AchievementToastPresenterTests {
         await coordinator.processCompletedScan(
             scanId: "failed-progress-scan",
             speciesData: species,
-            modelContainer: nil
+            modelContainer: nil,
+            preferredGoal: preferredGoal
         )
 
         #expect(presenter.activeItem?.award?.type == .domesticCat)
@@ -329,6 +343,90 @@ struct AchievementToastPresenterTests {
             Issue.record("Expected dictionary milestone after achievement")
             return
         }
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+
+        await coordinator.processCompletedScan(
+            scanId: "failed-progress-scan",
+            speciesData: species,
+            modelContainer: nil
+        )
+
+        guard case .fieldTrip = presenter.activeItem?.payload else {
+            Issue.record("Expected Field trip progress after the retry succeeded")
+            return
+        }
+        #expect(resolverCalls == 2)
+        #expect(receivedPreferredGoals == [preferredGoal, preferredGoal])
+        #expect(presenter.presentedItems.count == 2)
+    }
+
+    @Test func transientProgressFailureAutomaticallyRetries() async {
+        let presenter = MilestoneToastPresenter()
+        var resolverCalls = 0
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _, _ in
+                resolverCalls += 1
+                return resolverCalls == 1
+                    ? .retryableFailure
+                    : .success(progressResult())
+            },
+            achievementResolver: { _ in [] },
+            fieldTripsAvailabilityResolver: { true },
+            retryDelays: [.milliseconds(1)],
+            presenter: presenter
+        )
+
+        await coordinator.processCompletedScan(
+            scanId: "automatic-retry-scan",
+            speciesData: nil,
+            modelContainer: nil
+        )
+
+        for _ in 0..<100 where resolverCalls < 2 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(resolverCalls == 2)
+        guard case .fieldTrip = presenter.activeItem?.payload else {
+            Issue.record("Expected Field trip progress after the automatic retry")
+            return
+        }
+    }
+
+    @Test func terminalProgressFailureFinalizesWithoutRetrying() async {
+        let presenter = MilestoneToastPresenter()
+        let achievement = completedAward(.domesticDog)
+        var resolverCalls = 0
+        var achievementCalls = 0
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _, _ in
+                resolverCalls += 1
+                return .terminalFailure
+            },
+            achievementResolver: { _ in
+                achievementCalls += 1
+                return [achievement]
+            },
+            fieldTripsAvailabilityResolver: { true },
+            retryDelays: [.milliseconds(1)],
+            presenter: presenter
+        )
+
+        await coordinator.processCompletedScan(
+            scanId: "terminal-progress-scan",
+            speciesData: nil,
+            modelContainer: nil
+        )
+        await coordinator.processCompletedScan(
+            scanId: "terminal-progress-scan",
+            speciesData: nil,
+            modelContainer: nil
+        )
+
+        #expect(resolverCalls == 1)
+        #expect(achievementCalls == 1)
+        #expect(presenter.presentedItems.count == 1)
+        #expect(presenter.activeItem?.award?.type == .domesticDog)
     }
 
     @Test func noMatchingProgressStillReleasesAchievementAndDictionaryMilestones() async {
@@ -336,7 +434,7 @@ struct AchievementToastPresenterTests {
         let achievement = completedAward(.domesticDog)
         let coordinator = ScanMilestoneCoordinator(
             progressResolver: { _, _ in
-                FieldTripProgressResult(fieldTripUpdates: [], challengeUpdates: [])
+                .success(FieldTripProgressResult(fieldTripUpdates: [], challengeUpdates: []))
             },
             achievementResolver: { _ in [achievement] },
             presenter: presenter
@@ -365,7 +463,7 @@ struct AchievementToastPresenterTests {
         let coordinator = ScanMilestoneCoordinator(
             progressResolver: { _, _ in
                 progressResolverCalls += 1
-                return nil
+                return .retryableFailure
             },
             achievementResolver: { _ in [achievement] },
             fieldTripsAvailabilityResolver: { false },
@@ -400,12 +498,12 @@ struct AchievementToastPresenterTests {
         let fieldTripProgress = progressResult()
         let coordinator = ScanMilestoneCoordinator(
             progressResolver: { _, _ in
-                FieldTripProgressResult(
+                .success(FieldTripProgressResult(
                     fieldTripUpdates: fieldTripProgress.fieldTripUpdates,
                     challengeUpdates: fieldTripProgress.challengeUpdates,
                     firstFieldTripAchievement: achievementProgress,
                     firstFieldTripAchievementNewlyUnlocked: true
-                )
+                ))
             },
             achievementResolver: { _ in [] },
             fieldTripsAvailabilityResolver: { true },
@@ -470,7 +568,7 @@ struct AchievementToastPresenterTests {
     @Test func liveAndBackgroundCompletionRaceProcessesScanOnce() async {
         let presenter = MilestoneToastPresenter()
         var resolverCalls = 0
-        var progressContinuation: CheckedContinuation<FieldTripProgressResult?, Never>?
+        var progressContinuation: CheckedContinuation<ScanMilestoneCoordinator.ProgressResolution, Never>?
         let coordinator = ScanMilestoneCoordinator(
             progressResolver: { _, _ in
                 resolverCalls += 1
@@ -479,6 +577,7 @@ struct AchievementToastPresenterTests {
                 }
             },
             achievementResolver: { _ in [] },
+            retryDelays: [],
             presenter: presenter
         )
 
@@ -501,7 +600,7 @@ struct AchievementToastPresenterTests {
         }
 
         await backgroundTask.value
-        progressContinuation?.resume(returning: nil)
+        progressContinuation?.resume(returning: .retryableFailure)
         await liveTask.value
 
         #expect(resolverCalls == 1)

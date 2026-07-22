@@ -205,7 +205,13 @@ typealias AchievementToastItem = MilestoneToastItem
 
 @MainActor
 final class ScanMilestoneCoordinator {
-    typealias ProgressResolver = (String, FieldTripPreferredGoal?) async -> FieldTripProgressResult?
+    enum ProgressResolution: Equatable {
+        case success(FieldTripProgressResult)
+        case retryableFailure
+        case terminalFailure
+    }
+
+    typealias ProgressResolver = (String, FieldTripPreferredGoal?) async -> ProgressResolution
     typealias AchievementResolver = (ModelContainer?) async -> [AwardPayload]
     typealias FieldTripsAvailabilityResolver = @MainActor () -> Bool
     typealias FieldTripEventsAvailabilityResolver = @MainActor () -> Bool
@@ -220,8 +226,13 @@ final class ScanMilestoneCoordinator {
     private var inFlightScanIds: Set<String> = []
     private var completedScanIds: Set<String> = []
     private var completedScanOrder: [String] = []
+    private var releasedMilestoneScanIds: Set<String> = []
+    private var releasedMilestoneScanOrder: [String] = []
     private var preferredGoalsByScanId: [String: FieldTripPreferredGoal] = [:]
     private var preferredGoalOrder: [String] = []
+    private var retryAttemptsByScanId: [String: Int] = [:]
+    private var retryTasksByScanId: [String: Task<Void, Never>] = [:]
+    private let retryDelays: [Duration]
     private let completedScanLimit = 100
 
     func registerPreferredGoal(_ preferredGoal: FieldTripPreferredGoal, for scanId: String) {
@@ -242,12 +253,14 @@ final class ScanMilestoneCoordinator {
         fieldTripEventsAvailabilityResolver: @escaping FieldTripEventsAvailabilityResolver = {
             FieldTripEventsAvailability.isEnabled
         },
+        retryDelays: [Duration] = [.seconds(2), .seconds(5), .seconds(15)],
         presenter: MilestoneToastPresenter? = nil
     ) {
         self.progressResolver = progressResolver
         self.achievementResolver = achievementResolver
         self.fieldTripsAvailabilityResolver = fieldTripsAvailabilityResolver
         self.fieldTripEventsAvailabilityResolver = fieldTripEventsAvailabilityResolver
+        self.retryDelays = retryDelays
         self.presenter = presenter ?? .shared
     }
 
@@ -257,8 +270,35 @@ final class ScanMilestoneCoordinator {
         modelContainer: ModelContainer?,
         preferredGoal: FieldTripPreferredGoal? = nil
     ) async {
-        guard !inFlightScanIds.contains(scanId), !completedScanIds.contains(scanId) else {
+        await processCompletedScanAttempt(
+            scanId: scanId,
+            speciesData: speciesData,
+            modelContainer: modelContainer,
+            preferredGoal: preferredGoal,
+            cancelsScheduledRetry: true
+        )
+    }
+
+    private func processCompletedScanAttempt(
+        scanId: String,
+        speciesData: SpeciesData?,
+        modelContainer: ModelContainer?,
+        preferredGoal: FieldTripPreferredGoal?,
+        cancelsScheduledRetry: Bool
+    ) async {
+        if completedScanIds.contains(scanId) {
+            // A prior acknowledgement may have completed while SwiftData was
+            // temporarily unavailable. A durable replay can safely finish
+            // deleting its outbox hint without re-running milestones.
+            OfflineQueueManager.shared.acknowledgeFieldTripProgress(scanId: scanId)
             return
+        }
+        guard !inFlightScanIds.contains(scanId) else {
+            return
+        }
+
+        if cancelsScheduledRetry {
+            retryTasksByScanId.removeValue(forKey: scanId)?.cancel()
         }
 
         inFlightScanIds.insert(scanId)
@@ -269,29 +309,62 @@ final class ScanMilestoneCoordinator {
             ? SupabaseManager.shared.currentUser?.id.uuidString
             : nil
         let resolvedPreferredGoal = preferredGoal ?? preferredGoalsByScanId[scanId]
-        let progress = Self.visibleProgress(
-            resolvesFieldTrips ? await progressResolver(scanId, resolvedPreferredGoal) : nil,
-            eventsEnabled: fieldTripEventsAvailabilityResolver()
-        )
-        preferredGoalsByScanId.removeValue(forKey: scanId)
-        preferredGoalOrder.removeAll(where: { $0 == scanId })
-        cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
-        publishProgressEvents(progress)
+        let progress: FieldTripProgressResult?
+        let finalizesFieldTripResolution: Bool
+
         if resolvesFieldTrips {
-            AppEventPublisher.shared.send(.fieldTripScanContributionsInvalidated(scanId: scanId))
+            switch await progressResolver(scanId, resolvedPreferredGoal) {
+            case .success(let resolvedProgress):
+                progress = Self.visibleProgress(
+                    resolvedProgress,
+                    eventsEnabled: fieldTripEventsAvailabilityResolver()
+                )
+                finalizesFieldTripResolution = true
+                cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
+                publishProgressEvents(progress)
+                AppEventPublisher.shared.send(
+                    .fieldTripScanContributionsInvalidated(scanId: scanId)
+                )
+            case .retryableFailure:
+                progress = nil
+                finalizesFieldTripResolution = false
+                if let resolvedPreferredGoal {
+                    registerPreferredGoal(resolvedPreferredGoal, for: scanId)
+                }
+                scheduleProgressRetry(
+                    scanId: scanId,
+                    speciesData: speciesData,
+                    modelContainer: modelContainer,
+                    preferredGoal: resolvedPreferredGoal
+                )
+            case .terminalFailure:
+                progress = nil
+                finalizesFieldTripResolution = true
+            }
+        } else {
+            progress = nil
+            finalizesFieldTripResolution = true
         }
 
-        let achievements = await achievementResolver(modelContainer)
-            + newlyUnlockedFirstFieldTripAwards(from: progress)
+        let shouldReleaseOrdinaryMilestones = !releasedMilestoneScanIds.contains(scanId)
+        let achievements = (shouldReleaseOrdinaryMilestones
+            ? await achievementResolver(modelContainer)
+            : []) + newlyUnlockedFirstFieldTripAwards(from: progress)
         let fieldTrips = Self.milestones(from: progress)
-        let includesNewToMerian = speciesData.map(Self.isValidNewToMerianMilestone) ?? false
+        let includesNewToMerian = shouldReleaseOrdinaryMilestones
+            && (speciesData.map(Self.isValidNewToMerianMilestone) ?? false)
 
         presenter.enqueueScanMilestoneBatch(
             fieldTrips: fieldTrips,
             achievements: achievements,
             includesNewToMerian: includesNewToMerian
         )
-        rememberCompletedScan(scanId)
+        if shouldReleaseOrdinaryMilestones {
+            rememberReleasedMilestones(scanId)
+        }
+        if finalizesFieldTripResolution {
+            finishFieldTripResolution(scanId: scanId)
+        }
     }
 
     /// Re-applies progress after a user changes a saved scan's identification.
@@ -299,8 +372,11 @@ final class ScanMilestoneCoordinator {
     func processIdentificationUpdate(scanId: String) async {
         guard fieldTripsAvailabilityResolver() else { return }
         let accountId = SupabaseManager.shared.currentUser?.id.uuidString
+        guard case .success(let resolvedProgress) = await progressResolver(scanId, nil) else {
+            return
+        }
         let progress = Self.visibleProgress(
-            await progressResolver(scanId, nil),
+            resolvedProgress,
             eventsEnabled: fieldTripEventsAvailabilityResolver()
         )
         cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
@@ -350,11 +426,18 @@ final class ScanMilestoneCoordinator {
 
     #if DEBUG
     func resetForTesting() {
+        for task in retryTasksByScanId.values {
+            task.cancel()
+        }
         inFlightScanIds.removeAll()
         completedScanIds.removeAll()
         completedScanOrder.removeAll()
+        releasedMilestoneScanIds.removeAll()
+        releasedMilestoneScanOrder.removeAll()
         preferredGoalsByScanId.removeAll()
         preferredGoalOrder.removeAll()
+        retryAttemptsByScanId.removeAll()
+        retryTasksByScanId.removeAll()
     }
     #endif
 
@@ -400,10 +483,70 @@ final class ScanMilestoneCoordinator {
         }
     }
 
+    private func rememberReleasedMilestones(_ scanId: String) {
+        releasedMilestoneScanIds.insert(scanId)
+        releasedMilestoneScanOrder.append(scanId)
+
+        if releasedMilestoneScanOrder.count > completedScanLimit {
+            let expiredScanId = releasedMilestoneScanOrder.removeFirst()
+            releasedMilestoneScanIds.remove(expiredScanId)
+        }
+    }
+
+    private func finishFieldTripResolution(scanId: String) {
+        retryTasksByScanId.removeValue(forKey: scanId)?.cancel()
+        retryAttemptsByScanId.removeValue(forKey: scanId)
+        preferredGoalsByScanId.removeValue(forKey: scanId)
+        preferredGoalOrder.removeAll(where: { $0 == scanId })
+        OfflineQueueManager.shared.acknowledgeFieldTripProgress(scanId: scanId)
+        rememberCompletedScan(scanId)
+    }
+
+    private func scheduleProgressRetry(
+        scanId: String,
+        speciesData: SpeciesData?,
+        modelContainer: ModelContainer?,
+        preferredGoal: FieldTripPreferredGoal?
+    ) {
+        let attempt = retryAttemptsByScanId[scanId, default: 0]
+        guard attempt < retryDelays.count else {
+            retryAttemptsByScanId.removeValue(forKey: scanId)
+            MerianLog.general.debug(
+                "Field trip progress automatic retries exhausted; a later completion callback can retry."
+            )
+            return
+        }
+
+        retryAttemptsByScanId[scanId] = attempt + 1
+        retryTasksByScanId.removeValue(forKey: scanId)?.cancel()
+        let delay = retryDelays[attempt]
+        retryTasksByScanId[scanId] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled else { return }
+
+            while self.inFlightScanIds.contains(scanId) {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled else { return }
+            }
+            self.retryTasksByScanId.removeValue(forKey: scanId)
+            await self.processCompletedScanAttempt(
+                scanId: scanId,
+                speciesData: speciesData,
+                modelContainer: modelContainer,
+                preferredGoal: preferredGoal,
+                cancelsScheduledRetry: false
+            )
+        }
+    }
+
     private static func resolveProgress(
         scanId: String,
         preferredGoal: FieldTripPreferredGoal?
-    ) async -> FieldTripProgressResult? {
+    ) async -> ProgressResolution {
         do {
             var isPersisted = false
             let retryDelaysMilliseconds = [0, 250, 500, 1_000, 2_000, 4_000]
@@ -417,22 +560,26 @@ final class ScanMilestoneCoordinator {
                     isPersisted = true
                     break
                 }
-                if status.jobStatus == .failed { return nil }
+                if status.jobStatus == .failed { return .terminalFailure }
             }
             guard isPersisted else {
                 MerianLog.general.debug(
                     "Field trip progress deferred because remote scan persistence is not complete."
                 )
-                return nil
+                return .retryableFailure
             }
 
-            return try await MerianNetworkClient.shared.applyFieldTripProgress(
-                scanId: scanId,
-                preferredGoal: preferredGoal
+            return .success(
+                try await MerianNetworkClient.shared.applyFieldTripProgress(
+                    scanId: scanId,
+                    preferredGoal: preferredGoal
+                )
             )
+        } catch is CancellationError {
+            return .retryableFailure
         } catch {
             MerianLog.general.debug("Field trip progress update failed: \(error, privacy: .private)")
-            return nil
+            return .retryableFailure
         }
     }
 

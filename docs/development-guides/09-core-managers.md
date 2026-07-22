@@ -337,8 +337,8 @@ triggering excessive SwiftUI view rebuilds.
   immediately, and measures the response-to-state boundary. A one-shot UIKit
   draw probe in `InsightSheetView` closes tap-to-first-render timing on the first
   actual result frame. `ScanMilestoneCoordinator` runs in follow-up work, polls
-  `/check-scan-status` before invoking Field trip progress, then calculates
-  awards and batches standard outings, Events-visible Seasonal Challenges,
+  `/check-scan-status` before retrieving the server-applied Field trip progress
+  receipt, then calculates awards and batches standard outings, Events-visible Seasonal Challenges,
   achievements, and
   **New to Naturebook**. Tools requiring server persistence stay disabled until
   the existing ingestion ledger confirms the final scan ID. The progress call
@@ -1336,6 +1336,11 @@ and `KeychainManager` migration logic. Do not inline
   `FieldTripsAvailability` is currently public/always on; availability injection
   remains as a test seam and future emergency client-build control. The
   independent Events gate does not suppress standard outing progress.
+  Retryable failures keep the selected-goal SwiftData row as a durable outbox,
+  release ordinary milestones through a separate once-per-scan guard, and use
+  bounded in-process retries. `OfflineJobScheduler` replays leftover hints after
+  relaunch; only success, terminal ingestion failure, or disabled Field trips
+  acknowledges and removes the hint.
 - The presenter controls only in-app banner presentation. It does not mutate
   Field trip progress, achievement progress, dictionary state, analytics, or
   native notification authorization. DEBUG Settings preview entry points

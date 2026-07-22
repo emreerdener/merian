@@ -107,6 +107,7 @@ Deno.serve((req: Request) =>
       timeOfDay,
       timestamp,
       client_scan_id,
+      preferred_goal,
       observation_context,
     } = body;
     const publicExploreLocationLabel = publicLocationLabel ??
@@ -490,6 +491,7 @@ Deno.serve((req: Request) =>
         userId: user.id,
         endpoint: "identify-describe",
         description,
+        preferredGoal: preferred_goal,
         telemetry: {
           timestamp,
           gpsLatitude: safeGpsLat,

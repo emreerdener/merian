@@ -40,8 +40,6 @@ Deno.test("achievement progress scopes the service RPC to the verified user", as
 });
 
 Deno.test("apply progress reports newly unlocked only for the completing mutation", async () => {
-  let achievementReads = 0;
-  let standardMutations = 0;
   const achievement = {
     kind: "seasonal_challenge" as const,
     completed_at: "2026-07-18T14:00:00Z",
@@ -50,48 +48,36 @@ Deno.test("apply progress reports newly unlocked only for the completing mutatio
   };
   const supabase = {
     rpc: (name: string, args: Record<string, unknown>) => {
-      assertEquals(args.target_user_id ?? args.self_id, userId);
-      switch (name) {
-        case "get_first_field_trip_achievement_progress":
-          achievementReads += 1;
-          return Promise.resolve({
-            data: achievementReads === 1 ? null : achievement,
-            error: null,
-          });
-        case "apply_field_trip_scan_progress_v2":
-          standardMutations += 1;
-          assertEquals(args.target_scan_id, scanId);
-          assertEquals(args.preferred_user_field_trip_id, null);
-          assertEquals(args.preferred_item_id, null);
-          return Promise.resolve({
-            data: standardMutations === 1 ? [{ is_complete: true }] : [],
-            error: null,
-          });
-        case "apply_field_trip_challenge_scan_progress":
-          return Promise.resolve({ data: [], error: null });
-        default:
-          throw new Error(`Unexpected RPC ${name}`);
-      }
+      assertEquals(name, "apply_field_trip_scan_progress_atomic");
+      assertEquals(args, {
+        self_id: userId,
+        target_scan_id: scanId,
+        preferred_user_field_trip_id: null,
+        preferred_item_id: null,
+      });
+      return Promise.resolve({
+        data: {
+          field_trip_updates: [{ is_complete: true }],
+          challenge_updates: [],
+          first_field_trip_achievement: achievement,
+          first_field_trip_achievement_newly_unlocked: true,
+        },
+        error: null,
+      });
     },
   } as unknown as SupabaseClient;
 
-  const first = await applyFieldTripScanProgress(
-    userId,
-    scanId,
-    null,
-    supabase,
-  );
-  const second = await applyFieldTripScanProgress(
+  const progress = await applyFieldTripScanProgress(
     userId,
     scanId,
     null,
     supabase,
   );
 
-  assertEquals(first.firstFieldTripAchievement, achievement);
-  assertEquals(first.firstFieldTripAchievementNewlyUnlocked, true);
-  assertEquals(second.firstFieldTripAchievement, achievement);
-  assertEquals(second.firstFieldTripAchievementNewlyUnlocked, false);
+  assertEquals(progress.fieldTripUpdates, [{ is_complete: true }]);
+  assertEquals(progress.challengeUpdates, []);
+  assertEquals(progress.firstFieldTripAchievement, achievement);
+  assertEquals(progress.firstFieldTripAchievementNewlyUnlocked, true);
 });
 
 Deno.test("stop scopes lifecycle RPCs to the caller and returns stopped detail", async () => {

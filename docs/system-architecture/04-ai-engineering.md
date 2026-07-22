@@ -937,8 +937,10 @@ insight sheet display.
 - **First-result commit before secondary work** (`InferenceEngine.swift`): after
   response parsing and local persistence, saved media and `speciesData` are
   committed immediately. Award calculation and Field trips run asynchronously;
-  Field trip processing waits for the existing server-ingestion status to report the scan
-  before invoking tools that require remote persistence.
+  the server scan-ingestion transaction applies Field trip progress before the
+  scan is reported persisted. Client follow-up retrieves the idempotent receipt
+  for notifications without placing progress correctness on the first-result
+  task.
 - **base64 encoding priority** (`InferenceProcessingActor`): Multi-image base64
   encoding uses `withTaskGroup` at `.userInitiated` priority so the CPU-bound
   work is not deprioritized behind background system tasks on a loaded device.

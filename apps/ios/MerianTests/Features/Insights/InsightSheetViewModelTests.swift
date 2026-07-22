@@ -171,6 +171,91 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.isLoadingFieldTripScanContributions == false)
     }
 
+    @Test func fieldTripContributionsLoadAfterAuthenticationRestores() async {
+        let standard = contribution(
+            kind: .standardOuting,
+            sourceId: "trip-1",
+            title: "Park Pollinators"
+        )
+        var isAuthenticated = false
+        var loaderCalls = 0
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: biologicalEngine(scanId: "saved-scan"),
+            fieldTripContributionLoader: { _ in
+                loaderCalls += 1
+                return [standard]
+            },
+            fieldTripAuthenticationResolver: { isAuthenticated },
+            fieldTripAvailabilityResolver: { true },
+            fieldTripEventsAvailabilityResolver: { true }
+        )
+
+        await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
+        #expect(loaderCalls == 0)
+        #expect(viewModel.fieldTripScanContributions.isEmpty)
+
+        isAuthenticated = true
+        await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
+
+        #expect(loaderCalls == 1)
+        #expect(viewModel.fieldTripScanContributions == [standard])
+    }
+
+    @Test func fieldTripContributionLoadKeyChangesWhenAuthenticationRestores() {
+        let signedOut = InsightFieldTripContributionLoadKey(
+            scanId: "saved-scan",
+            isAuthenticated: false,
+            accountId: nil
+        )
+        let restored = InsightFieldTripContributionLoadKey(
+            scanId: "saved-scan",
+            isAuthenticated: true,
+            accountId: "account-1"
+        )
+
+        #expect(signedOut != restored)
+    }
+
+    @Test func standardFieldTripInsightContributionRoutesToGoalsOverview() {
+        let standard = contribution(
+            kind: .standardOuting,
+            sourceId: "trip-1",
+            title: "Park Pollinators"
+        )
+
+        let destination = InsightFieldTripOverviewDestination(contribution: standard)
+
+        #expect(destination == .standardOuting(templateId: "template-trip-1"))
+    }
+
+    @Test func eventFieldTripInsightContributionRoutesToChallengeOverview() {
+        let event = contribution(
+            kind: .event,
+            sourceId: "participation-1",
+            title: "Summer Bird Count"
+        )
+
+        let destination = InsightFieldTripOverviewDestination(contribution: event)
+
+        #expect(destination == .event(challengeId: "challenge-participation-1"))
+    }
+
+    @Test func profileStatsRefreshKeyChangesWhenAuthenticationRestores() {
+        let refreshToken = UUID()
+        let signedOut = ProfileStatsRefreshKey(
+            refreshToken: refreshToken,
+            isAuthenticated: false,
+            accountId: nil
+        )
+        let restored = ProfileStatsRefreshKey(
+            refreshToken: refreshToken,
+            isAuthenticated: true,
+            accountId: "account-1"
+        )
+
+        #expect(signedOut != restored)
+    }
+
     @Test func testToggleScanInCollection() async throws {
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()

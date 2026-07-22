@@ -20,12 +20,16 @@ must be handled before navigation; the Insight shell does not fetch Field-trip
 evidence or reconstruct media from a remote URL.
 
 Saved biological Insights load private scan contribution rows through
-`InsightSheetViewModel`. `InsightSheetView` accepts an optional capture-goal
-routing callback: embedded Explore Insights push the focused outing goal or
-Event detail on their existing stack, while root modal Insights dismiss and
-route through the app's existing capture-goal event. Empty results, queued
-scans, unauthenticated state, feature gating, and request failure are silent.
-A scan-specific invalidation event reloads the open Insight after progress or
+`InsightSheetViewModel`. Contribution rows use the card-specific
+`InsightFieldTripOverviewDestination`, which carries only an outing template or
+Event identifier and never a focused checklist item. Modal and non-Explore
+Insights push Goals overview in their current navigation stack. Embedded
+Explore Insights call the optional overview callback, which appends the detail
+above the Insight on Explore's existing path so native Back returns to the
+scan. Capture pills and milestone notifications keep their separate focused
+`CaptureGoalDestination` behavior. Empty results, queued scans,
+unauthenticated state, feature gating, and request failure are silent. A
+scan-specific invalidation event reloads the open Insight after progress or
 identification correction finishes.
 
 ## Scan milestones

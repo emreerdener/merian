@@ -761,6 +761,9 @@ progress RPCs. The persistent-contribution contract additionally locks the
 migration abort guard, private preference table, one-credit uniqueness and
 scan-first indexes, preferred-goal validation/ranking, correction invalidation,
 service-role-only contribution RPC, and evidence-minimal projection.
+The atomic-hardening contract locks the receipt/trigger/transactional entry
+point, publication-ID repair, empty security-definer search paths, and global
+Field trip/Event ACL revocation.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
@@ -771,6 +774,14 @@ ends, preferred-goal priority, deterministic fallback, advancement, unfinished
 correction removal/move after deactivation, completed-experience immutability,
 ownership isolation, concurrency, and idempotent reapplication under the same
 local-stack requirement.
+`_tests/fieldTripAtomicProgressDb.test.ts` executes ingestion-triggered standard
+and Event progress, preference and first-achievement evaluation, receipt replay,
+and an injected Event failure that must roll everything back.
+`_tests/fieldTripSecurityDb.test.ts` enumerates every matching
+`SECURITY DEFINER` function and asserts execute is denied to `PUBLIC`, `anon`,
+and `authenticated` and allowed only to `service_role`.
+`_tests/fieldTripPublicationDb.test.ts` publishes a completed outing and proves
+its snapshot items use the created publication ID.
 `_tests/fieldTripActions.test.ts` compares the complete Edge allowlist with a
 manually maintained snapshot of the actions emitted by iOS and verifies that
 missing and unknown actions are rejected. It does not parse Swift source, so
@@ -791,6 +802,11 @@ scan-ID deduplication. `InsightSheetViewModelTests` covers contribution loading,
 scan-change race rejection, silent error/empty states, queued/unauthenticated/
 non-biological gates, Events filtering, invalidation reload, and root/embedded
 routing in addition to the dictionary eligibility policy.
+`OfflineQueuedScanDeletionTests` verifies normal cancellation removes a goal
+hint while successful scan finalization preserves it until explicit progress
+acknowledgement. `MerianNetworkClientTests` locks the nested snake-case
+`preferred_goal` ingestion payload; ingestion intent/compatibility/replay Deno
+tests prove the preference survives server-side background reconstruction.
 `ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,

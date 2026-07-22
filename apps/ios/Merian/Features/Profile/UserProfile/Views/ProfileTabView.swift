@@ -1,6 +1,12 @@
 import SwiftData
 import SwiftUI
 
+struct ProfileStatsRefreshKey: Equatable {
+    let refreshToken: UUID
+    let isAuthenticated: Bool
+    let accountId: String?
+}
+
 /// The standalone layout hierarchy for the primary "Profile" tab.
 /// This acts purely as a declarative composition module that groups all massive
 /// visual data visualizations (Terrarium, Heatmap) and abstracts intense offline SQLite
@@ -9,6 +15,7 @@ struct ProfileTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(RevenueCatManager.self) private var revenueCatManager
+    private var supabase: SupabaseManager { .shared }
     @Binding var showPaywall: Bool
     @Binding var isShowingAvatarPicker: Bool
     @Binding var isShowingDisplayNameEditor: Bool
@@ -178,7 +185,7 @@ struct ProfileTabView: View {
                     exploreViewModel: exploreViewModel
                 )
             }
-            .task(id: profileRefreshToken) {
+            .task(id: profileStatsRefreshKey) {
                 await refreshProfileStats()
             }
             .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
@@ -215,7 +222,8 @@ struct ProfileTabView: View {
         totalCaptures = stats.heatmap.totalCaptures
         heatmapData = stats.heatmap
         guard FieldTripsAvailability.isEnabled,
-              let accountId = SupabaseManager.shared.currentUser?.id.uuidString else {
+              supabase.isAuthenticated,
+              let accountId = supabase.currentUser?.id.uuidString else {
             awards = stats.awards
             return
         }
@@ -227,7 +235,8 @@ struct ProfileTabView: View {
             if let refreshedProgress = try await MerianNetworkClient.shared
                 .getFirstFieldTripAchievementProgress()?
                 .visible(eventsEnabled: FieldTripEventsAvailability.isEnabled) {
-                guard SupabaseManager.shared.currentUser?.id.uuidString == accountId else {
+                guard supabase.isAuthenticated,
+                      supabase.currentUser?.id.uuidString == accountId else {
                     return
                 }
                 FirstFieldTripAchievementProgressStore.save(
@@ -247,6 +256,14 @@ struct ProfileTabView: View {
     private var visibleAwards: [AwardPayload] {
         guard !FieldTripsAvailability.isEnabled else { return awards }
         return awards.filter { $0.type != .firstFieldTrip }
+    }
+
+    private var profileStatsRefreshKey: ProfileStatsRefreshKey {
+        ProfileStatsRefreshKey(
+            refreshToken: profileRefreshToken,
+            isAuthenticated: supabase.isAuthenticated,
+            accountId: supabase.currentUser?.id.uuidString
+        )
     }
 
     private func openPublicScanPreview(_ post: ExplorePost) {

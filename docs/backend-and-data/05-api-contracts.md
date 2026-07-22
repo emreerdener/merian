@@ -10,6 +10,10 @@ Gemini.
 authenticated through `withEdgeHandler`; request bodies cannot choose `self_id`
 or otherwise assign progress to another user.
 
+All public-schema Field trip/Event `SECURITY DEFINER` functions are Edge-owned.
+Execute is revoked from `PUBLIC`, `anon`, and `authenticated` and granted only
+to `service_role`; there is no intentionally direct client RPC in this feature.
+
 `services/supabase/functions/field-trips/actions.ts` is the canonical action
 allowlist. A missing/non-string or unknown action returns `HTTP 400`. Unknown
 strings emit `field_trip_action_rejected` with the value truncated to 64
@@ -326,12 +330,19 @@ Response:
         }
       ]
     }
-  ]
+  ],
+  "first_field_trip_achievement": {
+    "kind": "standard_outing",
+    "completed_at": "2026-07-08T12:07:00.000Z",
+    "template_slug": "backyard_safari",
+    "challenge_id": null
+  },
+  "first_field_trip_achievement_newly_unlocked": true
 }
 ```
 
-The backing RPC counts only scans owned by the caller, only after the Field
-Trip starts, and only against the current unlocked level. Matching accepts AI
+The backing atomic RPC counts only scans owned by the caller, only after the
+Field Trip starts, and only against the current unlocked level. Matching accepts AI
 identifications and later user-confirmed/corrected identifications through the
 same scan row, then writes idempotent item completions. Eligibility is based on
 the saved biological scan, not its capture modality, so qualifying photos and
@@ -349,6 +360,14 @@ the saved identification. It wins inside that outing only. Missing, stale,
 unauthorized, completed, and nonmatching hints are ignored. Fallback selection
 is exact species, scientific name, taxonomy from genus through kingdom,
 semantic tag, ecology, habitat, curated checklist order, then item ID.
+
+For new scans, the identify ingestion intent stores the validated preference
+and the scan-insert trigger invokes the same atomic RPC before scan persistence
+commits. Standard progress, Event progress, preference persistence, first Field
+trip achievement evaluation, and a private scan-revision receipt therefore
+commit or roll back together. `apply_scan_progress` retrieves that receipt for
+notification delivery. Relevant identification corrections create a new scan
+revision and re-evaluate unfinished experiences through the same transaction.
 
 V4 clients should continue reading `data` for normal Field trip progress and
 may read `challenge_updates` for joined live challenge progress. Older clients
@@ -374,8 +393,12 @@ within its original credited level and reset progress to the earliest
 incomplete level. Completed outings and challenges are immutable.
 
 Only updates with a nonempty `newly_completed_items` array are eligible for a
-scan progress toast. Reapplying a scan whose completion rows already exist is
-idempotent and returns no updates, so it cannot generate a duplicate toast.
+scan progress toast. Reapplying an unchanged scan is idempotent and returns its
+stored receipt, including the original update payload; this lets a client that
+terminated after ingestion recover the unlock notification. iOS acknowledges
+and deletes its durable goal-hint outbox after consuming success/terminal state,
+and separately deduplicates already released milestones by scan ID. A changed
+identification revision replaces the receipt with its correction result.
 `preferred_goal` is an optional additive request field. Older clients omit it
 and receive the deterministic fallback. The response remains backward-
 compatible because credited and removed-item fields decode optionally.

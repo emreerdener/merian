@@ -127,14 +127,16 @@ private struct AchievementAccumulator {
         _ contribution: AchievementContribution,
         canonicalSpeciesKey: String
     ) {
-        if let existingContribution = contributionsBySpeciesKey[canonicalSpeciesKey],
-           existingContribution.timestamp >= contribution.timestamp {
-            lastInteractionDate = max(lastInteractionDate ?? existingContribution.timestamp, existingContribution.timestamp)
-            return
+        lastInteractionDate = max(lastInteractionDate ?? contribution.timestamp, contribution.timestamp)
+
+        if let existingContribution = contributionsBySpeciesKey[canonicalSpeciesKey] {
+            let contributionIsEarlier = contribution.timestamp < existingContribution.timestamp
+                || (contribution.timestamp == existingContribution.timestamp
+                    && contribution.scanID < existingContribution.scanID)
+            guard contributionIsEarlier else { return }
         }
 
         contributionsBySpeciesKey[canonicalSpeciesKey] = contribution
-        lastInteractionDate = max(lastInteractionDate ?? contribution.timestamp, contribution.timestamp)
     }
 
     var detailPayload: AchievementDetailPayload {

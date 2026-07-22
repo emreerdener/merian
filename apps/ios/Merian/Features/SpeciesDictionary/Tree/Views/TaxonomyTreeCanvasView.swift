@@ -37,9 +37,10 @@ struct TaxonomyTreeCanvasView: View {
     private var canvas: some View {
         GeometryReader { proxy in
             let visibleNodeIDs = viewModel.visibleNodeIDs
-            let layout = TaxonomyTreeLayout.make(
+            let layout = TaxonomyConstellationLayout.make(
                 graph: viewModel.graph,
                 visibleNodeIDs: visibleNodeIDs,
+                focusedNodeID: viewModel.focusedNodeID,
                 minimumSize: proxy.size
             )
             let selectedNode = viewModel.selectedNode
@@ -51,10 +52,19 @@ struct TaxonomyTreeCanvasView: View {
                     .ignoresSafeArea()
 
                 ZStack(alignment: .topLeading) {
-                    TaxonomyTreeEdgesCanvas(
+                    TaxonomyConstellationStarfield()
+                        .frame(width: layout.size.width, height: layout.size.height)
+
+                    TaxonomyConstellationClusterHalos(
                         graph: viewModel.graph,
                         positions: layout.positions,
-                        scale: viewModel.scale,
+                        visibleNodeIDs: visibleNodeIDs
+                    )
+                    .frame(width: layout.size.width, height: layout.size.height)
+
+                    TaxonomyConstellationEdgesCanvas(
+                        graph: viewModel.graph,
+                        positions: layout.positions,
                         spotlightIDs: spotlightIDs,
                         selectedNodeID: viewModel.selectedNodeID
                     )
@@ -64,11 +74,12 @@ struct TaxonomyTreeCanvasView: View {
                         guard visibleNodeIDs.contains(node.id), let position = layout.positions[node.id] else {
                             return false
                         }
-                        return visibleRect.insetBy(dx: -180, dy: -120).contains(position)
+                        return visibleRect.insetBy(dx: -140, dy: -140).contains(position)
                     }) { node in
-                        TaxonomyTreeNodeView(
+                        TaxonomyConstellationNodeView(
                             node: node,
                             scale: viewModel.scale,
+                            branchTint: TaxonomyConstellationPalette.tint(for: node),
                             isSelected: selectedNode?.id == node.id,
                             isSpotlighted: spotlightIDs.isEmpty || spotlightIDs.contains(node.id),
                             isFocused: viewModel.focusedNodeID == node.id,
@@ -145,7 +156,6 @@ struct TaxonomyTreeCanvasView: View {
                         onFocus: {
                             withAnimation(.snappy(duration: 0.22)) {
                                 viewModel.focus(on: selectedNode.id)
-                                viewModel.center(nodeID: selectedNode.id, positions: layout.positions, viewportSize: proxy.size)
                             }
                         },
                         onClearFocus: {
@@ -164,7 +174,15 @@ struct TaxonomyTreeCanvasView: View {
                 viewModel.positionInitialViewportIfNeeded(positions: layout.positions, viewportSize: proxy.size)
             }
             .onChange(of: layout.positions) { _, positions in
-                viewModel.positionInitialViewportIfNeeded(positions: positions, viewportSize: proxy.size)
+                if let focusedNodeID = viewModel.focusedNodeID {
+                    viewModel.center(nodeID: focusedNodeID, positions: positions, viewportSize: proxy.size)
+                } else {
+                    viewModel.positionInitialViewportIfNeeded(positions: positions, viewportSize: proxy.size)
+                }
+            }
+            .onChange(of: viewModel.focusedNodeID) { _, focusedNodeID in
+                guard let focusedNodeID else { return }
+                viewModel.center(nodeID: focusedNodeID, positions: layout.positions, viewportSize: proxy.size)
             }
             .onChange(of: proxy.size) { _, viewportSize in
                 viewModel.positionInitialViewportIfNeeded(positions: layout.positions, viewportSize: viewportSize)
@@ -190,7 +208,7 @@ struct TaxonomyTreeCanvasView: View {
     private var loadingState: some View {
         VStack(spacing: 12) {
             ProgressView()
-            Text("Building taxonomy")
+            Text("Mapping constellation")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
@@ -203,13 +221,13 @@ struct TaxonomyTreeCanvasView: View {
             ContentUnavailableView(
                 "No dictionary taxonomy yet",
                 systemImage: "point.3.connected.trianglepath.dotted",
-                description: Text("The public species dictionary tree will appear here as species are added.")
+                description: Text("The public taxonomy constellation will appear here as species are added.")
             )
         case .myScans:
             ContentUnavailableView(
                 "No scanned taxonomy yet",
                 systemImage: "point.3.connected.trianglepath.dotted",
-                description: Text("The tree appears after your biological scans are matched to dictionary species.")
+                description: Text("The constellation appears after your biological scans are matched to dictionary species.")
             )
         }
     }
@@ -245,10 +263,10 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     @Published var focusedNodeID: String?
     @Published var offset: CGSize = .zero
     @Published var dragOffset: CGSize = .zero
-    @Published var scale: CGFloat = 0.78
-    @Published var baseScale: CGFloat = 0.78
+    @Published var scale: CGFloat = 0.82
+    @Published var baseScale: CGFloat = 0.82
 
-    private let minScale: CGFloat = 0.28
+    private let minScale: CGFloat = 0.56
     private let maxScale: CGFloat = 2.25
     private let topRootViewportY: CGFloat = 96
     private var magnifyStartScale: CGFloat?
@@ -272,6 +290,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         guard let selectedNodeID else { return [] }
         var ids = graph.connectedIDs(for: selectedNodeID)
         ids.formUnion(graph.ancestorIDs(of: selectedNodeID))
+        ids.formUnion(graph.descendantIDs(of: selectedNodeID))
         return ids
     }
 
@@ -390,6 +409,8 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 
     func clearFocus() {
         focusedNodeID = nil
+        selectedNodeID = nil
+        hasPositionedInitialViewport = false
         HapticManager.shared.triggerSelectionPulse()
     }
 
@@ -397,7 +418,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         selectedNodeID = nil
         focusedNodeID = nil
         dragOffset = .zero
-        scale = 0.78
+        scale = 0.82
         baseScale = scale
         if let positions, let viewportSize, centerTopRoot(positions: positions, viewportSize: viewportSize) {
             hasPositionedInitialViewport = true
@@ -511,60 +532,125 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     }
 }
 
-private struct TaxonomyTreeEdgesCanvas: View {
+private struct TaxonomyConstellationStarfield: View {
+    var body: some View {
+        Canvas { context, size in
+            for index in 0..<180 {
+                let xFraction = CGFloat((index * 89 + 17) % 997) / 997
+                let yFraction = CGFloat((index * 149 + 31) % 991) / 991
+                let diameter = CGFloat(1 + (index % 3)) * 0.72
+                let rect = CGRect(
+                    x: xFraction * size.width,
+                    y: yFraction * size.height,
+                    width: diameter,
+                    height: diameter
+                )
+                context.fill(
+                    Path(ellipseIn: rect),
+                    with: .color(Color.secondary.opacity(index.isMultiple(of: 5) ? 0.16 : 0.08))
+                )
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct TaxonomyConstellationClusterHalos: View {
     let graph: TaxonomyTreeGraph
     let positions: [String: CGPoint]
-    let scale: CGFloat
+    let visibleNodeIDs: Set<String>
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(visibleRoots) { root in
+                if let position = positions[root.id] {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    TaxonomyConstellationPalette.tint(for: root).opacity(0.13),
+                                    TaxonomyConstellationPalette.tint(for: root).opacity(0.035),
+                                    .clear
+                                ],
+                                center: .center,
+                                startRadius: 12,
+                                endRadius: 170
+                            )
+                        )
+                        .frame(width: 340, height: 340)
+                        .position(position)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var visibleRoots: [TaxonomyTreeNode] {
+        graph.rootNodeIDs.compactMap { rootID in
+            guard visibleNodeIDs.contains(rootID) else { return nil }
+            return graph.node(id: rootID)
+        }
+    }
+}
+
+private struct TaxonomyConstellationEdgesCanvas: View {
+    let graph: TaxonomyTreeGraph
+    let positions: [String: CGPoint]
     let spotlightIDs: Set<String>
     let selectedNodeID: String?
 
     var body: some View {
         Canvas { context, _ in
             for edge in graph.edges {
-                guard let startNode = graph.node(id: edge.from),
-                      let endNode = graph.node(id: edge.to),
+                guard let endNode = graph.node(id: edge.to),
                       let startCenter = positions[edge.from],
                       let endCenter = positions[edge.to] else { continue }
                 let isSpotlighted = spotlightIDs.isEmpty ||
                     (spotlightIDs.contains(edge.from) && spotlightIDs.contains(edge.to))
                 let isSelectedEdge = selectedNodeID == edge.from || selectedNodeID == edge.to
-                let endpoints = edgeEndpoints(
-                    from: startCenter,
-                    fromSize: TaxonomyTreeNodeStyle.style(for: startNode, scale: scale).renderedSize,
-                    to: endCenter,
-                    toSize: TaxonomyTreeNodeStyle.style(for: endNode, scale: scale).renderedSize
-                )
                 var path = Path()
-                path.move(to: endpoints.start)
-                let midpointY = (endpoints.start.y + endpoints.end.y) / 2
-                path.addCurve(
-                    to: endpoints.end,
-                    control1: CGPoint(x: endpoints.start.x, y: midpointY),
-                    control2: CGPoint(x: endpoints.end.x, y: midpointY)
-                )
+                path.move(to: startCenter)
+                path.addLine(to: endCenter)
+                let tint = TaxonomyConstellationPalette.tint(for: endNode)
+                let lineageWeight = min(2.4, 0.72 + CGFloat(log10(Double(max(1, endNode.speciesCount)))) * 0.58)
+                if isSelectedEdge {
+                    context.stroke(
+                        path,
+                        with: .color(tint.opacity(0.14)),
+                        style: StrokeStyle(lineWidth: lineageWeight + 6, lineCap: .round)
+                    )
+                }
                 context.stroke(
                     path,
-                    with: .color(isSpotlighted ? Color.accentColor.opacity(isSelectedEdge ? 0.72 : 0.42) : Color.secondary.opacity(0.12)),
-                    style: StrokeStyle(lineWidth: isSpotlighted ? 1.8 : 0.9, lineCap: .round, lineJoin: .round)
+                    with: .color(isSpotlighted ? tint.opacity(isSelectedEdge ? 0.82 : 0.38) : Color.secondary.opacity(0.09)),
+                    style: StrokeStyle(
+                        lineWidth: isSpotlighted ? lineageWeight : 0.72,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
                 )
             }
         }
         .drawingGroup()
+        .allowsHitTesting(false)
     }
+}
 
-    private func edgeEndpoints(
-        from start: CGPoint,
-        fromSize startSize: CGSize,
-        to end: CGPoint,
-        toSize endSize: CGSize
-    ) -> (start: CGPoint, end: CGPoint) {
-        let startsAbove = end.y >= start.y
-        let startY = start.y + (startsAbove ? startSize.height / 2 : -startSize.height / 2)
-        let endY = end.y + (startsAbove ? -endSize.height / 2 : endSize.height / 2)
-        return (
-            CGPoint(x: start.x, y: startY),
-            CGPoint(x: end.x, y: endY)
-        )
+private enum TaxonomyConstellationPalette {
+    static func tint(for node: TaxonomyTreeNode) -> Color {
+        let kingdom = (node.lineage?.kingdom ?? (node.rank == .kingdom ? node.title : ""))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        switch kingdom {
+        case "animalia": return Color.blue
+        case "plantae": return Color.green
+        case "fungi": return Color.purple
+        case "chromista": return Color.teal
+        case "bacteria": return Color.cyan
+        case "protozoa": return Color.indigo
+        case "amoebozoa": return Color.pink
+        default: return Color.accentColor
+        }
     }
 }
 
@@ -642,7 +728,11 @@ private struct TaxonomyTreeFloatingControls: View {
         VStack(spacing: 10) {
             controlButton(systemImage: "plus.magnifyingglass", action: onZoomIn, label: "Zoom in")
             controlButton(systemImage: "minus.magnifyingglass", action: onZoomOut, label: "Zoom out")
-            controlButton(systemImage: "scope", action: onReset, label: canClearFocus ? "Locate tree origin" : "Recenter tree")
+            controlButton(
+                systemImage: "scope",
+                action: onReset,
+                label: canClearFocus ? "Return to constellation overview" : "Recenter constellation"
+            )
         }
     }
 
@@ -673,84 +763,76 @@ private struct TaxonomyTreeFloatingControls: View {
     }
 }
 
-private struct TaxonomyTreeNodeView: View {
+private struct TaxonomyConstellationNodeView: View {
     let node: TaxonomyTreeNode
     let scale: CGFloat
+    let branchTint: Color
     let isSelected: Bool
     let isSpotlighted: Bool
     let isFocused: Bool
     let action: () -> Void
 
-    private var style: TaxonomyTreeNodeStyle {
-        TaxonomyTreeNodeStyle.style(for: node, scale: scale)
+    private var style: TaxonomyConstellationNodeStyle {
+        TaxonomyConstellationNodeStyle.style(for: node, scale: scale)
     }
 
     var body: some View {
         Button(action: action) {
-            content
-                .frame(width: style.size.width, height: style.size.height)
-                .padding(.horizontal, style.horizontalPadding)
-                .opacity(isSpotlighted ? 1 : 0.36)
-                .background(background)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(borderColor, lineWidth: isSelected || isFocused ? 2 : 1)
-                )
+            VStack(spacing: 6) {
+                nodeMark
+
+                Text(node.title)
+                    .font(titleFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(node.isSpecies ? 2 : 1)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.72)
+
+                if style.showsMetadata || isSelected || isFocused {
+                    Text(metadataText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .italic(node.isSpecies)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+            }
+            .frame(width: style.labelWidth)
+            .contentShape(Rectangle())
+            .opacity(isSpotlighted ? 1 : 0.24)
+            .scaleEffect(isSelected || isFocused ? 1.06 : 1)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(node.isSpecies ? "Opens selection details" : "Reveals this branch")
     }
 
     @ViewBuilder
-    private var content: some View {
-        switch style {
-        case .compact:
-            VStack(spacing: 3) {
-                Text(node.title)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Text("\(node.speciesCount) species")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        case .readable:
-            VStack(spacing: 4) {
-                Text(node.title)
-                    .font(node.isSpecies ? .caption.weight(.semibold) : .caption2.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.74)
-
-                Text(node.isSpecies ? (node.subtitle ?? "Species") : "\(node.rank.title) - \(node.speciesCount)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.74)
-            }
-        case .species:
-            HStack(spacing: 8) {
+    private var nodeMark: some View {
+        ZStack {
+            if node.isSpecies && style.showsSpeciesImage {
                 thumbnail
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(node.title)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.72)
-                    if let subtitle = node.subtitle {
-                        Text(subtitle)
-                            .font(.caption2)
-                            .italic()
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
-                }
+            } else {
+                TaxonomyConstellationGlyph(
+                    node: node,
+                    tint: branchTint,
+                    diameter: style.diameter
+                )
+            }
+
+            if isSelected || isFocused {
+                Circle()
+                    .stroke(branchTint.opacity(0.2), lineWidth: 8)
+                    .padding(-7)
+                Circle()
+                    .strokeBorder(branchTint, lineWidth: isFocused ? 2.6 : 2)
             }
         }
+        .frame(width: style.diameter, height: style.diameter)
+        .shadow(
+            color: branchTint.opacity(isSelected || isFocused ? 0.34 : 0.12),
+            radius: isSelected || isFocused ? 13 : 5
+        )
     }
 
     private var thumbnail: some View {
@@ -768,47 +850,36 @@ private struct TaxonomyTreeNodeView: View {
                 placeholderThumbnail
             }
         }
-        .frame(width: 42, height: 42)
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .frame(width: style.diameter, height: style.diameter)
+        .clipShape(Circle())
+        .overlay {
+            Circle().strokeBorder(branchTint.opacity(0.5), lineWidth: 1.2)
+        }
     }
 
     private var placeholderThumbnail: some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(rankTint.opacity(0.14))
+        Circle()
+            .fill(branchTint.opacity(0.16))
             .overlay {
-                Image(systemName: node.isSpecies ? "leaf" : "point.3.connected.trianglepath.dotted")
+                Image(systemName: "leaf.fill")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(rankTint)
+                    .foregroundStyle(branchTint)
             }
     }
 
-    private var background: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(Color(uiColor: node.isSpecies ? .secondarySystemGroupedBackground : .systemBackground))
-            .overlay(alignment: .leading) {
-                Rectangle()
-                    .fill(rankTint.opacity(0.75))
-                    .frame(width: 4)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .shadow(color: .black.opacity(isSelected || isFocused ? 0.16 : 0.06), radius: isSelected || isFocused ? 8 : 3, x: 0, y: 2)
-    }
-
-    private var borderColor: Color {
-        if isSelected || isFocused { return .accentColor }
-        return rankTint.opacity(isSpotlighted ? 0.34 : 0.14)
-    }
-
-    private var rankTint: Color {
+    private var titleFont: Font {
         switch node.rank {
-        case .kingdom: Color.green
-        case .phylum: Color.teal
-        case .className: Color.blue
-        case .order: Color.indigo
-        case .family: Color.orange
-        case .genus: Color.pink
-        case .species: Color.accentColor
+        case .kingdom: .caption.weight(.bold)
+        case .phylum, .className: .caption2.weight(.bold)
+        case .order, .family, .genus, .species: .caption2.weight(.semibold)
         }
+    }
+
+    private var metadataText: String {
+        if node.isSpecies {
+            return node.subtitle ?? "Species"
+        }
+        return "\(node.rank.title) · \(node.speciesCount)"
     }
 
     private var accessibilityLabel: String {
@@ -819,39 +890,115 @@ private struct TaxonomyTreeNodeView: View {
     }
 }
 
-private enum TaxonomyTreeNodeStyle {
-    case compact
-    case readable
-    case species
+private struct TaxonomyConstellationGlyph: View {
+    let node: TaxonomyTreeNode
+    let tint: Color
+    let diameter: CGFloat
 
-    var size: CGSize {
-        switch self {
-        case .compact: CGSize(width: 106, height: 42)
-        case .readable: CGSize(width: 142, height: 56)
-        case .species: CGSize(width: 190, height: 68)
+    var body: some View {
+        Canvas { context, size in
+            let bounds = CGRect(origin: .zero, size: size)
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let radius = min(size.width, size.height) / 2
+            context.fill(Path(ellipseIn: bounds), with: .color(tint.opacity(0.16)))
+            context.stroke(
+                Path(ellipseIn: bounds.insetBy(dx: 1, dy: 1)),
+                with: .color(tint.opacity(0.68)),
+                lineWidth: 1.35
+            )
+
+            let ringInset = max(7, radius * 0.25)
+            context.stroke(
+                Path(ellipseIn: bounds.insetBy(dx: ringInset, dy: ringInset)),
+                with: .color(tint.opacity(0.22)),
+                lineWidth: 0.9
+            )
+
+            let rayCount = max(3, min(8, node.childCount))
+            let phase = phaseAngle
+            for index in 0..<rayCount {
+                let angle = phase + CGFloat(index) * 2 * CGFloat.pi / CGFloat(rayCount)
+                let innerRadius = radius * 0.22
+                let outerRadius = radius * 0.63
+                var path = Path()
+                path.move(to: CGPoint(
+                    x: center.x + cos(angle) * innerRadius,
+                    y: center.y + sin(angle) * innerRadius
+                ))
+                path.addLine(to: CGPoint(
+                    x: center.x + cos(angle) * outerRadius,
+                    y: center.y + sin(angle) * outerRadius
+                ))
+                context.stroke(path, with: .color(tint.opacity(0.32)), lineWidth: 0.85)
+            }
+
+            let dotCount = max(1, min(6, node.childCount))
+            for index in 0..<dotCount {
+                let angle = phase + CGFloat(index) * 2 * CGFloat.pi / CGFloat(dotCount)
+                let dotRadius = radius * 0.64
+                let dotCenter = CGPoint(
+                    x: center.x + cos(angle) * dotRadius,
+                    y: center.y + sin(angle) * dotRadius
+                )
+                let dotDiameter = max(3.5, diameter * 0.075)
+                context.fill(
+                    Path(ellipseIn: CGRect(
+                        x: dotCenter.x - dotDiameter / 2,
+                        y: dotCenter.y - dotDiameter / 2,
+                        width: dotDiameter,
+                        height: dotDiameter
+                    )),
+                    with: .color(tint.opacity(0.9))
+                )
+            }
+
+            let coreDiameter = radius * 0.34
+            context.fill(
+                Path(ellipseIn: CGRect(
+                    x: center.x - coreDiameter / 2,
+                    y: center.y - coreDiameter / 2,
+                    width: coreDiameter,
+                    height: coreDiameter
+                )),
+                with: .color(tint.opacity(0.9))
+            )
         }
+        .frame(width: diameter, height: diameter)
+        .accessibilityHidden(true)
     }
 
-    var horizontalPadding: CGFloat {
-        switch self {
-        case .compact: 6
-        case .readable: 8
-        case .species: 8
+    private var phaseAngle: CGFloat {
+        let scalarSum = node.id.unicodeScalars.reduce(0) { partialResult, scalar in
+            partialResult + Int(scalar.value)
         }
+        return CGFloat(scalarSum % 360) * CGFloat.pi / 180
     }
+}
 
-    var renderedSize: CGSize {
-        CGSize(width: size.width + horizontalPadding * 2, height: size.height)
-    }
+private struct TaxonomyConstellationNodeStyle {
+    let diameter: CGFloat
+    let labelWidth: CGFloat
+    let showsMetadata: Bool
+    let showsSpeciesImage: Bool
 
-    static func style(for node: TaxonomyTreeNode, scale: CGFloat) -> TaxonomyTreeNodeStyle {
-        if node.isSpecies && scale >= 1.05 {
-            return .species
+    static func style(for node: TaxonomyTreeNode, scale: CGFloat) -> TaxonomyConstellationNodeStyle {
+        let baseDiameter: CGFloat
+        switch node.rank {
+        case .kingdom: baseDiameter = 78
+        case .phylum: baseDiameter = 70
+        case .className: baseDiameter = 64
+        case .order: baseDiameter = 58
+        case .family: baseDiameter = 54
+        case .genus: baseDiameter = 50
+        case .species: baseDiameter = scale >= 2 ? 74 : 52
         }
-        if scale < 0.72 {
-            return .compact
-        }
-        return .readable
+
+        return TaxonomyConstellationNodeStyle(
+            diameter: baseDiameter,
+            labelWidth: node.isSpecies ? 124 : max(104, baseDiameter + 34),
+            showsMetadata: scale >= 0.82,
+            showsSpeciesImage: node.isSpecies && scale >= 2
+        )
     }
 }
 
@@ -921,7 +1068,7 @@ private struct TaxonomyTreeSelectionDrawer: View {
                     .buttonStyle(.borderedProminent)
                 } else {
                     Button(action: onFocus) {
-                        Label(isFocused ? "Focused" : "Focus", systemImage: isFocused ? "scope" : "scope")
+                        Label(isFocused ? "Exploring" : "Explore branch", systemImage: "scope")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -933,7 +1080,7 @@ private struct TaxonomyTreeSelectionDrawer: View {
                         .frame(width: 42, height: 34)
                 }
                 .buttonStyle(.bordered)
-                .accessibilityLabel(isFocused ? "Clear focus" : "Focus branch")
+                .accessibilityLabel(isFocused ? "Return to overview" : "Explore branch")
             }
         }
         .padding(.horizontal, 16)

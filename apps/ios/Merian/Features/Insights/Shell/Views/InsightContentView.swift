@@ -12,7 +12,7 @@ struct InsightContentView: View {
     /// the current struct value — unaffected by the `@State` initialization timing issue
     /// where `.sheet(isPresented:)` pre-evaluates the body with `scanToManage = nil`.
     var queuedScan: QueuedScanContext?
-    var onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)?
+    var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
 
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
@@ -76,7 +76,7 @@ struct InsightContentView: View {
                 InsightContentRouterView(
                     viewModel: viewModel,
                     queuedScan: presentationQueuedScan,
-                    onOpenCaptureGoal: onOpenCaptureGoal
+                    onOpenFieldTripOverview: onOpenFieldTripOverview
                 )
                     .padding(.top, overlapRadius)
                     .frame(maxWidth: .infinity)

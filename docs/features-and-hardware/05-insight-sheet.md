@@ -37,7 +37,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `SpeciesObservationChartsCard` | Reusable Swift Charts card rendered after Habitat & Distribution for known biological species. `SpeciesObservationStatsViewModel` coordinates loading, `SpeciesObservationStatsDatabaseActor` fetches local SwiftData projections off the main actor, and `SpeciesObservationStatsReducer` computes on-device aggregates before combining them with cached global public iNaturalist stats from `/species-observation-stats`. Tabs are Seasonality, History, and Life Stage; per-scan sex is shown in `OverviewCard` instead. |
 | `ToxicityBanner` | Glassmorphic hazard warning banner shown when `insightData.hazardType != "none"`. Implements a premium liquid-glass design using `.regularMaterial` and dynamic tinting (`.red` for severe threats like venomous/poisonous, `.yellow` for allergens/irritants), explicitly constrained using `maxWidth: .infinity` full-bleed bounds. Displays hazard-specific copy. |
 | `ConservationBanner` | IUCN Red List status banner |
-| `FieldTripProgressCard` | Persistent server-backed card for a saved biological scan's standard-outing and Event credits. It reuses Insight card chrome, objective artwork, a green completion badge, and `GoalProgressRing`; every contribution remains visible as its own row. |
+| `FieldTripProgressCard` | Persistent server-backed **Field trips** card for a saved biological scan's standard-outing and Event credits. It uses the shared `InsightCardHeader`, an uppercase completion eyebrow, a headline-sized goal, an experience-only subtitle, enlarged objective artwork, a green completion badge, and a prominent `GoalProgressRing`; every contribution remains visible as its own row. A row pushes the owning experience's Goals overview without carrying Capture's checklist focus, and native Back returns to the Insight. |
 | `MilestoneToastBanner` / `MilestoneToastPresenter` | Shared bottom in-app milestone notification for Field trip progress, achievement unlocks, and `New to Naturebook`. `ScanMilestoneCoordinator`, not the Insight lifecycle, batches scan milestones after remote progress finishes. |
 
 ---
@@ -61,18 +61,25 @@ and does not push an empty Insight route.
 ## Persistent Field Trip Progress Card
 
 `InsightSheetViewModel` loads `field-trips` action `scan_contributions` whenever
-the persistent scan ID changes. The read is attempted only for authenticated,
-saved biological Insights while Field trips are enabled. Queued scans,
+the persistent scan ID or authenticated account identity changes. Including
+authentication state and account ID in the SwiftUI task key makes a cold-launch
+presentation retry automatically when Supabase finishes restoring its cached
+session, and clears/reloads correctly on sign-out or account switching. The read
+is attempted only for authenticated, saved biological Insights while Field
+trips are enabled. Queued scans,
 non-biological results, missing IDs, unauthenticated sessions, empty responses,
 and network failures render no placeholder or error. Event rows are filtered
 when `FieldTripEventsAvailability` is disabled.
 
 The card is rendered after toxicity and identification-review content and
-before Field notes and educational cards. It shows all returned contributions
-without collapsing or selecting a primary experience. Every row uses
-`{prompt} goal complete`, the experience title and credited level, the credited
-level's current count, exact objective artwork when available, and a green
-completion badge. Its VoiceOver label follows the form
+before Field notes and educational cards. Its visible header is **Field trips**.
+It shows all returned contributions without collapsing or selecting a primary
+experience. Rows have no separators or disclosure chevrons: each uses an
+uppercase **GOAL COMPLETE** eyebrow above the standalone goal name, followed by
+the experience title and credited level. Enlarged exact objective artwork and a
+green completion badge lead the row; a prominent trailing ring shows the
+credited level's current count. The entire row remains the navigation target.
+Its VoiceOver label follows the form
 `Butterfly or moth goal complete in Park Pollinators, 3 of 4`. The card adds no
 haptic, confetti, or milestone notification; the existing transient milestone
 queue remains the only immediate celebration surface.

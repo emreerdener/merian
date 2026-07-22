@@ -27,6 +27,10 @@ Deno.test("buildScanIngestionIntent stores staged media intent without raw inlin
       weatherCondition: "Clear",
       currentMonth: 7,
       mimeType: "image/webp",
+      preferred_goal: {
+        user_field_trip_id: "00000000-0000-4000-8000-000000000001",
+        item_id: "00000000-0000-4000-8000-000000000002",
+      },
     },
     mediaCounts: {
       image_count: 1,
@@ -67,6 +71,10 @@ Deno.test("buildScanIngestionIntent stores staged media intent without raw inlin
     }],
     audioMediaItems: [{ kind: "video_audio", clipIndex: 0 }],
     mimeType: "image/webp",
+  });
+  assertEquals(intent.payload.preferredGoal, {
+    userFieldTripId: "00000000-0000-4000-8000-000000000001",
+    itemId: "00000000-0000-4000-8000-000000000002",
   });
 });
 

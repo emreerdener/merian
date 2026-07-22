@@ -1902,6 +1902,12 @@ coordinates to the client contract.
   checklist item IDs. It contains no media, coordinates, notes, or public
   evidence. RLS is enabled, all access is revoked from `PUBLIC`, `anon`, and
   `authenticated`, and only `service_role` may read or mutate it.
+- `public.field_trip_scan_progress_receipts`:
+  Private scan-keyed idempotency receipt for the last processed identification
+  revision. It retains the validated preference IDs and the complete atomic
+  progress/achievement result so post-ingestion retries can recover the original
+  unlock payload after client termination. RLS is enabled and only
+  `service_role` may access it.
 - `public.field_trip_publications`:
   Published Field trip snapshot headers with user-editable title, optional
   description, optional AI summary, counts, author/template linkage, and
@@ -2023,6 +2029,14 @@ coordinates to the client contract.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
   Compatibility wrapper that calls V2 without a preference, preserving older
   Edge/client behavior.
+- `public.apply_field_trip_scan_progress_atomic(self_id UUID, target_scan_id UUID, preferred_user_field_trip_id UUID, preferred_item_id UUID)`:
+  Transactional Edge-owned entry point. It locks the caller-owned scan, returns
+  a matching scan-revision receipt when available, otherwise applies standard
+  outing and joined Event progress, persists the validated preference,
+  evaluates the first Field trip achievement, and writes the receipt in the
+  same transaction. Any error rolls back every component. Scan-ingestion and
+  identification-correction triggers call this function; the Edge progress
+  action calls it again to retrieve the response for notifications.
 - `public.get_field_trip_scan_contributions(self_id UUID, target_scan_id UUID)`:
   Private service-role-only read model returning every standard outing/Event
   credit owned by one saved biological scan. Rows contain source and routing
@@ -2042,8 +2056,9 @@ coordinates to the client contract.
 - `public.publish_field_trip(self_id UUID, target_user_field_trip_id UUID, title TEXT, description TEXT, ai_summary TEXT)`:
   Publishes a completed trip into Field trip publication tables without writing
   `explore_posts`, map points, APNs, widgets, or normal Explore post
-  notifications. V3 followed-author publication activity is stored only in
-  `field_trip_activity_notifications`.
+  notifications. Publication item materialization uses the ID returned by the
+  publication upsert. V3 followed-author publication activity is stored only
+  in `field_trip_activity_notifications`.
 - `public.get_field_trip_publication_detail(self_id UUID, target_publication_id UUID)`:
   Returns a visible Field trip publication detail payload.
 - `public.get_field_trip_comments(self_id UUID, target_publication_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
@@ -2084,6 +2099,14 @@ coordinates to the client contract.
   comment-shaped client DTO.
 - `public.get_field_trip_challenge_badges(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
   Returns profile-visible completion badges for public profile modules.
+
+All public-schema `SECURITY DEFINER` functions whose names contain
+`field_trip` or `challenge` are Edge-owned. Execute is revoked from `PUBLIC`,
+`anon`, and `authenticated` and granted only to `service_role`; the Edge handler
+derives `self_id` from its verified session rather than accepting client-owned
+identity. Trigger functions use the same least-privilege ACL and are invoked by
+PostgreSQL, not direct RPC callers.
+
 - `public.get_explore_comments(self_id UUID, target_post_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
   Returns visible public comments for one Explore post. Rows are ordered on
   `(created_at ASC, comment_id ASC)`, filter soft-deleted, moderated, hidden, or
@@ -2712,10 +2735,14 @@ scan submitted from an eligible live Capture goal selection.
 - `userFieldTripId`: String identifying the selected standard outing.
 - `itemId`: String identifying the selected current checklist goal.
 
-Foreground and background completion fetch this row by scan ID and pass it to
-Field trip progress after remote scan persistence. Queue deletion, successful
-handoff, explicit cancellation, and orphan repair delete the companion. It is
-not related to `OfflineQueuedScan` through a SwiftData relationship, does not
+Foreground and background completion fetch this row by scan ID and send it both
+with scan ingestion and the post-persistence Field trip acknowledgement call.
+Successful queue finalization deliberately preserves the companion: after the
+queue row is gone it becomes a small durable progress outbox. Online scheduler
+runs replay those orphaned hints after relaunch, and only a successful/terminal
+server progress resolution removes the row. Explicit user cancellation and
+orphan repair for scans that will never exist may still delete it. It is not
+related to `OfflineQueuedScan` through a SwiftData relationship, does not
 contain media or inference input, and is not a cache for Insight contribution
 cards.
 

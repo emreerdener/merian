@@ -352,6 +352,19 @@ extension OfflineQueueManager {
         }
     }
 
+    private func buildPreferredGoalHint(scanId: String) -> FieldTripPreferredGoal? {
+        guard let context = modelContext else { return nil }
+        var descriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+            predicate: #Predicate { $0.scanId == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let hint = try? context.fetch(descriptor).first else { return nil }
+        return FieldTripPreferredGoal(
+            userFieldTripId: hint.userFieldTripId,
+            itemId: hint.itemId
+        )
+    }
+
     // MARK: - Scan Data Extraction
 
     /// Maps a queued scan record to a Sendable `ExtractedScanData` snapshot.
@@ -608,7 +621,8 @@ extension OfflineQueueManager {
             audioMediaItems: extracted.audioMediaItems,
             observationContextsJSON: extracted.observationContextsJSON ?? [],
             telemetry: finalTelemetry,
-            clientScanId: scanId
+            clientScanId: scanId,
+            preferredGoal: extracted.preferredGoal
         )
         MerianLog.data.debug(
             "dispatchInferenceDownloadTask: built request scanId=\(scanId, privacy: .public) imageKeys=\(stagedKeys.imageR2ObjectKeys.count, privacy: .public) audioKeys=\(stagedKeys.audioR2ObjectKeys.count, privacy: .public) videoKeys=\(stagedKeys.videoR2ObjectKeys.count, privacy: .public)"
@@ -706,7 +720,8 @@ extension OfflineQueueManager {
                     + (extracted.videoFilePaths ?? [])
             didDeleteQueuedScan = await OfflineQueueManager.shared.deleteQueuedScan(
                 scanId: scanId,
-                explicitlyAdoptedMediaPaths: adoptedMediaPaths
+                explicitlyAdoptedMediaPaths: adoptedMediaPaths,
+                preservePreferredGoalHint: true
             )
         } else {
             didDeleteQueuedScan = false
@@ -1046,7 +1061,18 @@ extension OfflineQueueManager {
             return false
         }
 
-        let didDeleteQueue = await deleteQueuedScan(scanId: scanId)
+        let didDeleteQueue = await deleteQueuedScan(
+            scanId: scanId,
+            preservePreferredGoalHint: true
+        )
+        if didDeleteQueue {
+            await ScanMilestoneCoordinator.shared.processCompletedScan(
+                scanId: scanId,
+                speciesData: nil,
+                modelContainer: modelContext?.container,
+                preferredGoal: buildPreferredGoalHint(scanId: scanId)
+            )
+        }
         markScanJobComplete(scanId: scanId)
         updateUnsyncedItemCount()
         ScanLibraryEvents.postLibraryDidUpdate()

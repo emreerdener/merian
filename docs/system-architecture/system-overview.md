@@ -78,10 +78,17 @@ A structured schema built on native SwiftData migrations:
 - *Grid Rendering Rule*: Every shutter press generates a distinct tile in the `Scans` view, matching the iOS Photos app pattern and preventing cloud duplication. Gamification telemetry hashes against `scientificName` to prevent duplicate local unique-species progress for the same biological subject, while global "New to Naturebook" milestones use the technically stable `is_new_to_merian_dictionary` identify response flag and are suppressed for non-biological or processed-material results.
 - *Scan Milestone Boundary*: `ScanMilestoneCoordinator` is the shared
   foreground/background completion boundary keyed by the final Postgres scan
-  UUID. It waits for server persistence and Field trip progress, then batches
-  standard outings, Events-visible Seasonal Challenges, achievements, and
+  UUID. Server scan ingestion applies Field trip progress transactionally; the
+  coordinator waits for persistence, retrieves the durable progress receipt,
+  then batches standard outings, Events-visible Seasonal Challenges, achievements, and
   **New to Naturebook** in that order. This prevents the live inference task and
   background URLSession completion from presenting duplicate notifications.
+- *Durable Field Trip Progress*: the ingestion intent retains the optional live
+  Capture preference, and a scan insert/correction trigger atomically applies
+  standard outings, joined Events, preference state, and first-outing
+  achievement state. A private scan-revision receipt makes retries idempotent.
+  The local SwiftData hint remains an outbox until the server acknowledges the
+  result and is replayed after relaunch if queue cleanup finished first.
 - *Persistent Field Trip Attribution*: after progress settles, saved biological
   Insights query the private scan-contribution projection and render every
   credited outing/Event. The read model contains labels, counts, artwork, and

@@ -119,6 +119,41 @@ struct OfflineQueuedScanDeletionTests {
         // Assert - Disk removal
         #expect(FileManager.default.fileExists(atPath: mockImageURL.path) == false, "Local image artifact must be purged from disk")
     }
+
+    @Test func successfulFinalizationKeepsGoalHintUntilProgressAcknowledgement() async throws {
+        let context = try createIsolatedContext()
+        let scanId = "field-trip-progress-outbox"
+        context.insert(OfflineQueuedScan(id: scanId))
+        context.insert(ActiveOfflineQueuedScanGoalHint(
+            scanId: scanId,
+            userFieldTripId: "durable-trip",
+            itemId: "durable-item"
+        ))
+        try context.save()
+
+        let queueManager = OfflineQueueManager.shared
+        let originalContext = queueManager.modelContext
+        defer { queueManager.modelContext = originalContext }
+        queueManager.modelContext = context
+
+        let deleted = await queueManager.deleteQueuedScan(
+            scanId: scanId,
+            preservePreferredGoalHint: true
+        )
+        #expect(deleted)
+
+        let queueDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let hintDescriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+            predicate: #Predicate { $0.scanId == scanId }
+        )
+        #expect(try context.fetch(queueDescriptor).isEmpty)
+        #expect(try context.fetch(hintDescriptor).count == 1)
+
+        queueManager.acknowledgeFieldTripProgress(scanId: scanId)
+        #expect(try context.fetch(hintDescriptor).isEmpty)
+    }
     
     @Test func testDeleteQueuedScanCancelsURLSessionTasks() async throws {
         // Arrange

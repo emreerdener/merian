@@ -13,6 +13,7 @@ final class OfflineJobScheduler {
 
         manager.syncPendingScans()
         manager.replayInferenceForUploadedScans()
+        await manager.replayPendingFieldTripProgress()
         await manager.syncPendingDeletions()
         manager.syncCollectionsIfPending()
     }

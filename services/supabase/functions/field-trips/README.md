@@ -21,10 +21,11 @@ The backing SQL lives in this ordered migration chain:
 14. `20260719160750_field_trip_lifecycle_controls.sql`
 15. `20260720014446_update_backyard_safari_copy.sql`
 16. `20260722025411_persistent_field_trip_scan_contributions.sql`
+17. `20260722064704_harden_atomic_field_trip_progress.sql`
 
-Deploy the migrations before deploying this function. The persistent
-contribution migration and the function must be deployed together before the
-iOS client begins sending preferred-goal hints or requesting contribution rows.
+Deploy the migrations, updated scan-ingestion functions, and then this function
+before the iOS client begins sending preferred-goal hints or requesting
+contribution rows.
 
 ## Client Rollout State (2026-07-22)
 
@@ -84,6 +85,9 @@ iOS client begins sending preferred-goal hints or requesting contribution rows.
 - Scan goal preferences and scan contribution lookup are private,
   `service_role`-only contracts. Contribution rows contain typed routing and
   checklist progress, never media, notes, or location evidence.
+- The progress receipt is private and `service_role`-only. Every public-schema
+  Field trip/Event `SECURITY DEFINER` function is revoked from `PUBLIC`, `anon`,
+  and `authenticated`; no direct client RPC is part of this API.
 
 ## Actions
 
@@ -135,7 +139,11 @@ contains the destination ID.
 The preference is optional and is honored only when it is owned, active at the
 scan timestamp, current, visible, and matching. A scan can advance multiple
 active experiences, but receives at most one credit per standard outing and one
-per joined Event.
+per joined Event. The Edge action invokes one atomic RPC for standard progress,
+Event progress, preference persistence, and first-outing achievement state. New
+scan ingestion may already have applied it transactionally; the unchanged scan
+revision then returns its stored receipt, preserving the original unlock result
+without a partial second mutation.
 
 ```json
 { "action": "scan_contributions", "scan_id": "uuid" }
@@ -360,7 +368,9 @@ cannot return its historical level again alongside a newly credited item.
 `preferred_goal` is an optional additive request field; legacy clients continue
 to omit it and receive deterministic fallback ranking. Clients should treat a
 progress update as newly credited only when `newly_completed_items` is
-nonempty; an idempotent reapplication returns no update. `removed_item_ids`
+nonempty. An unchanged reapplication returns the scan-revision receipt so a
+client that terminated after ingestion can recover the original notification;
+iOS owns acknowledgement and scan-ID milestone deduplication. `removed_item_ids`
 identifies prior unfinished credit invalidated by an identification correction.
 Completed outings and Events are immutable.
 
@@ -509,8 +519,10 @@ MerianNetworkClient.shared.createFieldTripComment(publicationId:body:parentComme
 MerianNetworkClient.shared.createFieldTripChallengeEntryComment(entryId:body:parentCommentId:)
 ```
 
-Scan-progress callers are best effort. A failed Field trip progress call must
-not fail scan persistence.
+Progress correctness is server-owned. Scan ingestion invokes the atomic
+mutation in the scan transaction; the later Edge call retrieves its receipt for
+feedback. If any progress component fails, the scan transaction rolls back and
+the ingestion retry remains authoritative.
 
 ## Deployment Order
 
@@ -530,28 +542,31 @@ not fail scan persistence.
 14. Apply `20260719160750_field_trip_lifecycle_controls.sql`.
 15. Apply `20260720014446_update_backyard_safari_copy.sql`.
 16. Apply `20260722025411_persistent_field_trip_scan_contributions.sql`.
-17. Deploy this function.
-18. Deploy `get-explore-author-profile` so profile responses include
+17. Apply `20260722064704_harden_atomic_field_trip_progress.sql`.
+18. Deploy the scan-ingestion functions.
+19. Deploy this function.
+20. Deploy `get-explore-author-profile` so profile responses include
     `field_trips`.
-19. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+21. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-20. Ship the iOS client.
+22. Ship the iOS client.
 
 ## Verification
 
 ```sh
-deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripActions.test.ts services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
+deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripActions.test.ts services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
 deno test services/supabase/functions/_tests/fieldTripActions.test.ts
 deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
+deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 supabase db lint --workdir services
 ```
 
-The capture-context, progress, and lifecycle database integration tests require
+The capture-context, progress, lifecycle, atomic, security, and publication database integration tests require
 a running local Supabase/Postgres stack. A reported skip because port `54322` is
 unavailable is not a successful database execution and must be covered before
 release or by the linked deployment validation path. The progress test
@@ -565,7 +580,7 @@ and confirm public/capture payloads still omit it.
 
 The lifecycle test covers saved stopped progress, Capture/profile exclusion,
 late approval, stopped-gap exclusion, repeated periods, Reset preservation of
-Seasonal Challenge data, the post-reset scan boundary, and automatic restart.
+Seasonal Challenge data, the post-reset scan boundary, and explicit restart.
 
 The contract also verifies that publication status stays detail-only, joins the
 requesting owner's active non-deleted publication, and preserves the

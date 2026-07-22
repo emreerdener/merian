@@ -197,6 +197,7 @@ Deno.serve((req: Request) =>
       timestamp,
       estimated_size_cm,
       client_scan_id,
+      preferred_goal,
       description,
       observation_context,
     } = body;
@@ -716,6 +717,7 @@ Deno.serve((req: Request) =>
         imageKeys: r2ObjectKeys ?? [],
         inlineImageCount: imageBase64s?.length ?? 0,
         description,
+        preferredGoal: preferred_goal,
         mimeType,
         telemetry: {
           timestamp,

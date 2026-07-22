@@ -677,8 +677,10 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
   inference-complete push notification fire immediately per completion. The
   final database scan ID, decoded `SpeciesData`, and model container then enter
   `ScanMilestoneCoordinator`, the same boundary used by foreground inference.
-  The coordinator deduplicates foreground/background races by final scan ID,
-  waits for remote persistence and the Field trip progress attempt, publishes
+  The server ingestion transaction has already attempted Field trip progress
+  before the scan becomes visible. The coordinator deduplicates
+  foreground/background races by final scan ID, waits for remote persistence,
+  retrieves the idempotent progress receipt through the Edge action, publishes
   progress refresh events, calculates newly eligible achievements without
   immediately presenting them, and atomically enqueues standard outing
   progress, Events-visible Seasonal Challenge progress, achievements, then
@@ -686,7 +688,9 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
   later milestones only after it finishes. Award calculation is per final scan
   rather than process-lifetime burst-debounced, because strict notification
   ordering and scan-level deduplication are now the contract. The
-  `UserDefaultsKeys.hasUnseenScan` flag is set to trigger the MainTabBar red
+  Retryable progress failures leave the SwiftData goal-hint outbox intact and
+  schedule bounded in-process retries; a later scheduler pass replays it after
+  termination. `UserDefaultsKeys.hasUnseenScan` is set to trigger the MainTabBar red
   dot, **unless** `suppressInferenceBanners` is `true` (the insight sheet is
   open and the user is watching the transition to results — setting the badge in
   that case would cause it to appear and immediately need clearing on sheet

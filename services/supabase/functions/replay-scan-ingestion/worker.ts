@@ -102,6 +102,21 @@ function telemetryPayload(
     : {};
 }
 
+function preferredGoalPayload(
+  value: Record<string, unknown>,
+): Record<string, string> | undefined {
+  const raw = value.preferredGoal;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const goal = raw as Record<string, unknown>;
+  const userFieldTripId = cleanString(goal.userFieldTripId);
+  const itemId = cleanString(goal.itemId);
+  if (!userFieldTripId || !itemId) return undefined;
+  return {
+    user_field_trip_id: userFieldTripId,
+    item_id: itemId,
+  };
+}
+
 function stripUndefined(
   value: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -148,6 +163,7 @@ export function buildReplayIdentifyPayload(
     depthScaleText: cleanString(telemetry.depthScaleText),
     zoomFactor: cleanNumber(telemetry.zoomFactor),
     estimated_size_cm: cleanNumber(telemetry.estimatedSizeCm),
+    preferred_goal: preferredGoalPayload(requestPayload),
   });
 }
 

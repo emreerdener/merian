@@ -155,6 +155,7 @@ Deno.serve((req: Request) =>
       audio_r2_key,
       audio_base64,
       client_scan_id,
+      preferred_goal,
       timestamp,
       gps_latitude,
       gps_longitude,
@@ -468,6 +469,7 @@ Deno.serve((req: Request) =>
         audioKeys: audio_base64 ? [] : [audio_r2_key!],
         inlineAudioCount: audio_base64 ? 1 : 0,
         audioMediaItems: [{ kind: "audio", sourceIndex: 0, clipIndex: 0 }],
+        preferredGoal: preferred_goal,
         telemetry: {
           timestamp,
           gpsLatitude: safeGpsLat,

@@ -155,7 +155,7 @@ Deno.test("stopped outings save progress and exclude scans captured during stopp
   );
 });
 
-Deno.test("reset preserves challenges, blocks historical scans, and allows a new automatic start", async () => {
+Deno.test("reset preserves challenges, blocks scans until an explicit restart", async () => {
   await withExploreDbTest(
     "fieldTripLifecycleDb.test",
     async (client: Client) => {
@@ -311,9 +311,44 @@ Deno.test("reset preserves challenges, blocks historical scans, and allows a new
         `,
         [fixture.tripId, scanIds[1]],
       );
-      const automaticStart = await applyProgress(client, userId, scanIds[1]);
+      const beforeExplicitStart = await applyProgress(
+        client,
+        userId,
+        scanIds[1],
+      );
+      assertEquals(
+        beforeExplicitStart.filter((row) =>
+          row.template_id === fixture.templateId
+        ),
+        [],
+      );
+
+      await client.queryArray(
+        `SELECT public.start_field_trip($1, $2)`,
+        [userId, fixture.templateId],
+      );
+      await client.queryArray(
+        `
+          UPDATE public.scans
+          SET timestamp = (
+            SELECT started_at + INTERVAL '1 minute'
+            FROM public.user_field_trip_active_periods
+            WHERE user_field_trip_id = $1
+              AND stopped_at IS NULL
+          )
+          WHERE id = $2
+        `,
+        [fixture.tripId, scanIds[1]],
+      );
+      const afterExplicitStart = await applyProgress(
+        client,
+        userId,
+        scanIds[1],
+      );
       assert(
-        automaticStart.some((row) => row.template_id === fixture.templateId),
+        afterExplicitStart.some((row) =>
+          row.template_id === fixture.templateId
+        ),
       );
 
       const restarted = await client.queryObject<{

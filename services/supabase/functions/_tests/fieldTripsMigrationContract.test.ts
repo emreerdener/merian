@@ -39,6 +39,33 @@ Deno.test("Field trips migration creates separate progress, publication, like, a
   }
 });
 
+Deno.test("Field Trip hardening makes progress transactional and RPCs service-role only", async () => {
+  const sql = normalized(
+    await migrationSql("20260722064704_harden_atomic_field_trip_progress.sql"),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE IF NOT EXISTS public.field_trip_scan_progress_receipts",
+      "CREATE OR REPLACE FUNCTION public.apply_field_trip_scan_progress_atomic",
+      "field_trip_updates := public.apply_field_trip_scan_progress_v2",
+      "challenge_updates := public.apply_field_trip_challenge_scan_progress",
+      "CREATE OR REPLACE FUNCTION public.apply_ingested_scan_field_trip_progress",
+      "AFTER INSERT ON public.scans",
+      "AFTER UPDATE OF species_id, confirmed_species_id, is_biological_subject, is_tombstoned, timestamp ON public.scans",
+      "CREATE OR REPLACE FUNCTION public.set_field_trip_pinned_publications",
+      "normalized_publication_ids UUID[] := ARRAY[]::UUID[]",
+      "SET search_path = ''",
+      "AND procedure.prokind = 'f'",
+      "REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION %s TO service_role",
+      "created_publication_id, fci.id",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("Field trips migration preserves privacy and Explore separation contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),

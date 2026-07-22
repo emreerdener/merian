@@ -57,6 +57,32 @@ export interface FirstFieldTripAchievementProgress {
   challenge_id: string | null;
 }
 
+function parseFirstFieldTripAchievementProgress(
+  value: unknown,
+): FirstFieldTripAchievementProgress | null {
+  if (!isRecord(value)) return null;
+
+  const kind = value.kind;
+  const completedAt = value.completed_at;
+  if (
+    (kind !== "standard_outing" && kind !== "seasonal_challenge") ||
+    typeof completedAt !== "string"
+  ) {
+    throw new Error("Invalid first Field trip achievement progress payload.");
+  }
+
+  return {
+    kind,
+    completed_at: completedAt,
+    template_slug: typeof value.template_slug === "string"
+      ? value.template_slug
+      : null,
+    challenge_id: typeof value.challenge_id === "string"
+      ? value.challenge_id
+      : null,
+  };
+}
+
 interface StoppedFieldTripProgressRow {
   template_id: string;
   stopped_progress: unknown;
@@ -295,12 +321,8 @@ export async function applyFieldTripScanProgress(
   firstFieldTripAchievement: FirstFieldTripAchievementProgress | null;
   firstFieldTripAchievementNewlyUnlocked: boolean;
 }> {
-  const previousAchievement = await fetchFirstFieldTripAchievementProgress(
-    userId,
-    supabaseAdmin,
-  );
   const { data, error } = await supabaseAdmin.rpc(
-    "apply_field_trip_scan_progress_v2",
+    "apply_field_trip_scan_progress_atomic",
     {
       self_id: userId,
       target_scan_id: scanId,
@@ -313,40 +335,26 @@ export async function applyFieldTripScanProgress(
     throw new Error(`Failed to update Field trip progress: ${error.message}`);
   }
 
-  const { data: challengeData, error: challengeError } = await supabaseAdmin
-    .rpc(
-      "apply_field_trip_challenge_scan_progress",
-      {
-        self_id: userId,
-        target_scan_id: scanId,
-      },
-    );
-
-  if (challengeError) {
-    throw new Error(
-      `Failed to update Field trip challenge progress: ${challengeError.message}`,
-    );
+  if (!isRecord(data)) {
+    throw new Error("Invalid atomic Field trip progress payload.");
   }
 
-  const fieldTripUpdates = Array.isArray(data) ? data : [];
-  const challengeUpdates = Array.isArray(challengeData) ? challengeData : [];
-  const firstFieldTripAchievement =
-    await fetchFirstFieldTripAchievementProgress(userId, supabaseAdmin);
-  const currentMutationCompletedTrip = [
-    ...fieldTripUpdates,
-    ...challengeUpdates,
-  ].some((update) =>
-    typeof update === "object" && update !== null &&
-    (update as Record<string, unknown>).is_complete === true
+  const fieldTripUpdates = Array.isArray(data.field_trip_updates)
+    ? data.field_trip_updates
+    : [];
+  const challengeUpdates = Array.isArray(data.challenge_updates)
+    ? data.challenge_updates
+    : [];
+  const firstFieldTripAchievement = parseFirstFieldTripAchievementProgress(
+    data.first_field_trip_achievement,
   );
 
   return {
     fieldTripUpdates,
     challengeUpdates,
     firstFieldTripAchievement,
-    firstFieldTripAchievementNewlyUnlocked: previousAchievement === null &&
-      firstFieldTripAchievement !== null &&
-      currentMutationCompletedTrip,
+    firstFieldTripAchievementNewlyUnlocked:
+      data.first_field_trip_achievement_newly_unlocked === true,
   };
 }
 
@@ -387,30 +395,7 @@ export async function fetchFirstFieldTripAchievementProgress(
     );
   }
 
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    return null;
-  }
-
-  const progress = data as Record<string, unknown>;
-  const kind = progress.kind;
-  const completedAt = progress.completed_at;
-  if (
-    (kind !== "standard_outing" && kind !== "seasonal_challenge") ||
-    typeof completedAt !== "string"
-  ) {
-    throw new Error("Invalid first Field trip achievement progress payload.");
-  }
-
-  return {
-    kind,
-    completed_at: completedAt,
-    template_slug: typeof progress.template_slug === "string"
-      ? progress.template_slug
-      : null,
-    challenge_id: typeof progress.challenge_id === "string"
-      ? progress.challenge_id
-      : null,
-  };
+  return parseFirstFieldTripAchievementProgress(data);
 }
 
 export async function fetchRecentFieldTripPublications(

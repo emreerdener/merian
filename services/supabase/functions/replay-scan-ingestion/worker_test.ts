@@ -57,6 +57,10 @@ function replayRow(
       observationContexts: [
         { freeText: "On the porch", addedAt: "2026-07-05T02:59:00.000Z" },
       ],
+      preferredGoal: {
+        userFieldTripId: "00000000-0000-4000-8000-000000000001",
+        itemId: "00000000-0000-4000-8000-000000000002",
+      },
     },
     ...overrides,
   };
@@ -80,6 +84,10 @@ Deno.test("buildReplayIdentifyPayload reconstructs top-level multimodal request 
     gpsLongitude: -97.7,
     semanticLocation: "Austin, TX",
     geoprivacy: "open",
+    preferred_goal: {
+      user_field_trip_id: "00000000-0000-4000-8000-000000000001",
+      item_id: "00000000-0000-4000-8000-000000000002",
+    },
   });
   assertEquals("imageBase64s" in payload, false);
   assertEquals("audioBase64s" in payload, false);

@@ -151,16 +151,38 @@ TestFlight, App Store, support, and QA.
   order: outings, Seasonal Challenges, achievements, then New to Naturebook.
   Re-identifying an older scan scopes feedback to completion rows added by that
   attempt, preventing a prior level or destination from being announced again.
-- Added a persistent **Field trip progress** card to saved biological Insights.
-  It keeps every outing or visible Event credited by that scan together, shows
-  the credited level's current count, and opens the exact outing goal or Event
-  detail without replaying milestone feedback.
+- Added a persistent **Field trips** card to saved biological Insights. Its
+  compact rows separate the uppercase completion state from the goal name and
+  pair larger objective artwork with a prominent credited-level progress ring.
+  It keeps every outing or visible Event credited by that scan together and
+  now matches other Insight card headers, removes the redundant level subtitle,
+  uses a smaller goal heading, and opens the outing/Event Goals overview in the
+  same navigation stack. Back returns to the originating Insight without
+  replaying milestone feedback.
 - Standard outings now advance only after the user explicitly starts them, and
   Events only after the user joins. One scan can count toward several active
   experiences, but only one goal in each; a selected live Camera goal wins when
   it is still eligible, with deterministic server matching otherwise. The
   selection survives offline upload, and unfinished progress is re-evaluated
   after identification corrections.
+- Fixed temporary scan-persistence and network failures being mistaken for
+  completed Field trip processing. Naturebook now preserves the selected goal,
+  retries progress automatically, and still shows other earned milestones once
+  without duplicating them after recovery.
+- Made Field trip attribution durable and transactional. Scan ingestion now
+  applies standard outing progress, joined Event progress, the selected-goal
+  preference, and first-outing achievement state in one database transaction;
+  a private receipt lets later retries recover the original unlock result after
+  app termination. The local selected-goal hint is kept until the server
+  acknowledges progress.
+- Hardened every Field trip and Event `SECURITY DEFINER` database function so
+  direct anonymous/authenticated RPC calls cannot impersonate another user;
+  authenticated clients now reach them only through the identity-verifying Edge
+  API. Also fixed completed-outing publication item materialization and removed
+  the profile-pin routine's fragile temporary-table dependency.
+- Fixed saved Insight Field trip cards and the first-Field-trip Profile award
+  remaining empty when a cached account session finished restoring after the
+  screen appeared.
 - Added a left-aligned, above-title **Private** / **Published** badge to standard outing detail.
   Published is shown only when the owner has an active public outing snapshot;
   completion alone remains Private.
@@ -575,6 +597,10 @@ TestFlight, App Store, support, and QA.
 
 - Added an Edit profile picture action to the Profile identity menu so the avatar
   picker is available alongside name and username editing.
+- Fixed repeat observations moving an achievement's original unlock date
+  forward. Repeat scans still update the latest-interaction date, while
+  retroactive-notification decisions remain tied to the scan that earned the
+  achievement.
 - Made profile names optional; clearing a custom name now restores the public
   username as the author label across Profile and Explore.
 - Fixed V47 queued-media library upgrades so queued scans are snapshotted and

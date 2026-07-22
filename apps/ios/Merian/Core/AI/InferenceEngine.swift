@@ -457,7 +457,8 @@ private struct GBIFMedia: Decodable {
         executeTrackedBackgroundTask { [mediaPathsToKeep] in
             await OfflineQueueManager.shared.deleteQueuedScan(
                 scanId: scanId,
-                explicitlyAdoptedMediaPaths: mediaPathsToKeep
+                explicitlyAdoptedMediaPaths: mediaPathsToKeep,
+                preservePreferredGoalHint: true
             )
         }
     }
@@ -588,6 +589,7 @@ private struct GBIFMedia: Decodable {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
+        preferredGoal: FieldTripPreferredGoal? = nil,
         modelContext: ModelContext? = nil,
         targetEradicationScanId: String? = nil,
         userPerceivedStart: CFAbsoluteTime? = nil
@@ -751,6 +753,7 @@ private struct GBIFMedia: Decodable {
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: resolvedClientScanId,
+                    preferredGoal: preferredGoal,
                     onRequestBodySent: {
                         Task { @MainActor in
                             OfflineQueueManager.shared.releaseDeferredLiveUpload(

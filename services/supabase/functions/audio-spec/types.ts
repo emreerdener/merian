@@ -9,6 +9,10 @@ export interface AudioClientRequest {
   audio_base64?: string;
   /** Client-generated UUID for idempotent scan upserts. */
   client_scan_id?: string;
+  preferred_goal?: {
+    user_field_trip_id?: string;
+    item_id?: string;
+  };
   // Telemetry — mirrors CaptureTelemetry fields in the iOS client.
   timestamp?: string;
   gps_latitude?: number | null;

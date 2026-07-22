@@ -313,7 +313,7 @@ struct ExploreView: View {
                     inferenceEngine: inferenceEngine,
                     allowsExplorePresentation: false,
                     presentationStyle: .embeddedInScansLibrary,
-                    onOpenCaptureGoal: openCaptureGoalDestination
+                    onOpenFieldTripOverview: openFieldTripOverviewDestination
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
@@ -443,10 +443,6 @@ struct ExploreView: View {
                 onOpenCommunityIdentificationRequest: { requestId in
                     selectedInsightRoute = nil
                     openCommunityIdentificationRequest(requestId)
-                },
-                onOpenCaptureGoal: { destination in
-                    selectedInsightRoute = nil
-                    openCaptureGoalDestination(destination)
                 }
             )
         }
@@ -499,6 +495,26 @@ struct ExploreView: View {
         }
 
         navigationPath = nextPath
+    }
+
+    /// Keeps an embedded Insight underneath the Field trip detail so Back returns
+    /// to the scan. The card route intentionally opens the Goals overview without
+    /// carrying Capture's focused checklist item into the destination.
+    @MainActor
+    private func openFieldTripOverviewDestination(
+        _ destination: InsightFieldTripOverviewDestination
+    ) {
+        activeTab = .fieldTrips
+
+        switch destination {
+        case .standardOuting(let templateId):
+            activeFieldTripsSection = .fieldTrips
+            navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
+        case .event(let challengeId):
+            guard FieldTripEventsAvailability.isEnabled else { return }
+            activeFieldTripsSection = .seasonal
+            navigationPath.append(FieldTripChallengeRoute(challengeId: challengeId))
+        }
     }
 
     @ToolbarContentBuilder

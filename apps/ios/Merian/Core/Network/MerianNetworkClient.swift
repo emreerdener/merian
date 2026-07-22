@@ -349,7 +349,8 @@ private enum InferencePayloadBuilder {
         mimeType: String,
         telemetry: CaptureTelemetry,
         context: InferenceRequestContext,
-        clientScanId: String
+        clientScanId: String,
+        preferredGoal: FieldTripPreferredGoal? = nil
     ) throws -> Data {
         try MerianNetworkClient.validateMultiModalPayloadBudget(
             imageBase64s: imageBase64s,
@@ -391,6 +392,12 @@ private enum InferencePayloadBuilder {
             payload["observation_contexts"] = observationContexts
         }
         payload["mimeType"] = mimeType
+        if let preferredGoal {
+            payload["preferred_goal"] = [
+                "user_field_trip_id": preferredGoal.userFieldTripId,
+                "item_id": preferredGoal.itemId
+            ]
+        }
 
         return try jsonData(from: payload)
     }
@@ -1033,7 +1040,8 @@ final class MerianNetworkClient {
         timeOfDay: String,
         depthScaleText: String?,
         clientScanId: String,
-        defaultGeoprivacy: String = "open"
+        defaultGeoprivacy: String = "open",
+        preferredGoal: FieldTripPreferredGoal? = nil
     ) throws -> Data {
         let context = InferenceRequestContext(
             userId: userId.lowercased(),
@@ -1059,7 +1067,8 @@ final class MerianNetworkClient {
             mimeType: mimeType,
             telemetry: telemetry,
             context: context,
-            clientScanId: clientScanId
+            clientScanId: clientScanId,
+            preferredGoal: preferredGoal
         )
     }
 
@@ -1075,7 +1084,8 @@ final class MerianNetworkClient {
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
-        clientScanId: String
+        clientScanId: String,
+        preferredGoal: FieldTripPreferredGoal? = nil
     ) async throws -> URLRequest {
         let functionUrl = try endpointURL("identify-multimodal")
         let context = await makeInferenceRequestContext(telemetry: telemetry)
@@ -1092,6 +1102,7 @@ final class MerianNetworkClient {
         let capturedContextsJSON = observationContextsJSON
         let capturedTelemetry = telemetry
         let capturedMimeType = mimeType
+        let capturedPreferredGoal = preferredGoal
 
         let bodyData = try await Task.detached(priority: .userInitiated) {
             let audioBase64s = try MerianNetworkClient.loadInlineAudioBase64s(from: capturedAudioPaths)
@@ -1115,7 +1126,8 @@ final class MerianNetworkClient {
                 timeOfDay: context.timeOfDay,
                 depthScaleText: context.depthScaleText,
                 clientScanId: capturedClientScanId,
-                defaultGeoprivacy: context.defaultGeoprivacy
+                defaultGeoprivacy: context.defaultGeoprivacy,
+                preferredGoal: capturedPreferredGoal
             )
         }.value
 
@@ -1185,6 +1197,7 @@ final class MerianNetworkClient {
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String? = nil,
+        preferredGoal: FieldTripPreferredGoal? = nil,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> Data {
         let request = try await buildMultiModalRequest(
@@ -1198,7 +1211,8 @@ final class MerianNetworkClient {
             audioMediaItems: audioMediaItems,
             observationContextsJSON: observationContextsJSON,
             telemetry: telemetry,
-            clientScanId: clientScanId ?? UUID().uuidString.lowercased()
+            clientScanId: clientScanId ?? UUID().uuidString.lowercased(),
+            preferredGoal: preferredGoal
         )
 
         guard let url = request.url, let bodyData = request.httpBody else {

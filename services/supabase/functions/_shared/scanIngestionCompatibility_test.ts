@@ -16,6 +16,10 @@ Deno.test("buildCompatibilityScanIngestionIntent maps staged legacy images to mu
       currentMonth: 7,
     },
     uploadSessionIds: ["session-b", " session-a ", "session-a"],
+    preferredGoal: {
+      user_field_trip_id: "00000000-0000-4000-8000-000000000001",
+      item_id: "00000000-0000-4000-8000-000000000002",
+    },
   });
 
   assertEquals(intent.resumable, true);
@@ -50,6 +54,10 @@ Deno.test("buildCompatibilityScanIngestionIntent maps staged legacy images to mu
   assertEquals(intent.requestPayload.observationContexts, [
     { freeText: "White bands on leaf underside." },
   ]);
+  assertEquals(intent.requestPayload.preferredGoal, {
+    userFieldTripId: "00000000-0000-4000-8000-000000000001",
+    itemId: "00000000-0000-4000-8000-000000000002",
+  });
 });
 
 Deno.test("buildCompatibilityScanIngestionIntent redacts inline media and blocks server replay", async () => {

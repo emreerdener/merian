@@ -309,6 +309,7 @@ extension CaptureWorkspaceViewModel {
                             mediaTimeline: capturedMediaTimeline,
                             visualMediaItems: capturedVisualMediaItems,
                             audioMediaItems: capturedAudioMediaItems,
+                            preferredGoal: capturedPreferredGoal,
                             modelContext: modelContext,
                             targetEradicationScanId: targetEradicationScanId,
                             userPerceivedStart: analysisTappedAt

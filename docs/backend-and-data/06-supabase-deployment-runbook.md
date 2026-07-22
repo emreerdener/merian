@@ -239,9 +239,10 @@ Field trips releases are migration-plus-function releases too. Deploy
 `20260719045306_first_field_trip_achievement.sql` before
 `20260719160750_field_trip_lifecycle_controls.sql` before
 `20260720014446_update_backyard_safari_copy.sql` before
-`20260722025411_persistent_field_trip_scan_contributions.sql`, then deploy the
-`field-trips` Edge Function and the updated Explore/profile activity bundles
-together. V1
+`20260722025411_persistent_field_trip_scan_contributions.sql` before
+`20260722064704_harden_atomic_field_trip_progress.sql`, then deploy the updated
+scan-ingestion functions, `field-trips`, and the Explore/profile activity
+bundles together. V1
 creates the Field trip tables, progress/publication/comment storage, profile
 visibility helpers, and publication snapshots. V2 adds guided template detail,
 explicit starts, Recent compatibility pagination, and profile pins. V3 adds
@@ -276,6 +277,13 @@ read model used by Insight. It transactionally aborts if completed trips,
 publications, completed/badged Event participations, Event badges, or Event
 entries already exist. Confirm the expected empty-artifact assumption before
 deployment; an abort is a data/product review blocker and must not be bypassed.
+The atomic-hardening migration adds the private scan-revision receipt and
+ingestion/correction triggers, combines standard outing progress, joined Event
+progress, selected-goal persistence, and first-outing achievement evaluation in
+one transaction, repairs completed-outing publication materialization, and
+replaces the profile-pin RPC's temporary table with a lintable ordered-array
+mutation. It revokes every Field trip/Event `SECURITY DEFINER` routine from
+direct client roles. Only `service_role` retains execute.
 A function-only deploy cannot serve `capture_context` or V4 actions until all
 migrations are applied; a database-only deploy leaves the app without the
 Field trips action router. Do not release the indicator-enabled iOS client until
@@ -287,10 +295,11 @@ migration; its optional fields render Private against the older payload.
 Deploy both credited-progress migrations, in order, before the progress-toast
 iOS client.
 The client can decode the legacy shape and fall back to current counts during a
-staged rollout. The persistent-contribution migration and updated Edge Function
-must both precede the Insight-card iOS client because that client may send
-optional `preferred_goal` and request `scan_contributions`. Older clients omit
-the hint and continue to receive deterministic fallback behavior.
+staged rollout. Both final migrations, updated ingestion functions, and updated
+`field-trips` must precede the Insight-card iOS client because that client may
+send optional `preferred_goal`, retain it until acknowledgement, and request
+`scan_contributions`. Older clients omit the hint and continue to receive
+deterministic fallback behavior.
 
 Current client rollout (2026-07-19): standard Field trips/Outings are public,
 while Seasonal Challenge Events remain staged through
@@ -892,7 +901,7 @@ After deployment:
   after the V1, V2, V3, V4, contextual-guide, and
   capture-context migrations plus the standard-preservation, Forest-retirement,
   completion-evidence, publication-status, credited-progress, first-achievement,
-  lifecycle, and persistent-contribution follow-ups. Verify
+  lifecycle, persistent-contribution, and atomic-hardening follow-ups. Verify
   `capture_context` returns only accessible
   incomplete standard field trips and current-level unfinished targets, orders
   field trips by recent engagement, ignores Seasonal Challenge-specific completions
@@ -924,6 +933,14 @@ After deployment:
   place labels, or notes. Confirm `PUBLIC`, `anon`, and `authenticated` cannot
   read `field_trip_scan_goal_preferences` or execute
   `public.get_field_trip_scan_contributions(uuid, uuid)`; `service_role` can.
+  Enumerate every public-schema `SECURITY DEFINER` function whose name contains
+  `field_trip` or `challenge`: `PUBLIC`, `anon`, and `authenticated` must have
+  no execute privilege, while `service_role` must. Insert a scan through the
+  ingestion-intent path and confirm standard/Event updates plus preference,
+  first-achievement state, and receipt commit together. Inject an Event RPC
+  failure and confirm all of them roll back; retry the unchanged scan and
+  confirm the stored result is returned. Publish a completed outing and verify
+  its snapshot item rows reference the returned publication ID.
   While Events are staged, verify a physical non-allowlisted account and ghost
   user see Outings but not the Events segment, requests, badges, routes, or
   hashtag suggestions; verify the allowlisted tester and simulator still see

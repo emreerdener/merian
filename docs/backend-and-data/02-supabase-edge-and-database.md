@@ -942,6 +942,24 @@ routing. It returns no media, storage URLs, coordinates, place labels, or notes.
 The `/field-trips` `apply_scan_progress` body may now include optional
 `preferred_goal`; legacy clients omit it and receive deterministic fallback.
 
+`20260722064704_harden_atomic_field_trip_progress.sql` makes this path
+transactional and ingestion-owned. The identify ingestion intent retains a
+validated preferred goal; scan insert and relevant identification-update
+triggers call `apply_field_trip_scan_progress_atomic(...)`, which applies the
+standard outing, joined Event, preference, and first-outing achievement work in
+one transaction and stores a private scan-revision receipt. The later
+`apply_scan_progress` Edge call invokes the same RPC and receives that original
+result, so app termination cannot lose the selection or unlock metadata and an
+Event-side error cannot commit standard progress alone.
+
+The hardening migration also revokes execute on every public-schema Field
+trip/Event `SECURITY DEFINER` function from `PUBLIC`, `anon`, and
+`authenticated`, granting only `service_role`. These routines are Edge-owned:
+`withEdgeHandler` verifies the session and the Edge router supplies `self_id`.
+No direct client RPC is intentionally exposed. The same migration repairs
+`publish_field_trip(...)` so snapshot rows use the publication ID returned by
+the upsert.
+
 These Seasonal Challenge contracts are already deployed while Events remain a
 client-staged iOS surface. Standard Outings are public; iOS requests and renders
 challenge catalogs, details, badges, entries, routes, and hashtag suggestions

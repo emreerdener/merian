@@ -1989,7 +1989,11 @@ struct MerianNetworkClientTests {
             currentMonth: 4,
             timeOfDay: "10:30 AM",
             depthScaleText: "1.3 meters",
-            clientScanId: "scan-123"
+            clientScanId: "scan-123",
+            preferredGoal: FieldTripPreferredGoal(
+                userFieldTripId: "00000000-0000-4000-8000-000000000001",
+                itemId: "00000000-0000-4000-8000-000000000002"
+            )
         )
 
         let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
@@ -2009,6 +2013,9 @@ struct MerianNetworkClientTests {
         #expect(payload["zoomFactor"] as? Double == 2.0)
         #expect(payload["estimated_size_cm"] as? Double == 11.5)
         #expect(payload["client_scan_id"] as? String == "scan-123")
+        let preferredGoal = try #require(payload["preferred_goal"] as? [String: String])
+        #expect(preferredGoal["user_field_trip_id"] == "00000000-0000-4000-8000-000000000001")
+        #expect(preferredGoal["item_id"] == "00000000-0000-4000-8000-000000000002")
         #expect(payload["gps_latitude"] == nil)
         #expect(payload["semantic_location"] == nil)
 

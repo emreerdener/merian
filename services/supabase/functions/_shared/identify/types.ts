@@ -82,6 +82,13 @@ export interface ObservationContextDTO {
   added_at?: string;
 }
 
+export interface PreferredFieldTripGoalDTO {
+  user_field_trip_id?: string;
+  item_id?: string;
+  userFieldTripId?: string;
+  itemId?: string;
+}
+
 export interface Payload {
   user_id: string;
   imageBase64?: string;
@@ -118,6 +125,7 @@ export interface Payload {
   estimated_size_cm?: number | null;
   timestamp?: string;
   client_scan_id?: string;
+  preferred_goal?: PreferredFieldTripGoalDTO;
   isIpad?: boolean;
 }
 
@@ -163,6 +171,7 @@ export interface MultimodalPayload {
   time_of_day?: string;
   timestamp?: string;
   client_scan_id?: string;
+  preferred_goal?: PreferredFieldTripGoalDTO;
   mimeType?: string;
   depthScaleText?: string;
   depth_scale_text?: string;

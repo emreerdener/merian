@@ -18,6 +18,59 @@ extension OfflineQueueManager {
         }
     }
 
+    /// Removes the durable Capture preference only after the server has
+    /// acknowledged the atomic Field Trip progress mutation (or a terminal
+    /// response). Until then the row is a small, process-independent outbox.
+    func acknowledgeFieldTripProgress(scanId: String) {
+        guard let context = modelContext else { return }
+        deletePreferredGoalHint(scanId: scanId, in: context)
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            MerianLog.data.error(
+                "acknowledgeFieldTripProgress: failed to remove goal hint for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+        }
+    }
+
+    /// Replays Field Trip progress preferences left behind by a process exit
+    /// after scan persistence but before the progress endpoint acknowledged.
+    func replayPendingFieldTripProgress() async {
+        guard isOnline, let context = modelContext else { return }
+        let hints: [(String, FieldTripPreferredGoal)]
+        do {
+            let queuedScanIds = Set(
+                try context.fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.id)
+            )
+            hints = try context.fetch(FetchDescriptor<ActiveOfflineQueuedScanGoalHint>())
+                .filter { !queuedScanIds.contains($0.scanId) }
+                .map {
+                    (
+                        $0.scanId,
+                        FieldTripPreferredGoal(
+                            userFieldTripId: $0.userFieldTripId,
+                            itemId: $0.itemId
+                        )
+                    )
+                }
+        } catch {
+            MerianLog.data.error(
+                "replayPendingFieldTripProgress: failed to read durable goal hints: \(error, privacy: .private)"
+            )
+            return
+        }
+
+        for (scanId, preferredGoal) in hints {
+            await ScanMilestoneCoordinator.shared.processCompletedScan(
+                scanId: scanId,
+                speciesData: nil,
+                modelContainer: context.container,
+                preferredGoal: preferredGoal
+            )
+        }
+    }
+
     /// Deletes an `OfflineQueuedScan` from the **main context** and saves, reliably triggering
     /// `@Query queuedScans` (and `@Query rawRecords`) in any open sheet to re-evaluate.
     ///
@@ -169,7 +222,11 @@ extension OfflineQueueManager {
     /// Explicitly deletes an offline queued scan immediately.
     /// Cancels any in-flight background uploads and purges the item from disk.
     @discardableResult
-    func deleteQueuedScan(scanId: String, explicitlyAdoptedMediaPaths: [String] = []) async -> Bool {
+    func deleteQueuedScan(
+        scanId: String,
+        explicitlyAdoptedMediaPaths: [String] = [],
+        preservePreferredGoalHint: Bool = false
+    ) async -> Bool {
         deferredLiveUploadScanIds.remove(scanId)
         foregroundInferenceScanIds.remove(scanId)
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
@@ -191,7 +248,17 @@ extension OfflineQueueManager {
             MerianLog.data.debug("deleteQueuedScan: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
             return false
         }
-        guard let scan else { return true }
+        guard let scan else {
+            guard !preservePreferredGoalHint else { return true }
+            deletePreferredGoalHint(scanId: scanId, in: context)
+            do {
+                try context.save()
+                return true
+            } catch {
+                context.rollback()
+                return false
+            }
+        }
 
         func pathVariants(_ path: String) -> [String] {
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -265,7 +332,9 @@ extension OfflineQueueManager {
             kind: .cancelled,
             message: "Queued scan was removed locally."
         ))
-        deletePreferredGoalHint(scanId: scanId, in: context)
+        if !preservePreferredGoalHint {
+            deletePreferredGoalHint(scanId: scanId, in: context)
+        }
         context.delete(scan)
         do {
             try context.save()

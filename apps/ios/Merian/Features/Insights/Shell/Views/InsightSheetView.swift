@@ -2,6 +2,12 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+struct InsightFieldTripContributionLoadKey: Equatable {
+    let scanId: String?
+    let isAuthenticated: Bool
+    let accountId: String?
+}
+
 /// The master state orchestrator routing biological inference metadata and hardware logic 
 /// safely down into the decoupled visual tree via the `InsightSheetViewModel`.
 struct InsightSheetView: View {
@@ -12,6 +18,7 @@ struct InsightSheetView: View {
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
+    private var supabase: SupabaseManager { .shared }
 
     @Binding var isPresented: Bool
     var queuedScan: QueuedScanContext?
@@ -19,12 +26,18 @@ struct InsightSheetView: View {
     var allowsExplorePresentation: Bool
     var presentationStyle: InsightPresentationStyle
     var onOpenCommunityIdentificationRequest: ((String) -> Void)?
-    var onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)?
+    var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
 
     // MARK: - State
     @State var viewModel: InsightSheetViewModel
     @State var chatViewModel = InsightChatViewModel()
+    @State private var fieldTripExploreViewModel = ExploreFeedViewModel()
     @State private var queuedCompletionHandoffInFlight = false
+    @State private var presentedScanId: String?
+    @State private var selectedFieldTripOverviewDestination: InsightFieldTripOverviewDestination?
+    @State private var selectedFieldTripPublicationRoute: FieldTripPublicationRoute?
+    @State private var selectedFieldTripChallengeEntryRoute: FieldTripChallengeEntryRoute?
+    @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
 
     // Seed queued scans and persisted records at @State initialization time so the
     // first render reflects the correct content path before onAppear finishes rebinding.
@@ -36,7 +49,7 @@ struct InsightSheetView: View {
         allowsExplorePresentation: Bool = true,
         presentationStyle: InsightPresentationStyle = .sheet,
         onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil,
-        onOpenCaptureGoal: ((CaptureGoalDestination) -> Void)? = nil
+        onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)? = nil
     ) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
@@ -44,7 +57,8 @@ struct InsightSheetView: View {
         self.allowsExplorePresentation = allowsExplorePresentation
         self.presentationStyle = presentationStyle
         self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
-        self.onOpenCaptureGoal = onOpenCaptureGoal
+        self.onOpenFieldTripOverview = onOpenFieldTripOverview
+        _presentedScanId = State(initialValue: initialScanId)
         _viewModel = State(
             initialValue: InsightSheetViewModel(
                 queuedContext: queuedScan,
@@ -55,11 +69,27 @@ struct InsightSheetView: View {
     
     // MARK: - Data Layer
     @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
+
+    private var fieldTripContributionLoadKey: InsightFieldTripContributionLoadKey {
+        InsightFieldTripContributionLoadKey(
+            scanId: viewModel.persistentScanId,
+            isAuthenticated: supabase.isAuthenticated,
+            accountId: supabase.currentUser?.id.uuidString
+        )
+    }
     
     // MARK: - View
     var body: some View {
         presentationRoot
         .accessibilityIdentifier("InsightSheetView")
+        .onChange(of: isPresented) { _, isNowPresented in
+            guard isNowPresented else { return }
+            presentedScanId = initialScanId
+            selectedFieldTripOverviewDestination = nil
+            selectedFieldTripPublicationRoute = nil
+            selectedFieldTripChallengeEntryRoute = nil
+            selectedFieldTripAuthorRoute = nil
+        }
         
         // Dialogs
         .alert("Delete scan?", isPresented: $viewModel.state.showDeleteConfirmation) {
@@ -95,6 +125,12 @@ struct InsightSheetView: View {
         )
         .sheet(isPresented: $viewModel.state.showPaywall) {
             PaywallView()
+        }
+        .sheet(item: $selectedFieldTripAuthorRoute) { route in
+            ExploreAuthorProfileSheet(
+                viewModel: fieldTripExploreViewModel,
+                route: route
+            )
         }
         .sheet(isPresented: $viewModel.state.isInsightChatSheetPresented) {
             if let speciesData = inferenceEngine.speciesData,
@@ -173,11 +209,15 @@ struct InsightSheetView: View {
                 initialCommunityRequestId: exploreSheetInitialCommunityRequestId,
                 allowsInsightPresentation: false,
                 onOpenOwnedPostInsight: { scanId in
-                    viewModel.bindPresentedScan(
+                    let didBind = viewModel.bindPresentedScan(
                         scanId: scanId,
                         modelContext: modelContext,
                         inferenceEngine: inferenceEngine
                     )
+                    if didBind {
+                        presentedScanId = scanId
+                    }
+                    return didBind
                 }
             )
         }
@@ -303,6 +343,44 @@ private extension InsightSheetView {
                 }
             }
             .modifier(SpeciesDictionaryDestinationModifier(isEnabled: !presentationStyle.isEmbedded))
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedFieldTripOverviewDestination != nil },
+                    set: { if !$0 { selectedFieldTripOverviewDestination = nil } }
+                )
+            ) {
+                if let selectedFieldTripOverviewDestination {
+                    fieldTripOverviewDetail(for: selectedFieldTripOverviewDestination)
+                }
+            }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedFieldTripPublicationRoute != nil },
+                    set: { if !$0 { selectedFieldTripPublicationRoute = nil } }
+                )
+            ) {
+                if let selectedFieldTripPublicationRoute {
+                    FieldTripPublicationDetailView(
+                        publicationId: selectedFieldTripPublicationRoute.publicationId
+                    )
+                }
+            }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedFieldTripChallengeEntryRoute != nil },
+                    set: { if !$0 { selectedFieldTripChallengeEntryRoute = nil } }
+                )
+            ) {
+                if let selectedFieldTripChallengeEntryRoute {
+                    if FieldTripEventsAvailability.isEnabled {
+                        FieldTripChallengeEntryDetailView(
+                            entryId: selectedFieldTripChallengeEntryRoute.entryId
+                        )
+                    } else {
+                        fieldTripEventsUnavailableView
+                    }
+                }
+            }
             .onAppear {
                 // Reset stale @State properties from previous presentations natively.
                 viewModel.reset()
@@ -312,9 +390,9 @@ private extension InsightSheetView {
                 viewModel.bindSettings(appSettings)
                 viewModel.inferenceEngine = inferenceEngine
                 viewModel.queuedContext = queuedScan
-                if let initialScanId {
+                if let presentedScanId {
                     viewModel.bindPresentedScan(
-                        scanId: initialScanId,
+                        scanId: presentedScanId,
                         modelContext: modelContext,
                         inferenceEngine: inferenceEngine
                     )
@@ -361,6 +439,8 @@ private extension InsightSheetView {
             }
             .task(id: viewModel.persistentScanId) {
                 viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
+            }
+            .task(id: fieldTripContributionLoadKey) {
                 await viewModel.loadFieldTripScanContributions(scanId: viewModel.persistentScanId)
             }
             .onReceive(AppEventPublisher.shared.publisher) { event in
@@ -424,7 +504,7 @@ private extension InsightSheetView {
         InsightContentView(
             viewModel: viewModel,
             queuedScan: queuedScan,
-            onOpenCaptureGoal: openCaptureGoal
+            onOpenFieldTripOverview: openFieldTripOverview
         )
             .merianSystemFeedback(
                 toastMessage: $viewModel.state.toastMessage,
@@ -434,14 +514,93 @@ private extension InsightSheetView {
             .ignoresSafeArea(edges: .top)
     }
 
-    private func openCaptureGoal(_ destination: CaptureGoalDestination) {
-        if let onOpenCaptureGoal {
-            onOpenCaptureGoal(destination)
-        } else {
-            AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
-            isPresented = false
-            dismiss()
+    private func openFieldTripOverview(_ destination: InsightFieldTripOverviewDestination) {
+        if presentationStyle.isEmbedded, let onOpenFieldTripOverview {
+            onOpenFieldTripOverview(destination)
+            return
         }
+
+        selectedFieldTripOverviewDestination = destination
+    }
+
+    @ViewBuilder
+    private func fieldTripOverviewDetail(
+        for destination: InsightFieldTripOverviewDestination
+    ) -> some View {
+        switch destination {
+        case .standardOuting(let templateId):
+            FieldTripTemplateDetailView(
+                templateId: templateId,
+                focusedChecklistItemId: nil,
+                onOpenCompletedScan: openFieldTripCompletedScan,
+                onOpenPublication: { publicationId in
+                    selectedFieldTripPublicationRoute = FieldTripPublicationRoute(
+                        publicationId: publicationId
+                    )
+                },
+                onOpenAuthorProfile: openFieldTripAuthorProfile
+            )
+        case .event(let challengeId):
+            if FieldTripEventsAvailability.isEnabled {
+                FieldTripChallengeDetailView(
+                    challengeId: challengeId,
+                    onOpenEntry: { entryId in
+                        selectedFieldTripChallengeEntryRoute = FieldTripChallengeEntryRoute(
+                            entryId: entryId
+                        )
+                    },
+                    onOpenAuthorProfile: openFieldTripChallengeAuthorProfile
+                )
+            } else {
+                fieldTripEventsUnavailableView
+            }
+        }
+    }
+
+    private var fieldTripEventsUnavailableView: some View {
+        ContentUnavailableView(
+            "Events aren’t available yet",
+            systemImage: "calendar.badge.clock",
+            description: Text("Field trip Events are still in preview.")
+        )
+    }
+
+    private func openFieldTripCompletedScan(_ scanId: String) {
+        guard viewModel.bindPresentedScan(
+            scanId: scanId,
+            modelContext: modelContext,
+            inferenceEngine: inferenceEngine
+        ) else {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.state.toastMessage = "This scan is not available on this device."
+            }
+            return
+        }
+
+        HapticManager.shared.triggerSelectionPulse()
+        presentedScanId = scanId
+        selectedFieldTripOverviewDestination = nil
+    }
+
+    private func openFieldTripAuthorProfile(_ publication: FieldTripRecentPublication) {
+        HapticManager.shared.triggerSelectionPulse()
+        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
+            authorUserId: publication.authorUserId,
+            authorName: publication.authorName,
+            authorUsername: publication.authorUsername,
+            authorAvatarUrl: publication.authorAvatarUrl
+        )
+    }
+
+    private func openFieldTripChallengeAuthorProfile(_ entry: FieldTripChallengeEntry) {
+        HapticManager.shared.triggerSelectionPulse()
+        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
+            authorUserId: entry.authorUserId,
+            authorName: entry.authorName,
+            authorUsername: entry.authorUsername,
+            authorAvatarUrl: entry.authorAvatarUrl
+        )
     }
 
     @MainActor

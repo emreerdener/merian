@@ -1106,6 +1106,10 @@ struct SpeciesDictionaryTests {
 
     @Test func testTaxonomyTreeGraphSearchVisibilityLayoutAndRouting() throws {
         let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
+        let kingdomID = "taxonomy:kingdom:animalia"
+        let classID = "taxonomy:class:animalia/arthropoda/insecta"
+        let orderID = "taxonomy:order:animalia/arthropoda/insecta/lepidoptera"
+        let familyID = "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae"
         let danausID = "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
         let monarchID = "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
         let danausNode = try #require(graph.node(id: danausID))
@@ -1114,18 +1118,32 @@ struct SpeciesDictionaryTests {
         #expect(danausNode.speciesCount == 2)
         #expect(monarchNode.dictionaryRoute?.scientificName == "Danaus plexippus")
         #expect(graph.searchResults(for: "monarch").first?.id == monarchID)
-        #expect(graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6).contains(monarchID))
+
+        let distantIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6)
+        #expect(distantIDs == Set([kingdomID]))
+
+        let overviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.82)
+        #expect(overviewIDs.contains(classID))
+        #expect(!overviewIDs.contains(orderID))
+
+        let selectedClassIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: classID, scale: 0.82)
+        #expect(selectedClassIDs.contains(orderID))
+        #expect(!selectedClassIDs.contains(familyID))
+
         #expect(graph.visibleNodeIDs(focusedNodeID: danausID, selectedNodeID: nil, scale: 0.6).count == graph.nodes.count)
 
-        let layout = TaxonomyTreeLayout.make(
+        let layout = TaxonomyConstellationLayout.make(
             graph: graph,
             visibleNodeIDs: graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: monarchID, scale: 1.2),
+            focusedNodeID: danausID,
             minimumSize: CGSize(width: 320, height: 480)
         )
         let genusPosition = try #require(layout.positions[danausID])
         let speciesPosition = try #require(layout.positions[monarchID])
 
-        #expect(genusPosition.y < speciesPosition.y)
+        #expect(abs(genusPosition.x - layout.size.width / 2) < 0.001)
+        #expect(abs(genusPosition.y - layout.size.height / 2) < 0.001)
+        #expect(abs(speciesPosition.x - genusPosition.x) > 1 || abs(speciesPosition.y - genusPosition.y) > 1)
         #expect(layout.size.width >= 320)
         #expect(layout.size.height >= 480)
     }
@@ -1158,7 +1176,7 @@ struct SpeciesDictionaryTests {
 
         viewModel.setScale(0.1)
 
-        #expect(viewModel.scale == 0.28)
+        #expect(viewModel.scale == 0.56)
     }
 
     @Test func testTaxonomyTreeDefaultsToAllSpeciesAndResetsOnScopeChange() {
@@ -1182,7 +1200,7 @@ struct SpeciesDictionaryTests {
 
     @Test func testTaxonomyTreeCanCenterTopNodeAtInitialViewport() {
         let viewModel = TaxonomyTreeCanvasViewModel()
-        viewModel.scale = 0.78
+        viewModel.scale = 0.82
         let rootID = "taxonomy:kingdom:animalia"
         let rootPosition = CGPoint(x: 420, y: 100)
         let viewportSize = CGSize(width: 390, height: 760)
