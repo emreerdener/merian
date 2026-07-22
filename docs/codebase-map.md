@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-07-15.
+Last reviewed: 2026-07-22.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another

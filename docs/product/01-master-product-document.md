@@ -1,11 +1,11 @@
 # Naturebook Master Product Document
 
-Repository-aligned edition - 21 July 2026
+Repository-aligned edition - 22 July 2026
 
 > Turn everyday curiosity into field science.
 
 Document owner: Product and Engineering  
-Review basis: Merian monorepo as inspected on 21 July 2026
+Review basis: Merian monorepo as inspected on 22 July 2026
 Public product name: Naturebook  
 Engineering identity: Merian  
 Document status: Replacement for the stale master product document
@@ -31,7 +31,7 @@ The repository is the authority for implementation status. Product strategy, mar
 
 ## Snapshot and precedence
 
-- This edition reflects the visible monorepo on 21 July 2026.
+- This edition reflects the visible monorepo on 22 July 2026.
 - Current source code, schemas, migrations, configuration, tests, and release guardrails take precedence over older prose documents.
 - Where the repository contains conflicting prose, executable behavior and the newest explicit compatibility contract take precedence.
 - Public-facing copy must use Naturebook. Merian remains the stable internal and technical identity where renaming would break compatibility.

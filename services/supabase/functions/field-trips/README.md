@@ -26,7 +26,7 @@ Deploy the migrations before deploying this function. The persistent
 contribution migration and the function must be deployed together before the
 iOS client begins sending preferred-goal hints or requesting contribution rows.
 
-## Client Rollout State (2026-07-21)
+## Client Rollout State (2026-07-22)
 
 - The backend supports standard Outings and Seasonal Challenge Events and is
   deployed before the full Events UI release.
