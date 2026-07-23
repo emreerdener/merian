@@ -156,6 +156,32 @@ final class AchievementsCalculatorTests: XCTestCase {
         )
     }
 
+    func testTargetOnePetAchievementsLabelNewestQualifyingScanAccurately() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let scans = [
+            mockScan(
+                id: "cat_unlock",
+                scientificName: "Felis catus",
+                timestamp: base.addingTimeInterval(1)
+            ),
+            mockScan(
+                id: "cat_latest",
+                scientificName: "Felis catus",
+                timestamp: base.addingTimeInterval(50)
+            )
+        ]
+
+        let detail = AchievementsCalculator.detail(for: .domesticCat, from: scans)
+
+        XCTAssertEqual(detail?.award.unlockedAt, base.addingTimeInterval(1))
+        XCTAssertEqual(detail?.contributions.map(\.scanID), ["cat_latest"])
+        XCTAssertEqual(detail?.award.qualifyingScansTitle, "Latest qualifying scan")
+        XCTAssertEqual(
+            AchievementType.domesticDog.definition.qualifyingScansTitle,
+            "Latest qualifying scan"
+        )
+    }
+
     // MARK: - Appended Coverage
 
     func testFirstScanAndExplorer() {

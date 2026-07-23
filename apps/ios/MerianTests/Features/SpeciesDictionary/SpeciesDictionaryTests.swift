@@ -1378,7 +1378,49 @@ struct SpeciesDictionaryTests {
         #expect(resizedScene.revision != initialScene.revision)
     }
 
-    @Test func testTaxonomyConstellationSceneSpatiallyCullsNodes() throws {
+    @Test func testTaxonomyTreeCachedReloadKeepsActiveScene() async throws {
+        let testData = Data("""
+        {
+            "schema_version": 1,
+            "data": {
+                "nodes": [{
+                    "id": "taxonomy:kingdom:animalia",
+                    "rank": "kingdom",
+                    "title": "Animalia",
+                    "subtitle": "Kingdom",
+                    "parent_id": null,
+                    "species_count": 1,
+                    "child_count": 0,
+                    "lineage": null,
+                    "representative_species": null,
+                    "species": null
+                }],
+                "edges": []
+            }
+        }
+        """.utf8)
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        MockURLProtocol.mockEndpoints["/species-dictionary"] = { _ in
+            (mockResponse, testData)
+        }
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        let viewportSize = CGSize(width: 390, height: 760)
+
+        await viewModel.loadTree()
+        let loadedScene = viewModel.constellationScene(in: viewportSize)
+        await viewModel.loadTree()
+        let cachedScene = viewModel.constellationScene(in: viewportSize)
+
+        #expect(viewModel.graph.nodes.count == 1)
+        #expect(cachedScene.revision == loadedScene.revision)
+    }
+
+    @Test func testTaxonomyConstellationSceneSpatiallyCullsNodesAndEdges() throws {
         let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
         let visibleNodeIDs = Set(graph.nodes.map(\.id))
         let layout = TaxonomyConstellationLayout.make(
@@ -1408,10 +1450,88 @@ struct SpeciesDictionaryTests {
             width: 100,
             height: 100
         ))
+        let nearbyEdges = scene.edges(
+            in: CGRect(
+                x: monarchPosition.x - 1,
+                y: monarchPosition.y - 1,
+                width: 2,
+                height: 2
+            ),
+            visibleNodeIDs: visibleNodeIDs
+        )
+        let distantEdges = scene.edges(
+            in: CGRect(
+                x: layout.size.width + 1_000,
+                y: layout.size.height + 1_000,
+                width: 100,
+                height: 100
+            ),
+            visibleNodeIDs: visibleNodeIDs
+        )
 
         #expect(nearbyNodes.map(\.id).contains(monarchID))
         #expect(nearbyNodes.count < graph.nodes.count)
         #expect(distantNodes.isEmpty)
+        #expect(nearbyEdges.contains { $0.edge.to == monarchID })
+        #expect(nearbyEdges.count < graph.edges.count)
+        #expect(distantEdges.isEmpty)
+    }
+
+    @Test func testTaxonomyConstellationSceneRejectsEdgeBoundingBoxFalsePositives() {
+        let parent = TaxonomyTreeNode(
+            id: "parent",
+            title: "Parent",
+            subtitle: nil,
+            rank: .kingdom,
+            parentID: nil,
+            speciesCount: 1,
+            childCount: 1,
+            lineage: nil,
+            representativeSpecies: nil,
+            species: nil
+        )
+        let child = TaxonomyTreeNode(
+            id: "child",
+            title: "Child",
+            subtitle: nil,
+            rank: .species,
+            parentID: parent.id,
+            speciesCount: 1,
+            childCount: 0,
+            lineage: nil,
+            representativeSpecies: nil,
+            species: nil
+        )
+        let graph = TaxonomyTreeGraph(
+            nodes: [parent, child],
+            edges: [TaxonomyTreeEdge(from: parent.id, to: child.id)]
+        )
+        let layout = TaxonomyConstellationLayout(
+            positions: [
+                parent.id: CGPoint(x: 0, y: 0),
+                child.id: CGPoint(x: 1_000, y: 1_000)
+            ],
+            size: CGSize(width: 1_000, height: 1_000)
+        )
+        let visibleNodeIDs: Set<String> = [parent.id, child.id]
+        let scene = TaxonomyConstellationScene(
+            revision: 1,
+            graph: graph,
+            layoutNodeIDs: visibleNodeIDs,
+            layout: layout
+        )
+
+        let crossingEdges = scene.edges(
+            in: CGRect(x: 490, y: 490, width: 20, height: 20),
+            visibleNodeIDs: visibleNodeIDs
+        )
+        let boundingBoxOnlyEdges = scene.edges(
+            in: CGRect(x: 0, y: 900, width: 20, height: 20),
+            visibleNodeIDs: visibleNodeIDs
+        )
+
+        #expect(crossingEdges.count == 1)
+        #expect(boundingBoxOnlyEdges.isEmpty)
     }
 
     @Test func testTaxonomyTreeDefaultsToAllSpeciesAndResetsOnScopeChange() {

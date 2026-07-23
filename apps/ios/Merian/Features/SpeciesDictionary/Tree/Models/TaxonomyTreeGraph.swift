@@ -539,9 +539,59 @@ struct TaxonomyConstellationLayout: Equatable {
     }
 }
 
+struct TaxonomyConstellationEdgeSegment {
+    let edge: TaxonomyTreeEdge
+    let endNode: TaxonomyTreeNode
+    let startPoint: CGPoint
+    let endPoint: CGPoint
+
+    fileprivate var bounds: CGRect {
+        CGRect(
+            x: min(startPoint.x, endPoint.x),
+            y: min(startPoint.y, endPoint.y),
+            width: abs(endPoint.x - startPoint.x),
+            height: abs(endPoint.y - startPoint.y)
+        )
+        .insetBy(dx: -1, dy: -1)
+    }
+
+    fileprivate func intersects(_ rect: CGRect) -> Bool {
+        guard bounds.intersects(rect) else { return false }
+        if rect.contains(startPoint) || rect.contains(endPoint) {
+            return true
+        }
+
+        let deltaX = endPoint.x - startPoint.x
+        let deltaY = endPoint.y - startPoint.y
+        var lowerBound: CGFloat = 0
+        var upperBound: CGFloat = 1
+        let boundaries = [
+            (coefficient: -deltaX, distance: startPoint.x - rect.minX),
+            (coefficient: deltaX, distance: rect.maxX - startPoint.x),
+            (coefficient: -deltaY, distance: startPoint.y - rect.minY),
+            (coefficient: deltaY, distance: rect.maxY - startPoint.y)
+        ]
+
+        for boundary in boundaries {
+            if boundary.coefficient == 0 {
+                guard boundary.distance >= 0 else { return false }
+                continue
+            }
+            let ratio = boundary.distance / boundary.coefficient
+            if boundary.coefficient < 0 {
+                lowerBound = max(lowerBound, ratio)
+            } else {
+                upperBound = min(upperBound, ratio)
+            }
+            guard lowerBound <= upperBound else { return false }
+        }
+        return true
+    }
+}
+
 /// Immutable render data derived from one graph/focus/viewport combination.
 /// Layout construction is intentionally separated from pan and zoom state so
-/// gesture frames only query the spatial index for nodes near the viewport.
+/// gesture frames only query spatial indices for nodes and edges near the viewport.
 struct TaxonomyConstellationScene {
     let revision: Int
     let layout: TaxonomyConstellationLayout
@@ -557,9 +607,40 @@ struct TaxonomyConstellationScene {
         let row: Int
     }
 
+    private indirect enum EdgeSpatialIndex {
+        case empty
+        case leaf(bounds: CGRect, indices: [Int])
+        case branch(bounds: CGRect, first: EdgeSpatialIndex, second: EdgeSpatialIndex)
+
+        var bounds: CGRect {
+            switch self {
+            case .empty:
+                return .null
+            case .leaf(let bounds, _), .branch(let bounds, _, _):
+                return bounds
+            }
+        }
+
+        func collectEdgeIndices(intersecting rect: CGRect, into indices: inout [Int]) {
+            guard bounds.intersects(rect) else { return }
+            switch self {
+            case .empty:
+                return
+            case .leaf(_, let leafIndices):
+                indices.append(contentsOf: leafIndices)
+            case .branch(_, let first, let second):
+                first.collectEdgeIndices(intersecting: rect, into: &indices)
+                second.collectEdgeIndices(intersecting: rect, into: &indices)
+            }
+        }
+    }
+
     private static let spatialCellSize: CGFloat = 512
+    private static let maximumEdgesPerLeaf = 12
     private let positionedNodes: [PositionedNode]
     private let nodesByCell: [SpatialCell: [PositionedNode]]
+    private let edgeSegments: [TaxonomyConstellationEdgeSegment]
+    private let edgeSpatialIndex: EdgeSpatialIndex
 
     init(
         revision: Int,
@@ -579,6 +660,29 @@ struct TaxonomyConstellationScene {
         self.nodesByCell = Dictionary(grouping: positionedNodes) { positionedNode in
             Self.spatialCell(containing: positionedNode.position)
         }
+
+        var edgeSegments: [TaxonomyConstellationEdgeSegment] = []
+        for edge in graph.edges {
+            guard layoutNodeIDs.contains(edge.from),
+                  layoutNodeIDs.contains(edge.to),
+                  let endNode = graph.node(id: edge.to),
+                  let startPoint = layout.positions[edge.from],
+                  let endPoint = layout.positions[edge.to],
+                  Self.isFinite(startPoint),
+                  Self.isFinite(endPoint) else { continue }
+            let segment = TaxonomyConstellationEdgeSegment(
+                edge: edge,
+                endNode: endNode,
+                startPoint: startPoint,
+                endPoint: endPoint
+            )
+            edgeSegments.append(segment)
+        }
+        self.edgeSegments = edgeSegments
+        self.edgeSpatialIndex = Self.makeEdgeSpatialIndex(
+            indices: Array(edgeSegments.indices),
+            segments: edgeSegments
+        )
     }
 
     func nodes(in rect: CGRect) -> [TaxonomyTreeNode] {
@@ -617,11 +721,67 @@ struct TaxonomyConstellationScene {
             .map(\.node)
     }
 
+    func edges(
+        in rect: CGRect,
+        visibleNodeIDs: Set<String>
+    ) -> [TaxonomyConstellationEdgeSegment] {
+        guard !edgeSegments.isEmpty, Self.isFinite(rect) else { return [] }
+
+        var candidateIndices: [Int] = []
+        edgeSpatialIndex.collectEdgeIndices(intersecting: rect, into: &candidateIndices)
+
+        return candidateIndices.sorted().compactMap { index in
+            let segment = edgeSegments[index]
+            guard visibleNodeIDs.contains(segment.edge.from),
+                  visibleNodeIDs.contains(segment.edge.to),
+                  segment.intersects(rect) else { return nil }
+            return segment
+        }
+    }
+
     private static func spatialCell(containing point: CGPoint) -> SpatialCell {
         SpatialCell(
             column: Int(floor(point.x / spatialCellSize)),
             row: Int(floor(point.y / spatialCellSize))
         )
+    }
+
+    private static func makeEdgeSpatialIndex(
+        indices: [Int],
+        segments: [TaxonomyConstellationEdgeSegment]
+    ) -> EdgeSpatialIndex {
+        guard !indices.isEmpty else { return .empty }
+        let bounds = indices.reduce(CGRect.null) {
+            $0.union(segments[$1].bounds)
+        }
+        guard indices.count > maximumEdgesPerLeaf else {
+            return .leaf(bounds: bounds, indices: indices)
+        }
+
+        let sortsHorizontally = bounds.width >= bounds.height
+        let sortedIndices = indices.sorted { lhs, rhs in
+            let lhsBounds = segments[lhs].bounds
+            let rhsBounds = segments[rhs].bounds
+            let lhsCenter = sortsHorizontally ? lhsBounds.midX : lhsBounds.midY
+            let rhsCenter = sortsHorizontally ? rhsBounds.midX : rhsBounds.midY
+            return lhsCenter == rhsCenter ? lhs < rhs : lhsCenter < rhsCenter
+        }
+        let midpoint = sortedIndices.count / 2
+        return .branch(
+            bounds: bounds,
+            first: makeEdgeSpatialIndex(
+                indices: Array(sortedIndices[..<midpoint]),
+                segments: segments
+            ),
+            second: makeEdgeSpatialIndex(
+                indices: Array(sortedIndices[midpoint...]),
+                segments: segments
+            )
+        )
+    }
+
+    private static func isFinite(_ point: CGPoint) -> Bool {
+        point.x.isFinite && point.y.isFinite
     }
 
     private static func isFinite(_ rect: CGRect) -> Bool {

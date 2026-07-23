@@ -45,33 +45,39 @@ struct TaxonomyTreeCanvasView: View {
             let viewportNodes = scene.nodes(
                 in: visibleRect.insetBy(dx: -140, dy: -140)
             ).filter { visibleNodeIDs.contains($0.id) }
+            let viewportEdges = scene.edges(
+                in: visibleRect.insetBy(dx: -140, dy: -140),
+                visibleNodeIDs: visibleNodeIDs
+            )
 
             ZStack(alignment: .topLeading) {
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
 
+                TaxonomyConstellationStarfield()
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+
+                TaxonomyConstellationClusterHalos(
+                    graph: viewModel.graph,
+                    positions: layout.positions,
+                    visibleNodeIDs: visibleNodeIDs,
+                    scale: viewModel.scale
+                )
+                .frame(width: layout.size.width, height: layout.size.height)
+                .scaleEffect(viewModel.scale, anchor: .topLeading)
+                .offset(viewModel.currentOffset)
+
+                TaxonomyConstellationEdgesCanvas(
+                    segments: viewportEdges,
+                    spotlightIDs: spotlightIDs,
+                    selectedNodeID: viewModel.selectedNodeID,
+                    scale: viewModel.scale,
+                    contentOffset: viewModel.currentOffset
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+
                 ZStack(alignment: .topLeading) {
-                    TaxonomyConstellationStarfield()
-                        .frame(width: layout.size.width, height: layout.size.height)
-
-                    TaxonomyConstellationClusterHalos(
-                        graph: viewModel.graph,
-                        positions: layout.positions,
-                        visibleNodeIDs: visibleNodeIDs,
-                        scale: viewModel.scale
-                    )
-                    .frame(width: layout.size.width, height: layout.size.height)
-
-                    TaxonomyConstellationEdgesCanvas(
-                        graph: viewModel.graph,
-                        positions: layout.positions,
-                        visibleNodeIDs: visibleNodeIDs,
-                        spotlightIDs: spotlightIDs,
-                        selectedNodeID: viewModel.selectedNodeID,
-                        scale: viewModel.scale
-                    )
-                    .frame(width: layout.size.width, height: layout.size.height)
-
                     ForEach(viewportNodes) { node in
                         TaxonomyConstellationNodeView(
                             node: node,
@@ -436,8 +442,9 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
             let loadedGraph = TaxonomyTreeGraphBuilder.build(from: response.data)
             cachedGraphsByScope[scope] = loadedGraph
             if selectedTreeScope == scope {
-                applyGraph(loadedGraph)
-                hasPositionedInitialViewport = false
+                if applyGraph(loadedGraph) {
+                    hasPositionedInitialViewport = false
+                }
             }
         } catch {
             if selectedTreeScope == scope {
@@ -621,13 +628,16 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         min(maxScale, max(minimumScale ?? minScale, value))
     }
 
-    private func applyGraph(_ nextGraph: TaxonomyTreeGraph) {
+    @discardableResult
+    private func applyGraph(_ nextGraph: TaxonomyTreeGraph) -> Bool {
+        guard graph != nextGraph else { return false }
         graph = nextGraph
         graphRevision &+= 1
         cachedSceneKey = nil
         cachedScene = nil
         cachedSpotlightKey = nil
         cachedSpotlightNodeIDs = []
+        return true
     }
 
     private func normalizedLayoutSize(_ size: CGSize) -> CGSize {
@@ -740,40 +750,52 @@ private struct TaxonomyConstellationClusterHalos: View {
     }
 }
 
-private struct TaxonomyConstellationEdgesCanvas: View {
-    let graph: TaxonomyTreeGraph
-    let positions: [String: CGPoint]
-    let visibleNodeIDs: Set<String>
+private struct TaxonomyConstellationEdgesCanvas: View, Animatable {
+    let segments: [TaxonomyConstellationEdgeSegment]
     let spotlightIDs: Set<String>
     let selectedNodeID: String?
-    let scale: CGFloat
+    var scale: CGFloat
+    var contentOffset: CGSize
+
+    var animatableData: AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>> {
+        get {
+            AnimatablePair(
+                scale,
+                AnimatablePair(contentOffset.width, contentOffset.height)
+            )
+        }
+        set {
+            scale = newValue.first
+            contentOffset = CGSize(
+                width: newValue.second.first,
+                height: newValue.second.second
+            )
+        }
+    }
 
     var body: some View {
         Canvas { context, _ in
-            for edge in graph.edges {
-                guard visibleNodeIDs.contains(edge.from),
-                      visibleNodeIDs.contains(edge.to),
-                      let endNode = graph.node(id: edge.to),
-                      let startCenter = positions[edge.from],
-                      let endCenter = positions[edge.to] else { continue }
+            for segment in segments {
+                let edge = segment.edge
                 let isSpotlighted = spotlightIDs.isEmpty ||
                     (spotlightIDs.contains(edge.from) && spotlightIDs.contains(edge.to))
                 let isSelectedEdge = selectedNodeID == edge.from || selectedNodeID == edge.to
                 var path = Path()
-                path.move(to: startCenter)
-                path.addLine(to: endCenter)
-                let tint = TaxonomyConstellationPalette.tint(for: endNode)
+                path.move(to: screenPoint(for: segment.startPoint))
+                path.addLine(to: screenPoint(for: segment.endPoint))
+                let tint = TaxonomyConstellationPalette.tint(for: segment.endNode)
                 let semanticScale = max(0.15, scale)
+                let screenScale = scale / semanticScale
                 let lineageWeight = min(
                     2.4,
-                    0.72 + CGFloat(log10(Double(max(1, endNode.speciesCount)))) * 0.58
-                ) / semanticScale
+                    0.72 + CGFloat(log10(Double(max(1, segment.endNode.speciesCount)))) * 0.58
+                ) * screenScale
                 if isSelectedEdge {
                     context.stroke(
                         path,
                         with: .color(tint.opacity(0.14)),
                         style: StrokeStyle(
-                            lineWidth: lineageWeight + 6 / semanticScale,
+                            lineWidth: lineageWeight + 6 * screenScale,
                             lineCap: .round
                         )
                     )
@@ -782,7 +804,7 @@ private struct TaxonomyConstellationEdgesCanvas: View {
                     path,
                     with: .color(isSpotlighted ? tint.opacity(isSelectedEdge ? 0.82 : 0.38) : Color.secondary.opacity(0.09)),
                     style: StrokeStyle(
-                        lineWidth: isSpotlighted ? lineageWeight : 0.72 / semanticScale,
+                        lineWidth: isSpotlighted ? lineageWeight : 0.72 * screenScale,
                         lineCap: .round,
                         lineJoin: .round
                     )
@@ -790,6 +812,13 @@ private struct TaxonomyConstellationEdgesCanvas: View {
             }
         }
         .allowsHitTesting(false)
+    }
+
+    private func screenPoint(for contentPoint: CGPoint) -> CGPoint {
+        CGPoint(
+            x: contentPoint.x * scale + contentOffset.width,
+            y: contentPoint.y * scale + contentOffset.height
+        )
     }
 }
 
