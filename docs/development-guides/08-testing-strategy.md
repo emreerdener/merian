@@ -1191,13 +1191,41 @@ and detail seeking still behaves as documented.
   a valid CSV row (not a JS runtime error string) for scans ingested before the
   species enrichment pipeline ran.
 
-### `revenuecat-webhook/index_test.ts`
+### `revenuecat-webhook/*_test.ts`
 
-- **UUID regex validation**: Tests the `UUID_REGEX` guard that blocks
-  `$RCAnonymousID:xxx` anonymous IDs and other non-UUID strings before any DB
-  access. Verifies rejection of `null`, empty strings, numeric types, and
-  malformed UUIDs; acceptance of lowercase, uppercase, and `crypto.randomUUID()`
-  output.
+- **`signature_test.ts`**: Proves HMAC-SHA256 is calculated over the exact
+  timestamp-prefixed raw body, supports multiple `v1` values, compares the
+  digest safely, and rejects tampering plus timestamps outside the five-minute
+  past/future window.
+- **`index_test.ts`**: Validates the durable event ID and safe-integer event
+  timestamp contract. It also locks current/original/alias UUID ordering,
+  deduplication, anonymous handling, tombstone exclusion, and the separate
+  `transferred_from` / `transferred_to` subject contract.
+- **`subscriber_test.ts`**: Covers active and expired standard entitlements,
+  exact seven-day pass expiry, pass-refund exclusion with a later purchase,
+  server API authentication/URL encoding, and fail-closed CustomerInfo errors.
+- **`handler_test.ts`**: Uses mocked RevenueCat and database boundaries to prove
+  the order is signature verification → payload validation → durable duplicate
+  lookup → authoritative lookup → one mutation transaction. A committed
+  duplicate makes no provider request; replay rejection and oversized bodies
+  make no external calls; a future event cannot poison the database watermark;
+  subscriber-API failure makes no mutation call; purely anonymous events skip
+  the provider but receive a durable ignored receipt; and both sides of a
+  transfer are reconciled before one mutation call.
+- **`_tests/revenueCatWebhookCoverage.test.ts`**: Source contract that keeps the
+  processing order and all three GitHub/Supabase secret bindings present.
+- **`_tests/revenueCatWebhookMigrationContract.test.ts`**: Static SQL contract
+  for the unique event ledger, per-event subject table, ordering watermark,
+  deterministic multi-user row locks, service-only duplicate/mutation RPCs,
+  RLS, and explicit revocations.
+- **`tests/revenuecat_webhook_security.sql`**: Executable pgTAP coverage for ACLs,
+  direct-table isolation, duplicate delivery, a delayed expiration after
+  renewal, a delayed purchase after refund, event-ID/payload conflict, atomic
+  transfer of source and destination, a deleted transfer source with a live
+  destination, ambiguous-alias rejection, missing-user failure, and
+  entitlement-version advancement. Keep this test in the
+  disposable-database deployment gate alongside
+  `privileged_routine_security.sql` and `ai_quota_security.sql`.
 
 ### `sync-collections/db_test.ts`
 

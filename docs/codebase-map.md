@@ -330,7 +330,12 @@ Data lifecycle, identity, and exports:
 - `submit-feedback-survey`
 - `request-export-dwca`
 - `export-dwca`
-- `revenuecat-webhook`
+- `revenuecat-webhook` — verifies the configured bearer credential and
+  RevenueCat raw-body HMAC, parses bounded event identities, fetches
+  authoritative CustomerInfo, and commits idempotent per-user state through
+  service-only database RPCs. Route-local `handler.ts`, `protocol.ts`,
+  `signature.ts`, `subscriber.ts`, and `db.ts` keep those boundaries
+  independently testable.
 - `get-filtered-discovery-feed`
 
 Scheduled/background workers:

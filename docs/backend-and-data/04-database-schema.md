@@ -2352,6 +2352,35 @@ Append-only source of truth for internal AI analytics:
 - Non-content extension data: `metadata JSONB`
 
 `effective_plan` is `free`, `pro_paid`, `pro_trial`, or `unknown`;
+`input_modality` is `text`, `image`, `audio`, `video`, `mixed`, or `unknown`;
+`outcome` is `success`, `refusal`, or `error`. Token/cost values are nullable
+but cannot be negative.
+
+Despite its legacy column name, `prompt_tokens_by_modality` stores the complete
+normalized modality breakdown:
+
+```json
+{
+  "prompt": { "text": 120, "image": 258 },
+  "cached": { "text": 40 },
+  "candidates": { "text": 80 },
+  "tool": {}
+}
+```
+
+Missing Gemini detail arrays normalize to empty objects; no prompt or response
+content belongs in this field.
+
+The unique key `(source_type, source_id, operation)` makes durable retries and
+backfills idempotent. Indexes cover event time, operation/time, scan, and
+user/time. An append-only trigger rejects arbitrary updates/deletes; the account
+deletion trigger may clear identifying linkage while preserving anonymous
+aggregates. Ghost-profile merge is the other narrowly authorized ownership
+rewrite: transaction-local source/target settings permit changing only
+`user_id`, and the migration updates this ledger explicitly. The table
+intentionally has no `auth.users` foreign key; an `ON DELETE SET NULL` action
+would reach the append-only trigger outside the account-deletion trigger's
+authorized anonymization context.
 
 ### `internal.ai_quota_policies`, counters, and reservations
 
@@ -2395,35 +2424,54 @@ attempts after their ten-minute lease without racing an active finalizer.
 terminal reservation update time and counter window start to delete bounded
 batches of old state and unreferenced counters; it never drops a live
 reservation without first releasing its counters.
-`input_modality` is `text`, `image`, `audio`, `video`, `mixed`, or `unknown`;
-`outcome` is `success`, `refusal`, or `error`. Token/cost values are nullable
-but cannot be negative.
 
-Despite its legacy column name, `prompt_tokens_by_modality` stores the complete
-normalized modality breakdown:
+### `internal.revenuecat_webhook_events` and customer state
 
-```json
-{
-  "prompt": { "text": 120, "image": 258 },
-  "cached": { "text": 40 },
-  "candidates": { "text": 80 },
-  "tool": {}
-}
-```
+Migration `20260723201500_secure_revenuecat_webhook_delivery.sql` adds the
+private RevenueCat synchronization ledger:
 
-Missing Gemini detail arrays normalize to empty objects; no prompt or response
-content belongs in this field.
+- `internal.revenuecat_webhook_events`: one row per provider `event_id`, enforced
+  by the primary key. It stores provider event metadata, raw-payload SHA-256
+  digest, signature timestamp, aggregate `applied` / `stale` / `mixed` /
+  `ignored` outcome and counts, and receipt time. Raw webhook JSON and
+  RevenueCat secret values are not stored.
+- `internal.revenuecat_webhook_event_subjects`: zero to two rows per event. Each
+  row stores a resolved Merian user, customer/transfer-source/transfer-destination
+  kind, authoritative snapshot timestamp, projected tier/expiry, per-user
+  outcome, and entitlement version. Separating event identity from subjects
+  allows one `TRANSFER` event to own both sides of the move.
+- `internal.revenuecat_customer_state`: one row per Merian user containing the
+  last accepted event ID, provider event timestamp, authoritative CustomerInfo
+  timestamp, and update time.
 
-The unique key `(source_type, source_id, operation)` makes durable retries and
-backfills idempotent. Indexes cover event time, operation/time, scan, and
-user/time. An append-only trigger rejects arbitrary updates/deletes; the account
-deletion trigger may clear identifying linkage while preserving anonymous
-aggregates. Ghost-profile merge is the other narrowly authorized ownership
-rewrite: transaction-local source/target settings permit changing only
-`user_id`, and the migration updates this ledger explicitly. The table
-intentionally has no `auth.users` foreign key; an `ON DELETE SET NULL` action
-would reach the append-only trigger outside the account-deletion trigger's
-authorized anonymization context.
+All three tables have RLS enabled and revoke all direct access from `PUBLIC`, `anon`,
+`authenticated`, and `service_role`. Edge code can mutate them only through
+`public.apply_revenuecat_customer_state(...)`, a service-role allowlisted
+`SECURITY DEFINER` routine with an empty search path and an in-function caller
+check. The identically protected
+`public.get_revenuecat_webhook_event_result(...)` returns an existing committed
+receipt without granting direct ledger access, avoiding another RevenueCat API
+call for ordinary at-least-once retries.
+
+The routine requires each RevenueCat identity group to resolve to exactly one
+existing `public.users` row; it never creates one and rejects multiple live UUID
+matches as ambiguous. It takes all affected user locks in sorted UUID order, so
+a transfer cannot deadlock another transfer or commit only one side. The event
+can omit a transfer source that has already been deleted, because no Merian
+entitlement remains to revoke; a missing normal or destination profile remains
+retryable. The event primary key makes repeated delivery idempotent, while the
+per-user tuple
+`(event_timestamp_ms, authoritative_snapshot_at_ms, event_id)` makes state
+monotonic. A new tuple updates tier/expiry, its subject row, and the watermark
+in the same transaction. A duplicate returns aggregate counts without another
+write; an older tuple is retained as `stale`. Reusing an event ID with a
+different timestamp, type, or payload digest raises a unique-conflict error.
+Normal events can contain at most one `customer` subject; transfers can contain
+at most one source and one destination, enforced in both the RPC and a
+per-event subject-kind uniqueness constraint.
+Indexes cover event receipt time, subject user foreign keys, and the watermark's
+event foreign key so account deletion and operational joins do not scan the
+private tables.
 
 ### `internal.ghost_profile_merge_handoffs`
 

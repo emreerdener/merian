@@ -214,6 +214,35 @@ Edge code uses the built-in server-only Supabase secret/service-role key; an
 explicit override shorter than 32 characters still fails closed. The deploy
 workflow validates and synchronizes the override only when configured.
 
+### RevenueCat delivery boundary
+
+`revenuecat-webhook` requires a constant-time Authorization credential and
+RevenueCat's timestamped raw-body HMAC. After verification it fetches
+authoritative CustomerInfo with `REVENUECAT_SECRET_API_KEY`; webhook event types
+alone never grant or revoke access. All three credentials are required GitHub
+`Production` secrets synchronized to Supabase by the deploy workflow.
+
+Migration `20260723201500_secure_revenuecat_webhook_delivery.sql` records
+RevenueCat event IDs under a unique constraint and keeps a per-user ordering
+watermark. `apply_revenuecat_customer_state(...)` orders by provider event time,
+then CustomerInfo snapshot time, in the same transaction that updates tier and
+expiry. The event ledger has child subject rows so `TRANSFER` can reconcile and
+commit both its source and destination under one event ID; all affected user
+rows are locked in deterministic UUID order. Duplicate or delayed events cannot
+overwrite newer access. Reuse of an event ID with a different payload digest is
+rejected. The
+service-only `get_revenuecat_webhook_event_result(...)` lookup prevents durable
+duplicates from causing another provider API call. Both RPCs use an empty search
+path and caller check; the internal ledger tables have RLS enabled and no direct
+API-role grants. Billing does not create missing users and rejects an identity
+set that ambiguously maps to multiple live profiles.
+
+Keep `revenueCatWebhookCoverage.test.ts`,
+`revenueCatWebhookMigrationContract.test.ts`, the route's focused unit tests,
+and `tests/revenuecat_webhook_security.sql` in the deploy gate. See
+[`functions/revenuecat-webhook/README.md`](./functions/revenuecat-webhook/README.md)
+for the protocol, rollout, and rotation contract.
+
 ### Explore Author Maintenance
 
 Explore read functions are projection-only. They must not refresh public author

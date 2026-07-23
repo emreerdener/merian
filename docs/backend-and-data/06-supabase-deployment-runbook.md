@@ -48,7 +48,8 @@ The workflow performs the following steps:
    test.
 2. Installs the exact reviewed Deno `2.9.2` runtime.
 3. Installs the reviewed Supabase CLI `2.109.1`.
-4. Fails fast if required deployment secrets are missing or an explicitly
+4. Fails fast if required deployment or RevenueCat credentials are missing, if
+   either webhook credential is shorter than 32 characters, or if an explicitly
    configured AI quota HMAC override is shorter than 32 characters.
 5. Validates Edge Function formatting, lint, and shared runtime type checks.
 6. Confirms exact set parity between function entrypoints and
@@ -57,13 +58,15 @@ The workflow performs the following steps:
    graph fully represented by the shared frozen `dependencies.lock`; finally it
    type-checks all entrypoints with the exact local config Supabase will
    discover.
-7. Runs focused shared-helper, deployment-planner, AI quota coverage, and static
-   migration-contract tests. The migration execution contract enumerates every
-   SQL migration and rejects pipeline-incompatible concurrent index DDL.
+7. Runs focused shared-helper, deployment-planner, AI quota, RevenueCat webhook,
+   and static migration-contract tests. The migration execution contract
+   enumerates every SQL migration and rejects pipeline-incompatible concurrent
+   index DDL.
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the privileged-routine plus AI quota pgTAP catalog gates.
+   and runs the privileged-routine, AI quota, and RevenueCat pgTAP catalog
+   gates.
 9. Builds an affected-function deployment plan from the pushed Git diff. Manual
    dispatch and an unresolvable Git diff safely select the full fleet.
 10. Prepares a Postgres connection string for database migrations without
@@ -78,12 +81,14 @@ The workflow performs the following steps:
     release if any privileged-routine invariant fails.
 14. Synchronizes the reviewed `AI_QUOTA_IP_HASH_SECRET` override when present;
     otherwise the functions use a built-in server-only Supabase key.
-15. Deploys the planned functions in bounded batches. A failed batch is retried
+15. Synchronizes all three required RevenueCat credentials from the GitHub
+    `Production` environment to Supabase Edge secrets.
+16. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-16. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
-   endpoint, and a dry-run bounded GBIF import with the production service-role
-   credential.
+17. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
+    endpoint, and a dry-run bounded GBIF import with the production service-role
+    credential.
 
 Local and CI database rebuilds require Supabase CLI `2.109.0` or newer, and CI
 pins `2.109.1`. The migration history itself remains compatible with
@@ -291,7 +296,8 @@ and rerun the same disposable-database sequence:
 supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
-  services/supabase/tests/ai_quota_security.sql
+  services/supabase/tests/ai_quota_security.sql \
+  services/supabase/tests/revenuecat_webhook_security.sql
 ```
 
 ## Authoritative AI Quota Release Gate
@@ -474,6 +480,150 @@ route live, stop the release and fail provider access closed (including
 temporarily removing the provider secret if necessary) until every affected
 route is on the guarded bundle. Fix forward; keep the quota schema and durable
 reservation evidence.
+
+### RevenueCat Webhook Release Gate
+
+Migration `20260723201500_secure_revenuecat_webhook_delivery.sql` must land
+before the hardened `revenuecat-webhook` bundle calls
+`apply_revenuecat_customer_state(...)`. Populate and configure the credentials
+before merging the first deployment:
+
+1. Generate at least 32 random characters for
+   `REVENUECAT_WEBHOOK_SECRET`, for example `openssl rand -hex 32`. Configure
+   RevenueCat's webhook Authorization header as `Bearer <that value>` and store
+   the raw value in the GitHub `Production` environment secret.
+2. Enable HMAC signing for the webhook in RevenueCat. Copy the signing secret
+   shown once into GitHub `Production` as
+   `REVENUECAT_WEBHOOK_SIGNING_SECRET`. Do not generate a different local value.
+3. Create or select a RevenueCat secret server API key authorized for the same
+   project and store it as `REVENUECAT_SECRET_API_KEY`. It must begin with
+   `sk_`; do not use any public SDK/Test Store key.
+4. Confirm the webhook URL targets the production
+   `/functions/v1/revenuecat-webhook` route and that the RevenueCat project
+   contains the reviewed `pro` or `Naturalist Tier` entitlement plus
+   `pro_week`. If the integration filters event types, it must include
+   `TRANSFER` as well as the subscription/purchase lifecycle events; RevenueCat
+   sends no separate expiration/renewal pair for a transfer.
+
+Run the complete preflight:
+
+```bash
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions/revenuecat-webhook,.github/workflows/deploy.yml \
+  services/supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+  services/supabase/functions/_shared/subscriptionPass_test.ts \
+  services/supabase/functions/revenuecat-webhook/handler_test.ts \
+  services/supabase/functions/revenuecat-webhook/index_test.ts \
+  services/supabase/functions/revenuecat-webhook/signature_test.ts \
+  services/supabase/functions/revenuecat-webhook/subscriber_test.ts
+
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/migrations \
+  services/supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts
+
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/privileged_routine_security.sql \
+  services/supabase/tests/ai_quota_security.sql \
+  services/supabase/tests/revenuecat_webhook_security.sql
+```
+
+After production deploy, send a RevenueCat test webhook for a linked test UUID.
+The delivery must return `200`, and the following owner-only read should show
+one event row, its per-user subject row, and the matching watermark:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+SELECT
+    events.event_id,
+    events.event_type,
+    events.event_timestamp_ms,
+    events.outcome,
+    events.subject_count,
+    events.applied_count,
+    events.stale_count,
+    subjects.subject_kind,
+    subjects.authoritative_snapshot_at_ms,
+    subjects.outcome AS subject_outcome,
+    subjects.entitlement_version,
+    events.received_at
+FROM internal.revenuecat_webhook_events AS events
+JOIN internal.revenuecat_webhook_event_subjects AS subjects
+  ON subjects.event_id = events.event_id
+WHERE subjects.merian_user_id = '<test-user-uuid>'::UUID
+ORDER BY events.received_at DESC
+LIMIT 10;
+
+SELECT
+    states.last_event_id,
+    states.last_event_timestamp_ms,
+    states.last_authoritative_snapshot_at_ms,
+    users.subscription_tier,
+    users.subscription_expires_at,
+    users.entitlement_version
+FROM internal.revenuecat_customer_state AS states
+JOIN public.users AS users
+  ON users.id = states.merian_user_id
+WHERE states.merian_user_id = '<test-user-uuid>'::UUID;
+
+SELECT
+    checks.routine_signature,
+    HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS anon_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS authenticated_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS service_role_can_execute
+FROM (
+    VALUES
+        ('public.get_revenuecat_webhook_event_result(text,bigint,text,text)'),
+        ('public.apply_revenuecat_customer_state(text,bigint,text,text,bigint,jsonb)')
+) AS checks(routine_signature)
+ORDER BY checks.routine_signature;
+
+ROLLBACK;
+```
+
+Expected ACLs are `false`, `false`, `true` for both rows. Redeliver the same
+RevenueCat test event: the ledger row count for its ID must remain one, the HTTP
+outcome must be `duplicate`, and no second CustomerInfo request should appear in
+Edge logs. Compare the projected tier with the RevenueCat CustomerInfo shown for
+that App User ID. Standard entitlement state must have a null timed expiry;
+`pro_week` must have an expiry exactly seven days after its authoritative
+purchase time.
+
+Also exercise the configured RevenueCat restore/transfer behavior with two
+disposable test customers. The single `TRANSFER` event must show
+`subject_count = 2`, one `transfer_source`, one `transfer_destination`, and the
+source/destination tiers must match their two authoritative CustomerInfo
+responses. A `mixed` outcome is valid only when one user already has a strictly
+newer watermark; there must never be a one-sided database commit after a failed
+provider lookup.
+
+Rotate the API key by deploying the new key before revoking the old key. For the
+Authorization or HMAC credential, coordinate the RevenueCat dashboard change
+and GitHub secret update in one supervised window, immediately dispatch the
+workflow, then send a test event. HMAC rotation invalidates the previous signing
+secret immediately; non-2xx deliveries during the short window should retry.
+
+Do not recover an incident by disabling HMAC, widening the replay window,
+trusting `event.type`, directly editing the private ledger, or restoring direct
+service-client tier updates. Keep provider deliveries retrying with non-2xx
+responses while fixing forward. Preserve the event ledger during rollback or
+repair because it is the durable replay and ordering evidence.
 
 ### Naturebook Public Rebrand Release
 
@@ -1009,6 +1159,15 @@ Set these in the repository's GitHub Actions secrets:
   blocks deployment and runtime provider work. Rotation resets only the current
   network-rate bucket identity and must be a reviewed incident or privacy
   operation.
+- `REVENUECAT_WEBHOOK_SECRET` — required, at least 32 random characters, and
+  used as the secret portion of RevenueCat's configured
+  `Authorization: Bearer <value>` credential.
+- `REVENUECAT_WEBHOOK_SIGNING_SECRET` — required RevenueCat-generated HMAC
+  signing secret. RevenueCat shows it once and invalidates the previous value
+  immediately on rotation.
+- `REVENUECAT_SECRET_API_KEY` — required `sk_` secret server API key for
+  authoritative CustomerInfo reads in the same RevenueCat project. This is not
+  the public iOS `REVENUECAT_API_KEY`.
 - One database connection path:
   - Preferred: `SUPABASE_DB_URL` — full percent-encoded Postgres connection
     string for migration pushes. Copy the Supabase shared pooler session-mode
@@ -1055,7 +1214,10 @@ still depend on Supabase's hosted APIs and can fail during an active platform
 incident.
 
 The workflow also inherits normal Supabase project Edge secrets at runtime.
-Those live in Supabase, not GitHub Actions, and are documented in
+Most live only in Supabase. The three RevenueCat credentials and the optional
+AI quota override are reviewed exceptions: GitHub `Production` is their deploy
+source and the workflow synchronizes them to Supabase. The complete Edge-secret
+inventory is documented in
 `docs/backend-and-data/02-supabase-edge-and-database.md`.
 
 ## Manual Production Deploy
@@ -1460,6 +1622,16 @@ After deployment:
   `PUBLIC` and `anon` must execute no public definer; authenticated and service
   execution must exactly match `internal.privileged_routine_grants`; every
   definer must have an empty search path and the expected caller check.
+- For a RevenueCat release, confirm the webhook has both Authorization and HMAC
+  signing enabled, send a linked-customer test event, compare the resulting
+  tier/expiry with authoritative CustomerInfo, and redeliver the same event to
+  prove it returns `duplicate` without advancing `entitlement_version`. Confirm
+  the event and customer-state tables remain inaccessible to API roles and the
+  duplicate-lookup and state-mutation RPC ACLs are exactly
+  anon/authenticated/service-role =
+  `false`/`false`/`true`. Treat elevated `401` as credential/signature drift and
+  elevated `502`/`503` as RevenueCat API, profile, or database availability;
+  never bypass reconciliation to clear the retry queue.
 - For an exact external-reference-media suppression, apply its cleanup/write
   prevention migration before deploying dependent functions. Deploy every
   transitive consumer selected for `_shared/externalImagePolicy.ts`,

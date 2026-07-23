@@ -193,44 +193,66 @@ and the
 ## RevenueCat Webhook (`revenuecat-webhook`)
 
 To keep the Supabase PostgreSQL backend in sync with iOS RevenueCat purchase
-state, a dedicated `revenuecat-webhook` Edge Function listens for global
-subscription events (`INITIAL_PURCHASE`, `RENEWAL`, `EXPIRATION`, and
-`UNCANCELLATION`) plus the exact non-renewing `pro_week` product. This
-endpoint requires a `Bearer REVENUECAT_WEBHOOK_SECRET` `Authorization` header,
-mapped to Env Vars. `verify_jwt = false` lets the non-Supabase webhook
-credential reach Deno; the handler performs the secret comparison and returns
-401 for an invalid caller.
+state, the `revenuecat-webhook` Edge Function treats each global subscription
+or `pro_week` event as a synchronization signal. It never trusts the event type
+alone to decide access.
 
-1. **`app_user_id` UUID validation**: After HMAC authentication,
-   `event.app_user_id` is validated against a strict UUID regex before any DB
-   access. A simple falsy check is insufficient — RevenueCat sends anonymous IDs
-   (`$RCAnonymousID:xxx`) for un-linked purchases, which would pass a falsy
-   check but fail UUID constraints in the DB layer. Anonymous-ID events are
-   rejected with `HTTP 400` and a warning log.
-2. **Tier Syndication**: Updates the `users.subscription_tier` enum to `pro` on
-   initialization/renewal, and downgrades it to `free` on expiration. Standard
-   subscriptions clear `subscription_expires_at`; the detached 7-day pass sets
-   it to `purchased_at_ms + 7 days`. `CANCELLATION` events are ignored for
-   standard auto-renewing subscriptions — turning off Auto-Renew lets users keep
-   Pro features until the genuine `EXPIRATION` timestamp lapses. For the
-   7-day pass, refund/cancellation-style events downgrade immediately.
-3. **Timed Pass Expiry**: `expire-subscription-passes` runs hourly via
-   `pg_cron`, finds timed Pro rows whose `subscription_expires_at` has passed,
-   downgrades them to `free`, clears the expiry timestamp, and migrates storage
-   back to the free bucket path. The webhook does not mark the dynamic 7-day app
-   trial as paid Pro; trial access is derived at inference time from RevenueCat
-   first-seen/client state and `users.created_at`.
-4. **Cloudflare Data Migration**: When a user upgrades to `pro`, the webhook
-   queries the `scans` table using a `while` loop over paginated
-   `.range(start, end)` subsets, traversing past Supabase's 1,000 max-row API
-   limit set by `config.toml`. To prevent Ghost Profile R2 migration data loss,
-   it evaluates image URIs based on the `public_uploads/free/` prefix rather
-   than matching the new authenticated `userId`, ensuring historical offline
-  scans are included. Existing scan media remains under its original
-  `public_uploads/free/` or `public_uploads/pro/` prefix when the tier changes;
-  both prefixes are durable scan-media storage. This prevents S3
-   validation failures that would cause iOS `URLSession` to receive
-   `HTTP 400 Bad Request` errors and result in dead links.
+1. **Dual ingress authentication**: `verify_jwt = false` permits RevenueCat,
+   which has no Supabase JWT, to reach the handler. The handler requires the
+   configured `Authorization: Bearer REVENUECAT_WEBHOOK_SECRET` and verifies
+   `X-RevenueCat-Webhook-Signature` with HMAC-SHA256 over the exact
+   `<timestamp>.<raw JSON body>` using
+   `REVENUECAT_WEBHOOK_SIGNING_SECRET`. Signatures outside the five-minute
+   past/future window fail before JSON parsing.
+2. **Durable identity**: `event.id` and `event_timestamp_ms` are required.
+   Supabase UUID candidates are resolved in RevenueCat's current,
+   original, then alias order. `TRANSFER` has no `app_user_id`, so its
+   `transferred_from` and `transferred_to` identity groups become separate
+   source and destination subjects. A purely anonymous event is durably marked
+   `ignored` without mutating a user; a later alias event carries a different
+   durable event ID. Billing never creates a missing `public.users` row or picks
+   arbitrarily when one RevenueCat identity group maps to multiple live rows. A
+   transfer source that was already deleted is omitted so it cannot block the
+   live destination; missing normal/destination rows remain retryable.
+3. **Authoritative reconciliation**: After signature verification, the server
+   first checks its private durable receipt. A committed duplicate returns
+   immediately so provider retries cannot amplify API traffic. Every new event
+   calls RevenueCat `GET /v1/subscribers/{app_user_id}` for each mapped customer with
+   `REVENUECAT_SECRET_API_KEY`. Active `pro` or `Naturalist Tier` entitlement
+   state controls standard Pro. The detached `pro_week` purchase is derived
+   from authoritative non-subscription transactions with a seven-day expiry;
+   matching refunds/revocations are excluded. An API error or malformed response
+   returns a retryable failure and leaves the database unchanged. Both transfer
+   lookups finish before either side can be written.
+4. **Transactional ordering**:
+   `public.apply_revenuecat_customer_state(...)` stores each event ID once,
+   locks every resolved user in sorted UUID order, and advances each subject
+   only when
+   `(event_timestamp_ms, CustomerInfo request_date_ms, event_id)` is newer than
+   that user's durable watermark. Duplicate and stale deliveries are audited
+   but cannot overwrite access. A newer refund therefore cannot be undone by a
+   delayed purchase, and a newer renewal cannot be overwritten by a delayed
+   expiration. Transfer source/destination changes share one event transaction
+   and cannot partially commit.
+5. **Tier and expiry projection**: Active standard entitlement state writes
+   `subscription_tier = pro` with no timed expiry. An active `pro_week` writes
+   its calculated expiration. No active paid state writes `free` and clears the
+   expiry. The existing trigger advances `users.entitlement_version` only when
+   the projected tier or expiry changes; all AI authorization reads that durable
+   version.
+6. **Timed-pass repair and media stability**:
+   `expire-subscription-passes` remains an hourly repair for a timed row that
+   reaches its expiry. The dynamic seven-day new-user trial is instead derived
+   from `users.created_at` by the server quota policy and is never stored as paid
+   Pro. Tier changes do not relocate scan media: both
+   `public_uploads/free/` and `public_uploads/pro/` are durable prefixes.
+
+RevenueCat delivers webhooks at least once, so a `200` response may report
+`applied`, `duplicate`, `stale`, `mixed`, or `ignored`, together with subject,
+applied, and stale counts. Provider or
+database faults return non-2xx so RevenueCat retries. Operational setup,
+rotation, and smoke checks live in the
+[Supabase deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#revenuecat-webhook-release-gate).
 
 ## Usage Limits (`UsageManager`)
 

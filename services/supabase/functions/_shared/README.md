@@ -106,8 +106,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
   error or missing row. Edge isolate memory is never an entitlement authority.
 - **`posthog.ts`**: Best-effort PostHog HTTP capture helpers.
 - **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`
-  pass, including the 7-day duration and RevenueCat `purchased_at_ms` expiration
-  calculation.
+  pass, including the 7-day duration. The webhook derives purchase time from
+  authoritative CustomerInfo `non_subscriptions`, never directly from an event.
 - **`explore.ts`**: Explore UUID/hashtag validation, public author identity
   sync, feed-card hashtag/pro-badge/username hydration, and shared
   social-surface helpers.

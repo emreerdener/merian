@@ -19,6 +19,9 @@ Merian.
 | `POSTHOG_API_KEY`                   | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
 | `GEMINI_API_KEY`                    | Supabase Edge secret only                            | Never in iOS bundle                                                                    |
 | `AI_QUOTA_IP_HASH_SECRET`           | Optional GitHub Production override synchronized to Supabase Edge | Dedicated HMAC key for rotating network quota buckets; never in clients or logs |
+| `REVENUECAT_WEBHOOK_SECRET`         | GitHub `Production` secret synchronized to Supabase Edge | Random webhook Authorization credential; never use the public iOS key |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | GitHub `Production` secret synchronized to Supabase Edge | RevenueCat raw-body HMAC key; never log, commit, or expose to clients |
+| `REVENUECAT_SECRET_API_KEY`         | GitHub `Production` secret synchronized to Supabase Edge | `sk_` server API credential for authoritative CustomerInfo reads; distinct from `REVENUECAT_API_KEY` |
 | `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret or server-side web env only     | Never in iOS bundle or browser-exposed web config                                      |
 | `Merian_HasAuthenticatedOAuth`      | `KeychainManager` (`kSecClassGenericPassword`)       | Security-sensitive auth flag, migrated from `UserDefaults` on first run                |
 | `Merian_PendingGhostProfileMerge`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)     | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
@@ -62,6 +65,20 @@ environment variable.**
   address with a quota-specific domain and UTC-day prefix; neither the raw
   address nor key enters the database, client, analytics, or logs. A weak
   explicitly configured override fails paid-model work closed.
+- `REVENUECAT_WEBHOOK_SECRET` — at least 32 random characters configured as the
+  secret portion of RevenueCat's `Authorization: Bearer <value>` header and as a
+  GitHub `Production` environment secret. The deployment workflow synchronizes
+  it to Supabase; the Edge Function compares the complete header in constant
+  time.
+- `REVENUECAT_WEBHOOK_SIGNING_SECRET` — the secret shown by RevenueCat when HMAC
+  signing is enabled. It authenticates the exact raw webhook body with a bounded
+  timestamp replay window. Rotation invalidates the old RevenueCat signing
+  secret immediately, so rotation is a supervised dashboard + GitHub deploy
+  operation.
+- `REVENUECAT_SECRET_API_KEY` — a RevenueCat secret server API key beginning
+  with `sk_`, used only to read authoritative CustomerInfo after a verified
+  webhook. It is not the app-facing `REVENUECAT_API_KEY`; never place a server
+  key in an `.xcconfig`, app bundle, Test Store configuration, or support log.
 - `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side
   web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`,
   and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as

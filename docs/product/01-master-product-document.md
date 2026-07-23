@@ -333,9 +333,14 @@ This list must be read with implementation status. Events are preview-gated. App
 ## 8.4 Entitlement synchronization
 
 RevenueCat webhooks synchronize tier and timed-pass expiry into backend state
-and atomically advance `users.entitlement_version`. Paid-model authorization
-uses the database quota reservation, not client display state or Edge-isolate
-memory; lookup errors fail closed.
+only after raw-body HMAC verification and an authoritative subscriber lookup.
+Unique event IDs plus a per-user event-time watermark prevent duplicate or
+delayed deliveries from rolling access backward, and accepted tier/expiry
+changes atomically advance `users.entitlement_version`. A RevenueCat transfer
+fetches authoritative source and destination state and commits both projections
+under one event transaction. Paid-model authorization uses the database quota
+reservation, not client display state or Edge-isolate memory; lookup errors fail
+closed.
 
 Biological media stays in the storage prefix selected when it was uploaded. There is no free-to-Pro or Pro-to-free object migration. Storage policy must not be documented as if a subscription change relocates existing media.
 

@@ -230,7 +230,10 @@ steps are tracked in the
   one-use `/merge-ghost-profile` handoff, an atomic database merge, and durable
   Auth cleanup. Pending proofs survive restarts in a device-only Keychain queue
   for the 30-day recovery window.
-- RevenueCat webhook drives `free` ↔ `pro` tier updates while leaving existing scan media in place.
+- RevenueCat webhook verifies a timestamped raw-body HMAC, reconciles
+  authoritative subscriber state, and applies idempotent, monotonically ordered
+  `free` ↔ `pro` transitions. Transfers reconcile source and destination in one
+  transaction, and existing scan media remains in place.
 - Free receives one primary scan per UTC day. Pro removes the ordinary product
   cap and receives Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple
   Watch logging, expedition mode, and offline queue; database fair-use ceilings

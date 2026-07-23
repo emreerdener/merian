@@ -1190,22 +1190,49 @@ not require a function redeployment. A healthy deployment has both
 The `revenuecat-webhook` function drives tier updates (`pro` ↔ `free`) without
 moving existing scan media between R2 prefixes. Both `public_uploads/free/` and
 `public_uploads/pro/` are durable scan-media storage, so RevenueCat events only
-update `users.subscription_tier` and `users.subscription_expires_at`. The
-database trigger atomically advances `users.entitlement_version`; the next
-quota reservation observes the new version from durable state regardless of
-which Edge isolate handles it. The webhook secret is validated using
-`timingSafeCompare()`, a constant-time XOR comparison, rather than plain string
-equality.
+update `users.subscription_tier` and `users.subscription_expires_at` through a
+single service-only RPC. The database trigger atomically advances
+`users.entitlement_version`; the next quota reservation observes the new
+version from durable state regardless of which Edge isolate handles it.
 
-Standard subscription purchases (`INITIAL_PURCHASE`, `RENEWAL`,
-`UNCANCELLATION`) clear `subscription_expires_at`; exact `pro_week`
-`NON_RENEWING_PURCHASE` events set it to `purchased_at_ms + 7 days`. On
-`EXPIRATION` for standard subscriptions, or refund/cancellation-style events for
-the pass, Merian downgrades the account tier and advances the durable version.
-Existing scan media remains in place because both `public_uploads/free/` and
-`public_uploads/pro/` are durable scan-media prefixes. The scheduled
-`expire-subscription-passes` worker performs the same downgrade when a timed
-pass reaches `subscription_expires_at`.
+Ingress is dual authenticated. `timingSafeCompare()` verifies the configured
+Bearer credential, and `signature.ts` verifies RevenueCat's
+`X-RevenueCat-Webhook-Signature` HMAC-SHA256 over the exact
+`<timestamp>.<raw-body>` before parsing. A five-minute replay window rejects
+captured deliveries. Missing signing configuration returns `503`; there is no
+legacy unsigned fallback.
+
+The event payload is not entitlement authority. After validating its durable
+`id`, `event_timestamp_ms`, and customer identity fields, the handler fetches
+the latest RevenueCat CustomerInfo with a secret server API key beginning with
+`sk_`. A committed event with the same timestamp, type, and payload digest found
+through the service-only duplicate lookup is the sole exception; it returns
+without another provider request, limiting at-least-once/replay amplification.
+Active `pro` or `Naturalist Tier` entitlements produce standard Pro; an
+authoritative `pro_week` non-subscription transaction produces a timed
+seven-day grant. Refund/revocation events exclude the matching pass transaction.
+CustomerInfo timeouts, rate limits, invalid responses, missing public user rows,
+and identity groups that map to multiple live users fail closed without a tier
+write.
+
+`public.apply_revenuecat_customer_state(...)` then performs the event insert,
+per-user lock, ordering comparison, tier projection, and durable watermark
+update in one transaction. `TRANSFER` events use `transferred_from` and
+`transferred_to` instead of `app_user_id`; the handler fetches both customers
+before calling the RPC, and the RPC locks source/destination UUIDs in sorted
+order. `internal.revenuecat_webhook_events.event_id` is the unique idempotency
+key, while `internal.revenuecat_webhook_event_subjects` records zero to two
+per-user results. `internal.revenuecat_customer_state` compares event timestamp
+first, authoritative snapshot time second, and event ID last. Duplicate or
+older deliveries remain auditable but cannot overwrite newer access, and a
+transfer cannot partially commit. All three internal tables have RLS enabled
+and no direct grants; the
+`SECURITY DEFINER SET search_path = ''` mutation and duplicate-lookup RPCs call
+`internal.require_service_role()` and are allowlisted only to `service_role`.
+
+The scheduled `expire-subscription-passes` worker remains a repair path when a
+timed pass reaches `subscription_expires_at`. Existing scan media remains in
+place on every transition.
 
 RevenueCat customer identity is linked by the iOS client before purchase
 evaluation: `SupabaseManager.linkExternalTelemetry(user:)` logs RevenueCat in
@@ -1891,8 +1918,16 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
 - **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants
   backend write access to the R2 Storage bucket.
-- **`REVENUECAT_WEBHOOK_SECRET`**: Constant-time verification string ensuring
-  webhook triggers originate from RevenueCat.
+- **`REVENUECAT_WEBHOOK_SECRET`**: At least 32 random characters used for the
+  RevenueCat webhook's configured Authorization header. Constant-time
+  comparison is the first ingress check.
+- **`REVENUECAT_WEBHOOK_SIGNING_SECRET`**: RevenueCat-generated HMAC signing
+  secret used to authenticate the exact raw body and enforce the five-minute
+  replay window. There is no unsigned production mode.
+- **`REVENUECAT_SECRET_API_KEY`**: Secret server API key used only by
+  `revenuecat-webhook` to fetch authoritative CustomerInfo. It must begin with
+  `sk_`, is distinct from the public iOS `REVENUECAT_API_KEY`, and must never
+  ship in a client.
 - **`RESEND_API_KEY`**: The API Key from Resend for sending transactional emails
   (like DwC-A exports).
 - **`RESEND_FROM_EMAIL`**: The verified sender identity

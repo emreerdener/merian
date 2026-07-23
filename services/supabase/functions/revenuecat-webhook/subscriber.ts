@@ -1,0 +1,304 @@
+import {
+  isSevenDayPassProduct,
+  SEVEN_DAY_PASS_DURATION_MS,
+  SEVEN_DAY_PASS_PRODUCT_ID,
+} from "../_shared/subscriptionPass.ts";
+import { RevenueCatWebhookEvent } from "./protocol.ts";
+
+const REVENUECAT_API_BASE_URL = "https://api.revenuecat.com/v1";
+const MAX_CUSTOMER_INFO_BYTES = 2 * 1024 * 1024;
+const CUSTOMER_INFO_TIMEOUT_MS = 10_000;
+const MAX_POSTGRES_TIMESTAMP_MS = 253_402_300_799_999;
+const PAID_ENTITLEMENT_IDS = new Set(["Naturalist Tier", "pro"]);
+const PASS_REVOCATION_EVENTS = new Set([
+  "CANCELLATION",
+  "EXPIRATION",
+  "REFUND",
+]);
+
+export class RevenueCatApiError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message);
+    this.name = "RevenueCatApiError";
+  }
+}
+
+export interface RevenueCatCustomerInfo {
+  requestDateMs: number;
+  subscriber: Record<string, unknown>;
+}
+
+export interface RevenueCatEntitlementState {
+  targetTier: "free" | "pro";
+  expiresAt: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseDateMs(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function entitlementIsActive(
+  entitlement: unknown,
+  snapshotAtMs: number,
+): boolean {
+  if (!isRecord(entitlement)) return false;
+  if (entitlement.expires_date === null) return true;
+
+  const expiresAtMs = parseDateMs(entitlement.expires_date);
+  const gracePeriodExpiresAtMs = parseDateMs(
+    entitlement.grace_period_expires_date,
+  );
+  return Math.max(expiresAtMs ?? 0, gracePeriodExpiresAtMs ?? 0) >
+    snapshotAtMs;
+}
+
+function revokedPassTransactionIds(
+  event: RevenueCatWebhookEvent,
+): Set<string> {
+  if (
+    !isSevenDayPassProduct(event.productId) ||
+    !PASS_REVOCATION_EVENTS.has(event.type)
+  ) {
+    return new Set();
+  }
+  return new Set(
+    [event.transactionId, event.originalTransactionId].filter(
+      (value): value is string => value !== null,
+    ),
+  );
+}
+
+function activePassExpiration(
+  subscriber: Record<string, unknown>,
+  snapshotAtMs: number,
+  event: RevenueCatWebhookEvent,
+): number | null {
+  const nonSubscriptions = subscriber.non_subscriptions;
+  if (!isRecord(nonSubscriptions)) return null;
+
+  const transactions = nonSubscriptions[SEVEN_DAY_PASS_PRODUCT_ID];
+  if (!Array.isArray(transactions)) return null;
+
+  const revocationEvent = isSevenDayPassProduct(event.productId) &&
+    PASS_REVOCATION_EVENTS.has(event.type);
+  const revokedIds = revokedPassTransactionIds(event);
+  const hasExplicitRevocationMatch = revokedIds.size > 0 &&
+    transactions.some((transaction) =>
+      isRecord(transaction) &&
+      typeof transaction.id === "string" &&
+      revokedIds.has(transaction.id)
+    );
+  let latestExpiration: number | null = null;
+
+  for (const transaction of transactions) {
+    if (!isRecord(transaction)) continue;
+    const transactionId = typeof transaction.id === "string"
+      ? transaction.id
+      : null;
+    const purchaseAtMs = parseDateMs(transaction.purchase_date);
+    if (
+      purchaseAtMs === null ||
+      purchaseAtMs < 0 ||
+      purchaseAtMs > snapshotAtMs ||
+      purchaseAtMs > MAX_POSTGRES_TIMESTAMP_MS - SEVEN_DAY_PASS_DURATION_MS
+    ) {
+      continue;
+    }
+
+    const explicitlyRevoked = transactionId !== null &&
+      revokedIds.has(transactionId);
+    const conservativelyRevoked = revocationEvent &&
+      !hasExplicitRevocationMatch &&
+      purchaseAtMs <= event.eventTimestampMs;
+    if (explicitlyRevoked || conservativelyRevoked) continue;
+
+    const expiresAtMs = purchaseAtMs + SEVEN_DAY_PASS_DURATION_MS;
+    if (
+      expiresAtMs > snapshotAtMs &&
+      (latestExpiration === null || expiresAtMs > latestExpiration)
+    ) {
+      latestExpiration = expiresAtMs;
+    }
+  }
+
+  return latestExpiration;
+}
+
+async function readBoundedResponseBody(
+  response: Response,
+): Promise<Uint8Array> {
+  if (!response.body) return new Uint8Array();
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_CUSTOMER_INFO_BYTES) {
+        await reader.cancel("CustomerInfo response exceeded limit");
+        throw new RevenueCatApiError(
+          "RevenueCat CustomerInfo response exceeded the size limit.",
+          true,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
+export function deriveRevenueCatEntitlementState(
+  customerInfo: RevenueCatCustomerInfo,
+  event: RevenueCatWebhookEvent,
+): RevenueCatEntitlementState {
+  const entitlements = customerInfo.subscriber.entitlements;
+  if (isRecord(entitlements)) {
+    for (const [entitlementId, entitlement] of Object.entries(entitlements)) {
+      if (
+        PAID_ENTITLEMENT_IDS.has(entitlementId) &&
+        entitlementIsActive(entitlement, customerInfo.requestDateMs)
+      ) {
+        return { targetTier: "pro", expiresAt: null };
+      }
+    }
+  }
+
+  const passExpiration = activePassExpiration(
+    customerInfo.subscriber,
+    customerInfo.requestDateMs,
+    event,
+  );
+  if (passExpiration !== null) {
+    return {
+      targetTier: "pro",
+      expiresAt: new Date(passExpiration).toISOString(),
+    };
+  }
+
+  return { targetTier: "free", expiresAt: null };
+}
+
+export async function fetchRevenueCatCustomerInfo(
+  appUserId: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<RevenueCatCustomerInfo> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    CUSTOMER_INFO_TIMEOUT_MS,
+  );
+
+  let response: Response;
+  try {
+    response = await fetchImpl(
+      `${REVENUECAT_API_BASE_URL}/subscribers/${encodeURIComponent(appUserId)}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        signal: controller.signal,
+      },
+    );
+  } catch (error) {
+    clearTimeout(timeout);
+    const detail = error instanceof Error ? error.message : "network failure";
+    throw new RevenueCatApiError(
+      `RevenueCat CustomerInfo request failed: ${detail}`,
+      true,
+    );
+  }
+
+  try {
+    if (!response.ok) {
+      const retryable = response.status === 408 ||
+        response.status === 425 ||
+        response.status === 429 ||
+        response.status >= 500;
+      throw new RevenueCatApiError(
+        `RevenueCat CustomerInfo returned HTTP ${response.status}.`,
+        retryable,
+      );
+    }
+
+    const contentLength = Number(response.headers.get("Content-Length"));
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength > MAX_CUSTOMER_INFO_BYTES
+    ) {
+      throw new RevenueCatApiError(
+        "RevenueCat CustomerInfo response exceeded the size limit.",
+        true,
+      );
+    }
+
+    const rawBytes = await readBoundedResponseBody(response);
+    let rawBody: string;
+    try {
+      rawBody = new TextDecoder("utf-8", { fatal: true }).decode(rawBytes);
+    } catch {
+      throw new RevenueCatApiError(
+        "RevenueCat CustomerInfo returned invalid UTF-8.",
+        true,
+      );
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      throw new RevenueCatApiError(
+        "RevenueCat CustomerInfo returned invalid JSON.",
+        true,
+      );
+    }
+
+    if (
+      !isRecord(payload) ||
+      typeof payload.request_date_ms !== "number" ||
+      !Number.isSafeInteger(payload.request_date_ms) ||
+      payload.request_date_ms < 0 ||
+      payload.request_date_ms > 253_402_300_799_999 ||
+      !isRecord(payload.subscriber)
+    ) {
+      throw new RevenueCatApiError(
+        "RevenueCat CustomerInfo response was missing required fields.",
+        true,
+      );
+    }
+
+    return {
+      requestDateMs: payload.request_date_ms,
+      subscriber: payload.subscriber,
+    };
+  } catch (error) {
+    if (error instanceof RevenueCatApiError) throw error;
+    const detail = error instanceof Error ? error.message : "response failure";
+    throw new RevenueCatApiError(
+      `RevenueCat CustomerInfo response failed: ${detail}`,
+      true,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}

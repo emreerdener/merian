@@ -1,152 +1,132 @@
-// services/supabase/functions/revenuecat-webhook/index_test.ts
-//
-// Tests for the UUID validation guard added to index.ts.
-//
-// Context: RevenueCat can send anonymous IDs ("$RCAnonymousID:xxx") for
-// un-linked purchases.  A plain falsy check passes these strings, but they
-// fail PostgreSQL UUID constraints and produce confusing 500 errors.
-// The guard validates `app_user_id` against a strict UUID regex and returns
-// HTTP 400 before any DB access.
+import {
+  assertEquals,
+  assertThrows,
+} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import {
+  candidateMerianUserIds,
+  parseRevenueCatWebhook,
+  RevenueCatPayloadError,
+  revenueCatWebhookSubjects,
+} from "./protocol.ts";
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { SEVEN_DAY_PASS_PRODUCT_ID } from "../_shared/subscriptionPass.ts";
-import { classifyRevenueCatEvent } from "./events.ts";
-
-// ---------------------------------------------------------------------------
-// UUID regex — inlined from index.ts so the tests remain self-contained.
-// If the production regex changes, update this copy too.
-// ---------------------------------------------------------------------------
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isValidUuid(value: unknown): boolean {
-  return typeof value === "string" && UUID_REGEX.test(value);
+function webhookBody(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    api_version: "1.0",
+    event: {
+      id: "event-123",
+      type: "RENEWAL",
+      event_timestamp_ms: 1_750_000_000_000,
+      app_user_id: "550e8400-e29b-41d4-a716-446655440000",
+      original_app_user_id: "$RCAnonymousID:original",
+      aliases: ["$RCAnonymousID:alias"],
+      ...overrides,
+    },
+  });
 }
 
-// ---------------------------------------------------------------------------
-// Should reject
-// ---------------------------------------------------------------------------
+Deno.test("webhook parser requires RevenueCat's durable event identity and timestamp", () => {
+  const event = parseRevenueCatWebhook(webhookBody());
+  assertEquals(event.id, "event-123");
+  assertEquals(event.type, "RENEWAL");
+  assertEquals(event.eventTimestampMs, 1_750_000_000_000);
 
-Deno.test("UUID validation rejects RevenueCat anonymous ID ($RCAnonymousID:xxx)", () => {
-  assertEquals(
-    isValidUuid("$RCAnonymousID:abc123def456"),
-    false,
-    "$RCAnonymousID format must be rejected — it would fail PostgreSQL UUID constraints",
+  assertThrows(
+    () => parseRevenueCatWebhook(webhookBody({ id: undefined })),
+    RevenueCatPayloadError,
+  );
+  assertThrows(
+    () => parseRevenueCatWebhook(webhookBody({ event_timestamp_ms: 1.5 })),
+    RevenueCatPayloadError,
   );
 });
 
-Deno.test("UUID validation rejects plain non-UUID string", () => {
-  assertEquals(isValidUuid("not-a-uuid"), false);
-});
-
-Deno.test("UUID validation rejects empty string", () => {
-  assertEquals(isValidUuid(""), false);
-});
-
-Deno.test("UUID validation rejects null", () => {
-  assertEquals(isValidUuid(null), false);
-});
-
-Deno.test("UUID validation rejects undefined", () => {
-  assertEquals(isValidUuid(undefined), false);
-});
-
-Deno.test("UUID validation rejects numeric type", () => {
-  assertEquals(isValidUuid(12345), false);
-});
-
-Deno.test("UUID validation rejects UUID with missing hyphens", () => {
-  assertEquals(isValidUuid("550e8400e29b41d4a716446655440000"), false);
-});
-
-Deno.test("UUID validation rejects UUID with wrong segment lengths", () => {
-  assertEquals(
-    isValidUuid("550e8400-e29b-41d4-a716-44665544000"),
-    false,
-    "Short UUID must be rejected",
+Deno.test("Merian identity resolution prefers current id, then original and aliases", () => {
+  const event = parseRevenueCatWebhook(
+    webhookBody({
+      app_user_id: "$RCAnonymousID:current",
+      original_app_user_id: "550E8400-E29B-41D4-A716-446655440001",
+      aliases: [
+        "550e8400-e29b-41d4-a716-446655440002",
+        "550e8400-e29b-41d4-a716-446655440001",
+        "not-a-uuid",
+      ],
+    }),
   );
-  assertEquals(
-    isValidUuid("550e8400-e29b-41d4-a716-4466554400000"),
-    false,
-    "Long UUID must be rejected",
+
+  assertEquals(candidateMerianUserIds(event), [
+    "550e8400-e29b-41d4-a716-446655440001",
+    "550e8400-e29b-41d4-a716-446655440002",
+  ]);
+});
+
+Deno.test("anonymous RevenueCat events have no Merian user candidate", () => {
+  const event = parseRevenueCatWebhook(
+    webhookBody({
+      app_user_id: "$RCAnonymousID:current",
+      original_app_user_id: "$RCAnonymousID:original",
+      aliases: ["$RCAnonymousID:alias"],
+    }),
   );
+
+  assertEquals(candidateMerianUserIds(event), []);
 });
 
-// ---------------------------------------------------------------------------
-// Should accept
-// ---------------------------------------------------------------------------
-
-Deno.test("UUID validation accepts a lowercase v4 UUID", () => {
-  assertEquals(
-    isValidUuid("550e8400-e29b-41d4-a716-446655440000"),
-    true,
-    "Valid lowercase v4 UUID must pass",
+Deno.test("the tombstone UUID is never a RevenueCat target", () => {
+  const event = parseRevenueCatWebhook(
+    webhookBody({
+      app_user_id: "00000000-0000-0000-0000-000000000000",
+      aliases: ["550e8400-e29b-41d4-a716-446655440003"],
+    }),
   );
+
+  assertEquals(candidateMerianUserIds(event), [
+    "550e8400-e29b-41d4-a716-446655440003",
+  ]);
 });
 
-Deno.test("UUID validation accepts an uppercase UUID", () => {
-  assertEquals(
-    isValidUuid("550E8400-E29B-41D4-A716-446655440000"),
-    true,
-    "Valid uppercase UUID must pass — regex is case-insensitive",
+Deno.test("TRANSFER creates independent source and destination subjects", () => {
+  const event = parseRevenueCatWebhook(
+    webhookBody({
+      type: "TRANSFER",
+      app_user_id: undefined,
+      original_app_user_id: undefined,
+      aliases: undefined,
+      transferred_from: [
+        "$RCAnonymousID:source",
+        "550E8400-E29B-41D4-A716-446655440010",
+      ],
+      transferred_to: [
+        "$RCAnonymousID:destination",
+        "550e8400-e29b-41d4-a716-446655440011",
+      ],
+    }),
   );
+
+  assertEquals(revenueCatWebhookSubjects(event), [
+    {
+      kind: "transfer_source",
+      lookupAppUserId: "550E8400-E29B-41D4-A716-446655440010",
+      candidateUserIds: ["550e8400-e29b-41d4-a716-446655440010"],
+    },
+    {
+      kind: "transfer_destination",
+      lookupAppUserId: "550e8400-e29b-41d4-a716-446655440011",
+      candidateUserIds: ["550e8400-e29b-41d4-a716-446655440011"],
+    },
+  ]);
 });
 
-Deno.test("UUID validation accepts a freshly generated crypto.randomUUID()", () => {
-  const id = crypto.randomUUID();
-  assertEquals(
-    isValidUuid(id),
-    true,
-    `crypto.randomUUID() output "${id}" must always pass the UUID guard`,
+Deno.test("TRANSFER requires both RevenueCat customer groups", () => {
+  assertThrows(
+    () =>
+      parseRevenueCatWebhook(
+        webhookBody({
+          type: "TRANSFER",
+          app_user_id: undefined,
+          transferred_from: ["550e8400-e29b-41d4-a716-446655440010"],
+          transferred_to: [],
+        }),
+      ),
+    RevenueCatPayloadError,
   );
-});
-
-Deno.test("UUID validation accepts Supabase-style lowercase UUID", () => {
-  // Supabase GoTrue emits UUIDs in lowercase — this is the format we receive in JWTs.
-  assertEquals(
-    isValidUuid("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
-    true,
-  );
-});
-
-Deno.test("classifyRevenueCatEvent: exact 7-day pass grants timed pro", () => {
-  const purchasedAtMs = Date.parse("2026-06-16T12:00:00.000Z");
-  const action = classifyRevenueCatEvent({
-    type: "NON_RENEWING_PURCHASE",
-    product_id: SEVEN_DAY_PASS_PRODUCT_ID,
-    purchased_at_ms: purchasedAtMs,
-  });
-
-  assertEquals(action?.targetTier, "pro");
-  assertEquals(action?.expiresAt, "2026-06-23T12:00:00.000Z");
-});
-
-Deno.test("classifyRevenueCatEvent: unrelated non-renewing purchase is ignored", () => {
-  const action = classifyRevenueCatEvent({
-    type: "NON_RENEWING_PURCHASE",
-    product_id: "some_other_non_renewing_product",
-    purchased_at_ms: Date.now(),
-  });
-
-  assertEquals(action, null);
-});
-
-Deno.test("classifyRevenueCatEvent: standard subscription purchase clears expiry", () => {
-  const action = classifyRevenueCatEvent({
-    type: "INITIAL_PURCHASE",
-    product_id: "merian_pro_monthly",
-  });
-
-  assertEquals(action?.targetTier, "pro");
-  assertEquals(action?.expiresAt, null);
-});
-
-Deno.test("classifyRevenueCatEvent: pass refund downgrades immediately", () => {
-  const action = classifyRevenueCatEvent({
-    type: "REFUND",
-    product_id: SEVEN_DAY_PASS_PRODUCT_ID,
-  });
-
-  assertEquals(action?.targetTier, "free");
-  assertEquals(action?.expiresAt, null);
 });

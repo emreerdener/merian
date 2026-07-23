@@ -29,6 +29,11 @@ TestFlight, App Store, support, and QA.
 - Paywall diagnostics now distinguish a missing current offering, an empty
   package set, and missing required `pro_week` / `pro_annual` products so beta
   store-configuration failures are visible before release.
+- Subscription synchronization now verifies RevenueCat's signed delivery,
+  checks authoritative subscriber state, and ignores duplicate or delayed
+  events that could otherwise roll a newer renewal or refund backward.
+  RevenueCat account transfers now reconcile both the source and destination
+  atomically instead of relying on a follow-up lifecycle event.
 
 ### Species Dictionary
 

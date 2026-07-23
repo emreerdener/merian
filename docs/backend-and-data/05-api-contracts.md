@@ -6263,26 +6263,35 @@ setup, deployment, and recovery.
 
 ## Deno `/revenuecat-webhook` Edge Node
 
-Receives POST push events triggered natively from the RevenueCat subscription
-platform to update Supabase row bounds directly, bypassing the iOS SDK entirely.
+Receives signed POST events from RevenueCat and reconciles the latest
+authoritative subscriber state into Supabase. The route is a server-to-server
+boundary; the iOS SDK and client-reported entitlements never authorize the
+database write.
 
 ### Request Payload
 
-Receives a raw RevenueCat Webhook structure wrapper targeting an internal JSON
-`.event`.
+The body is a RevenueCat Webhook envelope with an `.event`. The handler requires
+bounded, non-control-character values for `event.id` and `event.type`, plus a
+non-negative safe-integer `event.event_timestamp_ms`. Optional
+`app_user_id`, `original_app_user_id`, `aliases`, `product_id`,
+`transaction_id`, and `original_transaction_id` are validated before use.
+`TRANSFER` instead requires non-empty, bounded `transferred_from` and
+`transferred_to` arrays. An event timestamp more than five minutes ahead of the
+signed delivery timestamp is rejected before database access. The request body
+is capped at 256 KiB.
 
 ### Authentication Enforcement
 
-- Reads `REVENUECAT_WEBHOOK_SECRET` environment bindings locally.
-- Authenticates the RevenueCat push via `timingSafeCompare` comparing the
-  `Authorization: Bearer` against the secret boundary.
-- **`app_user_id` UUID validation**: After webhook auth, `event.app_user_id` is
-  validated against a UUID regex (`/^[0-9a-f]{8}-...-[0-9a-f]{12}$/i`) before
-  any database access. A falsy `!userId` check alone is insufficient —
-  RevenueCat sends anonymous IDs like `$RCAnonymousID:xxx` for un-linked
-  purchases, which would pass the truthy check but fail UUID constraints in the
-  DB layer with a confusing 500. Anonymous-ID events are rejected early with
-  `HTTP 400` and a warning log.
+- Requires `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>` and compares it
+  in constant time.
+- Requires `X-RevenueCat-Webhook-Signature:
+  t=<unix-seconds>,v1=<hmac-sha256-hex>`.
+  `REVENUECAT_WEBHOOK_SIGNING_SECRET` signs the ASCII timestamp/dot prefix plus
+  the exact raw request bytes. Verification happens before UTF-8 decoding or
+  JSON parsing, permits more than one `v1` digest for protocol compatibility,
+  and rejects timestamps more than five minutes in the past or future.
+- Missing any of the Authorization, signing, or server API secrets returns
+  `401` or `503`; there is no static-secret-only compatibility path.
 - **Customer identity contract**: iOS logs RevenueCat into the Supabase Auth UUID
   and writes subscriber attributes (`supabase_user_id`, `auth_email`,
   `public_username`, `public_author_name`, `public_identity_source`,
@@ -6290,18 +6299,75 @@ Receives a raw RevenueCat Webhook structure wrapper targeting an internal JSON
   use the UUID/App User ID first, with subscriber attributes as the human-readable
   cross-reference. This applies to both RevenueCat Test Store and production
   keys.
+- UUID candidates are ordered from `app_user_id`, `original_app_user_id`, then
+  `aliases` and deduplicated. A RevenueCat `TRANSFER` creates independent source
+  and destination subjects from its two identity arrays; it does not have an
+  `app_user_id`. Each subject must resolve transactionally to exactly one live
+  `public.users` row. A purely anonymous customer receives a durable
+  `200 ignored` event receipt without a provider call; a later alias event has a
+  different event ID and can carry the linked UUID. A UUID with no public
+  profile returns retryable `503`, while a group that maps to multiple live
+  profiles returns `409`. The one exception is an already-deleted transfer
+  source: no Merian access remains to revoke, so that subject is omitted without
+  blocking the destination. Billing never creates a user.
 
-### Migration Mechanics
+### Authoritative state and transaction
 
-- Upgrades (`INITIAL_PURCHASE`, `RENEWAL`, `UNCANCELLATION`) convert
-  `subscription_tier` to `pro` and clear `subscription_expires_at`.
-- Exact `pro_week` `NON_RENEWING_PURCHASE` events convert
-  `subscription_tier` to `pro` and set `subscription_expires_at` to
-  `purchased_at_ms + 7 days`. Other non-renewing products are ignored.
-- Standard subscription downgrades (`EXPIRATION`) revert the tier to `free`.
-- Pass refund/cancellation-style events downgrade immediately. Timed passes that
-  naturally reach `subscription_expires_at` are downgraded by the hourly
-  `expire-subscription-passes` worker.
+- The server calls, for every mapped customer,
+  `GET https://api.revenuecat.com/v1/subscribers/{app_user_id}` with
+  `Authorization: Bearer <REVENUECAT_SECRET_API_KEY>` after each new accepted
+  webhook. Before that call,
+  `get_revenuecat_webhook_event_result(...)` checks the private ledger; a
+  committed duplicate with the same event timestamp, type, and payload SHA-256
+  returns immediately so normal retries and in-window replays do not amplify
+  provider traffic. The response is capped at 2 MiB and
+  must contain a safe-integer
+  `request_date_ms` and subscriber object; an implausibly future snapshot is
+  rejected. Network/provider errors return `502`/`503` without a database
+  mutation. For `TRANSFER`, source and destination lookups run concurrently and
+  both must succeed before the database call.
+- An active standard entitlement whose identifier is `pro` or
+  `Naturalist Tier` projects `subscription_tier = pro` and a null expiry.
+- An unexpired authoritative `pro_week` transaction projects a timed Pro expiry
+  at `purchase_date + 7 days`. A matching pass refund/revocation is excluded;
+  an unmatchable revocation fails closed for transactions at or before the event
+  time while preserving a provably later purchase.
+- No active paid state projects `subscription_tier = free` and a null expiry.
+- `public.apply_revenuecat_customer_state(...)` records `event.id` under a
+  primary key, records zero to two per-user subject rows, and locks all selected
+  users in sorted UUID order. Its per-user monotonic tuple is
+  `(event_timestamp_ms, request_date_ms, event_id)`. Duplicate IDs and older
+  tuples cannot update a user; a conflicting reuse of the same ID with a
+  different event timestamp, type, or payload digest is rejected. Transfer
+  source/destination transitions commit or roll back together.
+- The RPCs and private ledger tables are not client APIs. Only `service_role`
+  may execute the duplicate lookup and mutation definer routines; both perform
+  their own caller check and use an empty search path.
 - Existing scan media stays in place on tier changes. Both
   `public_uploads/free/` and `public_uploads/pro/` are durable scan-media
   prefixes.
+
+### Response contract
+
+- `200 {"success":true,"outcome":"applied","subject_count":N,
+  "applied_count":N,"stale_count":0}`: all mapped authoritative transitions
+  were accepted.
+- `200 ... "duplicate"`: the exact event ID/timestamp/type/payload was already
+  committed; the three counts describe its original result.
+- `200 ... "stale"`: all mapped subjects were recorded but their ordering
+  tuples were older.
+- `200 ... "mixed"`: a multi-subject transfer applied for one user while the
+  other already had a newer watermark.
+- `200 {"success":true,"outcome":"ignored","subject_count":0,
+  "applied_count":0,"stale_count":0}`: no Supabase UUID existed in the
+  RevenueCat identity set; the event ID was still persisted.
+- `400`: malformed event data.
+- `401`: Authorization or HMAC verification failed, including replay-window
+  rejection.
+- `409`: the same event ID was reused with conflicting immutable fields, or a
+  RevenueCat identity group mapped to multiple live Merian profiles.
+- `413`: the raw webhook body exceeds 256 KiB.
+- `405`: any method other than `POST`.
+- `502`/`503`: authoritative subscriber lookup, configuration, public-profile,
+  or database availability failed. RevenueCat should retry these non-2xx
+  responses.

@@ -63,12 +63,34 @@ jobs:
       - name: Validate deployment secrets
         env:
           AI_QUOTA_IP_HASH_SECRET: ${{ secrets.AI_QUOTA_IP_HASH_SECRET }}
+          REVENUECAT_SECRET_API_KEY: ${{ secrets.REVENUECAT_SECRET_API_KEY }}
+          REVENUECAT_WEBHOOK_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SECRET }}
+          REVENUECAT_WEBHOOK_SIGNING_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SIGNING_SECRET }}
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
+          : "${REVENUECAT_SECRET_API_KEY:?Missing REVENUECAT_SECRET_API_KEY GitHub secret}"
+          : "${REVENUECAT_WEBHOOK_SECRET:?Missing REVENUECAT_WEBHOOK_SECRET GitHub secret}"
+          : "${REVENUECAT_WEBHOOK_SIGNING_SECRET:?Missing REVENUECAT_WEBHOOK_SIGNING_SECRET GitHub secret}"
           if [ -n "$AI_QUOTA_IP_HASH_SECRET" ] && [ "${#AI_QUOTA_IP_HASH_SECRET}" -lt 32 ]; then
             echo "AI_QUOTA_IP_HASH_SECRET must contain at least 32 characters." >&2
             exit 1
           fi
+          if [ "${#REVENUECAT_WEBHOOK_SECRET}" -lt 32 ]; then
+            echo "REVENUECAT_WEBHOOK_SECRET must contain at least 32 characters." >&2
+            exit 1
+          fi
+          if [ "${#REVENUECAT_WEBHOOK_SIGNING_SECRET}" -lt 32 ]; then
+            echo "REVENUECAT_WEBHOOK_SIGNING_SECRET must contain at least 32 characters." >&2
+            exit 1
+          fi
+          case "$REVENUECAT_SECRET_API_KEY" in
+            sk_*)
+              ;;
+            *)
+              echo "REVENUECAT_SECRET_API_KEY must be a RevenueCat secret server key beginning with sk_." >&2
+              exit 1
+              ;;
+          esac
           bash ../scripts/supabase-db-url.sh --require >/dev/null
 
       - name: Validate Edge Function formatting
@@ -99,6 +121,8 @@ jobs:
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/_shared/subscriptionPass.ts \
+            supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
@@ -106,6 +130,8 @@ jobs:
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
@@ -131,6 +157,7 @@ jobs:
             supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
             supabase/functions/replay-scan-ingestion \
+            supabase/functions/revenuecat-webhook \
             supabase/functions/scan-media-health
 
       - name: Validate Edge Function lint
@@ -161,6 +188,8 @@ jobs:
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/_shared/subscriptionPass.ts \
+            supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
@@ -168,6 +197,8 @@ jobs:
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
@@ -193,6 +224,7 @@ jobs:
             supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
             supabase/functions/replay-scan-ingestion \
+            supabase/functions/revenuecat-webhook \
             supabase/functions/scan-media-health
 
       - name: Validate shared Edge runtime checks
@@ -223,6 +255,8 @@ jobs:
             supabase/functions/_shared/scanMediaDeletion_test.ts \
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/_shared/subscriptionPass.ts \
+            supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/share-scan-to-explore/index.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
@@ -230,6 +264,8 @@ jobs:
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
@@ -249,6 +285,11 @@ jobs:
             supabase/functions/insight-chat/index.ts \
             supabase/functions/replay-scan-ingestion/index.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/revenuecat-webhook/index.ts \
+            supabase/functions/revenuecat-webhook/handler_test.ts \
+            supabase/functions/revenuecat-webhook/index_test.ts \
+            supabase/functions/revenuecat-webhook/signature_test.ts \
+            supabase/functions/revenuecat-webhook/subscriber_test.ts \
             supabase/functions/scan-media-health/index.ts
 
       - name: Validate isolated Edge Function dependency graphs
@@ -303,6 +344,17 @@ jobs:
             supabase/functions/_shared/entitlement_test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts
 
+      - name: Test RevenueCat webhook boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions/revenuecat-webhook,../.github/workflows/deploy.yml \
+            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+            supabase/functions/_shared/subscriptionPass_test.ts \
+            supabase/functions/revenuecat-webhook/handler_test.ts \
+            supabase/functions/revenuecat-webhook/index_test.ts \
+            supabase/functions/revenuecat-webhook/signature_test.ts \
+            supabase/functions/revenuecat-webhook/subscriber_test.ts
+
       - name: Test Edge Function deployment planner
         run: |
           deno test --frozen --config supabase/functions/deno.json \
@@ -321,7 +373,8 @@ jobs:
             supabase/functions/_tests/explorePostChatMigration.test.ts \
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
-            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts
+            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts
 
       - name: Start disposable database for privileged-routine validation
         env:
@@ -337,7 +390,8 @@ jobs:
           supabase db push --local
           supabase test db --local \
             supabase/tests/privileged_routine_security.sql \
-            supabase/tests/ai_quota_security.sql
+            supabase/tests/ai_quota_security.sql \
+            supabase/tests/revenuecat_webhook_security.sql
 
       - name: Stop disposable database
         if: always()
@@ -459,6 +513,19 @@ jobs:
           else
             echo "Using the built-in server key for domain-separated AI quota IP hashing."
           fi
+
+      - name: Synchronize RevenueCat webhook secrets
+        env:
+          REVENUECAT_SECRET_API_KEY: ${{ secrets.REVENUECAT_SECRET_API_KEY }}
+          REVENUECAT_WEBHOOK_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SECRET }}
+          REVENUECAT_WEBHOOK_SIGNING_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SIGNING_SECRET }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          supabase secrets set \
+            "REVENUECAT_SECRET_API_KEY=$REVENUECAT_SECRET_API_KEY" \
+            "REVENUECAT_WEBHOOK_SECRET=$REVENUECAT_WEBHOOK_SECRET" \
+            "REVENUECAT_WEBHOOK_SIGNING_SECRET=$REVENUECAT_WEBHOOK_SIGNING_SECRET" \
+            --project-ref "$PROJECT_ID"
 
       - name: Deploy affected Edge Functions
         if: steps.function-plan.outputs.count != '0'

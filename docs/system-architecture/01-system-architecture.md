@@ -252,8 +252,11 @@ single-responsibility functions under `/services/supabase/functions/`.
     reports about Explore post content.
 - **Revenue Integration**
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription
-    transitions, stamping user tiers and a monotonic entitlement version into
-    Postgres without client-side polling or Edge-isolate cache invalidation.
+    transitions, verifies RevenueCat's timestamped raw-body HMAC, fetches
+    authoritative CustomerInfo, and commits each unique event through a
+    per-user monotonic database watermark. User tiers and entitlement versions
+    therefore cannot be rolled back by duplicate or delayed delivery; transfer
+    source and destination projections share one atomic transaction.
 
 ### 5. Continuous Gamification Ecosystem (`GamificationManager`)
 
