@@ -201,6 +201,17 @@ triggering excessive SwiftUI view rebuilds.
   logs the requested and active mode through `MerianLog.hardware`, and resets
   the connection to `.off` on finish, cancellation, or failure so still-photo
   captures do not inherit stabilization crop, latency, or resolution changes.
+- **Video Recording Generation Boundary**: one active recording value owns the
+  continuation, UUID generation, UUID-derived output URL, start metadata, and
+  scheduled tasks under `videoRecordingLock`. Timeout and automatic-stop work
+  must match both the generation and its current action UUID; task cancellation
+  by itself is insufficient because it is cooperative. Recording delegate
+  callbacks first move to the camera queue, verify `movieOutput` identity, and
+  match the callback URL before taking state. Never clear or resume recording
+  state from a callback, timeout, stop, or cancellation path that does not carry
+  the expected generation. All `AVCaptureMovieFileOutput` and connection access
+  belongs to the camera queue; generation-checked UI state alone returns to
+  `@MainActor`.
 
 ### `EnvironmentContextManager`
 

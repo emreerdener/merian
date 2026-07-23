@@ -433,11 +433,16 @@ MerianTests/
 ### Hardware & Ecosystem Integrations
 
 - **`CameraManagerTests.swift`, `CaptureWorkspaceViewModelRefinementTests`**:
-  Validates UI state routing logic. `CaptureWorkspaceViewModelRefinementTests`
-	  drives `startRefinementScan(from:)` through the injected
-	  `PreparedStagedImageLoader` seam, asserting both the success path
-	  (bounded display-sized refinement request is committed into `stagedCapture.images`)
-	  and the failure path (`isStagingRefinement` drops back to `false` without
+  Validates camera state routing and the video-generation correlation policy.
+  Focused recording tests prove callback URLs bind to the intended temporary
+  file, generation-A callbacks/actions are rejected while generation B is
+  active, and cooperatively cancelled timeout/stop tasks are rejected after
+  their action token is replaced. These policy tests do not require simulator
+  camera hardware. `CaptureWorkspaceViewModelRefinementTests`
+  drives `startRefinementScan(from:)` through the injected
+  `PreparedStagedImageLoader` seam, asserting both the success path
+  (bounded display-sized refinement request is committed into `stagedCapture.images`)
+  and the failure path (`isStagingRefinement` drops back to `false` without
   appending a stale image). This gives deterministic coverage over refinement
   staging behavior without simulator-driven UI automation.
 - **`MediaPreparationActorTests.swift`**: Pins the production still-image

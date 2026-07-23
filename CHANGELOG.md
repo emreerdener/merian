@@ -74,6 +74,9 @@ TestFlight, App Store, support, and QA.
 - Removed a priority-inversion hang risk from local and remote image decoding.
   Decode concurrency remains capped for memory safety, but excess work now
   suspends asynchronously instead of blocking user-initiated threads.
+- Prevented delayed camera recording callbacks, timeouts, and automatic-stop
+  tasks from completing or stopping a newer video after rapid cancel/retry
+  sequences.
 - Prevented non-finite media geometry from reaching SwiftUI in Explore detail
   zoom and audio playmarkers, eliminating invalid-frame warnings and unstable
   offsets during transient layout/player states.

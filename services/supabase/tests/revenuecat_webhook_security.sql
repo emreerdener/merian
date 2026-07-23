@@ -82,7 +82,7 @@ BEGIN
     VALUES (
         destination_user_id,
         'revenuecat-destination-test@example.invalid',
-        'revenuecat_destination_b401',
+        'rc_destination_b401',
         'RevenueCat Destination Test',
         'alias',
         NOW() - INTERVAL '30 days',
@@ -90,7 +90,7 @@ BEGIN
     ), (
         source_user_id,
         'revenuecat-source-test@example.invalid',
-        'revenuecat_source_b402',
+        'rc_source_b402',
         'RevenueCat Source Test',
         'alias',
         NOW() - INTERVAL '30 days',

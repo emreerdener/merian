@@ -30,6 +30,96 @@ final class CameraManagerTests: XCTestCase {
         XCTAssertFalse(cameraManager.isZoomSupported)
     }
 
+    // MARK: - Video Recording Generations
+
+    func testVideoRecordingGenerationBindsCallbacksToExpectedURL() {
+        let generation = CameraVideoRecordingGeneration(
+            id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+            outputURL: URL(fileURLWithPath: "/tmp/recording-a.mp4")
+        )
+
+        XCTAssertTrue(
+            generation.matches(
+                callbackURL: URL(fileURLWithPath: "/tmp/./recording-a.mp4")
+            )
+        )
+        XCTAssertFalse(
+            generation.matches(
+                callbackURL: URL(fileURLWithPath: "/tmp/recording-b.mp4")
+            ),
+            "A delayed AVFoundation callback must not match the next recording's URL"
+        )
+    }
+
+    func testVideoRecordingGenerationRejectsABAActions() {
+        let generationA = CameraVideoRecordingGeneration(
+            id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+            outputURL: URL(fileURLWithPath: "/tmp/recording-a.mp4")
+        )
+        let generationB = CameraVideoRecordingGeneration(
+            id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+            outputURL: URL(fileURLWithPath: "/tmp/recording-b.mp4")
+        )
+        let staleTimeout = CameraVideoRecordingScheduledAction(
+            generation: generationA,
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        )
+        let staleStop = CameraVideoRecordingScheduledAction(
+            generation: generationA,
+            id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+        )
+        var activeBGate = CameraVideoRecordingGenerationGate(generation: generationB)
+
+        XCTAssertFalse(activeBGate.matches(generationA))
+        XCTAssertFalse(activeBGate.matches(callbackURL: generationA.outputURL))
+        XCTAssertFalse(activeBGate.installTimeoutAction(staleTimeout))
+        XCTAssertFalse(activeBGate.installStopAction(staleStop))
+        XCTAssertFalse(activeBGate.acceptsTimeoutAction(staleTimeout))
+        XCTAssertFalse(activeBGate.acceptsStopAction(staleStop))
+        XCTAssertEqual(activeBGate.generation, generationB)
+    }
+
+    func testVideoRecordingGenerationRejectsCooperativelyCancelledReplacedTasks() {
+        let generation = CameraVideoRecordingGeneration(
+            id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+            outputURL: URL(fileURLWithPath: "/tmp/recording-a.mp4")
+        )
+        let firstTimeout = CameraVideoRecordingScheduledAction(
+            generation: generation,
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        )
+        let replacementTimeout = CameraVideoRecordingScheduledAction(
+            generation: generation,
+            id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+        )
+        let firstStop = CameraVideoRecordingScheduledAction(
+            generation: generation,
+            id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+        )
+        let replacementStop = CameraVideoRecordingScheduledAction(
+            generation: generation,
+            id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+        )
+        var gate = CameraVideoRecordingGenerationGate(generation: generation)
+
+        XCTAssertTrue(gate.installTimeoutAction(firstTimeout))
+        XCTAssertTrue(gate.acceptsTimeoutAction(firstTimeout))
+        XCTAssertTrue(gate.installTimeoutAction(replacementTimeout))
+        XCTAssertFalse(
+            gate.acceptsTimeoutAction(firstTimeout),
+            "Cancellation is cooperative, so the replaced timeout needs an independent action token"
+        )
+        XCTAssertTrue(gate.acceptsTimeoutAction(replacementTimeout))
+
+        XCTAssertTrue(gate.installStopAction(firstStop))
+        XCTAssertTrue(gate.acceptsStopAction(firstStop))
+        XCTAssertTrue(gate.installStopAction(replacementStop))
+        XCTAssertFalse(gate.acceptsStopAction(firstStop))
+        XCTAssertTrue(gate.acceptsStopAction(replacementStop))
+        gate.clearStopAction()
+        XCTAssertFalse(gate.acceptsStopAction(replacementStop))
+    }
+
     func testStopSessionAndWaitPublishesStoppedStateBeforeReturning() async {
         await cameraManager.stopSessionAndWait()
 

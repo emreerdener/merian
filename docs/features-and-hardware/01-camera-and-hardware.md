@@ -171,6 +171,17 @@ the selected mode when the user changes the stored page order.
 
 **Video capture preparation**: `CameraManager.setupSession()` attaches `AVCaptureMovieFileOutput` during normal visual-camera session setup, before the user starts holding the shutter. `CaptureButton` uses a single short hold threshold, then calls `startVideoCapture()` directly; `CameraManager.recordVideo(...)` performs the microphone/audio-input preparation on that start path. This keeps entering the camera from showing an early audio prompt while making the hold-to-record interaction feel nearly immediate. The pre-attached movie output keeps recorded-video stabilization off until a video is actually starting. The start path asks AVFoundation for `.auto` stabilization when the movie connection supports it, logs the requested and active stabilization modes for device QA, and resets the connection to `.off` when recording completes, fails, or is canceled so prepared video support does not reduce still-photo dimensions or add capture latency.
 
+Each recording owns a UUID generation and a UUID-derived temporary URL. The
+continuation and all recording lifecycle data are stored as one lock-protected
+request. Timeouts and automatic stops capture that generation plus a separate
+action UUID, because cancelling a Swift task is cooperative and does not prove
+its already-enqueued work has stopped. AVFoundation start/finish callbacks are
+accepted only from the configured movie output and only when their standardized
+URL matches the current request. This keeps a late callback or delayed task from
+recording A from stopping, failing, or completing recording B. All movie-output
+and connection access stays on the serial camera queue; only generation-checked
+presentation state is published back to `@MainActor`.
+
 **Session lifecycle**: The camera session is tightly coupled to the UI state to conserve thermal budget and prevent hardware deadlocks.
 - `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()` on every mode switch, then stops the camera session when switching to `.audio` and restarts it on return to `.visual` (unless `activeSheet` is present).
 - `stopSession()` remains the fire-and-forget lifecycle API. Audio recording uses

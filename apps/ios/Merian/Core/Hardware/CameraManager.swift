@@ -20,12 +20,98 @@ struct CameraVideoRecording: Sendable {
     let duration: TimeInterval
 }
 
+/// Stable identity for one logical recording and its AVFoundation callback URL.
+struct CameraVideoRecordingGeneration: Equatable, Sendable {
+    let id: UUID
+    let outputURL: URL
+
+    init(id: UUID, outputURL: URL) {
+        self.id = id
+        self.outputURL = outputURL.standardizedFileURL
+    }
+
+    func matches(callbackURL: URL) -> Bool {
+        outputURL == callbackURL.standardizedFileURL
+    }
+}
+
+/// Identifies one scheduled action within a recording generation.
+///
+/// Task cancellation is cooperative, so replacing a task requires a second
+/// token in addition to the recording generation.
+struct CameraVideoRecordingScheduledAction: Equatable, Sendable {
+    let generation: CameraVideoRecordingGeneration
+    let id: UUID
+}
+
+/// Pure, lock-independent correlation policy used by the recording state machine.
+struct CameraVideoRecordingGenerationGate: Sendable {
+    let generation: CameraVideoRecordingGeneration
+    private(set) var timeoutActionID: UUID?
+    private(set) var stopActionID: UUID?
+
+    func matches(_ candidate: CameraVideoRecordingGeneration) -> Bool {
+        generation == candidate
+    }
+
+    func matches(callbackURL: URL) -> Bool {
+        generation.matches(callbackURL: callbackURL)
+    }
+
+    mutating func installTimeoutAction(_ action: CameraVideoRecordingScheduledAction) -> Bool {
+        guard matches(action.generation) else { return false }
+        timeoutActionID = action.id
+        return true
+    }
+
+    mutating func installStopAction(_ action: CameraVideoRecordingScheduledAction) -> Bool {
+        guard matches(action.generation) else { return false }
+        stopActionID = action.id
+        return true
+    }
+
+    func acceptsTimeoutAction(_ action: CameraVideoRecordingScheduledAction) -> Bool {
+        matches(action.generation) && timeoutActionID == action.id
+    }
+
+    func acceptsStopAction(_ action: CameraVideoRecordingScheduledAction) -> Bool {
+        matches(action.generation) && stopActionID == action.id
+    }
+
+    mutating func clearStopAction() {
+        stopActionID = nil
+    }
+}
+
+private struct CameraVideoRecordingScheduledTask {
+    let action: CameraVideoRecordingScheduledAction
+    var task: Task<Void, Never>?
+}
+
+private struct ActiveCameraVideoRecording {
+    var gate: CameraVideoRecordingGenerationGate
+    let continuation: CheckedContinuation<CameraVideoRecording, Error>
+    var startedAt: Date?
+    let maxDuration: TimeInterval
+    var startHandler: CameraVideoRecordingStartHandler?
+    var timeoutTask: CameraVideoRecordingScheduledTask?
+    var stopTask: CameraVideoRecordingScheduledTask?
+    var stopWasRequested = false
+}
+
 private struct CameraVideoRecordingCompletion {
-    let continuation: CheckedContinuation<CameraVideoRecording, Error>?
+    let generation: CameraVideoRecordingGeneration
+    let continuation: CheckedContinuation<CameraVideoRecording, Error>
     let startedAt: Date?
-    let fileURL: URL?
     let timeoutTask: Task<Void, Never>?
     let stopTask: Task<Void, Never>?
+}
+
+private struct CameraVideoRecordingStartContext {
+    let generation: CameraVideoRecordingGeneration
+    let handler: CameraVideoRecordingStartHandler?
+    let maxDuration: TimeInterval
+    let stopWasRequested: Bool
 }
 
 private struct CameraVideoRecordingStartHandler: Sendable {
@@ -51,21 +137,19 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     @ObservationIgnored nonisolated private var movieOutput: AVCaptureMovieFileOutput { captureStack.movieOutput }
 
     // MARK: - Threading
-    @ObservationIgnored private let queue = DispatchQueue(label: "com.merian.camera")
+    @ObservationIgnored nonisolated private let queue = DispatchQueue(label: "com.merian.camera")
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Lock-Protected Mutable State
-    // All `nonisolated(unsafe)` vars below are exclusively read and written inside
-    // `stateLock.withLock { }` closures. This is the manual synchronization contract that
-    // replaces Swift actor isolation for state shared with AVFoundation nonisolated delegates.
-    // INVARIANT: Never access these vars outside a `stateLock.withLock` block.
+    // The `stateLock` vars below are exclusively read and written inside
+    // `stateLock.withLock { }` closures. The recording request is separately guarded by
+    // `videoRecordingLock`; never access `activeVideoRecording` outside that lock.
     //
     // LOCK ORDERING — STRICTLY ENFORCED:
     //   `stateLock` guards session/rotation/inference-pause state.
     //   `requestsLock` guards in-flight capture continuations (`activeCaptureRequests`).
-    //   These two locks must NEVER be nested:
-    //     - Do NOT acquire `requestsLock` while holding `stateLock`.
-    //     - Do NOT acquire `stateLock` while holding `requestsLock`.
+    //   `videoRecordingLock` guards the single active video-recording state machine.
+    //   These locks must NEVER be nested in any order.
     //   Violation = guaranteed deadlock between the camera queue and the @MainActor timeout path.
     @ObservationIgnored nonisolated let stateLock = OSAllocatedUnfairLock()
     @ObservationIgnored nonisolated private let videoRecordingLock = OSAllocatedUnfairLock()
@@ -79,14 +163,9 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     @ObservationIgnored nonisolated(unsafe) private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     /// One-shot flag preventing `setupSession` from running twice on concurrent `startSession` calls.
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
-    @ObservationIgnored nonisolated(unsafe) private var activeVideoContinuation: CheckedContinuation<CameraVideoRecording, Error>?
-    @ObservationIgnored nonisolated(unsafe) private var activeVideoStartedAt: Date?
-    @ObservationIgnored nonisolated(unsafe) private var activeVideoURL: URL?
-    @ObservationIgnored nonisolated(unsafe) private var activeVideoMaxDuration: TimeInterval = 5
-    @ObservationIgnored nonisolated(unsafe) private var activeVideoStartHandler: CameraVideoRecordingStartHandler?
-    @ObservationIgnored nonisolated(unsafe) private var activeVideoTimeoutTask: Task<Void, Never>?
-    @ObservationIgnored nonisolated(unsafe) private var activeVideoStopTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var activeVideoRecording: ActiveCameraVideoRecording?
     @ObservationIgnored private var movieRecordingPreparationTask: Task<Bool, Error>?
+    @ObservationIgnored private var videoRecordingPresentationGeneration: UUID?
 
     // MARK: - State
     private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
@@ -176,6 +255,7 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     // MARK: - Session Configuration
 
     nonisolated private func setupSession() {
+        preconditionOnCameraQueue()
         session.beginConfiguration()
         session.sessionPreset = .photo
 
@@ -884,110 +964,83 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         )
         #else
         _ = try await preparedVideoRecordingAudioAllowed()
+        let generationID = UUID()
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(UUID().uuidString)_video.mp4")
+            .appendingPathComponent("\(generationID.uuidString)_video.mp4")
+        let generation = CameraVideoRecordingGeneration(
+            id: generationID,
+            outputURL: outputURL
+        )
         let resolvedMaxDuration = max(maxDuration, 0.5)
 
         try? FileManager.default.removeItem(at: outputURL)
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                let existingContinuation = videoRecordingLock.withLock { () -> CheckedContinuation<CameraVideoRecording, Error>? in
-                    if let activeVideoContinuation {
-                        return activeVideoContinuation
-                    }
-                    activeVideoContinuation = continuation
-                    activeVideoStartedAt = nil
-                    activeVideoURL = outputURL
-                    activeVideoMaxDuration = resolvedMaxDuration
-                    activeVideoStartHandler = onStarted.map { CameraVideoRecordingStartHandler(action: $0) }
-                    return nil
+                let installed = videoRecordingLock.withLock { () -> Bool in
+                    guard activeVideoRecording == nil else { return false }
+                    activeVideoRecording = ActiveCameraVideoRecording(
+                        gate: CameraVideoRecordingGenerationGate(generation: generation),
+                        continuation: continuation,
+                        startedAt: nil,
+                        maxDuration: resolvedMaxDuration,
+                        startHandler: onStarted.map { CameraVideoRecordingStartHandler(action: $0) },
+                        timeoutTask: nil,
+                        stopTask: nil
+                    )
+                    return true
                 }
 
-                if let existingContinuation {
+                guard installed else {
                     continuation.resume(throwing: NSError(
                         domain: "CameraManager",
                         code: -7,
                         userInfo: [NSLocalizedDescriptionKey: "Video recording is already in progress."]
                     ))
-                    _ = existingContinuation
                     return
                 }
 
-                queue.async {
-                    self.configureMovieOutputConnection(
-                        maxDuration: resolvedMaxDuration,
-                        prefersVideoStabilization: true
-                    )
-                    let preferredStabilizationMode = self.movieOutput
-                        .connection(with: .video)?
-                        .preferredVideoStabilizationMode
-                        .rawValue ?? AVCaptureVideoStabilizationMode.off.rawValue
-                    MerianLog.hardware.debug(
-                        """
-                        Video recording start requested: \
-                        url=\(outputURL.lastPathComponent, privacy: .public), \
-                        maxDuration=\(resolvedMaxDuration, privacy: .public), \
-                        preferredStabilizationMode=\(preferredStabilizationMode, privacy: .public)
-                        """
-                    )
-                    self.movieOutput.startRecording(to: outputURL, recordingDelegate: self)
+                videoRecordingPresentationGeneration = generation.id
+                isRecordingVideo = false
+
+                // `onCancel` may run before the continuation body installs its request.
+                // Re-check after installation so an already-cancelled task cannot leave a
+                // continuation behind after an early no-op cancellation callback.
+                guard !Task.isCancelled else {
+                    requestVideoRecordingCancellation(for: generation)
+                    return
                 }
+
                 self.scheduleVideoRecordingTimeout(
+                    for: generation,
                     after: resolvedMaxDuration + 3,
                     code: -30,
                     message: "Video recording timed out before the camera returned a file."
                 )
-
+                queue.async {
+                    self.startVideoRecordingOnCameraQueue(
+                        generation: generation,
+                        maxDuration: resolvedMaxDuration
+                    )
+                }
             }
         } onCancel: {
-            Task { @MainActor [weak self] in
-                self?.cancelVideoRecording()
-            }
+            requestVideoRecordingCancellation(for: generation)
         }
         #endif
     }
 
     func stopVideoRecording() {
         #if !targetEnvironment(simulator)
-        queue.async {
-            guard self.movieOutput.isRecording else {
-                MerianLog.hardware.warning(
-                    "Video recording stop requested while movie output was not recording."
-                )
-                self.scheduleVideoRecordingTimeout(
-                    after: 1.5,
-                    code: -31,
-                    message: "Video recording stopped before the camera returned a file."
-                )
-                return
-            }
-            MerianLog.hardware.debug("Video recording stop requested.")
-            self.movieOutput.stopRecording()
-            self.scheduleVideoRecordingTimeout(
-                after: 3,
-                code: -32,
-                message: "Video recording did not finish after stop."
-            )
-        }
+        guard let generation = activeVideoRecordingGeneration() else { return }
+        requestVideoRecordingStop(for: generation)
         #endif
     }
 
     func cancelVideoRecording() {
         #if !targetEnvironment(simulator)
-        queue.async {
-            if self.movieOutput.isRecording {
-                MerianLog.hardware.debug("Video recording cancel requested; stopping movie output.")
-                self.movieOutput.stopRecording()
-            } else {
-                MerianLog.hardware.debug("Video recording cancel requested while movie output was not recording.")
-            }
-            self.resolveActiveVideoRecordingFailure(
-                CancellationError(),
-                removingFile: true,
-                logMessage: "Video recording cancelled."
-            )
-        }
+        guard let generation = activeVideoRecordingGeneration() else { return }
+        requestVideoRecordingCancellation(for: generation)
         #endif
     }
 
@@ -1048,6 +1101,7 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         maxDuration: TimeInterval,
         prefersVideoStabilization: Bool = false
     ) {
+        preconditionOnCameraQueue()
         movieOutput.maxRecordedDuration = CMTime(seconds: max(maxDuration, 0.5), preferredTimescale: 600)
         movieOutput.maxRecordedFileSize = Int64(MerianConfig.videoPayloadMaxBytes)
         guard let connection = movieOutput.connection(with: .video) else { return }
@@ -1064,6 +1118,7 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         on connection: AVCaptureConnection,
         enabled: Bool
     ) {
+        preconditionOnCameraQueue()
         let targetMode: AVCaptureVideoStabilizationMode
         if enabled && connection.isVideoStabilizationSupported {
             targetMode = .auto
@@ -1077,92 +1132,370 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     }
 
     nonisolated private func disableRecordedVideoStabilization() {
+        preconditionOnCameraQueue()
         guard let connection = movieOutput.connection(with: .video) else { return }
         configureRecordedVideoStabilization(on: connection, enabled: false)
     }
 
+    nonisolated private func preconditionOnCameraQueue() {
+        dispatchPrecondition(condition: .onQueue(queue))
+    }
+
+    nonisolated private func activeVideoRecordingGeneration() -> CameraVideoRecordingGeneration? {
+        videoRecordingLock.withLock {
+            activeVideoRecording?.gate.generation
+        }
+    }
+
+    nonisolated private func videoRecordingIsActive(
+        _ generation: CameraVideoRecordingGeneration
+    ) -> Bool {
+        videoRecordingLock.withLock {
+            activeVideoRecording?.gate.matches(generation) == true
+        }
+    }
+
+    nonisolated private func startVideoRecordingOnCameraQueue(
+        generation: CameraVideoRecordingGeneration,
+        maxDuration: TimeInterval
+    ) {
+        preconditionOnCameraQueue()
+        guard videoRecordingIsActive(generation) else { return }
+
+        // A cancelled/timed-out generation can still be finishing inside
+        // AVCaptureMovieFileOutput. Never start a replacement until that hardware
+        // state has drained; fail the replacement without touching the old output.
+        guard !movieOutput.isRecording else {
+            resolveActiveVideoRecordingFailureOnCameraQueue(
+                generation: generation,
+                error: NSError(
+                    domain: "CameraManager",
+                    code: -33,
+                    userInfo: [NSLocalizedDescriptionKey: "The camera is still finishing a previous video recording."]
+                ),
+                removingFile: true,
+                logMessage: "Video recording could not start while the movie output was busy."
+            )
+            return
+        }
+
+        configureMovieOutputConnection(
+            maxDuration: maxDuration,
+            prefersVideoStabilization: true
+        )
+        let preferredStabilizationMode = movieOutput
+            .connection(with: .video)?
+            .preferredVideoStabilizationMode
+            .rawValue ?? AVCaptureVideoStabilizationMode.off.rawValue
+        MerianLog.hardware.debug(
+            """
+            Video recording start requested: \
+            generation=\(generation.id.uuidString, privacy: .public), \
+            url=\(generation.outputURL.lastPathComponent, privacy: .public), \
+            maxDuration=\(maxDuration, privacy: .public), \
+            preferredStabilizationMode=\(preferredStabilizationMode, privacy: .public)
+            """
+        )
+        movieOutput.startRecording(
+            to: generation.outputURL,
+            recordingDelegate: self
+        )
+    }
+
+    nonisolated private func requestVideoRecordingStop(
+        for generation: CameraVideoRecordingGeneration,
+        scheduledAction: CameraVideoRecordingScheduledAction? = nil
+    ) {
+        queue.async {
+            self.stopVideoRecordingOnCameraQueue(
+                generation: generation,
+                scheduledAction: scheduledAction
+            )
+        }
+    }
+
+    nonisolated private func stopVideoRecordingOnCameraQueue(
+        generation: CameraVideoRecordingGeneration,
+        scheduledAction: CameraVideoRecordingScheduledAction?
+    ) {
+        preconditionOnCameraQueue()
+
+        let claim = videoRecordingLock.withLock { () -> (accepted: Bool, task: Task<Void, Never>?) in
+            guard var active = activeVideoRecording,
+                  active.gate.matches(generation),
+                  !active.stopWasRequested else {
+                return (false, nil)
+            }
+            if let scheduledAction {
+                guard active.gate.acceptsStopAction(scheduledAction),
+                      active.stopTask?.action == scheduledAction else {
+                    return (false, nil)
+                }
+            }
+
+            let task = active.stopTask?.task
+            active.stopTask = nil
+            active.gate.clearStopAction()
+            active.stopWasRequested = true
+            activeVideoRecording = active
+            return (true, task)
+        }
+        guard claim.accepted else { return }
+        claim.task?.cancel()
+
+        guard movieOutput.isRecording else {
+            MerianLog.hardware.warning(
+                "Video recording stop requested while movie output was not recording."
+            )
+            scheduleVideoRecordingTimeout(
+                for: generation,
+                after: 1.5,
+                code: -31,
+                message: "Video recording stopped before the camera returned a file."
+            )
+            return
+        }
+
+        MerianLog.hardware.debug(
+            "Video recording stop requested for generation \(generation.id.uuidString, privacy: .public)."
+        )
+        movieOutput.stopRecording()
+        scheduleVideoRecordingTimeout(
+            for: generation,
+            after: 3,
+            code: -32,
+            message: "Video recording did not finish after stop."
+        )
+    }
+
+    nonisolated private func requestVideoRecordingCancellation(
+        for generation: CameraVideoRecordingGeneration
+    ) {
+        queue.async {
+            self.cancelVideoRecordingOnCameraQueue(generation: generation)
+        }
+    }
+
+    nonisolated private func cancelVideoRecordingOnCameraQueue(
+        generation: CameraVideoRecordingGeneration
+    ) {
+        preconditionOnCameraQueue()
+        guard videoRecordingIsActive(generation) else { return }
+
+        if movieOutput.isRecording {
+            MerianLog.hardware.debug(
+                "Video recording cancel requested for generation \(generation.id.uuidString, privacy: .public); stopping movie output."
+            )
+            movieOutput.stopRecording()
+        } else {
+            MerianLog.hardware.debug(
+                "Video recording cancel requested for generation \(generation.id.uuidString, privacy: .public) while movie output was not recording."
+            )
+        }
+
+        resolveActiveVideoRecordingFailureOnCameraQueue(
+            generation: generation,
+            error: CancellationError(),
+            removingFile: true,
+            logMessage: "Video recording cancelled."
+        )
+    }
+
     nonisolated private func scheduleVideoRecordingTimeout(
+        for generation: CameraVideoRecordingGeneration,
         after seconds: TimeInterval,
         code: Int,
         message: String
     ) {
         let delay = UInt64(max(seconds, 0.1) * 1_000_000_000)
+        let action = CameraVideoRecordingScheduledAction(
+            generation: generation,
+            id: UUID()
+        )
+        let install = videoRecordingLock.withLock { () -> (installed: Bool, previous: Task<Void, Never>?) in
+            guard var active = activeVideoRecording,
+                  active.gate.installTimeoutAction(action) else {
+                return (false, nil)
+            }
+            let previous = active.timeoutTask?.task
+            active.timeoutTask = CameraVideoRecordingScheduledTask(
+                action: action,
+                task: nil
+            )
+            activeVideoRecording = active
+            return (true, previous)
+        }
+        guard install.installed else { return }
+        install.previous?.cancel()
+
         let timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: delay)
             guard !Task.isCancelled else { return }
-            self?.resolveActiveVideoRecordingFailure(
-                NSError(
-                    domain: "CameraManager",
+            self?.queue.async { [weak self] in
+                self?.handleVideoRecordingTimeoutOnCameraQueue(
+                    action: action,
                     code: code,
-                    userInfo: [NSLocalizedDescriptionKey: message]
-                ),
-                removingFile: true,
-                logMessage: message
-            )
+                    message: message
+                )
+            }
         }
-
-        let previousTask = videoRecordingLock.withLock { () -> Task<Void, Never>? in
-            let previousTask = activeVideoTimeoutTask
-            activeVideoTimeoutTask = timeoutTask
-            return previousTask
+        let attached = videoRecordingLock.withLock { () -> Bool in
+            guard var active = activeVideoRecording,
+                  active.gate.acceptsTimeoutAction(action),
+                  var scheduledTask = active.timeoutTask,
+                  scheduledTask.action == action else {
+                return false
+            }
+            scheduledTask.task = timeoutTask
+            active.timeoutTask = scheduledTask
+            activeVideoRecording = active
+            return true
         }
-        previousTask?.cancel()
+        if !attached {
+            timeoutTask.cancel()
+        }
     }
 
-    nonisolated private func scheduleVideoRecordingStop(after seconds: TimeInterval) {
+    nonisolated private func handleVideoRecordingTimeoutOnCameraQueue(
+        action: CameraVideoRecordingScheduledAction,
+        code: Int,
+        message: String
+    ) {
+        preconditionOnCameraQueue()
+        let isCurrent = videoRecordingLock.withLock {
+            guard let active = activeVideoRecording else { return false }
+            return active.gate.acceptsTimeoutAction(action)
+                && active.timeoutTask?.action == action
+        }
+        guard isCurrent else { return }
+
+        if movieOutput.isRecording {
+            movieOutput.stopRecording()
+        }
+        resolveActiveVideoRecordingFailureOnCameraQueue(
+            generation: action.generation,
+            expectedTimeoutAction: action,
+            error: NSError(
+                domain: "CameraManager",
+                code: code,
+                userInfo: [NSLocalizedDescriptionKey: message]
+            ),
+            removingFile: true,
+            logMessage: message
+        )
+    }
+
+    nonisolated private func scheduleVideoRecordingStop(
+        for generation: CameraVideoRecordingGeneration,
+        after seconds: TimeInterval
+    ) {
         let delay = UInt64(max(seconds, 0.1) * 1_000_000_000)
-        let stopTask = Task { @MainActor [weak self] in
+        let action = CameraVideoRecordingScheduledAction(
+            generation: generation,
+            id: UUID()
+        )
+        let install = videoRecordingLock.withLock { () -> (installed: Bool, previous: Task<Void, Never>?) in
+            guard var active = activeVideoRecording,
+                  active.gate.installStopAction(action) else {
+                return (false, nil)
+            }
+            let previous = active.stopTask?.task
+            active.stopTask = CameraVideoRecordingScheduledTask(
+                action: action,
+                task: nil
+            )
+            activeVideoRecording = active
+            return (true, previous)
+        }
+        guard install.installed else { return }
+        install.previous?.cancel()
+
+        let stopTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: delay)
             guard !Task.isCancelled else { return }
-            self?.stopVideoRecording()
+            self?.requestVideoRecordingStop(
+                for: generation,
+                scheduledAction: action
+            )
         }
-        let previousTask = videoRecordingLock.withLock { () -> Task<Void, Never>? in
-            let previousTask = activeVideoStopTask
-            activeVideoStopTask = stopTask
-            return previousTask
+        let attached = videoRecordingLock.withLock { () -> Bool in
+            guard var active = activeVideoRecording,
+                  active.gate.acceptsStopAction(action),
+                  var scheduledTask = active.stopTask,
+                  scheduledTask.action == action else {
+                return false
+            }
+            scheduledTask.task = stopTask
+            active.stopTask = scheduledTask
+            activeVideoRecording = active
+            return true
         }
-        previousTask?.cancel()
+        if !attached {
+            stopTask.cancel()
+        }
     }
 
-    nonisolated private func resolveActiveVideoRecordingFailure(
-        _ error: Error,
+    nonisolated private func resolveActiveVideoRecordingFailureOnCameraQueue(
+        generation: CameraVideoRecordingGeneration,
+        expectedTimeoutAction: CameraVideoRecordingScheduledAction? = nil,
+        error: Error,
         removingFile: Bool,
         logMessage: String
     ) {
-        disableRecordedVideoStabilization()
+        preconditionOnCameraQueue()
 
-        let result = videoRecordingLock.withLock { () -> CameraVideoRecordingCompletion in
-            let captured = CameraVideoRecordingCompletion(
-                continuation: activeVideoContinuation,
-                startedAt: activeVideoStartedAt,
-                fileURL: activeVideoURL,
-                timeoutTask: activeVideoTimeoutTask,
-                stopTask: activeVideoStopTask
+        let result = videoRecordingLock.withLock { () -> CameraVideoRecordingCompletion? in
+            guard let active = activeVideoRecording,
+                  active.gate.matches(generation) else {
+                return nil
+            }
+            if let expectedTimeoutAction {
+                guard active.gate.acceptsTimeoutAction(expectedTimeoutAction),
+                      active.timeoutTask?.action == expectedTimeoutAction else {
+                    return nil
+                }
+            }
+
+            activeVideoRecording = nil
+            return CameraVideoRecordingCompletion(
+                generation: active.gate.generation,
+                continuation: active.continuation,
+                startedAt: active.startedAt,
+                timeoutTask: active.timeoutTask?.task,
+                stopTask: active.stopTask?.task
             )
-            activeVideoContinuation = nil
-            activeVideoStartedAt = nil
-            activeVideoURL = nil
-            activeVideoMaxDuration = 5
-            activeVideoStartHandler = nil
-            activeVideoTimeoutTask = nil
-            activeVideoStopTask = nil
-            return captured
         }
+        guard let result else { return }
 
+        disableRecordedVideoStabilization()
         result.timeoutTask?.cancel()
         result.stopTask?.cancel()
 
-        if removingFile, let fileURL = result.fileURL {
-            try? FileManager.default.removeItem(at: fileURL)
+        if removingFile {
+            try? FileManager.default.removeItem(at: result.generation.outputURL)
         }
 
         Task { @MainActor in
-            self.isRecordingVideo = false
+            self.finishVideoRecordingPresentation(for: result.generation.id)
         }
 
-        guard let continuation = result.continuation else { return }
         MerianLog.hardware.error("\(logMessage, privacy: .public) \(error, privacy: .private)")
-        continuation.resume(throwing: error)
+        result.continuation.resume(throwing: error)
+    }
+
+    private func finishVideoRecordingPresentation(for generationID: UUID) {
+        guard videoRecordingPresentationGeneration == generationID else { return }
+        videoRecordingPresentationGeneration = nil
+        isRecordingVideo = false
+    }
+
+    private func startVideoRecordingPresentation(
+        for generationID: UUID,
+        handler: CameraVideoRecordingStartHandler?
+    ) {
+        guard videoRecordingPresentationGeneration == generationID else { return }
+        isRecordingVideo = true
+        handler?.action()
     }
 
     // MARK: - AVCapturePhotoCaptureDelegate
@@ -1194,29 +1527,84 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         didStartRecordingTo fileURL: URL,
         from connections: [AVCaptureConnection]
     ) {
-        let activeStabilizationMode = movieOutput.connection(with: .video)?.activeVideoStabilizationMode.rawValue
-            ?? AVCaptureVideoStabilizationMode.off.rawValue
-        let startContext = videoRecordingLock.withLock { () -> (CameraVideoRecordingStartHandler?, TimeInterval) in
-            activeVideoStartedAt = Date()
-            let handler = activeVideoStartHandler
-            let maxDuration = activeVideoMaxDuration
-            activeVideoStartHandler = nil
-            return (handler, maxDuration)
+        let outputID = ObjectIdentifier(output)
+        queue.async {
+            self.handleVideoRecordingStartedOnCameraQueue(
+                outputID: outputID,
+                callbackURL: fileURL
+            )
         }
-        scheduleVideoRecordingStop(after: startContext.1)
-        scheduleVideoRecordingTimeout(
-            after: startContext.1 + 3,
-            code: -30,
-            message: "Video recording timed out before the camera returned a file."
-        )
+    }
 
+    nonisolated private func handleVideoRecordingStartedOnCameraQueue(
+        outputID: ObjectIdentifier,
+        callbackURL: URL
+    ) {
+        preconditionOnCameraQueue()
+        guard outputID == ObjectIdentifier(movieOutput) else { return }
+
+        let startContext = videoRecordingLock.withLock {
+            () -> CameraVideoRecordingStartContext? in
+            guard var active = activeVideoRecording,
+                  active.gate.matches(callbackURL: callbackURL),
+                  active.startedAt == nil else {
+                return nil
+            }
+
+            active.startedAt = Date()
+            let context = CameraVideoRecordingStartContext(
+                generation: active.gate.generation,
+                handler: active.startHandler,
+                maxDuration: active.maxDuration,
+                stopWasRequested: active.stopWasRequested
+            )
+            active.startHandler = nil
+            activeVideoRecording = active
+            return context
+        }
+        guard let startContext else { return }
+
+        if startContext.stopWasRequested {
+            if movieOutput.isRecording {
+                movieOutput.stopRecording()
+            }
+            scheduleVideoRecordingTimeout(
+                for: startContext.generation,
+                after: 3,
+                code: -32,
+                message: "Video recording did not finish after stop."
+            )
+        } else {
+            scheduleVideoRecordingStop(
+                for: startContext.generation,
+                after: startContext.maxDuration
+            )
+            scheduleVideoRecordingTimeout(
+                for: startContext.generation,
+                after: startContext.maxDuration + 3,
+                code: -30,
+                message: "Video recording timed out before the camera returned a file."
+            )
+        }
+
+        let activeStabilizationMode = movieOutput
+            .connection(with: .video)?
+            .activeVideoStabilizationMode
+            .rawValue ?? AVCaptureVideoStabilizationMode.off.rawValue
         MerianLog.hardware.debug(
-            "Video recording started: activeStabilizationMode=\(activeStabilizationMode, privacy: .public)"
+            """
+            Video recording started: \
+            generation=\(startContext.generation.id.uuidString, privacy: .public), \
+            url=\(callbackURL.lastPathComponent, privacy: .public), \
+            activeStabilizationMode=\(activeStabilizationMode, privacy: .public)
+            """
         )
 
         Task { @MainActor in
-            self.isRecordingVideo = true
-            startContext.0?.action()
+            self.startVideoRecordingPresentation(
+                for: startContext.generation.id,
+                handler: startContext.handler
+            )
         }
     }
 
@@ -1226,37 +1614,55 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         from connections: [AVCaptureConnection],
         error: Error?
     ) {
-        disableRecordedVideoStabilization()
-
-        let result = videoRecordingLock.withLock { () -> CameraVideoRecordingCompletion in
-            let captured = CameraVideoRecordingCompletion(
-                continuation: activeVideoContinuation,
-                startedAt: activeVideoStartedAt,
-                fileURL: activeVideoURL,
-                timeoutTask: activeVideoTimeoutTask,
-                stopTask: activeVideoStopTask
+        let outputID = ObjectIdentifier(output)
+        let capturedError = error as NSError?
+        queue.async {
+            self.handleVideoRecordingFinishedOnCameraQueue(
+                outputID: outputID,
+                callbackURL: outputFileURL,
+                error: capturedError
             )
-            activeVideoContinuation = nil
-            activeVideoStartedAt = nil
-            activeVideoURL = nil
-            activeVideoMaxDuration = 5
-            activeVideoStartHandler = nil
-            activeVideoTimeoutTask = nil
-            activeVideoStopTask = nil
-            return captured
         }
+    }
+
+    nonisolated private func handleVideoRecordingFinishedOnCameraQueue(
+        outputID: ObjectIdentifier,
+        callbackURL: URL,
+        error: NSError?
+    ) {
+        preconditionOnCameraQueue()
+        guard outputID == ObjectIdentifier(movieOutput) else { return }
+
+        // The callback URL is the only AVFoundation-provided correlation value.
+        // Take state only when it maps to the exact generation-specific URL; a
+        // delayed callback for A cannot clear or resolve recording B.
+        let result = videoRecordingLock.withLock { () -> CameraVideoRecordingCompletion? in
+            guard let active = activeVideoRecording,
+                  active.gate.matches(callbackURL: callbackURL) else {
+                return nil
+            }
+
+            activeVideoRecording = nil
+            return CameraVideoRecordingCompletion(
+                generation: active.gate.generation,
+                continuation: active.continuation,
+                startedAt: active.startedAt,
+                timeoutTask: active.timeoutTask?.task,
+                stopTask: active.stopTask?.task
+            )
+        }
+        guard let result else { return }
+
+        disableRecordedVideoStabilization()
         result.timeoutTask?.cancel()
         result.stopTask?.cancel()
 
         Task { @MainActor in
-            self.isRecordingVideo = false
+            self.finishVideoRecordingPresentation(for: result.generation.id)
         }
 
-        guard let continuation = result.continuation else { return }
-
         if let error {
-            let nsError = error as NSError
-            let didFinishSuccessfully = nsError.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool == true
+            let didFinishSuccessfully = error.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool == true
             if didFinishSuccessfully {
                 MerianLog.hardware.warning(
                     "Video recording finished with non-fatal AVFoundation error: \(error, privacy: .private)"
@@ -1265,20 +1671,24 @@ private struct CameraVideoRecordingStartHandler: Sendable {
                 MerianLog.hardware.error(
                     "Video recording finished with AVFoundation error: \(error, privacy: .private)"
                 )
-                continuation.resume(throwing: error)
+                try? FileManager.default.removeItem(at: result.generation.outputURL)
+                result.continuation.resume(throwing: error)
                 return
             }
         }
 
-        let fileURL = result.fileURL ?? outputFileURL
         let duration = result.startedAt.map { Date().timeIntervalSince($0) } ?? 0
         MerianLog.hardware.debug(
             """
             Video recording finished: \
-            url=\(fileURL.lastPathComponent, privacy: .public), \
+            generation=\(result.generation.id.uuidString, privacy: .public), \
+            url=\(result.generation.outputURL.lastPathComponent, privacy: .public), \
             duration=\(duration, privacy: .public)
             """
         )
-        continuation.resume(returning: CameraVideoRecording(fileURL: fileURL, duration: duration))
+        result.continuation.resume(returning: CameraVideoRecording(
+            fileURL: result.generation.outputURL,
+            duration: duration
+        ))
     }
 }

@@ -186,6 +186,42 @@ stabilization only when the video connection supports it, records the requested
 and active modes in hardware logs for physical-device QA, and resets the
 connection to `.off` on finish, cancellation, or failure.
 
+### Recording Generation and Delegate Correlation (`CameraManager`)
+
+Every `recordVideo(...)` request creates one immutable generation containing a
+UUID and a UUID-derived, standardized output URL. The continuation, start time,
+duration cap, start callback, timeout, and automatic-stop task live together in
+one `ActiveCameraVideoRecording` value protected by `videoRecordingLock`.
+Recording state is taken and cleared atomically only when the caller presents
+the current generation. This prevents an old cancellation or queued stop from
+resolving a replacement recording.
+
+Task cancellation alone is not a synchronization boundary: a task that was
+cancelled after waking can still reach its queued closure. Each timeout and
+automatic-stop task therefore also receives its own action UUID. Replacing a
+task changes that action token under the same lock. The token-only placeholder
+is installed before the task is launched, and the task handle is attached only
+if the token is still current, closing both launch-before-install and
+cancel-after-wake races. The camera-queue handler must match both the recording
+generation and the current action UUID before it may stop AVFoundation or
+resolve the continuation.
+
+`AVCaptureFileOutputRecordingDelegate` does not provide the application's UUID.
+The delegate entry points snapshot the output identity and callback URL, then
+immediately dispatch to the serial camera queue. A callback may take active
+state only when it came from `movieOutput` and its standardized URL equals the
+current generation's URL. A delayed `didStartRecording` or
+`didFinishRecording` for recording A therefore cannot clear recording B, reset
+B's stabilization, invoke B's start callback, or resume B's continuation. A
+separate MainActor presentation-generation check prevents an already-enqueued
+UI update from A from changing B's `isRecordingVideo` state.
+
+All `AVCaptureMovieFileOutput` and movie `AVCaptureConnection` reads and writes
+are confined to the camera queue, including start, stop, cancellation, timeout,
+delegate completion, and failure cleanup. Queue preconditions defend this
+contract at runtime. Continuations are resumed only after the exact active
+generation has been removed under the lock, making completion exactly-once.
+
 ### Hanging Continuations (`CameraManager`)
 Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation, failing to return an image frame via `AVCapturePhotoCaptureDelegate`. Rather than silently hanging the `isShutterActive` UI state, Merian wraps `withCheckedThrowingContinuation` patterns inside a `withTaskCancellationHandler`. To handle multiple overlapping captures on a single UI state, Merian associates an array tracking queue (`activeCaptureRequests`), isolating concurrent `timeoutTask?.cancel()` closures via unique UUID identifiers. This clears specific stalling entries from RAM and resolves dropped continuations via `CancellationError` without blocking subsequent captures.
 
@@ -342,7 +378,7 @@ The detached closure throws `WikiContentNotFound` (a `private struct WikiContent
 
 ### `AVCaptureSession.inputs` Thread Safety (`CameraManager`)
 
-`AVCaptureSession.inputs` must be accessed on the session queue. `applyTargetFPS`, `throttleToIdleState`, `toggleFlash()`, and `applyZoom(factor:ramp:)` resolve video device inputs inside `queue.async`, then publish observable UI state back through `Task { @MainActor in ... }`. New hardware control paths must follow that same split: AVFoundation session/device reads and `lockForConfiguration()` stay on the camera queue; `@Observable` state writes stay on `@MainActor`.
+`AVCaptureSession.inputs` must be accessed on the session queue. `applyTargetFPS`, `throttleToIdleState`, `toggleFlash()`, and `applyZoom(factor:ramp:)` resolve video device inputs inside `queue.async`, then publish observable UI state back through `Task { @MainActor in ... }`. The same ownership rule applies to `AVCaptureMovieFileOutput`, its recording state, and its video connection: start/stop, stabilization, timeout cleanup, and recording-delegate handling all execute on the camera queue. New hardware control paths must follow that split: AVFoundation session/device/output reads and `lockForConfiguration()` stay on the camera queue; `@Observable` state writes stay on `@MainActor`.
 
 ### Historical Scan Hydration Snapshot Boundary (`InferenceEngine`)
 

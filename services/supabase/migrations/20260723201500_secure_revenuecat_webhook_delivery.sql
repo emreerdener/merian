@@ -543,7 +543,7 @@ BEGIN
     RETURNING TRUE
     INTO event_inserted;
 
-    IF NOT pg_catalog.COALESCE(event_inserted, FALSE) THEN
+    IF event_inserted IS NOT TRUE THEN
         SELECT events.*
         INTO STRICT existing_event
         FROM internal.revenuecat_webhook_events AS events
