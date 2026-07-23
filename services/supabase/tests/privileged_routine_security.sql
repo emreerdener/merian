@@ -19,6 +19,8 @@ $$;
 DO $$
 DECLARE
     target_signature TEXT;
+    static_issue RECORD;
+    trigger_issue RECORD;
 BEGIN
     IF EXISTS (
         SELECT 1
@@ -144,47 +146,111 @@ BEGIN
             'a public SECURITY DEFINER function has a non-empty search_path';
     END IF;
 
-    IF EXISTS (
-        SELECT 1
-        FROM pg_catalog.pg_proc AS function_row
-        JOIN pg_catalog.pg_namespace AS namespace_row
-          ON namespace_row.oid = function_row.pronamespace
-        JOIN pg_catalog.pg_language AS language_row
-          ON language_row.oid = function_row.prolang
-        CROSS JOIN LATERAL extensions.plpgsql_check_function_tb(
-            function_row.oid
-        ) AS issue
-        WHERE namespace_row.nspname = 'public'
-          AND function_row.prosecdef
-          AND language_row.lanname = 'plpgsql'
-          AND function_row.prorettype <> 'pg_catalog.trigger'::REGTYPE
-          AND issue.level IN ('error', 'fatal')
-    ) THEN
+    SELECT
+        pg_catalog.FORMAT(
+            '%I.%I(%s)',
+            namespace_row.nspname,
+            function_row.proname,
+            pg_catalog.PG_GET_FUNCTION_IDENTITY_ARGUMENTS(function_row.oid)
+        ) AS signature,
+        issue.level,
+        issue.sqlstate,
+        issue.message,
+        issue.detail,
+        issue.hint,
+        issue.lineno,
+        issue.statement,
+        issue.query
+    INTO static_issue
+    FROM pg_catalog.pg_proc AS function_row
+    JOIN pg_catalog.pg_namespace AS namespace_row
+      ON namespace_row.oid = function_row.pronamespace
+    JOIN pg_catalog.pg_language AS language_row
+      ON language_row.oid = function_row.prolang
+    CROSS JOIN LATERAL extensions.plpgsql_check_function_tb(
+        function_row.oid
+    ) AS issue
+    WHERE namespace_row.nspname = 'public'
+      AND function_row.prosecdef
+      AND language_row.lanname = 'plpgsql'
+      AND function_row.prorettype <> 'pg_catalog.trigger'::REGTYPE
+      AND issue.level IN ('error', 'fatal')
+    ORDER BY signature, issue.lineno
+    LIMIT 1;
+
+    IF static_issue.signature IS NOT NULL THEN
         RAISE EXCEPTION
-            'a public definer function fails plpgsql static validation';
+            'public definer function % fails plpgsql static validation at line % [%]: %',
+            static_issue.signature,
+            static_issue.lineno,
+            static_issue.sqlstate,
+            static_issue.message
+            USING DETAIL = pg_catalog.FORMAT(
+                'statement=%s; query=%s; detail=%s',
+                COALESCE(static_issue.statement, '<unknown>'),
+                COALESCE(static_issue.query, '<unknown>'),
+                COALESCE(static_issue.detail, '<none>')
+            ),
+            HINT = COALESCE(
+                static_issue.hint,
+                'Run extensions.plpgsql_check_function_tb for this signature.'
+            );
     END IF;
 
-    IF EXISTS (
-        SELECT 1
-        FROM pg_catalog.pg_trigger AS trigger_row
-        JOIN pg_catalog.pg_proc AS function_row
-          ON function_row.oid = trigger_row.tgfoid
-        JOIN pg_catalog.pg_namespace AS namespace_row
-          ON namespace_row.oid = function_row.pronamespace
-        JOIN pg_catalog.pg_language AS language_row
-          ON language_row.oid = function_row.prolang
-        CROSS JOIN LATERAL extensions.plpgsql_check_function_tb(
-            function_row.oid::REGPROCEDURE,
-            trigger_row.tgrelid
-        ) AS issue
-        WHERE namespace_row.nspname = 'public'
-          AND function_row.prosecdef
-          AND language_row.lanname = 'plpgsql'
-          AND NOT trigger_row.tgisinternal
-          AND issue.level IN ('error', 'fatal')
-    ) THEN
+    SELECT
+        pg_catalog.FORMAT(
+            '%I.%I(%s)',
+            namespace_row.nspname,
+            function_row.proname,
+            pg_catalog.PG_GET_FUNCTION_IDENTITY_ARGUMENTS(function_row.oid)
+        ) AS signature,
+        trigger_row.tgrelid::REGCLASS::TEXT AS relation_name,
+        issue.level,
+        issue.sqlstate,
+        issue.message,
+        issue.detail,
+        issue.hint,
+        issue.lineno,
+        issue.statement,
+        issue.query
+    INTO trigger_issue
+    FROM pg_catalog.pg_trigger AS trigger_row
+    JOIN pg_catalog.pg_proc AS function_row
+      ON function_row.oid = trigger_row.tgfoid
+    JOIN pg_catalog.pg_namespace AS namespace_row
+      ON namespace_row.oid = function_row.pronamespace
+    JOIN pg_catalog.pg_language AS language_row
+      ON language_row.oid = function_row.prolang
+    CROSS JOIN LATERAL extensions.plpgsql_check_function_tb(
+        function_row.oid::REGPROCEDURE,
+        trigger_row.tgrelid
+    ) AS issue
+    WHERE namespace_row.nspname = 'public'
+      AND function_row.prosecdef
+      AND language_row.lanname = 'plpgsql'
+      AND NOT trigger_row.tgisinternal
+      AND issue.level IN ('error', 'fatal')
+    ORDER BY signature, relation_name, issue.lineno
+    LIMIT 1;
+
+    IF trigger_issue.signature IS NOT NULL THEN
         RAISE EXCEPTION
-            'a public definer trigger fails plpgsql static validation';
+            'public definer trigger % on % fails plpgsql static validation at line % [%]: %',
+            trigger_issue.signature,
+            trigger_issue.relation_name,
+            trigger_issue.lineno,
+            trigger_issue.sqlstate,
+            trigger_issue.message
+            USING DETAIL = pg_catalog.FORMAT(
+                'statement=%s; query=%s; detail=%s',
+                COALESCE(trigger_issue.statement, '<unknown>'),
+                COALESCE(trigger_issue.query, '<unknown>'),
+                COALESCE(trigger_issue.detail, '<none>')
+            ),
+            HINT = COALESCE(
+                trigger_issue.hint,
+                'Run extensions.plpgsql_check_function_tb for this trigger.'
+            );
     END IF;
 
     IF EXISTS (

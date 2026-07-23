@@ -572,10 +572,12 @@ BEGIN
 
     -- Serialize only identical idempotency keys. All quota counters still use
     -- conditional UPSERTs, so unrelated requests never share this lock.
+    -- hashtextextended takes a BIGINT seed; keep the cast explicit so static
+    -- validation resolves the pg_catalog overload on every supported PG image.
     PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-        pg_catalog.HASHTEXTENDED(
+        pg_catalog.HASHTEXTEXTENDED(
             p_user_id::TEXT || ':' || p_operation || ':' || p_request_id::TEXT,
-            0
+            0::BIGINT
         )
     );
 

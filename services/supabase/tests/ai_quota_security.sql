@@ -169,12 +169,18 @@ BEGIN
     INSERT INTO public.users (
         id,
         email,
+        public_username,
+        public_author_name,
+        public_identity_source,
         created_at,
         subscription_tier
     )
     VALUES (
         test_user_id,
         'ai-quota-test@example.invalid',
+        'ai_quota_test_a901',
+        'AI Quota Test',
+        'alias',
         NOW() - INTERVAL '30 days',
         'free'
     );

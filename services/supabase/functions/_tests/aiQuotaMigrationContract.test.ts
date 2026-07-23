@@ -59,6 +59,7 @@ Deno.test("AI quota reservation is atomic, idempotent, and fail-closed", async (
       "RAISE EXCEPTION 'ai_entitlement_required'",
       "WHERE users.id = p_user_id FOR SHARE",
       "PG_ADVISORY_XACT_LOCK",
+      "HASHTEXTEXTENDED( p_user_id::TEXT || ':' || p_operation || ':' || p_request_id::TEXT, 0::BIGINT )",
       "ON CONFLICT (scope_type, scope_key, bucket, window_start) DO UPDATE",
       "WHERE internal.ai_quota_counters.request_count < p_limit",
       "UNIQUE (user_id, operation, request_id)",
