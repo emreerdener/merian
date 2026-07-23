@@ -237,9 +237,11 @@ Deno.serve((req: Request) =>
           rejectEnrichmentInFlight = reject;
         }),
       );
+      let providerAttempted = false;
 
       try {
         await quotaLease.commit();
+        providerAttempted = true;
         const enrichmentResult = await fetchStaticEncyclopedicData(
           _user,
           scientific_name,
@@ -297,6 +299,11 @@ Deno.serve((req: Request) =>
           200,
         );
       } catch (e: unknown) {
+        if (providerAttempted) {
+          await quotaLease.fail();
+        } else {
+          await quotaLease.refund();
+        }
         console.error("[enrich-scan:enrichment] LLM error:", e);
         rejectEnrichmentInFlight(e instanceof Error ? e : new Error(String(e)));
         const message = e instanceof Error
@@ -469,9 +476,11 @@ Deno.serve((req: Request) =>
         rejectLookalikesInFlight = reject;
       }),
     );
+    let providerAttempted = false;
 
     try {
       await quotaLease.commit();
+      providerAttempted = true;
       let validatedSimilarResult: {
         similar_species: Array<
           { scientific_name: string; common_name: string | null }
@@ -569,6 +578,11 @@ Deno.serve((req: Request) =>
         200,
       );
     } catch (e: unknown) {
+      if (providerAttempted) {
+        await quotaLease.fail();
+      } else {
+        await quotaLease.refund();
+      }
       console.error("[enrich-scan:lookalikes] LLM error:", e);
       rejectLookalikesInFlight(e instanceof Error ? e : new Error(String(e)));
       const message = e instanceof Error

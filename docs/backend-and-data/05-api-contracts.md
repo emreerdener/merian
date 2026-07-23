@@ -1106,8 +1106,12 @@ reconstructs the staged media/audio/video or text-only request from the
 sanitized intent payload, and invokes `/identify-multimodal` with the original
 `client_scan_id`. The multimodal endpoint still owns AI inference, moderation,
 media promotion, scan insert idempotency, and the strict playback-video
-durability gate. Inline foreground requests remain client-owned because their
-raw media bytes are never stored server-side.
+durability gate. A service-authenticated `X-Merian-Replay-Attempt` header
+derives a distinct deterministic quota UUID from the scan UUID and durable
+claim count. This prevents the original committed reservation from blocking
+recovery while keeping each replay metered and idempotent within one claim.
+Inline foreground requests remain client-owned because their raw media bytes
+are never stored server-side.
 
 Automatic replay is capped at 10 claims per sanitized intent. The claim RPC
 excludes over-budget intents from new replay work and marks the paired
@@ -1494,8 +1498,12 @@ selects the operation's database policy/model, and consumes daily/user/IP
 counters. Reusing a key for a `reserved` or `committed` attempt does not consume
 or dispatch again: the API returns `409 ai_request_in_progress` or
 `409 ai_request_already_completed`. A previously explicit `refunded` key may be
-reserved again. This reservation protects cost idempotency; it does not promise
-to replay a prior HTTP response body.
+reserved again. `reserved` attempts carry a ten-minute lease; abandoned leases
+are automatically refunded, and every retry receives a new fencing token so a
+late settlement from an earlier attempt is rejected. A provider error changes
+`committed` to `failed`: the original counters remain charged, but the same key
+may begin a newly metered attempt. This reservation protects cost idempotency;
+it does not promise to replay a prior HTTP response body.
 
 Shared authorization errors are:
 
@@ -1503,7 +1511,7 @@ Shared authorization errors are:
 |---|---|---|
 | `400` | `ai_request_id_invalid` | Supplied body/header request key is not a UUID |
 | `402` | `pro_required` | Operation is disabled for the effective plan |
-| `409` | `ai_request_in_progress` / `ai_request_already_completed` | Duplicate paid-provider attempt |
+| `409` | `ai_request_in_progress` / `ai_request_already_completed` | Duplicate paid-provider attempt; an in-progress response retries after the remaining lease |
 | `429` | `ai_quota_daily_exceeded` | Database UTC-day safety ceiling reached |
 | `429` | `ai_user_rate_limit_exceeded` / `ai_ip_rate_limit_exceeded` | Shared minute ceiling reached |
 | `503` | `ai_entitlement_unavailable` / `ai_quota_unavailable` | Durable authorization could not be verified |
@@ -4778,9 +4786,11 @@ the separate candidates/review surface.
 AI quota. A cache miss reserves either `scan_overview_enrichment` or
 `scan_lookalike_enrichment` before generation. Their shared UTC-day ceilings
 are 4 for free, 100 for Pro trial, and 500 for paid Pro, with additional shared
-per-user/IP minute ceilings. The UUID `Idempotency-Key` header is reused across
-transport/auth/server retries. Provider attempts consume quota even if the
-provider response is malformed; a pre-provider cache/no-op path may refund.
+per-user/IP minute ceilings. iOS uses the stable scan UUID as the
+`Idempotency-Key` for both scopes (the operation is part of the database
+namespace), so later app-level retries cannot allocate a fresh reservation.
+Provider attempts consume quota even if the provider response is malformed; a
+pre-provider cache/no-op path may refund.
 
 ### Error Responses
 

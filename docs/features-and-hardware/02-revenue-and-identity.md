@@ -146,7 +146,8 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     non-renewing passes also require a future `subscription_expires_at`; raw
     free users inside the database's seven-day creation window resolve to
     `pro_trial`. A stale timed pass resolves free, and a missing user row or
-    database error fails closed rather than granting a ghost trial.
+    malformed entitlement row or database error fails closed rather than
+    granting a ghost trial.
     RevenueCat/webhook changes advance `users.entitlement_version` in a trigger,
     so no Edge-isolate cache invalidation is required.
 
@@ -263,8 +264,10 @@ provider-cost enforcement boundary.
   inference settings and daily scan limits.
 - **Server authority**: `reserve_ai_quota` applies the free one-scan UTC-day
   policy and high Pro trial/paid fair-use ceilings, plus shared per-user/IP
-  minute limits. Clearing/modifying `UserDefaults` does not change them. A
-  database entitlement failure returns `503`; it never falls back to Pro.
+  minute limits. Overview, lookalike, and optional group-tag provider calls
+  share their own enrichment bucket. Clearing/modifying `UserDefaults` does not
+  change them. A database entitlement failure returns `503`; it never falls
+  back to Pro.
 - **Product language**: Pro removes the ordinary one-scan product cap but
   remains subject to documented anti-abuse/cost safety ceilings. Do not promise
   technically unbounded provider use.
@@ -272,6 +275,8 @@ provider-cost enforcement boundary.
   decoding failure, network error), `UsageManager.shared.refundScan()` restores
   the advisory token. This does not refund a provider attempt. Server refund is
   an explicit reservation transition used only when no provider call occurred.
+  A failed provider attempt remains charged and moves to `failed`, permitting a
+  new metered retry with the same logical request key.
 - Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`.
 - Resets the advisory meter at device calendar boundaries. The authoritative

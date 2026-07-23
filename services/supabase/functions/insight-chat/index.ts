@@ -405,7 +405,11 @@ Deno.serve((req: Request) =>
           },
         }, 200);
       } catch (error) {
-        if (!providerAttempted) await quotaLease.refund();
+        if (providerAttempted) {
+          await quotaLease.fail();
+        } else {
+          await quotaLease.refund();
+        }
         trackPostHogEvent(user, "InsightChatPromptsGenerated", {
           scan_id: scanId,
           conversation_id: existingConversation?.id ?? null,
@@ -532,7 +536,11 @@ Deno.serve((req: Request) =>
           quotaLease.reservation.model,
         );
       } catch (error) {
-        if (!providerAttempted) await quotaLease.refund();
+        if (providerAttempted) {
+          await quotaLease.fail();
+        } else {
+          await quotaLease.refund();
+        }
         throw error;
       }
       const usage = summary.usage;
@@ -659,7 +667,11 @@ Deno.serve((req: Request) =>
           quotaLease!.reservation.model,
         );
       } catch (error) {
-        if (!providerAttempted) await quotaLease!.refund();
+        if (providerAttempted) {
+          await quotaLease!.fail();
+        } else {
+          await quotaLease!.refund();
+        }
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "insight_chat_reply",
           model: quotaLease!.reservation.model,

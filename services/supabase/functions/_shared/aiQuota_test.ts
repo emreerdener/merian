@@ -2,14 +2,18 @@ import {
   assert,
   assertEquals,
   assertNotEquals,
+  assertRejects,
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   AIQuotaError,
+  type AIQuotaReservation,
   clientAddressForQuota,
+  createAIProviderQuotaLease,
   deriveAIRequestId,
   hmacClientAddress,
   resolveAIRequestId,
+  resolveQuotaIpHashSecret,
 } from "./aiQuota.ts";
 
 const REQUEST_ID = "00000000-0000-0000-0000-000000000123";
@@ -122,4 +126,111 @@ Deno.test("quota hashing fails closed when its dedicated secret is weak", async 
   assert(caught instanceof AIQuotaError);
   assertEquals(caught.status, 503);
   assertEquals(caught.code, "ai_quota_unavailable");
+});
+
+Deno.test("quota hashing uses an optional dedicated override or a server-only platform key", () => {
+  const dedicated = `${SECRET}-dedicated`;
+  const platform = `${SECRET}-platform`;
+  assertEquals(
+    resolveQuotaIpHashSecret({
+      dedicatedSecret: ` ${dedicated} `,
+      platformSecretKey: platform,
+    }),
+    dedicated,
+  );
+  assertEquals(
+    resolveQuotaIpHashSecret({
+      platformSecretKey: platform,
+      serviceRoleKey: `${SECRET}-legacy`,
+    }),
+    platform,
+  );
+  assertEquals(
+    resolveQuotaIpHashSecret({ serviceRoleKey: `${SECRET}-legacy` }),
+    `${SECRET}-legacy`,
+  );
+  assertThrows(
+    () =>
+      resolveQuotaIpHashSecret({
+        dedicatedSecret: "explicit-but-weak",
+        platformSecretKey: platform,
+      }),
+    AIQuotaError,
+  );
+});
+
+function quotaReservation(): AIQuotaReservation {
+  return {
+    id: "00000000-0000-0000-0000-000000000321",
+    requestId: REQUEST_ID,
+    leaseToken: "00000000-0000-0000-0000-000000000654",
+    leaseExpiresAt: "2026-07-23T12:10:00.000Z",
+    attemptCount: 1,
+    model: "gemini-2.5-flash",
+    tier: {
+      effective_tier: "free",
+      plan: "free",
+      subscription_tier: "free",
+      trial_active: false,
+      user_exists: true,
+      entitlement_version: 1,
+    },
+    policyVersion: 1,
+    dailyLimit: 1,
+    dailyRemaining: 0,
+  };
+}
+
+Deno.test("provider commit fails closed and forwards the attempt fencing token", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const client = {
+    rpc: (_name: string, args: Record<string, unknown>) => {
+      calls.push(args);
+      return {
+        abortSignal: () =>
+          Promise.resolve({
+            data: null,
+            error: { code: "P0001" },
+          }),
+      };
+    },
+  };
+  const lease = createAIProviderQuotaLease(
+    client as never,
+    "00000000-0000-0000-0000-000000000111",
+    quotaReservation(),
+  );
+
+  const error = await assertRejects(
+    () => lease.commit(),
+    AIQuotaError,
+  );
+  assertEquals(error.status, 503);
+  assertEquals(error.code, "ai_quota_unavailable");
+  assertEquals(
+    calls[0]?.p_lease_token,
+    quotaReservation().leaseToken,
+  );
+});
+
+Deno.test("failed provider attempts transition committed leases without refunding", async () => {
+  const states: unknown[] = [];
+  const client = {
+    rpc: (_name: string, args: Record<string, unknown>) => {
+      states.push(args.p_final_state);
+      return {
+        abortSignal: () => Promise.resolve({ data: true, error: null }),
+      };
+    },
+  };
+  const lease = createAIProviderQuotaLease(
+    client as never,
+    "00000000-0000-0000-0000-000000000111",
+    quotaReservation(),
+  );
+
+  await lease.commit();
+  assertEquals(await lease.fail(), true);
+  assertEquals(await lease.refund(), false);
+  assertEquals(states, ["committed", "failed"]);
 });

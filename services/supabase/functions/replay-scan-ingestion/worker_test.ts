@@ -132,6 +132,9 @@ Deno.test("replayScanIngestion dispatches staged rows through identify", async (
   assertEquals(completed.length, 0);
   assertEquals(failures.length, 0);
   assertEquals(invoked.length, 1);
+  assertObjectMatch(invoked[0] as Record<string, unknown>, {
+    replayAttemptCount: 1,
+  });
 });
 
 Deno.test("replayScanIngestion marks already-complete scan rows complete without invoking identify", async () => {

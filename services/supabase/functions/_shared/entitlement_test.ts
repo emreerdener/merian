@@ -1,6 +1,7 @@
 import {
   assertEquals,
   assertRejects,
+  assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   getTierForUser,
@@ -118,6 +119,42 @@ Deno.test("future-dated free profiles do not receive an extended trial", () => {
   assertEquals(resolution.effective_tier, "free");
   assertEquals(resolution.plan, "free");
   assertEquals(resolution.trial_active, false);
+});
+
+Deno.test("malformed durable entitlement rows fail closed", () => {
+  for (
+    const row of [
+      {
+        subscription_tier: "unexpected",
+        created_at: isoDaysAgo(1),
+        entitlement_version: 1,
+      },
+      {
+        subscription_tier: "pro",
+        created_at: "not-a-timestamp",
+        entitlement_version: 1,
+      },
+      {
+        subscription_tier: "pro",
+        created_at: isoDaysAgo(1),
+        subscription_expires_at: "not-a-timestamp",
+        entitlement_version: 1,
+      },
+      {
+        subscription_tier: "pro",
+        created_at: isoDaysAgo(1),
+        entitlement_version: 0,
+      },
+    ]
+  ) {
+    const error = assertThrows(
+      () => resolutionForUserRow(row),
+      Error,
+      "AI entitlement could not be verified",
+    ) as Error & { status?: number; code?: string };
+    assertEquals(error.status, 503);
+    assertEquals(error.code, "ai_entitlement_unavailable");
+  }
 });
 
 Deno.test("database entitlement errors fail closed", async () => {

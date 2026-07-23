@@ -15,6 +15,7 @@ export type AIQuotaOperation =
   | "scan_audio_identification"
   | "scan_overview_enrichment"
   | "scan_lookalike_enrichment"
+  | "scan_group_tag_enrichment"
   | "explore_audio_moderation"
   | "insight_chat_reply"
   | "insight_chat_prompt_suggestions"
@@ -24,7 +25,9 @@ export type AIQuotaOperation =
 interface AIQuotaReservationRow {
   reservation_id: string;
   request_id: string;
-  reservation_state: "reserved" | "committed" | "refunded";
+  lease_token: string;
+  lease_expires_at: string;
+  reservation_state: "reserved" | "committed" | "failed" | "refunded";
   is_replay: boolean;
   attempt_count: number;
   model: string;
@@ -41,6 +44,8 @@ interface AIQuotaReservationRow {
 export interface AIQuotaReservation {
   id: string;
   requestId: string;
+  leaseToken: string;
+  leaseExpiresAt: string;
   attemptCount: number;
   model: "gemini-2.5-flash" | "gemini-2.5-pro";
   tier: TierResolution;
@@ -51,8 +56,9 @@ export interface AIQuotaReservation {
 
 export interface AIProviderQuotaLease {
   reservation: AIQuotaReservation;
-  commit(): Promise<boolean>;
+  commit(): Promise<void>;
   refund(): Promise<boolean>;
+  fail(): Promise<boolean>;
 }
 
 export class AIQuotaError extends Error {
@@ -186,7 +192,7 @@ export async function hmacClientAddress(
     await crypto.subtle.sign(
       "HMAC",
       key,
-      encoder.encode(`${day}:${address}`),
+      encoder.encode(`merian-ai-quota-ip-v1:${day}:${address}`),
     ),
   );
   return Array.from(
@@ -195,8 +201,41 @@ export async function hmacClientAddress(
   ).join("");
 }
 
+export function resolveQuotaIpHashSecret(input: {
+  dedicatedSecret?: string | null;
+  platformSecretKey?: string | null;
+  serviceRoleKey?: string | null;
+}): string {
+  const dedicated = input.dedicatedSecret?.trim();
+  if (dedicated) {
+    if (dedicated.length < 32) {
+      throw new AIQuotaError(
+        503,
+        "ai_quota_unavailable",
+        "AI service is temporarily unavailable.",
+      );
+    }
+    return dedicated;
+  }
+
+  const platformSecret = input.platformSecretKey?.trim() ||
+    input.serviceRoleKey?.trim();
+  if (!platformSecret || platformSecret.length < 32) {
+    throw new AIQuotaError(
+      503,
+      "ai_quota_unavailable",
+      "AI service is temporarily unavailable.",
+    );
+  }
+  return platformSecret;
+}
+
 async function quotaIpHash(req: Request): Promise<string> {
-  const secret = Deno.env.get("AI_QUOTA_IP_HASH_SECRET") ?? "";
+  const secret = resolveQuotaIpHashSecret({
+    dedicatedSecret: Deno.env.get("AI_QUOTA_IP_HASH_SECRET"),
+    platformSecretKey: Deno.env.get("SUPABASE_SECRET_KEY"),
+    serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+  });
   const hash = await hmacClientAddress(
     clientAddressForQuota(req.headers),
     secret,
@@ -308,13 +347,19 @@ export async function reserveAIQuota(
   }
 
   const row = singleReservationRow(data);
+  const leaseExpiryMs = row == null
+    ? Number.NaN
+    : Date.parse(row.lease_expires_at);
   if (
     !row ||
     !UUID_PATTERN.test(row.reservation_id) ||
     !UUID_PATTERN.test(row.request_id) ||
+    !UUID_PATTERN.test(row.lease_token) ||
+    !Number.isFinite(leaseExpiryMs) ||
     row.request_id.toLowerCase() !== requestId ||
     (row.reservation_state !== "reserved" &&
       row.reservation_state !== "committed" &&
+      row.reservation_state !== "failed" &&
       row.reservation_state !== "refunded") ||
     typeof row.is_replay !== "boolean" ||
     !Number.isSafeInteger(row.attempt_count) ||
@@ -341,7 +386,8 @@ export async function reserveAIQuota(
       row.daily_remaining !== null &&
       row.daily_remaining > row.daily_limit) ||
     (row.is_replay
-      ? row.reservation_state === "refunded"
+      ? row.reservation_state !== "reserved" &&
+        row.reservation_state !== "committed"
       : row.reservation_state !== "reserved") ||
     (row.effective_plan === "free"
       ? row.effective_tier !== "free" ||
@@ -367,19 +413,27 @@ export async function reserveAIQuota(
     const code = row.reservation_state === "committed"
       ? "ai_request_already_completed"
       : "ai_request_in_progress";
+    const retryAfterSeconds = row.reservation_state === "reserved"
+      ? Math.max(
+        1,
+        Math.min(600, Math.ceil((leaseExpiryMs - Date.now()) / 1_000)),
+      )
+      : undefined;
     throw new AIQuotaError(
       409,
       code,
       row.reservation_state === "committed"
         ? "This AI request was already completed."
         : "This AI request is already in progress.",
-      row.reservation_state === "reserved" ? 5 : undefined,
+      retryAfterSeconds,
     );
   }
 
   return {
     id: row.reservation_id,
     requestId: row.request_id,
+    leaseToken: row.lease_token,
+    leaseExpiresAt: row.lease_expires_at,
     attemptCount: row.attempt_count,
     model: row.model as AIQuotaReservation["model"],
     tier: {
@@ -400,7 +454,7 @@ async function finalizeReservation(
   supabaseAdmin: SupabaseClient,
   userId: string,
   reservation: AIQuotaReservation,
-  finalState: "committed" | "refunded",
+  finalState: "committed" | "failed" | "refunded",
 ): Promise<boolean> {
   let data: unknown;
   let error: { code?: string } | null;
@@ -410,6 +464,7 @@ async function finalizeReservation(
       {
         p_reservation_id: reservation.id,
         p_user_id: userId,
+        p_lease_token: reservation.leaseToken,
         p_final_state: finalState,
       },
     ).abortSignal(AbortSignal.timeout(5_000));
@@ -433,6 +488,65 @@ async function finalizeReservation(
   return true;
 }
 
+export function createAIProviderQuotaLease(
+  supabaseAdmin: SupabaseClient,
+  userId: string,
+  reservation: AIQuotaReservation,
+): AIProviderQuotaLease {
+  let finalState: "committed" | "failed" | "refunded" | null = null;
+
+  return {
+    reservation,
+    async commit() {
+      if (finalState === "committed") return;
+      if (finalState !== null) {
+        throw new AIQuotaError(
+          503,
+          "ai_quota_unavailable",
+          "AI service is temporarily unavailable.",
+        );
+      }
+      const finalized = await finalizeReservation(
+        supabaseAdmin,
+        userId,
+        reservation,
+        "committed",
+      );
+      if (!finalized) {
+        throw new AIQuotaError(
+          503,
+          "ai_quota_unavailable",
+          "AI service is temporarily unavailable.",
+        );
+      }
+      finalState = "committed";
+    },
+    async refund() {
+      if (finalState) return finalState === "refunded";
+      const finalized = await finalizeReservation(
+        supabaseAdmin,
+        userId,
+        reservation,
+        "refunded",
+      );
+      if (finalized) finalState = "refunded";
+      return finalized;
+    },
+    async fail() {
+      if (finalState === "failed") return true;
+      if (finalState !== "committed") return false;
+      const finalized = await finalizeReservation(
+        supabaseAdmin,
+        userId,
+        reservation,
+        "failed",
+      );
+      if (finalized) finalState = "failed";
+      return finalized;
+    },
+  };
+}
+
 export async function reserveAIProviderCall(
   req: Request,
   supabaseAdmin: SupabaseClient,
@@ -443,31 +557,9 @@ export async function reserveAIProviderCall(
   },
 ): Promise<AIProviderQuotaLease> {
   const reservation = await reserveAIQuota(req, supabaseAdmin, input);
-  let finalState: "committed" | "refunded" | null = null;
-
-  return {
+  return createAIProviderQuotaLease(
+    supabaseAdmin,
+    input.userId,
     reservation,
-    async commit() {
-      if (finalState) return finalState === "committed";
-      const finalized = await finalizeReservation(
-        supabaseAdmin,
-        input.userId,
-        reservation,
-        "committed",
-      );
-      if (finalized) finalState = "committed";
-      return finalized;
-    },
-    async refund() {
-      if (finalState) return finalState === "refunded";
-      const finalized = await finalizeReservation(
-        supabaseAdmin,
-        input.userId,
-        reservation,
-        "refunded",
-      );
-      if (finalized) finalState = "refunded";
-      return finalized;
-    },
-  };
+  );
 }

@@ -1,5 +1,6 @@
 import {
   assert,
+  assertEquals,
   assertRejects,
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
@@ -30,6 +31,55 @@ const guardedRoutes = new Map<string, string[]>([
   ["../update-explore-field-notes/index.ts", ["explore_audio_moderation"]],
 ]);
 
+async function runtimeTypeScriptFiles(directory: URL): Promise<URL[]> {
+  const files: URL[] = [];
+  for await (const entry of Deno.readDir(directory)) {
+    const child = new URL(
+      `${entry.name}${entry.isDirectory ? "/" : ""}`,
+      directory,
+    );
+    if (entry.isDirectory) {
+      files.push(...await runtimeTypeScriptFiles(child));
+    } else if (entry.isFile && entry.name.endsWith(".ts")) {
+      files.push(child);
+    }
+  }
+  return files;
+}
+
+Deno.test("every direct paid-provider dispatch file is explicitly inventoried", async () => {
+  const functionsRoot = new URL("../", import.meta.url);
+  const dispatchFiles: string[] = [];
+
+  for (const file of await runtimeTypeScriptFiles(functionsRoot)) {
+    const relativePath = decodeURIComponent(
+      file.pathname.slice(functionsRoot.pathname.length),
+    );
+    if (
+      relativePath.startsWith("_tests/") ||
+      /(?:^|\/)[^/]*(?:_test|[.]test)[.]ts$/.test(relativePath)
+    ) {
+      continue;
+    }
+    const source = await Deno.readTextFile(file);
+    if (source.includes(".generateContent({")) {
+      dispatchFiles.push(relativePath);
+    }
+  }
+
+  assertEquals(dispatchFiles.sort(), [
+    "_shared/audioModeration.ts",
+    "_shared/biology.ts",
+    "_shared/gemini.ts",
+    "audio-spec/index.ts",
+    "explore-post-chat/index.ts",
+    "identify-describe/index.ts",
+    "identify-multimodal/index.ts",
+    "identify/index.ts",
+    "insight-chat/index.ts",
+  ]);
+});
+
 Deno.test("every public paid-model route declares a server quota operation", async () => {
   for (const [path, operations] of guardedRoutes) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
@@ -59,6 +109,7 @@ Deno.test("database-selected models reach every paid provider family", async () 
       "../insight-chat/index.ts",
       "../explore-post-chat/index.ts",
       "../_shared/audioModeration.ts",
+      "../_shared/groupTagQuota.ts",
     ]
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
@@ -88,9 +139,14 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
     assert(
-      /await quotaLease[.]commit[(][)];\s+const result = await _genAI[.]models[.]generateContent/
+      /await quotaLease[.]commit[(][)];[\s\S]{0,120}const result = await _genAI[.]models[.]generateContent/
         .test(source),
       `${path} must commit immediately before dispatching paid provider work`,
+    );
+    assertStringIncludes(
+      source,
+      "await quotaLease.fail();",
+      `${path} must make a charged provider failure safely retryable`,
     );
   }
 
@@ -104,6 +160,7 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   );
   assertStringIncludes(moderation, "await quotaLease?.refund();");
   assertStringIncludes(moderation, "await quotaLease?.commit();");
+  assertStringIncludes(moderation, "await quotaLease.fail();");
 
   const share = await Deno.readTextFile(
     new URL("../share-scan-to-explore/index.ts", import.meta.url),
@@ -125,6 +182,85 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   assertStringIncludes(exploreEdit, "deriveAIRequestId(");
   assertStringIncludes(exploreEdit, "checksumSha256");
   assert(!exploreEdit.includes("requestId: crypto.randomUUID()"));
+});
+
+Deno.test("group-tag cache misses cannot dispatch an unmetered provider call", async () => {
+  const publicIdentificationRoutes = [
+    "../identify/index.ts",
+    "../identify-describe/index.ts",
+    "../identify-multimodal/index.ts",
+    "../audio-spec/index.ts",
+  ];
+  for (const path of publicIdentificationRoutes) {
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    assertStringIncludes(source, "fetchQuotaGuardedGroupTags(");
+    assert(
+      !source.includes("fetchGroupTags("),
+      `${path} calls the provider helper without the group-tag quota boundary`,
+    );
+  }
+
+  const quotaWrapper = await Deno.readTextFile(
+    new URL("../_shared/groupTagQuota.ts", import.meta.url),
+  );
+  for (
+    const fragment of [
+      'operation: "scan_group_tag_enrichment"',
+      "deriveAIRequestId(",
+      "await quotaLease.commit();",
+      "quotaLease.reservation.model",
+      "await quotaLease.fail();",
+    ]
+  ) {
+    assertStringIncludes(quotaWrapper, fragment);
+  }
+
+  const biology = await Deno.readTextFile(
+    new URL("../_shared/biology.ts", import.meta.url),
+  );
+  assertStringIncludes(
+    biology,
+    "scientificName: string,\n  modelName: string,",
+  );
+  assertStringIncludes(biology, "100,\n    modelName,");
+});
+
+Deno.test("server recovery retries use a separately metered idempotency key per claim attempt", async () => {
+  const multimodal = await Deno.readTextFile(
+    new URL("../identify-multimodal/index.ts", import.meta.url),
+  );
+  assertStringIncludes(multimodal, "X-Merian-Replay-Attempt");
+  assertStringIncludes(
+    multimodal,
+    "`scan-ingestion-replay:${internalReplayAttempt}`",
+  );
+  assertStringIncludes(multimodal, "deriveAIRequestId(");
+
+  const worker = await Deno.readTextFile(
+    new URL("../replay-scan-ingestion/worker.ts", import.meta.url),
+  );
+  assertStringIncludes(worker, "replayAttemptCount: row.replay_attempt_count");
+  assertStringIncludes(worker, '"X-Merian-Replay-Attempt"');
+});
+
+Deno.test("deployment does not require the optional quota hashing override", async () => {
+  const workflow = await Deno.readTextFile(
+    new URL("../../../../.github/workflows/deploy.yml", import.meta.url),
+  );
+  assert(
+    !workflow.includes(
+      ': "${AI_QUOTA_IP_HASH_SECRET:?Missing AI_QUOTA_IP_HASH_SECRET',
+    ),
+    "the optional key-separation override must not block deployment",
+  );
+  assertStringIncludes(
+    workflow,
+    'if [ -n "$AI_QUOTA_IP_HASH_SECRET" ] &&',
+  );
+  assertStringIncludes(
+    workflow,
+    "Using the built-in server key for domain-separated AI quota IP hashing.",
+  );
 });
 
 Deno.test("public dictionary fallback and webhook contain no hidden isolate authorization", async () => {

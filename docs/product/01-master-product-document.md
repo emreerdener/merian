@@ -444,7 +444,9 @@ The product models distinct synchronization phases rather than a single spinner.
 
 - Offline is a normal state, not an exceptional alert loop.
 - Accepted work remains visible locally.
-- Technical identification failure can refund quota.
+- A local technical failure may refund the advisory iOS meter. Server quota
+  refunds only a proven pre-provider no-op; provider failures remain charged
+  and may retry as a newly metered attempt.
 - User deletion cancels or reconciles pending work.
 - Background retries must use bounded backoff and preserve enough diagnostics for support.
 - Low-data and constrained-network choices are respected.
@@ -668,7 +670,7 @@ Metrics should be defined with event contracts, denominators, exclusions, and pr
 |---|---|
 | Product is publicly named Merian. | Public product is Naturebook; Merian remains the stable engineering identity. |
 | Current schema is V45. | Current SwiftData alias is `MerianSchemaV50`. |
-| Two free scans are allowed per day. | Public policy is one per day; alpha/TestFlight currently has an unlimited override. |
+| Two free scans are allowed per day. | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only. |
 | Pro costs $2.99 weekly and $19.99 annually. | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually. |
 | Onboarding is six steps and requests all permissions. | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive. |
 | Identification always uses two model calls. | One primary Gemini call is followed by optional asynchronous enrichment. |

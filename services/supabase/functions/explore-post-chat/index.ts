@@ -319,7 +319,11 @@ Deno.serve((req: Request) =>
           quotaLease!.reservation.model,
         );
       } catch (error) {
-        if (!providerAttempted) await quotaLease!.refund();
+        if (providerAttempted) {
+          await quotaLease!.fail();
+        } else {
+          await quotaLease!.refund();
+        }
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "explore_post_chat_reply",
           model: quotaLease!.reservation.model,

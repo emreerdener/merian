@@ -2,8 +2,8 @@
 --
 -- Every public AI request reserves its quota in the same database transaction
 -- that resolves the caller's current entitlement. A reservation is idempotent
--- for (user, operation, request_id), and an explicit refund is the only way a
--- failed provider attempt restores the associated counters.
+-- for (user, operation, request_id). Only a proven pre-provider no-op refunds
+-- counters; provider failures remain charged but permit a newly metered retry.
 
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS entitlement_version BIGINT NOT NULL DEFAULT 1;
@@ -192,13 +192,17 @@ CREATE TABLE internal.ai_quota_counters (
 );
 
 CREATE TABLE internal.ai_quota_reservations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT pg_catalog.GEN_RANDOM_UUID(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     operation TEXT NOT NULL,
     request_id UUID NOT NULL,
     state TEXT NOT NULL DEFAULT 'reserved',
+    lease_token UUID NOT NULL DEFAULT pg_catalog.GEN_RANDOM_UUID(),
+    lease_expires_at TIMESTAMPTZ NOT NULL
+        DEFAULT pg_catalog.NOW() + INTERVAL '10 minutes',
     attempt_count INTEGER NOT NULL DEFAULT 1,
     refund_count INTEGER NOT NULL DEFAULT 0,
+    stale_recovery_count INTEGER NOT NULL DEFAULT 0,
     model TEXT NOT NULL,
     effective_plan TEXT NOT NULL,
     effective_tier TEXT NOT NULL,
@@ -210,6 +214,7 @@ CREATE TABLE internal.ai_quota_reservations (
     daily_remaining_after_reservation INTEGER,
     reserved_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.NOW(),
     committed_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
     refunded_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.NOW(),
@@ -217,11 +222,13 @@ CREATE TABLE internal.ai_quota_reservations (
     CONSTRAINT ai_quota_reservations_operation_check
         CHECK (operation ~ '^[a-z][a-z0-9_]{2,63}$'),
     CONSTRAINT ai_quota_reservations_state_check
-        CHECK (state IN ('reserved', 'committed', 'refunded')),
+        CHECK (state IN ('reserved', 'committed', 'failed', 'refunded')),
     CONSTRAINT ai_quota_reservations_attempt_count_check
         CHECK (attempt_count > 0),
     CONSTRAINT ai_quota_reservations_refund_count_check
         CHECK (refund_count >= 0),
+    CONSTRAINT ai_quota_reservations_stale_recovery_count_check
+        CHECK (stale_recovery_count >= 0),
     CONSTRAINT ai_quota_reservations_effective_plan_check
         CHECK (effective_plan IN ('free', 'pro_trial', 'pro_paid')),
     CONSTRAINT ai_quota_reservations_effective_tier_check
@@ -241,6 +248,10 @@ CREATE TABLE internal.ai_quota_reservations (
 
 CREATE INDEX ai_quota_reservations_cleanup_idx
     ON internal.ai_quota_reservations (updated_at, id);
+
+CREATE INDEX ai_quota_reservations_expired_lease_idx
+    ON internal.ai_quota_reservations (lease_expires_at, id)
+    WHERE state = 'reserved';
 
 CREATE TABLE internal.ai_quota_reservation_counters (
     reservation_id UUID NOT NULL
@@ -309,6 +320,9 @@ VALUES
     ('scan_lookalike_enrichment', 'free', 'gemini-2.5-flash', TRUE, 'scan_enrichment:free', 4, 'all_ai:free', 60, 4, 'all_ai:free', 60, 30),
     ('scan_lookalike_enrichment', 'pro_trial', 'gemini-2.5-flash', TRUE, 'scan_enrichment:pro_trial', 100, 'all_ai:pro_trial', 60, 10, 'all_ai:pro_trial', 60, 60),
     ('scan_lookalike_enrichment', 'pro_paid', 'gemini-2.5-flash', TRUE, 'scan_enrichment:pro_paid', 500, 'all_ai:pro_paid', 60, 20, 'all_ai:pro_paid', 60, 120),
+    ('scan_group_tag_enrichment', 'free', 'gemini-2.5-flash', TRUE, 'scan_enrichment:free', 4, 'all_ai:free', 60, 4, 'all_ai:free', 60, 30),
+    ('scan_group_tag_enrichment', 'pro_trial', 'gemini-2.5-flash', TRUE, 'scan_enrichment:pro_trial', 100, 'all_ai:pro_trial', 60, 10, 'all_ai:pro_trial', 60, 60),
+    ('scan_group_tag_enrichment', 'pro_paid', 'gemini-2.5-flash', TRUE, 'scan_enrichment:pro_paid', 500, 'all_ai:pro_paid', 60, 20, 'all_ai:pro_paid', 60, 120),
     ('explore_audio_moderation', 'free', 'gemini-2.5-flash', TRUE, 'explore_audio_moderation:free', 3, 'all_ai:free', 60, 4, 'all_ai:free', 60, 30),
     ('explore_audio_moderation', 'pro_trial', 'gemini-2.5-flash', TRUE, 'explore_audio_moderation:pro_trial', 25, 'all_ai:pro_trial', 60, 10, 'all_ai:pro_trial', 60, 60),
     ('explore_audio_moderation', 'pro_paid', 'gemini-2.5-flash', TRUE, 'explore_audio_moderation:pro_paid', 100, 'all_ai:pro_paid', 60, 20, 'all_ai:pro_paid', 60, 120),
@@ -398,6 +412,60 @@ REVOKE ALL ON FUNCTION internal.consume_ai_quota_counter(
     TEXT, TEXT, TEXT, TIMESTAMPTZ, INTEGER, INTEGER, TEXT
 ) FROM PUBLIC, anon, authenticated, service_role;
 
+CREATE OR REPLACE FUNCTION internal.release_ai_quota_reservation_counters(
+    p_reservation_id UUID
+)
+RETURNS VOID
+LANGUAGE PLPGSQL
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+    counter_link RECORD;
+BEGIN
+    -- Every caller holds the reservation row lock first. Counter rows are then
+    -- acquired in the same daily -> user -> IP order as reservation, avoiding
+    -- lock-order inversions between explicit refunds and stale-lease recovery.
+    FOR counter_link IN
+        SELECT links.*
+        FROM internal.ai_quota_reservation_counters AS links
+        WHERE links.reservation_id = p_reservation_id
+        ORDER BY
+            CASE links.scope_type
+                WHEN 'user_daily' THEN 1
+                WHEN 'user_rate' THEN 2
+                WHEN 'ip_rate' THEN 3
+                ELSE 4
+            END,
+            links.scope_key,
+            links.bucket,
+            links.window_start
+    LOOP
+        UPDATE internal.ai_quota_counters AS counters
+        SET
+            request_count = GREATEST(counters.request_count - 1, 0),
+            updated_at = pg_catalog.NOW()
+        WHERE counters.scope_type = counter_link.scope_type
+          AND counters.scope_key = counter_link.scope_key
+          AND counters.bucket = counter_link.bucket
+          AND counters.window_start = counter_link.window_start;
+
+        DELETE FROM internal.ai_quota_counters AS counters
+        WHERE counters.scope_type = counter_link.scope_type
+          AND counters.scope_key = counter_link.scope_key
+          AND counters.bucket = counter_link.bucket
+          AND counters.window_start = counter_link.window_start
+          AND counters.request_count = 0;
+    END LOOP;
+
+    DELETE FROM internal.ai_quota_reservation_counters AS links
+    WHERE links.reservation_id = p_reservation_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION internal.release_ai_quota_reservation_counters(UUID)
+    FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.reserve_ai_quota(
     p_user_id UUID,
     p_operation TEXT,
@@ -407,6 +475,8 @@ CREATE OR REPLACE FUNCTION public.reserve_ai_quota(
 RETURNS TABLE (
     reservation_id UUID,
     request_id UUID,
+    lease_token UUID,
+    lease_expires_at TIMESTAMPTZ,
     reservation_state TEXT,
     is_replay BOOLEAN,
     attempt_count INTEGER,
@@ -432,13 +502,14 @@ DECLARE
     resolved_plan TEXT;
     resolved_effective_tier TEXT;
     resolved_trial_active BOOLEAN;
-    current_time TIMESTAMPTZ := pg_catalog.CLOCK_TIMESTAMP();
+    current_time TIMESTAMPTZ;
     daily_window_start TIMESTAMPTZ;
     user_window_start TIMESTAMPTZ;
     ip_window_start TIMESTAMPTZ;
     resulting_daily_count INTEGER;
     ignored_count INTEGER;
     replayed BOOLEAN := FALSE;
+    reservation_found BOOLEAN;
 BEGIN
     PERFORM internal.require_service_role();
 
@@ -515,13 +586,26 @@ BEGIN
       AND reservations.operation = p_operation
       AND reservations.request_id = p_request_id
     FOR UPDATE;
+    reservation_found := FOUND;
 
-    IF FOUND AND reservation_row.state IN ('reserved', 'committed') THEN
+    -- CLOCK_TIMESTAMP must be read after any advisory/row-lock wait. Using a
+    -- timestamp captured before the wait can incorrectly extend a stale lease.
+    current_time := pg_catalog.CLOCK_TIMESTAMP();
+
+    IF reservation_found AND (
+        reservation_row.state = 'committed'
+        OR (
+            reservation_row.state = 'reserved'
+            AND reservation_row.lease_expires_at > current_time
+        )
+    ) THEN
         replayed := TRUE;
         RETURN QUERY
         SELECT
             reservation_row.id,
             reservation_row.request_id,
+            reservation_row.lease_token,
+            reservation_row.lease_expires_at,
             reservation_row.state,
             replayed,
             reservation_row.attempt_count,
@@ -537,15 +621,27 @@ BEGIN
         RETURN;
     END IF;
 
-    IF FOUND THEN
-        -- Explicitly refunded attempts may retry with the same idempotency key.
-        DELETE FROM internal.ai_quota_reservation_counters AS links
-        WHERE links.reservation_id = reservation_row.id;
+    IF reservation_found THEN
+        -- Explicitly refunded/failed attempts and expired reservations may
+        -- retry with the same idempotency key. Only an expired reservation has
+        -- live counter links to release.
+        IF reservation_row.state = 'reserved' THEN
+            PERFORM internal.release_ai_quota_reservation_counters(
+                reservation_row.id
+            );
+        ELSE
+            DELETE FROM internal.ai_quota_reservation_counters AS links
+            WHERE links.reservation_id = reservation_row.id;
+        END IF;
 
         UPDATE internal.ai_quota_reservations AS reservations
         SET
             state = 'reserved',
+            lease_token = pg_catalog.GEN_RANDOM_UUID(),
+            lease_expires_at = current_time + INTERVAL '10 minutes',
             attempt_count = reservations.attempt_count + 1,
+            stale_recovery_count = reservations.stale_recovery_count
+                + CASE WHEN reservation_row.state = 'reserved' THEN 1 ELSE 0 END,
             model = policy_row.model,
             effective_plan = resolved_plan,
             effective_tier = resolved_effective_tier,
@@ -558,6 +654,7 @@ BEGIN
             daily_remaining_after_reservation = NULL,
             reserved_at = current_time,
             committed_at = NULL,
+            failed_at = NULL,
             refunded_at = NULL,
             updated_at = current_time
         WHERE reservations.id = reservation_row.id
@@ -567,6 +664,8 @@ BEGIN
             user_id,
             operation,
             request_id,
+            lease_token,
+            lease_expires_at,
             model,
             effective_plan,
             effective_tier,
@@ -583,6 +682,8 @@ BEGIN
             p_user_id,
             p_operation,
             p_request_id,
+            pg_catalog.GEN_RANDOM_UUID(),
+            current_time + INTERVAL '10 minutes',
             policy_row.model,
             resolved_plan,
             resolved_effective_tier,
@@ -704,6 +805,8 @@ BEGIN
     SELECT
         reservation_row.id,
         reservation_row.request_id,
+        reservation_row.lease_token,
+        reservation_row.lease_expires_at,
         reservation_row.state,
         FALSE,
         reservation_row.attempt_count,
@@ -730,6 +833,7 @@ GRANT EXECUTE ON FUNCTION public.reserve_ai_quota(UUID, TEXT, UUID, TEXT)
 CREATE OR REPLACE FUNCTION public.finalize_ai_quota_reservation(
     p_reservation_id UUID,
     p_user_id UUID,
+    p_lease_token UUID,
     p_final_state TEXT
 )
 RETURNS BOOLEAN
@@ -740,14 +844,15 @@ SET statement_timeout = '5s'
 AS $$
 DECLARE
     reservation_row internal.ai_quota_reservations%ROWTYPE;
-    counter_link RECORD;
+    current_time TIMESTAMPTZ;
 BEGIN
     PERFORM internal.require_service_role();
 
     IF p_reservation_id IS NULL
        OR p_user_id IS NULL
+       OR p_lease_token IS NULL
        OR p_final_state IS NULL
-       OR p_final_state NOT IN ('committed', 'refunded') THEN
+       OR p_final_state NOT IN ('committed', 'failed', 'refunded') THEN
         RAISE EXCEPTION 'ai_quota_invalid_finalization'
             USING ERRCODE = '22023';
     END IF;
@@ -764,79 +869,83 @@ BEGIN
             USING ERRCODE = 'P0001';
     END IF;
 
-    IF reservation_row.state = p_final_state THEN
-        RETURN TRUE;
-    END IF;
-    IF reservation_row.state <> 'reserved' THEN
+    -- Read the wall clock only after the row-lock wait. Otherwise a finalizer
+    -- that started before expiry could wait behind cleanup and commit after the
+    -- lease boundary using a stale timestamp.
+    current_time := pg_catalog.CLOCK_TIMESTAMP();
+
+    -- A new token is generated for every retry. This fencing check prevents a
+    -- delayed commit/refund from an older attempt from mutating the newer
+    -- reservation (the classic ABA race).
+    IF reservation_row.lease_token <> p_lease_token THEN
         RAISE EXCEPTION 'ai_quota_finalization_conflict'
             USING ERRCODE = 'P0001';
     END IF;
 
-    IF p_final_state = 'refunded' THEN
-        FOR counter_link IN
-            SELECT links.*
-            FROM internal.ai_quota_reservation_counters AS links
-            WHERE links.reservation_id = p_reservation_id
-            ORDER BY
-                CASE links.scope_type
-                    WHEN 'user_daily' THEN 1
-                    WHEN 'user_rate' THEN 2
-                    WHEN 'ip_rate' THEN 3
-                    ELSE 4
-                END,
-                links.scope_key,
-                links.bucket,
-                links.window_start
-        LOOP
-            UPDATE internal.ai_quota_counters AS counters
-            SET
-                request_count = GREATEST(counters.request_count - 1, 0),
-                updated_at = pg_catalog.NOW()
-            WHERE counters.scope_type = counter_link.scope_type
-              AND counters.scope_key = counter_link.scope_key
-              AND counters.bucket = counter_link.bucket
-              AND counters.window_start = counter_link.window_start;
+    IF reservation_row.state = p_final_state THEN
+        RETURN TRUE;
+    END IF;
 
-            DELETE FROM internal.ai_quota_counters AS counters
-            WHERE counters.scope_type = counter_link.scope_type
-              AND counters.scope_key = counter_link.scope_key
-              AND counters.bucket = counter_link.bucket
-              AND counters.window_start = counter_link.window_start
-              AND counters.request_count = 0;
-        END LOOP;
+    IF p_final_state = 'committed' THEN
+        IF reservation_row.state <> 'reserved'
+           OR reservation_row.lease_expires_at <= current_time THEN
+            RAISE EXCEPTION 'ai_quota_finalization_conflict'
+                USING ERRCODE = 'P0001';
+        END IF;
+        UPDATE internal.ai_quota_reservations AS reservations
+        SET
+            state = 'committed',
+            committed_at = current_time,
+            updated_at = current_time
+        WHERE reservations.id = p_reservation_id;
 
+        -- Committed counters remain consumed, so only their mutable links are
+        -- removed.
+        DELETE FROM internal.ai_quota_reservation_counters AS links
+        WHERE links.reservation_id = p_reservation_id;
+    ELSIF p_final_state = 'failed' THEN
+        IF reservation_row.state <> 'committed' THEN
+            RAISE EXCEPTION 'ai_quota_finalization_conflict'
+                USING ERRCODE = 'P0001';
+        END IF;
+        UPDATE internal.ai_quota_reservations AS reservations
+        SET
+            state = 'failed',
+            failed_at = current_time,
+            updated_at = current_time
+        WHERE reservations.id = p_reservation_id;
+    ELSE
+        IF reservation_row.state <> 'reserved' THEN
+            RAISE EXCEPTION 'ai_quota_finalization_conflict'
+                USING ERRCODE = 'P0001';
+        END IF;
+        PERFORM internal.release_ai_quota_reservation_counters(
+            p_reservation_id
+        );
         UPDATE internal.ai_quota_reservations AS reservations
         SET
             state = 'refunded',
             refund_count = reservations.refund_count + 1,
-            refunded_at = pg_catalog.NOW(),
-            updated_at = pg_catalog.NOW()
-        WHERE reservations.id = p_reservation_id;
-    ELSE
-        UPDATE internal.ai_quota_reservations AS reservations
-        SET
-            state = 'committed',
-            committed_at = pg_catalog.NOW(),
-            updated_at = pg_catalog.NOW()
+            refunded_at = current_time,
+            updated_at = current_time
         WHERE reservations.id = p_reservation_id;
     END IF;
-
-    -- Terminal reservations no longer need mutable counter links. Committed
-    -- counters remain consumed; refunded counters were decremented above.
-    DELETE FROM internal.ai_quota_reservation_counters AS links
-    WHERE links.reservation_id = p_reservation_id;
 
     RETURN TRUE;
 END;
 $$;
 
-COMMENT ON FUNCTION public.finalize_ai_quota_reservation(UUID, UUID, TEXT) IS
-    'Service-only idempotent commit/refund transition for an AI quota reservation. Refund decrements every counter exactly once.';
+COMMENT ON FUNCTION public.finalize_ai_quota_reservation(
+    UUID, UUID, UUID, TEXT
+) IS
+    'Service-only, lease-fenced AI quota transition. Commit charges before provider work; failed permits a metered retry; refund decrements counters exactly once.';
 
-REVOKE ALL ON FUNCTION public.finalize_ai_quota_reservation(UUID, UUID, TEXT)
+REVOKE ALL ON FUNCTION public.finalize_ai_quota_reservation(
+    UUID, UUID, UUID, TEXT
+)
     FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.finalize_ai_quota_reservation(
-    UUID, UUID, TEXT
+    UUID, UUID, UUID, TEXT
 ) TO service_role;
 
 INSERT INTO internal.privileged_routine_grants (
@@ -852,11 +961,61 @@ VALUES
     ),
     (
         'service_role',
-        'public.finalize_ai_quota_reservation(uuid,uuid,text)',
-        'Idempotent AI quota commit/refund transition.'
+        'public.finalize_ai_quota_reservation(uuid,uuid,uuid,text)',
+        'Lease-fenced AI quota commit/fail/refund transition.'
     )
 ON CONFLICT (role_name, routine_signature) DO UPDATE
 SET purpose = EXCLUDED.purpose;
+
+CREATE OR REPLACE FUNCTION internal.refund_expired_ai_quota_reservations(
+    p_limit INTEGER DEFAULT 1000
+)
+RETURNS INTEGER
+LANGUAGE PLPGSQL
+SECURITY INVOKER
+SET search_path = ''
+SET statement_timeout = '10s'
+AS $$
+DECLARE
+    reservation_row internal.ai_quota_reservations%ROWTYPE;
+    refunded_count INTEGER := 0;
+    current_time TIMESTAMPTZ := pg_catalog.CLOCK_TIMESTAMP();
+BEGIN
+    IF p_limit IS NULL OR p_limit < 1 OR p_limit > 10000 THEN
+        RAISE EXCEPTION 'ai_quota_invalid_cleanup_limit'
+            USING ERRCODE = '22023';
+    END IF;
+
+    FOR reservation_row IN
+        SELECT reservations.*
+        FROM internal.ai_quota_reservations AS reservations
+        WHERE reservations.state = 'reserved'
+          AND reservations.lease_expires_at <= current_time
+        ORDER BY reservations.lease_expires_at, reservations.id
+        LIMIT p_limit
+        FOR UPDATE SKIP LOCKED
+    LOOP
+        PERFORM internal.release_ai_quota_reservation_counters(
+            reservation_row.id
+        );
+        UPDATE internal.ai_quota_reservations AS reservations
+        SET
+            state = 'refunded',
+            refund_count = reservations.refund_count + 1,
+            refunded_at = current_time,
+            updated_at = current_time
+        WHERE reservations.id = reservation_row.id
+          AND reservations.state = 'reserved'
+          AND reservations.lease_token = reservation_row.lease_token;
+        refunded_count := refunded_count + 1;
+    END LOOP;
+
+    RETURN refunded_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION internal.refund_expired_ai_quota_reservations(INTEGER)
+    FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION internal.prune_ai_quota_state()
 RETURNS VOID
@@ -866,11 +1025,14 @@ SET search_path = ''
 SET statement_timeout = '10s'
 AS $$
 BEGIN
+    PERFORM internal.refund_expired_ai_quota_reservations(1000);
+
     DELETE FROM internal.ai_quota_reservations AS reservations
     WHERE reservations.id IN (
         SELECT candidates.id
         FROM internal.ai_quota_reservations AS candidates
-        WHERE candidates.updated_at < pg_catalog.NOW() - INTERVAL '30 days'
+        WHERE candidates.state IN ('committed', 'failed', 'refunded')
+          AND candidates.updated_at < pg_catalog.NOW() - INTERVAL '30 days'
         ORDER BY candidates.updated_at, candidates.id
         LIMIT 10000
     );
@@ -911,8 +1073,21 @@ BEGIN
     ) THEN
         PERFORM cron.unschedule('prune_ai_quota_state_hourly');
     END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM cron.job
+        WHERE jobname = 'refund_expired_ai_quota_reservations'
+    ) THEN
+        PERFORM cron.unschedule('refund_expired_ai_quota_reservations');
+    END IF;
 END;
 $migration$;
+
+SELECT cron.schedule(
+    'refund_expired_ai_quota_reservations',
+    '*/5 * * * *',
+    $cron$SELECT internal.refund_expired_ai_quota_reservations();$cron$
+);
 
 SELECT cron.schedule(
     'prune_ai_quota_state_hourly',

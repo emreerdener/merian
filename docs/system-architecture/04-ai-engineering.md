@@ -999,9 +999,11 @@ insight sheet display.
   idempotent on `(user, operation, request_id)` and serializes only duplicate
   keys. It holds a share lock on the entitlement row, so a concurrent
   downgrade and reservation have one database order, and uses a consistent
-  daily/user/IP counter lock order for reservation and refund. Active timed
-  passes are paid Pro; stale expired or future-dated invalid profiles resolve
-  free. Missing user rows and database errors fail closed.
+  daily/user/IP counter lock order for reservation and refund. Each attempt has
+  a ten-minute lease and UUID fencing token, preventing a delayed old callback
+  from settling a newer retry. Active timed passes are paid Pro; stale expired
+  or future-dated invalid profiles resolve free. Missing/malformed user rows and
+  database errors fail closed.
 - **No isolate-local entitlement authority**: RevenueCat tier changes advance a
   durable version in the same row update. Every provider reservation reads that
   database state, so another Edge isolate cannot retain stale Pro access.
@@ -1009,10 +1011,16 @@ insight sheet display.
   non-provider feature gates and telemetry.
 - **Cost-safe settlement**: Counters are consumed while a reservation is
   `reserved`. The Edge route commits immediately before provider dispatch;
-  malformed responses and provider errors still consume the attempt. Only a
-  proven pre-provider no-op, such as an audio moderation cache hit or empty
-  multimodal payload, may refund. A crash or failed finalization therefore
-  cannot create unmetered provider traffic.
+  malformed responses and provider errors still consume the attempt. Provider
+  failure moves the row to `failed`, which permits a new metered retry without
+  refunding the original counters. Only a proven pre-provider no-op, such as an
+  audio moderation cache hit or empty multimodal payload, may refund. Abandoned
+  pre-provider leases are refunded automatically every five minutes; a crash or
+  failed finalization cannot create unmetered provider traffic.
+- **No hidden enrichment dispatch**: Overview, lookalike, and group-tag cache
+  misses each reserve their explicit operation and pass the database-selected
+  model to the biological helper. Service-only scheduled refreshes remain
+  bounded and name their reviewed model directly.
 - **System instruction structured via Markdown**: The instruction was migrated
   from a dense single paragraph to structured hierarchical Markdown headers
   (`# Subject Liveness & Status`, `# Identification Rules`, etc.). This

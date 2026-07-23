@@ -158,6 +158,11 @@ give concurrent tier/policy changes and reservations a single database order;
 future-dated profiles never extend the seven-day trial. The Edge route commits
 immediately before provider dispatch. Only a proven pre-provider no-op, such as
 a moderation cache hit or rejected empty multimodal request, may refund.
+Every attempt carries a ten-minute database lease and a fresh fencing token;
+expired pre-provider reservations are refunded automatically, and a late
+settlement from an older attempt cannot mutate a retry. A provider failure
+transitions `committed` to `failed`: counters remain charged, but the same
+request key can make a newly metered retry.
 
 The internal policy matrix distinguishes `free`, `pro_trial`, and `pro_paid`.
 Current UTC-day safety ceilings are:
@@ -165,7 +170,7 @@ Current UTC-day safety ceilings are:
 | Operation bucket | Free | Pro trial | Paid Pro |
 |---|---:|---:|---:|
 | Primary image/description/audio scans | 1 | 50 | 500 |
-| Cache-miss overview/lookalike enrichment | 4 | 100 | 500 |
+| Cache-miss overview/lookalike/group-tag enrichment | 4 | 100 | 500 |
 | Explore/Community audio moderation | 3 | 25 | 100 |
 | Insight/Explore model chat work | denied | 60 | 120 |
 
@@ -182,10 +187,11 @@ row fails closed with `503 ai_entitlement_unavailable`. Authenticated clients
 cannot insert/delete `public.users` rows or update tier, expiry, or entitlement
 version; only the two reviewed preference columns remain directly writable.
 
-IP buckets store a daily-rotating HMAC, never a raw address. Production requires
-an `AI_QUOTA_IP_HASH_SECRET` of at least 32 characters in the GitHub Production
-environment; the deploy workflow validates it and synchronizes it to Supabase
-before deploying Edge Functions.
+IP buckets store a daily-rotating, domain-separated HMAC, never a raw address.
+`AI_QUOTA_IP_HASH_SECRET` is an optional dedicated override. When it is absent,
+Edge code uses the built-in server-only Supabase secret/service-role key; an
+explicit override shorter than 32 characters still fails closed. The deploy
+workflow validates and synchronizes the override only when configured.
 
 ### Explore Author Maintenance
 

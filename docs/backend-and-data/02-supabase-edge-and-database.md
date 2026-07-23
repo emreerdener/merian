@@ -93,12 +93,16 @@ Several utilities are shared across all Edge Functions via
   the service-only `reserve_ai_quota` RPC. That atomic transaction resolves the
   durable plan, selects the allowlisted model, and consumes daily/user/IP
   counters before Edge provider dispatch. A provider attempt is committed;
-  only a verified pre-provider no-op is refunded.
+  provider failure remains charged but becomes retryable, abandoned
+  pre-provider leases expire, and only a verified pre-provider no-op is
+  refunded. `_shared/groupTagQuota.ts` applies this boundary to optional
+  group-tag generation.
 - **`entitlement.ts`**: Non-provider feature and telemetry tier resolver. It
   reads `subscription_tier`, `created_at`, `subscription_expires_at`, and
   `entitlement_version` on every call. Query errors and missing rows return
-  `503 ai_entitlement_unavailable`; there is no isolate-local authorization
-  cache or webhook cache invalidation.
+  `503 ai_entitlement_unavailable` for query errors, missing rows, or malformed
+  durable values; there is no isolate-local authorization cache or webhook
+  cache invalidation.
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
   `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`)
   used for purging storage footprints. `deleteR2Objects` is bounded through
@@ -161,7 +165,8 @@ authorization. `reserve_ai_quota(...)` is a service-role-only,
 3. Serializes only identical `(user, operation, request_id)` keys.
 4. Conditionally upserts shared UTC-day, per-user, and per-IP counters without
    a read-then-write race.
-5. Returns an idempotent reservation and remaining daily capacity.
+5. Returns an idempotent reservation, a ten-minute expiry, a per-attempt UUID
+   fencing token, and remaining daily capacity.
 
 The Edge helper commits immediately before provider dispatch. Reservations
 already consume their counters, so a process crash or settlement failure cannot
@@ -170,13 +175,18 @@ decrements each linked counter exactly once. A daily-rotating HMAC address
 bucket supports network throttling without persisting a raw IP address.
 Reservation and refund paths acquire daily, user-rate, and IP-rate counter
 locks in the same order to avoid deadlocks under concurrent traffic.
+`refund_expired_ai_quota_reservations()` reclaims abandoned pre-provider leases
+every five minutes. A fresh fencing token on retry prevents delayed settlement
+from an older attempt from changing the new attempt. Provider errors transition
+`committed` to `failed`; their counters remain consumed, while the same request
+key may start a newly metered retry.
 
 Current policy ceilings are 1/50/500 primary scan attempts per UTC day for
-free/trial/paid, 4/100/500 cache-miss enrichment attempts, 3/25/100
-Explore/Community audio moderation attempts, and denied/60/120 model-chat
-attempts. All allowed plans also share per-minute user and IP ceilings. These
-are database-owned cost/abuse controls; iOS `UsageManager` is only an advisory
-capture meter.
+free/trial/paid, 4/100/500 cache-miss overview/lookalike/group-tag enrichment
+attempts, 3/25/100 Explore/Community audio moderation attempts, and
+denied/60/120 model-chat attempts. All allowed plans also share per-minute user
+and IP ceilings. These are database-owned cost/abuse controls; iOS
+`UsageManager` is only an advisory capture meter.
 
 Database entitlement lookup fails closed. A query error, missing user row,
 missing/disabled policy, or unsupported model prevents provider work.
@@ -492,7 +502,10 @@ The `/identify` Edge Function acts as the inference proxy:
     before the expiry worker repairs the row. A missing `public.users` row is
     an identity-system fault and fails closed; it is never interpreted as a
     ghost Pro trial. Successful Auth signup is responsible for creating that
-    row before inference.
+    row before inference. Optional group-tag generation uses
+    `_shared/groupTagQuota.ts`, the separate
+    `scan_group_tag_enrichment` policy, and its database-selected model; public
+    routes cannot dispatch the biological helper directly.
 12. **Scan Insert**: Calls `supabaseAdmin.from('scans').insert()` using the
     service role key, binding the scan to the authenticated `user.id`. All
     environmental telemetry (time of day, month, locale, semantic location,
@@ -1857,17 +1870,19 @@ API, and records the outcome using the claim token. This closes the cleanup gap
 when the foreground request or client never returns. The legacy
 `public.reparent_user_follows(...)` helper is no longer client executable.
 
-## Required Edge Function Secrets
+## Required and Optional Edge Function Secrets
 
 For a production deployment, the following secrets MUST be set in the Supabase
 Vault via the CLI (`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
-- **`AI_QUOTA_IP_HASH_SECRET`**: At least 32 high-entropy characters used to
-  HMAC the proxy-observed client address for daily-rotating IP rate-limit
-  buckets. The production deploy workflow reads this from the GitHub
-  `Production` environment and synchronizes it before function deployment.
+- **`AI_QUOTA_IP_HASH_SECRET`** (optional override): At least 32 high-entropy
+  characters used to HMAC the proxy-observed client address for daily-rotating
+  IP rate-limit buckets. When absent, Edge code uses a built-in server-only
+  Supabase secret/service-role key with a quota-specific HMAC domain. The
+  production workflow validates and synchronizes the override only when it is
+  configured; an explicitly weak override fails closed.
 - The same **`GEMINI_API_KEY`** also authenticates the dedicated
   `gemini-2.5-flash` speech/non-speech classifier used by the fail-closed Explore
   audio publication gate. A valid content-addressed attestation can be reused

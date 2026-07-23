@@ -316,6 +316,7 @@ async function refreshGroupTags(
   const result = await fetchGroupTags(
     "system:refresh-species-model-content",
     job.scientific_name,
+    "gemini-2.5-flash",
     supabaseAdmin,
   );
   const groupTags = sanitizeGroupTags(result?.group_tags);

@@ -2359,8 +2359,9 @@ service-role definer RPCs.
   logical bucket, and fixed window start. Conditional UPSERT prevents a
   read-then-increment race at the limit.
 - `internal.ai_quota_reservations`: one idempotent row per
-  `(user_id, operation, request_id)`. Captures `reserved`, `committed`, or
-  `refunded` state; attempt/refund counts; effective/raw tier; entitlement and
+  `(user_id, operation, request_id)`. Captures `reserved`, `committed`,
+  `failed`, or `refunded` state; attempt/refund/stale-recovery counts;
+  `lease_token` and `lease_expires_at`; effective/raw tier; entitlement and
   policy versions; selected model; and daily remaining after reservation.
 - `internal.ai_quota_reservation_counters`: temporary links from a live
   reservation to each counter it consumed. Refund locks the reservation,
@@ -2373,12 +2374,19 @@ selected policy rows, resolves the durable plan, and consumes all applicable
 counters atomically. Those row locks linearize concurrent RevenueCat/policy
 updates and quota decisions. Future-dated free profiles resolve free rather
 than receiving an extended trial. `finalize_ai_quota_reservation(...)`
-performs an idempotent commit/refund transition. Both use
+requires the current per-attempt fencing token and performs an idempotent
+commit/fail/refund transition. Committed provider failures retain their consumed
+counters but may be reserved as a newly metered retry; stale callbacks with an
+older token are rejected. Both public RPCs use
 `SECURITY DEFINER SET search_path = ''`, call
 `internal.require_service_role()`, and are allowlisted only to `service_role`.
+`internal.refund_expired_ai_quota_reservations()` uses
+`FOR UPDATE SKIP LOCKED` every five minutes to refund abandoned `reserved`
+attempts after their ten-minute lease without racing an active finalizer.
 `internal.prune_ai_quota_state()` runs hourly and uses cleanup indexes on
-reservation update time and counter window start to delete bounded batches of
-old reservations and unreferenced counters.
+terminal reservation update time and counter window start to delete bounded
+batches of old state and unreferenced counters; it never drops a live
+reservation without first releasing its counters.
 `input_modality` is `text`, `image`, `audio`, `video`, `mixed`, or `unknown`;
 `outcome` is `success`, `refusal`, or `error`. Token/cost values are nullable
 but cannot be negative.

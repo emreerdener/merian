@@ -5,7 +5,7 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
-import { fetchGroupTags } from "../_shared/biology.ts";
+import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
@@ -173,9 +173,11 @@ Deno.serve((req: Request) =>
     let llmThinkingTokens: number | null = null;
     let llmCachedTokens: number | null = null;
     let llmUsageMetadata: Record<string, unknown> = {};
+    let providerAttempted = false;
 
     try {
       await quotaLease.commit();
+      providerAttempted = true;
       const result = await _genAI.models.generateContent({
         model: targetModel,
         contents: [{ role: "user", parts: [{ text: promptText }] }],
@@ -217,6 +219,11 @@ Deno.serve((req: Request) =>
         }ms inference`,
       );
     } catch (genError) {
+      if (providerAttempted) {
+        await quotaLease.fail();
+      } else {
+        await quotaLease.refund();
+      }
       const errMsg = genError instanceof Error
         ? genError.message
         : String(genError);
@@ -238,6 +245,7 @@ Deno.serve((req: Request) =>
     ) {
       const isPermanentContentFailure = finishReason === "SAFETY" ||
         finishReason === "PROHIBITED_CONTENT";
+      if (!isPermanentContentFailure) await quotaLease.fail();
       logStructuredError("identify-describe/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -253,6 +261,7 @@ Deno.serve((req: Request) =>
     try {
       parsedData = extractJson<MerianIdentification>(responseText);
     } catch (parseError) {
+      await quotaLease.fail();
       logStructuredError("identify-describe/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
@@ -525,7 +534,13 @@ Deno.serve((req: Request) =>
         const needsGroupTags = isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
-          ? fetchGroupTags(user, parsedData.scientific_name!, supabaseAdmin)
+          ? fetchQuotaGuardedGroupTags(
+            req,
+            user,
+            parsedData.scientific_name!,
+            supabaseAdmin,
+            quotaLease.reservation.requestId,
+          )
           : Promise.resolve(null);
 
         if (!speciesId && isIdentifiedBio) {

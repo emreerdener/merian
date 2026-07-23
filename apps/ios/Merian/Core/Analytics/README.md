@@ -23,7 +23,9 @@ capacity.
 The local meter may refund a staged scan after a client-side failure. The
 authoritative server reservation is separate: provider attempts consume their
 database quota, while a verified pre-provider no-op may transition its
-reservation to `refunded`. Keep `UsageManagerTests`,
+reservation to `refunded`. Provider failure remains charged and transitions to
+`failed`, allowing a new metered retry with the stable scan request key. Keep
+`UsageManagerTests`,
 `FieldTripsAvailabilityTests`, the Edge quota tests, and the pgTAP quota
 contract aligned whenever this UX changes.
 

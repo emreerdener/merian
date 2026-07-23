@@ -1334,11 +1334,17 @@ final class MerianNetworkClient {
             "scope": scope
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        // Scan IDs are UUIDs and remain stable across foreground, offline, and
+        // server-recovery retries. The database namespaces idempotency by
+        // operation, so enrichment and lookalike calls can safely share it.
+        guard let idempotencyKey = UUID(uuidString: scanId)?.uuidString.lowercased() else {
+            throw MerianError.invalidResponse
+        }
         let (data, _) = try await performAuthenticatedRequest(
             url: functionUrl,
             method: "POST",
             body: bodyData,
-            idempotencyKey: UUID().uuidString.lowercased()
+            idempotencyKey: idempotencyKey
         )
         return try JSONDecoder().decode(EnrichScanResponse.self, from: data)
     }

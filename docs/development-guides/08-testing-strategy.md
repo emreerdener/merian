@@ -760,18 +760,24 @@ Authoritative AI quota and entitlement security has four complementary checks:
 - `_shared/entitlement_test.ts` proves paid/trial/expired resolution, database
   errors and missing rows failing closed, and absence of isolate-local reuse.
 - `_shared/aiQuota_test.ts` locks UUID request-key validation, trusted proxy
-  address selection, daily-rotating HMAC behavior, and weak-secret failure.
+  address selection, daily-rotating/domain-separated HMAC behavior, optional
+  server-key fallback, weak explicit-secret failure, fail-closed commit, and
+  per-attempt fencing-token propagation.
   `_shared/audioModeration_test.ts` additionally proves cache hits refund while
   provider attempts commit the database-selected model before dispatch.
-- `_tests/aiQuotaCoverage.test.ts` inventories every public paid-model route,
-  including transitive Explore/Community audio-publication callers, their exact
-  operation, model-policy propagation, settlement ordering, removal of the
-  public dictionary model fallback, and absence of webhook cache invalidation.
+- `_tests/aiQuotaCoverage.test.ts` inventories every direct provider-dispatch
+  file and every public paid-model route, including transitive
+  Explore/Community audio-publication callers, their exact operation,
+  model-policy propagation, settlement ordering, removal of the public
+  dictionary model fallback, quota-guarded group-tag calls, attempt-specific
+  server replay keys, and absence of webhook cache invalidation.
 - `_tests/aiQuotaMigrationContract.test.ts` statically locks the private schema,
   API-role revocations, atomic conditional UPSERT, idempotency/refund semantics,
-  service-only grants, and complete 27-row policy matrix.
+  lease fencing and stale cleanup, service-only grants, and complete 30-row
+  policy matrix.
   `tests/ai_quota_security.sql` then exercises the migrated catalog and actual
-  reservation/replay/limit/refund/retry/version transitions.
+  reservation/replay/limit/refund/failed-retry/stale-lease/fencing/version
+  transitions.
 
 The production workflow applies all migrations to a disposable database and
 runs both `privileged_routine_security.sql` and `ai_quota_security.sql`. Do not

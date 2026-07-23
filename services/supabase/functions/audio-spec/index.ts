@@ -13,7 +13,7 @@ import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
-import { fetchGroupTags } from "../_shared/biology.ts";
+import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { deleteR2Object } from "../_shared/aws.ts";
 import {
   processWavBuffer,
@@ -247,9 +247,11 @@ Deno.serve((req: Request) =>
     let llmTotalTokens: number | null = null;
     let llmUsageMetadata: Record<string, unknown> = {};
     let finishReason: string | undefined;
+    let providerAttempted = false;
 
     try {
       await quotaLease.commit();
+      providerAttempted = true;
       const result = await _genAI.models.generateContent({
         model: quotaLease.reservation.model,
         contents: [
@@ -319,6 +321,11 @@ Deno.serve((req: Request) =>
         }ms inference`,
       );
     } catch (genErr) {
+      if (providerAttempted) {
+        await quotaLease.fail();
+      } else {
+        await quotaLease.refund();
+      }
       const errMsg = genErr instanceof Error ? genErr.message : String(genErr);
       logStructuredError("audio_spec/gemini_failed", {
         user_id: user.id,
@@ -337,6 +344,7 @@ Deno.serve((req: Request) =>
     ) {
       const isPermanent = finishReason === "SAFETY" ||
         finishReason === "PROHIBITED_CONTENT";
+      if (!isPermanent) await quotaLease.fail();
       logStructuredError("audio_spec/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -352,6 +360,7 @@ Deno.serve((req: Request) =>
     try {
       parsedData = extractJson<AudioIdentification>(responseText);
     } catch (parseErr) {
+      await quotaLease.fail();
       logStructuredError("audio_spec/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
@@ -614,7 +623,13 @@ Deno.serve((req: Request) =>
         // Group tags (species-level, fire-and-forget)
         const groupTagsPromise =
           (needsGroupTags && !cachedSpecies?.group_tags?.length)
-            ? fetchGroupTags(user, parsedData.scientific_name!, supabaseAdmin)
+            ? fetchQuotaGuardedGroupTags(
+              req,
+              user,
+              parsedData.scientific_name!,
+              supabaseAdmin,
+              quotaLease.reservation.requestId,
+            )
             : Promise.resolve(null);
 
         await insertScan(

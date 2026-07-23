@@ -14,7 +14,9 @@ service-role-only database RPC resolves durable entitlement, applies the shared
 scan daily ceiling plus per-user/IP minute limits, and selects the model.
 Missing user state, database errors, missing policy, or a replay already in
 progress fail closed. The reservation is committed before provider dispatch;
-only a known pre-provider no-op may enter the explicit refunded state.
+provider failure stays charged and enters the retryable `failed` state. Only a
+known pre-provider no-op may enter `refunded`; an abandoned `reserved` attempt
+expires after ten minutes.
 
 ## Durability
 

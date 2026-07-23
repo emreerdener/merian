@@ -48,8 +48,8 @@ The workflow performs the following steps:
    test.
 2. Installs the exact reviewed Deno `2.9.2` runtime.
 3. Installs the reviewed Supabase CLI `2.109.1`.
-4. Fails fast if required deployment secrets are missing or the AI quota HMAC
-   secret is shorter than 32 characters.
+4. Fails fast if required deployment secrets are missing or an explicitly
+   configured AI quota HMAC override is shorter than 32 characters.
 5. Validates Edge Function formatting, lint, and shared runtime type checks.
 6. Confirms exact set parity between function entrypoints and
    `[functions.<name>]` entries, then verifies every function has a current
@@ -76,7 +76,8 @@ The workflow performs the following steps:
 12. Pushes database migrations with `supabase db push --db-url`.
 13. Re-runs the production catalog audit in enforcement mode and stops the
     release if any privileged-routine invariant fails.
-14. Synchronizes the reviewed `AI_QUOTA_IP_HASH_SECRET` to the project.
+14. Synchronizes the reviewed `AI_QUOTA_IP_HASH_SECRET` override when present;
+    otherwise the functions use a built-in server-only Supabase key.
 15. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
@@ -264,18 +265,21 @@ Migration `20260723160229_enforce_server_ai_quotas.sql` must land before the
 Edge bundles that import `_shared/aiQuota.ts`. It adds only compatible columns,
 private tables, RPCs, grants, and triggers, so the previously deployed functions
 continue serving during the migration. The new functions fail closed until both
-RPCs and `AI_QUOTA_IP_HASH_SECRET` exist.
+RPCs exist. `AI_QUOTA_IP_HASH_SECRET` is an optional key-separation override;
+without it, Edge uses the built-in server-only Supabase secret/service-role key
+with a quota-specific HMAC domain.
 
 Preflight:
 
 ```bash
+# Optional: generate a dedicated override. If used, store it as the GitHub
+# Production environment secret AI_QUOTA_IP_HASH_SECRET. Never paste it into
+# source, docs, or logs.
 openssl rand -hex 32
-# Store the generated value as the GitHub Production environment secret
-# AI_QUOTA_IP_HASH_SECRET. Never paste it into source, docs, or logs.
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions \
+  --allow-read=services/supabase/functions,.github/workflows/deploy.yml \
   services/supabase/functions/_shared/aiQuota_test.ts \
   services/supabase/functions/_shared/entitlement_test.ts \
   services/supabase/functions/_tests/aiQuotaCoverage.test.ts
@@ -311,7 +315,7 @@ SELECT
 FROM pg_proc AS routine
 WHERE routine.oid IN (
     'public.reserve_ai_quota(uuid,text,uuid,text)'::REGPROCEDURE,
-    'public.finalize_ai_quota_reservation(uuid,uuid,text)'::REGPROCEDURE
+    'public.finalize_ai_quota_reservation(uuid,uuid,uuid,text)'::REGPROCEDURE
 )
 ORDER BY signature;
 
@@ -409,11 +413,13 @@ ROLLBACK;
 Expected routine ACLs are `false`, `false`, `true` for
 anon/authenticated/service-role, with `search_path=""`. The unexpected
 `public.users` column-ACL query must return zero rows. The policy query must
-return all 27 reviewed rows. Shortly after deploy, normal traffic should create
-`committed` reservations; cache/no-op paths may create `refunded` rows.
-`reserved` rows are cost-safe because their counters remain consumed, but a
-growing old-reservation population indicates Edge settlement or database
-availability problems.
+return all 30 reviewed rows. Shortly after deploy, normal traffic should create
+`committed` reservations; provider failures create `failed` rows without
+refunding counters, and cache/no-op or expired pre-provider paths create
+`refunded` rows. `reserved` rows are cost-safe because their counters remain
+consumed, but none should remain beyond the ten-minute lease plus one
+five-minute cleanup interval. A growing older population indicates cron,
+settlement, or database availability problems.
 
 Monitor Edge logs for `ai_quota_reservation_failed`,
 `ai_quota_reservation_invalid_response`, and
@@ -956,16 +962,18 @@ waves and the final observation window complete. After validation, update the
 changelog and latency/AI/API/logging/offline-queue docs with the measured p50/p95
 and the chosen Edge-region policy.
 
-## Required GitHub Secrets
+## Required and Optional GitHub Secrets
 
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
-- `AI_QUOTA_IP_HASH_SECRET` — at least 32 high-entropy characters. Store it in
-  the GitHub `Production` environment; the deploy workflow validates and
-  synchronizes it to Supabase before deploying functions. Rotation resets only
-  the current network-rate bucket identity and must be a reviewed incident or
-  privacy operation.
+- `AI_QUOTA_IP_HASH_SECRET` (optional override) — at least 32 high-entropy
+  characters. When present in the GitHub `Production` environment, the deploy
+  workflow validates and synchronizes it before deploying functions. When
+  absent, Edge uses a built-in server-only Supabase key; a weak explicit value
+  blocks deployment and runtime provider work. Rotation resets only the current
+  network-rate bucket identity and must be a reviewed incident or privacy
+  operation.
 - One database connection path:
   - Preferred: `SUPABASE_DB_URL` — full percent-encoded Postgres connection
     string for migration pushes. Copy the Supabase shared pooler session-mode

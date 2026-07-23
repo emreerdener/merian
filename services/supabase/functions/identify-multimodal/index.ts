@@ -17,11 +17,14 @@ import { corsHeaders } from "../_shared/http.ts";
 import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
-import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
+import {
+  deriveAIRequestId,
+  reserveAIProviderCall,
+} from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
-import { fetchGroupTags } from "../_shared/biology.ts";
+import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import {
   coalesceTaxonomyValue,
@@ -563,6 +566,7 @@ function retryAfterIso(minutes = 5): string {
 
 const INTERNAL_REPLAY_HEADER = "X-Merian-Internal-Replay";
 const INTERNAL_REPLAY_USER_HEADER = "X-Merian-Replay-User-Id";
+const INTERNAL_REPLAY_ATTEMPT_HEADER = "X-Merian-Replay-Attempt";
 
 interface ServerTimingMetric {
   name: string;
@@ -583,6 +587,7 @@ export async function handleIdentifyMultimodalRequest(
   user: User,
   supabaseAdmin: SupabaseClient,
   authDurationMs = 0,
+  internalReplayAttempt?: number,
 ): Promise<Response> {
   const fnStart = Date.now();
   const bodyReadStart = performance.now();
@@ -780,10 +785,16 @@ export async function handleIdentifyMultimodalRequest(
 
   // 2. Dispatch Rule
   const tierStart = performance.now();
+  const quotaRequestId = internalReplayAttempt == null
+    ? generatedScanId
+    : await deriveAIRequestId(
+      generatedScanId,
+      `scan-ingestion-replay:${internalReplayAttempt}`,
+    );
   const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
     userId: user.id,
     operation: "scan_identification",
-    requestId: generatedScanId,
+    requestId: quotaRequestId,
   });
   const tierResolution = quotaLease.reservation.tier;
   const tierMs = performance.now() - tierStart;
@@ -1056,9 +1067,11 @@ export async function handleIdentifyMultimodalRequest(
   let llmTotalTokens: number | null = null;
   let llmUsageMetadata: Record<string, unknown> = {};
   let geminiLatencyMs = 0;
+  let providerAttempted = false;
 
   try {
     await quotaLease.commit();
+    providerAttempted = true;
     const result = await _genAI.models.generateContent({
       model: targetModel,
       contents: [{ role: "user", parts: partsArray }],
@@ -1089,6 +1102,11 @@ export async function handleIdentifyMultimodalRequest(
       llmTotalTokens = usage.totalTokenCount ?? null;
     }
   } catch (genErr) {
+    if (providerAttempted) {
+      await quotaLease.fail();
+    } else {
+      await quotaLease.refund();
+    }
     geminiLatencyMs = Date.now() - geminiStart;
     logStructuredError("multimodal/gemini_failed", {
       user_id: user.id,
@@ -1115,6 +1133,7 @@ export async function handleIdentifyMultimodalRequest(
   ) {
     const isPermanent = finishReason === "SAFETY" ||
       finishReason === "PROHIBITED_CONTENT";
+    if (!isPermanent) await quotaLease.fail();
     logStructuredError("multimodal/non_stop_finish", {
       user_id: user.id,
       finish_reason: finishReason,
@@ -1137,6 +1156,7 @@ export async function handleIdentifyMultimodalRequest(
   try {
     parsedData = extractJson<MerianIdentification>(responseText);
   } catch {
+    await quotaLease.fail();
     await updateIngestionJobBestEffort(
       "failed_retryable",
       "ai_response_malformed",
@@ -1690,7 +1710,13 @@ export async function handleIdentifyMultimodalRequest(
       const needsGroupTags = isIdentifiedBio &&
         !cachedSpecies?.group_tags?.length;
       const groupTagsPromise = needsGroupTags
-        ? fetchGroupTags(user, parsedData.scientific_name!, supabaseAdmin)
+        ? fetchQuotaGuardedGroupTags(
+          req,
+          user,
+          parsedData.scientific_name!,
+          supabaseAdmin,
+          quotaLease.reservation.requestId,
+        )
         : Promise.resolve(null);
 
       if (isIdentifiedBio) {
@@ -2166,6 +2192,15 @@ async function tryHandleInternalReplayRequest(
   if (userId.length === 0) {
     return jsonResponse({ error: "Missing replay user id." }, 400);
   }
+  const replayAttemptText =
+    req.headers.get(INTERNAL_REPLAY_ATTEMPT_HEADER)?.trim() ?? "";
+  if (!/^[1-9][0-9]?$/.test(replayAttemptText)) {
+    return jsonResponse({ error: "Invalid replay attempt." }, 400);
+  }
+  const replayAttempt = Number(replayAttemptText);
+  if (replayAttempt > 10) {
+    return jsonResponse({ error: "Invalid replay attempt." }, 400);
+  }
 
   const supabaseAdmin = createClient(supabaseUrl, auth.token, {
     global: {
@@ -2180,6 +2215,8 @@ async function tryHandleInternalReplayRequest(
     req,
     { id: userId } as User,
     supabaseAdmin,
+    0,
+    replayAttempt,
   );
 }
 

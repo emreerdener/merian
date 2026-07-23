@@ -476,19 +476,20 @@ struct MerianNetworkClientTests {
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
+        let scanID = "a1849d51-7a55-4bb0-931f-a49d880f69c7"
         MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
             #expect(request.url?.path.hasSuffix("/enrich-scan") == true)
             #expect(request.httpMethod == "POST")
             let idempotencyKey = try #require(
                 request.value(forHTTPHeaderField: "Idempotency-Key")
             )
-            #expect(UUID(uuidString: idempotencyKey) != nil)
+            #expect(idempotencyKey == scanID)
             return (mockResponse, testData)
         }
         
         // Act
         let returnedObject = try await MerianNetworkClient.shared.fetchEnrichment(
-            scanId: "test_scan_123",
+            scanId: scanID,
             scientificName: "Procyon lotor",
             confidenceScore: 0.95,
             inferenceTier: "pro",
@@ -504,6 +505,18 @@ struct MerianNetworkClientTests {
         #expect(similar.count == 1)
         #expect(similar[0].species_id == "species-cancrivorus")
         #expect(similar[0].scientific_name == "Procyon cancrivorus")
+    }
+
+    @Test func testFetchEnrichmentRejectsNonUUIDScanIdInsteadOfMintingANewQuotaKey() async {
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared.fetchEnrichment(
+                scanId: "legacy-non-uuid-scan-id",
+                scientificName: "Procyon lotor",
+                confidenceScore: 0.95,
+                inferenceTier: "pro",
+                scope: "enrichment"
+            )
+        }
     }
 
     @Test func testExploreShareSendsStableAIIdempotencyKey() async throws {

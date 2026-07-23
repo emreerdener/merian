@@ -191,6 +191,7 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
   let reservations = 0;
   let commits = 0;
   let refunds = 0;
+  let failures = 0;
   const quotaInputs: Array<{
     checksumSha256: string;
     policyVersion: string;
@@ -206,10 +207,14 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
         reservation: { model: "gemini-2.5-flash" },
         commit() {
           commits += 1;
-          return Promise.resolve(true);
+          return Promise.resolve();
         },
         refund() {
           refunds += 1;
+          return Promise.resolve(true);
+        },
+        fail() {
+          failures += 1;
           return Promise.resolve(true);
         },
       });
@@ -247,6 +252,7 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
   assertEquals(reservations, 2);
   assertEquals(commits, 1);
   assertEquals(refunds, 1);
+  assertEquals(failures, 0);
   assertEquals(quotaInputs.length, 2);
   assertEquals(quotaInputs[0], quotaInputs[1]);
   assertEquals(quotaInputs[0].checksumSha256.length, 64);
@@ -266,6 +272,7 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
 Deno.test("audio moderation commits the database-selected model before a provider attempt", async () => {
   let committed = false;
   let refunds = 0;
+  let failures = 0;
   let providerModel: string | undefined;
   const quota = {
     beforeProvider() {
@@ -273,10 +280,14 @@ Deno.test("audio moderation commits the database-selected model before a provide
         reservation: { model: "gemini-2.5-pro" },
         commit() {
           committed = true;
-          return Promise.resolve(true);
+          return Promise.resolve();
         },
         refund() {
           refunds += 1;
+          return Promise.resolve(true);
+        },
+        fail() {
+          failures += 1;
           return Promise.resolve(true);
         },
       });
@@ -307,4 +318,5 @@ Deno.test("audio moderation commits the database-selected model before a provide
 
   assertEquals(providerModel, "gemini-2.5-pro");
   assertEquals(refunds, 0);
+  assertEquals(failures, 1);
 });

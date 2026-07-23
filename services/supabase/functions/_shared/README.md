@@ -92,10 +92,14 @@ multiple functions need the same behavior and the ownership boundary is clear.
   service-only maintenance callers pass their reviewed system model explicitly.
 - **`aiQuota.ts`**: Service-role client for the atomic `reserve_ai_quota(...)`
   and `finalize_ai_quota_reservation(...)` RPCs. It validates UUID idempotency
-  keys, HMACs the proxy-observed client address with `AI_QUOTA_IP_HASH_SECRET`,
-  maps fail-closed database errors to stable HTTP codes, and exposes a provider
-  lease. A route commits immediately before a provider attempt; only a proven
-  pre-provider no-op may refund.
+  keys, HMACs the proxy-observed client address with an optional dedicated
+  override or built-in server-only Supabase key, maps fail-closed database
+  errors to stable HTTP codes, and exposes a fenced provider lease. A route
+  commits immediately before a provider attempt; provider failures remain
+  charged but become retryable, and only a proven pre-provider no-op may refund.
+- **`groupTagQuota.ts`**: Optional identification group-tag enrichment behind
+  its own database-selected model and quota operation. Quota/provider failures
+  are recorded without discarding the successful primary identification.
 - **`entitlement.ts`**: Durable user-tier resolver for non-provider feature
   checks and telemetry. It reads `users` on every call, includes the monotonic
   `entitlement_version`, and returns `503 ai_entitlement_unavailable` on a query

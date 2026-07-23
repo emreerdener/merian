@@ -145,21 +145,8 @@ Given a species scientific name, provide the following data fields: taxonomy, ha
     }
     return extracted;
   } catch (e) {
-    console.error("Encyclopedic inference fallback failed:", e);
-    return {
-      taxonomy: {
-        kingdom: null,
-        phylum: null,
-        class: null,
-        order: null,
-        family: null,
-        genus: null,
-      },
-      iucn_red_list_status: "not_evaluated",
-      habitat_description: "No habitat data available.",
-      hazard_type: "none",
-      colors: [],
-    };
+    console.error("Encyclopedic inference failed:", e);
+    throw e;
   }
 }
 
@@ -330,7 +317,7 @@ For each lookalike, provide the exact formally recognized scientific name, the w
     return normalized;
   } catch (e) {
     console.error("fetchSimilarSpecies failed:", e);
-    return null;
+    throw e;
   }
 }
 
@@ -369,11 +356,13 @@ function normalizeLookalikeConfidence(value: unknown): number | null {
 export async function fetchGroupTags(
   user: User | string,
   scientificName: string,
+  modelName: string,
   supabaseAdmin?: SupabaseClient,
 ): Promise<{ group_tags: string[] | null; usage?: UsageMetadata } | null> {
   const model = createFlashModel(
     'You are a world-class biologist. Given a species scientific name, return 1–5 categorical group labels ordered from most broad to most specific (e.g. ["animal", "bird", "songbird", "warbler"]). Use plain lowercase English nouns only. Omit proper names and scientific names.',
     100,
+    modelName,
   );
 
   const schema: Record<string, unknown> = {
@@ -409,7 +398,7 @@ export async function fetchGroupTags(
       );
       trackPostHogEvent(user, "GroupTagsLLMCompleted", {
         scientific_name: scientificName,
-        llm_model: "gemini-2.5-flash",
+        llm_model: modelName,
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
@@ -419,7 +408,7 @@ export async function fetchGroupTags(
       if (supabaseAdmin) {
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "scan_group_tag_enrichment",
-          model: "gemini-2.5-flash",
+          model: modelName,
           usage,
           inputModality: "text",
           userId: typeof user === "string" ? null : user.id,
@@ -433,6 +422,6 @@ export async function fetchGroupTags(
     return { group_tags: parsed.group_tags ?? null, usage };
   } catch (e) {
     console.error("fetchGroupTags failed:", e);
-    return null;
+    throw e;
   }
 }

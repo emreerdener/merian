@@ -65,8 +65,7 @@ jobs:
           AI_QUOTA_IP_HASH_SECRET: ${{ secrets.AI_QUOTA_IP_HASH_SECRET }}
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
-          : "${AI_QUOTA_IP_HASH_SECRET:?Missing AI_QUOTA_IP_HASH_SECRET GitHub secret}"
-          if [ "${#AI_QUOTA_IP_HASH_SECRET}" -lt 32 ]; then
+          if [ -n "$AI_QUOTA_IP_HASH_SECRET" ] && [ "${#AI_QUOTA_IP_HASH_SECRET}" -lt 32 ]; then
             echo "AI_QUOTA_IP_HASH_SECRET must contain at least 32 characters." >&2
             exit 1
           fi
@@ -80,6 +79,7 @@ jobs:
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aiQuota.ts \
+            supabase/functions/_shared/groupTagQuota.ts \
             supabase/functions/_shared/aiQuota_test.ts \
             supabase/functions/_shared/entitlement.ts \
             supabase/functions/_shared/entitlement_test.ts \
@@ -130,6 +130,7 @@ jobs:
             supabase/functions/update-scan-context/index.ts \
             supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
+            supabase/functions/replay-scan-ingestion \
             supabase/functions/scan-media-health
 
       - name: Validate Edge Function lint
@@ -140,6 +141,7 @@ jobs:
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aiQuota.ts \
+            supabase/functions/_shared/groupTagQuota.ts \
             supabase/functions/_shared/aiQuota_test.ts \
             supabase/functions/_shared/entitlement.ts \
             supabase/functions/_shared/entitlement_test.ts \
@@ -190,6 +192,7 @@ jobs:
             supabase/functions/update-scan-context/index.ts \
             supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
+            supabase/functions/replay-scan-ingestion \
             supabase/functions/scan-media-health
 
       - name: Validate shared Edge runtime checks
@@ -200,6 +203,7 @@ jobs:
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/aiQuota.ts \
+            supabase/functions/_shared/groupTagQuota.ts \
             supabase/functions/_shared/aiQuota_test.ts \
             supabase/functions/_shared/entitlement.ts \
             supabase/functions/_shared/entitlement_test.ts \
@@ -243,6 +247,8 @@ jobs:
             supabase/functions/update-scan-context/index.ts \
             supabase/functions/explore-post-chat/index.ts \
             supabase/functions/insight-chat/index.ts \
+            supabase/functions/replay-scan-ingestion/index.ts \
+            supabase/functions/replay-scan-ingestion/worker_test.ts \
             supabase/functions/scan-media-health/index.ts
 
       - name: Validate isolated Edge Function dependency graphs
@@ -279,6 +285,7 @@ jobs:
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/replay-scan-ingestion/worker_test.ts \
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
@@ -291,7 +298,7 @@ jobs:
       - name: Validate authoritative AI quota coverage
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions \
+            --allow-read=supabase/functions,../.github/workflows/deploy.yml \
             supabase/functions/_shared/aiQuota_test.ts \
             supabase/functions/_shared/entitlement_test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts
@@ -440,14 +447,18 @@ jobs:
               supabase/scripts/audit_privileged_routine_acl.ts \
               --enforce
 
-      - name: Synchronize AI quota hashing secret
+      - name: Synchronize optional AI quota hashing override
         env:
           AI_QUOTA_IP_HASH_SECRET: ${{ secrets.AI_QUOTA_IP_HASH_SECRET }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: |
-          supabase secrets set \
-            "AI_QUOTA_IP_HASH_SECRET=$AI_QUOTA_IP_HASH_SECRET" \
-            --project-ref "$PROJECT_ID"
+          if [ -n "$AI_QUOTA_IP_HASH_SECRET" ]; then
+            supabase secrets set \
+              "AI_QUOTA_IP_HASH_SECRET=$AI_QUOTA_IP_HASH_SECRET" \
+              --project-ref "$PROJECT_ID"
+          else
+            echo "Using the built-in server key for domain-separated AI quota IP hashing."
+          fi
 
       - name: Deploy affected Edge Functions
         if: steps.function-plan.outputs.count != '0'

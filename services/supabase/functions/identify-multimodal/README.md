@@ -56,7 +56,9 @@ values across transport, authentication, and queue retries. The database scopes
 that key by user and quota operation, so simultaneous duplicate requests cannot
 reserve twice. A known pre-provider validation no-op explicitly refunds; once
 the reservation is committed, provider errors remain consumed because spend may
-already have occurred.
+already have occurred and transition to `failed` so a new metered retry can use
+the same logical key. An uncommitted reservation expires after ten minutes, and
+its per-attempt fencing token rejects delayed settlement after retry.
 
 ## Model And Generation Invariants
 
@@ -178,7 +180,10 @@ same `scan_id`; it never changes this request or creates another model call.
   scan rows and, when requested, server-side ingestion job state.
 - `/replay-scan-ingestion` claims due resumable staged or text-only intents and
   dispatches them back through this endpoint with the same `client_scan_id`.
-  Replay claims are capped at 10 per sanitized intent; exhausted jobs become
+  Its service-authenticated durable claim count derives a separate deterministic
+  quota UUID for each replay attempt, so a committed foreground reservation
+  cannot block recovery and a dispatch retry cannot double-reserve. Replay
+  claims are capped at 10 per sanitized intent; exhausted jobs become
   `failed_terminal / server_replay_limit_reached`.
 - `/reconcile-scan-media-assets` repairs or abandons staged media lifecycle
   drift but does not replay AI inference.

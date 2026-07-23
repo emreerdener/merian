@@ -30,20 +30,34 @@ function isTimestampInFuture(value: string | null | undefined): boolean {
   return Number.isFinite(time) && time > Date.now();
 }
 
+function isValidTimestamp(value: unknown): value is string {
+  return typeof value === "string" &&
+    value.length > 0 &&
+    Number.isFinite(new Date(value).getTime());
+}
+
 export function resolutionForUserRow(row: {
   subscription_tier?: string | null;
   created_at?: string | null;
   subscription_expires_at?: string | null;
   entitlement_version?: number | null;
 }): TierResolution {
-  const subscriptionTier: SubscriptionTier = row.subscription_tier === "pro"
-    ? "pro"
-    : "free";
-  const entitlementVersion = typeof row.entitlement_version === "number" &&
-      Number.isSafeInteger(row.entitlement_version) &&
-      row.entitlement_version > 0
-    ? row.entitlement_version
-    : 1;
+  if (
+    (row.subscription_tier !== "free" &&
+      row.subscription_tier !== "pro") ||
+    !isValidTimestamp(row.created_at) ||
+    (row.subscription_expires_at !== null &&
+      row.subscription_expires_at !== undefined &&
+      !isValidTimestamp(row.subscription_expires_at)) ||
+    typeof row.entitlement_version !== "number" ||
+    !Number.isSafeInteger(row.entitlement_version) ||
+    row.entitlement_version <= 0
+  ) {
+    throw entitlementUnavailable();
+  }
+
+  const subscriptionTier: SubscriptionTier = row.subscription_tier;
+  const entitlementVersion = row.entitlement_version;
 
   if (subscriptionTier === "pro") {
     if (

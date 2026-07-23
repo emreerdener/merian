@@ -242,6 +242,7 @@ biological gates so manufactured or processed objects cannot enter
 `species_dictionary` through one route while another blocks them.
 
 `services/supabase/functions/_shared/aiQuota.ts`,
+`_shared/groupTagQuota.ts`,
 `_shared/entitlement.ts`, and migration
 `20260723160229_enforce_server_ai_quotas.sql` own the cross-route paid-provider
 boundary. Identification, audio, cache-miss enrichment, model chat, and
@@ -249,8 +250,9 @@ Explore/Community share-or-edit audio moderation reserve a database operation
 with a stable UUID before dispatch. The shared moderation helper refuses live
 provider work when a transitive caller omits that quota boundary. The migration
 owns durable entitlement versioning, policy/model selection, UTC-day and
-user/IP counters, idempotent reservation/refund state, and API-role privilege
-revocations. Coverage lives in
+user/IP counters, ten-minute fenced reservation leases, charged failed-retry
+state, automatic stale refund, and API-role privilege revocations. Coverage
+lives in
 `_tests/aiQuotaCoverage.test.ts`, `_tests/aiQuotaMigrationContract.test.ts`, and
 `tests/ai_quota_security.sql`.
 

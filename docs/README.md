@@ -27,13 +27,12 @@ as their permanent engineering identity.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is
   committed for convenience and should be regenerated after project-structure
   changes.
-- **Prelaunch access and purchase QA**: Every current build, including
-  TestFlight, intentionally bypasses the free daily scan quota. The public
-  free/Pro quota path remains implemented and tested for the eventual release.
-  Because the quota will not trigger a paywall during this period, testers open
-  Settings → Plan directly. Debug simulator purchase tests use an explicitly
-  selected RevenueCat Test Store or StoreKit configuration; TestFlight uses the
-  production iOS key and App Store Connect products.
+- **Prelaunch access and purchase QA**: Release and TestFlight use the normal
+  free/Pro meter and authoritative server quota; unlimited meter bypasses are
+  DEBUG-only. Testers can still open Settings → Plan directly. Debug simulator
+  purchase tests use an explicitly selected RevenueCat Test Store or StoreKit
+  configuration; TestFlight uses the production iOS key and App Store Connect
+  products.
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override

@@ -13,7 +13,7 @@ import {
   runBackground,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
-import { fetchGroupTags } from "../_shared/biology.ts";
+import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
@@ -322,9 +322,11 @@ Deno.serve((req: Request) =>
     let llmThinkingTokens: number | null = null;
     let llmCachedTokens: number | null = null;
     let llmUsageMetadata: Record<string, unknown> = {};
+    let providerAttempted = false;
 
     try {
       await quotaLease.commit();
+      providerAttempted = true;
       const result = await _genAI.models.generateContent({
         model: targetModel,
         contents: [{ role: "user", parts }],
@@ -386,6 +388,11 @@ Deno.serve((req: Request) =>
         : String(genError);
       const errStatus = (genError as Record<string, unknown>)?.status ??
         (genError as Record<string, unknown>)?.statusCode ?? null;
+      if (providerAttempted) {
+        await quotaLease.fail();
+      } else {
+        await quotaLease.refund();
+      }
       logStructuredError("identify/gemini_failed", {
         user_id: user.id,
         model: modelCfg.model,
@@ -414,6 +421,7 @@ Deno.serve((req: Request) =>
     ) {
       const isPermanentContentFailure = finishReason === "SAFETY" ||
         finishReason === "PROHIBITED_CONTENT";
+      if (!isPermanentContentFailure) await quotaLease.fail();
       logStructuredError("identify/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -430,6 +438,7 @@ Deno.serve((req: Request) =>
     try {
       parsedData = extractJson<MerianIdentification>(responseText);
     } catch (parseError) {
+      await quotaLease.fail();
       // Log enough context to diagnose the root cause without re-reading the code.
       // finish_reason, response_length, and the first 500 chars of responseText cover
       // the two main failure modes: truncated JSON (MAX_TOKENS) and empty response.
@@ -794,7 +803,13 @@ Deno.serve((req: Request) =>
         const needsGroupTags = isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
-          ? fetchGroupTags(user, parsedData.scientific_name!, supabaseAdmin)
+          ? fetchQuotaGuardedGroupTags(
+            req,
+            user,
+            parsedData.scientific_name!,
+            supabaseAdmin,
+            quotaLease.reservation.requestId,
+          )
           : Promise.resolve(null);
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.

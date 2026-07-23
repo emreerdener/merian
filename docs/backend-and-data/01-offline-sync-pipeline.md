@@ -254,10 +254,13 @@ uses the stable scan UUID as its idempotency key and atomically reserves the
 database UTC-day/user/IP quota before Gemini. A modified client or cleared
 `UserDefaults` cannot bypass that boundary. Provider attempts, including
 non-biological outcomes or malformed responses, consume the server reservation;
-only a proven pre-provider no-op may refund it. The non-biological correction entry point
-may bypass the Pro-only reanalysis feature lock, but once the user submits that
-replacement capture it still consumes normal free-tier daily quota and uses the
-normal free inference settings.
+only a proven pre-provider no-op may refund it. Provider failures move to a
+charged `failed` state so a later retry of the same scan can make a newly
+metered attempt; an abandoned pre-provider reservation expires and is
+automatically refunded. The non-biological correction entry point may bypass
+the Pro-only reanalysis feature lock, but once the user submits that replacement
+capture it still consumes normal free-tier daily quota and uses the normal free
+inference settings.
 
 ### 3. Network Awakening (`NWPathMonitor`)
 

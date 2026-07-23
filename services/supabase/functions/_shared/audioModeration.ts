@@ -80,8 +80,9 @@ export interface AudioModerationQuota {
     policyVersion: string;
   }): Promise<{
     reservation: { model: string };
-    commit(): Promise<boolean>;
+    commit(): Promise<void>;
     refund(): Promise<boolean>;
+    fail(): Promise<boolean>;
   }>;
 }
 
@@ -272,6 +273,12 @@ export async function moderateExploreAudioUrl(
   quota?: AudioModerationQuota,
 ): Promise<AudioModerationDecision> {
   const startedAt = performance.now();
+  let quotaLease:
+    | Awaited<
+      ReturnType<AudioModerationQuota["beforeProvider"]>
+    >
+    | null = null;
+  let providerAttempted = false;
   try {
     if (generate === generateGeminiClassification && !quota) {
       throw new Error(
@@ -281,10 +288,10 @@ export async function moderateExploreAudioUrl(
     const audio = await fetchBoundedModerationMedia(url, fetcher);
     const checksumSha256 = await sha256Hex(audio.bytes);
     const policyVersion = await policyVersionPromise;
-    const quotaLease = await quota?.beforeProvider({
+    quotaLease = await quota?.beforeProvider({
       checksumSha256,
       policyVersion,
-    });
+    }) ?? null;
     const model = quotaLease?.reservation.model ?? AUDIO_MODERATION_MODEL;
     if (cache) {
       try {
@@ -319,6 +326,7 @@ export async function moderateExploreAudioUrl(
       throw new Error("GEMINI_API_KEY is not configured.");
     }
     await quotaLease?.commit();
+    providerAttempted = true;
     const decision = await classifyExploreAudio(
       audio.bytes,
       audio.mimeType,
@@ -350,6 +358,13 @@ export async function moderateExploreAudioUrl(
     }));
     return { ...decision, checksumSha256, cacheHit: false };
   } catch (error) {
+    if (quotaLease) {
+      if (providerAttempted) {
+        await quotaLease.fail();
+      } else {
+        await quotaLease.refund();
+      }
+    }
     console.error(JSON.stringify({
       event: "explore_audio_moderation_failed",
       elapsed_ms: Math.round(performance.now() - startedAt),

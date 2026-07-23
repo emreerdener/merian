@@ -16,7 +16,11 @@ legacy scan-producing endpoints (`identify`, `identify-describe`, and
 This worker turns those rows into real recovery. It claims retryable or
 lease-expired jobs whose paired intent is `resumable = true`, reconstructs the
 staged media/audio/video or text-only request, and invokes
-`/identify-multimodal` with the same `client_scan_id`.
+`/identify-multimodal` with the same `client_scan_id`. The authenticated
+`X-Merian-Replay-Attempt` header carries the durable claim count; multimodal
+derives a distinct deterministic quota UUID from that count and the scan UUID.
+Each claim is therefore metered once without colliding with the original
+foreground reservation.
 
 Inline foreground media is never replayed by the server because raw base64 media
 bytes are intentionally redacted from `scan_ingestion_intents`.
@@ -56,6 +60,8 @@ moderation, promotion, insert idempotency, and video durability gates.
 - Only staged media/audio/video or description-only intents marked
   `resumable = true` are eligible.
 - Completed and terminal jobs are never replayed.
+- Replay attempt headers are accepted only on the service-role path, are bounded
+  to 1–10, and participate in quota idempotency.
 - Over-budget intents are terminal-marked in bounded batches using the same
   claim window as normal replay work.
 - A cloud scan row that already has all required video media is marked complete

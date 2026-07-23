@@ -218,6 +218,7 @@ export async function invokeIdentifyMultimodalReplay(input: {
   serviceRoleKey: string;
   payload: Record<string, unknown>;
   userId: string;
+  replayAttemptCount: number;
 }): Promise<void> {
   const response = await fetch(input.identifyUrl, {
     method: "POST",
@@ -227,6 +228,7 @@ export async function invokeIdentifyMultimodalReplay(input: {
       "apikey": input.serviceRoleKey,
       "X-Merian-Internal-Replay": "scan-ingestion",
       "X-Merian-Replay-User-Id": input.userId,
+      "X-Merian-Replay-Attempt": String(input.replayAttemptCount),
     },
     body: JSON.stringify(input.payload),
   });
@@ -276,6 +278,7 @@ async function dispatchRow(
       serviceRoleKey: options.serviceRoleKey,
       payload,
       userId: row.user_id,
+      replayAttemptCount: row.replay_attempt_count,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

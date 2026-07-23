@@ -22,10 +22,10 @@ TestFlight, App Store, support, and QA.
 
 ### Beta Operations
 
-- Prelaunch builds intentionally keep free scans unlimited, including
-  TestFlight. The normal free/Pro quota remains covered for the eventual public
-  release, and subscription testing remains available directly from Settings →
-  Plan while quota-triggered paywalls are bypassed.
+- Release and TestFlight builds now use the normal free/Pro scan meter and
+  server-enforced quota. Unlimited local-meter bypasses remain available only
+  in DEBUG; subscription testing is still available directly from Settings →
+  Plan.
 - Paywall diagnostics now distinguish a missing current offering, an empty
   package set, and missing required `pro_week` / `pro_annual` products so beta
   store-configuration failures are visible before release.
