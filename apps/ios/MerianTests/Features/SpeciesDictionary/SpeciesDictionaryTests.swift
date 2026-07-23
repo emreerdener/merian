@@ -1304,7 +1304,6 @@ struct SpeciesDictionaryTests {
         let viewportSize = CGSize(width: 390, height: 760)
 
         viewModel.reconcileLayoutChange(
-            from: [:],
             to: ["focused": nextPosition],
             viewportSize: viewportSize
         )
@@ -1358,6 +1357,61 @@ struct SpeciesDictionaryTests {
         #expect(expectedMinimum < 0.64)
         #expect(expectedMinimum >= 0.08)
         #expect(abs(viewModel.scale - expectedMinimum) < 0.001)
+    }
+
+    @Test func testTaxonomyTreeGestureStateReusesCachedScene() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        let viewportSize = CGSize(width: 390, height: 760)
+        let initialScene = viewModel.constellationScene(in: viewportSize)
+
+        viewModel.scale = 2.4
+        viewModel.baseScale = 2.4
+        viewModel.offset = CGSize(width: -180, height: 90)
+        viewModel.dragOffset = CGSize(width: 24, height: -12)
+
+        let gestureScene = viewModel.constellationScene(in: viewportSize)
+        let resizedScene = viewModel.constellationScene(
+            in: CGSize(width: 430, height: 760)
+        )
+
+        #expect(gestureScene.revision == initialScene.revision)
+        #expect(resizedScene.revision != initialScene.revision)
+    }
+
+    @Test func testTaxonomyConstellationSceneSpatiallyCullsNodes() throws {
+        let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
+        let visibleNodeIDs = Set(graph.nodes.map(\.id))
+        let layout = TaxonomyConstellationLayout.make(
+            graph: graph,
+            visibleNodeIDs: visibleNodeIDs,
+            focusedNodeID: nil,
+            minimumSize: CGSize(width: 390, height: 760)
+        )
+        let monarchID = "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+        let monarchPosition = try #require(layout.positions[monarchID])
+        let scene = TaxonomyConstellationScene(
+            revision: 1,
+            graph: graph,
+            layoutNodeIDs: visibleNodeIDs,
+            layout: layout
+        )
+
+        let nearbyNodes = scene.nodes(in: CGRect(
+            x: monarchPosition.x - 1,
+            y: monarchPosition.y - 1,
+            width: 2,
+            height: 2
+        ))
+        let distantNodes = scene.nodes(in: CGRect(
+            x: layout.size.width + 1_000,
+            y: layout.size.height + 1_000,
+            width: 100,
+            height: 100
+        ))
+
+        #expect(nearbyNodes.map(\.id).contains(monarchID))
+        #expect(nearbyNodes.count < graph.nodes.count)
+        #expect(distantNodes.isEmpty)
     }
 
     @Test func testTaxonomyTreeDefaultsToAllSpeciesAndResetsOnScopeChange() {

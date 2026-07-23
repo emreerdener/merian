@@ -36,16 +36,15 @@ struct TaxonomyTreeCanvasView: View {
 
     private var canvas: some View {
         GeometryReader { proxy in
+            let scene = viewModel.constellationScene(in: proxy.size)
             let visibleNodeIDs = viewModel.visibleNodeIDs
-            let layout = TaxonomyConstellationLayout.make(
-                graph: viewModel.graph,
-                visibleNodeIDs: viewModel.layoutNodeIDs,
-                focusedNodeID: viewModel.focusedNodeID,
-                minimumSize: proxy.size
-            )
+            let layout = scene.layout
             let selectedNode = viewModel.selectedNode
             let spotlightIDs = viewModel.spotlightNodeIDs
             let visibleRect = viewModel.visibleContentRect(in: proxy.size)
+            let viewportNodes = scene.nodes(
+                in: visibleRect.insetBy(dx: -140, dy: -140)
+            ).filter { visibleNodeIDs.contains($0.id) }
 
             ZStack(alignment: .topLeading) {
                 Color(uiColor: .systemGroupedBackground)
@@ -73,12 +72,7 @@ struct TaxonomyTreeCanvasView: View {
                     )
                     .frame(width: layout.size.width, height: layout.size.height)
 
-                    ForEach(viewModel.graph.nodes.filter { node in
-                        guard visibleNodeIDs.contains(node.id), let position = layout.positions[node.id] else {
-                            return false
-                        }
-                        return visibleRect.insetBy(dx: -140, dy: -140).contains(position)
-                    }) { node in
+                    ForEach(viewportNodes) { node in
                         TaxonomyConstellationNodeView(
                             node: node,
                             scale: viewModel.scale,
@@ -176,16 +170,11 @@ struct TaxonomyTreeCanvasView: View {
             .onAppear {
                 viewModel.positionInitialViewportIfNeeded(positions: layout.positions, viewportSize: proxy.size)
             }
-            .onChange(of: layout.positions) { previousPositions, positions in
+            .onChange(of: scene.revision) {
                 viewModel.reconcileLayoutChange(
-                    from: previousPositions,
-                    to: positions,
+                    to: scene.layout.positions,
                     viewportSize: proxy.size
                 )
-            }
-            .onChange(of: viewModel.focusedNodeID) { _, focusedNodeID in
-                guard let focusedNodeID else { return }
-                viewModel.center(nodeID: focusedNodeID, positions: layout.positions, viewportSize: proxy.size)
             }
             .onChange(of: proxy.size) { _, viewportSize in
                 viewModel.positionInitialViewportIfNeeded(positions: layout.positions, viewportSize: viewportSize)
@@ -256,6 +245,17 @@ struct TaxonomyTreeCanvasView: View {
     }
 }
 
+private struct TaxonomyConstellationSceneCacheKey: Equatable {
+    let graphRevision: Int
+    let focusedNodeID: String?
+    let minimumSize: CGSize
+}
+
+private struct TaxonomyConstellationSpotlightCacheKey: Equatable {
+    let graphRevision: Int
+    let selectedNodeID: String?
+}
+
 @MainActor
 final class TaxonomyTreeCanvasViewModel: ObservableObject {
     @Published private(set) var graph: TaxonomyTreeGraph = .empty
@@ -277,6 +277,12 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     private var lastMagnification: CGFloat?
     private var hasPositionedInitialViewport = false
     private var cachedGraphsByScope: [SpeciesDictionaryTreeScope: TaxonomyTreeGraph] = [:]
+    private var graphRevision = 0
+    private var sceneRevision = 0
+    private var cachedSceneKey: TaxonomyConstellationSceneCacheKey?
+    private var cachedScene: TaxonomyConstellationScene?
+    private var cachedSpotlightKey: TaxonomyConstellationSpotlightCacheKey?
+    private var cachedSpotlightNodeIDs: Set<String> = []
 
     var selectedNode: TaxonomyTreeNode? {
         graph.node(id: selectedNodeID)
@@ -304,10 +310,24 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     }
 
     var spotlightNodeIDs: Set<String> {
-        guard let selectedNodeID else { return [] }
+        let cacheKey = TaxonomyConstellationSpotlightCacheKey(
+            graphRevision: graphRevision,
+            selectedNodeID: selectedNodeID
+        )
+        if cachedSpotlightKey == cacheKey {
+            return cachedSpotlightNodeIDs
+        }
+
+        guard let selectedNodeID else {
+            cachedSpotlightKey = cacheKey
+            cachedSpotlightNodeIDs = []
+            return []
+        }
         var ids = graph.connectedIDs(for: selectedNodeID)
         ids.formUnion(graph.ancestorIDs(of: selectedNodeID))
         ids.formUnion(graph.descendantIDs(of: selectedNodeID))
+        cachedSpotlightKey = cacheKey
+        cachedSpotlightNodeIDs = ids
         return ids
     }
 
@@ -327,6 +347,37 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 
     var zoomPercentage: Int {
         Int((scale / initialScale * 100).rounded())
+    }
+
+    func constellationScene(in viewportSize: CGSize) -> TaxonomyConstellationScene {
+        let minimumSize = normalizedLayoutSize(viewportSize)
+        let validFocusedNodeID = graph.node(id: focusedNodeID) == nil ? nil : focusedNodeID
+        let cacheKey = TaxonomyConstellationSceneCacheKey(
+            graphRevision: graphRevision,
+            focusedNodeID: validFocusedNodeID,
+            minimumSize: minimumSize
+        )
+        if cachedSceneKey == cacheKey, let cachedScene {
+            return cachedScene
+        }
+
+        let nodeIDs = layoutNodeIDs
+        let layout = TaxonomyConstellationLayout.make(
+            graph: graph,
+            visibleNodeIDs: nodeIDs,
+            focusedNodeID: validFocusedNodeID,
+            minimumSize: minimumSize
+        )
+        sceneRevision &+= 1
+        let scene = TaxonomyConstellationScene(
+            revision: sceneRevision,
+            graph: graph,
+            layoutNodeIDs: nodeIDs,
+            layout: layout
+        )
+        cachedSceneKey = cacheKey
+        cachedScene = scene
+        return scene
     }
 
     func canvasGesture(in viewportSize: CGSize, contentSize: CGSize) -> some Gesture {
@@ -372,7 +423,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     func loadTree(force: Bool = false) async {
         let scope = selectedTreeScope
         if !force, let cachedGraph = cachedGraphsByScope[scope] {
-            graph = cachedGraph
+            applyGraph(cachedGraph)
             errorMessage = nil
             isLoading = false
             return
@@ -385,7 +436,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
             let loadedGraph = TaxonomyTreeGraphBuilder.build(from: response.data)
             cachedGraphsByScope[scope] = loadedGraph
             if selectedTreeScope == scope {
-                graph = loadedGraph
+                applyGraph(loadedGraph)
                 hasPositionedInitialViewport = false
             }
         } catch {
@@ -411,10 +462,10 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         hasPositionedInitialViewport = false
 
         if let cachedGraph = cachedGraphsByScope[scope] {
-            graph = cachedGraph
+            applyGraph(cachedGraph)
             isLoading = false
         } else {
-            graph = .empty
+            applyGraph(.empty)
             isLoading = true
         }
     }
@@ -530,7 +581,6 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     }
 
     func reconcileLayoutChange(
-        from _: [String: CGPoint],
         to positions: [String: CGPoint],
         viewportSize: CGSize
     ) {
@@ -569,6 +619,22 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 
     private func clampedScale(_ value: CGFloat, minimumScale: CGFloat? = nil) -> CGFloat {
         min(maxScale, max(minimumScale ?? minScale, value))
+    }
+
+    private func applyGraph(_ nextGraph: TaxonomyTreeGraph) {
+        graph = nextGraph
+        graphRevision &+= 1
+        cachedSceneKey = nil
+        cachedScene = nil
+        cachedSpotlightKey = nil
+        cachedSpotlightNodeIDs = []
+    }
+
+    private func normalizedLayoutSize(_ size: CGSize) -> CGSize {
+        CGSize(
+            width: size.width.isFinite ? ceil(max(0, size.width)) : 0,
+            height: size.height.isFinite ? ceil(max(0, size.height)) : 0
+        )
     }
 
     private func clampedAnchor(_ anchor: CGPoint, in viewportSize: CGSize) -> CGPoint {

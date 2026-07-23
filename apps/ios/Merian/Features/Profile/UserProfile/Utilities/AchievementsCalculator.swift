@@ -115,8 +115,43 @@ struct AchievementsCalculator {
 }
 
 private struct AchievementAccumulator {
+    private struct SpeciesContributionHistory {
+        private(set) var earliest: AchievementContribution
+        private(set) var latest: AchievementContribution
+
+        init(_ contribution: AchievementContribution) {
+            earliest = contribution
+            latest = contribution
+        }
+
+        mutating func register(_ contribution: AchievementContribution) {
+            if Self.isEarlier(contribution, than: earliest) {
+                earliest = contribution
+            }
+            if Self.isLater(contribution, than: latest) {
+                latest = contribution
+            }
+        }
+
+        private static func isEarlier(
+            _ lhs: AchievementContribution,
+            than rhs: AchievementContribution
+        ) -> Bool {
+            lhs.timestamp < rhs.timestamp
+                || (lhs.timestamp == rhs.timestamp && lhs.scanID < rhs.scanID)
+        }
+
+        private static func isLater(
+            _ lhs: AchievementContribution,
+            than rhs: AchievementContribution
+        ) -> Bool {
+            lhs.timestamp > rhs.timestamp
+                || (lhs.timestamp == rhs.timestamp && lhs.scanID > rhs.scanID)
+        }
+    }
+
     let type: AchievementType
-    private var contributionsBySpeciesKey: [String: AchievementContribution] = [:]
+    private var historiesBySpeciesKey: [String: SpeciesContributionHistory] = [:]
     private var lastInteractionDate: Date?
 
     init(type: AchievementType) {
@@ -129,31 +164,32 @@ private struct AchievementAccumulator {
     ) {
         lastInteractionDate = max(lastInteractionDate ?? contribution.timestamp, contribution.timestamp)
 
-        if let existingContribution = contributionsBySpeciesKey[canonicalSpeciesKey] {
-            let contributionIsEarlier = contribution.timestamp < existingContribution.timestamp
-                || (contribution.timestamp == existingContribution.timestamp
-                    && contribution.scanID < existingContribution.scanID)
-            guard contributionIsEarlier else { return }
+        if historiesBySpeciesKey[canonicalSpeciesKey] == nil {
+            historiesBySpeciesKey[canonicalSpeciesKey] = SpeciesContributionHistory(contribution)
+        } else {
+            historiesBySpeciesKey[canonicalSpeciesKey]?.register(contribution)
         }
-
-        contributionsBySpeciesKey[canonicalSpeciesKey] = contribution
     }
 
     var detailPayload: AchievementDetailPayload {
-        // Sort ascending to find the earliest contributions that unlocked the achievement
-        let oldestFirst = contributionsBySpeciesKey.values.sorted { lhs, rhs in
-            if lhs.timestamp == rhs.timestamp {
-                return lhs.scanID < rhs.scanID
+        // Select species by their first qualifying encounter so repeats cannot move
+        // the unlock date or displace a species that originally earned the badge.
+        let unlockingHistories = historiesBySpeciesKey.values.sorted { lhs, rhs in
+            if lhs.earliest.timestamp == rhs.earliest.timestamp {
+                return lhs.earliest.scanID < rhs.earliest.scanID
             }
-            return lhs.timestamp < rhs.timestamp
+            return lhs.earliest.timestamp < rhs.earliest.timestamp
         }
         
         let targetCount = type.definition.targetCount
-        let cappedContributions = Array(oldestFirst.prefix(targetCount))
-        let unlockedAt = cappedContributions.count >= targetCount ? cappedContributions.last?.timestamp : nil
+        let cappedHistories = Array(unlockingHistories.prefix(targetCount))
+        let unlockedAt = cappedHistories.count >= targetCount
+            ? cappedHistories.last?.earliest.timestamp
+            : nil
         
-        // Show every qualifying unique contribution up to targetCount
-        let displayContributions = cappedContributions.sorted { lhs, rhs in
+        // Detail rows remain useful and current by showing the newest scan for each
+        // species that actually contributed to the unlock.
+        let displayContributions = cappedHistories.map(\.latest).sorted { lhs, rhs in
             if lhs.timestamp == rhs.timestamp {
                 return lhs.scanID < rhs.scanID
             }
@@ -163,7 +199,7 @@ private struct AchievementAccumulator {
         return AchievementDetailPayload(
             award: AwardPayload(
                 type: type,
-                currentCount: min(contributionsBySpeciesKey.count, targetCount),
+                currentCount: min(historiesBySpeciesKey.count, targetCount),
                 lastInteractionDate: lastInteractionDate,
                 unlockedAt: unlockedAt
             ),

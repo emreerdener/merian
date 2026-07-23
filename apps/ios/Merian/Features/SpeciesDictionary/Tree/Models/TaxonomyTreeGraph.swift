@@ -538,3 +538,96 @@ struct TaxonomyConstellationLayout: Equatable {
         }
     }
 }
+
+/// Immutable render data derived from one graph/focus/viewport combination.
+/// Layout construction is intentionally separated from pan and zoom state so
+/// gesture frames only query the spatial index for nodes near the viewport.
+struct TaxonomyConstellationScene {
+    let revision: Int
+    let layout: TaxonomyConstellationLayout
+
+    private struct PositionedNode {
+        let node: TaxonomyTreeNode
+        let position: CGPoint
+        let order: Int
+    }
+
+    private struct SpatialCell: Hashable {
+        let column: Int
+        let row: Int
+    }
+
+    private static let spatialCellSize: CGFloat = 512
+    private let positionedNodes: [PositionedNode]
+    private let nodesByCell: [SpatialCell: [PositionedNode]]
+
+    init(
+        revision: Int,
+        graph: TaxonomyTreeGraph,
+        layoutNodeIDs: Set<String>,
+        layout: TaxonomyConstellationLayout
+    ) {
+        self.revision = revision
+        self.layout = layout
+
+        let positionedNodes = graph.nodes.enumerated().compactMap { index, node -> PositionedNode? in
+            guard layoutNodeIDs.contains(node.id),
+                  let position = layout.positions[node.id] else { return nil }
+            return PositionedNode(node: node, position: position, order: index)
+        }
+        self.positionedNodes = positionedNodes
+        self.nodesByCell = Dictionary(grouping: positionedNodes) { positionedNode in
+            Self.spatialCell(containing: positionedNode.position)
+        }
+    }
+
+    func nodes(in rect: CGRect) -> [TaxonomyTreeNode] {
+        guard !positionedNodes.isEmpty, Self.isFinite(rect) else { return [] }
+
+        let minimumCell = Self.spatialCell(containing: CGPoint(x: rect.minX, y: rect.minY))
+        let maximumCell = Self.spatialCell(containing: CGPoint(x: rect.maxX, y: rect.maxY))
+        let columnCount = maximumCell.column - minimumCell.column + 1
+        let rowCount = maximumCell.row - minimumCell.row + 1
+        guard columnCount > 0, rowCount > 0 else { return [] }
+
+        // A very wide query is cheaper as one linear pass than walking a mostly
+        // empty grid (for example, a tiny graph zoomed fully into view).
+        let occupiedCellCount = max(1, nodesByCell.count)
+        if columnCount > occupiedCellCount * 4
+            || rowCount > occupiedCellCount * 4
+            || columnCount * rowCount > occupiedCellCount * 8 {
+            return positionedNodes
+                .filter { rect.contains($0.position) }
+                .map(\.node)
+        }
+
+        var candidates: [PositionedNode] = []
+        for row in minimumCell.row...maximumCell.row {
+            for column in minimumCell.column...maximumCell.column {
+                candidates.append(contentsOf: nodesByCell[
+                    SpatialCell(column: column, row: row),
+                    default: []
+                ])
+            }
+        }
+
+        return candidates
+            .filter { rect.contains($0.position) }
+            .sorted { $0.order < $1.order }
+            .map(\.node)
+    }
+
+    private static func spatialCell(containing point: CGPoint) -> SpatialCell {
+        SpatialCell(
+            column: Int(floor(point.x / spatialCellSize)),
+            row: Int(floor(point.y / spatialCellSize))
+        )
+    }
+
+    private static func isFinite(_ rect: CGRect) -> Bool {
+        rect.minX.isFinite
+            && rect.minY.isFinite
+            && rect.maxX.isFinite
+            && rect.maxY.isFinite
+    }
+}

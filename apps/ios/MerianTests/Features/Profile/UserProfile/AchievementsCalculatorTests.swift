@@ -135,19 +135,25 @@ final class AchievementsCalculatorTests: XCTestCase {
     func testUnlockedAtTracksUnlockingContributionNotLatestRepeatScan() {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
         let scans = [
-            mockScan(scientificName: "Species A", timestamp: base.addingTimeInterval(1)),
-            mockScan(scientificName: "Species B", timestamp: base.addingTimeInterval(2)),
-            mockScan(scientificName: "Species C", timestamp: base.addingTimeInterval(3)),
-            mockScan(scientificName: "Species D", timestamp: base.addingTimeInterval(4)),
-            mockScan(scientificName: "Species E", timestamp: base.addingTimeInterval(5)),
-            mockScan(scientificName: "Species A", timestamp: base.addingTimeInterval(500))
+            mockScan(id: "a_first", scientificName: "Species A", timestamp: base.addingTimeInterval(1)),
+            mockScan(id: "b_first", scientificName: "Species B", timestamp: base.addingTimeInterval(2)),
+            mockScan(id: "c_first", scientificName: "Species C", timestamp: base.addingTimeInterval(3)),
+            mockScan(id: "d_first", scientificName: "Species D", timestamp: base.addingTimeInterval(4)),
+            mockScan(id: "e_first", scientificName: "Species E", timestamp: base.addingTimeInterval(5)),
+            mockScan(id: "f_after_unlock", scientificName: "Species F", timestamp: base.addingTimeInterval(6)),
+            mockScan(id: "a_latest", scientificName: "Species A", timestamp: base.addingTimeInterval(500))
         ]
 
         let awards = AchievementsCalculator.calculate(from: scans)
         let explorerAward = awards.first { $0.type == .explorer }
+        let explorerDetail = AchievementsCalculator.detail(for: .explorer, from: scans)
 
         XCTAssertEqual(explorerAward?.unlockedAt, base.addingTimeInterval(5))
         XCTAssertEqual(explorerAward?.lastInteractionDate, base.addingTimeInterval(500))
+        XCTAssertEqual(
+            Set(explorerDetail?.contributions.map(\.scanID) ?? []),
+            ["a_latest", "b_first", "c_first", "d_first", "e_first"]
+        )
     }
 
     // MARK: - Appended Coverage
