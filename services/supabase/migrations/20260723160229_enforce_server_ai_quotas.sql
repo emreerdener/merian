@@ -502,7 +502,7 @@ DECLARE
     resolved_plan TEXT;
     resolved_effective_tier TEXT;
     resolved_trial_active BOOLEAN;
-    current_time TIMESTAMPTZ;
+    quota_now TIMESTAMPTZ;
     daily_window_start TIMESTAMPTZ;
     user_window_start TIMESTAMPTZ;
     ip_window_start TIMESTAMPTZ;
@@ -590,13 +590,13 @@ BEGIN
 
     -- CLOCK_TIMESTAMP must be read after any advisory/row-lock wait. Using a
     -- timestamp captured before the wait can incorrectly extend a stale lease.
-    current_time := pg_catalog.CLOCK_TIMESTAMP();
+    quota_now := pg_catalog.CLOCK_TIMESTAMP();
 
     IF reservation_found AND (
         reservation_row.state = 'committed'
         OR (
             reservation_row.state = 'reserved'
-            AND reservation_row.lease_expires_at > current_time
+            AND reservation_row.lease_expires_at > quota_now
         )
     ) THEN
         replayed := TRUE;
@@ -638,7 +638,7 @@ BEGIN
         SET
             state = 'reserved',
             lease_token = pg_catalog.GEN_RANDOM_UUID(),
-            lease_expires_at = current_time + INTERVAL '10 minutes',
+            lease_expires_at = quota_now + INTERVAL '10 minutes',
             attempt_count = reservations.attempt_count + 1,
             stale_recovery_count = reservations.stale_recovery_count
                 + CASE WHEN reservation_row.state = 'reserved' THEN 1 ELSE 0 END,
@@ -652,11 +652,11 @@ BEGIN
             policy_version = policy_row.policy_version,
             daily_limit = policy_row.daily_limit,
             daily_remaining_after_reservation = NULL,
-            reserved_at = current_time,
+            reserved_at = quota_now,
             committed_at = NULL,
             failed_at = NULL,
             refunded_at = NULL,
-            updated_at = current_time
+            updated_at = quota_now
         WHERE reservations.id = reservation_row.id
         RETURNING reservations.* INTO reservation_row;
     ELSE
@@ -683,7 +683,7 @@ BEGIN
             p_operation,
             p_request_id,
             pg_catalog.GEN_RANDOM_UUID(),
-            current_time + INTERVAL '10 minutes',
+            quota_now + INTERVAL '10 minutes',
             policy_row.model,
             resolved_plan,
             resolved_effective_tier,
@@ -692,16 +692,16 @@ BEGIN
             app_user.entitlement_version,
             policy_row.policy_version,
             policy_row.daily_limit,
-            current_time,
-            current_time,
-            current_time
+            quota_now,
+            quota_now,
+            quota_now
         )
         RETURNING * INTO reservation_row;
     END IF;
 
     IF policy_row.daily_limit IS NOT NULL THEN
         daily_window_start :=
-            pg_catalog.DATE_TRUNC('day', current_time, 'UTC');
+            pg_catalog.DATE_TRUNC('day', quota_now, 'UTC');
         resulting_daily_count := internal.consume_ai_quota_counter(
             'user_daily',
             p_user_id::TEXT,
@@ -729,7 +729,7 @@ BEGIN
 
     user_window_start := pg_catalog.TO_TIMESTAMP(
         pg_catalog.FLOOR(
-            pg_catalog.DATE_PART('epoch', current_time)
+            pg_catalog.DATE_PART('epoch', quota_now)
             / policy_row.user_window_seconds
         ) * policy_row.user_window_seconds
     );
@@ -759,7 +759,7 @@ BEGIN
 
     ip_window_start := pg_catalog.TO_TIMESTAMP(
         pg_catalog.FLOOR(
-            pg_catalog.DATE_PART('epoch', current_time)
+            pg_catalog.DATE_PART('epoch', quota_now)
             / policy_row.ip_window_seconds
         ) * policy_row.ip_window_seconds
     );
@@ -797,7 +797,7 @@ BEGIN
                     0
                 )
             END,
-        updated_at = current_time
+        updated_at = quota_now
     WHERE reservations.id = reservation_row.id
     RETURNING reservations.* INTO reservation_row;
 
@@ -844,7 +844,7 @@ SET statement_timeout = '5s'
 AS $$
 DECLARE
     reservation_row internal.ai_quota_reservations%ROWTYPE;
-    current_time TIMESTAMPTZ;
+    quota_now TIMESTAMPTZ;
 BEGIN
     PERFORM internal.require_service_role();
 
@@ -872,7 +872,7 @@ BEGIN
     -- Read the wall clock only after the row-lock wait. Otherwise a finalizer
     -- that started before expiry could wait behind cleanup and commit after the
     -- lease boundary using a stale timestamp.
-    current_time := pg_catalog.CLOCK_TIMESTAMP();
+    quota_now := pg_catalog.CLOCK_TIMESTAMP();
 
     -- A new token is generated for every retry. This fencing check prevents a
     -- delayed commit/refund from an older attempt from mutating the newer
@@ -888,15 +888,15 @@ BEGIN
 
     IF p_final_state = 'committed' THEN
         IF reservation_row.state <> 'reserved'
-           OR reservation_row.lease_expires_at <= current_time THEN
+           OR reservation_row.lease_expires_at <= quota_now THEN
             RAISE EXCEPTION 'ai_quota_finalization_conflict'
                 USING ERRCODE = 'P0001';
         END IF;
         UPDATE internal.ai_quota_reservations AS reservations
         SET
             state = 'committed',
-            committed_at = current_time,
-            updated_at = current_time
+            committed_at = quota_now,
+            updated_at = quota_now
         WHERE reservations.id = p_reservation_id;
 
         -- Committed counters remain consumed, so only their mutable links are
@@ -911,8 +911,8 @@ BEGIN
         UPDATE internal.ai_quota_reservations AS reservations
         SET
             state = 'failed',
-            failed_at = current_time,
-            updated_at = current_time
+            failed_at = quota_now,
+            updated_at = quota_now
         WHERE reservations.id = p_reservation_id;
     ELSE
         IF reservation_row.state <> 'reserved' THEN
@@ -926,8 +926,8 @@ BEGIN
         SET
             state = 'refunded',
             refund_count = reservations.refund_count + 1,
-            refunded_at = current_time,
-            updated_at = current_time
+            refunded_at = quota_now,
+            updated_at = quota_now
         WHERE reservations.id = p_reservation_id;
     END IF;
 
@@ -979,7 +979,7 @@ AS $$
 DECLARE
     reservation_row internal.ai_quota_reservations%ROWTYPE;
     refunded_count INTEGER := 0;
-    current_time TIMESTAMPTZ := pg_catalog.CLOCK_TIMESTAMP();
+    quota_now TIMESTAMPTZ := pg_catalog.CLOCK_TIMESTAMP();
 BEGIN
     IF p_limit IS NULL OR p_limit < 1 OR p_limit > 10000 THEN
         RAISE EXCEPTION 'ai_quota_invalid_cleanup_limit'
@@ -990,7 +990,7 @@ BEGIN
         SELECT reservations.*
         FROM internal.ai_quota_reservations AS reservations
         WHERE reservations.state = 'reserved'
-          AND reservations.lease_expires_at <= current_time
+          AND reservations.lease_expires_at <= quota_now
         ORDER BY reservations.lease_expires_at, reservations.id
         LIMIT p_limit
         FOR UPDATE SKIP LOCKED
@@ -1002,8 +1002,8 @@ BEGIN
         SET
             state = 'refunded',
             refund_count = reservations.refund_count + 1,
-            refunded_at = current_time,
-            updated_at = current_time
+            refunded_at = quota_now,
+            updated_at = quota_now
         WHERE reservations.id = reservation_row.id
           AND reservations.state = 'reserved'
           AND reservations.lease_token = reservation_row.lease_token;

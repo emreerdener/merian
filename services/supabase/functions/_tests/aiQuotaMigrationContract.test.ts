@@ -39,6 +39,10 @@ Deno.test("AI quota migration keeps entitlement and counters server-owned", asyn
   ) {
     assertStringIncludes(sql, fragment);
   }
+  assert(
+    !sql.includes("current_time TIMESTAMPTZ"),
+    "quota PL/pgSQL variables must not shadow the SQL CURRENT_TIME keyword",
+  );
 });
 
 Deno.test("AI quota reservation is atomic, idempotent, and fail-closed", async () => {
@@ -86,7 +90,7 @@ Deno.test("AI quota reservation is atomic, idempotent, and fail-closed", async (
   const reserveBody = sql.slice(reserveStart, reserveEnd);
   assert(
     reserveBody.indexOf("FOR UPDATE; reservation_found := FOUND") <
-      reserveBody.indexOf("current_time := pg_catalog.CLOCK_TIMESTAMP()"),
+      reserveBody.indexOf("quota_now := pg_catalog.CLOCK_TIMESTAMP()"),
     "reservation recovery must evaluate lease expiry after its row-lock wait",
   );
 
@@ -100,7 +104,7 @@ Deno.test("AI quota reservation is atomic, idempotent, and fail-closed", async (
   const finalizeBody = sql.slice(finalizeStart, finalizeEnd);
   assert(
     finalizeBody.indexOf("FOR UPDATE") <
-      finalizeBody.indexOf("current_time := pg_catalog.CLOCK_TIMESTAMP()"),
+      finalizeBody.indexOf("quota_now := pg_catalog.CLOCK_TIMESTAMP()"),
     "finalization must evaluate lease expiry after its row-lock wait",
   );
 
