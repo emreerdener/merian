@@ -332,7 +332,7 @@ struct ExploreAuthorProfileContent: View {
 
                 ScansHeatmap(heatmapData: profile.profileHeatmapData)
 
-                if FieldTripsAvailability.isEnabled,
+                if FeatureFlags.isEnabled(.fieldTrips),
                    let fieldTrips = profile.fieldTrips,
                    FieldTripProfilePresentation.hasContent(
                        fieldTrips,
@@ -411,7 +411,7 @@ struct ExploreAuthorProfileContent: View {
     }
 
     private func visibleAwards(for profile: ExploreAuthorProfile) -> [AwardPayload] {
-        guard !FieldTripsAvailability.isEnabled else { return profile.awardPayloads }
+        guard !FeatureFlags.isEnabled(.fieldTrips) else { return profile.awardPayloads }
         return profile.awardPayloads.filter { $0.type != .firstFieldTrip }
     }
 

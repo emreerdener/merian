@@ -39,7 +39,7 @@ import Observation
         }
 #endif
 
-        if MerianConfig.alphaUnlimitedFreeScansEnabled {
+        if FeatureFlags.isEnabled(.unlimitedFreeScans) {
             return true
         }
 
@@ -54,7 +54,7 @@ import Observation
         guard isFreeScanLimitOverrideEnabled, !hasLoggedFreeScanLimitOverride else { return }
         hasLoggedFreeScanLimitOverride = true
 
-        if MerianConfig.alphaUnlimitedFreeScansEnabled {
+        if FeatureFlags.isEnabled(.unlimitedFreeScans) {
             MerianLog.general.warning("TEMP OVERRIDE ACTIVE: unlimited free scans are enabled for prelaunch testing.")
             return
         }

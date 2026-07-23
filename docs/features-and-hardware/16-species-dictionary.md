@@ -314,13 +314,16 @@ plus region summaries derived from `species_dictionary.native_region`.
 count and representative image so it does not duplicate the `All` total. iOS
 uses that featured card as the visible Recently Added entry point, renders
 `Your Region` as a full-width MapKit snapshot card when a matched native-region
-catalog exists, and moves `All` into a bottom row link. Explore keeps Dictionary
-as the only bottom-navigation entry for species reference surfaces; the root
-Dictionary tab exposes a header segmented control that switches between the
-Catalog overview/search content and the Tree canvas. The region snapshot uses
-the backend-matched native region and falls back to a default United States map
-only when MapKit geocoding cannot resolve that region label. If the overview has
-no non-empty region summaries with species counts, iOS hides the Region section
+catalog exists, and moves `All` into a bottom row link. Explore keeps all
+Dictionary surfaces under its `Index` bottom-navigation entry; the root Index
+tab currently shows only the Catalog overview/search content.
+`FeatureFlags.isEnabled(.speciesDictionaryTree)` is the default-off release
+gate for the Catalog/Tree header control, the Tree canvas, and the internal
+taxonomy destination. DEBUG builds can override it from Settings → Feature
+Flags; Release builds always use the code default. The region snapshot uses the
+backend-matched native region and falls back to a default United States map only
+when MapKit geocoding cannot resolve that region label. If the overview has no
+non-empty region summaries with species counts, iOS hides the Region section
 and the "Browse all regions" row instead of showing an empty regional path.
 Catalog detail pages opened from overview cards or rows, including Birds,
 Mammals, All, Your Region, and Recently Added, keep the same paginated species
@@ -438,9 +441,13 @@ content.
 
 ### Tree Mode
 
-The Tree of Life canvas is available from the Explore Dictionary header segment
-instead of as a separate Explore bottom-navigation tab. It uses the same Edge
-Function with `mode: "tree"`:
+The Tree of Life canvas and its Explore Dictionary header segment remain
+implemented but are hidden while
+`FeatureFlag.speciesDictionaryTree.defaultValue` is `false`. The same resolved
+flag also guards the internal taxonomy destination so a stale route cannot
+expose the unfinished canvas. When the flag is enabled in a DEBUG build, Tree
+appears within Index rather than as a separate Explore bottom-navigation tab
+and uses the same Edge Function with `mode: "tree"`:
 
 ```json
 {

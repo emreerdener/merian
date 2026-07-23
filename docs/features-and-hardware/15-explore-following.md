@@ -61,8 +61,9 @@ New and extended RPCs:
 - `public.get_explore_feed_following(self_id, max_limit, before_shared_at, before_post_id)`: returns the same card projection as the feed, filtered to followed authors and ordered by `(shared_at DESC, post_id DESC)`.
 - `public.get_explore_author_profile(...)`: now includes `follower_count`, `following_count`, and `viewer_is_following`.
 - `public.reparent_user_follows(ghost_id, target_user_id)`: legacy
-  service-role-only compatibility helper. Client execution is revoked; the
-  atomic Ghost merge resolves follows privately.
+  owner/internal-only compatibility helper. Execution is revoked from every
+  Data API role, including `service_role`; the atomic Ghost merge resolves
+  follows privately as the function owner.
 
 ## Edge Functions
 

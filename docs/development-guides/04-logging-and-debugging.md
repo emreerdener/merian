@@ -99,6 +99,19 @@ MerianLog.general.debug("Species: \(name, privacy: .auto)")
 ### Xcode Debug Console
 During a debug build, all `.debug` messages appear in the Xcode console. To filter in the console output stream, use `subsystem` as a filter prefix.
 
+### Feature flag registry and local overrides
+
+All client-build release gates are listed in the `FeatureFlag` enum in
+`Core/Utilities/FieldTripsAvailability.swift`. Their `defaultValue` entries are
+the values used by TestFlight and App Store builds.
+
+DEBUG builds add a **Feature Flags** section to Settings. Its toggles persist
+device-local overrides so unfinished or staged UI can be exercised without
+editing and rebuilding. **Use code defaults** clears every override. Release
+builds neither show these controls nor read the stored values, and no toggle
+changes backend authorization. Production rollout or rollback still requires a
+code-default change and a new iOS build.
+
 ### Field trip rollout reminder
 
 Every non-test DEBUG app startup calls
@@ -111,7 +124,7 @@ TODO(field-trip-events-release): Outings are public; Events remain staged to the
 
 Filter the Xcode console for `field-trip-events-release`, or use
 `subsystem:com.merian.app category:General` in Console.app. The same named TODO
-is beside `FieldTripEventsAvailability.isReleased`, and the canonical release
+is beside the `.fieldTripEvents` registry default, and the canonical release
 checklist is in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
 The reminder is compiled only into DEBUG builds, contains no user data, and is
@@ -130,7 +143,7 @@ Some noisy lines come from Apple frameworks or third-party development configura
 | `_dictationButton not yet initialized`, `System gesture gate timed out` | UIKit accessibility/dictation setup or a system gesture recognizer missed its timing window. | Treat as framework noise unless the matching dictation control, gesture, or transition visibly fails. |
 | `PostHog identity buffered until SDK configuration completes` | Expected defensive path if identity arrives before setup in a future startup order. | Should be rare because Supabase configures PostHog before auth listening. |
 | `Environment configuration degraded: Debug simulator is using production Supabase...` | A Debug simulator resolved the production project. This is a warning, not a network block; auth, reads, writes, and anonymous-user creation still proceed. | Prefer local/staging for routine work. For a deliberate production smoke test, avoid reinstalling/clearing the session and set the documented scheme override only for that run. |
-| `TEMP OVERRIDE ACTIVE: unlimited free scans...` | Expected in every current prelaunch build, including TestFlight; it may appear beside the separate `PostHog initialized` line. Older binaries say `alpha phase`; current source says `prelaunch testing`. Both mean the override is active. | No action during testing. Clean/rebuild if validating the current wording. Before public App Store release, set `MerianConfig.alphaUnlimitedFreeScansEnabled` to `false` and confirm the warning is absent from the release candidate. |
+| `TEMP OVERRIDE ACTIVE: unlimited free scans...` | Expected in every current prelaunch build, including TestFlight; it may appear beside the separate `PostHog initialized` line. Older binaries say `alpha phase`; current source says `prelaunch testing`. Both mean the override is active. | No action during testing. Clean/rebuild if validating the current wording. Before public App Store release, change `FeatureFlag.unlimitedFreeScans.defaultValue` to `false` and confirm the warning is absent from the release candidate. |
 | `None of the products registered in the RevenueCat dashboard could be fetched from App Store Connect (or the StoreKit Configuration file...)` | RevenueCat fetched its offering metadata, but StoreKit could not resolve the mapped products. A successful RevenueCat login does not validate product availability. | First fix the selected store environment: Test Store key/products for fast simulator testing, or an attached StoreKit configuration/App Store Connect products with the production iOS key. Then verify the current offering returns `pro_week` and `pro_annual`. |
 | `RevenueCat returned no current offering`, `current offering has no available packages`, or `missing required products` | StoreKit returned far enough for the app's own offering policy to run, but the dashboard-selected offering is absent or incomplete. Required product IDs are `pro_week` and `pro_annual`. | Fix RevenueCat current-offering selection and package mapping, then repeat the paywall smoke test. |
 | `RevenueCat is already using the same appUserID` | The SDK was asked to log in the already-cached Supabase UUID. | Benign when followed by `RevenueCat login succeeded`; investigate only if identity or entitlement state is wrong. |

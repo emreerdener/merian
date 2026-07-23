@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import {
   buildAllFunctionGraphs,
+  configuredFunctionNames,
   functionsRoot,
   repoRelative,
   supabaseRoot,
@@ -101,11 +102,7 @@ async function main(): Promise<void> {
   }
 
   const configToml = await Deno.readTextFile(join(supabaseRoot, "config.toml"));
-  const configuredFunctions = new Set(
-    [...configToml.matchAll(/^\[functions\.([^\]]+)\]$/gm)].map((match) =>
-      match[1]
-    ),
-  );
+  const configuredFunctions = new Set(configuredFunctionNames(configToml));
   const functionNames = new Set(graphs.map((graph) => graph.name));
   const missingConfig = sortedDifference(functionNames, configuredFunctions);
   const staleConfig = sortedDifference(configuredFunctions, functionNames);

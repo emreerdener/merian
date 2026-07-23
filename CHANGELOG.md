@@ -32,6 +32,8 @@ TestFlight, App Store, support, and QA.
 
 ### Species Dictionary
 
+- Temporarily hid the unfinished Tree of Life view from Explore’s Index while
+  keeping the Species Dictionary catalog available.
 - Added sharing to Species Dictionary pages. Shared links open the matching
   Dictionary page in Naturebook when installed and otherwise show a rich public
   web reference with licensed imagery, attribution, taxonomy, conservation and

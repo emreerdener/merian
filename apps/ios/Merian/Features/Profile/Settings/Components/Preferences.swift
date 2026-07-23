@@ -170,7 +170,7 @@ struct Preferences: View {
                 )
             }
 
-            if FieldTripsAvailability.isEnabled {
+            if FeatureFlags.isEnabled(.fieldTrips) {
                 SettingsToggleRow(
                     title: "Field trip goals",
                     description: "Show your current outing target and progress on the Scan camera.",
@@ -194,6 +194,8 @@ struct Preferences: View {
         }
 
         #if DEBUG
+        FeatureFlagDeveloperControls()
+
         Section {
             Button {
                 let engine = AppDIContainer.shared.inferenceEngine
@@ -283,6 +285,106 @@ struct Preferences: View {
 }
 
 #if DEBUG
+private struct FeatureFlagDeveloperControls: View {
+    @State private var refreshToken = 0
+
+    var body: some View {
+        Section {
+            ForEach(FeatureFlag.allCases) { flag in
+                SettingsToggleRow(
+                    title: flag.title,
+                    description: description(for: flag),
+                    isOn: binding(for: flag),
+                    icon: icon(for: flag),
+                    iconColor: color(for: flag)
+                )
+                .accessibilityIdentifier("Settings_FeatureFlag_\(flag.rawValue)")
+            }
+
+            if hasOverrides {
+                Button {
+                    FeatureFlags.resetDebugOverrides()
+                    UsageManager.shared.evaluateDailyRefresh()
+                    refreshToken += 1
+                } label: {
+                    Label("Use code defaults", systemImage: "arrow.uturn.backward.circle")
+                }
+                .accessibilityIdentifier("Settings_ResetFeatureFlags")
+            }
+        } header: {
+            Text("Feature Flags")
+        } footer: {
+            Text("Debug-only overrides are stored on this device. Relaunch to refresh every surface. Release builds ignore them.")
+        }
+        .id(refreshToken)
+    }
+
+    private var hasOverrides: Bool {
+        FeatureFlag.allCases.contains {
+            FeatureFlags.debugOverride(for: $0) != nil
+        }
+    }
+
+    private func binding(for flag: FeatureFlag) -> Binding<Bool> {
+        Binding(
+            get: { effectiveValue(for: flag) },
+            set: { newValue in
+                FeatureFlags.setDebugOverride(newValue, for: flag)
+                if flag == .unlimitedFreeScans {
+                    UsageManager.shared.evaluateDailyRefresh()
+                }
+                refreshToken += 1
+            }
+        )
+    }
+
+    private func effectiveValue(for flag: FeatureFlag) -> Bool {
+        if flag == .fieldTripEvents {
+            return FieldTripEventsAvailability.isEnabled
+        }
+        return FeatureFlags.isEnabled(flag)
+    }
+
+    private func description(for flag: FeatureFlag) -> String {
+        let stateDescription: String
+        if let override = FeatureFlags.debugOverride(for: flag) {
+            stateDescription = "Debug override: \(override ? "On" : "Off")."
+        } else if flag == .fieldTripEvents,
+                  effectiveValue(for: flag) != flag.defaultValue {
+            stateDescription = "Automatic preview: On. Release default: Off."
+        } else {
+            stateDescription = "Code default: \(flag.defaultValue ? "On" : "Off")."
+        }
+        return "\(flag.summary) \(stateDescription)"
+    }
+
+    private func icon(for flag: FeatureFlag) -> String {
+        switch flag {
+        case .speciesDictionaryTree:
+            "tree.fill"
+        case .fieldTrips:
+            "map.fill"
+        case .fieldTripEvents:
+            "calendar.badge.clock"
+        case .unlimitedFreeScans:
+            "infinity.circle.fill"
+        }
+    }
+
+    private func color(for flag: FeatureFlag) -> Color {
+        switch flag {
+        case .speciesDictionaryTree:
+            .green
+        case .fieldTrips:
+            .indigo
+        case .fieldTripEvents:
+            .orange
+        case .unlimitedFreeScans:
+            .blue
+        }
+    }
+}
+
 extension Notification.Name {
     static let devPreviewAnalyzing = Notification.Name("dev.merian.previewAnalyzing")
 }

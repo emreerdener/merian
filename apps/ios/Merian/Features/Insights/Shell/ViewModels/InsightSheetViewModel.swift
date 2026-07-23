@@ -33,7 +33,7 @@ final class InsightSheetViewModel {
             SupabaseManager.shared.isAuthenticated
         },
         fieldTripAvailabilityResolver: @MainActor @escaping () -> Bool = {
-            FieldTripsAvailability.isEnabled
+            FeatureFlags.isEnabled(.fieldTrips)
         },
         fieldTripEventsAvailabilityResolver: @MainActor @escaping () -> Bool = {
             FieldTripEventsAvailability.isEnabled

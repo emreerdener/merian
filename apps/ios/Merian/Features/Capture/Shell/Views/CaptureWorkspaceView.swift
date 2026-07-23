@@ -168,7 +168,7 @@ struct CaptureWorkspaceView: View {
 
     private var shouldShowCaptureGoalPresentation: Bool {
         ActiveCaptureGoalPresentationPolicy.shouldShow(
-            goalsEnabled: FieldTripsAvailability.isEnabled,
+            goalsEnabled: FeatureFlags.isEnabled(.fieldTrips),
             isUserVisible: appSettings.showsCaptureGoalProgress,
             isVisualMode: captureMode == .visual,
             hasPresentation: activeCaptureGoalPresentation != nil,
@@ -511,7 +511,7 @@ struct CaptureWorkspaceView: View {
             AppDIContainer.shared.environmentContextManager.startLiveLocationTracking()
             viewModel.importPendingExternalImageIfPossible()
             activeCaptureGoalStore.activate(accountId: currentAccountId)
-            if FieldTripsAvailability.isEnabled {
+            if FeatureFlags.isEnabled(.fieldTrips) {
                 Task {
                     await activeCaptureGoalStore.refreshIfStale(
                         accountId: currentAccountId
@@ -573,7 +573,7 @@ struct CaptureWorkspaceView: View {
             )
             if newPhase == .active {
                 viewModel.importPendingExternalImageIfPossible()
-                if FieldTripsAvailability.isEnabled {
+                if FeatureFlags.isEnabled(.fieldTrips) {
                     Task {
                         await activeCaptureGoalStore.refreshIfStale(
                             accountId: currentAccountId
@@ -592,7 +592,7 @@ struct CaptureWorkspaceView: View {
                 cameraManager: cameraManager,
                 audioCaptureManager: audioCaptureManager
             )
-            if newMode == .visual, FieldTripsAvailability.isEnabled {
+            if newMode == .visual, FeatureFlags.isEnabled(.fieldTrips) {
                 Task {
                     await activeCaptureGoalStore.refreshIfStale(
                         accountId: currentAccountId
@@ -603,7 +603,7 @@ struct CaptureWorkspaceView: View {
 
         .onChange(of: supabaseManager.currentUser?.id) { _, _ in
             activeCaptureGoalStore.activate(accountId: currentAccountId)
-            guard FieldTripsAvailability.isEnabled else { return }
+            guard FeatureFlags.isEnabled(.fieldTrips) else { return }
             Task {
                 await activeCaptureGoalStore.refreshIfStale(
                     accountId: currentAccountId
@@ -641,7 +641,7 @@ struct CaptureWorkspaceView: View {
                 // Close the complete sheet stack and restore visual scanning.
                 viewModel.activeSheet = nil
                 captureMode = .visual
-                if FieldTripsAvailability.isEnabled {
+                if FeatureFlags.isEnabled(.fieldTrips) {
                     Task {
                         await activeCaptureGoalStore.refresh(
                             accountId: currentAccountId,
@@ -650,7 +650,7 @@ struct CaptureWorkspaceView: View {
                     }
                 }
             case .fieldTripProgressUpdated, .captureGoalContextInvalidated:
-                guard FieldTripsAvailability.isEnabled else { break }
+                guard FeatureFlags.isEnabled(.fieldTrips) else { break }
                 Task {
                     await activeCaptureGoalStore.refresh(
                         accountId: currentAccountId,
@@ -727,7 +727,7 @@ struct CaptureWorkspaceView: View {
 
     private var preferredFieldTripGoal: FieldTripPreferredGoal? {
         CaptureGoalPreferencePolicy.preferredGoal(
-            goalsEnabled: FieldTripsAvailability.isEnabled,
+            goalsEnabled: FeatureFlags.isEnabled(.fieldTrips),
             isUserVisible: appSettings.showsCaptureGoalProgress,
             isVisualMode: captureMode == .visual,
             isRefining: viewModel.baseRefinementContext != nil,

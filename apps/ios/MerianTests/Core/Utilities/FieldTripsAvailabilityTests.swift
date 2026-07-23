@@ -1,3 +1,4 @@
+import Foundation
 @testable import Merian
 import Testing
 
@@ -5,12 +6,58 @@ import Testing
 @MainActor
 struct FieldTripsAvailabilityTests {
     @Test func fieldTripsAreReleasedForEveryUserAndDevice() {
-        #expect(FieldTripsAvailability.isEnabled)
+        #expect(FeatureFlags.isEnabled(.fieldTrips))
     }
 
     @Test func eventsRemainStagedUntilTheExplicitReleaseChange() {
         #expect(!FieldTripEventsAvailability.isReleased)
     }
+
+    @Test func registryContainsEveryReleaseGateAndItsProductionDefault() {
+        #expect(FeatureFlag.allCases == [
+            .speciesDictionaryTree,
+            .fieldTrips,
+            .fieldTripEvents,
+            .unlimitedFreeScans
+        ])
+        #expect(!FeatureFlag.speciesDictionaryTree.defaultValue)
+        #expect(FeatureFlag.fieldTrips.defaultValue)
+        #expect(!FeatureFlag.fieldTripEvents.defaultValue)
+        #expect(FeatureFlag.unlimitedFreeScans.defaultValue)
+    }
+
+    #if DEBUG
+    @Test func debugOverridesArePersistedAndCanReturnToTheCodeDefault() throws {
+        let suiteName = "FeatureFlagsTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(!FeatureFlags.isEnabled(
+            .speciesDictionaryTree,
+            userDefaults: userDefaults
+        ))
+
+        FeatureFlags.setDebugOverride(
+            true,
+            for: .speciesDictionaryTree,
+            userDefaults: userDefaults
+        )
+        #expect(FeatureFlags.isEnabled(
+            .speciesDictionaryTree,
+            userDefaults: userDefaults
+        ))
+
+        FeatureFlags.setDebugOverride(
+            nil,
+            for: .speciesDictionaryTree,
+            userDefaults: userDefaults
+        )
+        #expect(!FeatureFlags.isEnabled(
+            .speciesDictionaryTree,
+            userDefaults: userDefaults
+        ))
+    }
+    #endif
 
     @Test func simulatorAlwaysEnablesFieldTripEventsPreview() {
         #expect(FieldTripEventsAvailability.isEnabled(
@@ -56,6 +103,21 @@ struct FieldTripsAvailabilityTests {
             isReleased: true,
             email: "someone@example.com",
             isSimulator: false
+        ))
+    }
+
+    @Test func eventDebugOverrideWinsOverReleaseAndPreviewEligibility() {
+        #expect(!FieldTripEventsAvailability.isEnabled(
+            isReleased: true,
+            email: FieldTripEventsAvailability.allowedEmail,
+            isSimulator: true,
+            debugOverride: false
+        ))
+        #expect(FieldTripEventsAvailability.isEnabled(
+            isReleased: false,
+            email: nil,
+            isSimulator: false,
+            debugOverride: true
         ))
     }
 }

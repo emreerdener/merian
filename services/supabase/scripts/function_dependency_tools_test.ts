@@ -1,16 +1,25 @@
+import { join } from "node:path";
 import {
   assert,
   assertEquals,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildAllFunctionGraphs,
+  configuredFunctionNames,
   planAffectedFunctions,
+  supabaseRoot,
 } from "./function_dependency_tools.ts";
 
 const graphs = await buildAllFunctionGraphs();
+const configuredFunctions = configuredFunctionNames(
+  await Deno.readTextFile(join(supabaseRoot, "config.toml")),
+);
 
-Deno.test("every Edge Function has a discoverable graph", () => {
-  assertEquals(graphs.length, 79);
+Deno.test("every configured Edge Function has a discoverable graph", () => {
+  assertEquals(
+    graphs.map((graph) => graph.name).sort(),
+    configuredFunctions,
+  );
   assert(graphs.every((graph) => graph.files.has(graph.entrypoint)));
 });
 

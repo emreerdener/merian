@@ -6,16 +6,16 @@ posts, like them, and leave comments while Merian preserves its privacy-first
 posture for both authenticated and ghost users.
 
 Field trips and standard Outings are released for every user. Existing iOS
-entry points continue to use the shared `FieldTripsAvailability` rule so the
-release state remains centralized. Events remain behind
+entry points continue to use the shared `FeatureFlags` registry so the release
+state remains centralized. Events remain behind
 `FieldTripEventsAvailability`: enabled only for `erdener.emre@gmail.com`
 (case/whitespace normalized) or simulator builds until its client release flag
 is enabled. The Events gate covers its segment, fetches, routes, profile badges,
 and bundled preview changelog entry. These client release gates are not
-authorization boundaries; the backend infrastructure remains deployed. Events
-is a client-build switch rather than a remotely managed flag, so release and
-rollback each require an iOS build. The checklist and named DEBUG startup TODO
-are documented in
+authorization boundaries; the backend infrastructure remains deployed. DEBUG
+builds expose device-local overrides under Settings → Feature Flags, but
+production release and rollback still require an iOS build. The checklist and
+named DEBUG startup TODO are documented in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
 
 ## Locked Product Decisions
@@ -96,7 +96,7 @@ are documented in
 
 The Explore feed and map shell are now live. The current shipped implementation is:
 
-- `ExploreView` uses bottom navigation for `Observations`, `Identify`, `Field trips`, and `Dictionary`. Observations owns a root-only Feed/Map header toggle with Feed first, Field trips opens directly to Outings while Events is disabled and owns the Outings/Events toggle when that preview is available, and Dictionary keeps Tree behind its Catalog/Tree header toggle. Completed standard-outing goals resolve their private completion scan ID to a device-local photo/video-poster thumbnail; tapping one pushes the existing Insight view in the same Explore navigation stack and returns to the outing on back.
+- `ExploreView` uses bottom navigation for `Observations`, `Identify`, `Field trips`, and `Index`. Observations owns a root-only Feed/Map header toggle with Feed first, Field trips opens directly to Outings while Events is disabled and owns the Outings/Events toggle when that preview is available, and Index currently shows the Species Dictionary catalog only. Its unfinished Catalog/Tree header toggle, Tree canvas, and internal taxonomy destination are all guarded by the default-off `.speciesDictionaryTree` release flag in `FeatureFlags`. Completed standard-outing goals resolve their private completion scan ID to a device-local photo/video-poster thumbnail; tapping one pushes the existing Insight view in the same Explore navigation stack and returns to the outing on back.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
 - Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.

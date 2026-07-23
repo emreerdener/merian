@@ -5,14 +5,14 @@ The `Shell` directory acts as the root container and routing hub for the Explore
 ## Purpose
 This area orchestrates the top-level navigation, layout chrome, and state coordination for the Explore feature. It manages the transitions between Observations, Identify, Field trips, Dictionary, pushed detail routes, notifications, and search interfaces while keeping the sub-components focused on their own domain logic.
 
-Field trips and standard Outings are released for every user through the shared
-`FieldTripsAvailability` rule. Events remain staged behind
-`FieldTripEventsAvailability` for the allowlisted tester email and simulator
-builds. New Event entry points must use that shared rule for UI, loading, and
-routing rather than adding local debug checks. This is a client-build switch,
-not a remote flag; DEBUG startup logs `TODO(field-trip-events-release)` until the
-canonical checklist in `docs/features-and-hardware/25-field-trips.md` is
-completed.
+Field trips and standard Outings are released for every user through the
+`.fieldTrips` entry in the central `FeatureFlags` registry. Events remain staged
+behind `FieldTripEventsAvailability` for the allowlisted tester email and
+simulator builds. New Event entry points must use that shared rule for UI,
+loading, and routing rather than adding local debug checks. This is a
+client-build switch, not a remote flag; DEBUG startup logs
+`TODO(field-trip-events-release)` until the canonical checklist in
+`docs/features-and-hardware/25-field-trips.md` is completed.
 
 ## Fresh-launch entry
 

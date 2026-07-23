@@ -1,5 +1,5 @@
-import XCTest
 @testable import Merian
+import XCTest
 
 @MainActor
 final class UsageManagerTests: XCTestCase {
@@ -9,7 +9,7 @@ final class UsageManagerTests: XCTestCase {
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
-        MerianConfig.alphaUnlimitedFreeScansEnabled = false
+        FeatureFlags.setDebugOverride(false, for: .unlimitedFreeScans)
         UsageManager.debugFreeScanLimitOverride = nil
         UsageManager.shared.evaluateDailyRefresh()
     }
@@ -18,7 +18,7 @@ final class UsageManagerTests: XCTestCase {
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
-        MerianConfig.alphaUnlimitedFreeScansEnabled = true
+        FeatureFlags.setDebugOverride(nil, for: .unlimitedFreeScans)
         UsageManager.debugFreeScanLimitOverride = nil
         UsageManager.shared.evaluateDailyRefresh()
     }
@@ -67,9 +67,9 @@ final class UsageManagerTests: XCTestCase {
         XCTAssertEqual(usageManager.freeScansRemaining, usageManager.maxFreeScansPerDay)
     }
 
-    func testAlphaOverrideDisablesFreeScanLimitWithoutConsumingQuota() {
+    func testFeatureFlagDisablesFreeScanLimitWithoutConsumingQuota() {
         let usageManager = UsageManager.shared
-        MerianConfig.alphaUnlimitedFreeScansEnabled = true
+        FeatureFlags.setDebugOverride(true, for: .unlimitedFreeScans)
 
         usageManager.evaluateDailyRefresh()
         XCTAssertTrue(usageManager.canPerformScan(isProActive: false))

@@ -249,7 +249,7 @@ final class ExploreFeedViewModel {
 
     var feedItems: [ExploreFeedItem] {
         let observations = posts.map(ExploreFeedItem.observation)
-        let fieldTrips = FieldTripsAvailability.isEnabled
+        let fieldTrips = FeatureFlags.isEnabled(.fieldTrips)
             ? fieldTripPublications.map(ExploreFeedItem.fieldTrip)
             : []
         return (observations + fieldTrips).sorted { $0.publishedAt > $1.publishedAt }

@@ -1273,11 +1273,12 @@ and `KeychainManager` migration logic. Do not inline
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from
   `AppDIContainer.handleActivePhase()` on foreground transitions.
-- **Prelaunch override**: `MerianConfig.alphaUnlimitedFreeScansEnabled` is
-  intentionally `true` in every current build, including Release/TestFlight, so
-  testers are not constrained by the daily free quota. Before the public App
-  Store release, set it to `false`, rerun `UsageManagerTests`, and verify the
-  standard Pro/free quota path on a physical release-candidate build.
+- **Prelaunch override**:
+  `FeatureFlag.unlimitedFreeScans.defaultValue` is intentionally `true` in
+  every current build, including Release/TestFlight, so testers are not
+  constrained by the daily free quota. Before the public App Store release,
+  change its central default to `false`, rerun `UsageManagerTests`, and verify
+  the standard Pro/free quota path on a physical release-candidate build.
 - Full contract documented in
   [02-revenue-and-identity.md](../features-and-hardware/02-revenue-and-identity.md#usage-limits-usagemanager).
 
@@ -1346,8 +1347,9 @@ and `KeychainManager` migration logic. Do not inline
   do not replay the original scan-achievement/dictionary batch. When Field trips
   are disabled, the coordinator skips its progress resolver while ordinary scan
   achievements and dictionary milestones continue normally.
-  `FieldTripsAvailability` is currently public/always on; availability injection
-  remains as a test seam and future emergency client-build control. The
+  `.fieldTrips` is currently enabled in the central `FeatureFlags` registry;
+  availability injection remains as a test seam and future emergency
+  client-build control. The
   independent Events gate does not suppress standard outing progress.
   Retryable failures keep the selected-goal SwiftData row as a durable outbox,
   release ordinary milestones through a separate once-per-scan guard, and use

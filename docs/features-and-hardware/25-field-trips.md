@@ -9,8 +9,9 @@ only a camera/performance setting.
 
 - Standard Field trips and Outings are released for every user. Events remain a
   client-gated preview for `erdener.emre@gmail.com` and simulator builds through
-  `FieldTripEventsAvailability.isReleased`; enabling that release flag exposes
-  Events to everyone. The client gate is not a backend authorization boundary.
+  the `.fieldTripEvents` default in the central `FeatureFlags` registry;
+  enabling that release flag exposes Events to everyone. The client gate is not
+  a backend authorization boundary.
 - Field trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
 - The Field trips surface opens directly to `Outings` for standard outings. When
   Events are enabled, the page header adds an `Outings`/`Events` segmented picker
@@ -93,14 +94,16 @@ only a camera/performance setting.
 
 The release state is intentionally split in iOS:
 
-- `FieldTripsAvailability.isEnabled == true` makes Field trips and standard
+- `FeatureFlag.fieldTrips.defaultValue == true` makes Field trips and standard
   Outings public.
-- `FieldTripEventsAvailability.isReleased == false` keeps Events staged. The
-  allowlisted tester account and simulator builds bypass that flag so UI/UX work
-  can continue against the deployed backend.
+- `FeatureFlag.fieldTripEvents.defaultValue == false` keeps Events staged. The
+  allowlisted tester account and simulator builds bypass that default so UI/UX
+  work can continue against the deployed backend.
 - This is a client-build flag, not a remotely managed feature flag. Changing it
   requires a new iOS build and release. It does not grant or revoke backend
   authorization.
+- DEBUG Settings → Feature Flags can persist a device-local override for QA.
+  Release builds ignore those overrides and always resolve the code defaults.
 - DEBUG app startup writes
   `TODO(field-trip-events-release): Outings are public; Events remain staged to the tester allowlist and simulator builds.`
   to `MerianLog.general`. The source flag carries the same named TODO so a repo
@@ -116,9 +119,9 @@ When Events UI/UX is ready for public release:
    comments/likes, and optional Explore hashtag suggestions. The backend is
    already deployed, so do not redeploy it solely because the client flag
    changes.
-3. Set `FieldTripEventsAvailability.isReleased` to `true`, remove the tester and
-   simulator bypass paths, and update `FieldTripsAvailabilityTests` so the
-   public state is locked by tests.
+3. Change the `.fieldTripEvents` code default in `FeatureFlag.defaultValue` to
+   `true`, remove the tester and simulator bypass paths, and update
+   `FieldTripsAvailabilityTests` so the public state is locked by tests.
 4. Promote the gated `2026-07-19-field-trip-events-preview` bundled changelog
    entry into the public Events release entry. Update `README.md`, `CHANGELOG.md`,
    the Explore RFC and shell README, the Explore/Field trips feature docs,

@@ -149,7 +149,7 @@ struct ExploreView: View {
                     Label("Observations", systemImage: "photo.stack")
                 }
 
-                if FieldTripsAvailability.isEnabled {
+                if FeatureFlags.isEnabled(.fieldTrips) {
                     FieldTripsView(
                         userRegion: dictionaryUserRegionIdentifier,
                         selectedSection: $activeFieldTripsSection,
@@ -258,11 +258,17 @@ struct ExploreView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .toolbar {}
                 case .taxonomy:
-                    TaxonomyTreeCanvasView(showsNavigationTitle: true) { speciesRoute in
-                        navigationPath.append(speciesRoute)
+                    if FeatureFlags.isEnabled(.speciesDictionaryTree) {
+                        TaxonomyTreeCanvasView(showsNavigationTitle: true) { speciesRoute in
+                            navigationPath.append(speciesRoute)
+                        }
+                        .toolbar(.hidden, for: .tabBar)
+                        .toolbar {}
+                    } else {
+                        SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
+                            .toolbar(.hidden, for: .tabBar)
+                            .toolbar {}
                     }
-                    .toolbar(.hidden, for: .tabBar)
-                    .toolbar {}
                 case .regions:
                     SpeciesDictionaryRegionsView(userRegion: dictionaryUserRegionIdentifier)
                         .toolbar(.hidden, for: .tabBar)
@@ -577,8 +583,12 @@ struct ExploreView: View {
         case .dictionary:
             SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
         case .tree:
-            TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
-                navigationPath.append(speciesRoute)
+            if FeatureFlags.isEnabled(.speciesDictionaryTree) {
+                TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
+                    navigationPath.append(speciesRoute)
+                }
+            } else {
+                SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
             }
         }
     }
@@ -786,7 +796,7 @@ struct ExploreView: View {
 
         if notification.type.isFieldTripNotification,
            let publicationId = notification.fieldTripPublicationId {
-            guard FieldTripsAvailability.isEnabled else { return }
+            guard FeatureFlags.isEnabled(.fieldTrips) else { return }
             viewModel.dismissNotifications()
             activeTab = .fieldTrips
             navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
@@ -1476,13 +1486,24 @@ private struct ExploreRootModePicker: View {
 
     @ViewBuilder
     var body: some View {
-        if activeTab != .fieldTrips || FieldTripEventsAvailability.isEnabled {
+        if shouldShowPicker {
             picker
                 .pickerStyle(.segmented)
                 .padding(.bottom, 1)
                 .background(Capsule().fill(.regularMaterial))
                 .clipShape(Capsule())
                 .frame(width: pickerWidth)
+        }
+    }
+
+    private var shouldShowPicker: Bool {
+        switch activeTab {
+        case .fieldTrips:
+            FieldTripEventsAvailability.isEnabled
+        case .dictionary:
+            FeatureFlags.isEnabled(.speciesDictionaryTree)
+        case .feed, .community:
+            true
         }
     }
 

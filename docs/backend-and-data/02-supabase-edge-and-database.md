@@ -1546,12 +1546,15 @@ updated or deleted through ordinary service-role writes.
 **Operation order**: The `safe-delete` function executes in the following
 sequence to minimise the window in which a revoked user can still issue API
 calls: (1) **Revoke auth** — `supabaseAdmin.auth.admin.deleteUser(user.id)` is
-called first, immediately invalidating the user's JWT; (2) **Tombstone** —
+called first, preventing refresh and causing Auth-backed `getUser` checks to
+fail; a previously issued signed JWT can remain valid until expiry, so database
+ACL/RLS remains authoritative; (2) **Tombstone** —
 `apply_user_tombstone` RPC reassigns scans and marks the user as deleted; (3)
 **Queue storage deletion** — R2 object purges are enqueued for background
-processing. Auth is revoked before the tombstone write, not after, so any
-race-condition API calls received after deletion begins are rejected at the JWT
-verification layer.
+processing. The handler passes only the user ID returned by its verified
+session. Database execution is granted only to `service_role`, and the function
+also calls `internal.require_service_role()` before accepting the target UUID;
+ordinary direct-data operations remain constrained by RLS throughout cleanup.
 
 **Partial-failure handling**: If `applyUserTombstone` throws after auth has
 already been successfully revoked, the function logs a structured error via
@@ -1725,6 +1728,31 @@ PostgREST rather than through an Edge Function. RLS scopes every row to
   matching remote row. For a real active-value conflict, the newer timestamp
   wins; local-newer or equal values push, while remote-newer values replace the
   SwiftData row. This avoids two devices repeatedly echoing the same value.
+
+## Privileged Database RPC Boundary
+
+`public` is listed in `services/supabase/config.toml` because PostgREST must
+discover application tables and RPCs. Discovery does not grant execution.
+Migration `20260723144640_harden_privileged_routine_execution.sql` removes
+`PUBLIC`, `anon`, `authenticated`, and `service_role` from every public
+`SECURITY DEFINER` function, then grants only the exact reviewed signatures in
+`internal.privileged_routine_grants`.
+
+Direct clients therefore have no anonymous privileged RPC surface.
+Authenticated execution is limited to RPCs that bind authority inside the
+database to `auth.uid()`/`auth.jwt()` or the internal admin authorization
+helper. Service-key Edge calls are limited to reviewed worker/maintenance
+signatures, and every service-exposed function calls
+`internal.require_service_role()` even if an ACL is later broadened by mistake.
+Internal helpers such as follow reparenting and database-wide Explore-media
+refresh receive no Data API role grant.
+
+Every public definer has `search_path = ''`; application relations, custom
+types, and extension operators are schema-qualified. PostgreSQL function
+defaults for the `postgres` migration owner are also owner-only, both globally
+and in `public`, so a newly created function does not silently inherit API
+execution. Static migration tests, a disposable-catalog pgTAP test, and
+pre/post-production read-only audits reject drift before Edge deployment.
 
 ## Explore Author Identity Maintenance
 

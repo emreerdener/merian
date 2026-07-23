@@ -229,10 +229,10 @@ After a successful biological scan, `InferenceEngine` automatically fires
      least once.
    - **Tier 2 (Flash + back-fill):** If the `"en"` key is absent (species in
      dictionary but `common_names` is `NULL`, `{}`, or only has non-English
-     keys), `resolveLookalikesToJoinTable` calls the `merge_common_name_en`
-     Postgres RPC to merge the Flash-generated name as `{"en": "..."}` without
-     overwriting existing locale keys. Implemented via a JSONB `||` merge
-     operator:
+     keys), `resolveLookalikesToJoinTable` calls the service-role-only,
+     bounded `merge_common_name_en_batch` Postgres RPC once for the request to
+     merge Flash-generated names as `{"en": "..."}` without overwriting
+     existing locale keys. Implemented via a JSONB `||` merge operator:
      `COALESCE(common_names, '{}') || jsonb_build_object('en', p_en_name)` with
      a `NOT (common_names ? 'en')` guard so it is always a safe no-op for
      species that already have English.

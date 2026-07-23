@@ -102,14 +102,14 @@ a local StoreKit success does not replace the TestFlight purchase/restore and
 webhook smoke tests.
 
 Prelaunch TestFlight builds intentionally keep
-`MerianConfig.alphaUnlimitedFreeScansEnabled = true`, so testers have unlimited
+`FeatureFlag.unlimitedFreeScans.defaultValue = true`, so testers have unlimited
 scans. Do not disable this for ordinary beta uploads. Before the first public
-App Store submission, set the flag to `false`, update the changelog/release
-notes, run `UsageManagerTests`, and verify on a physical release-candidate build
-that a free account receives one daily scan while Pro remains uncapped. The
-`TEMP OVERRIDE ACTIVE` startup warning must be absent from that public release
-candidate. Its presence is expected and must not reject an ordinary prelaunch
-TestFlight build.
+App Store submission, change the registry default to `false`, update the
+changelog/release notes, run `UsageManagerTests`, and verify on a physical
+release-candidate build that a free account receives one daily scan while Pro
+remains uncapped. The `TEMP OVERRIDE ACTIVE` startup warning must be absent from
+that public release candidate. Its presence is expected and must not reject an
+ordinary prelaunch TestFlight build.
 
 ## Archive Guardrail
 

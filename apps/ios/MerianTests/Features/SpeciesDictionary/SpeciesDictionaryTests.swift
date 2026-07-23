@@ -420,6 +420,10 @@ struct SpeciesDictionaryTests {
         )
     }
 
+    @Test func testSpeciesDictionaryTreeRemainsBehindReleaseFlag() {
+        #expect(!FeatureFlag.speciesDictionaryTree.defaultValue)
+    }
+
     @Test func testGetSpeciesDictionaryCanPreferSpeciesIdPayload() async throws {
         let testData = Data("""
         {

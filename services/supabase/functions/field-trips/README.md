@@ -34,9 +34,10 @@ contribution rows.
 - The backend supports standard Outings and Seasonal Challenge Events and is
   deployed before the full Events UI release.
 - Standard Field trips and Outings are public in iOS.
-- Events remain staged by `FieldTripEventsAvailability.isReleased`; the tester
-  account and simulator builds bypass that client flag. This function must not
-  treat the flag as authentication or authorization.
+- Events remain staged by the `.fieldTripEvents` default in the iOS
+  `FeatureFlags` registry; the tester account and simulator builds bypass that
+  client default. This function must not treat the flag as authentication or
+  authorization.
 - The shared `apply_scan_progress` transaction can return standard and challenge
   updates. Events-disabled clients discard challenge-only results before local
   caching, refresh publication, routing, or UI presentation.

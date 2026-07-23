@@ -105,7 +105,7 @@ extension ExploreFeedViewModel {
                 advancedFilters: request.advancedFilters,
                 sharedSince: request.sharedSince
             )
-            let freshFieldTripPublications = FieldTripsAvailability.isEnabled
+            let freshFieldTripPublications = FeatureFlags.isEnabled(.fieldTrips)
                 ? await loadFieldTripPublicationsForActiveFilter()
                 : []
 
@@ -276,7 +276,7 @@ extension ExploreFeedViewModel {
     }
 
     private func loadFieldTripPublicationsForActiveFilter() async -> [FieldTripRecentPublication] {
-        guard FieldTripsAvailability.isEnabled else { return [] }
+        guard FeatureFlags.isEnabled(.fieldTrips) else { return [] }
         guard !advancedFilters.hasObservationFilters else { return [] }
 
         let mode: FieldTripCommunityMode

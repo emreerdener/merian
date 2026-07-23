@@ -57,17 +57,24 @@ The workflow performs the following steps:
 7. Runs focused shared-helper, deployment-planner, and static migration-contract
    tests. Source-inspection tests receive explicit read grants because Deno does
    not grant `readTextFile` access merely because a source is in the import graph.
-8. Builds an affected-function deployment plan from the pushed Git diff. Manual
+8. Starts a disposable local Postgres instance, applies all pending migrations,
+   and runs the privileged-routine pgTAP catalog gate.
+9. Builds an affected-function deployment plan from the pushed Git diff. Manual
    dispatch and an unresolvable Git diff safely select the full fleet.
-9. Prepares a Postgres connection string for database migrations without
+10. Prepares a Postgres connection string for database migrations without
    calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
    can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
    `SUPABASE_DB_PASSWORD`.
-10. Pushes database migrations with `supabase db push --db-url`.
-11. Deploys the planned functions in bounded batches. A failed batch is retried
+11. Runs a read-only production `pg_proc.proacl`,
+    `has_function_privilege()`, search-path, owner, allowlist, and
+    default-privilege report before any database write.
+12. Pushes database migrations with `supabase db push --db-url`.
+13. Re-runs the production catalog audit in enforcement mode and stops the
+    release if any privileged-routine invariant fails.
+14. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-12. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
+15. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
    endpoint, and a dry-run bounded GBIF import with the production service-role
    credential.
 
@@ -109,6 +116,106 @@ first; deploy readers/writers that understand both shapes; backfill or observe;
 then remove old columns, constraints, RPC signatures, or compatibility code in
 a later release. The workflow deliberately does not pretend migrations and
 Edge bundles switch atomically.
+
+## Privileged Routine ACL Release Gate
+
+Migration `20260723144640_harden_privileged_routine_execution.sql` is the
+deny-by-default boundary for public-schema `SECURITY DEFINER` functions. It
+revokes historical execution, installs owner-only function defaults for the
+`postgres` migration owner, applies an empty `search_path`, and restores only
+the exact authenticated/service entries in
+`internal.privileged_routine_grants`. Every authenticated entry has a
+caller-bound check; every service entry calls
+`internal.require_service_role()`.
+
+Before a manual production push, run:
+
+```bash
+make validate-supabase-migrations
+make test-supabase-privileged-routines
+
+export MERIAN_DATABASE_URL='postgresql://...'
+deno run --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env --allow-net \
+  services/supabase/scripts/audit_privileged_routine_acl.ts \
+  --report
+```
+
+The report is read-only and intentionally includes every public definer's
+identity, owner, language, raw `proacl`, `proconfig`, and effective
+`has_function_privilege()` result for `anon`, `authenticated`, and
+`service_role`. It also reports default-privilege leaks, API roles with
+`CREATE` on `public`, and API roles able to read the private allowlist. Retain
+this JSON with the release evidence.
+
+For an independent SQL spot-check, use an owner connection:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+SELECT
+    function_row.oid::REGPROCEDURE::TEXT AS signature,
+    owner_row.rolname AS owner,
+    function_row.proacl,
+    function_row.proconfig,
+    HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        function_row.oid,
+        'EXECUTE'
+    ) AS anon_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        function_row.oid,
+        'EXECUTE'
+    ) AS authenticated_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        function_row.oid,
+        'EXECUTE'
+    ) AS service_role_can_execute
+FROM pg_proc AS function_row
+JOIN pg_namespace AS namespace_row
+  ON namespace_row.oid = function_row.pronamespace
+JOIN pg_roles AS owner_row
+  ON owner_row.oid = function_row.proowner
+WHERE namespace_row.nspname = 'public'
+  AND function_row.prosecdef
+ORDER BY signature;
+
+ROLLBACK;
+```
+
+After `db push`, enforcement is mandatory:
+
+```bash
+MERIAN_DATABASE_URL='postgresql://...' \
+  make audit-supabase-privileged-routines
+```
+
+Expected invariants are zero `PUBLIC`/`anon` execution, no unlisted
+authenticated or service execution, no missing reviewed grants, empty search
+paths, caller checks in every exposed routine, owner-safe defaults, no API-role
+schema creation, and no non-`postgres` application definer owner. Counts may
+change as reviewed RPCs are added; the allowlist, not a hard-coded count, is the
+source of truth.
+
+Treat a pre-deploy `PUBLIC` or `anon` finding as an active security incident.
+Apply the reviewed hardening migration as soon as an owner connection is
+available; do not wait for an Edge release. If post-deploy enforcement fails,
+do not deploy functions. Preserve the revocations and default privileges, fix
+the allowlist/body/search path with a forward migration, and rerun enforcement.
+Never recover availability by granting `PUBLIC`, `anon`, or a blanket
+`authenticated` grant. Any emergency out-of-band ACL correction must be
+captured immediately in an idempotent repository migration so the next rebuild
+cannot reintroduce drift.
+
+The repository migration role cannot alter a Supabase-managed owner's default
+privileges. If the audit finds a public application definer owned by
+`supabase_admin` or another role, stop the release and resolve ownership or that
+creator's defaults with the appropriate platform authority; do not exempt it
+from the audit.
 
 ### Naturebook Public Rebrand Release
 
@@ -323,12 +430,12 @@ deterministic fallback behavior.
 
 Current client rollout (2026-07-22): standard Field trips/Outings are public,
 while Seasonal Challenge Events remain staged through
-`FieldTripEventsAvailability.isReleased`. The tester account and simulator
-builds bypass that iOS flag. This is not a Supabase feature flag or an
-authorization boundary, and the current backend remains deployed for both
-standard and challenge actions. Publishing Events later requires an iOS build;
-do not run migrations or redeploy `field-trips` solely for that flag change.
-Follow the canonical release checklist in
+the `.fieldTripEvents` default in the iOS `FeatureFlags` registry. The tester
+account and simulator builds bypass that default. This is not a Supabase
+feature flag or an authorization boundary, and the current backend remains
+deployed for both standard and challenge actions. Publishing Events later
+requires an iOS build; do not run migrations or redeploy `field-trips` solely
+for that flag change. Follow the canonical release checklist in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
@@ -905,6 +1012,9 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_tests/auth.test.ts \
   services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
   services/supabase/functions/_tests/migrationMediaContract.test.ts \
+  services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+  services/supabase/scripts/audit_privileged_routine_acl.ts \
+  services/supabase/scripts/audit_privileged_routine_acl_test.ts \
   services/supabase/scripts/monitor_scan_media_health.ts \
   services/supabase/scripts/monitor_scan_media_health_test.ts \
   services/supabase/functions/generate-upload-urls/index.ts \
@@ -932,6 +1042,7 @@ deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/scanIngestionJobs_test.ts \
   services/supabase/functions/_tests/auth.test.ts \
   services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+  services/supabase/scripts/audit_privileged_routine_acl_test.ts \
   services/supabase/scripts/monitor_scan_media_health_test.ts \
   services/supabase/functions/update-public-avatar/avatar_test.ts \
   services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
@@ -944,11 +1055,11 @@ deno test --config services/supabase/functions/deno.json \
 
 deno test --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/migrations \
-  services/supabase/functions/_tests/migrationMediaContract.test.ts
+  services/supabase/functions/_tests/migrationMediaContract.test.ts \
+  services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts
 
 make validate-supabase-migrations
-make db-push
-make functions-deploy
+make test-supabase-privileged-routines
 ```
 
 For local emergency migration pushes that should avoid `supabase link`, export a
@@ -956,7 +1067,14 @@ database URL first:
 
 ```bash
 export SUPABASE_DB_URL='postgresql://...'
+export MERIAN_DATABASE_URL="$SUPABASE_DB_URL"
+deno run --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env --allow-net \
+  services/supabase/scripts/audit_privileged_routine_acl.ts \
+  --report
 make db-push
+make audit-supabase-privileged-routines
 ```
 
 Or export the pooler pieces and let the shared script construct the URL:
@@ -965,7 +1083,20 @@ Or export the pooler pieces and let the shared script construct the URL:
 export SUPABASE_PROJECT_ID='qlarqavoqhkuwzmevrmf'
 export SUPABASE_DB_POOLER_HOST='aws-1-us-east-1.pooler.supabase.com'
 export SUPABASE_DB_PASSWORD='...'
+export MERIAN_DATABASE_URL="$(bash scripts/supabase-db-url.sh --require)"
+deno run --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env --allow-net \
+  services/supabase/scripts/audit_privileged_routine_acl.ts \
+  --report
 make db-push
+make audit-supabase-privileged-routines
+```
+
+Only after the post-push audit passes:
+
+```bash
+make functions-deploy
 ```
 
 If neither `SUPABASE_DB_URL` nor the pooler pieces are set, `make db-push` falls
@@ -1055,6 +1186,10 @@ rollback procedures are in
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- Run the privileged-routine audit in enforcement mode and retain its JSON.
+  `PUBLIC` and `anon` must execute no public definer; authenticated and service
+  execution must exactly match `internal.privileged_routine_grants`; every
+  definer must have an empty search path and the expected caller check.
 - For an exact external-reference-media suppression, apply its cleanup/write
   prevention migration before deploying dependent functions. Deploy every
   transitive consumer selected for `_shared/externalImagePolicy.ts`,
@@ -1117,12 +1252,13 @@ After deployment:
   `public.get_field_trip_scan_contributions(uuid, uuid)`; `service_role` can.
   Enumerate every public-schema `SECURITY DEFINER` function whose name contains
   `field_trip` or `challenge`: `PUBLIC`, `anon`, and `authenticated` must have
-  no execute privilege, while `service_role` must. Insert a scan through the
-  ingestion-intent path and confirm standard/Event updates plus preference,
-  first-achievement state, and receipt commit together. Inject an Event RPC
-  failure and confirm all of them roll back; retry the unchanged scan and
-  confirm the stored result is returned. Publish a completed outing and verify
-  its snapshot item rows reference the returned publication ID.
+  no execute privilege, while effective `service_role` execution must match the
+  central allowlist exactly. Trigger-only/internal helpers remain denied. Insert
+  a scan through the ingestion-intent path and confirm standard/Event updates
+  plus preference, first-achievement state, and receipt commit together. Inject
+  an Event RPC failure and confirm all of them roll back; retry the unchanged
+  scan and confirm the stored result is returned. Publish a completed outing
+  and verify its snapshot item rows reference the returned publication ID.
   While Events are staged, verify a physical non-allowlisted account and ghost
   user see Outings but not the Events segment, requests, badges, routes, or
   hashtag suggestions; verify the allowlisted tester and simulator still see

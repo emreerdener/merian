@@ -112,7 +112,7 @@ final class ExploreNotificationsViewModel {
     }
 
     private func visibleNotifications(_ page: [ExploreNotification]) -> [ExploreNotification] {
-        guard !FieldTripsAvailability.isEnabled else { return page }
+        guard !FeatureFlags.isEnabled(.fieldTrips) else { return page }
         return page.filter { !$0.type.isFieldTripNotification }
     }
 

@@ -248,7 +248,7 @@ final class ScanMilestoneCoordinator {
         progressResolver: @escaping ProgressResolver = ScanMilestoneCoordinator.resolveProgress,
         achievementResolver: @escaping AchievementResolver = ScanMilestoneCoordinator.resolveAchievements,
         fieldTripsAvailabilityResolver: @escaping FieldTripsAvailabilityResolver = {
-            FieldTripsAvailability.isEnabled
+            FeatureFlags.isEnabled(.fieldTrips)
         },
         fieldTripEventsAvailabilityResolver: @escaping FieldTripEventsAvailabilityResolver = {
             FieldTripEventsAvailability.isEnabled

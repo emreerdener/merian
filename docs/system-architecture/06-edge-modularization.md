@@ -529,7 +529,9 @@ written, allowing the next `enrich-scan` call to retry Flash.
 `"en"` key. This uses
 `supabaseAdmin.rpc("merge_common_name_en_batch", { p_updates: [...] })` — a
 single Postgres round-trip that processes all back-fill candidates atomically
-via `jsonb_array_elements`.
+via `jsonb_array_elements`. The database rejects non-arrays, empty or
+greater-than-50 batches, duplicate species IDs, malformed UUIDs, blank/control
+names, and names over 120 characters; the statement has a five-second timeout.
 
 The previous implementation called
 `supabaseAdmin.rpc("merge_common_name_en", ...)` once per species via
@@ -543,8 +545,10 @@ The RPC uses
 only the `"en"` key, preserving all other locale entries (`"fr"`, `"de"`, etc.).
 The function's `NOT (common_names ? 'en')` WHERE guard makes each row update a
 safe no-op if `"en"` was already populated by a concurrent request. The RPC is
-`SECURITY DEFINER` so it can write to `species_dictionary` without requiring the
-anon role to have a direct UPDATE policy.
+`SECURITY DEFINER` so it can write to `species_dictionary` without a direct
+table policy. Execute is denied to `PUBLIC`, `anon`, and `authenticated`,
+allowlisted only for `service_role`, and checked again in the function through
+`internal.require_service_role()`.
 
 The back-fill fires for any matched dictionary row where:
 
@@ -560,9 +564,10 @@ endpoint (already fetched for `gbif_taxon_key`) can populate multiple locales in
 a single enrichment pass.
 
 The single-species `merge_common_name_en(p_id uuid, p_en_name text)` RPC
-(migration `20260330170000`) is preserved for any direct callers outside
-`resolveLookalikesToJoinTable`. `resolveLookalikesToJoinTable` exclusively uses
-the batch variant (migration `20260330180000`).
+(migration `20260330170000`) remains only as an owner/internal compatibility
+helper and has no API-role execution grant.
+`resolveLookalikesToJoinTable` exclusively uses the bounded batch variant
+(migration `20260330180000`).
 
 **`species_lookalikes` Index — O(log N) Fetch Path:** The UNIQUE constraint on
 `(species_id, lookalike_id)` required by the upsert in

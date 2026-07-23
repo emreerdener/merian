@@ -359,7 +359,7 @@ struct AchievementDetailSheet: View {
 
             if AchievementDetailNavigationPolicy.showsFieldTripsLink(
                 for: resolvedAward,
-                fieldTripsEnabled: FieldTripsAvailability.isEnabled
+                fieldTripsEnabled: FeatureFlags.isEnabled(.fieldTrips)
             ) {
                 Button {
                     HapticManager.shared.triggerSelectionPulse()

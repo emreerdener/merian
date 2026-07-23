@@ -5359,24 +5359,28 @@ prevent IDOR vulnerabilities.
 1. Calls `supabaseAdmin.auth.getUser()` to extract the authenticated user's UUID
    from the `Authorization: Bearer` header.
 2. **Revokes auth first** — calls `supabaseAdmin.auth.admin.deleteUser(user.id)`
-   to immediately invalidate the user's JWT before any data mutation. This
-   prevents the user from issuing new API calls during cleanup.
+   before any data mutation. This prevents refresh and makes Auth-backed
+   `getUser` checks fail. A previously issued signed JWT can remain valid until
+   expiry, so database ACL/RLS and the tombstone remain mandatory.
 3. Executes the `apply_user_tombstone` PostgreSQL RPC against the authenticated
-   `user.id`. The RPC cascades through `public.scans`, `public.user_blocks`, and
-   `public.flagged_reviews`, removing rows and triggering Cloudflare R2 object
-   purges.
-4. Queues storage deletion for background processing.
-5. **Partial-failure handling**: If step 3 or 4 throws after auth has already
-   been revoked, a structured error is logged via `logStructuredError` with
+   `user.id`. The RPC is executable only by the reviewed `service_role`
+   boundary and calls `internal.require_service_role()` before accepting the
+   target. It tombstones retained scans and deletes the public user so
+   relational cascades remove user-owned application rows.
+4. Queues storage deletion for background processing. Queue failure is
+   best-effort: it emits a structured storage-cleanup error but does not turn a
+   completed Auth/tombstone deletion into a false failure.
+5. **Partial-failure handling**: If step 3 throws after auth has already been
+   revoked, a structured error is logged via `logStructuredError` with
    `event: "safe_delete_partial_failure"` and
    `action_required: "Manually run apply_user_tombstone RPC"`, and the error is
    re-thrown so the response is `500 Internal Server Error` rather than a
    false-success `200 OK`.
-6. Returns `200 OK` only when all steps succeed. The iOS client then performs
-   local Supabase sign-out for the current device, drops all local SQLite
-   `ModelContext` state via `ScanRepository.purgeAllData()`, and resets to
-   Guest. Ordinary in-app logout also uses local scope so other active devices
-   are not revoked.
+6. Returns `200 OK` after Auth revocation and relational tombstoning succeed.
+   The iOS client then performs local Supabase sign-out for the current device,
+   drops all local SQLite `ModelContext` state via
+   `ScanRepository.purgeAllData()`, and resets to Guest. Ordinary in-app logout
+   also uses local scope so other active devices are not revoked.
 
 ---
 

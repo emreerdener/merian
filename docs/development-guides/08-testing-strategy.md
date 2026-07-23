@@ -137,7 +137,7 @@ MerianTests/
   unexpectedly.
 - **`UsageManagerTests.swift`**: Validates daily free quota checks and limits
   without accessing live API constraints. The suite explicitly tests both
-  states of `MerianConfig.alphaUnlimitedFreeScansEnabled`: every prelaunch
+  states of the central `.unlimitedFreeScans` feature flag: every prelaunch
   build currently ships with the flag enabled, while the disabled branch must
   keep the future public free/Pro quota behavior intact.
 
@@ -658,10 +658,12 @@ the generated local config derived from the reviewed root manifest.
 Supabase SDK, the explicit one-day minimum dependency age, aliased runtime
 imports, and `config.toml` parity, then CI runs
 `deno check --frozen --config <function>/deno.json <function>/index.ts` for all
-entrypoints. `function_dependency_tools_test.ts` locks deployment selection for
-route-local, transitive shared, config, dependency-policy, docs, and test-only
-changes. `deploy_function_batches_test.sh` uses a fake Supabase CLI to prove a
-failed batch retries only its own members and rejects malformed function names.
+entrypoints. `function_dependency_tools_test.ts` independently requires exact
+parity between configured functions and discoverable dependency graphs, then
+locks deployment selection for route-local, transitive shared, config,
+dependency-policy, docs, and test-only changes.
+`deploy_function_batches_test.sh` uses a fake Supabase CLI to prove a failed
+batch retries only its own members and rejects malformed function names.
 This suite exists specifically to prevent local checks from passing against a
 parent config that the remote function bundler does not discover.
 
@@ -715,6 +717,37 @@ schema; earlier releases fail on this repository's historical
 pipeline-incompatible `CREATE INDEX CONCURRENTLY` migrations. After a hosted
 deployment, use migration history plus read-only constraint inspection to
 verify that both push-token constraints exist and are validated.
+
+Privileged routine security has three complementary checks:
+
+- `_tests/privilegedRoutineMigrationContract.test.ts` statically locks the
+  global/schema default revocations, blanket definer revocation, exact
+  allowlist, empty search path, caller guards, and bounds on high-impact
+  maintenance routines.
+- `tests/privileged_routine_security.sql` runs against a fully migrated
+  disposable catalog. It compares effective `has_function_privilege()` results
+  with `internal.privileged_routine_grants`, inspects direct `pg_proc.proacl`,
+  rejects API-role schema creation and allowlist reads, and creates a temporary
+  definer function to prove new functions inherit owner-only execution. It also
+  runs `plpgsql_check` against ordinary and trigger definer functions so
+  ambiguous identifiers or unresolved names fail the catalog gate.
+- `scripts/audit_privileged_routine_acl_test.ts` exercises the fail-closed
+  report evaluator. The deployment workflow then runs the read-only audit
+  against production before migration in report mode and after migration in
+  enforcement mode.
+
+Run the local gates from the repository root:
+
+```bash
+make validate-supabase-migrations
+make test-supabase-privileged-routines
+```
+
+The catalog fixture must run through `supabase test db`; a Deno database test
+that reports a connection skip is not evidence for this boundary. Never point
+the transactional pgTAP file at production. Use
+`MERIAN_DATABASE_URL=... make audit-supabase-privileged-routines` for hosted,
+read-only verification instead.
 
 Identification latency has focused contract coverage at each boundary:
 
@@ -787,8 +820,10 @@ canonical criteria table in `docs/features-and-hardware/25-field-trips.md`.
 and Event progress, preference and first-achievement evaluation, receipt replay,
 and an injected Event failure that must roll everything back.
 `_tests/fieldTripSecurityDb.test.ts` enumerates every matching
-`SECURITY DEFINER` function and asserts execute is denied to `PUBLIC`, `anon`,
-and `authenticated` and allowed only to `service_role`.
+`SECURITY DEFINER` function, denies `anon` and `authenticated`, verifies an
+empty search path, and requires effective `service_role` execution to match the
+central reviewed allowlist exactly. Internal trigger/helpers therefore remain
+non-executable rather than receiving a blanket service grant.
 `_tests/fieldTripPublicationDb.test.ts` publishes a completed outing and proves
 its snapshot items use the created publication ID.
 `_tests/fieldTripActions.test.ts` compares the complete Edge allowlist with a
@@ -886,7 +921,7 @@ connected.
 
 The split release gates have explicit regression coverage.
 `FieldTripsAvailabilityTests` locks standard Field trips on for every account
-and device, locks `FieldTripEventsAvailability.isReleased` off until an
+and device, locks the `.fieldTripEvents` production default off until an
 intentional release edit, and verifies the staged tester/simulator bypass plus
 the future public path. `FieldTripAPIModelsTests`,
 `ActiveCaptureGoalStoreTests`, profile visibility tests, and

@@ -24,6 +24,12 @@ export function repoRelative(path: string): string {
   return relative(repoRoot, path).split(sep).join("/");
 }
 
+export function configuredFunctionNames(configToml: string): string[] {
+  return [...configToml.matchAll(/^\[functions\.([^\]]+)\]$/gm)]
+    .map((match) => match[1])
+    .sort();
+}
+
 export async function discoverFunctionEntrypoints(
   root = functionsRoot,
 ): Promise<FunctionEntrypoint[]> {

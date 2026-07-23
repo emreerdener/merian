@@ -54,7 +54,7 @@ struct ProfileTabView: View {
                 }
 
                 // MARK: - Field trips
-                if FieldTripsAvailability.isEnabled {
+                if FeatureFlags.isEnabled(.fieldTrips) {
                     ActiveFieldTripsProfilePreview(
                         onOpenTemplate: { templateId in
                             selectedFieldTripTemplateRoute = FieldTripTemplateRoute(templateId: templateId)
@@ -192,7 +192,7 @@ struct ProfileTabView: View {
                 profileRefreshToken = UUID()
             }
             .onReceive(AppEventPublisher.shared.publisher) { event in
-                guard FieldTripsAvailability.isEnabled else { return }
+                guard FeatureFlags.isEnabled(.fieldTrips) else { return }
                 switch event {
                 case .fieldTripProgressUpdated,
                      .fieldTripChallengeProgressUpdated,
@@ -221,7 +221,7 @@ struct ProfileTabView: View {
         currentStreak = stats.streak
         totalCaptures = stats.heatmap.totalCaptures
         heatmapData = stats.heatmap
-        guard FieldTripsAvailability.isEnabled,
+        guard FeatureFlags.isEnabled(.fieldTrips),
               supabase.isAuthenticated,
               let accountId = supabase.currentUser?.id.uuidString else {
             awards = stats.awards
@@ -254,7 +254,7 @@ struct ProfileTabView: View {
     }
 
     private var visibleAwards: [AwardPayload] {
-        guard !FieldTripsAvailability.isEnabled else { return awards }
+        guard !FeatureFlags.isEnabled(.fieldTrips) else { return awards }
         return awards.filter { $0.type != .firstFieldTrip }
     }
 

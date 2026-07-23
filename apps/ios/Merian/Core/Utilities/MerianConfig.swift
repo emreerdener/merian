@@ -8,12 +8,6 @@ import Foundation
 /// policy decisions (retention windows, batch sizes, storage limits) self-documenting.
 enum MerianConfig {
 
-    // MARK: - Alpha Overrides
-
-    /// Temporary prelaunch override that disables the daily free scan cap in every build,
-    /// including TestFlight. Set this to false before the public App Store release.
-    static var alphaUnlimitedFreeScansEnabled = true
-
     // MARK: - Retention
 
     /// Local and cloud retention window for non-biological scans.

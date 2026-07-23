@@ -89,7 +89,10 @@ jobs:
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
+            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/scripts/audit_privileged_routine_acl.ts \
+            supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/scripts/function_dependency_tools.ts \
@@ -98,6 +101,7 @@ jobs:
             supabase/scripts/sync_function_deno_configs.ts \
             supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
+            supabase/functions/safe-delete/index.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/update-scan-context/index.ts \
@@ -129,7 +133,10 @@ jobs:
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
+            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/scripts/audit_privileged_routine_acl.ts \
+            supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/scripts/function_dependency_tools.ts \
@@ -170,7 +177,10 @@ jobs:
             supabase/functions/share-scan-to-explore/index.ts \
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
+            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/scripts/audit_privileged_routine_acl.ts \
+            supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/scripts/function_dependency_tools.ts \
@@ -223,6 +233,7 @@ jobs:
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
             supabase/functions/explore-post-chat/prompt_test.ts \
             supabase/functions/insight-chat/guards_test.ts \
@@ -244,7 +255,21 @@ jobs:
           deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/migrations \
             supabase/functions/_tests/explorePostChatMigration.test.ts \
-            supabase/functions/_tests/migrationMediaContract.test.ts
+            supabase/functions/_tests/migrationMediaContract.test.ts \
+            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts
+
+      - name: Start disposable database for privileged-routine validation
+        run: supabase db start
+
+      - name: Validate privileged routine catalog
+        run: |
+          supabase db push --local
+          supabase test db --local \
+            supabase/tests/privileged_routine_security.sql
+
+      - name: Stop disposable database
+        if: always()
+        run: supabase stop --no-backup
 
       - name: Plan affected Edge Function deployment
         id: function-plan
@@ -325,8 +350,26 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_ENV"
 
+      - name: Audit production privileged routine ACLs before migration
+        run: |
+          MERIAN_DATABASE_URL="$SUPABASE_DB_PUSH_URL" \
+            deno run --frozen --config supabase/functions/deno.json \
+              --allow-env \
+              --allow-net \
+              supabase/scripts/audit_privileged_routine_acl.ts \
+              --report
+
       - name: Push Database Migrations
         run: supabase db push --db-url "$SUPABASE_DB_PUSH_URL"
+
+      - name: Enforce production privileged routine ACLs
+        run: |
+          MERIAN_DATABASE_URL="$SUPABASE_DB_PUSH_URL" \
+            deno run --frozen --config supabase/functions/deno.json \
+              --allow-env \
+              --allow-net \
+              supabase/scripts/audit_privileged_routine_acl.ts \
+              --enforce
 
       - name: Deploy affected Edge Functions
         if: steps.function-plan.outputs.count != '0'

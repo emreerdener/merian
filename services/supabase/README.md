@@ -100,6 +100,50 @@ and the
 runbook before changing grants, roles, sessions, review transitions, visibility,
 pricing, or auditing.
 
+### Privileged Routine Execution Boundary
+
+Migration
+`20260723144640_harden_privileged_routine_execution.sql` makes public-schema
+`SECURITY DEFINER` functions deny-by-default even though `public` remains a
+Data API schema. It revokes PostgreSQL's default function execution from
+`PUBLIC` and the Supabase API roles for the repository migration owner, removes
+historical execution from every public definer function, fixes every definer
+to `search_path = ''`, and then reapplies only the reviewed entries in
+`internal.privileged_routine_grants`.
+
+The resulting contract is:
+
+- `PUBLIC` and `anon` execute no public-schema definer function.
+- `authenticated` receives only caller-bound admin and ghost-upgrade RPCs.
+  Each authorized body must derive the caller from `auth.uid()`/`auth.jwt()` or
+  call `internal.require_admin(...)`.
+- `service_role` receives only an Edge worker or documented operator RPC. Every
+  such body calls `internal.require_service_role()`; SQL-language functions are
+  wrapped as PL/pgSQL so this check cannot be omitted.
+- Trigger and implementation helpers receive no API-role grant.
+- An application definer routine must be owned by `postgres`, use an empty fixed
+  search path, and fully qualify application objects, types, and extension
+  operators.
+
+Never grant a definer function ad hoc. Add its exact identity signature and
+purpose to the migration-owned allowlist, document its caller boundary, and run
+both the static and catalog tests. If a public definer appears under another
+owner (including a Supabase-managed owner), the audit fails; resolve ownership
+or the creator's default privileges explicitly rather than weakening the test.
+
+```bash
+make validate-supabase-migrations
+make test-supabase-privileged-routines
+
+# Read-only hosted-database verification. The URL is never printed.
+MERIAN_DATABASE_URL='postgresql://...' \
+  make audit-supabase-privileged-routines
+```
+
+Production CI runs the same catalog audit in report mode before `db push` and
+in enforcement mode immediately afterward. See the deployment runbook for the
+incident and forward-repair procedure.
+
 ### Explore Author Maintenance
 
 Explore read functions are projection-only. They must not refresh public author
@@ -202,6 +246,7 @@ is available:
 
 ```bash
 make validate-supabase-migrations
+make test-supabase-privileged-routines
 supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/push_device_registration.sql
@@ -375,6 +420,11 @@ secure merge migration.
 ```bash
 supabase --workdir services db push
 ```
+
+Do not bypass the privileged-routine gate for a manual push. Run
+`make test-supabase-privileged-routines` against the fully migrated local
+catalog, capture a hosted `--report` audit before the push, and require a clean
+`make audit-supabase-privileged-routines` result after it.
 
 ### Edge Functions
 ```bash

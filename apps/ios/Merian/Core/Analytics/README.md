@@ -8,15 +8,17 @@ This area integrates PostHog-backed app analytics. It provides a unified, cross-
 ## Prelaunch usage-limit override
 
 `UsageManager` currently treats
-`MerianConfig.alphaUnlimitedFreeScansEnabled = true` as the highest-priority
+`FeatureFlag.unlimitedFreeScans.defaultValue = true` as the release-default
 quota decision in every build configuration, including Release/TestFlight. The
-name is historical; the supported meaning is “unlimited during prelaunch
-testing.” Do not make it Debug-only or disable it while beta testing continues.
+supported meaning is “unlimited during prelaunch testing.” Do not make the
+production default Debug-only or disable it while beta testing continues.
 
-`UsageManagerTests` must continue exercising both flag states. Before the public
-App Store release, the explicit launch checklist disables the flag and verifies
-that free accounts receive the daily quota while Pro accounts remain uncapped.
-The startup `TEMP OVERRIDE ACTIVE` log is expected until that release step.
+DEBUG builds can override this value locally from Settings → Feature Flags.
+Release builds ignore that persisted override. `UsageManagerTests` must continue
+exercising both states. Before the public App Store release, the explicit launch
+checklist changes the code default and verifies that free accounts receive the
+daily quota while Pro accounts remain uncapped. The startup
+`TEMP OVERRIDE ACTIVE` log is expected until that release step.
 
 This override changes quota enforcement only. It does not grant a RevenueCat
 entitlement, alter backend subscription rows, or validate the paywall. Open

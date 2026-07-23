@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-supabase-migrations audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -12,6 +12,8 @@ help:
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
+	@printf "  make test-supabase-privileged-routines Validate privileged routine ACLs locally\n"
+	@printf "  make audit-supabase-privileged-routines Audit MERIAN_DATABASE_URL and fail on drift\n"
 	@printf "  make audit-ghost-users ARGS='...'     Run read-only Supabase ghost-user audit\n"
 	@printf "  make cleanup-ghost-users ARGS='...'   Dry-run or execute guarded ghost-user cleanup\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
@@ -41,7 +43,21 @@ validate-ios-migration-guardrails:
 validate-supabase-migrations:
 	deno test --config services/supabase/functions/deno.json \
 		--allow-read=services/supabase/migrations \
-		services/supabase/functions/_tests/migrationMediaContract.test.ts
+		services/supabase/functions/_tests/migrationMediaContract.test.ts \
+		services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts
+
+test-supabase-privileged-routines:
+	supabase --workdir $(SUPABASE_WORKDIR) db start
+	supabase --workdir $(SUPABASE_WORKDIR) db push --local
+	supabase --workdir $(SUPABASE_WORKDIR) test db --local \
+		services/supabase/tests/privileged_routine_security.sql
+
+audit-supabase-privileged-routines:
+	deno run --frozen --config services/supabase/functions/deno.json \
+		--allow-env \
+		--allow-net \
+		services/supabase/scripts/audit_privileged_routine_acl.ts \
+		--enforce
 
 audit-ghost-users:
 	deno run --allow-net --allow-env --allow-read --allow-write \

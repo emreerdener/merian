@@ -248,10 +248,10 @@ Enforces the paywall in frontend entry points.
   exits before loading gallery bytes into memory.
 - The prelaunch testing override is intentionally enabled in every current
   build, including TestFlight:
-  `MerianConfig.alphaUnlimitedFreeScansEnabled = true`. This keeps testers
-  unlimited until the public launch. Before App Store release, set the flag to
-  `false`; Pro users must continue to bypass the cap through `isProActive`, while
-  free users return to the daily quota.
+  `FeatureFlag.unlimitedFreeScans.defaultValue = true`. This keeps testers
+  unlimited until the public launch. Before App Store release, change the
+  central default to `false`; Pro users must continue to bypass the cap through
+  `isProActive`, while free users return to the daily quota.
 - **Quota Enforcement at Capture Time**: `consumeScan()` is called once, at
   enqueue time, inside `OfflineQueueManager.insertAndPersistRecord`. The quota
   check (`canPerformScan`) and token consumption happen before the

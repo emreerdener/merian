@@ -6,6 +6,38 @@ without guessing.
 
 ## Supabase PostgreSQL Schema (`00001_initial_schema.sql`)
 
+### Privileged routine ACL catalog
+
+`internal.privileged_routine_grants` is the reviewed source of truth for API
+role execution on public-schema `SECURITY DEFINER` functions. Its primary key
+is `(role_name, routine_signature)`; `role_name` is limited to
+`authenticated` or `service_role`, the signature must be a fully qualified
+public function identity, and `purpose` records the approved caller.
+`PUBLIC`, `anon`, `authenticated`, and `service_role` cannot read or mutate the
+table directly.
+
+Migration `20260723144640_harden_privileged_routine_execution.sql` revokes all
+historical API execution from public definer functions before resolving and
+granting each catalog entry. It aborts if an entry is missing, resolves outside
+`public`, is not `SECURITY DEFINER`, lacks its grant, or if any unlisted API
+grant remains. It also enforces:
+
+- no `PUBLIC` or `anon` execution;
+- an empty fixed `search_path` for every public definer;
+- caller-bound authorization in authenticated RPCs;
+- `internal.require_service_role()` in every service-exposed RPC;
+- no API-role `CREATE` privilege on `public`; and
+- owner-only function defaults for the `postgres` migration role, globally and
+  in `public`.
+
+The schema name `public` means PostgREST may discover a function; it does not
+mean a client can execute it. Trigger functions and internal helpers stay
+unlisted. New privileged RPCs require an exact catalog entry, fully qualified
+objects/types/operators, a caller check, a migration-contract update, and the
+catalog pgTAP test. A public definer owned by any role other than `postgres`
+fails the hosted audit because that role's future default privileges are a
+separate security boundary.
+
 ### `users`
 
 Tracks the global state of the anonymous/authenticated user.
