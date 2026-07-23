@@ -331,6 +331,14 @@ resolution. Account deletion remains in the existing user-owned deletion
 pipeline, and subscription state remains owned by RevenueCat/backend billing
 flows.
 
+The private `internal.revenuecat_webhook_events`,
+`internal.revenuecat_webhook_event_subjects`, and
+`internal.revenuecat_customer_state` tables are not admin-application data
+sources and receive no browser/admin RPC. Production investigation uses the
+owner-only, read-only queries in the Supabase deployment runbook; operators must
+preserve the ledger and must not repair access by editing `public.users`
+directly.
+
 ## Implementation map
 
 - Admin application: `apps/admin`

@@ -101,6 +101,13 @@ TestFlight must use the production `appl_` key and App Store Connect products;
 a local StoreKit success does not replace the TestFlight purchase/restore and
 webhook smoke tests.
 
+Before that TestFlight smoke, the backend release must have applied
+`20260723201500_secure_revenuecat_webhook_delivery.sql` and synchronized the
+three required RevenueCat server credentials. Follow the
+[RevenueCat webhook release gate](../backend-and-data/06-supabase-deployment-runbook.md#revenuecat-webhook-release-gate);
+an iOS archive with the correct public `appl_` key does not prove signed webhook
+delivery, authoritative reconciliation, or durable ordering.
+
 `FeatureFlag.unlimitedFreeScans.defaultValue` is `false` for every shipped
 configuration. DEBUG may bypass only the advisory local meter; TestFlight and
 Release ignore persisted overrides and remain subject to the database quota.

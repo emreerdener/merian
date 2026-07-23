@@ -109,6 +109,16 @@ A structured schema built on native SwiftData migrations:
   Supabase Auth UUID. That UUID becomes the RevenueCat App User ID and PostHog
   distinct ID; RevenueCat subscriber attributes carry auth email and public
   identity fields for dashboard support lookups.
+- RevenueCat webhook delivery is an external-provider boundary, so its Supabase
+  JWT check is disabled only for that route. The handler replaces it with a
+  configured bearer check and timestamped raw-body HMAC, then fetches
+  authoritative CustomerInfo with a server-only key.
+- A private event ledger deduplicates RevenueCat IDs, and a per-user database
+  watermark prevents delayed events from rolling subscription state backward.
+  `TRANSFER` source and destination updates share one transaction. Accepted
+  tier/expiry changes advance `users.entitlement_version`, which the
+  server-side AI quota reservation reads before provider dispatch; iOS
+  entitlement state remains advisory for local UX.
 
 ## Privacy & Geoprivacy Focus
 

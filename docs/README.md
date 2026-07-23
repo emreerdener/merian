@@ -33,6 +33,13 @@ as their permanent engineering identity.
   purchase tests use an explicitly selected RevenueCat Test Store or StoreKit
   configuration; TestFlight uses the production iOS key and App Store Connect
   products.
+- **Backend subscription integrity**: RevenueCat webhook delivery requires a
+  configured bearer credential, raw-body HMAC, and server API key. Supabase
+  reconciles authoritative CustomerInfo through a durable event ledger and
+  per-user ordering watermark; duplicate, delayed, or partially failed transfer
+  delivery cannot directly rewrite access. The production deploy workflow
+  validates and synchronizes all three backend credentials before function
+  deployment.
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override
