@@ -121,6 +121,14 @@ rows, or update tier, timed expiry, entitlement version, identity, moderation,
 or gamification fields. Identity and billing mutations use reviewed
 service-owned boundaries.
 
+Auth signup normally derives the three required public-identity columns through
+`handle_new_user()`. Owner-only repair scripts and transactional database tests
+that insert `public.users` directly bypass that trigger and must explicitly
+supply a valid unique `public_username`, a non-empty `public_author_name`, and a
+CHECK-valid `public_identity_source`. These columns have no direct-insert
+fallback defaults; do not weaken their `NOT NULL`, validation, or uniqueness
+constraints for fixture convenience.
+
 **Public identity refresh helpers**:
 `refresh_public_author_identity(target_user_id)` and `handle_new_user()`
 maintain the Explore-facing identity projection. These functions never expose

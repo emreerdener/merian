@@ -133,6 +133,20 @@ both the static and catalog tests. If a public definer appears under another
 owner (including a Supabase-managed owner), the audit fails; resolve ownership
 or the creator's default privileges explicitly rather than weakening the test.
 
+Catalog validation is semantic, not just migration-syntax validation.
+`supabase db push --local` can succeed while SQL inside a PL/pgSQL routine still
+contains an unresolved catalog function or overload. The pgTAP catalog gate runs
+`plpgsql_check` and reports the exact routine signature, source line, SQLSTATE,
+statement, query, detail, and hint. Treat that first PostgreSQL exception as the
+root cause; pg_prove's later `Dubious`, `Bad plan`, and
+`planned 1 but ran 0` messages are consequences of the aborted test.
+
+Schema qualification does not compensate for a misspelled catalog routine or an
+incorrect argument type. Verify the exact `pg_proc` identity and explicitly cast
+overloaded arguments. The quota reservation lock, for example, deliberately uses
+`pg_catalog.HASHTEXTEXTENDED(..., 0::BIGINT)`, and the migration contract locks
+that signature.
+
 ```bash
 make validate-supabase-migrations
 make test-supabase-privileged-routines
@@ -179,6 +193,13 @@ a reviewed forward migration, increment the policy version, and keep every
 operation in `AIQuotaOperation`,
 `aiQuotaMigrationContract.test.ts`, `aiQuotaCoverage.test.ts`, and
 `tests/ai_quota_security.sql` aligned.
+
+The executable quota fixture inserts its test profile directly instead of
+running the Auth signup trigger. Any such owner-only `public.users` fixture must
+provide a valid, deterministic, unique `public_username`, a non-empty
+`public_author_name`, and a CHECK-valid `public_identity_source`; all three
+columns are `NOT NULL`. Fix a stale fixture rather than weakening the production
+identity constraints.
 
 `users.entitlement_version` advances whenever the tier or timed expiry changes.
 `_shared/entitlement.ts` performs durable reads for non-provider checks; it

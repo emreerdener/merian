@@ -259,6 +259,41 @@ privileges. If the audit finds a public application definer owned by
 creator's defaults with the appropriate platform authority; do not exempt it
 from the audit.
 
+### Disposable Catalog-Gate Failure Triage
+
+A successful `supabase db push --local` proves that the migration DDL replayed;
+it does not prove that every SQL statement embedded in a PL/pgSQL routine can be
+planned. The next workflow step deliberately runs `plpgsql_check` over every
+public application `SECURITY DEFINER` routine and trigger.
+
+When this gate fails, use the first PostgreSQL exception as the root cause. The
+ordinary-routine and trigger diagnostics include the exact signature, source
+line, SQLSTATE, statement, query, detail, and hint. The later pg_prove output
+(`Dubious`, `Bad plan`, or `planned 1 tests but ran 0`) only means the exception
+aborted the pgTAP block before its planned assertion.
+
+For SQLSTATE `42883`, compare both the function name and argument types with the
+actual `pg_proc` identity. An explicit schema does not repair a misspelling or
+select an unavailable overload. The AI quota advisory key intentionally calls
+`pg_catalog.HASHTEXTEXTENDED(text, bigint)` and casts its seed as `0::BIGINT`;
+`aiQuotaMigrationContract.test.ts` prevents either part from drifting.
+
+If `ai_quota_security.sql` instead fails a `public.users` `NOT NULL` constraint,
+update the owner-only fixture to include `public_username`,
+`public_author_name`, and `public_identity_source`. Direct table inserts bypass
+the Auth trigger that normally derives those fields. Do not relax a production
+identity constraint to make a fixture pass.
+
+Repair the routine or fixture, preserve the ACL/search-path/constraint checks,
+and rerun the same disposable-database sequence:
+
+```bash
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/privileged_routine_security.sql \
+  services/supabase/tests/ai_quota_security.sql
+```
+
 ## Authoritative AI Quota Release Gate
 
 Migration `20260723160229_enforce_server_ai_quotas.sql` must land before the

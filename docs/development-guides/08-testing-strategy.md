@@ -736,7 +736,10 @@ Privileged routine security has three complementary checks:
   rejects API-role schema creation and allowlist reads, and creates a temporary
   definer function to prove new functions inherit owner-only execution. It also
   runs `plpgsql_check` against ordinary and trigger definer functions so
-  ambiguous identifiers or unresolved names fail the catalog gate.
+  ambiguous identifiers or unresolved names fail the catalog gate. Failures
+  report the exact routine signature, source line, SQLSTATE, statement, query,
+  detail, and hint; a later pg_prove `Bad plan` is fallout from that exception,
+  not a separate test failure.
 - `scripts/audit_privileged_routine_acl_test.ts` exercises the fail-closed
   report evaluator. The deployment workflow then runs the read-only audit
   against production before migration in report mode and after migration in
@@ -774,7 +777,9 @@ Authoritative AI quota and entitlement security has four complementary checks:
 - `_tests/aiQuotaMigrationContract.test.ts` statically locks the private schema,
   API-role revocations, atomic conditional UPSERT, idempotency/refund semantics,
   lease fencing and stale cleanup, service-only grants, and complete 30-row
-  policy matrix.
+  policy matrix. It also locks the exact schema-qualified
+  `hashtextextended(text, bigint)` advisory-lock call so migration replay cannot
+  hide a misspelled routine or incorrectly typed seed.
   `tests/ai_quota_security.sql` then exercises the migrated catalog and actual
   reservation/replay/limit/refund/failed-retry/stale-lease/fencing/version
   transitions.
@@ -782,6 +787,13 @@ Authoritative AI quota and entitlement security has four complementary checks:
 The production workflow applies all migrations to a disposable database and
 runs both `privileged_routine_security.sql` and `ai_quota_security.sql`. Do not
 replace that catalog execution with source inspection alone.
+
+Owner-level pgTAP fixtures that insert `public.users` directly bypass
+`handle_new_user()`. They must supply a valid unique `public_username`, a
+non-empty `public_author_name`, and a CHECK-valid `public_identity_source`, in
+addition to the fields relevant to the behavior under test. Keep fixture values
+deterministic and transactional; never drop or weaken a production constraint
+to accommodate stale test data.
 
 Identification latency has focused contract coverage at each boundary:
 
