@@ -1261,6 +1261,16 @@ media. It accepts `scan_id`, optional `note`, optional `location_sharing`
 (`open`, `obscured`, `private`), optional `species_common_name`, and optional
 `restored_object_keys` for media repair.
 
+Clients attach one UUID `Idempotency-Key` and preserve it across transport,
+authentication, and media-restoration retries. Newly created and existing
+Explore posts use the same mandatory audio publication gate as
+`share-scan-to-explore`: each audible item receives a checksum/policy-derived
+child key, and a cache miss reserves `explore_audio_moderation` before provider
+dispatch. The database resolves entitlement/model and applies daily plus
+user/IP limits. Cache hits refund the provisional reservation. Missing quota,
+entitlement, policy, provider, or moderation state fails closed and does not
+replace public media.
+
 The endpoint intentionally returns `404 { "error": "Scan not found." }` when
 `public.scans` has no row for the authenticated user. The iOS Insight client
 handles that specific error by inserting a minimal owned `scans` row from the
@@ -1470,6 +1480,38 @@ base64 budget; staged `r2ObjectKeys` are validated through
 `_shared/identify/media.ts` and R2 bytes are consumed with capped stream readers
 before any full response buffer is assembled.
 
+### AI authorization and idempotency
+
+Every authenticated route that can dispatch paid model work uses the same
+database boundary. Clients should send a UUID `Idempotency-Key`; scan routes use
+the exact `client_scan_id`, and chat sends use `client_message_id`. A validated
+body request ID takes precedence over the header. The iOS network layer
+preserves the same key across transient transport, auth-refresh, missing-session,
+and `5xx` retries.
+
+Before provider dispatch, `reserve_ai_quota` atomically verifies entitlement,
+selects the operation's database policy/model, and consumes daily/user/IP
+counters. Reusing a key for a `reserved` or `committed` attempt does not consume
+or dispatch again: the API returns `409 ai_request_in_progress` or
+`409 ai_request_already_completed`. A previously explicit `refunded` key may be
+reserved again. This reservation protects cost idempotency; it does not promise
+to replay a prior HTTP response body.
+
+Shared authorization errors are:
+
+| Status | Code | Meaning |
+|---|---|---|
+| `400` | `ai_request_id_invalid` | Supplied body/header request key is not a UUID |
+| `402` | `pro_required` | Operation is disabled for the effective plan |
+| `409` | `ai_request_in_progress` / `ai_request_already_completed` | Duplicate paid-provider attempt |
+| `429` | `ai_quota_daily_exceeded` | Database UTC-day safety ceiling reached |
+| `429` | `ai_user_rate_limit_exceeded` / `ai_ip_rate_limit_exceeded` | Shared minute ceiling reached |
+| `503` | `ai_entitlement_unavailable` / `ai_quota_unavailable` | Durable authorization could not be verified |
+
+Rate-limit and temporary entitlement responses may include both the
+`Retry-After` header and `retry_after_seconds` JSON field. Clients must not
+silently fall back to a paid tier or alternate model on any of these failures.
+
 > **Important IDOR Constraint:** The `user.id` resolved by the Deno Edge
 > Function from the Supabase JWT is always a **lowercase** Postgres UUID format.
 > Swift's `UUID().uuidString` evaluates to uppercase by default. Therefore, the
@@ -1574,18 +1616,15 @@ To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
   to `gemini-2.5-pro` (maximum depth for rare species, fossils, subspecies, and
   cultivars) and effective free users to `gemini-2.5-flash` (2–3× lower
   latency). Effective Pro includes paid subscribers and dynamic 7-day trial
-  users. All text-only calls — `fetchStaticEncyclopedicData`,
-  `fetchDiagnosticComparison`, and all `enrich-scan` generation — always use
-  `gemini-2.5-flash` regardless of tier. `gemini-2.5-pro` is exclusively for the
-  multimodal vision identification step. Tier is resolved via
-  `resolveTierForUser`, which performs a lightweight
-  `SELECT subscription_tier, created_at, subscription_expires_at` on cache miss
-  and returns `effective_tier`, `plan`, `subscription_tier`, and `trial_active`
-  for telemetry. Active timed passes resolve as paid Pro; stale timed Pro rows
-  resolve as free until the hourly expiry worker clears the row. A module-scope
-  `_tierCache` (5-minute TTL) eliminates the DB round-trip on repeat scans
-  within a warm isolate. Both tiers use the `merianResponseSchema` constraint to
-  protect SQLite UI logic.
+  users. The server does not trust an iOS tier hint. It atomically calls
+  `reserve_ai_quota` before provider work; that transaction resolves the
+  durable plan and expiry, selects an allowlisted model from
+  `internal.ai_quota_policies`, and consumes daily/user/IP counters under the
+  request idempotency key. Text-only enrichment currently selects
+  `gemini-2.5-flash` through the same database policy. A missing user row,
+  entitlement query failure, disabled/missing policy, or unsupported model
+  fails closed before Gemini. Both identification models use the
+  `merianResponseSchema` constraint to protect SwiftData UI logic.
 - **Dynamic Token Truncation (Non-biological targets)**: When processing
   non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, and
   `ecology_type` from the `required: []` array and passes
@@ -1959,6 +1998,12 @@ headers from `MerianNetworkClient`, but identity is not read and must not affect
 those responses. Tree mode does call `requireAuth` because the graph membership
 is scoped to the signed-in user's scan library, but the returned nodes still use
 only the public species projection.
+
+A missing dictionary row may use bounded GBIF/Wikipedia enrichment to construct
+a non-persisted public fallback. It never invokes Gemini. Model-backed habitat,
+lookalike, and group-tag refreshes belong to authenticated quota-guarded
+enrichment or service-only scheduled workers; the anonymous public route is not
+an alternate provider-cost surface.
 
 The response is built through the shared public species projection in
 `services/supabase/functions/_shared/publicSpeciesProjection.ts`. That module
@@ -3360,7 +3405,8 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   rolls back promoted objects.
 - If any selected item is standalone audio or an audio-bearing video,
   every audible item must have a matching content-addressed attestation or pass
-  the dedicated `gemini-2.5-flash` structured audio classifier before the
+  the database-selected structured audio classifier (currently
+  `gemini-2.5-flash`) before the
   Explore post/media upsert runs. Attestations match SHA-256, model, and the
   automatically derived policy-contract hash; changed bytes or rules force a
   new decision. A rejected clip
@@ -3370,6 +3416,12 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   description are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`.
   Cache lookup/store failures degrade to live classification rather than
   approving by default.
+- Clients send one UUID `Idempotency-Key` for the share and preserve it through
+  transport/auth/media-restoration retries. Each audible checksum and policy
+  version receives a deterministic child reservation ID, allowing multiple
+  clips without duplicate provider spend on an ambiguous retry. Cache hits
+  explicitly refund the provisional reservation. Cache misses atomically apply
+  the `explore_audio_moderation` daily and per-user/IP limits before dispatch.
 - After standalone WAV audio passes moderation,
   `share-scan-to-explore` and media edits through
   `update-explore-field-notes` generate or reuse a deterministic PNG
@@ -4722,20 +4774,25 @@ the hardened backend validation path. `SimilarSpeciesGallery` always labels
 validated entries as "Similar species"; identification uncertainty is handled by
 the separate candidates/review surface.
 
-**Per-user daily rate limit**: Effective free users are throttled after 50
-`enrich-scan` requests per day (proxy for LLM budget). The tier is resolved via
-`getTierForUser` from `_shared/tierCache.ts`, which returns the effective tier
-from the paid/trial/free resolver. When the limit is exceeded the function
-returns `429 Too Many Requests` before any Gemini call is made. Effective Pro
-users, including active trial users, are exempt.
+**Authoritative quota**: Cache hits perform no paid provider work and consume no
+AI quota. A cache miss reserves either `scan_overview_enrichment` or
+`scan_lookalike_enrichment` before generation. Their shared UTC-day ceilings
+are 4 for free, 100 for Pro trial, and 500 for paid Pro, with additional shared
+per-user/IP minute ceilings. The UUID `Idempotency-Key` header is reused across
+transport/auth/server retries. Provider attempts consume quota even if the
+provider response is malformed; a pre-provider cache/no-op path may refund.
 
 ### Error Responses
 
-| Status | Body                                                      | Meaning                               |
-| ------ | --------------------------------------------------------- | ------------------------------------- |
-| `400`  | `{ "error": "Missing required parameters..." }`           | `scan_id` or `scientific_name` absent |
-| `400`  | `{ "error": "AI processing error during enrichment..." }` | Gemini generation failure             |
-| `429`  | `{ "error": "Rate limit exceeded. Try again tomorrow." }` | Free-tier daily quota exceeded        |
+| Status | Body | Meaning |
+|---|---|---|
+| `400` | `{ "error": "Missing required parameters..." }` | Required enrichment input absent |
+| `400` | `{ "code": "ai_request_id_invalid", ... }` | Supplied request key is not a UUID |
+| `400`/`500` | `{ "error": "AI processing error during enrichment..." }` | Provider or enrichment persistence failure |
+| `429` | `{ "code": "ai_quota_daily_exceeded", "retry_after_seconds": ... }` | Plan's UTC-day AI ceiling reached |
+| `429` | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Per-user minute ceiling reached |
+| `429` | `{ "code": "ai_ip_rate_limit_exceeded", ... }` | Network minute ceiling reached |
+| `503` | `{ "code": "ai_entitlement_unavailable", ... }` | Entitlement/quota state could not be verified |
 
 ---
 
@@ -4743,7 +4800,10 @@ users, including active trial users, are exempt.
 
 Private Pro follow-up chat for completed biological Insight sheets. The endpoint
 uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership
-of `scan_id`, and resolves the effective tier through `_shared/tierCache.ts`.
+of `scan_id`, and reads durable effective tier through
+`_shared/entitlement.ts`. Each provider action then reserves its operation in
+the database, which repeats entitlement verification atomically with quota and
+model selection.
 
 ### Request Payload
 
@@ -4814,6 +4874,12 @@ behavior remains independent if prompt generation fails. The server caps v1 at
 600 characters per user message, 30 total messages per conversation, and 20
 sends per Pro user per day across all of that user's Insight chats. Effective
 Pro includes active trial users.
+
+`send` uses `client_message_id` as the UUID provider idempotency key. The iOS
+client sends a UUID `Idempotency-Key` header for `suggest_prompts` and
+`summarize_notes`; every automatic network/auth/server retry preserves the same
+value. `load`, delete, feedback, and local safety refusals do not invoke Gemini
+and do not consume AI quota.
 
 ### Prompt and Privacy Boundary
 
@@ -4949,6 +5015,10 @@ identification requests.
 | `402`  | `{ "code": "pro_required", ... }`        | Effective tier is not Pro/trial                    |
 | `404`  | `{ "code": "scan_not_ready", ... }`      | No owned completed scan row exists yet             |
 | `429`  | `{ "code": "daily_limit_reached", ... }` | Daily send cap reached                             |
+| `429`  | `{ "code": "ai_quota_daily_exceeded", ... }` | Database AI safety ceiling reached              |
+| `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached           |
+| `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }` | Shared network minute ceiling reached          |
+| `503`  | `{ "code": "ai_entitlement_unavailable", ... }` | Entitlement/quota lookup failed closed         |
 
 Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
 `InsightChatRateLimited`, `InsightChatModelError`,
@@ -4978,6 +5048,12 @@ requires the post to be visible to that viewer, and resolves Pro/trial access
 server-side. Each `(post_id, viewer user_id)` pair has its own conversation.
 Other viewers cannot load or mutate it; the post author may own a conversation
 when viewing their own published post.
+
+Model sends reserve `explore_post_chat_reply` using
+`client_message_id`/`Idempotency-Key` before provider dispatch and use the
+database-selected model. Local safety refusals and deterministic prompt
+suggestions do not call Gemini and do not consume AI quota. Explore and Insight
+model chat share the `ai_chat` quota buckets.
 
 Request bodies use `post_id` and support `load`, `send`, `delete`, `feedback`,
 and `suggest_prompts`:
@@ -5010,7 +5086,9 @@ private and visible only to you.`
 pro_required` covers non-Pro viewers; `404 message_not_found`
 covers feedback targeting a non-owned assistant message; and
 `429 daily_limit_reached` returns the current conversation envelope with no new
-send. Unpublishing a post deletes all of its private viewer conversations.
+send. Shared `409`, `429`, and fail-closed `503` AI quota errors follow the
+authorization table above. Unpublishing a post deletes all of its private
+viewer conversations.
 
 ---
 

@@ -12,7 +12,7 @@ struct PlanCard: View {
                         Image(systemName: revenueCat.isProActive ? "lock.open.fill" : "lock.fill")
                             .foregroundColor(.secondary)
                             .font(.system(size: 14, weight: .semibold))
-                        Text(revenueCat.isProActive ? "UNLIMITED SCANS" : "1 SCAN DAILY")
+                        Text(revenueCat.isProActive ? "HIGH-VOLUME SCANS" : "1 SCAN DAILY")
                             .font(.system(.caption, design: .monospaced))
                             .fontWeight(.bold)
                             .foregroundColor(.secondary)

@@ -743,11 +743,15 @@ final class MerianNetworkClient {
     private func makeAuthenticatedJSONRequest(
         url: URL,
         bodyData: Data,
-        timeoutInterval: TimeInterval = 90.0
+        timeoutInterval: TimeInterval = 90.0,
+        idempotencyKey: String? = nil
     ) async throws -> URLRequest {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let idempotencyKey {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
         request.httpBody = bodyData
 
         let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
@@ -766,12 +770,16 @@ final class MerianNetworkClient {
         body: Data? = nil,
         timeoutInterval: TimeInterval = 30.0,
         isRetry: Bool = false,
+        idempotencyKey: String? = nil,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> (Data, HTTPURLResponse) {
         let requestStart = CFAbsoluteTimeGetCurrent()
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let idempotencyKey {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
         if let body = body {
             request.httpBody = body
         }
@@ -824,7 +832,15 @@ final class MerianNetworkClient {
             if transientCodes.contains(urlError.code) && !isRetry {
                 MerianLog.network.debug("Transient network error \(urlError.code.rawValue, privacy: .public) — retrying in 2s.")
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
+                return try await performAuthenticatedRequest(
+                    url: url,
+                    method: method,
+                    body: body,
+                    timeoutInterval: timeoutInterval,
+                    isRetry: true,
+                    idempotencyKey: idempotencyKey,
+                    onRequestBodySent: onRequestBodySent
+                )
             }
             throw urlError
         }
@@ -843,7 +859,15 @@ final class MerianNetworkClient {
             if httpResponse.statusCode == 401 && !isRetry {
                 if Self.isMissingAuthSessionError(responseData: data, fallbackMessage: errString) {
                     if await SupabaseManager.shared.refreshActiveSessionForRetry() {
-                        return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
+                        return try await performAuthenticatedRequest(
+                            url: url,
+                            method: method,
+                            body: body,
+                            timeoutInterval: timeoutInterval,
+                            isRetry: true,
+                            idempotencyKey: idempotencyKey,
+                            onRequestBodySent: onRequestBodySent
+                        )
                     }
 
                     let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
@@ -855,7 +879,15 @@ final class MerianNetworkClient {
                         MerianLog.network.debug("Missing anonymous auth session detected — regenerating ghost session.")
                         if await SupabaseManager.shared.resetGhostSessionForRetry() {
                             try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
+                            return try await performAuthenticatedRequest(
+                                url: url,
+                                method: method,
+                                body: body,
+                                timeoutInterval: timeoutInterval,
+                                isRetry: true,
+                                idempotencyKey: idempotencyKey,
+                                onRequestBodySent: onRequestBodySent
+                            )
                         }
 
                         await SupabaseManager.shared.clearLocalSessionAfterAuthFailure()
@@ -880,7 +912,15 @@ final class MerianNetworkClient {
                     // Allow ~1.5s for the API gateway to recognize the new token signature.
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
 
-                    return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
+                    return try await performAuthenticatedRequest(
+                        url: url,
+                        method: method,
+                        body: body,
+                        timeoutInterval: timeoutInterval,
+                        isRetry: true,
+                        idempotencyKey: idempotencyKey,
+                        onRequestBodySent: onRequestBodySent
+                    )
                 } else {
                     throw MerianError.invalidResponse
                 }
@@ -892,7 +932,15 @@ final class MerianNetworkClient {
             if httpResponse.statusCode >= 500 && !isRetry {
                 MerianLog.network.debug("Server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true, onRequestBodySent: onRequestBodySent)
+                return try await performAuthenticatedRequest(
+                    url: url,
+                    method: method,
+                    body: body,
+                    timeoutInterval: timeoutInterval,
+                    isRetry: true,
+                    idempotencyKey: idempotencyKey,
+                    onRequestBodySent: onRequestBodySent
+                )
             }
 
             throw MerianError.httpError(statusCode: httpResponse.statusCode, message: errString)
@@ -987,7 +1035,11 @@ final class MerianNetworkClient {
             )
         }.value
 
-        return try await makeAuthenticatedJSONRequest(url: functionUrl, bodyData: bodyData)
+        return try await makeAuthenticatedJSONRequest(
+            url: functionUrl,
+            bodyData: bodyData,
+            idempotencyKey: capturedScanId
+        )
     }
 
     func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil, description: String? = nil, observationContextJSON: String? = nil) async throws -> Data {
@@ -997,7 +1049,7 @@ final class MerianNetworkClient {
         let capturedImageBase64s = base64ImageDatas
         let capturedMimeType = mimeType
         let capturedTelemetry = telemetry
-        let capturedClientScanId = clientScanId
+        let capturedClientScanId = clientScanId ?? UUID().uuidString.lowercased()
         let capturedDescription = description
         let capturedObservationContextJSON = observationContextJSON
         let bodyData = try await Task.detached(priority: .userInitiated) {
@@ -1014,7 +1066,13 @@ final class MerianNetworkClient {
         }.value
         // Inference calls can take up to 25–30s on gemini-2.5-pro with slow connections.
         // Use a 90s timeout matching timeoutIntervalForResource to prevent false timeouts.
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 90.0)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: 90.0,
+            idempotencyKey: capturedClientScanId
+        )
         return data
     }
 
@@ -1131,7 +1189,11 @@ final class MerianNetworkClient {
             )
         }.value
 
-        return try await makeAuthenticatedJSONRequest(url: functionUrl, bodyData: bodyData)
+        return try await makeAuthenticatedJSONRequest(
+            url: functionUrl,
+            bodyData: bodyData,
+            idempotencyKey: capturedClientScanId
+        )
     }
 
     /// Validates that the combined base64 image + audio payload fits the V8 isolator memory budget.
@@ -1224,6 +1286,7 @@ final class MerianNetworkClient {
             method: "POST",
             body: bodyData,
             timeoutInterval: 90.0,
+            idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"),
             onRequestBodySent: onRequestBodySent
         )
         return data
@@ -1271,7 +1334,12 @@ final class MerianNetworkClient {
             "scope": scope
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            idempotencyKey: UUID().uuidString.lowercased()
+        )
         return try JSONDecoder().decode(EnrichScanResponse.self, from: data)
     }
 
@@ -2811,9 +2879,11 @@ final class MerianNetworkClient {
         fieldNotes: String? = nil,
         hashtags: [String] = [],
         locationSharing: ExplorePostLocationSharing? = nil,
-        mediaItems: [ExplorePostMediaSelection]? = nil
+        mediaItems: [ExplorePostMediaSelection]? = nil,
+        idempotencyKey: String? = nil
     ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
+        let resolvedIdempotencyKey = idempotencyKey ?? UUID().uuidString.lowercased()
         var payload: [String: Any] = [
             "scan_id": scanId,
             "field_notes": fieldNotes ?? NSNull(),
@@ -2839,7 +2909,12 @@ final class MerianNetworkClient {
             payload["restored_audio_object_keys"] = restoredAudioObjectKeys
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            idempotencyKey: resolvedIdempotencyKey
+        )
         return try makeExploreDecoder().decode(ExploreShareResponse.self, from: data)
     }
 
@@ -2853,6 +2928,7 @@ final class MerianNetworkClient {
         mediaItems: [ExplorePostMediaSelection]? = nil
     ) async throws -> ExploreShareResponse {
         let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan, fallbackImageData: fallbackImageData)
+        let idempotencyKey = UUID().uuidString.lowercased()
         do {
             return try await shareScanToExplore(
                 scanId: mediaSnapshot.scanId,
@@ -2860,7 +2936,8 @@ final class MerianNetworkClient {
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
                 locationSharing: locationSharing,
-                mediaItems: mediaItems
+                mediaItems: mediaItems,
+                idempotencyKey: idempotencyKey
             )
         } catch {
             if shouldAttemptExploreCloudScanRestore(after: error) {
@@ -2885,7 +2962,8 @@ final class MerianNetworkClient {
                     fieldNotes: fieldNotes,
                     hashtags: hashtags,
                     locationSharing: locationSharing,
-                    mediaItems: mediaItems
+                    mediaItems: mediaItems,
+                    idempotencyKey: idempotencyKey
                 )
             }
 
@@ -2911,7 +2989,8 @@ final class MerianNetworkClient {
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
                 locationSharing: locationSharing,
-                mediaItems: mediaItems
+                mediaItems: mediaItems,
+                idempotencyKey: idempotencyKey
             )
         }
     }
@@ -2921,9 +3000,11 @@ final class MerianNetworkClient {
         restoredObjectKeys: [String]? = nil,
         speciesCommonName: String? = nil,
         note: String? = nil,
-        locationSharing: ExplorePostLocationSharing? = nil
+        locationSharing: ExplorePostLocationSharing? = nil,
+        idempotencyKey: String? = nil
     ) async throws -> CommunityIdentificationRequest {
         let functionUrl = try endpointURL("request-community-identification")
+        let resolvedIdempotencyKey = idempotencyKey ?? UUID().uuidString.lowercased()
         var payload: [String: Any] = [
             "scan_id": scanId,
             "note": note ?? NSNull()
@@ -2939,7 +3020,12 @@ final class MerianNetworkClient {
             payload["restored_object_keys"] = restoredObjectKeys
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            idempotencyKey: resolvedIdempotencyKey
+        )
         return try makeExploreDecoder().decode(CommunityIdentificationRequestResponse.self, from: data).data
     }
 
@@ -2951,12 +3037,14 @@ final class MerianNetworkClient {
         locationSharing: ExplorePostLocationSharing? = nil
     ) async throws -> CommunityIdentificationRequest {
         let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan, fallbackImageData: fallbackImageData)
+        let idempotencyKey = UUID().uuidString.lowercased()
         do {
             return try await requestCommunityIdentification(
                 scanId: mediaSnapshot.scanId,
                 speciesCommonName: speciesCommonName,
                 note: note,
-                locationSharing: locationSharing
+                locationSharing: locationSharing,
+                idempotencyKey: idempotencyKey
             )
         } catch {
             if shouldAttemptExploreCloudScanRestore(after: error) {
@@ -2974,7 +3062,8 @@ final class MerianNetworkClient {
                     restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
                     speciesCommonName: speciesCommonName,
                     note: note,
-                    locationSharing: locationSharing
+                    locationSharing: locationSharing,
+                    idempotencyKey: idempotencyKey
                 )
             }
 
@@ -2992,7 +3081,8 @@ final class MerianNetworkClient {
                 restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
                 speciesCommonName: speciesCommonName,
                 note: note,
-                locationSharing: locationSharing
+                locationSharing: locationSharing,
+                idempotencyKey: idempotencyKey
             )
         }
     }
@@ -3037,7 +3127,12 @@ final class MerianNetworkClient {
             payload["species_common_name"] = trimmedCommonName
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            idempotencyKey: UUID().uuidString.lowercased()
+        )
         return try makeExploreDecoder().decode(ExploreUpdateFieldNotesResponse.self, from: data)
     }
 
@@ -3231,7 +3326,8 @@ final class MerianNetworkClient {
             url: functionUrl,
             method: "POST",
             body: bodyData,
-            timeoutInterval: 45.0
+            timeoutInterval: 45.0,
+            idempotencyKey: action == "send" ? clientMessageId : nil
         )
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -3299,7 +3395,11 @@ final class MerianNetworkClient {
             feedbackNote: nil,
             featureFeedbackSentiment: nil
         )
-        let data = try await performInsightChatRequest(body, timeoutInterval: 45.0)
+        let data = try await performInsightChatRequest(
+            body,
+            timeoutInterval: 45.0,
+            idempotencyKey: UUID().uuidString.lowercased()
+        )
         return try JSONDecoder().decode(InsightChatSummaryEnvelope.self, from: data).data
     }
 
@@ -3314,13 +3414,18 @@ final class MerianNetworkClient {
             feedbackNote: nil,
             featureFeedbackSentiment: nil
         )
-        let data = try await performInsightChatRequest(body, timeoutInterval: 30.0)
+        let data = try await performInsightChatRequest(
+            body,
+            timeoutInterval: 30.0,
+            idempotencyKey: UUID().uuidString.lowercased()
+        )
         return try JSONDecoder().decode(InsightChatPromptSuggestionsEnvelope.self, from: data).data
     }
 
     private func performInsightChatRequest(
         _ body: InsightChatRequestBody,
-        timeoutInterval: TimeInterval = 20.0
+        timeoutInterval: TimeInterval = 20.0,
+        idempotencyKey: String? = nil
     ) async throws -> Data {
         let functionUrl = try endpointURL("insight-chat")
         let bodyData = try JSONEncoder().encode(body)
@@ -3328,7 +3433,8 @@ final class MerianNetworkClient {
             url: functionUrl,
             method: "POST",
             body: bodyData,
-            timeoutInterval: timeoutInterval
+            timeoutInterval: timeoutInterval,
+            idempotencyKey: idempotencyKey
         )
         return data
     }
@@ -3405,7 +3511,10 @@ final class MerianNetworkClient {
             feedbackRating: nil,
             feedbackNote: nil
         )
-        let data = try await performExplorePostChatRequest(body)
+        let data = try await performExplorePostChatRequest(
+            body,
+            idempotencyKey: action == "send" ? clientMessageId : nil
+        )
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -3424,7 +3533,8 @@ final class MerianNetworkClient {
 
     private func performExplorePostChatRequest(
         _ body: ExplorePostChatRequestBody,
-        timeoutInterval: TimeInterval = 20.0
+        timeoutInterval: TimeInterval = 20.0,
+        idempotencyKey: String? = nil
     ) async throws -> Data {
         let functionUrl = try endpointURL("explore-post-chat")
         let bodyData = try JSONEncoder().encode(body)
@@ -3432,7 +3542,8 @@ final class MerianNetworkClient {
             url: functionUrl,
             method: "POST",
             body: bodyData,
-            timeoutInterval: timeoutInterval
+            timeoutInterval: timeoutInterval,
+            idempotencyKey: idempotencyKey
         )
         return data
     }

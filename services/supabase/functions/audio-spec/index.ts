@@ -8,10 +8,8 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import {
-  resolveTierForUser,
-  tierTelemetryProperties,
-} from "../_shared/tierCache.ts";
+import { tierTelemetryProperties } from "../_shared/entitlement.ts";
+import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
@@ -229,8 +227,13 @@ Deno.serve((req: Request) =>
       return jsonResponse({ error: "Invalid audio file format." }, 400);
     }
 
-    // 4. Resolve user tier for PostHog tracking (non-blocking, cached after first scan)
-    const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+    // 4. Atomically resolve entitlement and reserve quota before provider work.
+    const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+      userId: user.id,
+      operation: "scan_audio_identification",
+      requestId: client_scan_id,
+    });
+    const tierResolution = quotaLease.reservation.tier;
     const userTier = tierResolution.effective_tier;
 
     // 5. Call Gemini with audio inline data
@@ -246,8 +249,9 @@ Deno.serve((req: Request) =>
     let finishReason: string | undefined;
 
     try {
+      await quotaLease.commit();
       const result = await _genAI.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: quotaLease.reservation.model,
         contents: [
           {
             role: "user",
@@ -415,7 +419,7 @@ Deno.serve((req: Request) =>
     const generatedScanId =
       typeof client_scan_id === "string" && client_scan_id.length > 0
         ? client_scan_id
-        : crypto.randomUUID();
+        : quotaLease.reservation.requestId;
 
     const isIdentifiedBio =
       !!(parsedData.is_biological_subject && parsedData.scientific_name);
@@ -690,7 +694,7 @@ Deno.serve((req: Request) =>
           is_biological_subject: parsedData.is_biological_subject,
           tier: userTier,
           ...tierTelemetryProperties(tierResolution),
-          llm_model: "gemini-2.5-flash",
+          llm_model: quotaLease.reservation.model,
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_thinking_tokens: llmThinkingTokens,

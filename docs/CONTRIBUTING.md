@@ -42,7 +42,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
     make db-push
     make functions-deploy
     ```
-6.  **TestFlight Release Prep**: Before archiving in Xcode, run `make prepare-ios-release VERSION=x.y.z` from the repo root. If you are ready to use production RevenueCat, pass `REVENUECAT_API_KEY=appl_...` or set the same key in ignored `Config.local.xcconfig` first. The command updates the tracked XcodeGen source, regenerates `Merian.xcodeproj`, and writes the local archive-prep marker. Prelaunch builds intentionally keep unlimited scans enabled; do not disable the override for routine beta uploads. RevenueCat purchase QA must open Settings → Plan directly and follow the documented Test Store/StoreKit/TestFlight matrix. See [`docs/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md) and [`docs/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
+6.  **TestFlight Release Prep**: Before archiving in Xcode, run `make prepare-ios-release VERSION=x.y.z` from the repo root. If you are ready to use production RevenueCat, pass `REVENUECAT_API_KEY=appl_...` or set the same key in ignored `Config.local.xcconfig` first. The command updates the tracked XcodeGen source, regenerates `Merian.xcodeproj`, and writes the local archive-prep marker. Release/TestFlight uses the normal advisory free-scan meter; unlimited meter bypasses are DEBUG-only and never change authoritative Supabase quota. RevenueCat purchase QA must open Settings → Plan directly and follow the documented Test Store/StoreKit/TestFlight matrix. See [`docs/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md) and [`docs/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
 
 ## Testing Protocol
 
@@ -55,23 +55,36 @@ Before contributing, please review our core architectural tenets. Refactoring co
   `services/supabase/functions/deno.json` owns reviewed dependency pins. Each
   deployable function has a generated local `deno.json` that uses the shared
   frozen `dependencies.lock`, matching the config Supabase discovers while
-  building that function. Validate and type-check that exact graph:
+  building that function. From the repository root, validate and type-check
+  that exact graph:
   ```bash
-  cd /Users/emreerdener/Developer/merian
   deno run --allow-read=services/supabase \
     services/supabase/scripts/sync_function_deno_configs.ts --check
   deno run --allow-read=services/supabase \
     services/supabase/scripts/validate_function_dependencies.ts
+  deno test --frozen --config services/supabase/functions/deno.json \
+    --allow-read=services/supabase \
+    services/supabase/scripts/function_dependency_tools_test.ts
   deno check --frozen \
     --config services/supabase/functions/<function>/deno.json \
     services/supabase/functions/<function>/index.ts
   ```
+  The planner test compares the complete `[functions.<name>]` set in
+  `config.toml` with the complete set of discoverable function graphs. Add or
+  retire the reported route correctly; do not maintain a numeric fleet-size
+  assertion.
   New deployed functions should call `Deno.serve(...)` directly and avoid
   direct runtime URL/npm/JSR imports; route packages through the root manifest,
   regenerate function-local configs, and use local shared helpers such as
   `_shared/encoding.ts` where available. The fleet uses one exact Supabase SDK.
   Keep `_shared/claimsAuth.ts` out of `_shared/edgeHandler.ts` because claims
   verification is an opt-in route policy, not because it uses another SDK.
+- **Database migrations**: Run `make validate-supabase-migrations` before a
+  local reset or deployment. Migration SQL must be replayable by
+  `supabase db start`; do not check in concurrent index DDL. For a
+  zero-downtime index on a populated production table, follow the supervised
+  pre-deploy procedure in the Supabase deployment runbook and keep an
+  idempotent ordinary index statement for clean environments.
 
 ## Submitting a Pull Request 🚀
 

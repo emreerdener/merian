@@ -12,7 +12,7 @@ help:
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
-	@printf "  make test-supabase-privileged-routines Validate privileged routine ACLs locally\n"
+	@printf "  make test-supabase-privileged-routines Validate privileged-routine and AI-quota catalogs locally\n"
 	@printf "  make audit-supabase-privileged-routines Audit MERIAN_DATABASE_URL and fail on drift\n"
 	@printf "  make audit-ghost-users ARGS='...'     Run read-only Supabase ghost-user audit\n"
 	@printf "  make cleanup-ghost-users ARGS='...'   Dry-run or execute guarded ghost-user cleanup\n"
@@ -43,6 +43,8 @@ validate-ios-migration-guardrails:
 validate-supabase-migrations:
 	deno test --config services/supabase/functions/deno.json \
 		--allow-read=services/supabase/migrations \
+		services/supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
+		services/supabase/functions/_tests/migrationExecutionContract.test.ts \
 		services/supabase/functions/_tests/migrationMediaContract.test.ts \
 		services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts
 
@@ -50,7 +52,8 @@ test-supabase-privileged-routines:
 	supabase --workdir $(SUPABASE_WORKDIR) db start
 	supabase --workdir $(SUPABASE_WORKDIR) db push --local
 	supabase --workdir $(SUPABASE_WORKDIR) test db --local \
-		services/supabase/tests/privileged_routine_security.sql
+		services/supabase/tests/privileged_routine_security.sql \
+		services/supabase/tests/ai_quota_security.sql
 
 audit-supabase-privileged-routines:
 	deno run --frozen --config services/supabase/functions/deno.json \

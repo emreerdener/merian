@@ -238,7 +238,9 @@ export async function resolveLookalikesToJoinTable(
     console.warn(
       `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed taxonomy validation (kingdom: ${normalizedPrimaryKingdom}, order: ${
         normalizedPrimaryOrder ?? "any"
-      }, family: ${normalizedPrimaryFamily ?? "any"}). Returning unmatched stubs only.`,
+      }, family: ${
+        normalizedPrimaryFamily ?? "any"
+      }). Returning unmatched stubs only.`,
     );
     return { lookalikes: unmatchedStubs, persisted: false };
   }

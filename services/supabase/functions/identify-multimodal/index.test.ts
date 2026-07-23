@@ -940,7 +940,9 @@ Deno.test("latency work preserves the scoped Gemini model and generation configu
   );
   for (
     const fragment of [
-      'userTier === "pro"\n    ? "gemini-2.5-pro"\n    : "gemini-2.5-flash"',
+      "const targetModel = quotaLease.reservation.model;",
+      "await quotaLease.commit();",
+      "model: targetModel",
       "temperature: 0.1",
       "seed: 42",
       "maxOutputTokens: 8192",

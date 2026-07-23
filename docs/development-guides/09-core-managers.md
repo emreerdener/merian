@@ -543,7 +543,7 @@ triggering excessive SwiftUI view rebuilds.
   tombstoning) remain serial; only the NVMe write (`FileManager.copyItem`) and
   task creation are concurrent. For a 3-image scan this eliminates 500 ms–2 s of
   head-of-line blocking before the OS background session takes over.
-- **Quota Enforcement at Enqueue Time**: `insertAndPersistRecord` calls
+- **Advisory meter at enqueue time**: `insertAndPersistRecord` calls
   `UsageManager.shared.canPerformScan(isProActive: false)` before inserting a
   new `OfflineQueuedScan`. If the quota is exhausted the scan is rejected and
   any files written to disk are cleaned up atomically —
@@ -551,10 +551,11 @@ triggering excessive SwiftUI view rebuilds.
   check passes, `UsageManager.shared.consumeScan()` reserves the token before
   the record enters SwiftData; if `modelContext.save()` fails, the queue
   rollback path calls `UsageManager.shared.refundScan()` before deleting staged
-  files. `syncPendingScans` has no quota checks or `consumeScan` calls — every
-  scan in the queue at upload time is already paid for and uploads
-  unconditionally regardless of `freeScansRemaining`. Non-biological results
-  count as successful scan attempts and are not refunded. A correction
+  files. `syncPendingScans` has no local-meter checks or `consumeScan` calls;
+  queued scans upload unconditionally regardless of `freeScansRemaining`.
+  Supabase still applies the authoritative entitlement and quota reservation
+  before provider dispatch. Non-biological provider attempts count and are not
+  refunded. A correction
   reanalysis for a non-biological result can bypass the Pro feature gate, but
   not daily free-scan accounting.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through
@@ -1255,8 +1256,8 @@ and `KeychainManager` migration logic. Do not inline
 
 ### `UsageManager`
 
-- Lives at `Core/Analytics/UsageManager.swift`. Enforces the daily free-tier
-  scan quota.
+- Lives at `Core/Analytics/UsageManager.swift`. Maintains the advisory daily
+  free-tier capture/paywall meter; Supabase owns provider authorization.
 - `canPerformScan(isProActive:) -> Bool` — returns
   `isProActive || freeScansRemaining > 0`. Checked at two pre-scan gates only:
   `Capture.swift` (camera shutter) and `handlePhotoPickerSelection` (photo
@@ -1264,8 +1265,8 @@ and `KeychainManager` migration logic. Do not inline
   paywall — they surface an error state and refund the token.
 - `consumeScan()` — called once at enqueue time inside
   `OfflineQueueManager.insertAndPersistRecord` / `enqueueNonVisualCapture`,
-  before the `OfflineQueuedScan` record is committed. Every scan that enters the
-  queue is already paid for; `syncPendingScans` has no quota checks.
+  before the `OfflineQueuedScan` record is committed. `syncPendingScans` has no
+  second local check.
 - `refundScan()` — restores the consumed token if inference fails unrecoverably
   (task cancellation, JSON decoding failure, network error) or if queue
   insertion fails after a token was reserved.
@@ -1273,12 +1274,11 @@ and `KeychainManager` migration logic. Do not inline
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from
   `AppDIContainer.handleActivePhase()` on foreground transitions.
-- **Prelaunch override**:
-  `FeatureFlag.unlimitedFreeScans.defaultValue` is intentionally `true` in
-  every current build, including Release/TestFlight, so testers are not
-  constrained by the daily free quota. Before the public App Store release,
-  change its central default to `false`, rerun `UsageManagerTests`, and verify
-  the standard Pro/free quota path on a physical release-candidate build.
+- **Debug override**: `FeatureFlag.unlimitedFreeScans.defaultValue` is `false`.
+  DEBUG Settings/environment overrides bypass only this local meter;
+  Release/TestFlight ignores them and all builds remain subject to server quota.
+- The authoritative database uses a UTC-day bucket and stable request UUID.
+  Local refunds do not refund a provider attempt.
 - Full contract documented in
   [02-revenue-and-identity.md](../features-and-hardware/02-revenue-and-identity.md#usage-limits-usagemanager).
 

@@ -19,6 +19,11 @@ import {
 import type { SelectedExplorePostMediaItem } from "./db.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { exploreShareFailureReason } from "../_shared/exploreAudioTelemetry.ts";
+import {
+  deriveAIRequestId,
+  reserveAIProviderCall,
+  resolveAIRequestId,
+} from "../_shared/aiQuota.ts";
 
 function makeHttpError(
   status: number,
@@ -262,6 +267,7 @@ Deno.serve((req: Request) =>
       body.location_sharing,
     );
     const mediaItems = normalizeMediaItems(body.media_items);
+    let moderationParentRequestId: string | null = null;
 
     runBackground(trackPostHogEvent(user.id, "ExplorePostShareStarted", {
       event_source: "supabase_edge",
@@ -294,6 +300,23 @@ Deno.serve((req: Request) =>
         locationSharing,
         mediaItems,
         supabaseAdmin,
+        {
+          beforeProvider: async ({ checksumSha256, policyVersion }) => {
+            moderationParentRequestId ??= resolveAIRequestId(
+              req,
+              body.ai_request_id,
+            );
+            const requestId = await deriveAIRequestId(
+              moderationParentRequestId,
+              `${checksumSha256}:${policyVersion}`,
+            );
+            return await reserveAIProviderCall(req, supabaseAdmin, {
+              userId: user.id,
+              operation: "explore_audio_moderation",
+              requestId,
+            });
+          },
+        },
       );
       await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
       await markResolvedCommunityRequestPublishedToExplore(

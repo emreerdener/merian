@@ -138,6 +138,7 @@ export async function insertAssistantMessage(
   postId: string,
   result: ModelChatResult,
   supabaseAdmin: SupabaseClient,
+  model = "gemini-2.5-flash",
 ): Promise<void> {
   const usage = result.usage;
   const { error } = await supabaseAdmin.from("explore_post_chat_messages")
@@ -147,7 +148,7 @@ export async function insertAssistantMessage(
       user_id: userId,
       role: "assistant",
       message_text: result.answer,
-      model: usage ? "gemini-2.5-flash" : null,
+      model: usage ? model : null,
       llm_prompt_tokens: usage?.promptTokenCount ?? null,
       llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
       llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,

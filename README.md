@@ -36,6 +36,7 @@ steps are tracked in the
 
 ### Identification
 - Powered by **Google Gemini 2.5 Flash** (free tier) and **Gemini 2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase. Private provider secrets never touch the client binary.
+- Every public provider attempt first obtains an idempotent database reservation that verifies durable entitlement, selects the allowed model, and applies UTC-day plus per-user/IP cost ceilings. Entitlement/database failures fail closed.
 - Structured JSON output schema enforced server-side: common name, scientific name, full Linnaean taxonomy, ecology type, IUCN Red List status, location-aware invasiveness flag with region/rationale/confidence, confidence score, dominant colors, categorical group tags, and a lookalike diagnostic comparison.
 - Dog and cat scans keep species-grade taxonomy (`Canis lupus familiaris` / `Felis catus`) while optionally carrying a separate pet label for confident breed, mix, coat-pattern, or body-type display.
 - Concurrent on-device `VNClassifyImageRequest` drives the scanning overlay's status phrases while the network round-trip runs.
@@ -230,11 +231,13 @@ steps are tracked in the
   Auth cleanup. Pending proofs survive restarts in a device-only Keychain queue
   for the 30-day recovery window.
 - RevenueCat webhook drives `free` ↔ `pro` tier updates while leaving existing scan media in place.
-- Public-release policy: Free receives 1 scan/day; Pro receives unlimited scans,
-  Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple Watch logging,
-  expedition mode, and offline queue. Current prelaunch builds intentionally
-  override only the scan quota to unlimited for every tester, including
-  TestFlight; the public-release checklist restores normal quota enforcement.
+- Free receives one primary scan per UTC day. Pro removes the ordinary product
+  cap and receives Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple
+  Watch logging, expedition mode, and offline queue; database fair-use ceilings
+  still bound automated provider traffic. Every public AI route atomically
+  resolves entitlement, selects its model, and reserves per-user/IP quota
+  before provider dispatch. The iOS `UserDefaults` meter is advisory, and its
+  debug-only bypass cannot change server capacity.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5 Flash against stored scan evidence only; the same function also generates short, scan-specific prompt chips from private text context.
 
 ### Evidence Retention
@@ -396,7 +399,9 @@ supabase --workdir services functions deploy
 
 That is the manual full-fleet command. Production deployment runs through the
 path-filtered GitHub workflow, which validates frozen function-local dependency
-graphs and deploys only transitive runtime consumers in bounded batches. See the
+graphs, requires exact name parity with `services/supabase/config.toml`, and
+deploys only transitive runtime consumers in bounded batches. The fleet size is
+derived rather than hard-coded. See the
 [Supabase deployment runbook](docs/backend-and-data/06-supabase-deployment-runbook.md).
 
 ---

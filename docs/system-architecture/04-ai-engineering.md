@@ -518,12 +518,13 @@ or audio attached:
   requests regardless of tier. Model selection is tier-based: effective Pro
   users use `gemini-2.5-pro` for maximum identification depth (rare species,
   fossils, subspecies, cultivars); effective free users use `gemini-2.5-flash`
-  for 2–3× lower latency. Tier is resolved via `resolveTierForUser()` from
-  `_shared/tierCache.ts` (5-minute TTL worker-level cache). This resolver
-  separates model choice from paid storage: paid subscribers and active paid
-  7-day passes return `plan = "pro_paid"`, dynamic 7-day trial users return
-  `plan = "pro_trial"` while usually keeping raw `subscription_tier = "free"`,
-  and expired free/timed-pass users return `plan = "free"`.
+  for 2–3× lower latency. `_shared/aiQuota.ts` obtains the model from an atomic
+  database reservation rather than trusting the client or isolate memory. The
+  reservation separates model choice from paid storage: paid subscribers and
+  active paid 7-day passes return `plan = "pro_paid"`, dynamic 7-day trial users
+  return `plan = "pro_trial"` while usually keeping raw
+  `subscription_tier = "free"`, and expired free/timed-pass users return
+  `plan = "free"`.
 - **Fossil, Geological & Non-Biological Handling**: The system instruction
   explicitly distinguishes liveness from biological identity. Fossils, pressed
   plants, museum specimens, and dried organisms are
@@ -991,23 +992,27 @@ insight sheet display.
   cache misses, analytics, and optional image-scan ingestion work run under
   `EdgeRuntime.waitUntil` and cannot delay the HTTP response. Video durability
   semantics remain unchanged.
-- **Lightweight critical-path tier SELECT**: A single
-  `SELECT subscription_tier, created_at, subscription_expires_at` runs before
-  the Gemini call when the warm-isolate cache misses. It determines the
-  effective model (Pro → `gemini-2.5-pro`, free → `gemini-2.5-flash`) and the
-  telemetry plan (`pro_paid`, `pro_trial`, or `free`). Active timed passes are
-  paid Pro; expired timed-pass rows resolve as free until the hourly expiry
-  worker clears them. Ghost-user upsert stays in the background task. The SELECT
-  is skipped on cache hit.
-- **Worker-level tier cache** (`_shared/tierCache.ts`): A module-scope
-  `Map<userId, { resolution, ts }>` with a 5-minute TTL persists across warm
-  Deno isolate re-use via `resolveTierForUser()`. Cache hits are near-instant on
-  both the critical path and the background task. Ghost users are cached as
-  trial Pro with `user_exists = false`, then the background upsert creates the
-  raw free user row and rewrites the cache to a normal trial resolution. This
-  avoids first-scan ghosts being downgraded to cached free while keeping paid
-  `subscription_tier` changes owned by RevenueCat webhook events and timed-pass
-  expiry owned by `expire-subscription-passes`.
+- **Atomic critical-path entitlement reservation**: One service-role RPC reads
+  tier, creation time, timed expiry, and `entitlement_version`; derives
+  `pro_paid`, `pro_trial`, or `free`; selects the operation's allowlisted model;
+  and conditionally consumes UTC-day/user/IP counters. The transaction is
+  idempotent on `(user, operation, request_id)` and serializes only duplicate
+  keys. It holds a share lock on the entitlement row, so a concurrent
+  downgrade and reservation have one database order, and uses a consistent
+  daily/user/IP counter lock order for reservation and refund. Active timed
+  passes are paid Pro; stale expired or future-dated invalid profiles resolve
+  free. Missing user rows and database errors fail closed.
+- **No isolate-local entitlement authority**: RevenueCat tier changes advance a
+  durable version in the same row update. Every provider reservation reads that
+  database state, so another Edge isolate cannot retain stale Pro access.
+  `_shared/entitlement.ts` also performs an uncached durable read for
+  non-provider feature gates and telemetry.
+- **Cost-safe settlement**: Counters are consumed while a reservation is
+  `reserved`. The Edge route commits immediately before provider dispatch;
+  malformed responses and provider errors still consume the attempt. Only a
+  proven pre-provider no-op, such as an audio moderation cache hit or empty
+  multimodal payload, may refund. A crash or failed finalization therefore
+  cannot create unmetered provider traffic.
 - **System instruction structured via Markdown**: The instruction was migrated
   from a dense single paragraph to structured hierarchical Markdown headers
   (`# Subject Liveness & Status`, `# Identification Rules`, etc.). This

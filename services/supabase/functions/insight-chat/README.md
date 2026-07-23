@@ -36,8 +36,12 @@ public post metadata, or Darwin Core export payloads to the prompt.
 
 ## Rollout and Limits
 
-- Requires effective Pro tier from `_shared/tierCache.ts`; active trials count
-  as Pro.
+- Requires durable effective Pro entitlement. Model replies, prompt suggestions,
+  and field-note summaries reserve separate database quota operations before
+  provider dispatch; active trials use the `pro_trial` policy.
+- `client_message_id` is the idempotency key for sends. Suggestions and
+  summaries accept the `Idempotency-Key` header. Local safety refusals do not
+  invoke the provider and therefore do not consume AI quota.
 - Uses `gemini-2.5-flash`, `maxOutputTokens: 700`, no streaming, no Google
   Search grounding, and thinking disabled.
 - Each scan has one saved conversation per user, capped at 30 messages. All

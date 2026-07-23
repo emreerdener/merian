@@ -23,7 +23,7 @@ struct FieldTripsAvailabilityTests {
         #expect(!FeatureFlag.speciesDictionaryTree.defaultValue)
         #expect(FeatureFlag.fieldTrips.defaultValue)
         #expect(!FeatureFlag.fieldTripEvents.defaultValue)
-        #expect(FeatureFlag.unlimitedFreeScans.defaultValue)
+        #expect(!FeatureFlag.unlimitedFreeScans.defaultValue)
     }
 
     #if DEBUG

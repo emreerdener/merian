@@ -10,12 +10,6 @@ import {
   recordSpeciesContentProvenance,
 } from "../speciesContentProvenance.ts";
 import {
-  getCachedTierResolution,
-  hasTierCached,
-  resolutionForUserRow,
-  setTierResolutionCache,
-} from "../tierCache.ts";
-import {
   CachedSpeciesRow,
   IdentificationCandidate,
   PetIdentification,
@@ -95,50 +89,14 @@ export async function upsertGhostUserIfMissing(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ) {
-  const cachedResolution = getCachedTierResolution(userId);
-  if (cachedResolution?.user_exists === false) {
-    await supabaseAdmin
-      .from("users")
-      .upsert(
-        { id: userId, subscription_tier: "free" },
-        { onConflict: "id", ignoreDuplicates: true },
-      );
-    setTierResolutionCache(userId, {
-      effective_tier: "pro",
-      plan: "pro_trial",
-      subscription_tier: "free",
-      trial_active: true,
-      user_exists: true,
-    });
-    return;
-  }
-
-  if (!hasTierCached(userId)) {
-    const { data: existingUser } = await supabaseAdmin
-      .from("users")
-      .select("subscription_tier, created_at, subscription_expires_at")
-      .eq("id", userId)
-      .maybeSingle();
-    if (existingUser) {
-      setTierResolutionCache(userId, {
-        ...resolutionForUserRow(existingUser),
-        user_exists: true,
-      });
-    } else {
-      await supabaseAdmin
-        .from("users")
-        .upsert(
-          { id: userId, subscription_tier: "free" },
-          { onConflict: "id", ignoreDuplicates: true },
-        );
-      setTierResolutionCache(userId, {
-        effective_tier: "pro",
-        plan: "pro_trial",
-        subscription_tier: "free",
-        trial_active: true,
-        user_exists: true,
-      });
-    }
+  const { error } = await supabaseAdmin
+    .from("users")
+    .upsert(
+      { id: userId, subscription_tier: "free" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+  if (error) {
+    throw new Error(`Failed to ensure scan user exists: ${error.message}`);
   }
 }
 

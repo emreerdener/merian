@@ -51,13 +51,26 @@ derived from the JWT user. Staged keys must belong to that user and remain under
 the expected `staging/` prefix. Inline base64 media is size-checked before
 decode; staged media is fetched through bounded stream readers.
 
+Clients send the UUID `client_scan_id` as `Idempotency-Key` and preserve both
+values across transport, authentication, and queue retries. The database scopes
+that key by user and quota operation, so simultaneous duplicate requests cannot
+reserve twice. A known pre-provider validation no-op explicitly refunds; once
+the reservation is committed, provider errors remain consumed because spend may
+already have occurred.
+
 ## Model And Generation Invariants
 
 Each accepted scan makes exactly one primary identification
-`_genAI.models.generateContent` call:
+`_genAI.models.generateContent` call. The model comes from the atomic
+`scan_identification` database policy; the current policy is:
 
 - Free: `gemini-2.5-flash`
 - Pro: `gemini-2.5-pro`
+
+The same transaction resolves the durable plan and entitlement version, applies
+the plan's UTC-day scan ceiling, and consumes the shared per-user/IP minute
+limits. Missing user rows, entitlement/database errors, disabled or missing
+policy, and exhausted counters fail closed before provider dispatch.
 
 The route retains the existing modality-specific system instructions,
 temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
@@ -70,15 +83,14 @@ or identification semantics.
 - Still images are Gemini visual inputs and durable scan/display media.
 - A still-image descriptor may include `focusRegion` with top-left-normalized
   bounds and `source: "vision_objectness"`. Valid regions identify the likely
-  primary subject in the prompt while the complete image remains the only
-  Gemini visual part. Invalid, out-of-bounds, non-finite, and video-frame focus
-  regions are stripped without failing the request.
-- Standalone audio and extracted video audio are Gemini audio inputs.
-  Standalone audio is also durable scan media: it is promoted into
-  `audio_storage_urls`, represented in `captured_media`, and normalized as a
-  ready audio asset for optional Explore sharing. Extracted `video_audio`
-  remains inference-only and is deleted after finalization because the playback
-  MP4 is the public artifact.
+  primary subject in the prompt while the complete image remains the only Gemini
+  visual part. Invalid, out-of-bounds, non-finite, and video-frame focus regions
+  are stripped without failing the request.
+- Standalone audio and extracted video audio are Gemini audio inputs. Standalone
+  audio is also durable scan media: it is promoted into `audio_storage_urls`,
+  represented in `captured_media`, and normalized as a ready audio asset for
+  optional Explore sharing. Extracted `video_audio` remains inference-only and
+  is deleted after finalization because the playback MP4 is the public artifact.
 - Video inference is represented by sampled image frames plus optional extracted
   audio. The playback `.mp4` is not sent to Gemini.
 - New video scans require durable playback video promotion. If
@@ -132,12 +144,12 @@ non-resumable.
 Public requests inject `requireClaimsAuth` into `withEdgeHandler`. The claims
 policy is isolated from the wrapper's default `getUser` path, so unrelated
 authenticated functions keep their established authentication semantics while
-all routes share one exact Supabase SDK graph.
-`auth.getClaims(token)` verifies the project's ES256 signature through cached
-JWKS, after which Merian validates issuer, audience, expiration/not-before,
-role, and `sub`. Anonymous and authenticated users are valid; public
-`service_role` use is rejected. Internal replay is recognized first and retains
-its timing-safe service-role plus explicit replay-user checks.
+all routes share one exact Supabase SDK graph. `auth.getClaims(token)` verifies
+the project's ES256 signature through cached JWKS, after which Merian validates
+issuer, audience, expiration/not-before, role, and `sub`. Anonymous and
+authenticated users are valid; public `service_role` use is rejected. Internal
+replay is recognized first and retains its timing-safe service-role plus
+explicit replay-user checks.
 
 The Gemini timer stops immediately after `generateContent` returns, before
 finish-reason processing, JSON parsing, dictionary work, or persistence. After
@@ -180,8 +192,8 @@ specimen before the response can write or enrich species data. Manufactured or
 processed objects stay non-biological even when made from biological material:
 wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard,
 cotton or linen fabric, prepared food, toys, artwork, ornaments, and
-printed/painted/sculpted species depictions must not be identified as the
-source organism.
+printed/painted/sculpted species depictions must not be identified as the source
+organism.
 
 After parsing and sanitization, the route calls the shared
 `normalizeProcessedMaterialSubject(...)` guard before `isIdentifiedBio` is

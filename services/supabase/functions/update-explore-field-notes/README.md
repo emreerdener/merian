@@ -58,9 +58,17 @@ newly selected audible item must pass the existing content-addressed
 attestation/live moderation gate before public media changes are written. An
 approved WAV then reuses or generates its deterministic spectrogram PNG and
 copies that URL into the replacement `explore_post_media` rows plus matching
-normalized scan asset. Reordering an existing legacy audio row preserves a
-blank thumbnail instead of substituting the WAV playback URL as image media;
-web playback therefore keeps the speaker fallback safely.
+normalized scan asset. Reordering an existing legacy audio row preserves a blank
+thumbnail instead of substituting the WAV playback URL as image media; web
+playback therefore keeps the speaker fallback safely.
+
+Clients send one UUID `Idempotency-Key` for an edit that includes media. The
+function derives one opaque child key per checksum and policy version. A cache
+miss reserves the database-owned `explore_audio_moderation` quota, including
+durable entitlement, selected model, daily ceiling, and user/IP rate limits.
+Cache hits refund; a provider attempt commits immediately before dispatch. The
+default moderation helper fails closed before fetching media if the quota
+callback is absent.
 
 ## Response
 

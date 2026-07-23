@@ -5,12 +5,6 @@ import {
   recordSpeciesContentProvenance,
 } from "../_shared/speciesContentProvenance.ts";
 import { resolveScanGeoprivacy } from "../_shared/identify/db.ts";
-import {
-  hasTierCached,
-  resolutionForUserRow,
-  setTierCache,
-  setTierResolutionCache,
-} from "../_shared/tierCache.ts";
 import { AudioCandidate } from "./types.ts";
 
 // MARK: - User
@@ -19,23 +13,16 @@ export async function upsertGhostUserIfMissing(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  if (!hasTierCached(userId)) {
-    const { data: existingUser } = await supabaseAdmin
-      .from("users")
-      .select("subscription_tier, created_at, subscription_expires_at")
-      .eq("id", userId)
-      .maybeSingle();
-    if (existingUser) {
-      setTierResolutionCache(userId, resolutionForUserRow(existingUser));
-    } else {
-      await supabaseAdmin
-        .from("users")
-        .upsert(
-          { id: userId, subscription_tier: "free" },
-          { onConflict: "id", ignoreDuplicates: true },
-        );
-      setTierCache(userId, "free");
-    }
+  const { error } = await supabaseAdmin
+    .from("users")
+    .upsert(
+      { id: userId, subscription_tier: "free" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+  if (error) {
+    throw new Error(
+      `Failed to ensure audio scan user exists: ${error.message}`,
+    );
   }
 }
 

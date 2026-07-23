@@ -149,6 +149,24 @@ Deno.test("moderation media fetch rejects empty and oversized responses", async 
   );
 });
 
+Deno.test("production audio moderation refuses provider work without authoritative quota", async () => {
+  let fetchCount = 0;
+  await assertRejects(
+    () =>
+      moderateExploreAudioUrl(
+        "https://media.merian.app/public_uploads/pro/clip.wav",
+        undefined,
+        () => {
+          fetchCount += 1;
+          return Promise.resolve(new Response(new Uint8Array([1])));
+        },
+      ),
+    Error,
+    "Authoritative AI quota is required",
+  );
+  assertEquals(fetchCount, 0);
+});
+
 Deno.test("content-addressed moderation reuses decisions without storing sensitive data", async () => {
   const decisions = new Map<string, boolean>();
   const stores: Array<Record<string, unknown>> = [];
@@ -170,6 +188,33 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
     },
   };
   let generations = 0;
+  let reservations = 0;
+  let commits = 0;
+  let refunds = 0;
+  const quotaInputs: Array<{
+    checksumSha256: string;
+    policyVersion: string;
+  }> = [];
+  const quota = {
+    beforeProvider(input: {
+      checksumSha256: string;
+      policyVersion: string;
+    }) {
+      reservations += 1;
+      quotaInputs.push(input);
+      return Promise.resolve({
+        reservation: { model: "gemini-2.5-flash" },
+        commit() {
+          commits += 1;
+          return Promise.resolve(true);
+        },
+        refund() {
+          refunds += 1;
+          return Promise.resolve(true);
+        },
+      });
+    },
+  };
   const fetcher = () =>
     Promise.resolve(
       new Response(new Uint8Array([1, 2, 3]), {
@@ -186,17 +231,26 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
     cache,
     fetcher,
     generate,
+    quota,
   );
   const second = await moderateExploreAudioUrl(
     "https://media.merian.app/public_uploads/pro/renamed.wav",
     cache,
     fetcher,
     generate,
+    quota,
   );
 
   assertEquals(first.cacheHit, false);
   assertEquals(second.cacheHit, true);
   assertEquals(generations, 1);
+  assertEquals(reservations, 2);
+  assertEquals(commits, 1);
+  assertEquals(refunds, 1);
+  assertEquals(quotaInputs.length, 2);
+  assertEquals(quotaInputs[0], quotaInputs[1]);
+  assertEquals(quotaInputs[0].checksumSha256.length, 64);
+  assertEquals(quotaInputs[0].policyVersion.length, 64);
   assertEquals(stores.length, 1);
   assertEquals(Object.keys(stores[0]).sort(), [
     "approved",
@@ -207,4 +261,50 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
     "policyVersion",
   ]);
   assertEquals((stores[0].checksumSha256 as string).length, 64);
+});
+
+Deno.test("audio moderation commits the database-selected model before a provider attempt", async () => {
+  let committed = false;
+  let refunds = 0;
+  let providerModel: string | undefined;
+  const quota = {
+    beforeProvider() {
+      return Promise.resolve({
+        reservation: { model: "gemini-2.5-pro" },
+        commit() {
+          committed = true;
+          return Promise.resolve(true);
+        },
+        refund() {
+          refunds += 1;
+          return Promise.resolve(true);
+        },
+      });
+    },
+  };
+
+  await assertRejects(
+    () =>
+      moderateExploreAudioUrl(
+        "https://media.merian.app/public_uploads/pro/clip.wav",
+        undefined,
+        () =>
+          Promise.resolve(
+            new Response(new Uint8Array([1]), {
+              headers: { "content-type": "audio/wav" },
+            }),
+          ),
+        (_audio, _mime, model) => {
+          assertEquals(committed, true);
+          providerModel = model;
+          return Promise.resolve("malformed");
+        },
+        quota,
+      ),
+    Error,
+    "malformed JSON",
+  );
+
+  assertEquals(providerModel, "gemini-2.5-pro");
+  assertEquals(refunds, 0);
 });

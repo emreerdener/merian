@@ -4,9 +4,10 @@
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-merian-constrained-network",
+    "authorization, x-client-info, apikey, content-type, idempotency-key, x-merian-constrained-network",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
-  "Access-Control-Expose-Headers": "Server-Timing, X-Merian-Edge-Region",
+  "Access-Control-Expose-Headers":
+    "Retry-After, Server-Timing, X-Merian-Edge-Region",
 };
 
 /**

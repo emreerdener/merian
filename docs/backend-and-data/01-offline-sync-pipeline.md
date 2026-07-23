@@ -238,8 +238,8 @@ timeouts cross a threshold, the circuit "trips", routing all new captures
 straight to the offline queue and bypassing useless network connections for a
 guaranteed zero-latency shutter experience.
 
-**Free User Quota Enforcement**: Quota is enforced at enqueue time, not at
-upload time. Inside `insertAndPersistRecord`,
+**Advisory Free-Tier Capture Meter**: The local UX meter is applied at enqueue
+time, not upload time. Inside `insertAndPersistRecord`,
 `UsageManager.shared.canPerformScan(isProActive: false)` is checked before the
 `OfflineQueuedScan` record is inserted. If the daily limit is exhausted, the
 scan is rejected and any files already written to disk are cleaned up atomically
@@ -247,10 +247,14 @@ scan is rejected and any files already written to disk are cleaned up atomically
 quota check passes, `UsageManager.shared.consumeScan()` reserves the slot before
 the record enters the queue; if the subsequent SwiftData save fails,
 `modelContext.rollback()` runs and `UsageManager.shared.refundScan()` restores
-the slot. This ensures every scan that reaches `syncPendingScans` is already
-paid for and is uploaded without further quota checks, while failed local
-inserts do not charge the user. Non-biological outcomes are still successful
-scan attempts and are not refunded. The non-biological correction entry point
+the slot. This ensures every scan that reaches `syncPendingScans` uploads
+without another local check, while failed local inserts do not change the
+advisory meter. It is not provider authorization: on upload, the Edge Function
+uses the stable scan UUID as its idempotency key and atomically reserves the
+database UTC-day/user/IP quota before Gemini. A modified client or cleared
+`UserDefaults` cannot bypass that boundary. Provider attempts, including
+non-biological outcomes or malformed responses, consume the server reservation;
+only a proven pre-provider no-op may refund it. The non-biological correction entry point
 may bypass the Pro-only reanalysis feature lock, but once the user submits that
 replacement capture it still consumes normal free-tier daily quota and uses the
 normal free inference settings.

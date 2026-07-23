@@ -48,17 +48,22 @@ The workflow performs the following steps:
    test.
 2. Installs the exact reviewed Deno `2.9.2` runtime.
 3. Installs the reviewed Supabase CLI `2.109.1`.
-4. Fails fast if required deployment secrets are missing.
+4. Fails fast if required deployment secrets are missing or the AI quota HMAC
+   secret is shorter than 32 characters.
 5. Validates Edge Function formatting, lint, and shared runtime type checks.
-6. Confirms every function has a current generated local `deno.json`, a matching
-   `config.toml` entry, only approved aliased runtime imports, and a graph fully
-   represented by the shared frozen `dependencies.lock`; then type-checks all
-   function entrypoints with the exact local config Supabase will discover.
-7. Runs focused shared-helper, deployment-planner, and static migration-contract
-   tests. Source-inspection tests receive explicit read grants because Deno does
-   not grant `readTextFile` access merely because a source is in the import graph.
+6. Confirms exact set parity between function entrypoints and
+   `[functions.<name>]` entries, then verifies every function has a current
+   generated local `deno.json`, only approved aliased runtime imports, and a
+   graph fully represented by the shared frozen `dependencies.lock`; finally it
+   type-checks all entrypoints with the exact local config Supabase will
+   discover.
+7. Runs focused shared-helper, deployment-planner, AI quota coverage, and static
+   migration-contract tests. The migration execution contract enumerates every
+   SQL migration and rejects pipeline-incompatible concurrent index DDL.
+   Source-inspection tests receive explicit read grants because Deno does not
+   grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the privileged-routine pgTAP catalog gate.
+   and runs the privileged-routine plus AI quota pgTAP catalog gates.
 9. Builds an affected-function deployment plan from the pushed Git diff. Manual
    dispatch and an unresolvable Git diff safely select the full fleet.
 10. Prepares a Postgres connection string for database migrations without
@@ -71,19 +76,28 @@ The workflow performs the following steps:
 12. Pushes database migrations with `supabase db push --db-url`.
 13. Re-runs the production catalog audit in enforcement mode and stops the
     release if any privileged-routine invariant fails.
-14. Deploys the planned functions in bounded batches. A failed batch is retried
+14. Synchronizes the reviewed `AI_QUOTA_IP_HASH_SECRET` to the project.
+15. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-15. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
+16. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
    endpoint, and a dry-run bounded GBIF import with the production service-role
    credential.
 
-Local and CI database rebuilds require Supabase CLI `2.109.0` or newer. That
-release fixed migration execution for pipeline-incompatible statements such as
-the historical `CREATE INDEX CONCURRENTLY` migrations in this repository.
-Older versions can fail before reaching the migration under test, so treat a
-lower version as an invalid verification environment rather than editing
-already-applied migration files.
+Local and CI database rebuilds require Supabase CLI `2.109.0` or newer, and CI
+pins `2.109.1`. The migration history itself remains compatible with
+fresh-schema statement-pipeline replay: checked-in migrations may not contain
+`CREATE INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY`, or
+`REINDEX ... CONCURRENTLY`. Although migration versions already recorded in
+production are skipped by `db push`, fresh databases replay every file. The
+historical index files therefore use ordinary idempotent index DDL, which is
+fast on an empty rebuild.
+
+For a future index on a populated table where blocking writes is unacceptable,
+run `CREATE INDEX CONCURRENTLY IF NOT EXISTS` as a separately reviewed,
+supervised operation through a direct session. Verify the resulting index is
+valid in `pg_index`, then retain `CREATE INDEX IF NOT EXISTS` in the migration
+so clean environments converge without relying on out-of-band state.
 
 Actual GBIF taxonomy imports are intentionally separated into
 `.github/workflows/import-community-taxonomy.yml`. The deploy workflow only
@@ -98,8 +112,35 @@ function-local `deno.json` change selects that function. Changes to
 fleet because they can affect any bundle. New, deleted, or otherwise
 unresolvable shared runtime files also fall back to the full fleet. Docs and
 test-only changes select no functions. This preserves shared-helper consistency
-without paying for an unconditional 80-function deployment on every backend
+without paying for an unconditional full-fleet deployment on every backend
 commit.
+
+The graph/configuration test compares the sorted function names discovered from
+`functions/*/index.ts` with the sorted `[functions.<name>]` names parsed from
+`config.toml`. It deliberately has no numeric fleet-size assertion: adding or
+retiring a function changes the fleet naturally, while a missing or stale
+configuration entry fails with the differing names. Do not repair this class of
+failure by changing a count.
+
+For a planner or graph-parity failure, run:
+
+```bash
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase \
+  services/supabase/scripts/function_dependency_tools_test.ts
+
+deno run --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase \
+  services/supabase/scripts/validate_function_dependencies.ts
+```
+
+If the reported function is new, add its reviewed `config.toml` entry and
+generate its local `deno.json`. If the configuration is stale, follow the
+explicit decommission procedure below before removing it. A green parity test
+means every configured route has a discoverable graph; it does not authorize a
+remote deletion or weaken the route's JWT policy.
 
 Deleting a function directory is intentionally not treated as a zero-function
 deploy: the planner fails with an explicit-decommission message because normal
@@ -217,6 +258,182 @@ privileges. If the audit finds a public application definer owned by
 creator's defaults with the appropriate platform authority; do not exempt it
 from the audit.
 
+## Authoritative AI Quota Release Gate
+
+Migration `20260723160229_enforce_server_ai_quotas.sql` must land before the
+Edge bundles that import `_shared/aiQuota.ts`. It adds only compatible columns,
+private tables, RPCs, grants, and triggers, so the previously deployed functions
+continue serving during the migration. The new functions fail closed until both
+RPCs and `AI_QUOTA_IP_HASH_SECRET` exist.
+
+Preflight:
+
+```bash
+openssl rand -hex 32
+# Store the generated value as the GitHub Production environment secret
+# AI_QUOTA_IP_HASH_SECRET. Never paste it into source, docs, or logs.
+
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions \
+  services/supabase/functions/_shared/aiQuota_test.ts \
+  services/supabase/functions/_shared/entitlement_test.ts \
+  services/supabase/functions/_tests/aiQuotaCoverage.test.ts
+
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/migrations \
+  services/supabase/functions/_tests/aiQuotaMigrationContract.test.ts
+
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/privileged_routine_security.sql \
+  services/supabase/tests/ai_quota_security.sql
+```
+
+After the production migration and before treating the Edge deploy as healthy,
+run these read-only checks with an owner connection:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+SELECT
+    routine.oid::REGPROCEDURE::TEXT AS signature,
+    routine.proacl,
+    HAS_FUNCTION_PRIVILEGE('anon', routine.oid, 'EXECUTE')
+        AS anon_can_execute,
+    HAS_FUNCTION_PRIVILEGE('authenticated', routine.oid, 'EXECUTE')
+        AS authenticated_can_execute,
+    HAS_FUNCTION_PRIVILEGE('service_role', routine.oid, 'EXECUTE')
+        AS service_role_can_execute,
+    routine.proconfig
+FROM pg_proc AS routine
+WHERE routine.oid IN (
+    'public.reserve_ai_quota(uuid,text,uuid,text)'::REGPROCEDURE,
+    'public.finalize_ai_quota_reservation(uuid,uuid,text)'::REGPROCEDURE
+)
+ORDER BY signature;
+
+SELECT
+    attribute.attname AS column_name,
+    HAS_COLUMN_PRIVILEGE(
+        'anon',
+        'public.users',
+        attribute.attname,
+        'INSERT'
+    ) AS anon_can_insert,
+    HAS_COLUMN_PRIVILEGE(
+        'anon',
+        'public.users',
+        attribute.attname,
+        'UPDATE'
+    ) AS anon_can_update,
+    HAS_COLUMN_PRIVILEGE(
+        'authenticated',
+        'public.users',
+        attribute.attname,
+        'INSERT'
+    ) AS authenticated_can_insert,
+    HAS_COLUMN_PRIVILEGE(
+        'authenticated',
+        'public.users',
+        attribute.attname,
+        'UPDATE'
+    ) AS authenticated_can_update
+FROM pg_attribute AS attribute
+WHERE attribute.attrelid = 'public.users'::REGCLASS
+  AND attribute.attnum > 0
+  AND NOT attribute.attisdropped
+  AND (
+      HAS_COLUMN_PRIVILEGE(
+          'anon',
+          'public.users',
+          attribute.attname,
+          'INSERT'
+      )
+      OR HAS_COLUMN_PRIVILEGE(
+          'anon',
+          'public.users',
+          attribute.attname,
+          'UPDATE'
+      )
+      OR HAS_COLUMN_PRIVILEGE(
+          'authenticated',
+          'public.users',
+          attribute.attname,
+          'INSERT'
+      )
+      OR (
+          attribute.attname NOT IN ('default_geoprivacy', 'marketing_opt_in')
+          AND HAS_COLUMN_PRIVILEGE(
+              'authenticated',
+              'public.users',
+              attribute.attname,
+              'UPDATE'
+          )
+      )
+  )
+ORDER BY attribute.attnum;
+
+SELECT
+    operation,
+    effective_plan,
+    model,
+    allowed,
+    enabled,
+    policy_version,
+    daily_bucket,
+    daily_limit,
+    user_window_seconds,
+    user_window_limit,
+    ip_window_seconds,
+    ip_window_limit
+FROM internal.ai_quota_policies
+ORDER BY operation, effective_plan;
+
+SELECT
+    state,
+    operation,
+    COUNT(*) AS reservations,
+    MIN(updated_at) AS oldest,
+    MAX(updated_at) AS newest
+FROM internal.ai_quota_reservations
+WHERE updated_at >= NOW() - INTERVAL '1 hour'
+GROUP BY state, operation
+ORDER BY operation, state;
+
+ROLLBACK;
+```
+
+Expected routine ACLs are `false`, `false`, `true` for
+anon/authenticated/service-role, with `search_path=""`. The unexpected
+`public.users` column-ACL query must return zero rows. The policy query must
+return all 27 reviewed rows. Shortly after deploy, normal traffic should create
+`committed` reservations; cache/no-op paths may create `refunded` rows.
+`reserved` rows are cost-safe because their counters remain consumed, but a
+growing old-reservation population indicates Edge settlement or database
+availability problems.
+
+Monitor Edge logs for `ai_quota_reservation_failed`,
+`ai_quota_reservation_invalid_response`, and
+`ai_quota_finalization_failed`, and API responses for:
+
+- elevated `503 ai_entitlement_unavailable` (database/profile/policy incident);
+- elevated `429 ai_user_rate_limit_exceeded` or
+  `ai_ip_rate_limit_exceeded` (automation or ceilings too low);
+- unexpected `409 ai_request_already_completed` (client reused a key for a new
+  logical request);
+- provider traffic without a corresponding reservation (release blocker).
+
+Do not recover availability by granting the RPCs to `authenticated`, lowering
+caller checks, restoring a process-local cache, or treating database failure as
+trial Pro. If a partial function deployment leaves an older unguarded provider
+route live, stop the release and fail provider access closed (including
+temporarily removing the provider secret if necessary) until every affected
+route is on the guarded bundle. Fix forward; keep the quota schema and durable
+reservation evidence.
+
 ### Naturebook Public Rebrand Release
 
 The rebrand is a forward-only data and response-copy change, not a backend
@@ -312,10 +529,11 @@ composer/share/edit function bundles must deploy together so
 
 Audio moderation-attestation releases are migration-first. Apply
 `20260711055524_add_explore_audio_moderation_attestations.sql` before deploying
-the updated `_shared/audioModeration.ts`, `share-scan-to-explore`, and
-`update-explore-field-notes` bundles. Functions safely fall back to live Gemini
-when the table is temporarily unavailable, but deploying the migration first
-avoids unnecessary provider calls and cache-error logs. Never deploy a function
+the updated `_shared/audioModeration.ts`, `share-scan-to-explore`,
+`request-community-identification`, and `update-explore-field-notes` bundles.
+Functions safely fall back to live Gemini when the table is temporarily
+unavailable, but deploying the migration first avoids unnecessary provider
+calls and cache-error logs. Never deploy a function
 that treats a cache error as approval.
 
 Legacy-audio sharing also requires
@@ -743,6 +961,11 @@ and the chosen Edge-region policy.
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
+- `AI_QUOTA_IP_HASH_SECRET` — at least 32 high-entropy characters. Store it in
+  the GitHub `Production` environment; the deploy workflow validates and
+  synchronizes it to Supabase before deploying functions. Rotation resets only
+  the current network-rate bucket identity and must be a reviewed incident or
+  privacy operation.
 - One database connection path:
   - Preferred: `SUPABASE_DB_URL` — full percent-encoded Postgres connection
     string for migration pushes. Copy the Supabase shared pooler session-mode
@@ -1106,10 +1329,14 @@ metadata. A `504` at that step is a transient remote/status lookup failure, not 
 migration failure. The GitHub workflow intentionally avoids that status lookup by
 requiring an explicit database connection and using `db push --db-url` instead.
 Direct Supabase database hosts can resolve to IPv6-only addresses; use the
-pooler connection string in CI when a runner cannot reach IPv6. The warning
-`environment variable is unset: SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` comes from
-parsing the local Auth config and is not fatal for `db push`; only treat it as
-actionable if a command fails while applying Auth provider config.
+pooler connection string in CI when a runner cannot reach IPv6. The local
+configuration uses the current `[local_smtp]` section. It also keeps Apple Auth
+enabled for integration testing, so local CLI commands need
+`SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` in the environment. Schema-only CI scopes
+an explicit non-secret placeholder to the individual CLI steps; it never
+supplies or overwrites the hosted Apple credential. For local schema-only work,
+a placeholder is sufficient. Use a real development credential only when
+exercising the Apple OAuth flow.
 
 ## Internal Admin Release
 

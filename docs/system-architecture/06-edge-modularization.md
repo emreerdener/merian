@@ -254,9 +254,10 @@ PostgREST schemas in `db.ts` without jeopardizing the critical
 
 All shared primitives natively driving API functions (`aws.ts`, `biology.ts`,
 `concurrency.ts`, `encoding.ts`, `http.ts`, `mediaBudgets.ts`, `posthog.ts`,
-`tierCache.ts`) are stored in `services/supabase/functions/_shared/`. For
-guidelines regarding the global dependencies, refer directly to
-`_shared/README.md`.
+`aiQuota.ts`, and `entitlement.ts`) are stored in
+`services/supabase/functions/_shared/`. Authorization state remains durable in
+Postgres rather than a shared module-scope cache. For guidelines regarding the
+global dependencies, refer directly to `_shared/README.md`.
 
 **Deploy Dependency Rule — Use Generated Function-Local Deno Configs:** Runtime
 Edge code resolves third-party packages through aliases owned by
@@ -278,7 +279,9 @@ that isolation protects authentication semantics rather than carrying a second
 SDK: the universal `edgeHandler.ts` retains the established Auth-server
 `getUser` policy while opted-in routes use cached-JWKS `getClaims` validation.
 CI rejects stale generated configs, lock drift, direct runtime specifiers, and
-missing or stale `[functions.<name>]` configuration entries.
+missing or stale `[functions.<name>]` configuration entries. Its planner test
+compares configured and discoverable function names directly, so fleet growth
+does not require maintaining a numeric count.
 
 **PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in
 **all** Edge Functions and `_shared/biology.ts` **must not be `await`-ed**.

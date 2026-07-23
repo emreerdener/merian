@@ -8,6 +8,9 @@
 -- Only rows with status 'pending' or 'processing' are included — completed and
 -- failed jobs are excluded so historical records are preserved and the user can
 -- request a new export after a prior one finishes.
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_export_jobs_user_pending
-  ON export_jobs (user_id)
+--
+-- CONCURRENTLY is intentionally omitted because fresh Supabase migration
+-- replays execute through a statement pipeline.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_export_jobs_user_pending
+  ON public.export_jobs (user_id)
   WHERE status NOT IN ('completed', 'failed');

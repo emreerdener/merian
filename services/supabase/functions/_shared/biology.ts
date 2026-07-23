@@ -38,7 +38,8 @@ export interface EncyclopedicData {
 export async function fetchStaticEncyclopedicData(
   user: User | string,
   scientificName: string,
-  locale = "en",
+  locale: string,
+  model: string,
 ): Promise<EncyclopedicData> {
   const textModel = createFlashModel(
     `# Role
@@ -52,6 +53,7 @@ Given a species scientific name, provide the following data fields: taxonomy, ha
 - **Locale:** ALL text responses (habitat_description) MUST be returned in the following ISO language locale: ${locale}.
 - **Accuracy:** Base all fields on authoritative sources (GBIF, IUCN Red List, Catalogue of Life). Never fabricate data.`,
     1500,
+    model,
   );
 
   const cacheSchema: Record<string, unknown> = {
@@ -128,7 +130,7 @@ Given a species scientific name, provide the following data fields: taxonomy, ha
       );
       trackPostHogEvent(user, "EncyclopedicLLMCompleted", {
         scientific_name: scientificName,
-        llm_model: "gemini-2.5-flash",
+        llm_model: model,
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
@@ -181,7 +183,8 @@ export interface SpeciesTaxonomy {
 export async function fetchSimilarSpecies(
   user: User | string,
   scientificName: string,
-  taxonomy?: SpeciesTaxonomy | null,
+  taxonomy: SpeciesTaxonomy | null | undefined,
+  modelName: string,
 ): Promise<
   { similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } | null
 > {
@@ -223,6 +226,7 @@ For each lookalike, provide the exact formally recognized scientific name, the w
 6. **Explainability:** Reasons must be species-level visual explanations, not user-specific observations. Do not mention scans, photos, people, locations, dates, or field notes.
 7. **Confidence:** Confidence is relation quality from 0.0 to 1.0, where 1.0 means a very strong field-confusion relationship and 0.5 means weak but plausible.`,
     300,
+    modelName,
   );
 
   const schema: Record<string, unknown> = {
@@ -293,7 +297,7 @@ For each lookalike, provide the exact formally recognized scientific name, the w
       );
       trackPostHogEvent(user, "SimilarSpeciesLLMCompleted", {
         scientific_name: scientificName,
-        llm_model: "gemini-2.5-flash",
+        llm_model: modelName,
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,

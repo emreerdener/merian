@@ -135,11 +135,11 @@ MerianTests/
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
   math updates against user local scores so UI progression trackers do not skew
   unexpectedly.
-- **`UsageManagerTests.swift`**: Validates daily free quota checks and limits
-  without accessing live API constraints. The suite explicitly tests both
-  states of the central `.unlimitedFreeScans` feature flag: every prelaunch
-  build currently ships with the flag enabled, while the disabled branch must
-  keep the future public free/Pro quota behavior intact.
+- **`UsageManagerTests.swift`**: Validates the advisory daily capture meter
+  without treating it as a live API constraint. The suite exercises the normal
+  default plus DEBUG override; `FieldTripsAvailabilityTests` locks the shipped
+  `.unlimitedFreeScans` default to `false`. Server authorization is covered
+  separately by the Edge and database quota suites.
 
 ### AI & Data Architectures
 
@@ -697,6 +697,11 @@ replay-worker migrations, and the APNs device-token constraint repair.
 Run the migration contract test with `--allow-read=services/supabase/migrations`
 because it reads SQL files directly.
 
+`_tests/migrationExecutionContract.test.ts` enumerates the complete migration
+directory, strips SQL comments, and rejects executable concurrent index DDL.
+This protects both `supabase db start` in CI and clean local rebuilds; a static
+allowlist would miss the next migration that introduced the same failure.
+
 Push-device registration has two complementary database checks. The static
 contract prevents a PostgreSQL-incompatible bounded regex from returning, while
 `services/supabase/tests/push_device_registration.sql` inserts a normal
@@ -712,11 +717,12 @@ supabase --workdir services test db --local \
 
 The pgTAP command requires a running local Supabase/Postgres stack. Do not run
 this fixture test with `--linked`: it intentionally writes test rows inside a
-transaction. Use Supabase CLI `2.109.0` or newer when rebuilding the local
-schema; earlier releases fail on this repository's historical
-pipeline-incompatible `CREATE INDEX CONCURRENTLY` migrations. After a hosted
-deployment, use migration history plus read-only constraint inspection to
-verify that both push-token constraints exist and are validated.
+transaction. Use the same reviewed Supabase CLI line as CI when rebuilding the
+local schema. Checked-in migrations must remain pipeline-compatible even when a
+CLI release can split incompatible statements, because `db start`, migration
+commands, and hosted executors have not always shared the same execution path.
+After a hosted deployment, use migration history plus read-only constraint
+inspection to verify that both push-token constraints exist and are validated.
 
 Privileged routine security has three complementary checks:
 
@@ -748,6 +754,28 @@ that reports a connection skip is not evidence for this boundary. Never point
 the transactional pgTAP file at production. Use
 `MERIAN_DATABASE_URL=... make audit-supabase-privileged-routines` for hosted,
 read-only verification instead.
+
+Authoritative AI quota and entitlement security has four complementary checks:
+
+- `_shared/entitlement_test.ts` proves paid/trial/expired resolution, database
+  errors and missing rows failing closed, and absence of isolate-local reuse.
+- `_shared/aiQuota_test.ts` locks UUID request-key validation, trusted proxy
+  address selection, daily-rotating HMAC behavior, and weak-secret failure.
+  `_shared/audioModeration_test.ts` additionally proves cache hits refund while
+  provider attempts commit the database-selected model before dispatch.
+- `_tests/aiQuotaCoverage.test.ts` inventories every public paid-model route,
+  including transitive Explore/Community audio-publication callers, their exact
+  operation, model-policy propagation, settlement ordering, removal of the
+  public dictionary model fallback, and absence of webhook cache invalidation.
+- `_tests/aiQuotaMigrationContract.test.ts` statically locks the private schema,
+  API-role revocations, atomic conditional UPSERT, idempotency/refund semantics,
+  service-only grants, and complete 27-row policy matrix.
+  `tests/ai_quota_security.sql` then exercises the migrated catalog and actual
+  reservation/replay/limit/refund/retry/version transitions.
+
+The production workflow applies all migrations to a disposable database and
+runs both `privileged_routine_security.sql` and `ai_quota_security.sql`. Do not
+replace that catalog execution with source inspection alone.
 
 Identification latency has focused contract coverage at each boundary:
 
@@ -1160,14 +1188,11 @@ and detail seeking still behaves as documented.
   membership delete operation is rejected, and resolves cleanly on success. Also
   asserts the early-return path for empty `ownedIds` makes no DB calls.
 
-### `_shared/tierCache_test.ts`
+### `_shared/entitlement_test.ts` and `_shared/aiQuota_test.ts`
 
-- **Basic set/get contract**: Verifies `setTierCache` + `hasTierCached`
-  round-trip correctly and unknown users return false.
-- **Capacity eviction (pass 2 — oldest-25% path)**: Seeds 1000 entries, triggers
-  the 1001st insert, and asserts: the triggering entry IS in cache; early
-  entries (0–249) were evicted by the oldest-25% sweep; tail entries (750+)
-  survive.
-- **Idempotent update guard**: Verifies that overwriting an existing key at
-  capacity does NOT trigger eviction — the `!_tierCache.has(userId)` guard
-  prevents the eviction block from firing on an update.
+These replace the former worker-cache tests. Entitlement tests must prove every
+call observes durable database state and never upgrades a query error or
+missing profile. Quota helper tests must keep request IDs bounded to UUIDs,
+protect raw network addresses with a strong rotating HMAC, and fail closed when
+configuration is missing. Database atomicity and ACL behavior belong in
+`tests/ai_quota_security.sql`, not a mocked TypeScript client.

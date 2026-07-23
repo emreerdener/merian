@@ -88,10 +88,36 @@ export async function withEdgeHandler(
     const msg = error instanceof Error
       ? error.message
       : "Internal Server Error";
-    const customStatus = error && typeof error === "object" && "status" in error
-      ? (error as Record<string, unknown>).status as number
+    const errorRecord = error && typeof error === "object"
+      ? error as Record<string, unknown>
+      : {};
+    const candidateStatus = errorRecord.status;
+    const customStatus = typeof candidateStatus === "number" &&
+        Number.isInteger(candidateStatus) &&
+        candidateStatus >= 400 && candidateStatus <= 599
+      ? candidateStatus
       : 500;
-    return jsonResponse({ error: msg }, customStatus);
+    const candidateCode = errorRecord.code;
+    const code = typeof candidateCode === "string" &&
+        /^[a-z][a-z0-9_]{1,63}$/.test(candidateCode)
+      ? candidateCode
+      : undefined;
+    const candidateRetryAfter = errorRecord.retryAfterSeconds;
+    const retryAfter = typeof candidateRetryAfter === "number" &&
+        Number.isInteger(candidateRetryAfter) &&
+        candidateRetryAfter > 0 &&
+        candidateRetryAfter <= 86400
+      ? candidateRetryAfter
+      : undefined;
+    return jsonResponse(
+      {
+        error: msg,
+        ...(code ? { code } : {}),
+        ...(retryAfter ? { retry_after_seconds: retryAfter } : {}),
+      },
+      customStatus,
+      retryAfter ? { "Retry-After": String(retryAfter) } : {},
+    );
   }
 }
 

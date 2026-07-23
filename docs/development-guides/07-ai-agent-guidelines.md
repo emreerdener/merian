@@ -109,7 +109,11 @@ when changing web routes.
   import/status/refresh, consensus processing, non-biological purge,
   scan-media reconciliation/health, and ghost-merge reconciliation require
   `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with
-  `timingSafeCompare` or the shared service-role auth helper.
+  `timingSafeCompare` or the shared service-role auth helper. After adding or
+  retiring a route, run `sync_function_deno_configs.ts --check`,
+  `validate_function_dependencies.ts`, and
+  `function_dependency_tools_test.ts`. The configured names must exactly match
+  the discoverable graph names; never add or update a hard-coded fleet count.
 - **Edge runtime imports must be deploy-stable.** New function entrypoints should
   use `Deno.serve(...)` directly, runtime dependencies must be routed through
   the reviewed `services/supabase/functions/deno.json` manifest, and deployed
@@ -121,7 +125,7 @@ when changing web routes.
   routes that explicitly adopt that authentication policy.
 
 ## 7. Database Safeties
-- Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to persist `UsageManager` limits locally on iOS across reinstalls. Do not use IDFV (`.deviceId`) for backend user records, analytics identifiers, or constructed S3/R2 storage keys.
+- Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to persist the advisory `UsageManager` meter locally on iOS across reinstalls. They are not quota or entitlement authority. Do not use IDFV (`.deviceId`) for backend user records, analytics identifiers, server quota keys, or constructed S3/R2 storage keys.
 - **Strict IDOR Alignment**: When querying Edge Functions (like `/identify`) or formulating Cloudflare R2 staging buckets (`staging/\(userId)/`), **always** use `SupabaseManager.shared.currentUser?.id.uuidString`. Edge functions natively apply IDOR security checks against the active auth JWT. Supplying the local vendor ID instead will trigger `403 Forbidden` pipeline blocks.
 - Follow RLS (Row Level Security) schemas by avoiding direct CRUD modifications to PostgreSQL from iOS. POST through Edge REST endpoints protected by the route's documented verification strategy. Most existing authenticated routes use `supabaseAdmin.auth.getUser()`; latency-sensitive `/identify-multimodal` and `/update-scan-context` use cached-JWKS `auth.getClaims(token)` plus explicit issuer, audience, time, role, and `sub` validation. Never substitute unverified JWT decoding or request-body user IDs.
 - **SwiftData Predicate Boolean Mapping Bug**: When creating `@Query(filter:)` definitions with `#Predicate`, NEVER rely on implicit boolean checks (e.g. `$0.isBiological`). Due to iOS 17 compilation faults, SwiftData will ignore the filter and return all rows. **ALWAYS** map operators against booleans explicitly (e.g. `$0.isBiological == true` or `$0.isBiological == false`).

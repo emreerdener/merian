@@ -23,7 +23,9 @@ Edge Functions are written in TypeScript and run on Deno. They handle logic like
   routes called only with a Supabase user JWT (anonymous sessions also carry
   user JWTs). Use `false` only for deliberately public routes, service-key
   workers, webhooks, or a documented custom in-handler verification policy.
-  A `false` route must enforce that replacement boundary in code.
+  A `false` route must enforce that replacement boundary in code. CI compares
+  the complete configured-name set with the complete discoverable graph-name
+  set; it does not maintain a hard-coded function count.
 - **Dependencies**: `functions/deno.json` is the reviewed source manifest for
   exact dependency pins, and every deployable function has a generated local
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
@@ -144,6 +146,47 @@ Production CI runs the same catalog audit in report mode before `db push` and
 in enforcement mode immediately afterward. See the deployment runbook for the
 incident and forward-repair procedure.
 
+### Authoritative AI Entitlement and Quota Boundary
+
+Migration `20260723160229_enforce_server_ai_quotas.sql` makes paid-model access
+a database decision. Public Edge routes use `_shared/aiQuota.ts` to call
+`reserve_ai_quota(user, operation, request_id, ip_hash)` before provider work.
+That single transaction locks and resolves the durable entitlement and selected
+policy, chooses an allowlisted model, applies a daily safety ceiling plus shared
+per-user/IP rate limits, and records an idempotent reservation. The row locks
+give concurrent tier/policy changes and reservations a single database order;
+future-dated profiles never extend the seven-day trial. The Edge route commits
+immediately before provider dispatch. Only a proven pre-provider no-op, such as
+a moderation cache hit or rejected empty multimodal request, may refund.
+
+The internal policy matrix distinguishes `free`, `pro_trial`, and `pro_paid`.
+Current UTC-day safety ceilings are:
+
+| Operation bucket | Free | Pro trial | Paid Pro |
+|---|---:|---:|---:|
+| Primary image/description/audio scans | 1 | 50 | 500 |
+| Cache-miss overview/lookalike enrichment | 4 | 100 | 500 |
+| Explore/Community audio moderation | 3 | 25 | 100 |
+| Insight/Explore model chat work | denied | 60 | 120 |
+
+These are abuse and cost ceilings, not client entitlements. Change them only in
+a reviewed forward migration, increment the policy version, and keep every
+operation in `AIQuotaOperation`,
+`aiQuotaMigrationContract.test.ts`, `aiQuotaCoverage.test.ts`, and
+`tests/ai_quota_security.sql` aligned.
+
+`users.entitlement_version` advances whenever the tier or timed expiry changes.
+`_shared/entitlement.ts` performs durable reads for non-provider checks; it
+never caches authorization in an Edge isolate. A query error or missing user
+row fails closed with `503 ai_entitlement_unavailable`. Authenticated clients
+cannot insert/delete `public.users` rows or update tier, expiry, or entitlement
+version; only the two reviewed preference columns remain directly writable.
+
+IP buckets store a daily-rotating HMAC, never a raw address. Production requires
+an `AI_QUOTA_IP_HASH_SECRET` of at least 32 characters in the GitHub Production
+environment; the deploy workflow validates it and synchronizes it to Supabase
+before deploying Edge Functions.
+
 ### Explore Author Maintenance
 
 Explore read functions are projection-only. They must not refresh public author
@@ -194,6 +237,9 @@ deno run --allow-read=services/supabase \
   services/supabase/scripts/sync_function_deno_configs.ts --check
 deno run --allow-read=services/supabase \
   services/supabase/scripts/validate_function_dependencies.ts
+deno test --frozen --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase \
+  services/supabase/scripts/function_dependency_tools_test.ts
 deno check --frozen \
   --config services/supabase/functions/<function>/deno.json \
   services/supabase/functions/<function>/index.ts
@@ -202,8 +248,9 @@ deno check --frozen \
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh
 `functions/dependencies.lock`, and commit all three surfaces together. CI rejects
-stale generated configs, unlocked packages, direct runtime specifiers, or a
-function missing its `config.toml` entry.
+stale generated configs, unlocked packages, direct runtime specifiers, and any
+missing or stale `config.toml` function entry. When the fleet changes, fix the
+reported name mismatch; never update a numeric expected-function count.
 
 Run Deno tests:
 ```bash
@@ -231,6 +278,15 @@ The suite also locks the Explore current-scan reference exclusion helper and
 the unchanged `get_explore_post_detail` response projection. Run the static
 contract plus the executable DB case after changing species-reference ordering,
 blocked-media handling, legacy fallback, or scan media fields:
+
+`_tests/migrationExecutionContract.test.ts` scans every SQL migration after
+removing comments and rejects `CREATE`, `DROP`, or `REINDEX ... CONCURRENTLY`.
+Fresh local and CI databases replay migrations through a Supabase statement
+pipeline, where concurrent index DDL is not consistently supported. Keep the
+checked-in migration pipeline-compatible. If a large production table needs a
+zero-downtime index, create it in a separately supervised direct database
+session first, verify `pg_index.indisvalid`, and retain a non-concurrent
+`CREATE INDEX IF NOT EXISTS` migration for fresh environments.
 
 ```bash
 deno test --allow-read \
@@ -353,11 +409,11 @@ make validate-supabase-migrations
 
 ## Local Development
 
-Use Supabase CLI `2.109.0` or newer; CI pins `2.109.1`. Earlier CLI versions
-cannot reliably rebuild this migration history because several historical
-migrations contain pipeline-incompatible statements such as
-`CREATE INDEX CONCURRENTLY`. Confirm the local version before database
-verification:
+Use Supabase CLI `2.109.0` or newer; CI pins `2.109.1`. The repository keeps
+every migration compatible with fresh-schema statement-pipeline replay rather
+than depending on CLI-specific handling for concurrent index DDL. The minimum
+also recognizes the `[local_smtp]` configuration used by this project. Confirm
+the local version before database verification:
 
 ```bash
 supabase --version

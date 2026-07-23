@@ -101,15 +101,13 @@ TestFlight must use the production `appl_` key and App Store Connect products;
 a local StoreKit success does not replace the TestFlight purchase/restore and
 webhook smoke tests.
 
-Prelaunch TestFlight builds intentionally keep
-`FeatureFlag.unlimitedFreeScans.defaultValue = true`, so testers have unlimited
-scans. Do not disable this for ordinary beta uploads. Before the first public
-App Store submission, change the registry default to `false`, update the
-changelog/release notes, run `UsageManagerTests`, and verify on a physical
-release-candidate build that a free account receives one daily scan while Pro
-remains uncapped. The `TEMP OVERRIDE ACTIVE` startup warning must be absent from
-that public release candidate. Its presence is expected and must not reject an
-ordinary prelaunch TestFlight build.
+`FeatureFlag.unlimitedFreeScans.defaultValue` is `false` for every shipped
+configuration. DEBUG may bypass only the advisory local meter; TestFlight and
+Release ignore persisted overrides and remain subject to the database quota.
+Run `UsageManagerTests`, `FieldTripsAvailabilityTests`, and a physical
+free/Pro endpoint smoke before release. A `DEBUG OVERRIDE ACTIVE` startup
+warning must never appear in a Release/TestFlight build. Pro removes the normal
+one-scan product cap but still has server-side fair-use/rate ceilings.
 
 ## Archive Guardrail
 

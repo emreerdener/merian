@@ -8,11 +8,11 @@ changes to `users.subscription_tier`, and maps the detached
 `pro_week` product to a timed Pro grant via `users.subscription_expires_at`.
 
 The dynamic 7-day Pro trial is not stored as `users.subscription_tier = "pro"`.
-Trial access is derived by `_shared/tierCache.ts` from the user
-creation/first-seen window and reported to analytics as `plan = "pro_trial"`,
-while paid subscription and active paid-pass webhook events report as
-`plan = "pro_paid"`. Keep the RevenueCat product identifiers stable unless the
-actual purchasable product changes.
+Trial access is derived from the durable user creation window by the database
+quota RPC and `_shared/entitlement.ts`, then reported as
+`plan = "pro_trial"`. Paid subscriptions and active paid-pass webhook events
+report as `plan = "pro_paid"`. Keep the RevenueCat product identifiers stable
+unless the actual purchasable product changes.
 
 ## Architecture
 
@@ -36,8 +36,9 @@ while handling massive backend data moves, the module is strictly decoupled:
 
 - Tier transitions do not copy existing scan media between R2 prefixes. Both
   `public_uploads/free/` and `public_uploads/pro/` are durable scan-media
-  prefixes, so the webhook only updates subscription state and the in-process
-  tier cache.
+  prefixes, so the webhook only updates durable subscription state. The
+  `bump_user_entitlement_version` database trigger advances
+  `users.entitlement_version`; there is no process-local cache to invalidate.
 
 ## 7-Day Pass Contract
 
@@ -47,8 +48,10 @@ while handling massive backend data moves, the module is strictly decoupled:
   `users.subscription_expires_at`.
 - Backend authority: `expire-subscription-passes` runs hourly and downgrades
   expired timed Pro rows to free, clearing `subscription_expires_at`.
-- Fallback: `_shared/tierCache.ts` treats stale timed Pro rows as free if the
-  expiry worker has not processed them yet.
+- Defense in depth: both the quota RPC and `_shared/entitlement.ts` treat a
+  stale timed Pro row as free even before the expiry worker repairs it. A
+  database error or missing public user row returns a temporary-unavailable
+  error; it never creates trial access.
 
 ## Testing
 

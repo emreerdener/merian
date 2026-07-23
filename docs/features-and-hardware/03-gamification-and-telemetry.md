@@ -195,7 +195,7 @@ identifiers.
 The Pro paywall comparison table is backed by
 `ProPlanValueProps.comparisons` in `PaywallView.swift`. Keep docs, release
 notes, and Profile plan-card summaries aligned with that source. Current
-high-level Pro benefits are unlimited field scans, Gemini Pro model access,
+high-level Pro benefits are high-volume field scans, Gemini Pro model access,
 video scans, AI chat, multi-capture, Apple Watch logging, group-event hosting,
 and expedition mode.
 
@@ -243,18 +243,19 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   still-image inputs.
 - Plan telemetry is intentionally split from the raw database subscription
   value. Edge scan events include `tier` for backward-compatible dashboards,
-  plus `effective_tier`, `plan`, `subscription_tier`, and `trial_active` from
-  `_shared/tierCache.ts`:
+  plus `effective_tier`, `plan`, `subscription_tier`, `trial_active`, and
+  `entitlement_version` from the atomic quota reservation:
   - paid Pro: `effective_tier = "pro"`, `plan = "pro_paid"`,
     `subscription_tier = "pro"`, `trial_active = false`; this includes active
     standard Pro subscriptions and active paid 7-day passes
   - trial Pro: `effective_tier = "pro"`, `plan = "pro_trial"`,
-    `subscription_tier = "free"` or `null` for a first-scan ghost user,
-    `trial_active = true`
+    `subscription_tier = "free"`, `trial_active = true`
   - free: `effective_tier = "free"`, `plan = "free"`,
     `subscription_tier = "free"`, `trial_active = false`; expired timed-pass
     rows also resolve here as a safety fallback before the expiry worker clears
     the stored tier
+- Missing user rows or entitlement query failures emit no scan-completion tier
+  event because provider work fails closed.
 - Cost dashboards should prefer `llm_model` and `effective_tier` for model
   spend, and use `plan` to distinguish paid Pro from trial Pro. The raw
   `subscription_tier` remains useful for debugging RevenueCat webhook state but

@@ -34,8 +34,10 @@ Connect or RevenueCat dashboard state. During prelaunch testing:
 - The committed shared scheme has no attached `.storekit` configuration.
 - TestFlight uses an iOS production key beginning with `appl_` and products
   imported from App Store Connect.
-- Unlimited scans remain enabled, so open Settings → Plan directly instead of
-  waiting for a quota-triggered paywall.
+- Release builds keep the advisory local scan meter enabled. A debug-only local
+  bypass never bypasses the authoritative server quota, so purchase QA should
+  open Settings → Plan directly instead of depending on a quota-triggered
+  paywall.
 
 RevenueCat login and offering availability are independent. `RevenueCat login
 succeeded` confirms identity linking only. A complete purchase smoke test must
@@ -50,6 +52,8 @@ server-side webhook result where applicable.
   revoking other devices.
 - Client SDK keys are extractable app configuration, never service-role or
   provider secrets.
+- RevenueCat-derived plan data is read durably by the backend; entitlement
+  lookup failures fail closed before AI provider dispatch.
 - Errors and identity values use explicit unified-log privacy annotations.
 
 See

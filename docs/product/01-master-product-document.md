@@ -306,7 +306,9 @@ Explore audio sharing uses a content-addressed attestation flow. The backend gen
 
 ## 8.1 Free usage
 
-The public-release policy in code is one free scan per day. The current prelaunch and TestFlight configuration enables unlimited free scans for testers. Product copy and testing plans must distinguish the temporary alpha override from the intended public entitlement.
+The database policy grants one free primary scan per UTC day. The iOS local
+meter previews that limit but is not authoritative. Unlimited local-meter
+bypasses are DEBUG-only; Release and TestFlight still reach the server quota.
 
 ## 8.2 Naturebook Pro products
 
@@ -319,13 +321,21 @@ New eligible users can receive a dynamic seven-day Pro trial. Storefront pricing
 
 ## 8.3 Pro capability set
 
-The current entitlement model includes unlimited scans, the Gemini Pro path, short video scans, follow-up AI chat, mixed multi-capture, Expedition Mode, offline queue benefits, group-event hosting, and Apple Watch logging.
+The current entitlement model removes the ordinary one-scan product cap for
+Pro and includes the Gemini Pro path, short video scans, follow-up AI chat,
+mixed multi-capture, Expedition Mode, offline queue benefits, group-event
+hosting, and Apple Watch logging. High database fair-use and rate ceilings bound
+automation and provider cost, so product copy must not promise technically
+unbounded model traffic.
 
 This list must be read with implementation status. Events are preview-gated. Apple Watch logging is partial because the phone receiver is incomplete. Paywall copy must not promise an end-to-end capability that the released client cannot fulfill.
 
 ## 8.4 Entitlement synchronization
 
-RevenueCat webhooks synchronize tier and timed-pass expiry into backend state. Subscription enforcement should rely on verified entitlements rather than client display state alone.
+RevenueCat webhooks synchronize tier and timed-pass expiry into backend state
+and atomically advance `users.entitlement_version`. Paid-model authorization
+uses the database quota reservation, not client display state or Edge-isolate
+memory; lookup errors fail closed.
 
 Biological media stays in the storage prefix selected when it was uploaded. There is no free-to-Pro or Pro-to-free object migration. Storage policy must not be documented as if a subscription change relocates existing media.
 

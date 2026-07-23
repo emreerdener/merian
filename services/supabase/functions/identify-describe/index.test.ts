@@ -6,7 +6,7 @@ import {
 import {
   type TierResolution,
   tierTelemetryProperties,
-} from "../_shared/tierCache.ts";
+} from "../_shared/entitlement.ts";
 
 // ---------------------------------------------------------------------------
 // buildObservationPrompt — mirrors the function in index.ts.
@@ -108,6 +108,7 @@ Deno.test("Describe ScanCompleted telemetry includes pro trial plan and Pro mode
     subscription_tier: "free",
     trial_active: true,
     user_exists: true,
+    entitlement_version: 1,
   };
   const properties: Record<string, unknown> = {
     tier: resolution.effective_tier,

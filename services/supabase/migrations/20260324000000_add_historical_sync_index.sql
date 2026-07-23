@@ -10,6 +10,9 @@
 --
 -- With the compound index Postgres can satisfy both the filter and the ORDER BY in a
 -- single index-only scan, making each page O(page_size) regardless of library size.
+--
+-- CONCURRENTLY is intentionally omitted because fresh Supabase migration
+-- replays execute through a statement pipeline.
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scans_user_id_timestamp
+CREATE INDEX IF NOT EXISTS idx_scans_user_id_timestamp
 ON public.scans (user_id, timestamp DESC);

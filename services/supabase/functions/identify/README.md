@@ -42,12 +42,12 @@ to modify the pipeline, modify the exact module below rather than cluttering
   length-capped, evidence is capped, confidence is clamped, generic Dog/Cat
   labels are dropped, low-confidence labels are dropped, and non-dog/cat taxa
   never receive pet metadata.
-- **`../_shared/tierCache.ts`** The shared tier resolver used before model
-  selection. It returns the raw database `subscription_tier` plus
-  `effective_tier`, `plan`, and `trial_active` so trial Pro users route to
-  `gemini-2.5-pro` and emit `plan = "pro_trial"` without being stored as paid
-  Pro. It also reads `subscription_expires_at` so detached paid 7-day passes
-  resolve as Pro only while their timed grant is active.
+- **`../_shared/aiQuota.ts`** The atomic entitlement, quota, rate-limit, model
+  selection, and idempotency boundary used before provider dispatch. The
+  reservation returns the durable tier telemetry and database-selected model;
+  detached passes and trials are evaluated in the same transaction as quota.
+- **`../_shared/entitlement.ts`** Durable tier helpers for non-provider checks
+  and telemetry. Provider authorization never comes from an isolate-local cache.
 
 ## Architecture Guidelines
 

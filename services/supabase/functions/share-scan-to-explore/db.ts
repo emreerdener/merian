@@ -4,9 +4,10 @@ import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
-import { getTierForUser } from "../_shared/tierCache.ts";
+import { getTierForUser } from "../_shared/entitlement.ts";
 import {
   AudioModerationCache,
+  AudioModerationQuota,
   moderateExploreAudioUrl,
 } from "../_shared/audioModeration.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -25,6 +26,7 @@ export interface ApprovedAudioMediaOptions {
   cache?: AudioModerationCache;
   supabaseAdmin?: SupabaseClient;
   scanId?: string;
+  quota?: AudioModerationQuota;
 }
 
 export interface ShareEligibleScanRow {
@@ -170,6 +172,15 @@ export async function fetchShareEligibleScan(
   restoredAudioObjectKeys: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<ShareEligibleScanRow> {
+  // A share can restore image, audio, and video assets in one request. Resolve
+  // the durable entitlement once for this invocation without reviving a stale,
+  // process-local cache across requests.
+  let userTierPromise: ReturnType<typeof getTierForUser> | null = null;
+  const durableUserTier = () => {
+    userTierPromise ??= getTierForUser(userId, supabaseAdmin);
+    return userTierPromise;
+  };
+
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
@@ -192,7 +203,7 @@ export async function fetchShareEligibleScan(
   if (
     (row.image_storage_urls?.length ?? 0) === 0 && restoredObjectKeys.length > 0
   ) {
-    const userTier = await getTierForUser(userId, supabaseAdmin);
+    const userTier = await durableUserTier();
     const publicUrls = await promoteSafeMedia(
       {
         userId,
@@ -226,7 +237,7 @@ export async function fetchShareEligibleScan(
   }
 
   if (restoredAudioObjectKeys.length > 0) {
-    const userTier = await getTierForUser(userId, supabaseAdmin);
+    const userTier = await durableUserTier();
     const audioPublicUrls = await promoteSafeMedia({
       userId,
       r2ObjectKeys: restoredAudioObjectKeys,
@@ -279,7 +290,7 @@ export async function fetchShareEligibleScan(
     (row.video_storage_urls?.length ?? 0) === 0 &&
     restoredVideoObjectKeys.length > 0
   ) {
-    const userTier = await getTierForUser(userId, supabaseAdmin);
+    const userTier = await durableUserTier();
     const videoPublicUrls = await promoteSafeMedia(
       {
         userId,
@@ -397,6 +408,7 @@ export async function upsertExplorePost(
   locationSharing: string,
   mediaItems: SelectedExplorePostMediaItem[] | undefined,
   supabaseAdmin: SupabaseClient,
+  moderationQuota: AudioModerationQuota,
 ): Promise<{
   id: string;
   shared_at: string;
@@ -406,19 +418,12 @@ export async function upsertExplorePost(
   audible_media_count: number;
 }> {
   let mediaRows = buildExplorePostMediaRows(scan, mediaItems);
-  await requireApprovedAudioMedia(
-    mediaRows,
-    {
-      telemetryUserId: userId,
-      cache: exploreAudioModerationCache(supabaseAdmin),
-      supabaseAdmin,
-      scanId: scan.id,
-    },
-  );
-  mediaRows = await attachAudioSpectrogramThumbnails(
+  mediaRows = await prepareExplorePostMediaForPublication(
     scan.id,
+    userId,
     mediaRows,
     supabaseAdmin,
+    moderationQuota,
   );
   const sharedAt = new Date().toISOString();
 
@@ -518,7 +523,7 @@ export async function requireApprovedAudioMedia(
 ): Promise<void> {
   const moderate = options.moderate ?? moderateExploreAudioUrl;
   const trackEvent = options.trackEvent ?? trackPostHogEvent;
-  const { telemetryUserId, cache, supabaseAdmin, scanId } = options;
+  const { telemetryUserId, cache, supabaseAdmin, scanId, quota } = options;
   const audibleRows = rows.filter((row) =>
     row.kind === "audio" || (row.kind === "video" && row.has_audio)
   );
@@ -526,7 +531,13 @@ export async function requireApprovedAudioMedia(
   try {
     for (const row of audibleRows) {
       const startedAt = performance.now();
-      const decision = await moderate(row.url, cache);
+      const decision = await moderate(
+        row.url,
+        cache,
+        fetch,
+        undefined,
+        quota,
+      );
       if (supabaseAdmin && !decision.cacheHit && decision.usage) {
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "explore_audio_moderation",
@@ -586,6 +597,27 @@ export async function requireApprovedAudioMedia(
       "Audio moderation is temporarily unavailable. Nothing was shared.",
     );
   }
+}
+
+export async function prepareExplorePostMediaForPublication(
+  scanId: string,
+  userId: string,
+  rows: ExplorePostMediaSnapshotRow[],
+  supabaseAdmin: SupabaseClient,
+  quota: AudioModerationQuota,
+): Promise<ExplorePostMediaSnapshotRow[]> {
+  await requireApprovedAudioMedia(rows, {
+    telemetryUserId: userId,
+    cache: exploreAudioModerationCache(supabaseAdmin),
+    supabaseAdmin,
+    scanId,
+    quota,
+  });
+  return await attachAudioSpectrogramThumbnails(
+    scanId,
+    rows,
+    supabaseAdmin,
+  );
 }
 
 function uuidFromSha256(checksum: string): string | null {

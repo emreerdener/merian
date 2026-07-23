@@ -88,22 +88,17 @@ Several utilities are shared across all Edge Functions via
   `services/supabase/analytics/` (see below). Scan inference cost queries read
   `scans`; Insight chat cost queries read assistant rows in
   `insight_chat_messages`.
-- **`tierCache.ts`**: Worker-level `_tierCache` Map storing tier resolutions
-  with a 5-minute TTL to eliminate DB round-trips on warm isolate reuse.
-  **Bounded at 1000 entries**: on overflow, expired entries are swept first
-  (pass 1); if the map is still ≥ 75% full after the sweep, the oldest 25% of
-  remaining entries are evicted (pass 2). All writes go through `_cacheSet()` —
-  `resolveTierForUser`, `getTierForUser`, and `setTierCache` use this helper.
-  Exported functions include `resolveTierForUser(userId, supabaseAdmin)`, which
-  returns `effective_tier`, `plan`, `subscription_tier`, `trial_active`, and
-  `user_exists`; the compatibility `getTierForUser(userId, supabaseAdmin)`,
-  which returns only `effective_tier`; `hasTierCached(userId)`; and
-  `setTierCache(userId, tier)` / `setTierResolutionCache(userId, resolution)`.
-  Trial users usually remain raw `subscription_tier = "free"` but resolve to
-  `effective_tier = "pro"` and `plan = "pro_trial"` inside the 7-day window.
-  Active 7-day paid passes remain raw `subscription_tier = "pro"` with
-  `subscription_expires_at` set; stale timed Pro rows resolve as free until the
-  hourly expiry worker clears the row.
+- **`aiQuota.ts`**: The paid-provider boundary. It validates UUID idempotency
+  keys, derives a daily-rotating HMAC of the proxy-observed address, and calls
+  the service-only `reserve_ai_quota` RPC. That atomic transaction resolves the
+  durable plan, selects the allowlisted model, and consumes daily/user/IP
+  counters before Edge provider dispatch. A provider attempt is committed;
+  only a verified pre-provider no-op is refunded.
+- **`entitlement.ts`**: Non-provider feature and telemetry tier resolver. It
+  reads `subscription_tier`, `created_at`, `subscription_expires_at`, and
+  `entitlement_version` on every call. Query errors and missing rows return
+  `503 ai_entitlement_unavailable`; there is no isolate-local authorization
+  cache or webhook cache invalidation.
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
   `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`)
   used for purging storage footprints. `deleteR2Objects` is bounded through
@@ -149,6 +144,44 @@ Several utilities are shared across all Edge Functions via
   issuer, audience, expiration/not-before, role, and `sub`. The claims path
   accepts anonymous/authenticated user roles but rejects service-role replay,
   while unrelated functions avoid its additional SDK graph.
+
+## Authoritative AI Entitlement and Quota
+
+Migration `20260723160229_enforce_server_ai_quotas.sql` owns provider
+authorization. `reserve_ai_quota(...)` is a service-role-only,
+`SECURITY DEFINER` RPC with an empty search path and an in-function
+`require_service_role()` check. In one transaction it:
+
+1. Locks and reads the authenticated user's durable tier, trial window, timed
+   expiry, and `entitlement_version`, linearizing the reservation against a
+   concurrent entitlement update. A future-dated profile resolves free rather
+   than extending the trial.
+2. Selects the enabled policy and allowlisted model for the exact operation and
+   effective plan.
+3. Serializes only identical `(user, operation, request_id)` keys.
+4. Conditionally upserts shared UTC-day, per-user, and per-IP counters without
+   a read-then-write race.
+5. Returns an idempotent reservation and remaining daily capacity.
+
+The Edge helper commits immediately before provider dispatch. Reservations
+already consume their counters, so a process crash or settlement failure cannot
+create unmetered work. Refund is restricted to a verified no-provider path and
+decrements each linked counter exactly once. A daily-rotating HMAC address
+bucket supports network throttling without persisting a raw IP address.
+Reservation and refund paths acquire daily, user-rate, and IP-rate counter
+locks in the same order to avoid deadlocks under concurrent traffic.
+
+Current policy ceilings are 1/50/500 primary scan attempts per UTC day for
+free/trial/paid, 4/100/500 cache-miss enrichment attempts, 3/25/100
+Explore/Community audio moderation attempts, and denied/60/120 model-chat
+attempts. All allowed plans also share per-minute user and IP ceilings. These
+are database-owned cost/abuse controls; iOS `UsageManager` is only an advisory
+capture meter.
+
+Database entitlement lookup fails closed. A query error, missing user row,
+missing/disabled policy, or unsupported model prevents provider work.
+`users.entitlement_version` advances in a trigger on tier or expiry changes, so
+RevenueCat never needs to invalidate memory in other Edge isolates.
 
 ## The R2 Upload URL Node (`generate-upload-urls`)
 
@@ -450,23 +483,16 @@ The `/identify` Edge Function acts as the inference proxy:
     always preserved. `common_names` is merged through the shared keyed helper
     so existing English names remain stable while missing locale keys can still
     be filled.
-11. **Tier Resolution + Ghost Upsert (split critical path / background)**: Tier
-    resolution is split: `resolveTierForUser(userId, supabaseAdmin)` from
-    `_shared/tierCache.ts` runs on the critical path (before the Gemini call) to
-    choose the model and emit telemetry — it hits the 5-minute TTL worker-level
-    cache or falls back to a lightweight
-    `SELECT subscription_tier, created_at, subscription_expires_at`. Paid users
-    resolve to `plan = "pro_paid"` when they have an uncapped subscription or an
-    active timed pass. Expired timed-pass rows resolve as free until the hourly
-    expiry worker downgrades the stored row. Raw free users inside the 7-day
-    trial window resolve to `effective_tier = "pro"` and `plan = "pro_trial"`;
-    expired free users resolve to `plan = "free"`. Ghost users (no row in
-    `users`) are treated as trial Pro for their first scan and cached with
-    `user_exists = false`, so the background task can upsert the `users` row as
-    raw `subscription_tier = "free"` before the `scans` FK insert and then
-    rewrite the cache to the created trial resolution. This prevents first-scan
-    trial users from being cached as free while still ensuring an existing
-    user's `subscription_tier` is never overwritten by the ghost-user path.
+11. **Atomic Entitlement + Quota Reservation**: Before provider work,
+    `_shared/aiQuota.ts` calls `reserve_ai_quota` with the authenticated user,
+    operation, UUID request key, and HMAC address bucket. The transaction reads
+    the current durable entitlement, derives `free`, `pro_trial`, or
+    `pro_paid`, selects the policy model, and atomically consumes the shared
+    daily/per-minute counters. Paid passes with stale expiry resolve free even
+    before the expiry worker repairs the row. A missing `public.users` row is
+    an identity-system fault and fails closed; it is never interpreted as a
+    ghost Pro trial. Successful Auth signup is responsible for creating that
+    row before inference.
 12. **Scan Insert**: Calls `supabaseAdmin.from('scans').insert()` using the
     service role key, binding the scan to the authenticated `user.id`. All
     environmental telemetry (time of day, month, locale, semantic location,
@@ -1151,23 +1177,20 @@ not require a function redeployment. A healthy deployment has both
 The `revenuecat-webhook` function drives tier updates (`pro` ↔ `free`) without
 moving existing scan media between R2 prefixes. Both `public_uploads/free/` and
 `public_uploads/pro/` are durable scan-media storage, so RevenueCat events only
-update `users.subscription_tier`, `users.subscription_expires_at`, and the
-in-process tier cache. The webhook secret is validated using
+update `users.subscription_tier` and `users.subscription_expires_at`. The
+database trigger atomically advances `users.entitlement_version`; the next
+quota reservation observes the new version from durable state regardless of
+which Edge isolate handles it. The webhook secret is validated using
 `timingSafeCompare()`, a constant-time XOR comparison, rather than plain string
-equality — this prevents timing attacks. **Tier cache invalidation**: After
-writing the new tier to the `users` table, the function immediately calls
-`setTierCache(userId, tier)` from `_shared/tierCache.ts` to update the
-in-process isolate cache. Without this, a Pro purchaser would receive
-`gemini-2.5-flash` calls (free tier) for up to 5 minutes while the TTL-based
-cache holds the stale `"free"` entry.
+equality.
 
 Standard subscription purchases (`INITIAL_PURCHASE`, `RENEWAL`,
 `UNCANCELLATION`) clear `subscription_expires_at`; exact `pro_week`
 `NON_RENEWING_PURCHASE` events set it to `purchased_at_ms + 7 days`. On
 `EXPIRATION` for standard subscriptions, or refund/cancellation-style events for
-the pass, Merian downgrades the account tier and updates the in-process tier
-cache. Existing scan media remains in place because both `public_uploads/free/`
-and `public_uploads/pro/` are durable scan-media prefixes. The scheduled
+the pass, Merian downgrades the account tier and advances the durable version.
+Existing scan media remains in place because both `public_uploads/free/` and
+`public_uploads/pro/` are durable scan-media prefixes. The scheduled
 `expire-subscription-passes` worker performs the same downgrade when a timed
 pass reaches `subscription_expires_at`.
 
@@ -1310,12 +1333,15 @@ that operate on anonymous IDFV boundaries:
   verification path. Public unauthenticated routes must document their
   data-exposure boundary in both the function README and
   `docs/backend-and-data/05-api-contracts.md`; internal cron workers must
-  document their service-role authorization boundary.
+  document their service-role authorization boundary. Dependency validation
+  and the planner test require exact parity between configured function names
+  and discoverable entrypoint graphs. Fleet size is derived from those sets;
+  there is no numeric count to update when a reviewed route is added.
 
 ## Database Indexing & Performance
 
-`00003_performance_indexes.sql` defines `CREATE INDEX CONCURRENTLY` for the
-following:
+`00003_performance_indexes.sql` creates the following pipeline-compatible
+indexes:
 
 - `idx_species_dict_scientific_name` on `species_dictionary (scientific_name)` —
   species lookup during inference.
@@ -1328,13 +1354,11 @@ following:
 - `idx_scans_lifecycle` on `scans (timestamp) WHERE image_storage_urls != '{}'`
   — supports media-present scans queries used by public/feed/reference-image
   projections.
-- `idx_scans_nonbio_lifecycle` on
-  `scans (timestamp) WHERE
-  is_biological_subject = false` — scopes the
-  non-biological cleanup worker.
-
 Additional migration-specific indexes:
 
+- `idx_scans_nonbio_lifecycle` on
+  `scans (timestamp) WHERE is_biological_subject = false` — scopes the
+  non-biological cleanup worker.
 - `idx_species_observation_stats_cache_expires_at` on
   `species_observation_stats_cache (expires_at)` — supports stale/fresh cache
   sweeps and operational inspection for public observation chart payloads.
@@ -1350,6 +1374,15 @@ Additional migration-specific indexes:
   for large libraries. With the compound index, Postgres can satisfy both the
   filter and the `ORDER BY` in a single index-only scan, making each page
   O(page_size) regardless of library size.
+
+All migration-owned index DDL intentionally omits `CONCURRENTLY`. Supabase fresh
+database creation replays SQL through a statement pipeline, and workflow run
+1444 demonstrated that `db start` can reject concurrent index creation even
+when a sibling CLI migration command has special handling for it. The static
+`migrationExecutionContract.test.ts` guard covers the full migration directory.
+Zero-downtime index creation on a populated production table is an explicit
+pre-deploy operation; the migration retains an idempotent ordinary index
+statement for deterministic clean rebuilds.
 
 ## Storage Economics & Evidence Retention
 
@@ -1613,8 +1646,8 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
   npm, or JSR specifiers. New entrypoints call `Deno.serve(...)` directly, and
   runtime base64/hex work uses `_shared/encoding.ts`.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,
-  `external.ts`, `tierCache.ts`, `posthog.ts`, `gemini.ts`, `aws.ts`,
-  `encoding.ts`, `auth.ts`, and opt-in `claimsAuth.ts` domains cleanly separate
+  `external.ts`, `aiQuota.ts`, `entitlement.ts`, `posthog.ts`, `gemini.ts`,
+  `aws.ts`, `encoding.ts`, `auth.ts`, and opt-in `claimsAuth.ts` domains cleanly separate
   the core proxy engine natively without polluting the specific Webhook
   routers. All routes resolve the same exact Supabase SDK through generated
   function-local configs and the shared frozen lock. `claimsAuth.ts` stays
@@ -1831,6 +1864,10 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
+- **`AI_QUOTA_IP_HASH_SECRET`**: At least 32 high-entropy characters used to
+  HMAC the proxy-observed client address for daily-rotating IP rate-limit
+  buckets. The production deploy workflow reads this from the GitHub
+  `Production` environment and synchronizes it before function deployment.
 - The same **`GEMINI_API_KEY`** also authenticates the dedicated
   `gemini-2.5-flash` speech/non-speech classifier used by the fail-closed Explore
   audio publication gate. A valid content-addressed attestation can be reused

@@ -21,9 +21,11 @@ the injected `AppSettings` boundary.
 ## Plan and prelaunch purchase testing
 
 Settings → Plan is the canonical manual entry point for `PaywallView`. Every
-current prelaunch build intentionally enables unlimited scans, so the capture
-quota will not present this paywall during ordinary testing. Purchase QA must
-open Plan directly.
+release build enables the advisory local meter, while Supabase remains the
+authoritative quota boundary. Debug builds can bypass only the local meter from
+Settings → Feature Flags or with `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`; the backend
+still reserves quota and applies the durable plan limits. Purchase QA should
+open Plan directly instead of relying on a quota-triggered presentation.
 
 The paywall is ready only when RevenueCat's current offering resolves packages
 for both `pro_week` and `pro_annual`. A successful RevenueCat login proves the

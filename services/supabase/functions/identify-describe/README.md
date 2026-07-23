@@ -24,11 +24,11 @@ row plus a sanitized `scan_ingestion_intents` row through
 
 ## Biological Boundary
 
-Text descriptions use the same post-parse processed-material guard as the
-visual routes. A description of a manufactured or processed object is
-non-biological even when it mentions biological source material, for example a
-wool rug, leather jacket, wooden table, paper sheet, cotton textile, prepared
-food, artwork, toy, ornament, or species depiction.
+Text descriptions use the same post-parse processed-material guard as the visual
+routes. A description of a manufactured or processed object is non-biological
+even when it mentions biological source material, for example a wool rug,
+leather jacket, wooden table, paper sheet, cotton textile, prepared food,
+artwork, toy, ornament, or species depiction.
 
 Before cache lookup or dictionary writes, `identify-describe` normalizes these
 results to `is_biological_subject=false`, clears source-species

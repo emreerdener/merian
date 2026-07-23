@@ -6,6 +6,16 @@ The active iOS audio path now routes through `/identify-multimodal`, which
 accepts foreground `audioBase64s` and queued `audioR2ObjectKeys`. This route
 remains deployed for older callers and focused audio budget tests.
 
+## Authoritative AI Quota
+
+The authenticated caller's `client_scan_id` is the UUID idempotency key for the
+`scan_audio_identification` reservation. Immediately before Gemini dispatch, the
+service-role-only database RPC resolves durable entitlement, applies the shared
+scan daily ceiling plus per-user/IP minute limits, and selects the model.
+Missing user state, database errors, missing policy, or a replay already in
+progress fail closed. The reservation is committed before provider dispatch;
+only a known pre-provider no-op may enter the explicit refunded state.
+
 ## Durability
 
 Before returning success, `audio-spec` records a `scan_ingestion_jobs` row plus
@@ -25,11 +35,11 @@ a sanitized `scan_ingestion_intents` row through
 
 ## Dictionary Common Names
 
-Audio-only biological results can still warm or create
-`species_dictionary` rows, but they share the same dictionary name merge rule as
-the visual/text routes: an existing `species_dictionary.common_names.en` value
-wins over the scan-level `common_name`. The audio scan name may fill an empty
-English name, but it cannot rename an existing species row.
+Audio-only biological results can still warm or create `species_dictionary`
+rows, but they share the same dictionary name merge rule as the visual/text
+routes: an existing `species_dictionary.common_names.en` value wins over the
+scan-level `common_name`. The audio scan name may fill an empty English name,
+but it cannot rename an existing species row.
 
 ## Local Verification
 

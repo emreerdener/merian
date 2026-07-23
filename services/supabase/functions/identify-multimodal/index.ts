@@ -16,10 +16,8 @@ import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
 import { corsHeaders } from "../_shared/http.ts";
 import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import {
-  resolveTierForUser,
-  tierTelemetryProperties,
-} from "../_shared/tierCache.ts";
+import { tierTelemetryProperties } from "../_shared/entitlement.ts";
+import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
@@ -782,13 +780,16 @@ export async function handleIdentifyMultimodalRequest(
 
   // 2. Dispatch Rule
   const tierStart = performance.now();
-  const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+  const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+    userId: user.id,
+    operation: "scan_identification",
+    requestId: generatedScanId,
+  });
+  const tierResolution = quotaLease.reservation.tier;
   const tierMs = performance.now() - tierStart;
   const userTier = tierResolution.effective_tier;
   const inferenceTier = userTier === "pro" ? "pro" : "flash";
-  const targetModel = userTier === "pro"
-    ? "gemini-2.5-pro"
-    : "gemini-2.5-flash";
+  const targetModel = quotaLease.reservation.model;
   const diagnosticTrigger = diagnosticTriggerForTier(inferenceTier);
 
   let instructionToUse = "";
@@ -865,6 +866,7 @@ export async function handleIdentifyMultimodalRequest(
   });
 
   if (partsArray.length === 1 && !hasObservationContextText) {
+    await quotaLease.refund();
     return jsonResponse({
       error: "At least one media element or description is required",
     }, 400);
@@ -1056,6 +1058,7 @@ export async function handleIdentifyMultimodalRequest(
   let geminiLatencyMs = 0;
 
   try {
+    await quotaLease.commit();
     const result = await _genAI.models.generateContent({
       model: targetModel,
       contents: [{ role: "user", parts: partsArray }],

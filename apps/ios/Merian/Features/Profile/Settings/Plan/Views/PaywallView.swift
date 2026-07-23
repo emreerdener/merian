@@ -17,14 +17,14 @@ struct PaywallFeatureComparison: Identifiable {
 }
 
 enum ProPlanValueProps {
-    static let activePlanSummary = "You have unlimited field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode unlocked."
-    static let upgradePlanSummary = "You have 1 free scan daily. Upgrade for unlimited field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode."
+    static let activePlanSummary = "You have high-volume field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode unlocked."
+    static let upgradePlanSummary = "You have 1 free scan daily. Upgrade for high-volume field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode."
 
     static let featuredSlides = [
         PaywallHeroSlide(
             imageName: "luna-moth",
-            title: "Unlimited field scans",
-            subtitle: "Keep identifying without daily scan limits.",
+            title: "High-volume field scans",
+            subtitle: "Keep identifying with generous fair-use capacity.",
             glowColor: .mint
         ),
         PaywallHeroSlide(
@@ -54,7 +54,7 @@ enum ProPlanValueProps {
     ]
 
     static let comparisons = [
-        PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "Unlimited"),
+        PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "High-volume"),
         PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
         PaywallFeatureComparison(title: "Video scans", freeValue: "-", proValue: "Included"),
         PaywallFeatureComparison(title: "AI chat", freeValue: "-", proValue: "Included"),
@@ -89,7 +89,7 @@ private let paywallReviews = [
     PaywallReview(
         title: "Absolutely worth it",
         rating: 5,
-        body: "Unlimited scans are a must! I take dozens of pictures of mosses and lichens during fieldwork and the app never misses a beat. Essential for my job.",
+        body: "The generous scan capacity is a must! I take dozens of pictures of mosses and lichens during fieldwork and the app never misses a beat. Essential for my job.",
         author: "BioResearcher"
     )
 ]

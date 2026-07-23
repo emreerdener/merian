@@ -147,6 +147,11 @@ flowchart TD
 - Free remains `gemini-2.5-flash` and Pro remains `gemini-2.5-pro`. Thinking,
   prompt/schema, media resolution, output limits, and one-call semantics are not
   latency tuning levers in this work.
+- Model choice and provider capacity are server-owned. Before any public paid
+  model dispatch, an atomic Postgres reservation resolves the durable
+  entitlement, applies the operation's model policy, and consumes idempotent
+  UTC-day/user/IP counters. Database errors and missing user rows fail closed;
+  the iOS local meter is advisory.
 - `Task.checkCancellation()` boundaries are injected inside `InferenceEngine`
   before transferring `URLSession` data payloads to Cloudflare R2. If the iOS
   Watchdog or the user cancels a processing scan, execution aborts immediately
@@ -247,8 +252,8 @@ single-responsibility functions under `/services/supabase/functions/`.
     reports about Explore post content.
 - **Revenue Integration**
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription
-    transitions, stamping user tiers natively into Postgres bounds without
-    client-side polling.
+    transitions, stamping user tiers and a monotonic entitlement version into
+    Postgres without client-side polling or Edge-isolate cache invalidation.
 
 ### 5. Continuous Gamification Ecosystem (`GamificationManager`)
 

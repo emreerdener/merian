@@ -74,9 +74,21 @@ export interface AudioModerationCache {
   }): Promise<void>;
 }
 
+export interface AudioModerationQuota {
+  beforeProvider(input: {
+    checksumSha256: string;
+    policyVersion: string;
+  }): Promise<{
+    reservation: { model: string };
+    commit(): Promise<boolean>;
+    refund(): Promise<boolean>;
+  }>;
+}
+
 type GeminiGenerate = (
   audioBase64: string,
   mimeType: string,
+  model?: string,
 ) => Promise<
   string | { text: string; usage?: GeminiUsageMetadata }
 >;
@@ -144,10 +156,11 @@ export function resolveGeminiMediaType(
 const generateGeminiClassification: GeminiGenerate = async (
   audioBase64,
   mimeType,
+  model = AUDIO_MODERATION_MODEL,
 ) => {
   const { _genAI } = await import("./gemini.ts");
   const result = await _genAI.models.generateContent({
-    model: AUDIO_MODERATION_MODEL,
+    model,
     contents: [{
       role: "user",
       parts: [
@@ -231,8 +244,9 @@ export async function classifyExploreAudio(
   bytes: ArrayBuffer,
   mimeType: string,
   generate: GeminiGenerate = generateGeminiClassification,
+  model = AUDIO_MODERATION_MODEL,
 ): Promise<AudioModerationDecision> {
-  const generated = await generate(encodeBase64(bytes), mimeType);
+  const generated = await generate(encodeBase64(bytes), mimeType, model);
   const classification = parseGeminiAudioClassification(
     typeof generated === "string" ? generated : generated.text,
   );
@@ -241,7 +255,7 @@ export async function classifyExploreAudio(
       !classification.requires_review &&
       classification.policy_categories.length === 0 &&
       classification.confidence >= MIN_APPROVAL_CONFIDENCE,
-    model: AUDIO_MODERATION_MODEL,
+    model,
     policyVersion: await policyVersionPromise,
   };
   if (typeof generated !== "string" && generated.usage) {
@@ -255,20 +269,32 @@ export async function moderateExploreAudioUrl(
   cache?: AudioModerationCache,
   fetcher: typeof fetch = fetch,
   generate: GeminiGenerate = generateGeminiClassification,
+  quota?: AudioModerationQuota,
 ): Promise<AudioModerationDecision> {
   const startedAt = performance.now();
   try {
+    if (generate === generateGeminiClassification && !quota) {
+      throw new Error(
+        "Authoritative AI quota is required for audio moderation.",
+      );
+    }
     const audio = await fetchBoundedModerationMedia(url, fetcher);
     const checksumSha256 = await sha256Hex(audio.bytes);
     const policyVersion = await policyVersionPromise;
+    const quotaLease = await quota?.beforeProvider({
+      checksumSha256,
+      policyVersion,
+    });
+    const model = quotaLease?.reservation.model ?? AUDIO_MODERATION_MODEL;
     if (cache) {
       try {
         const cached = await cache.lookup(
           checksumSha256,
           policyVersion,
-          AUDIO_MODERATION_MODEL,
+          model,
         );
         if (cached) {
+          await quotaLease?.refund();
           console.log(JSON.stringify({
             event: "explore_audio_moderation_cache_hit",
             approved: cached.approved,
@@ -289,12 +315,15 @@ export async function moderateExploreAudioUrl(
       generate === generateGeminiClassification &&
       !Deno.env.get("GEMINI_API_KEY")?.trim()
     ) {
+      await quotaLease?.refund();
       throw new Error("GEMINI_API_KEY is not configured.");
     }
+    await quotaLease?.commit();
     const decision = await classifyExploreAudio(
       audio.bytes,
       audio.mimeType,
       generate,
+      model,
     );
     if (cache) {
       try {

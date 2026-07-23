@@ -1,5 +1,10 @@
 -- Migration: 00003_performance_indexes.sql
--- Description: Implement concurrent indexing to eliminate sequential scans on highly queried keys and telemetry discovery feeds.
+-- Description: Add indexes that eliminate sequential scans on highly queried keys and telemetry discovery feeds.
+--
+-- Supabase replays migration files through a statement pipeline when building a
+-- fresh database. Keep index DDL in migration files non-concurrent; production
+-- maintenance that requires CONCURRENTLY must run as a separately supervised
+-- operation.
 
 -- 1. Accelerate Science Taxonomy Lookups (identify engine enrichment matches)
 CREATE INDEX IF NOT EXISTS idx_species_dict_scientific_name ON public.species_dictionary (scientific_name);
@@ -15,6 +20,6 @@ CREATE INDEX IF NOT EXISTS idx_scans_user_species ON public.scans (user_id, spec
 
 -- 5. Lifecycle Sync Bounding Array
 -- Accelerates the daily cron sweep on 00004_storage_lifecycle_sync to avoid sequential scans across gigabytes of arrays natively.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scans_lifecycle 
-ON public.scans (timestamp) 
+CREATE INDEX IF NOT EXISTS idx_scans_lifecycle
+ON public.scans (timestamp)
 WHERE image_storage_urls != '{}';

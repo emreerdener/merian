@@ -18,6 +18,11 @@ Deno.test("edited audio media is approved before its spectrogram is attached", a
     "00000000-0000-0000-0000-000000000002",
     rows,
     {} as SupabaseClient,
+    {
+      beforeProvider: () => {
+        throw new Error("Injected approval should not reserve quota.");
+      },
+    },
     () => {
       calls.push("approve");
       return Promise.resolve();

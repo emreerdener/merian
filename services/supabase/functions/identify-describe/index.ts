@@ -8,10 +8,8 @@ import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import {
-  resolveTierForUser,
-  tierTelemetryProperties,
-} from "../_shared/tierCache.ts";
+import { tierTelemetryProperties } from "../_shared/entitlement.ts";
+import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
@@ -135,15 +133,20 @@ Deno.serve((req: Request) =>
 
     console.log(`[⏱ BENCH] payload_parsed: ${Date.now() - fnStart}ms`);
 
-    const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+    const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+      userId: user.id,
+      operation: "scan_identification",
+      requestId: client_scan_id,
+    });
+    const tierResolution = quotaLease.reservation.tier;
     const userTier = tierResolution.effective_tier;
-    const targetModel = userTier === "pro"
-      ? "gemini-2.5-pro"
-      : "gemini-2.5-flash";
+    const targetModel = quotaLease.reservation.model;
     const diagnosticTrigger = diagnosticTriggerForTier(
       userTier === "pro" ? "pro" : "flash",
     );
-    const modelCfg = userTier === "pro" ? modelConfigs.pro : modelConfigs.flash;
+    const modelCfg = targetModel === "gemini-2.5-pro"
+      ? modelConfigs.pro
+      : modelConfigs.flash;
 
     const promptText = buildObservationPrompt(description, {
       safeGpsLat,
@@ -172,8 +175,9 @@ Deno.serve((req: Request) =>
     let llmUsageMetadata: Record<string, unknown> = {};
 
     try {
+      await quotaLease.commit();
       const result = await _genAI.models.generateContent({
-        model: modelCfg.model,
+        model: targetModel,
         contents: [{ role: "user", parts: [{ text: promptText }] }],
         config: {
           ...modelCfg.config,
@@ -374,7 +378,7 @@ Deno.serve((req: Request) =>
     const generatedScanId: string =
       typeof client_scan_id === "string" && client_scan_id.length > 0
         ? client_scan_id
-        : crypto.randomUUID();
+        : quotaLease.reservation.requestId;
 
     const payloadReadyForClient: ClientPayload = {
       ...parsedData,

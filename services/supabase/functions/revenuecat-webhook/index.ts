@@ -4,7 +4,6 @@ import { timingSafeCompare } from "../_shared/http.ts";
 
 import { ensureUserExists, updateUserTier } from "./db.ts";
 import { classifyRevenueCatEvent } from "./events.ts";
-import { setTierCache } from "../_shared/tierCache.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -62,9 +61,6 @@ Deno.serve(async (req: Request) => {
         action.expiresAt,
         supabaseAdmin,
       );
-      // Immediately update the in-process tier cache so the next enrich-scan or identify
-      // call on this isolate uses current tier state without waiting for the TTL to expire.
-      setTierCache(userId, action.targetTier);
     }
 
     return jsonResponse({ success: true }, 200);

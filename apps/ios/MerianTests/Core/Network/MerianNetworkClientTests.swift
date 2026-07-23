@@ -275,6 +275,10 @@ struct MerianNetworkClientTests {
     @Test func testIdentifyMultiModalSignalsWhenInlineRequestBodyIsSent() async throws {
         let probe = SendableCallbackProbe()
         MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            #expect(
+                request.value(forHTTPHeaderField: "Idempotency-Key")
+                    == "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6"
+            )
             let response = HTTPURLResponse(
                 url: try #require(request.url),
                 statusCode: 200,
@@ -377,6 +381,12 @@ struct MerianNetworkClientTests {
             #expect(payload["zoomFactor"] as? Double == 1.5)
             #expect(payload["gps_latitude"] == nil)
             #expect(payload["semantic_location"] == nil)
+            let clientScanID = try #require(payload["client_scan_id"] as? String)
+            #expect(UUID(uuidString: clientScanID) != nil)
+            #expect(
+                request.value(forHTTPHeaderField: "Idempotency-Key")
+                    == clientScanID
+            )
             return (mockResponse, testData)
         }
         
@@ -469,6 +479,10 @@ struct MerianNetworkClientTests {
         MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
             #expect(request.url?.path.hasSuffix("/enrich-scan") == true)
             #expect(request.httpMethod == "POST")
+            let idempotencyKey = try #require(
+                request.value(forHTTPHeaderField: "Idempotency-Key")
+            )
+            #expect(UUID(uuidString: idempotencyKey) != nil)
             return (mockResponse, testData)
         }
         
@@ -490,6 +504,82 @@ struct MerianNetworkClientTests {
         #expect(similar.count == 1)
         #expect(similar[0].species_id == "species-cancrivorus")
         #expect(similar[0].scientific_name == "Procyon cancrivorus")
+    }
+
+    @Test func testExploreShareSendsStableAIIdempotencyKey() async throws {
+        let requestID = "019f6ff1-89ad-7d42-84d8-74dc8b1b5bb0"
+        let scanID = "019f6ff1-9ef3-77b1-a331-a86678f53043"
+        let responseData = Data("""
+        {
+          "success": true,
+          "post_id": "019f6ff1-a393-7acc-9dbc-a9ec785f4152",
+          "scan_id": "\(scanID)",
+          "shared_at": "2026-07-23T18:00:00Z",
+          "location_sharing": "private",
+          "publication_status": "published"
+        }
+        """.utf8)
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/share-scan-to-explore"] = { request in
+            #expect(
+                request.value(forHTTPHeaderField: "Idempotency-Key") == requestID
+            )
+            return (response, responseData)
+        }
+
+        let result = try await MerianNetworkClient.shared.shareScanToExplore(
+            scanId: scanID,
+            idempotencyKey: requestID
+        )
+
+        #expect(result.success)
+        #expect(result.scanId == scanID)
+    }
+
+    @Test func testCommunityRequestSendsStableAIIdempotencyKey() async throws {
+        let requestID = "019f7004-cb18-7cd0-84e5-b4a97b759666"
+        let scanID = "019f7004-d6c4-7da1-8561-9cc101f6db62"
+        let responseData = Data("""
+        {
+          "success": true,
+          "data": {
+            "id": "019f7004-e4c2-7feb-8f4d-39ab2a89ca1e",
+            "post_id": "019f7004-ee31-7e9e-961d-30b49352f12a",
+            "scan_id": "\(scanID)",
+            "requested_by": "019f7004-f66f-71bf-845c-bf05dff2eb30",
+            "requested_at": "2026-07-23T18:00:00Z",
+            "status": "needs_id",
+            "consensus_identification_count": 0
+          }
+        }
+        """.utf8)
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/request-community-identification"] = { request in
+            #expect(
+                request.value(forHTTPHeaderField: "Idempotency-Key") == requestID
+            )
+            return (response, responseData)
+        }
+
+        let result = try await MerianNetworkClient.shared.requestCommunityIdentification(
+            scanId: scanID,
+            idempotencyKey: requestID
+        )
+
+        #expect(result.scanId == scanID)
+        #expect(result.status == .needsId)
     }
 
     @Test func testGetExploreShareStateConstructsPayloadAndParsesJSON() async throws {

@@ -20,8 +20,10 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             false
         case .fieldTripEvents:
             false
-        case .fieldTrips, .unlimitedFreeScans:
+        case .fieldTrips:
             true
+        case .unlimitedFreeScans:
+            false
         }
     }
 
@@ -34,7 +36,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
         case .fieldTripEvents:
             "Field trip Events"
         case .unlimitedFreeScans:
-            "Unlimited free scans"
+            "Bypass local scan meter"
         }
     }
 
@@ -47,7 +49,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
         case .fieldTripEvents:
             "Releases Events beyond the simulator and tester preview."
         case .unlimitedFreeScans:
-            "Bypasses the daily free scan limit during prelaunch testing."
+            "Debug-only bypass for the advisory local scan meter."
         }
     }
 }

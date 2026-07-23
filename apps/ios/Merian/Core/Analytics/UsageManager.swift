@@ -1,7 +1,11 @@
 import Foundation
 import Observation
 
-/// Tracks daily scan usage for free-tier users and enforces the per-day quota.
+/// Maintains a responsive, advisory local scan meter for free-tier UX.
+///
+/// The Supabase AI quota reservation is the authorization boundary. Values in
+/// UserDefaults can be stale or modified and must never be treated as proof
+/// that a paid provider call is allowed.
 @MainActor
 @Observable final class UsageManager {
     static let shared = UsageManager()
@@ -55,12 +59,12 @@ import Observation
         hasLoggedFreeScanLimitOverride = true
 
         if FeatureFlags.isEnabled(.unlimitedFreeScans) {
-            MerianLog.general.warning("TEMP OVERRIDE ACTIVE: unlimited free scans are enabled for prelaunch testing.")
+            MerianLog.general.warning("DEBUG OVERRIDE ACTIVE: the advisory local free-scan meter is disabled.")
             return
         }
 
 #if DEBUG
-        MerianLog.general.warning("TEMP OVERRIDE ACTIVE: free daily scan limit is disabled via MERIAN_DISABLE_FREE_SCAN_LIMIT.")
+        MerianLog.general.warning("DEBUG OVERRIDE ACTIVE: the advisory local free-scan meter is disabled via MERIAN_DISABLE_FREE_SCAN_LIMIT.")
 #endif
     }
 
@@ -90,7 +94,10 @@ import Observation
 
     // MARK: - Scan Consumption
 
-    /// Returns true if the user is allowed to perform another scan.
+    /// Returns whether local UX should start another scan.
+    ///
+    /// This is advisory only. The server independently authorizes and reserves
+    /// quota before any paid provider call.
     func canPerformScan(isProActive: Bool) -> Bool {
         if isFreeScanLimitOverrideEnabled {
             logFreeScanLimitOverrideIfNeeded()
@@ -100,7 +107,7 @@ import Observation
         return isProActive || freeScansRemaining > 0
     }
 
-    /// Records a scan as consumed, updating the daily count.
+    /// Records a scan in the advisory local meter.
     func consumeScan() {
         if isFreeScanLimitOverrideEnabled {
             logFreeScanLimitOverrideIfNeeded()
@@ -113,7 +120,9 @@ import Observation
         freeScansRemaining -= 1
     }
 
-    /// Refunds a scan when processing fails and the user should not be charged.
+    /// Refunds the advisory local meter after a pre-provider failure.
+    ///
+    /// Server quota refunds are handled independently by the Edge Function.
     func refundScan() {
         if isFreeScanLimitOverrideEnabled {
             logFreeScanLimitOverrideIfNeeded()

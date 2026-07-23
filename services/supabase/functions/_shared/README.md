@@ -19,9 +19,9 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`claimsAuth.ts`**: Opt-in cached-JWKS `getClaims` authentication for
   latency-sensitive routes. It explicitly validates issuer, audience,
   expiration/not-before, role, and `sub`; accepts anonymous and authenticated
-  users; and rejects `service_role`. All functions share the same exact
-  Supabase SDK, but keeping this policy out of `edgeHandler.ts` prevents an
-  implicit fleet-wide authentication change. Internal replay keeps its separate
+  users; and rejects `service_role`. All functions share the same exact Supabase
+  SDK, but keeping this policy out of `edgeHandler.ts` prevents an implicit
+  fleet-wide authentication change. Internal replay keeps its separate
   timing-safe service credential path.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
   and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
@@ -47,16 +47,15 @@ multiple functions need the same behavior and the ownership boundary is clear.
   signing creates staged scan-media asset rows with `scan_id` null until the
   final scan exists, identify finalization marks them promoted/deleted/failed,
   and write paths make best-effort `scan_media_assets` refresh calls after scan
-  inserts or video repair updates. The
-  `reconcile-scan-media-assets` worker owns stale staged-row repair and
-  abandonment cleanup, while checking active ingestion jobs before abandoning
-  staged upload-session media. Composer and status paths prefer ready
-  display/playback asset rows before falling back to `captured_media` and legacy
-  arrays. Generated video rows derive `has_audio` only from captured-media audio
-  references; legacy video arrays default false because they cannot prove an
-  audio companion survived. `scan-media-health` reads the same lifecycle state
-  for deploy smoke checks and operational drift alerts, but does not mutate
-  media rows.
+  inserts or video repair updates. The `reconcile-scan-media-assets` worker owns
+  stale staged-row repair and abandonment cleanup, while checking active
+  ingestion jobs before abandoning staged upload-session media. Composer and
+  status paths prefer ready display/playback asset rows before falling back to
+  `captured_media` and legacy arrays. Generated video rows derive `has_audio`
+  only from captured-media audio references; legacy video arrays default false
+  because they cannot prove an audio companion survived. `scan-media-health`
+  reads the same lifecycle state for deploy smoke checks and operational drift
+  alerts, but does not mutate media rows.
 - **`scanIngestionJobs.ts`**: Durable scan-ingestion job helpers. The active
   multimodal path claims a job row after media validation, updates server-side
   stages through inference/finalization/failure, and `/check-scan-status`
@@ -67,12 +66,12 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
   descriptors (including validated still-image focus regions), staged object
-  keys, upload-session ids, and payload checksums into
-  `scan_ingestion_intents` without raw base64 media bytes or local device paths.
-  Inline-media requests are marked non-resumable so
-  `replay-scan-ingestion` and health checks know they still depend on the client
-  queue. Server replay is capped at 10 claims per sanitized intent before the
-  paired job is marked `failed_terminal / server_replay_limit_reached`.
+  keys, upload-session ids, and payload checksums into `scan_ingestion_intents`
+  without raw base64 media bytes or local device paths. Inline-media requests
+  are marked non-resumable so `replay-scan-ingestion` and health checks know
+  they still depend on the client queue. Server replay is capped at 10 claims
+  per sanitized intent before the paired job is marked
+  `failed_terminal / server_replay_limit_reached`.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
@@ -88,18 +87,23 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`gemini.ts`**: Global `GoogleGenAI` client setup plus structured-output and
   JSON extraction helpers.
 - **`biology.ts`**: Shared structured biological generation helpers retained for
-  functions that still need text-only ecological generation.
+  functions that still need text-only ecological generation. Externally
+  reachable callers must pass the model selected by the database quota policy;
+  service-only maintenance callers pass their reviewed system model explicitly.
+- **`aiQuota.ts`**: Service-role client for the atomic `reserve_ai_quota(...)`
+  and `finalize_ai_quota_reservation(...)` RPCs. It validates UUID idempotency
+  keys, HMACs the proxy-observed client address with `AI_QUOTA_IP_HASH_SECRET`,
+  maps fail-closed database errors to stable HTTP codes, and exposes a provider
+  lease. A route commits immediately before a provider attempt; only a proven
+  pre-provider no-op may refund.
+- **`entitlement.ts`**: Durable user-tier resolver for non-provider feature
+  checks and telemetry. It reads `users` on every call, includes the monotonic
+  `entitlement_version`, and returns `503 ai_entitlement_unavailable` on a query
+  error or missing row. Edge isolate memory is never an entitlement authority.
 - **`posthog.ts`**: Best-effort PostHog HTTP capture helpers.
-- **`tierCache.ts`**: Short-lived user-tier resolver/cache to avoid repeated
-  Supabase lookups inside hot Edge paths. Exposes both the compatibility
-  `getTierForUser(...)` helper and the richer `resolveTierForUser(...)` contract
-  used by scan telemetry: `effective_tier`, `plan`, `subscription_tier`,
-  `trial_active`, and `user_exists`. Reads `subscription_expires_at` so active
-  detached 7-day passes resolve as paid Pro and stale timed Pro rows resolve as
-  free until the scheduled expiry worker clears them.
 - **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`
-  pass, including the 7-day duration and RevenueCat
-  `purchased_at_ms` expiration calculation.
+  pass, including the 7-day duration and RevenueCat `purchased_at_ms` expiration
+  calculation.
 - **`explore.ts`**: Explore UUID/hashtag validation, public author identity
   sync, feed-card hashtag/pro-badge/username hydration, and shared
   social-surface helpers.
@@ -134,8 +138,8 @@ identical:
 - **`latencyDb.ts`**: Thin service-role RPC client for atomic ingestion setup
   (`begin_scan_ingestion`, including its server-canonicalized session ids and
   checksums) and combined primary/candidate dictionary hydration
-  (`hydrate_identification_dictionary`). Keep rollout compatibility fallbacks
-  in the calling route, not in this module.
+  (`hydrate_identification_dictionary`). Keep rollout compatibility fallbacks in
+  the calling route, not in this module.
 - **`media.ts`**: Image/audio media resolution from inline payloads and R2
   staging keys.
 - **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media

@@ -53,14 +53,24 @@ export function parseWavHeader(buffer: ArrayBuffer): WavHeader {
   if (sampleRate === 0) throw new Error("WAV: fmt chunk not found");
   if (dataOffset === -1) throw new Error("WAV: data chunk not found");
 
-  return { audioFormat, numChannels, sampleRate, bitsPerSample, dataOffset, dataLength };
+  return {
+    audioFormat,
+    numChannels,
+    sampleRate,
+    bitsPerSample,
+    dataOffset,
+    dataLength,
+  };
 }
 
 /**
  * Extracts all PCM samples as normalised Float32 (-1.0 to +1.0).
  * Supports Int16 PCM (format=1) and IEEE Float32 (format=3, used by AVAudioEngine on iOS).
  */
-export function extractSamplesAsFloat32(buffer: ArrayBuffer, header: WavHeader): Float32Array {
+export function extractSamplesAsFloat32(
+  buffer: ArrayBuffer,
+  header: WavHeader,
+): Float32Array {
   const { audioFormat, bitsPerSample, dataOffset, dataLength } = header;
   const view = new DataView(buffer, dataOffset, dataLength);
 
@@ -88,7 +98,10 @@ export function extractSamplesAsFloat32(buffer: ArrayBuffer, header: WavHeader):
 }
 
 /** Down-mixes an interleaved multi-channel Float32 buffer to mono. */
-export function mixToMono(samples: Float32Array, numChannels: number): Float32Array {
+export function mixToMono(
+  samples: Float32Array,
+  numChannels: number,
+): Float32Array {
   if (numChannels === 1) return samples;
   const monoLen = Math.floor(samples.length / numChannels);
   const mono = new Float32Array(monoLen);
@@ -102,7 +115,11 @@ export function mixToMono(samples: Float32Array, numChannels: number): Float32Ar
   return mono;
 }
 
-function rmsOfWindow(samples: Float32Array, offset: number, length: number): number {
+function rmsOfWindow(
+  samples: Float32Array,
+  offset: number,
+  length: number,
+): number {
   const end = Math.min(offset + length, samples.length);
   const count = end - offset;
   if (count <= 0) return 0;
@@ -179,7 +196,10 @@ export function resampleLinear(
  * Encodes a mono Float32 sample buffer into a 44-byte-header 16-bit PCM WAV.
  * This is the format consumed by Gemini's audio inline data path.
  */
-export function encodeWav16(samples: Float32Array, sampleRate: number): Uint8Array {
+export function encodeWav16(
+  samples: Float32Array,
+  sampleRate: number,
+): Uint8Array {
   const dataSize = samples.length * 2;
   const buf = new ArrayBuffer(44 + dataSize);
   const view = new DataView(buf);
@@ -193,13 +213,13 @@ export function encodeWav16(samples: Float32Array, sampleRate: number): Uint8Arr
   view.setUint32(4, 36 + dataSize, true);
   w4(8, "WAVE");
   w4(12, "fmt ");
-  view.setUint32(16, 16, true);          // fmt chunk size
-  view.setUint16(20, 1, true);           // PCM
-  view.setUint16(22, 1, true);           // mono
+  view.setUint32(16, 16, true); // fmt chunk size
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * 2, true); // byteRate
-  view.setUint16(32, 2, true);           // blockAlign
-  view.setUint16(34, 16, true);          // bitsPerSample
+  view.setUint16(32, 2, true); // blockAlign
+  view.setUint16(34, 16, true); // bitsPerSample
   w4(36, "data");
   view.setUint32(40, dataSize, true);
 

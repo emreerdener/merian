@@ -53,6 +53,11 @@ Tracks the global state of the anonymous/authenticated user.
   Standard RevenueCat subscriptions leave this null. The hourly
   `expire-subscription-passes` worker downgrades expired timed grants and clears
   this value.
+- `entitlement_version` (BIGINT, default 1): Monotonic durable version advanced
+  by `bump_user_entitlement_version` whenever `subscription_tier` or
+  `subscription_expires_at` changes. Callers cannot increment it independently.
+  AI reservations record the version they authorized so incident review can
+  correlate a provider attempt with the exact entitlement generation.
 - `default_geoprivacy` (ENUM): `'open'` | `'obscured'` | `'private'`. Dictates
   the privacy projection applied to scans. Current clients send this value on
   identify requests, and Edge insert helpers fall back to this column when the
@@ -109,6 +114,12 @@ Tracks the global state of the anonymous/authenticated user.
   Added in `20260528120000_add_custom_public_avatars.sql`.
 - `custom_avatar_updated_at` (TIMESTAMPTZ, nullable): Last successful custom
   avatar promotion time. Updated by `/update-public-avatar`.
+
+Authenticated Data API clients may update only `default_geoprivacy` and
+`marketing_opt_in`. They have no table/column privilege to insert or delete user
+rows, or update tier, timed expiry, entitlement version, identity, moderation,
+or gamification fields. Identity and billing mutations use reviewed
+service-owned boundaries.
 
 **Public identity refresh helpers**:
 `refresh_public_author_identity(target_user_id)` and `handle_new_user()`
@@ -2333,6 +2344,41 @@ Append-only source of truth for internal AI analytics:
 - Non-content extension data: `metadata JSONB`
 
 `effective_plan` is `free`, `pro_paid`, `pro_trial`, or `unknown`;
+
+### `internal.ai_quota_policies`, counters, and reservations
+
+Migration `20260723160229_enforce_server_ai_quotas.sql` adds four private
+tables. `PUBLIC`, `anon`, `authenticated`, and `service_role` have no direct
+table privileges; Edge code reaches them only through the two reviewed
+service-role definer RPCs.
+
+- `internal.ai_quota_policies`: one row per `(operation, effective_plan)`.
+  Stores enabled/allowed state, allowlisted model, policy version, daily bucket
+  and limit, plus shared per-user and per-IP rate bucket/window/limit.
+- `internal.ai_quota_counters`: atomic counter keyed by scope, HMAC/user key,
+  logical bucket, and fixed window start. Conditional UPSERT prevents a
+  read-then-increment race at the limit.
+- `internal.ai_quota_reservations`: one idempotent row per
+  `(user_id, operation, request_id)`. Captures `reserved`, `committed`, or
+  `refunded` state; attempt/refund counts; effective/raw tier; entitlement and
+  policy versions; selected model; and daily remaining after reservation.
+- `internal.ai_quota_reservation_counters`: temporary links from a live
+  reservation to each counter it consumed. Refund locks the reservation,
+  decrements these counters once in the same daily/user/IP lock order used by
+  reservation, removes zero rows, then removes the links.
+
+`reserve_ai_quota(uuid,text,uuid,text)` serializes only an identical request
+key with a transaction advisory lock, takes share locks on the entitlement and
+selected policy rows, resolves the durable plan, and consumes all applicable
+counters atomically. Those row locks linearize concurrent RevenueCat/policy
+updates and quota decisions. Future-dated free profiles resolve free rather
+than receiving an extended trial. `finalize_ai_quota_reservation(...)`
+performs an idempotent commit/refund transition. Both use
+`SECURITY DEFINER SET search_path = ''`, call
+`internal.require_service_role()`, and are allowlisted only to `service_role`.
+`internal.prune_ai_quota_state()` runs hourly and uses cleanup indexes on
+reservation update time and counter window start to delete bounded batches of
+old reservations and unreferenced counters.
 `input_modality` is `text`, `image`, `audio`, `video`, `mixed`, or `unknown`;
 `outcome` is `success`, `refusal`, or `error`. Token/cost values are nullable
 but cannot be negative.

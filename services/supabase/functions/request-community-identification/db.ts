@@ -3,9 +3,11 @@ import { makeHttpError } from "../_shared/communityIdentification.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import {
   fetchShareEligibleScan,
+  prepareExplorePostMediaForPublication,
   upsertExplorePost,
 } from "../share-scan-to-explore/db.ts";
 import type { ShareEligibleScanRow } from "../share-scan-to-explore/db.ts";
+import type { AudioModerationQuota } from "../_shared/audioModeration.ts";
 
 export interface CommunityRequestRow {
   id: string;
@@ -72,6 +74,7 @@ async function upsertCommunityExplorePost(
   speciesCommonName: string | null,
   locationSharing: string,
   supabaseAdmin: SupabaseClient,
+  moderationQuota: AudioModerationQuota,
 ): Promise<{ id: string; shared_at: string }> {
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("explore_posts")
@@ -93,6 +96,7 @@ async function upsertCommunityExplorePost(
       locationSharing,
       undefined,
       supabaseAdmin,
+      moderationQuota,
     );
   }
 
@@ -123,7 +127,14 @@ async function upsertCommunityExplorePost(
   }
 
   const post = data as { id: string; shared_at: string };
-  const mediaRows = buildExplorePostMediaRows(scan, undefined);
+  let mediaRows = buildExplorePostMediaRows(scan, undefined);
+  mediaRows = await prepareExplorePostMediaForPublication(
+    scan.id,
+    userId,
+    mediaRows,
+    supabaseAdmin,
+    moderationQuota,
+  );
   await replaceCommunityExplorePostMediaRows(post.id, mediaRows, supabaseAdmin);
 
   return post;
@@ -164,6 +175,7 @@ export async function requestCommunityIdentification(
   speciesCommonName: string | null,
   restoredObjectKeys: string[],
   supabaseAdmin: SupabaseClient,
+  moderationQuota: AudioModerationQuota,
 ): Promise<CommunityRequestRow> {
   const scan = await fetchShareEligibleScan(
     scanId,
@@ -195,6 +207,7 @@ export async function requestCommunityIdentification(
     speciesCommonName,
     locationSharing ?? scan.geoprivacy,
     supabaseAdmin,
+    moderationQuota,
   );
 
   const { data: existing, error: existingError } = await supabaseAdmin

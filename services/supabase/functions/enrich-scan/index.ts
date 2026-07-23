@@ -12,6 +12,7 @@ import {
 import { fetchGBIFVernacularNames } from "../_shared/external.ts";
 import { requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
+import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import {
   hasUsableLookalikeTaxonomy,
   normalizeTaxonomyValue,
@@ -122,7 +123,10 @@ Deno.serve((req: Request) =>
       }, 400);
     }
 
-    let cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
+    const cachedSpecies = await getCachedSpecies(
+      scientific_name,
+      supabaseAdmin,
+    );
     const speciesId = cachedSpecies?.id ?? null;
 
     // ── ENRICHMENT SCOPE ──────────────────────────────────────────────────────
@@ -219,6 +223,11 @@ Deno.serve((req: Request) =>
         }
       }
 
+      const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: _user.id,
+        operation: "scan_overview_enrichment",
+        requestId: body.ai_request_id,
+      });
       let resolveEnrichmentInFlight!: () => void;
       let rejectEnrichmentInFlight!: (e: Error) => void;
       _enrichmentInFlight.set(
@@ -230,14 +239,17 @@ Deno.serve((req: Request) =>
       );
 
       try {
+        await quotaLease.commit();
         const enrichmentResult = await fetchStaticEncyclopedicData(
           _user,
           scientific_name,
+          "en",
+          quotaLease.reservation.model,
         );
 
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "scan_overview_enrichment",
-          model: "gemini-2.5-flash",
+          model: quotaLease.reservation.model,
           usage: enrichmentResult.usage,
           inputModality: "text",
           userId: _user.id,
@@ -443,6 +455,11 @@ Deno.serve((req: Request) =>
       }
     }
 
+    const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+      userId: _user.id,
+      operation: "scan_lookalike_enrichment",
+      requestId: body.ai_request_id,
+    });
     let resolveLookalikesInFlight!: () => void;
     let rejectLookalikesInFlight!: (e: Error) => void;
     _lookalikesInFlight.set(
@@ -454,6 +471,7 @@ Deno.serve((req: Request) =>
     );
 
     try {
+      await quotaLease.commit();
       let validatedSimilarResult: {
         similar_species: Array<
           { scientific_name: string; common_name: string | null }
@@ -464,12 +482,12 @@ Deno.serve((req: Request) =>
         class: cachedSpecies?.class,
         order: cachedSpecies?.order,
         family: cachedSpecies?.family,
-      });
+      }, quotaLease.reservation.model);
 
       if (similarResult?.usage) {
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "scan_lookalike_enrichment",
-          model: "gemini-2.5-flash",
+          model: quotaLease.reservation.model,
           usage: similarResult.usage,
           inputModality: "text",
           userId: _user.id,

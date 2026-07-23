@@ -1,7 +1,9 @@
-import { GoogleGenAI, Content } from "@google/genai";
+import { Content, GoogleGenAI } from "@google/genai";
 
 // Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
-export const _genAI = new GoogleGenAI({ apiKey: Deno.env.get("GEMINI_API_KEY")! });
+export const _genAI = new GoogleGenAI({
+  apiKey: Deno.env.get("GEMINI_API_KEY")!,
+});
 
 /**
  * Creates a thin Flash model wrapper for text-only structured-output calls
@@ -12,14 +14,18 @@ export const _genAI = new GoogleGenAI({ apiKey: Deno.env.get("GEMINI_API_KEY")! 
  * Returns the native @google/genai GenerateContentResponse directly.
  * Callers access result.text and result.usageMetadata (not result.response.text()).
  */
-export function createFlashModel(systemInstruction: string, maxOutputTokens: number) {
+export function createFlashModel(
+  systemInstruction: string,
+  maxOutputTokens: number,
+  model = "gemini-2.5-flash",
+) {
   return {
     generateContent: (params: {
       contents: Content[];
       config?: Record<string, unknown>;
     }) =>
       _genAI.models.generateContent({
-        model: "gemini-2.5-flash",
+        model,
         contents: params.contents,
         config: {
           systemInstruction,
@@ -44,6 +50,8 @@ export function createFlashModel(systemInstruction: string, maxOutputTokens: num
 export function extractJson<T = unknown>(text: string): T {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("Malformed Gemini response: no JSON object found");
+  if (start === -1 || end === -1) {
+    throw new Error("Malformed Gemini response: no JSON object found");
+  }
   return JSON.parse(text.substring(start, end + 1)) as T;
 }

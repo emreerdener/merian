@@ -3,7 +3,6 @@ import {
   type ExternalEnrichmentData,
   fetchExternalEnrichment,
 } from "../_shared/external.ts";
-import type { SimilarSpeciesEntry } from "../_shared/biology.ts";
 import {
   buildPublicSpeciesDictionaryPayload,
   firstReferenceImageUrl,
@@ -1066,23 +1065,11 @@ export async function fetchExternalSpeciesDictionary(
 ): Promise<SpeciesDictionaryPayload> {
   const normalizedScientificName = scientificName.trim().replace(/\s+/g, " ");
   const externalData = await fetchExternalEnrichment(normalizedScientificName);
-  const taxonomy = externalData.gbifTaxonomy;
-  const { fetchSimilarSpecies: fetchModelSimilarSpecies } = await import(
-    "../_shared/biology.ts"
-  );
-  const similarResult = await fetchModelSimilarSpecies(
-    "species-dictionary-public",
-    normalizedScientificName,
-    taxonomy,
-  );
-  const similarSpecies = externalSimilarSpecies(
-    similarResult?.similar_species ?? [],
-  );
 
   return buildExternalSpeciesDictionaryPayload(
     normalizedScientificName,
     externalData,
-    similarSpecies,
+    [],
   );
 }
 
@@ -1125,29 +1112,6 @@ function externalSpeciesRow(
     gbif_taxon_key: externalData.gbifKey,
     group_tags: [],
   };
-}
-
-function externalSimilarSpecies(
-  entries: SimilarSpeciesEntry[],
-): SpeciesDictionarySimilarSpecies[] {
-  return entries.map((entry, index) => ({
-    scientific_name: entry.scientific_name,
-    common_name: entry.common_name,
-    reference_image_url: null,
-    iucn_red_list_status: null,
-    reason: stringValue(entry.reason),
-    visual_traits: Array.isArray(entry.visual_traits)
-      ? entry.visual_traits
-      : [],
-    confidence:
-      typeof entry.confidence === "number" && Number.isFinite(entry.confidence)
-        ? Math.max(0, Math.min(1, entry.confidence))
-        : null,
-    source: "model_enrichment",
-    review_status: "unreviewed",
-    is_bidirectional: false,
-    sort_order: index,
-  }));
 }
 
 function externalCommonName(

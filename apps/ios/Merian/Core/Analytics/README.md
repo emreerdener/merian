@@ -5,24 +5,27 @@ The `Analytics` directory manages the app's telemetry and product analytics infr
 ## Purpose
 This area integrates PostHog-backed app analytics. It provides a unified, cross-feature API for tracking user events, performance metrics, and gamification telemetry without coupling feature modules directly to the third-party analytics SDK.
 
-## Prelaunch usage-limit override
+## Advisory local usage meter
 
-`UsageManager` currently treats
-`FeatureFlag.unlimitedFreeScans.defaultValue = true` as the release-default
-quota decision in every build configuration, including Release/TestFlight. The
-supported meaning is “unlimited during prelaunch testing.” Do not make the
-production default Debug-only or disable it while beta testing continues.
+`UsageManager` keeps the capture and offline-queue UX responsive, but its
+`UserDefaults` values are not an authorization boundary. Every paid-model call
+must first reserve server-owned quota through the Supabase database. A modified
+client, cleared defaults, or a clock change cannot grant additional provider
+work.
 
-DEBUG builds can override this value locally from Settings → Feature Flags.
-Release builds ignore that persisted override. `UsageManagerTests` must continue
-exercising both states. Before the public App Store release, the explicit launch
-checklist changes the code default and verifies that free accounts receive the
-daily quota while Pro accounts remain uncapped. The startup
-`TEMP OVERRIDE ACTIVE` log is expected until that release step.
+`FeatureFlag.unlimitedFreeScans.defaultValue` is `false`. DEBUG builds may
+temporarily bypass the local meter from Settings → Feature Flags or
+`MERIAN_DISABLE_FREE_SCAN_LIMIT=1`; Release and TestFlight builds ignore those
+persisted overrides. The bypass never changes a database entitlement or the
+server quota, so it is useful for UI testing but cannot create free provider
+capacity.
 
-This override changes quota enforcement only. It does not grant a RevenueCat
-entitlement, alter backend subscription rows, or validate the paywall. Open
-Settings → Plan directly for purchase testing.
+The local meter may refund a staged scan after a client-side failure. The
+authoritative server reservation is separate: provider attempts consume their
+database quota, while a verified pre-provider no-op may transition its
+reservation to `refunded`. Keep `UsageManagerTests`,
+`FieldTripsAvailabilityTests`, the Edge quota tests, and the pgTAP quota
+contract aligned whenever this UX changes.
 
 ## External Image Import
 

@@ -5,7 +5,8 @@ import { requireUuid } from "../_shared/explore.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { parseJsonBody } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { resolveTierForUser } from "../_shared/tierCache.ts";
+import { resolveTierForUser } from "../_shared/entitlement.ts";
+import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import {
   assertConversationHasRoom,
   isSafetyCriticalQuestion,
@@ -92,9 +93,10 @@ function promptSuggestions(context: ExplorePostChatContext) {
 async function generateAssistantReply(
   systemInstruction: string,
   userPrompt: string,
+  model = INSIGHT_CHAT_MODEL,
 ): Promise<ModelChatResult> {
   const result = await _genAI.models.generateContent({
-    model: INSIGHT_CHAT_MODEL,
+    model,
     contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     config: {
       systemInstruction,
@@ -268,17 +270,31 @@ Deno.serve((req: Request) =>
       }, 200);
     }
     assertConversationHasRoom(beforeMessages.length);
-    const userMessage = await insertUserMessage(
-      resolvedConversation.id,
-      user.id,
-      postId,
-      messageText,
-      clientMessageId,
-      supabaseAdmin,
-    );
 
     const startedAt = Date.now();
     const refusalReason = isSafetyCriticalQuestion(messageText);
+    const quotaLease = refusalReason
+      ? null
+      : await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: user.id,
+        operation: "explore_post_chat_reply",
+        requestId: clientMessageId ?? body.ai_request_id,
+      });
+    let userMessage: Awaited<ReturnType<typeof insertUserMessage>>;
+    try {
+      userMessage = await insertUserMessage(
+        resolvedConversation.id,
+        user.id,
+        postId,
+        messageText,
+        clientMessageId,
+        supabaseAdmin,
+      );
+    } catch (error) {
+      await quotaLease?.refund();
+      throw error;
+    }
+
     let assistant: ModelChatResult;
     if (refusalReason) {
       assistant = {
@@ -291,15 +307,22 @@ Deno.serve((req: Request) =>
         usage: null,
       };
     } else {
+      let providerAttempted = false;
       try {
+        const systemInstruction = buildSystemInstruction(context);
+        const userPrompt = buildUserPrompt(beforeMessages, messageText);
+        await quotaLease!.commit();
+        providerAttempted = true;
         assistant = await generateAssistantReply(
-          buildSystemInstruction(context),
-          buildUserPrompt(beforeMessages, messageText),
+          systemInstruction,
+          userPrompt,
+          quotaLease!.reservation.model,
         );
       } catch (error) {
+        if (!providerAttempted) await quotaLease!.refund();
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "explore_post_chat_reply",
-          model: INSIGHT_CHAT_MODEL,
+          model: quotaLease!.reservation.model,
           effectivePlan: tier.plan,
           inputModality: "text",
           outcome: "error",
@@ -318,6 +341,7 @@ Deno.serve((req: Request) =>
       postId,
       assistant,
       supabaseAdmin,
+      quotaLease?.reservation.model,
     );
     const messages = await fetchMessages(
       resolvedConversation.id,
@@ -325,7 +349,7 @@ Deno.serve((req: Request) =>
     );
     recordAIUsageBestEffort(supabaseAdmin, {
       operation: "explore_post_chat_reply",
-      model: INSIGHT_CHAT_MODEL,
+      model: quotaLease?.reservation.model ?? INSIGHT_CHAT_MODEL,
       usage: assistant.usage,
       effectivePlan: tier.plan,
       inputModality: "text",

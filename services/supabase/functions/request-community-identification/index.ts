@@ -7,6 +7,11 @@ import {
 } from "../_shared/communityIdentification.ts";
 import { requireUuid, syncPublicAuthorIdentity } from "../_shared/explore.ts";
 import { requestCommunityIdentification } from "./db.ts";
+import {
+  deriveAIRequestId,
+  reserveAIProviderCall,
+  resolveAIRequestId,
+} from "../_shared/aiQuota.ts";
 
 function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
   if (value == null) return [];
@@ -84,6 +89,7 @@ Deno.serve((req: Request) =>
 
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
 
+    let moderationParentRequestId: string | null = null;
     const data = await requestCommunityIdentification(
       scanId,
       user.id,
@@ -92,6 +98,23 @@ Deno.serve((req: Request) =>
       speciesCommonName,
       restoredObjectKeys,
       supabaseAdmin,
+      {
+        beforeProvider: async ({ checksumSha256, policyVersion }) => {
+          moderationParentRequestId ??= resolveAIRequestId(
+            req,
+            body.ai_request_id,
+          );
+          const requestId = await deriveAIRequestId(
+            moderationParentRequestId,
+            `${checksumSha256}:${policyVersion}`,
+          );
+          return await reserveAIProviderCall(req, supabaseAdmin, {
+            userId: user.id,
+            operation: "explore_audio_moderation",
+            requestId,
+          });
+        },
+      },
     );
 
     return jsonResponse({ success: true, data });

@@ -200,6 +200,7 @@ export async function insertAssistantMessage(
   scanId: string,
   result: ModelChatResult,
   supabaseAdmin: SupabaseClient,
+  model = "gemini-2.5-flash",
 ): Promise<InsightChatMessageRow> {
   const usage = result.usage;
   const { data, error } = await supabaseAdmin
@@ -210,7 +211,7 @@ export async function insertAssistantMessage(
       scan_id: scanId,
       role: "assistant",
       message_text: result.answer,
-      model: "gemini-2.5-flash",
+      model: usage ? model : null,
       llm_prompt_tokens: usage?.promptTokenCount ?? null,
       llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
       llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,

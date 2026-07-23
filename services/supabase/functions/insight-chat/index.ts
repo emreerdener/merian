@@ -5,7 +5,8 @@ import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { resolveTierForUser } from "../_shared/tierCache.ts";
+import { resolveTierForUser } from "../_shared/entitlement.ts";
+import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import {
   countUserSendsToday,
   deleteConversation,
@@ -106,6 +107,7 @@ function messageCategory(text: string): string {
 async function generateAssistantReply(
   systemInstruction: string,
   userPrompt: string,
+  model = INSIGHT_CHAT_MODEL,
 ): Promise<ModelChatResult> {
   const responseSchema = {
     type: Type.OBJECT,
@@ -118,7 +120,7 @@ async function generateAssistantReply(
   };
 
   const result = await _genAI.models.generateContent({
-    model: INSIGHT_CHAT_MODEL,
+    model,
     contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     config: {
       systemInstruction,
@@ -153,6 +155,7 @@ async function generateAssistantReply(
 async function generateFieldNotesSummary(
   systemInstruction: string,
   messages: InsightChatMessageRow[],
+  model = INSIGHT_CHAT_MODEL,
 ): Promise<{
   summaryText: string;
   usage: ModelChatResult["usage"];
@@ -176,7 +179,7 @@ ids, or other internal identifiers. Do not replace existing notes. Do not add
 medical, edible, legal, pesticide, or exact-location instructions.`;
 
   const result = await _genAI.models.generateContent({
-    model: INSIGHT_CHAT_MODEL,
+    model,
     contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     config: {
       systemInstruction,
@@ -235,6 +238,7 @@ function sanitizePromptSuggestions(
 async function generatePromptSuggestions(
   systemInstruction: string,
   messages: InsightChatMessageRow[],
+  model = INSIGHT_CHAT_MODEL,
 ): Promise<{
   prompts: InsightChatPromptSuggestionPayload[];
   usage: ModelChatResult["usage"];
@@ -258,7 +262,7 @@ async function generatePromptSuggestions(
   };
 
   const result = await _genAI.models.generateContent({
-    model: INSIGHT_CHAT_MODEL,
+    model,
     contents: [{
       role: "user",
       parts: [{ text: buildPromptSuggestionsPrompt(messages) }],
@@ -346,16 +350,26 @@ Deno.serve((req: Request) =>
         ? await fetchMessages(existingConversation.id, supabaseAdmin)
         : [];
       const startedAt = Date.now();
+      const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: user.id,
+        operation: "insight_chat_prompt_suggestions",
+        requestId: parsedBody.ai_request_id,
+      });
 
+      let providerAttempted = false;
       try {
+        const systemInstruction = buildSystemInstruction(scan);
+        await quotaLease.commit();
+        providerAttempted = true;
         const suggestions = await generatePromptSuggestions(
-          buildSystemInstruction(scan),
+          systemInstruction,
           messages,
+          quotaLease.reservation.model,
         );
         const usage = suggestions.usage;
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "insight_chat_prompt_suggestions",
-          model: INSIGHT_CHAT_MODEL,
+          model: quotaLease.reservation.model,
           usage,
           effectivePlan: tier.plan,
           inputModality: "text",
@@ -374,7 +388,7 @@ Deno.serve((req: Request) =>
             ? "model"
             : "partial_model",
           latency_ms: Date.now() - startedAt,
-          llm_model: INSIGHT_CHAT_MODEL,
+          llm_model: quotaLease.reservation.model,
           llm_prompt_tokens: usage?.promptTokenCount ?? null,
           llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
           llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,
@@ -391,6 +405,7 @@ Deno.serve((req: Request) =>
           },
         }, 200);
       } catch (error) {
+        if (!providerAttempted) await quotaLease.refund();
         trackPostHogEvent(user, "InsightChatPromptsGenerated", {
           scan_id: scanId,
           conversation_id: existingConversation?.id ?? null,
@@ -398,7 +413,7 @@ Deno.serve((req: Request) =>
           prompt_count: 0,
           fallback_state: "model_error",
           latency_ms: Date.now() - startedAt,
-          llm_model: INSIGHT_CHAT_MODEL,
+          llm_model: quotaLease.reservation.model,
           error: error instanceof Error ? error.message : String(error),
         }).catch((e) =>
           console.error("PostHog InsightChatPromptsGenerated failed:", e)
@@ -500,14 +515,30 @@ Deno.serve((req: Request) =>
         }, 400);
       }
       const startedAt = Date.now();
-      const summary = await generateFieldNotesSummary(
-        buildSystemInstruction(scan),
-        messages,
-      );
+      const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: user.id,
+        operation: "insight_chat_summary",
+        requestId: parsedBody.ai_request_id,
+      });
+      let summary: Awaited<ReturnType<typeof generateFieldNotesSummary>>;
+      let providerAttempted = false;
+      try {
+        const systemInstruction = buildSystemInstruction(scan);
+        await quotaLease.commit();
+        providerAttempted = true;
+        summary = await generateFieldNotesSummary(
+          systemInstruction,
+          messages,
+          quotaLease.reservation.model,
+        );
+      } catch (error) {
+        if (!providerAttempted) await quotaLease.refund();
+        throw error;
+      }
       const usage = summary.usage;
       recordAIUsageBestEffort(supabaseAdmin, {
         operation: "insight_chat_summary",
-        model: INSIGHT_CHAT_MODEL,
+        model: quotaLease.reservation.model,
         usage,
         effectivePlan: tier.plan,
         inputModality: "text",
@@ -520,7 +551,7 @@ Deno.serve((req: Request) =>
         conversation_id: existingConversation.id,
         message_count: messages.length,
         latency_ms: Date.now() - startedAt,
-        llm_model: INSIGHT_CHAT_MODEL,
+        llm_model: quotaLease.reservation.model,
         llm_prompt_tokens: usage?.promptTokenCount ?? null,
         llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
         llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,
@@ -584,17 +615,30 @@ Deno.serve((req: Request) =>
     assertConversationHasRoom(beforeMessages.length);
 
     const startedAt = Date.now();
-    const userMessage = await insertUserMessage(
-      resolvedConversation.id,
-      user.id,
-      scanId,
-      messageText,
-      clientMessageId,
-      supabaseAdmin,
-    );
-
     let assistantResult: ModelChatResult;
     const localRefusalReason = isSafetyCriticalQuestion(messageText);
+    const quotaLease = localRefusalReason
+      ? null
+      : await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: user.id,
+        operation: "insight_chat_reply",
+        requestId: clientMessageId ?? parsedBody.ai_request_id,
+      });
+    let userMessage: Awaited<ReturnType<typeof insertUserMessage>>;
+    try {
+      userMessage = await insertUserMessage(
+        resolvedConversation.id,
+        user.id,
+        scanId,
+        messageText,
+        clientMessageId,
+        supabaseAdmin,
+      );
+    } catch (error) {
+      await quotaLease?.refund();
+      throw error;
+    }
+
     if (localRefusalReason) {
       assistantResult = {
         answer: refusalAnswer(localRefusalReason),
@@ -603,15 +647,22 @@ Deno.serve((req: Request) =>
         usage: null,
       };
     } else {
+      let providerAttempted = false;
       try {
+        const systemInstruction = buildSystemInstruction(scan);
+        const userPrompt = buildUserPrompt(beforeMessages, messageText);
+        await quotaLease!.commit();
+        providerAttempted = true;
         assistantResult = await generateAssistantReply(
-          buildSystemInstruction(scan),
-          buildUserPrompt(beforeMessages, messageText),
+          systemInstruction,
+          userPrompt,
+          quotaLease!.reservation.model,
         );
       } catch (error) {
+        if (!providerAttempted) await quotaLease!.refund();
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "insight_chat_reply",
-          model: INSIGHT_CHAT_MODEL,
+          model: quotaLease!.reservation.model,
           effectivePlan: tier.plan,
           inputModality: "text",
           outcome: "error",
@@ -636,6 +687,7 @@ Deno.serve((req: Request) =>
       scanId,
       assistantResult,
       supabaseAdmin,
+      quotaLease?.reservation.model,
     );
 
     const messages = await fetchMessages(
@@ -648,7 +700,9 @@ Deno.serve((req: Request) =>
       conversation_id: resolvedConversation.id,
       user_message_id: userMessage.id,
       answer_category: messageCategory(messageText),
-      llm_model: assistantResult.usage ? INSIGHT_CHAT_MODEL : null,
+      llm_model: assistantResult.usage
+        ? quotaLease?.reservation.model ?? null
+        : null,
       latency_ms: Date.now() - startedAt,
       llm_prompt_tokens: usage?.promptTokenCount ?? null,
       llm_candidate_tokens: usage?.candidatesTokenCount ?? null,

@@ -3,6 +3,11 @@ import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { normalizeExploreHashtag, requireUuid } from "../_shared/explore.ts";
 import { updateExploreFieldNotes } from "./db.ts";
 import type { ExistingExplorePostMediaSelection } from "./db.ts";
+import {
+  deriveAIRequestId,
+  reserveAIProviderCall,
+  resolveAIRequestId,
+} from "../_shared/aiQuota.ts";
 
 function makeHttpError(
   status: number,
@@ -183,6 +188,7 @@ Deno.serve((req: Request) =>
       ? normalizeLocationSharing(body.location_sharing)
       : undefined;
     const mediaItems = normalizeMediaItems(body.media_items);
+    let moderationParentRequestId: string | null = null;
     const row = await updateExploreFieldNotes(
       postId,
       user.id,
@@ -192,6 +198,23 @@ Deno.serve((req: Request) =>
       locationSharing,
       mediaItems,
       supabaseAdmin,
+      {
+        beforeProvider: async ({ checksumSha256, policyVersion }) => {
+          moderationParentRequestId ??= resolveAIRequestId(
+            req,
+            body.ai_request_id,
+          );
+          const requestId = await deriveAIRequestId(
+            moderationParentRequestId,
+            `${checksumSha256}:${policyVersion}`,
+          );
+          return await reserveAIProviderCall(req, supabaseAdmin, {
+            userId: user.id,
+            operation: "explore_audio_moderation",
+            requestId,
+          });
+        },
+      },
     );
 
     return jsonResponse({

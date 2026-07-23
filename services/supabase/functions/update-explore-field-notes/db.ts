@@ -8,6 +8,7 @@ import {
   exploreAudioModerationCache,
   requireApprovedAudioMedia,
 } from "../share-scan-to-explore/db.ts";
+import type { AudioModerationQuota } from "../_shared/audioModeration.ts";
 
 export interface ExistingExplorePostMediaSelection {
   kind: "image" | "video" | "audio";
@@ -35,6 +36,7 @@ export async function updateExploreFieldNotes(
   locationSharing: string | undefined,
   mediaItems: ExistingExplorePostMediaSelection[] | undefined,
   supabaseAdmin: SupabaseClient,
+  moderationQuota: AudioModerationQuota,
 ): Promise<{
   id: string;
   field_notes: string | null;
@@ -101,6 +103,7 @@ export async function updateExploreFieldNotes(
       (data as { scan_id: string }).scan_id,
       mediaItems,
       supabaseAdmin,
+      moderationQuota,
     );
   }
 
@@ -122,6 +125,7 @@ async function replaceExplorePostMedia(
   scanId: string,
   mediaItems: ExistingExplorePostMediaSelection[],
   supabaseAdmin: SupabaseClient,
+  moderationQuota: AudioModerationQuota,
 ): Promise<void> {
   if (mediaItems.length === 0) {
     throw makeHttpError(400, "media_items must include at least one item.");
@@ -150,6 +154,7 @@ async function replaceExplorePostMedia(
     userId,
     snapshotRows,
     supabaseAdmin,
+    moderationQuota,
   );
 
   const { error: deleteError } = await supabaseAdmin
@@ -179,6 +184,7 @@ export async function prepareExplorePostMediaRows(
   userId: string,
   rows: ExplorePostMediaSnapshotRow[],
   supabaseAdmin: SupabaseClient,
+  moderationQuota: AudioModerationQuota,
   approveMedia: typeof requireApprovedAudioMedia = requireApprovedAudioMedia,
   attachThumbnails: typeof attachAudioSpectrogramThumbnails =
     attachAudioSpectrogramThumbnails,
@@ -186,6 +192,9 @@ export async function prepareExplorePostMediaRows(
   await approveMedia(rows, {
     telemetryUserId: userId,
     cache: exploreAudioModerationCache(supabaseAdmin),
+    supabaseAdmin,
+    scanId,
+    quota: moderationQuota,
   });
   return await attachThumbnails(scanId, rows, supabaseAdmin);
 }

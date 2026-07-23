@@ -323,7 +323,7 @@ submission. The queue record stores the serialized media timeline in
 
 ```
 move tmp/<uuid>.wav → Documents/<uuid>.wav
-    ↓ quota check (UsageManager.canPerformScan / consumeScan)
+    ↓ advisory local meter (UsageManager.canPerformScan / consumeScan)
 OfflineQueuedScan(
     scanState: .pending,        ← audio uploads through R2 before replay
     capturedMediaJSON: ...,
@@ -334,6 +334,8 @@ modelContext.save()
 updateUnsyncedItemCount()
 AppTelemetry.trackOfflineQueued()
 syncPendingScans()
+    ↓ authoritative reserve_ai_quota(scan_audio_identification, scan UUID)
+    ↓ commit immediately before Gemini audio dispatch
 ```
 
 Audio-only records upload their WAV/M4A via background
@@ -622,10 +624,12 @@ separate from biological identification:
    reactivating an Explore post.
 2. `_shared/audioModeration.ts` fetches the bounded clip, computes SHA-256, and
    checks for an attestation with the same checksum, model, and derived policy
-   contract.
-3. On a cache miss, it sends the clip inline to a dedicated
-   `gemini-2.5-flash` structured classifier that evaluates speech, non-speech
-   sounds, policy categories, confidence, and review state.
+   contract. The share's UUID `Idempotency-Key` and checksum/policy version
+   produce one deterministic, opaque quota reservation ID per audible item.
+3. On a cache miss, the database atomically applies durable entitlement,
+   daily quota, and per-user/IP rate limits, selects the moderation model
+   (currently `gemini-2.5-flash`), and only then sends the clip inline to the
+   structured classifier. Cache hits refund their provisional reservation.
 4. An approved result allows the normal atomic post/media share write to run.
    A flagged result or provider/configuration failure returns an error and
    leaves the prior Explore state unchanged; failures never publish a post.

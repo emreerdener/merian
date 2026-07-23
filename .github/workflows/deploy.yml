@@ -61,8 +61,15 @@ jobs:
           version: 2.109.1
 
       - name: Validate deployment secrets
+        env:
+          AI_QUOTA_IP_HASH_SECRET: ${{ secrets.AI_QUOTA_IP_HASH_SECRET }}
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
+          : "${AI_QUOTA_IP_HASH_SECRET:?Missing AI_QUOTA_IP_HASH_SECRET GitHub secret}"
+          if [ "${#AI_QUOTA_IP_HASH_SECRET}" -lt 32 ]; then
+            echo "AI_QUOTA_IP_HASH_SECRET must contain at least 32 characters." >&2
+            exit 1
+          fi
           bash ../scripts/supabase-db-url.sh --require >/dev/null
 
       - name: Validate Edge Function formatting
@@ -72,6 +79,12 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/aiQuota.ts \
+            supabase/functions/_shared/aiQuota_test.ts \
+            supabase/functions/_shared/entitlement.ts \
+            supabase/functions/_shared/entitlement_test.ts \
+            supabase/functions/_shared/biology.ts \
+            supabase/functions/_shared/gemini.ts \
             supabase/functions/_shared/aws.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
@@ -87,7 +100,10 @@ jobs:
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/_tests/aiQuotaCoverage.test.ts \
+            supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
@@ -102,8 +118,15 @@ jobs:
             supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/safe-delete/index.ts \
+            supabase/functions/identify \
+            supabase/functions/identify-describe \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/audio-spec \
+            supabase/functions/enrich-scan \
+            supabase/functions/share-scan-to-explore \
+            supabase/functions/request-community-identification \
+            supabase/functions/update-explore-field-notes \
             supabase/functions/update-scan-context/index.ts \
             supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
@@ -116,6 +139,12 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/aiQuota.ts \
+            supabase/functions/_shared/aiQuota_test.ts \
+            supabase/functions/_shared/entitlement.ts \
+            supabase/functions/_shared/entitlement_test.ts \
+            supabase/functions/_shared/biology.ts \
+            supabase/functions/_shared/gemini.ts \
             supabase/functions/_shared/aws.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
@@ -131,7 +160,10 @@ jobs:
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/_tests/aiQuotaCoverage.test.ts \
+            supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
@@ -146,8 +178,15 @@ jobs:
             supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
+            supabase/functions/identify \
+            supabase/functions/identify-describe \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/audio-spec \
+            supabase/functions/enrich-scan \
+            supabase/functions/share-scan-to-explore \
+            supabase/functions/request-community-identification \
+            supabase/functions/update-explore-field-notes \
             supabase/functions/update-scan-context/index.ts \
             supabase/functions/explore-post-chat \
             supabase/functions/insight-chat \
@@ -160,6 +199,12 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/aiQuota.ts \
+            supabase/functions/_shared/aiQuota_test.ts \
+            supabase/functions/_shared/entitlement.ts \
+            supabase/functions/_shared/entitlement_test.ts \
+            supabase/functions/_shared/biology.ts \
+            supabase/functions/_shared/gemini.ts \
             supabase/functions/_shared/aws.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
@@ -175,7 +220,10 @@ jobs:
             supabase/functions/_shared/audioModeration.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/index.ts \
+            supabase/functions/_tests/aiQuotaCoverage.test.ts \
+            supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
@@ -240,6 +288,14 @@ jobs:
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
 
+      - name: Validate authoritative AI quota coverage
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions \
+            supabase/functions/_shared/aiQuota_test.ts \
+            supabase/functions/_shared/entitlement_test.ts \
+            supabase/functions/_tests/aiQuotaCoverage.test.ts
+
       - name: Test Edge Function deployment planner
         run: |
           deno test --frozen --config supabase/functions/deno.json \
@@ -254,21 +310,32 @@ jobs:
         run: |
           deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/migrations \
+            supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/explorePostChatMigration.test.ts \
+            supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts
 
       - name: Start disposable database for privileged-routine validation
+        env:
+          # config.toml keeps Apple auth available for local integration tests,
+          # but schema-only CI does not need a real OAuth client secret.
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-schema-validation-placeholder
         run: supabase db start
 
-      - name: Validate privileged routine catalog
+      - name: Validate database security catalogs
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: |
           supabase db push --local
           supabase test db --local \
-            supabase/tests/privileged_routine_security.sql
+            supabase/tests/privileged_routine_security.sql \
+            supabase/tests/ai_quota_security.sql
 
       - name: Stop disposable database
         if: always()
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: supabase stop --no-backup
 
       - name: Plan affected Edge Function deployment
@@ -360,6 +427,8 @@ jobs:
               --report
 
       - name: Push Database Migrations
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: supabase db push --db-url "$SUPABASE_DB_PUSH_URL"
 
       - name: Enforce production privileged routine ACLs
@@ -371,8 +440,19 @@ jobs:
               supabase/scripts/audit_privileged_routine_acl.ts \
               --enforce
 
+      - name: Synchronize AI quota hashing secret
+        env:
+          AI_QUOTA_IP_HASH_SECRET: ${{ secrets.AI_QUOTA_IP_HASH_SECRET }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          supabase secrets set \
+            "AI_QUOTA_IP_HASH_SECRET=$AI_QUOTA_IP_HASH_SECRET" \
+            --project-ref "$PROJECT_ID"
+
       - name: Deploy affected Edge Functions
         if: steps.function-plan.outputs.count != '0'
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: |
           bash supabase/scripts/deploy_function_batches.sh \
             "${{ steps.function-plan.outputs.plan_file }}" \

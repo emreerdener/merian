@@ -11,7 +11,7 @@ import {
 import {
   type TierResolution,
   tierTelemetryProperties,
-} from "../_shared/tierCache.ts";
+} from "../_shared/entitlement.ts";
 
 // ---------------------------------------------------------------------------
 // Enum drift guard — mirrors VALID_LIFE_STAGES / VALID_REPRODUCTIVE_CONDITIONS / VALID_SEX_VALUES
@@ -174,6 +174,7 @@ Deno.test("ScanCompleted telemetry includes pro trial plan and Pro model", () =>
     subscription_tier: "free",
     trial_active: true,
     user_exists: true,
+    entitlement_version: 1,
   };
   const properties: Record<string, unknown> = {
     tier: resolution.effective_tier,

@@ -137,21 +137,18 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     The `PlanCard` observes `isProActive` in the Profile header, redrawing the
     subscription tier card to reflect the current state and surfacing the
     `PaywallView` sheet.
-  - **Backend Model Upgrades**: Edge Functions coordinate with this logic via
-    `resolveTierForUser` in `_shared/tierCache.ts`. The resolver returns a raw
-    `subscription_tier` from Postgres plus derived telemetry fields:
-    `effective_tier` (`"pro"` or `"free"`), `plan` (`"pro_paid"`, `"pro_trial"`,
-    or `"free"`), and `trial_active`. Paid users have
-    `users.subscription_tier = "pro"` from RevenueCat webhook events and resolve
-    to `plan = "pro_paid"`. Non-renewing 7-day pass users also carry
-    `users.subscription_expires_at`; the backend expiry worker downgrades them
-    after that timestamp, while the resolver treats any stale timed Pro row as
-    free as a fallback. Trial users usually still have
-    `users.subscription_tier = "free"`; if `created_at` is within the 7-day
-    window, they resolve to `effective_tier = "pro"` and `plan = "pro_trial"`.
-    Ghost users without a row are treated as trial Pro for their first scan and
-    then upserted as raw `subscription_tier = "free"` so paid entitlement
-    and paid-pass storage remains webhook-owned.
+  - **Backend Model Upgrades**: The client display state is not provider
+    authorization. Every paid-model Edge path atomically calls
+    `reserve_ai_quota`, which reads Postgres tier/creation/expiry/version,
+    derives `effective_tier` and `plan`, selects the database policy model, and
+    consumes quota before dispatch. Paid users have
+    `users.subscription_tier = "pro"` and resolve to `pro_paid`; active
+    non-renewing passes also require a future `subscription_expires_at`; raw
+    free users inside the database's seven-day creation window resolve to
+    `pro_trial`. A stale timed pass resolves free, and a missing user row or
+    database error fails closed rather than granting a ghost trial.
+    RevenueCat/webhook changes advance `users.entitlement_version` in a trigger,
+    so no Edge-isolate cache invalidation is required.
 
 ### Prelaunch purchase testing
 
@@ -183,8 +180,10 @@ not prove StoreKit returned products. A complete smoke test must:
 5. For Apple sandbox/TestFlight, confirm the webhook updates the matching
    Supabase user and expiration semantics.
 
-The unlimited prelaunch scan override intentionally prevents quota-triggered
-paywall presentation, so purchase QA must open the Plan surface directly. See
+The release build keeps the advisory local scan meter enabled. A DEBUG-only
+meter bypass can still prevent quota-triggered paywall presentation, but it
+does not bypass the Supabase reservation; purchase QA should therefore open the
+Plan surface directly. See
 [RevenueCat offering troubleshooting](https://www.revenuecat.com/docs/offerings/troubleshooting-offerings),
 [Apple sandbox testing](https://www.revenuecat.com/docs/test-and-launch/sandbox/apple-app-store),
 and the
@@ -234,7 +233,8 @@ credential reach Deno; the handler performs the secret comparison and returns
 
 ## Usage Limits (`UsageManager`)
 
-Enforces the paywall in frontend entry points.
+Provides an advisory local paywall/capture meter. It is not the entitlement or
+provider-cost enforcement boundary.
 
 - `.canPerformScan(isProActive:)` returns
   `isProActive || freeScansRemaining > 0`. The paywall is surfaced from two
@@ -246,36 +246,37 @@ Enforces the paywall in frontend entry points.
   before any background downsampling begins. If the batch is over quota, it
   clears the picker selection immediately, tracks the paywall impression, and
   exits before loading gallery bytes into memory.
-- The prelaunch testing override is intentionally enabled in every current
-  build, including TestFlight:
-  `FeatureFlag.unlimitedFreeScans.defaultValue = true`. This keeps testers
-  unlimited until the public launch. Before App Store release, change the
-  central default to `false`; Pro users must continue to bypass the cap through
-  `isProActive`, while free users return to the daily quota.
-- **Quota Enforcement at Capture Time**: `consumeScan()` is called once, at
+- `FeatureFlag.unlimitedFreeScans.defaultValue` is `false`. DEBUG builds may
+  bypass the local meter from Settings or `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`;
+  Release/TestFlight ignores persisted debug overrides. This never changes the
+  database entitlement, model, or server quota.
+- **Advisory reservation at capture time**: `consumeScan()` is called once, at
   enqueue time, inside `OfflineQueueManager.insertAndPersistRecord`. The quota
   check (`canPerformScan`) and token consumption happen before the
   `OfflineQueuedScan` record is inserted into SwiftData. `syncPendingScans` has
-  no quota involvement — every scan that enters the queue is already paid for
-  and uploads unconditionally. This eliminates the historical silent stall where
-  `freeScansRemaining = 0` caused `syncPendingScans` to discard queued scans via
-  a zero batchLimit. Successful non-biological results still count as scan
+  no local-meter involvement — every accepted queue row uploads
+  unconditionally. The Edge request still reserves authoritative server quota
+  immediately before model work. Successful non-biological results count as scan
   attempts. The Non-biological collection's correction reanalysis flow bypasses
   only the Pro reanalysis feature gate for that specific correction path; when
   the user submits the replacement scan it still follows normal free-tier
   inference settings and daily scan limits.
-- **Pro Paywall Entitlements**: The paywall comparison table is the source of
-  truth for high-level Pro feature copy. It lists unlimited daily scans,
-  Gemini Pro model access, video scans, AI chat, multi-capture, Apple Watch
-  logging, group-event hosting, and expedition mode as Pro benefits. Profile
-  plan-card summaries reuse the same `ProPlanValueProps` copy so those surfaces
-  do not drift.
-- **Refunds**: If an inference fails unrecoverably (task cancellation, JSON
+- **Server authority**: `reserve_ai_quota` applies the free one-scan UTC-day
+  policy and high Pro trial/paid fair-use ceilings, plus shared per-user/IP
+  minute limits. Clearing/modifying `UserDefaults` does not change them. A
+  database entitlement failure returns `503`; it never falls back to Pro.
+- **Product language**: Pro removes the ordinary one-scan product cap but
+  remains subject to documented anti-abuse/cost safety ceilings. Do not promise
+  technically unbounded provider use.
+- **Local refunds**: If an inference fails unrecoverably (task cancellation, JSON
   decoding failure, network error), `UsageManager.shared.refundScan()` restores
-  the consumed token so the user is not penalized for a technical failure.
+  the advisory token. This does not refund a provider attempt. Server refund is
+  an explicit reservation transition used only when no provider call occurred.
 - Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`.
-- Resets limits at calendar boundaries. The `evaluateDailyRefresh()` check is
+- Resets the advisory meter at device calendar boundaries. The authoritative
+  free scan bucket resets at the UTC database boundary. The
+  `evaluateDailyRefresh()` check is
   called from `AppDIContainer.handleActivePhase()`, ensuring user quotas are
   reset when the app enters the foreground from an overnight suspension.
 

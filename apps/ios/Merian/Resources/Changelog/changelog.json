@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-23-authoritative-ai-quotas",
+      "date": "2026-07-23",
+      "title": "Reliable AI usage safeguards",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "AI-backed scans and chat now use server-verified plan limits and retry-safe request handling, keeping access consistent across devices and temporary network failures."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-20-species-dictionary-sharing",
       "date": "2026-07-20",
       "title": "Share the Species Dictionary",
@@ -1199,7 +1212,7 @@
         {
           "title": "Changed",
           "items": [
-            "Pro plan cards now match the current paywall value props for unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode."
+            "Pro plan cards now match the current paywall value props for high-volume field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode."
           ]
         }
       ]

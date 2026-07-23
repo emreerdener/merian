@@ -203,6 +203,8 @@ async function refreshHabitat(
   const enrichment = await fetchStaticEncyclopedicData(
     "system:refresh-species-model-content",
     job.scientific_name,
+    "en",
+    "gemini-2.5-flash",
   );
   recordAIUsageBestEffort(supabaseAdmin, {
     operation: "scan_overview_enrichment",
@@ -251,6 +253,7 @@ async function refreshLookalikes(
       order: cachedSpecies.order,
       family: cachedSpecies.family,
     },
+    "gemini-2.5-flash",
   );
 
   if (similarResult?.usage) {
