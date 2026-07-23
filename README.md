@@ -224,7 +224,11 @@ steps are tracked in the
 
 ### Identity & Monetization
 - Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at launch).
-- Sign in with Apple / Google OAuth merges Ghost identity via `linkIdentityWithIdToken` or the `/merge-ghost-profile` Edge RPC.
+- Sign in with Apple / Google OAuth preserves the Ghost UUID through
+  `linkIdentityWithIdToken`; existing-account conflicts use a provider-bound,
+  one-use `/merge-ghost-profile` handoff, an atomic database merge, and durable
+  Auth cleanup. Pending proofs survive restarts in a device-only Keychain queue
+  for the 30-day recovery window.
 - RevenueCat webhook drives `free` ↔ `pro` tier updates while leaving existing scan media in place.
 - Public-release policy: Free receives 1 scan/day; Pro receives unlimited scans,
   Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple Watch logging,

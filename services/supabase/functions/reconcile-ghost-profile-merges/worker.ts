@@ -1,0 +1,99 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { deleteMergedGhostAuthUser } from "../merge-ghost-profile/db.ts";
+import {
+  claimGhostMergeAuthCleanups,
+  finishGhostMergeAuthCleanup,
+  type GhostMergeCleanupClaim,
+} from "./db.ts";
+
+const DEFAULT_LIMIT = 25;
+const MAX_LIMIT = 100;
+
+export type ReconcileGhostProfileMergesResult = {
+  claimed: number;
+  deleted: number;
+  failed: number;
+  errors: Array<{
+    handoffId: string;
+    ghostUserId: string;
+    reason: string;
+  }>;
+};
+
+type CleanupResult =
+  | { succeeded: true }
+  | { succeeded: false; errorCode: string };
+
+export type ReconcileGhostProfileMergeDependencies = {
+  claim?: (
+    supabaseAdmin: SupabaseClient,
+    limit: number,
+  ) => Promise<GhostMergeCleanupClaim[]>;
+  deleteAuthUser?: (
+    ghostUserId: string,
+    supabaseAdmin: SupabaseClient,
+  ) => Promise<CleanupResult>;
+  finish?: (
+    supabaseAdmin: SupabaseClient,
+    claim: GhostMergeCleanupClaim,
+    succeeded: boolean,
+    errorCode: string | null,
+  ) => Promise<void>;
+};
+
+export async function reconcileGhostProfileMerges(
+  supabaseAdmin: SupabaseClient,
+  requestedLimit = DEFAULT_LIMIT,
+  dependencies: ReconcileGhostProfileMergeDependencies = {},
+): Promise<ReconcileGhostProfileMergesResult> {
+  const limit = Math.min(
+    Math.max(Math.trunc(requestedLimit) || DEFAULT_LIMIT, 1),
+    MAX_LIMIT,
+  );
+  const claim = dependencies.claim ?? claimGhostMergeAuthCleanups;
+  const deleteAuthUser = dependencies.deleteAuthUser ??
+    deleteMergedGhostAuthUser;
+  const finish = dependencies.finish ?? finishGhostMergeAuthCleanup;
+  const claims = await claim(supabaseAdmin, limit);
+  const result: ReconcileGhostProfileMergesResult = {
+    claimed: claims.length,
+    deleted: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  for (const cleanupClaim of claims) {
+    try {
+      const cleanup = await deleteAuthUser(
+        cleanupClaim.ghostUserId,
+        supabaseAdmin,
+      );
+      await finish(
+        supabaseAdmin,
+        cleanupClaim,
+        cleanup.succeeded,
+        cleanup.succeeded ? null : cleanup.errorCode,
+      );
+
+      if (cleanup.succeeded) {
+        result.deleted += 1;
+      } else {
+        result.failed += 1;
+        result.errors.push({
+          handoffId: cleanupClaim.handoffId,
+          ghostUserId: cleanupClaim.ghostUserId,
+          reason: cleanup.errorCode,
+        });
+      }
+    } catch (error) {
+      result.failed += 1;
+      result.errors.push({
+        handoffId: cleanupClaim.handoffId,
+        ghostUserId: cleanupClaim.ghostUserId,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return result;
+}

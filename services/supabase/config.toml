@@ -427,6 +427,11 @@ verify_jwt = false
 [functions.reconcile-scan-media-assets]
 verify_jwt = false
 
+[functions.reconcile-ghost-profile-merges]
+# Scheduled service-role worker; the handler performs an exact timing-safe
+# Authorization comparison before claiming cleanup receipts.
+verify_jwt = false
+
 [functions.scan-media-health]
 verify_jwt = false
 
@@ -447,10 +452,10 @@ verify_jwt = false
 
 [functions.merge-ghost-profile]
 enabled = true
-# INTENTIONAL: verify_jwt = true — unlike other functions that use withEdgeHandler's
-# manual JWT verification, this function requires a fully authenticated user session
-# (not anonymous). Merging a ghost account into an unauthenticated session is nonsensical
-# and would be a security risk. The Supabase gateway enforces auth before the function runs.
+# Both phases require a user JWT (anonymous for prepare, permanent for
+# complete). The gateway validates legacy and asymmetric signing-key JWTs;
+# `withEdgeHandler` then resolves the live Auth user, and the transaction RPCs
+# independently bind authority with `auth.uid()`.
 verify_jwt = true
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -471,8 +476,7 @@ verify_jwt = false
 enabled = true
 # INTENTIONAL: verify_jwt = true — DwC-A export is a personal data download that requires
 # a verified authenticated user session. Anonymous users cannot export their data because
-# they have no stable identity to bind the export to. This is the only other function
-# (alongside merge-ghost-profile) where gateway-level JWT enforcement is appropriate.
+# they have no stable identity to bind the export to.
 verify_jwt = true
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

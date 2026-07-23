@@ -60,7 +60,9 @@ New and extended RPCs:
 - `public.get_user_follow_state(self_id, target_author_user_id)`: returns `author_user_id`, `follower_count`, `following_count`, and `viewer_is_following`.
 - `public.get_explore_feed_following(self_id, max_limit, before_shared_at, before_post_id)`: returns the same card projection as the feed, filtered to followed authors and ordered by `(shared_at DESC, post_id DESC)`.
 - `public.get_explore_author_profile(...)`: now includes `follower_count`, `following_count`, and `viewer_is_following`.
-- `public.reparent_user_follows(ghost_id, target_user_id)`: reparents ghost follow relationships during account merge and dedupes conflicts.
+- `public.reparent_user_follows(ghost_id, target_user_id)`: legacy
+  service-role-only compatibility helper. Client execution is revoked; the
+  atomic Ghost merge resolves follows privately.
 
 ## Edge Functions
 
@@ -111,7 +113,8 @@ Other Edge Function changes:
   discoverable without exposing scan evidence.
 - `/get-explore-notifications` decodes `post_id` as nullable and includes `type: "follow"`.
 - `/block-user` removes follow rows in both directions after an idempotent block request.
-- `/merge-ghost-profile` calls `reparent_user_follows` before purging the ghost public user row.
+- `/merge-ghost-profile` deduplicates both directions of the follow graph inside
+  the same transaction as the rest of the Ghost merge.
 
 ## Notification Lifecycle
 

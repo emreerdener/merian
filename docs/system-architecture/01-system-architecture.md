@@ -172,8 +172,11 @@ single-responsibility functions under `/services/supabase/functions/`.
     success.
   - `/enrich-scan`: On-demand background enrichment for historical "Free" tier
     scans upgrading to Pro insight depths.
-  - `/merge-ghost-profile`: Handles the Anonymous "Ghost" Scan to Authenticated
-    User onboarding transition.
+  - `/merge-ghost-profile`: Handles existing-account OAuth conflicts with a
+    source-issued, provider-bound proof, atomic Ghost-to-account data merge,
+    and an idempotent cleanup receipt.
+  - `/reconcile-ghost-profile-merges`: Five-minute service-role worker that
+    leases incomplete receipts and deletes obsolete anonymous Auth shells.
 - **Export & Storage Orchestration**
   - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour
     rate limits for data exports.

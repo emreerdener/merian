@@ -5229,33 +5229,118 @@ endpoint rounds `gps_lat_public` coordinates to 11km tiles.
 
 ## Deno `/merge-ghost-profile` Edge Node
 
-Transfers ownership of records from an anonymous Ghost Session to a newly
-authenticated Google/Apple ID.
+Securely transfers a Ghost profile only when direct OAuth identity linking
+cannot preserve its UUID. The route accepts `POST` only, has a 4 KiB JSON body
+limit, and uses `verify_jwt = true`. An anonymous Supabase session JWT is
+required for prepare; a non-anonymous user JWT is required for complete and
+identity refresh. `withEdgeHandler` resolves the live Auth user after the
+gateway check.
 
-### Request Payload
+The iOS client may enter this fallback only for Supabase Auth code
+`identity_already_exists`. Other identity-link failures do not switch sessions.
+
+### Prepare
 
 ```json
 {
-  "ghost_id": "Transient Anonymous UUID to merge"
+  "operation": "prepare",
+  "provider": "apple",
+  "provider_subject": "Provider ID-token subject"
 }
 ```
 
-### Authentication Enforcement
+The live anonymous session is the source authority. The response contains
+`handoff_id`, a one-time 256-bit `handoff_secret`, and `expires_at`; it is marked
+`Cache-Control: no-store`. The database stores only the secret hash and binds it
+to `auth.uid()` plus the exact provider identity for 30 days. Provider subjects
+must be 1–255 characters with no Unicode control characters. iOS persists the
+proof in a versioned Keychain queue using
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` before changing sessions.
 
-1. Calls `supabaseAdmin.auth.getUser(jwt)` to extract the verified
-   `targetUserId`.
-2. Calls `supabaseAdmin.auth.admin.getUserById(ghost_id)` and validates
-   `is_anonymous === true`. If a malicious actor passes a fully authenticated
-   user's ID to hijack their scans, the endpoint returns `403 Forbidden`.
-3. Transfers owned data before purge in this order: `scans`, `collections`,
-   `explore_posts`, `explore_community_requests`, and follow rows. Community
-   request transfer is required because
-   `explore_community_requests.requested_by` references
-   `public.users(id) ON DELETE CASCADE`; deleting the ghost public user before
-   reparenting would remove active Ask the Community requests.
-4. Refreshes the target public Explore identity.
-5. Deletes the `ghost_id` via `.deleteUser(ghost_id)` and removes the ghost
-   `public.users` row.
+Successful response: HTTP 201.
+
+```json
+{
+  "success": true,
+  "handoff_id": "UUID",
+  "handoff_secret": "43-character base64url secret",
+  "expires_at": "RFC 3339 timestamp"
+}
+```
+
+### Complete
+
+```json
+{
+  "operation": "complete",
+  "handoff_id": "UUID returned by prepare",
+  "handoff_secret": "One-time URL-safe secret"
+}
+```
+
+The permanent destination is derived from the completion JWT and never from a
+request UUID. In one database transaction, the RPC:
+
+1. verifies the source remains anonymous and the destination owns the prepared
+   provider subject;
+2. serializes concurrent attempts by source and locks both users;
+3. resolves known relationship/progress uniqueness conflicts;
+4. reparents all supported `public.users` and external `auth.users` foreign
+   keys and refuses unknown composite ownership; and
+5. records an idempotent receipt before commit.
+
+The Edge Function deletes the anonymous Auth user only after commit. A cleanup
+failure returns a retryable `503`; replay by the same destination is safe. The
+client queues independent handoffs rather than overwriting an older interrupted
+upgrade. It removes a queue item only after success or terminal
+`handoff_expired`/`handoff_invalid`. A 403 for a different active destination
+is retained so the proof can complete when its bound account signs in.
+
+Successful response: HTTP 200.
+
+```json
+{
+  "success": true,
+  "target_user_id": "UUID",
+  "merged_at": "RFC 3339 timestamp",
+  "already_merged": false,
+  "message": "Guest profile securely upgraded."
+}
+```
+
+`already_merged` is `true` on an idempotent replay by the original destination.
+
+### Error contract
+
+Error bodies use `{ "code": "...", "error": "..." }`.
+
+| HTTP | Code | Meaning | Client action |
+| --- | --- | --- | --- |
+| 400 | `invalid_request` | Invalid JSON, unsupported fields, provider/subject, UUID, or secret | Do not switch away during prepare; fix the request |
+| 413 | `invalid_request` | JSON body exceeds 4 KiB | Do not retry unchanged |
+| 401 | shared auth error | Missing, invalid, expired, or non-live user JWT | Refresh/re-authenticate |
+| 403 | `ghost_session_required` | Prepare caller is not anonymous | Do not retry as that session |
+| 403 | `permanent_session_required` | Complete/refresh caller is anonymous | Sign in to the permanent account |
+| 403 | `handoff_forbidden` | Destination is not the exact bound provider identity | Retain the queued proof for the correct account |
+| 404 | `handoff_invalid` | Unknown, superseded, consumed by another destination, or unusable source | Remove that queued proof |
+| 409 | `source_already_merged` / `merge_conflict` | Source already upgraded or conflicting concurrent state | Refresh state; do not create an unproved fallback |
+| 410 | `handoff_expired` | 30-day recovery window elapsed | Remove that queued proof |
+| 503 | `auth_cleanup_pending` | Data merge committed; Auth deletion still pending | Retain and retry safely |
+| 503 | `merge_temporarily_unavailable` | Timeout, deadlock, serialization/lock failure, or guarded schema drift | Retain and retry; alert operations on repetition |
+| 500 | `merge_failed` | Unexpected server failure | Retain and retry; investigate logs |
+
+`{"operation":"refresh_identity"}` is the separate permanent-session operation
+for refreshing public provider identity when no merge is required. It returns
+`{"success":true}`.
+
+### Durable Auth cleanup
+
+`/reconcile-ghost-profile-merges` is not a client API. A five-minute `pg_cron`
+job calls it with the service-role bearer credential; the function uses
+`verify_jwt = false` only so that server credential can reach Deno, then performs
+an exact timing-safe comparison. It leases at most 100 merged receipts, deletes
+the obsolete anonymous Auth users, and records each claim-token-bound outcome.
+HTTP 404 and exact Auth code `user_not_found` are idempotent cleanup success.
 
 ---
 

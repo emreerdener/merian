@@ -1,5 +1,6 @@
 import {
   type ActivityCounts,
+  addProtectedGhostMergeActivity,
   buildSnapshotRow,
   classifyAuditRow,
   type PublicIdentityFlags,
@@ -8,6 +9,34 @@ import {
   renderCsv,
   requiredAdminApiKey,
 } from "./audit_ghost_users.ts";
+
+Deno.test("protected ghost merge sources are never classified as empty", () => {
+  const activityByUserId = new Map<string, ActivityCounts>();
+  addProtectedGhostMergeActivity(activityByUserId, [
+    "GHOST-PENDING",
+    "ghost-pending",
+  ]);
+
+  const activity = activityByUserId.get("ghost-pending");
+  assertEquals(activity?.total, 1);
+  assertEquals(activity?.bySource.ghost_profile_merge_handoff, 1);
+  assertEquals(
+    classifyAuditRow({
+      authExists: true,
+      isAnonymous: true,
+      email: null,
+      providers: ["anonymous"],
+      allowlisted: false,
+      publicUser: {
+        id: "ghost-pending",
+        subscription_tier: "free",
+      },
+      identityFlags: defaultIdentityFlags(),
+      activityCounts: activity ?? emptyActivity(),
+    }),
+    "active_ghost",
+  );
+});
 
 Deno.test("classifyAuditRow keeps non-anonymous auth users as real accounts", () => {
   const classification = classifyAuditRow({

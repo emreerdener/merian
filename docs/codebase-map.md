@@ -303,9 +303,11 @@ Explore publishing, activity, and delivery:
 Data lifecycle, identity, and exports:
 
 - `sync-collections`
-- `merge-ghost-profile` — re-parents ghost scans, collections, Explore posts,
-  Ask the Community request ownership, and follows before purging the anonymous
-  shell.
+- `merge-ghost-profile` — uses a source-issued, provider-bound proof to
+  atomically re-parent every supported guest-owned record before purging the
+  anonymous Auth shell.
+- `reconcile-ghost-profile-merges` — scheduled service-role worker that leases
+  committed merge receipts and retries obsolete anonymous Auth deletion.
 - `safe-delete`
 - `delete-scan`
 - `flag-issue` — disputed-identification review only; writes `flagged_reviews`
@@ -328,14 +330,17 @@ Scheduled/background workers:
 - `expire-subscription-passes`
 - `auto-purge-nonbio`
 - `reconcile-scan-media-assets`
+- `reconcile-ghost-profile-merges`
 - `backfill-explore-audio-spectrograms`
 - `replay-scan-ingestion`
 - `scan-media-health`
 
 Every function above has a `[functions.<name>]` entry in
 `services/supabase/config.toml`. `merge-ghost-profile` and `request-export-dwca`
-intentionally use `verify_jwt = true`; app-facing functions generally set
-`verify_jwt = false` and perform identity checks inside shared handler code.
+intentionally use `verify_jwt = true`. App-facing routes with a documented
+custom identity policy may set `false` and authenticate inside shared handler
+code; service-role workers such as `reconcile-ghost-profile-merges` set `false`
+for `pg_net` reachability and enforce a timing-safe bearer match.
 Each function also has a generated local `deno.json` backed by
 `functions/dependencies.lock`. The dependency/deploy control plane lives in
 `services/supabase/scripts/function_dependency_tools.ts`,

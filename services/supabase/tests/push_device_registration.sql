@@ -3,10 +3,19 @@
 BEGIN;
 SELECT extensions.plan(1);
 
-INSERT INTO public.users (id, email)
+INSERT INTO public.users (
+  id,
+  email,
+  public_username,
+  public_author_name,
+  public_identity_source
+)
 VALUES (
   '00000000-0000-0000-0000-000000000401',
-  'push-device-contract@naturebook.invalid'
+  'push-device-contract@naturebook.invalid',
+  'push_device_401',
+  'Push Device',
+  'alias'
 );
 
 INSERT INTO public.user_push_devices (

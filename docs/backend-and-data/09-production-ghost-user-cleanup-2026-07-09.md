@@ -19,6 +19,12 @@ required every deleted user to be:
   field trips, ingestion jobs, or other audited activity
 - without custom public identity
 
+This historical run predates the secure account-upgrade handoff table. Current
+cleanup has two additional mandatory protections: the audit treats prepared
+handoffs and merged receipts awaiting Auth cleanup as activity, and execute mode
+acquires a live tokenized reservation under the same advisory lock as handoff
+issuance. Never reuse the 2026-07-09 script revision against the current schema.
+
 ## Production Counts
 
 | Step | Total rows | Real accounts | Active ghosts | Likely empty ghosts | Old empty candidates | Recent empty ghosts |
@@ -72,3 +78,7 @@ These files may contain production user IDs and should not be committed.
 - Leave the 11 recent empty ghosts alone until they age past the threshold and a
   fresh audit confirms they remain empty.
 - Re-run the audit before any future cleanup batch.
+- Use only the current guarded cleanup implementation. Confirm
+  `list_protected_ghost_profile_merge_sources`,
+  `reserve_ghost_user_bulk_cleanup`, and `finish_ghost_user_bulk_cleanup` are
+  service-role-only before execute mode.

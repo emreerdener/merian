@@ -710,9 +710,11 @@ supabase --workdir services test db --local \
 
 The pgTAP command requires a running local Supabase/Postgres stack. Do not run
 this fixture test with `--linked`: it intentionally writes test rows inside a
-transaction. After a hosted deployment, use migration history plus read-only
-constraint inspection to verify that both push-token constraints exist and are
-validated.
+transaction. Use Supabase CLI `2.109.0` or newer when rebuilding the local
+schema; earlier releases fail on this repository's historical
+pipeline-incompatible `CREATE INDEX CONCURRENTLY` migrations. After a hosted
+deployment, use migration history plus read-only constraint inspection to
+verify that both push-token constraints exist and are validated.
 
 Identification latency has focused contract coverage at each boundary:
 

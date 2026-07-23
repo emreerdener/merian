@@ -61,6 +61,20 @@ Deno.test("cleanupEligibilityIssues rejects activity and custom identity", () =>
   assert(issues.includes("row has custom public identity"));
 });
 
+Deno.test("cleanupEligibilityIssues explicitly rejects protected merge handoffs", () => {
+  const issues = cleanupEligibilityIssues(
+    row({
+      activity: {
+        total: 1,
+        bySource: { ghost_profile_merge_handoff: 1 },
+      },
+    }),
+    30,
+  );
+
+  assert(issues.includes("row has protected ghost merge handoff"));
+});
+
 Deno.test("buildDryRunResult applies limit without deleting", () => {
   const result = buildDryRunResult(
     report([

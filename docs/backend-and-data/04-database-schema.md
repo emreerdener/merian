@@ -2171,9 +2171,9 @@ PostgreSQL, not direct RPC callers.
   display fields for one pushable notification row. Follow notifications are
   skipped before push dispatch and have no post payload.
 - `public.reparent_user_follows(ghost_id UUID, target_user_id UUID)`:
-  Ghost-merge helper that inserts target-user copies of ghost follower/followee
-  rows, ignores conflicts, and deletes rows still referencing the ghost or any
-  self-follow produced by the merge.
+  Legacy service-role-only helper retained for deployment compatibility.
+  Authenticated execution is revoked; the atomic Ghost merge now resolves
+  follow conflicts inside its private transaction.
 - `public.repair_community_request_ownership_for_user(target_user_id UUID)`:
   Repairs existing Ask the Community rows whose `requested_by` no longer matches
   the owner of their backing `scans` row. This keeps the Identify Yours filter,
@@ -2324,7 +2324,62 @@ The unique key `(source_type, source_id, operation)` makes durable retries and
 backfills idempotent. Indexes cover event time, operation/time, scan, and
 user/time. An append-only trigger rejects arbitrary updates/deletes; the account
 deletion trigger may clear identifying linkage while preserving anonymous
-aggregates.
+aggregates. Ghost-profile merge is the other narrowly authorized ownership
+rewrite: transaction-local source/target settings permit changing only
+`user_id`, and the migration updates this ledger explicitly. The table
+intentionally has no `auth.users` foreign key; an `ON DELETE SET NULL` action
+would reach the append-only trigger outside the account-deletion trigger's
+authorized anonymization context.
+
+### `internal.ghost_profile_merge_handoffs`
+
+Private source-issued proofs and durable receipts for anonymous-to-existing
+account upgrades. The schema is not exposed through the Data API, has RLS
+enabled, and grants direct access only to `service_role`.
+
+Important columns:
+
+- `ghost_user_id`, nullable `target_user_id`
+- `expected_provider` (`apple` or `google`) and exact provider subject
+- unique SHA-256 `secret_hash`; the bearer secret is never stored server-side
+- `status`: `prepared`, `merged`, `superseded`, or `expired`
+- `expires_at`, `merged_at`, and `auth_deleted_at`
+- cleanup attempts, bounded last error code, lease token, and lease timestamp
+
+Partial indexes enforce at most one prepared and one merged receipt per source.
+Additional indexes cover expiry maintenance and merged receipts awaiting Auth
+cleanup. A prepared handoff expires after 30 days.
+
+The public-schema RPC names are Data API entrypoints, not public permissions:
+
+- `issue_ghost_profile_merge_handoff(text,text,text)` and
+  `consume_ghost_profile_merge_handoff(uuid,text)` are executable only by
+  `authenticated`. Both derive authority from `auth.uid()`; callers cannot
+  supply source or destination UUIDs.
+- `record_ghost_profile_merge_auth_cleanup(uuid,boolean,text)`,
+  `claim_ghost_profile_merge_auth_cleanups(integer)`, and
+  `finish_ghost_profile_merge_auth_cleanup(uuid,uuid,boolean,text)` are
+  service-role-only. Claims use `FOR UPDATE SKIP LOCKED`, random lease tokens,
+  bounded batches, stale-lease recovery, and retry backoff.
+- All merge implementation helpers live in `internal`, use fixed empty search
+  paths, and revoke `PUBLIC` execution.
+
+`internal.perform_ghost_profile_merge` resolves known unique-key conflicts,
+reparents supported single-column foreign keys, verifies no source reference
+remains, preserves customized public identity, and deletes the source
+`public.users` row in one transaction. Unsupported composite ownership or
+schema drift fails closed. The obsolete anonymous `auth.users` row is deleted
+only after commit by Edge Auth Admin, with the scheduled reconciliation worker
+as durable recovery.
+
+`internal.ghost_user_cleanup_reservations` is the companion safety boundary for
+the manual old-empty-ghost cleanup script. A service-role RPC creates a
+5–60-minute lease under the same per-source advisory lock used by handoff
+issuance. Reservation fails if a prepared handoff or merged receipt awaiting
+Auth cleanup exists; handoff issuance fails retryably while a reservation is
+active. A token-bound finish RPC records success or releases a failed lease.
+This prevents an audit snapshot from becoming unsafe when an upgrade begins
+between audit and Auth deletion.
 
 ### `internal.admin_memberships`
 

@@ -20,6 +20,7 @@ Merian.
 | `GEMINI_API_KEY`                    | Supabase Edge secret only                            | Never in iOS bundle                                                                    |
 | `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret or server-side web env only     | Never in iOS bundle or browser-exposed web config                                      |
 | `Merian_HasAuthenticatedOAuth`      | `KeychainManager` (`kSecClassGenericPassword`)       | Security-sensitive auth flag, migrated from `UserDefaults` on first run                |
+| `Merian_PendingGhostProfileMerge`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)     | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
 | Device IDFV (`Merian_Device_IDFV`)  | `DeviceIdentityManager` (`kSecClassGenericPassword`) | Persisted across reinstalls within the same vendor group                               |
 | `hasCompletedOnboarding`            | `UserDefaults`                                       | Non-sensitive preference                                                               |
 | `isAchievementNotificationsEnabled` | `UserDefaults`                                       | Non-sensitive preference                                                               |
@@ -123,12 +124,15 @@ never use a service-role/secret key as the matching client key.
 ## KeychainManager
 
 `KeychainManager.shared` is a thin wrapper over `Security.framework` for storing
-`Bool` values as `kSecClassGenericPassword` items.
+`Bool`, UTF-8 `String`, and raw `Data` values as
+`kSecClassGenericPassword` items.
 
 ```swift
-// Accessibility: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+// Default accessibility: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+// Sensitive foreground-only proof:
+//   kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 // Item class: kSecClassGenericPassword
-// Key: kSecAttrAccount (the string key passed to set/bool/removeObject)
+// Key: kSecAttrAccount (the string key passed to set/read/removeObject)
 ```
 
 On first instantiation it migrates the legacy `UserDefaults` flag
@@ -137,9 +141,27 @@ This migration is one-shot.
 
 Currently stored keys:
 
-| Key                            | Type   | Purpose                                                                                                                                                                       |
-| ------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Merian_HasAuthenticatedOAuth` | `Bool` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; used by `MerianNetworkClient` to decide whether a 401 triggers re-auth or a Ghost session regeneration |
+| Key | Type | Accessibility | Purpose |
+| --- | --- | --- | --- |
+| `Merian_HasAuthenticatedOAuth` | `Bool` | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; used by `MerianNetworkClient` to decide whether a 401 triggers re-auth or Ghost regeneration |
+| `Merian_PendingGhostProfileMerge` | JSON `Data` | `WhenUnlockedThisDeviceOnly` | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades |
+
+The merge queue is persisted and read back successfully before the app switches
+away from the anonymous session. A newer handoff replaces only another handoff
+for the same ghost UUID; unrelated pending upgrades remain queued. The decoder
+accepts the former single-record shape and rewrites it to version 1 without
+discarding the readable original if that Keychain write fails.
+
+Completion removes one queue item only after server success or the terminal
+codes `handoff_expired` and `handoff_invalid`. Network errors,
+`auth_cleanup_pending`, `merge_temporarily_unavailable`, and
+`handoff_forbidden` remain retryable. Sign-out cancels the in-flight task but
+does not erase proofs; a task-generation token prevents an older cancelled task
+from clearing the handle for a newer session.
+
+`ThisDeviceOnly` items do not migrate through backups or device transfer. Never
+copy the merge proof into `UserDefaults`, logs, analytics, crash metadata, an
+App Group, iCloud Keychain, or a request URL.
 
 ---
 

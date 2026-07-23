@@ -5,9 +5,23 @@ import Security
 // MARK: - Keychain Manager
 
 /// Thin wrapper around Security framework keychain operations.
-/// Used for storing sensitive boolean flags (e.g., OAuth authentication state)
-/// that must survive app deletion and be device-specific.
+/// Used for storing sensitive device-bound state (for example OAuth status and
+/// account-upgrade proofs) that must survive app deletion.
 final class KeychainManager {
+    enum Accessibility {
+        case afterFirstUnlockThisDeviceOnly
+        case whenUnlockedThisDeviceOnly
+
+        fileprivate var securityValue: CFString {
+            switch self {
+            case .afterFirstUnlockThisDeviceOnly:
+                return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            case .whenUnlockedThisDeviceOnly:
+                return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            }
+        }
+    }
+
     static let shared = KeychainManager()
     private static let testStorePrefix = "merian.keychain.test."
 
@@ -17,22 +31,50 @@ final class KeychainManager {
 
     // MARK: - Public Interface
 
-    func set(_ value: Bool, forKey key: String) {
-        if shouldUseTestStore {
-            writeTestValue(value, forKey: key)
-            return
-        }
-
-        let data = Data([value ? 1 : 0])
-        let status = upsertKeychainData(data, forKey: key)
-        if status != errSecSuccess {
-            MerianLog.network.error("Keychain write failed for \(key, privacy: .private): \(status, privacy: .public)")
-        }
+    @discardableResult
+    func set(_ value: Bool, forKey key: String) -> Bool {
+        set(Data([value ? 1 : 0]), forKey: key)
     }
 
     func bool(forKey key: String) -> Bool {
+        data(forKey: key)?.first == 1
+    }
+
+    @discardableResult
+    func set(_ value: String, forKey key: String) -> Bool {
+        set(Data(value.utf8), forKey: key)
+    }
+
+    func string(forKey key: String) -> String? {
+        guard let data = data(forKey: key) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    @discardableResult
+    func set(
+        _ data: Data,
+        forKey key: String,
+        accessibility: Accessibility = .afterFirstUnlockThisDeviceOnly
+    ) -> Bool {
         if shouldUseTestStore {
-            return readTestValue(forKey: key) ?? false
+            UserDefaults.standard.set(data, forKey: testStoreKey(for: key))
+            return UserDefaults.standard.data(forKey: testStoreKey(for: key)) == data
+        }
+
+        let status = upsertKeychainData(
+            data,
+            forKey: key,
+            accessibility: accessibility
+        )
+        if status != errSecSuccess {
+            MerianLog.network.error("Keychain write failed for \(key, privacy: .private): \(status, privacy: .public)")
+        }
+        return status == errSecSuccess
+    }
+
+    func data(forKey key: String) -> Data? {
+        if shouldUseTestStore {
+            return UserDefaults.standard.data(forKey: testStoreKey(for: key))
         }
 
         var query = baseQuery(for: key)
@@ -42,15 +84,15 @@ final class KeychainManager {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
 
-        if status == errSecSuccess, let data = item as? Data, let firstByte = data.first {
-            return firstByte == 1
+        if status == errSecSuccess {
+            return item as? Data
         }
 
         if status != errSecItemNotFound {
             MerianLog.network.error("Keychain read failed for \(key, privacy: .private): \(status, privacy: .public)")
         }
 
-        return false
+        return nil
     }
 
     func removeObject(forKey key: String) {
@@ -80,11 +122,15 @@ final class KeychainManager {
     }
 
     @discardableResult
-    private func upsertKeychainData(_ data: Data, forKey key: String) -> OSStatus {
+    private func upsertKeychainData(
+        _ data: Data,
+        forKey key: String,
+        accessibility: Accessibility = .afterFirstUnlockThisDeviceOnly
+    ) -> OSStatus {
         let query = baseQuery(for: key)
         let updateAttributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible as String: accessibility.securityValue
         ]
 
         let updateStatus = SecItemUpdate(query as CFDictionary, updateAttributes as CFDictionary)
@@ -98,7 +144,7 @@ final class KeychainManager {
 
         var addAttributes = query
         addAttributes[kSecValueData as String] = data
-        addAttributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        addAttributes[kSecAttrAccessible as String] = accessibility.securityValue
         return SecItemAdd(addAttributes as CFDictionary, nil)
     }
 
@@ -108,16 +154,6 @@ final class KeychainManager {
 
     private func testStoreKey(for key: String) -> String {
         Self.testStorePrefix + key
-    }
-
-    private func writeTestValue(_ value: Bool, forKey key: String) {
-        UserDefaults.standard.set(value, forKey: testStoreKey(for: key))
-    }
-
-    private func readTestValue(forKey key: String) -> Bool? {
-        let key = testStoreKey(for: key)
-        guard UserDefaults.standard.object(forKey: key) != nil else { return nil }
-        return UserDefaults.standard.bool(forKey: key)
     }
 
     private func clearTestValue(forKey key: String) {

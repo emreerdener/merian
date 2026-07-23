@@ -1,89 +1,185 @@
-import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { syncPublicAuthorIdentity } from "../_shared/explore.ts";
-import { requireParams } from "../_shared/http.ts";
 import {
-  applyPreservedGhostIdentity,
-  fetchGhostPublicIdentity,
-  purgeGhostUser,
-  transferCollections,
-  transferCommunityRequests,
-  transferExplorePosts,
-  transferScans,
-  transferUserFollows,
-  verifyGhostUser,
+  jsonResponse,
+  logStructuredError,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
+import { syncPublicAuthorIdentity } from "../_shared/explore.ts";
+import { readRequestJsonWithinBudget } from "../_shared/mediaBudgets.ts";
+import {
+  consumeGhostMergeHandoff,
+  deleteMergedGhostAuthUser,
+  GhostMergeDatabaseError,
+  issueGhostMergeHandoff,
+  recordGhostAuthCleanup,
 } from "./db.ts";
+import {
+  generateHandoffSecret,
+  GHOST_MERGE_MAX_BODY_BYTES,
+  parseGhostMergeRequest,
+  sha256Hex,
+} from "./protocol.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    if (req.method !== "POST") {
+      return jsonResponse({ error: "Method not allowed." }, 405);
     }
 
-    const paramErr = requireParams(body, ["ghost_id"]);
-    if (paramErr) return paramErr;
-
-    const { ghost_id } = body;
-
-    const UUID_RE =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (typeof ghost_id !== "string" || !UUID_RE.test(ghost_id)) {
-      return jsonResponse({ error: "ghost_id must be a valid UUID." }, 400);
-    }
-
-    const ghostId = ghost_id.toLowerCase();
-    const targetUserId = user.id.toLowerCase();
-
-    // Redundant client-side fire trap
-    if (ghostId === targetUserId) {
-      await syncPublicAuthorIdentity(targetUserId, supabaseAdmin);
+    const bodyResult = await readRequestJsonWithinBudget<unknown>(
+      req,
+      GHOST_MERGE_MAX_BODY_BYTES,
+    );
+    if (bodyResult.error || bodyResult.value === undefined) {
       return jsonResponse(
         {
-          success: true,
-          targetUserId,
-          message: "No merge required: current user identity refreshed.",
+          code: "invalid_request",
+          error: bodyResult.error?.message ?? "Invalid JSON body.",
         },
-        200,
+        bodyResult.error?.status ?? 400,
       );
     }
 
-    // 1. Verify Target Identity
-    const verificationErrorResponse = await verifyGhostUser(
-      ghostId,
-      targetUserId,
-      supabaseAdmin,
-    );
-    if (verificationErrorResponse) return verificationErrorResponse;
+    const request = parseGhostMergeRequest(bodyResult.value);
+    if ("status" in request) {
+      return jsonResponse(
+        { code: request.code, error: request.message },
+        request.status,
+      );
+    }
 
-    // 2. Safely Execute Transfer
-    const ghostIdentitySnapshot = await fetchGhostPublicIdentity(
-      ghostId,
-      supabaseAdmin,
-    );
-    await transferScans(ghostId, targetUserId, supabaseAdmin);
-    await transferCollections(ghostId, targetUserId, supabaseAdmin);
-    await transferExplorePosts(ghostId, targetUserId, supabaseAdmin);
-    await transferCommunityRequests(ghostId, targetUserId, supabaseAdmin);
-    await transferUserFollows(ghostId, targetUserId, supabaseAdmin);
-    await syncPublicAuthorIdentity(targetUserId, supabaseAdmin);
+    try {
+      switch (request.operation) {
+        case "prepare": {
+          if (user.is_anonymous !== true) {
+            return jsonResponse(
+              {
+                code: "ghost_session_required",
+                error: "A guest session is required to prepare an upgrade.",
+              },
+              403,
+            );
+          }
 
-    // 3. Purge Empty Ghost Profile
-    await purgeGhostUser(ghostId, supabaseAdmin);
-    await applyPreservedGhostIdentity(
-      ghostIdentitySnapshot,
-      targetUserId,
-      supabaseAdmin,
-    );
+          const handoffSecret = generateHandoffSecret();
+          const secretHash = await sha256Hex(handoffSecret);
+          const handoff = await issueGhostMergeHandoff(
+            req,
+            secretHash,
+            request.provider,
+            request.providerSubject,
+          );
 
-    return jsonResponse(
-      {
-        success: true,
-        targetUserId,
-        message: "Ghost account securely merged and structurally deleted.",
-      },
-      200,
-    );
+          return jsonResponse(
+            {
+              success: true,
+              handoff_id: handoff.handoffId,
+              handoff_secret: handoffSecret,
+              expires_at: handoff.expiresAt,
+            },
+            201,
+            {
+              "Cache-Control": "no-store",
+              "Pragma": "no-cache",
+            },
+          );
+        }
+
+        case "complete": {
+          if (user.is_anonymous === true) {
+            return jsonResponse(
+              {
+                code: "permanent_session_required",
+                error:
+                  "A permanent account session is required to complete an upgrade.",
+              },
+              403,
+            );
+          }
+
+          const secretHash = await sha256Hex(request.handoffSecret);
+          const receipt = await consumeGhostMergeHandoff(
+            req,
+            request.handoffId,
+            secretHash,
+          );
+
+          const cleanup = await deleteMergedGhostAuthUser(
+            receipt.ghostUserId,
+            supabaseAdmin,
+          );
+          if (!cleanup.succeeded) {
+            await recordGhostAuthCleanup(
+              receipt.handoffId,
+              false,
+              cleanup.errorCode,
+              supabaseAdmin,
+            );
+            logStructuredError("ghost_profile_merge_auth_cleanup_pending", {
+              handoffId: receipt.handoffId,
+              ghostUserId: receipt.ghostUserId,
+              targetUserId: receipt.targetUserId,
+              errorCode: cleanup.errorCode,
+            });
+            return jsonResponse(
+              {
+                code: "auth_cleanup_pending",
+                error:
+                  "Account data was upgraded, but identity cleanup is still pending. Retrying is safe.",
+                retryable: true,
+              },
+              503,
+            );
+          }
+
+          await recordGhostAuthCleanup(
+            receipt.handoffId,
+            true,
+            null,
+            supabaseAdmin,
+          );
+
+          return jsonResponse(
+            {
+              success: true,
+              target_user_id: receipt.targetUserId,
+              merged_at: receipt.mergedAt,
+              already_merged: receipt.alreadyMerged,
+              message: "Guest profile securely upgraded.",
+            },
+            200,
+          );
+        }
+
+        case "refresh_identity": {
+          if (user.is_anonymous === true) {
+            return jsonResponse(
+              {
+                code: "permanent_session_required",
+                error: "A permanent account session is required.",
+              },
+              403,
+            );
+          }
+
+          await syncPublicAuthorIdentity(user.id, supabaseAdmin);
+          return jsonResponse({ success: true }, 200);
+        }
+      }
+    } catch (error) {
+      if (error instanceof GhostMergeDatabaseError) {
+        logStructuredError("ghost_profile_merge_rejected", {
+          userId: user.id,
+          operation: request.operation,
+          code: error.code,
+          status: error.status,
+          internalMessage: error.internalMessage,
+        });
+        return jsonResponse(
+          { code: error.code, error: error.message },
+          error.status,
+        );
+      }
+      throw error;
+    }
   })
 );

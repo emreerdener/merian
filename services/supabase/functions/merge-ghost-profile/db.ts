@@ -1,216 +1,260 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import { jsonResponse } from "../_shared/edgeHandler.ts";
 import {
-  buildPreservedGhostIdentityUpdate,
-  type GhostPublicIdentitySnapshot,
-} from "./identity.ts";
+  createClient,
+  type PostgrestError,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
+import type { MergeProvider } from "./protocol.ts";
 
-export async function verifyGhostUser(
-  ghostId: string,
-  requestingUserId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const { data: ghostUser, error: ghostUserError } = await supabaseAdmin.auth
-    .admin.getUserById(ghostId);
+export type PreparedGhostMergeHandoff = {
+  handoffId: string;
+  expiresAt: string;
+};
 
-  if (ghostUserError || !ghostUser?.user) {
-    return jsonResponse(
-      { error: "Ghost user not found or already merged." },
-      404,
-    );
-  }
+export type ConsumedGhostMergeHandoff = {
+  handoffId: string;
+  ghostUserId: string;
+  targetUserId: string;
+  alreadyMerged: boolean;
+  mergedAt: string;
+  authDeletedAt: string | null;
+};
 
-  if (!ghostUser.user.is_anonymous) {
-    console.warn(
-      `IDOR attempt: User ${requestingUserId} tried to merge authenticated account ${ghostId}`,
-    );
-    return jsonResponse({
-      error: "Forbidden: The target account is not a guest account.",
-    }, 403);
-  }
+type HandoffRow = {
+  handoff_id: string;
+  expires_at: string;
+};
 
-  return null; // Passes verification
-}
+type MergeReceiptRow = {
+  handoff_id: string;
+  ghost_user_id: string;
+  target_user_id: string;
+  already_merged: boolean;
+  merged_at: string;
+  auth_deleted_at: string | null;
+};
 
-export async function transferScans(
-  ghostId: string,
-  targetUserId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const { error: scansUpdateError } = await supabaseAdmin
-    .from("scans")
-    .update({ user_id: targetUserId })
-    .eq("user_id", ghostId);
-
-  if (scansUpdateError) {
-    console.error(`Scans transfer failed from ${ghostId} to ${targetUserId}`);
-    throw new Error(`Migration failed: ${scansUpdateError.message}`);
-  }
-}
-
-/// Re-parents all collections owned by the ghost user to the target authenticated user.
-/// Must be called BEFORE purgeGhostUser — the ON DELETE CASCADE on auth.users would
-/// otherwise silently drop these rows when the ghost is deleted.
-/// collection_scans rows need no update: they reference collection_id (unchanged) and
-/// scan_id (scan IDs are unchanged by transferScans — only their user_id moved).
-export async function transferCollections(
-  ghostId: string,
-  targetUserId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const { error } = await supabaseAdmin
-    .from("collections")
-    .update({ user_id: targetUserId })
-    .eq("user_id", ghostId);
-
-  if (error) {
-    throw new Error(`Collections migration failed: ${error.message}`);
+export class GhostMergeDatabaseError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    message: string,
+    readonly internalMessage?: string,
+  ) {
+    super(message);
+    this.name = "GhostMergeDatabaseError";
   }
 }
 
-/// Re-parents Explore posts published while the user was still anonymous.
-/// Explore posts duplicate the scan owner into `explore_posts.user_id` for feed
-/// indexes and author-profile reads, so scan transfer alone is not enough.
-export async function transferExplorePosts(
-  ghostId: string,
-  targetUserId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const { error } = await supabaseAdmin
-    .from("explore_posts")
-    .update({ user_id: targetUserId })
-    .eq("user_id", ghostId);
+export async function issueGhostMergeHandoff(
+  req: Request,
+  secretHash: string,
+  provider: MergeProvider,
+  providerSubject: string,
+): Promise<PreparedGhostMergeHandoff> {
+  const client = requestScopedClient(req);
+  const { data, error } = await client
+    .rpc("issue_ghost_profile_merge_handoff", {
+      p_secret_hash: secretHash,
+      p_expected_provider: provider,
+      p_expected_provider_subject: providerSubject,
+    })
+    .single();
 
-  if (error) {
-    throw new Error(`Explore posts migration failed: ${error.message}`);
-  }
-}
-
-/// Re-parents Ask the Community requests before the ghost public user is
-/// deleted. `explore_community_requests.requested_by` cascades on
-/// public.users deletion, so leaving it pointed at the ghost account would
-/// silently delete active community requests during account merge.
-export async function transferCommunityRequests(
-  ghostId: string,
-  targetUserId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const { error } = await supabaseAdmin
-    .from("explore_community_requests")
-    .update({ requested_by: targetUserId })
-    .eq("requested_by", ghostId);
-
-  if (error) {
-    throw new Error(`Community requests migration failed: ${error.message}`);
-  }
-}
-
-/// Re-parents follow relationships created while the user was anonymous.
-/// The SQL RPC dedupes conflicts before the ghost public user is deleted.
-export async function transferUserFollows(
-  ghostId: string,
-  targetUserId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const { error } = await supabaseAdmin.rpc("reparent_user_follows", {
-    ghost_id: ghostId,
-    target_user_id: targetUserId,
-  });
-
-  if (error) {
-    throw new Error(`Follow relationship migration failed: ${error.message}`);
-  }
-}
-
-export async function fetchGhostPublicIdentity(
-  ghostId: string,
-  supabaseAdmin: SupabaseClient,
-): Promise<GhostPublicIdentitySnapshot | null> {
-  const { data: ghostIdentity, error: identityError } = await supabaseAdmin
-    .from("users")
-    .select(
-      "public_username,public_author_name,public_identity_source,custom_avatar_url,custom_avatar_updated_at",
-    )
-    .eq("id", ghostId)
-    .maybeSingle();
-
-  if (identityError) {
-    throw new Error(
-      `Failed to snapshot ghost public identity: ${identityError.message}`,
-    );
-  }
-  if (!ghostIdentity) return null;
-
-  const { data: defaultUsername, error: defaultUsernameError } =
-    await supabaseAdmin.rpc("build_default_public_username", {
-      target_user_id: ghostId,
-    });
-
-  if (defaultUsernameError) {
-    throw new Error(
-      `Failed to resolve ghost default username: ${defaultUsernameError.message}`,
-    );
+  if (error || !data) {
+    throw mapDatabaseError(error, "Unable to prepare account upgrade.");
   }
 
+  const row = data as HandoffRow;
   return {
-    publicUsername: ghostIdentity.public_username as string | null,
-    publicAuthorName: ghostIdentity.public_author_name as string | null,
-    publicIdentitySource: ghostIdentity.public_identity_source as string | null,
-    customAvatarUrl: ghostIdentity.custom_avatar_url as string | null,
-    customAvatarUpdatedAt: ghostIdentity.custom_avatar_updated_at as
-      | string
-      | null,
-    defaultPublicUsername: typeof defaultUsername === "string"
-      ? defaultUsername
-      : null,
+    handoffId: row.handoff_id,
+    expiresAt: row.expires_at,
   };
 }
 
-export async function applyPreservedGhostIdentity(
-  snapshot: GhostPublicIdentitySnapshot | null,
-  targetUserId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const update = buildPreservedGhostIdentityUpdate(snapshot);
-  if (Object.keys(update).length === 0) return;
+export async function consumeGhostMergeHandoff(
+  req: Request,
+  handoffId: string,
+  secretHash: string,
+): Promise<ConsumedGhostMergeHandoff> {
+  const client = requestScopedClient(req);
+  const { data, error } = await client
+    .rpc("consume_ghost_profile_merge_handoff", {
+      p_handoff_id: handoffId,
+      p_secret_hash: secretHash,
+    })
+    .single();
 
-  const { error } = await supabaseAdmin
-    .from("users")
-    .update(update)
-    .eq("id", targetUserId);
+  if (error || !data) {
+    throw mapDatabaseError(error, "Unable to complete account upgrade.");
+  }
+
+  const row = data as MergeReceiptRow;
+  return {
+    handoffId: row.handoff_id,
+    ghostUserId: row.ghost_user_id,
+    targetUserId: row.target_user_id,
+    alreadyMerged: row.already_merged,
+    mergedAt: row.merged_at,
+    authDeletedAt: row.auth_deleted_at,
+  };
+}
+
+export async function recordGhostAuthCleanup(
+  handoffId: string,
+  succeeded: boolean,
+  errorCode: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin.rpc(
+    "record_ghost_profile_merge_auth_cleanup",
+    {
+      p_handoff_id: handoffId,
+      p_succeeded: succeeded,
+      p_error_code: errorCode,
+    },
+  );
 
   if (error) {
-    throw new Error(`Ghost identity preservation failed: ${error.message}`);
+    throw new GhostMergeDatabaseError(
+      "cleanup_receipt_failed",
+      503,
+      "Account data was upgraded, but cleanup confirmation is pending.",
+      error.message,
+    );
   }
 }
 
-export async function purgeGhostUser(
-  ghostId: string,
+export async function deleteMergedGhostAuthUser(
+  ghostUserId: string,
   supabaseAdmin: SupabaseClient,
-) {
-  // Delete auth.users first — cascades to collections and export_jobs (both reference auth.users).
-  const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
-    ghostId,
+): Promise<
+  { succeeded: true } | { succeeded: false; errorCode: string }
+> {
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(ghostUserId);
+  if (!error) return { succeeded: true };
+
+  const status = typeof error.status === "number" ? error.status : null;
+  if (
+    status === 404 ||
+    error.code === "user_not_found"
+  ) {
+    return { succeeded: true };
+  }
+
+  return {
+    succeeded: false,
+    errorCode: typeof error.code === "string"
+      ? error.code
+      : (status ? `auth_http_${status}` : "auth_delete_failed"),
+  };
+}
+
+function requestScopedClient(req: Request): SupabaseClient {
+  const authorization = req.headers.get("Authorization") ?? "";
+  return createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+      global: { headers: { Authorization: authorization } },
+    },
   );
+}
 
-  if (deleteError) {
-    console.warn(
-      `Failed to delete ghost user ${ghostId}: ${deleteError.message}`,
+export function mapDatabaseError(
+  error: PostgrestError | null,
+  fallbackMessage: string,
+): GhostMergeDatabaseError {
+  const internalMessage = error?.message ?? "RPC returned no data.";
+  const normalized = internalMessage.toLowerCase();
+
+  if (normalized.includes("ghost_merge_handoff_expired")) {
+    return new GhostMergeDatabaseError(
+      "handoff_expired",
+      410,
+      "The account-upgrade proof expired. Please sign in again.",
+      internalMessage,
     );
   }
 
-  // public.users has no FK to auth.users, so it must be deleted explicitly.
-  // This cascades to flagged_reviews and user_blocks referencing the ghost user,
-  // which is the correct outcome — ghost-user reports and blocks have no value
-  // after the identity has been merged into the authenticated account.
-  const { error: publicUserDeleteError } = await supabaseAdmin
-    .from("users")
-    .delete()
-    .eq("id", ghostId);
-
-  if (publicUserDeleteError) {
-    console.warn(
-      `Failed to delete public.users for ghost ${ghostId}: ${publicUserDeleteError.message}`,
+  if (
+    normalized.includes("ghost_merge_handoff_invalid") ||
+    normalized.includes("ghost_merge_source_not_available")
+  ) {
+    return new GhostMergeDatabaseError(
+      "handoff_invalid",
+      404,
+      "The account-upgrade proof is invalid or no longer available.",
+      internalMessage,
     );
   }
+
+  if (
+    normalized.includes("ghost_merge_destination_identity_mismatch") ||
+    normalized.includes("ghost_merge_destination_must") ||
+    normalized.includes("ghost_merge_source_must_be_anonymous") ||
+    normalized.includes("ghost_merge_authentication_required")
+  ) {
+    return new GhostMergeDatabaseError(
+      "handoff_forbidden",
+      403,
+      "This session is not authorized to complete the account upgrade.",
+      internalMessage,
+    );
+  }
+
+  if (normalized.includes("ghost_merge_source_already_merged")) {
+    return new GhostMergeDatabaseError(
+      "source_already_merged",
+      409,
+      "This guest profile has already been upgraded.",
+      internalMessage,
+    );
+  }
+
+  if (
+    normalized.includes("ghost_merge_schema_") ||
+    normalized.includes("ghost_merge_unhandled_reference")
+  ) {
+    return new GhostMergeDatabaseError(
+      "merge_temporarily_unavailable",
+      503,
+      "Account upgrade is temporarily unavailable. Your guest data is unchanged.",
+      internalMessage,
+    );
+  }
+
+  if (error?.code === "23505") {
+    return new GhostMergeDatabaseError(
+      "merge_conflict",
+      409,
+      "Account upgrade is already in progress.",
+      internalMessage,
+    );
+  }
+
+  if (
+    error?.code === "40001" ||
+    error?.code === "40P01" ||
+    error?.code === "55P03" ||
+    error?.code === "57014"
+  ) {
+    return new GhostMergeDatabaseError(
+      "merge_temporarily_unavailable",
+      503,
+      "Account upgrade is temporarily unavailable. Retrying is safe.",
+      internalMessage,
+    );
+  }
+
+  return new GhostMergeDatabaseError(
+    "merge_failed",
+    500,
+    fallbackMessage,
+    internalMessage,
+  );
 }

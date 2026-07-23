@@ -32,10 +32,19 @@ SELECT extensions.pass(
   'legacy global scan/order uniqueness is replaced by source-aware uniqueness'
 );
 
-INSERT INTO public.users (id, email)
+INSERT INTO public.users (
+  id,
+  email,
+  public_username,
+  public_author_name,
+  public_identity_source
+)
 VALUES (
   '00000000-0000-0000-0000-000000000501',
-  'scan-media-uniqueness@naturebook.invalid'
+  'scan-media-uniqueness@naturebook.invalid',
+  'scan_media_501',
+  'Scan Media',
+  'alias'
 );
 
 INSERT INTO public.scans (id, user_id, ai_confidence_score)

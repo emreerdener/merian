@@ -238,6 +238,9 @@ export function cleanupEligibilityIssues(
   if (row.activity.total !== 0) {
     issues.push("row has activity");
   }
+  if ((row.activity.bySource.ghost_profile_merge_handoff ?? 0) > 0) {
+    issues.push("row has protected ghost merge handoff");
+  }
   if (row.identity_flags.hasCustomPublicIdentity) {
     issues.push("row has custom public identity");
   }
@@ -261,19 +264,115 @@ async function executeCleanup(
   adminApiKey: string,
 ): Promise<void> {
   for (const candidate of result.candidates) {
+    let reservationToken: string | null = null;
     try {
+      reservationToken = await reserveGhostUserBulkCleanup(
+        supabaseUrl,
+        adminApiKey,
+        candidate.user_id,
+      );
       await deleteAuthUser(supabaseUrl, adminApiKey, candidate.user_id);
       result.deleted_auth_users.push(candidate.user_id);
       if (candidate.public_user_exists) {
         await deletePublicUser(supabaseUrl, adminApiKey, candidate.user_id);
         result.deleted_public_users.push(candidate.user_id);
       }
+      await finishGhostUserBulkCleanup(
+        supabaseUrl,
+        adminApiKey,
+        candidate.user_id,
+        reservationToken,
+        true,
+        null,
+      );
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (reservationToken) {
+        try {
+          await finishGhostUserBulkCleanup(
+            supabaseUrl,
+            adminApiKey,
+            candidate.user_id,
+            reservationToken,
+            false,
+            "bulk_cleanup_failed",
+          );
+        } catch (finishError) {
+          result.failures.push({
+            user_id: candidate.user_id,
+            error: `${message}; reservation release failed: ${
+              finishError instanceof Error
+                ? finishError.message
+                : String(finishError)
+            }`,
+          });
+          continue;
+        }
+      }
       result.failures.push({
         user_id: candidate.user_id,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
     }
+  }
+}
+
+async function reserveGhostUserBulkCleanup(
+  supabaseUrl: string,
+  adminApiKey: string,
+  userId: string,
+): Promise<string> {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/reserve_ghost_user_bulk_cleanup`,
+    {
+      method: "POST",
+      headers: adminApiHeaders(adminApiKey),
+      body: JSON.stringify({
+        p_ghost_user_id: userId,
+        p_lease_minutes: 15,
+      }),
+    },
+  );
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `ghost cleanup reservation returned HTTP ${response.status}: ${text}`,
+    );
+  }
+
+  const token: unknown = text ? JSON.parse(text) : null;
+  if (typeof token !== "string" || token.trim() === "") {
+    throw new Error("ghost cleanup reservation returned no token");
+  }
+  return token;
+}
+
+async function finishGhostUserBulkCleanup(
+  supabaseUrl: string,
+  adminApiKey: string,
+  userId: string,
+  reservationToken: string,
+  succeeded: boolean,
+  errorCode: string | null,
+): Promise<void> {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/finish_ghost_user_bulk_cleanup`,
+    {
+      method: "POST",
+      headers: adminApiHeaders(adminApiKey),
+      body: JSON.stringify({
+        p_ghost_user_id: userId,
+        p_reservation_token: reservationToken,
+        p_succeeded: succeeded,
+        p_error_code: errorCode,
+      }),
+    },
+  );
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `ghost cleanup reservation finish returned HTTP ${response.status}: ${text}`,
+    );
   }
 }
 

@@ -18,7 +18,12 @@ services/supabase/
 
 Edge Functions are written in TypeScript and run on Deno. They handle logic like AI inference (`identify-multimodal`), gamification telemetry, public user profile updates, and Explore feed projections.
 
-- **Configuration**: Every new Edge Function MUST have a `[functions.<name>]` entry in `config.toml`. Pay attention to `verify_jwt` (set to `false` for app-facing anonymous-compatible functions to bypass gateway-level JWT validation, allowing the function to handle validation internally).
+- **Configuration**: Every new Edge Function MUST have a
+  `[functions.<name>]` entry in `config.toml`. Keep `verify_jwt = true` for
+  routes called only with a Supabase user JWT (anonymous sessions also carry
+  user JWTs). Use `false` only for deliberately public routes, service-key
+  workers, webhooks, or a documented custom in-handler verification policy.
+  A `false` route must enforce that replacement boundary in code.
 - **Dependencies**: `functions/deno.json` is the reviewed source manifest for
   exact dependency pins, and every deployable function has a generated local
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
@@ -114,6 +119,22 @@ them back into a read endpoint to repair data opportunistically.
 This follows Supabase's
 [database-function security guidance](https://supabase.com/docs/guides/database/functions)
 for fixed search paths and explicit execute privileges.
+
+### Ghost Account Upgrade Boundary
+
+Direct Apple/Google identity linking remains the primary anonymous upgrade path.
+Only the exact Auth error `identity_already_exists` may enter
+`functions/merge-ghost-profile/`. The anonymous source issues a hashed,
+provider-subject-bound 30-day handoff; the permanent destination consumes it in
+one serialized database transaction. The caller cannot nominate either user
+UUID.
+
+The foreground endpoint deletes the obsolete anonymous Auth row after commit.
+`functions/reconcile-ghost-profile-merges/` is the five-minute,
+service-role-only recovery worker for interrupted cleanup. It has
+`verify_jwt = false` solely for `pg_net` compatibility and performs a
+timing-safe service-role bearer comparison in Deno. See the two function
+READMEs and the deployment runbook before changing this protocol.
 
 ### Testing Edge Functions
 
@@ -287,6 +308,16 @@ make validate-supabase-migrations
 
 ## Local Development
 
+Use Supabase CLI `2.109.0` or newer; CI pins `2.109.1`. Earlier CLI versions
+cannot reliably rebuild this migration history because several historical
+migrations contain pipeline-incompatible statements such as
+`CREATE INDEX CONCURRENTLY`. Confirm the local version before database
+verification:
+
+```bash
+supabase --version
+```
+
 From the repo root, point the Supabase CLI at the backend service directory:
 
 ```bash
@@ -301,8 +332,10 @@ supabase --workdir services functions serve <function_name>
 
 Use the read-only audit before considering any anonymous-user cleanup. It reads
 Auth Admin users plus public activity tables, classifies likely empty ghost
-profiles, and writes reviewable JSON/CSV/Markdown snapshots. It does not delete
-or mutate data.
+profiles, and writes reviewable JSON/CSV/Markdown snapshots. The audit also
+calls the service-role-only protected-source RPC; prepared handoffs and merged
+receipts awaiting Auth cleanup count as activity and can never become deletion
+candidates. It does not delete or mutate data.
 
 ```bash
 SUPABASE_URL="https://<project>.supabase.co" \
@@ -328,6 +361,13 @@ SUPABASE_URL="https://<project>.supabase.co" \
 SUPABASE_SECRET_KEY="<sb_secret_...>" \
 make cleanup-ghost-users ARGS="--snapshot-json /tmp/ghost-users.json --limit 10 --execute --confirm-delete-likely-empty-ghosts --output-json /tmp/ghost-cleanup-result.json"
 ```
+
+Execute mode performs a second, live database reservation for each candidate
+before calling Auth Admin delete. The reservation and handoff issuance share an
+advisory lock: if an account upgrade is prepared first, cleanup fails closed; if
+cleanup reserves first, prepare returns a retryable error without switching the
+guest session. Do not run a historical version of the cleanup script after the
+secure merge migration.
 
 ## Deployment
 

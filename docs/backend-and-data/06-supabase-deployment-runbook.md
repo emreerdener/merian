@@ -47,7 +47,7 @@ The workflow performs the following steps:
 1. Writes the workflow context summary and exercises its large-change regression
    test.
 2. Installs the exact reviewed Deno `2.9.2` runtime.
-3. Installs the Supabase CLI.
+3. Installs the reviewed Supabase CLI `2.109.1`.
 4. Fails fast if required deployment secrets are missing.
 5. Validates Edge Function formatting, lint, and shared runtime type checks.
 6. Confirms every function has a current generated local `deno.json`, a matching
@@ -71,6 +71,13 @@ The workflow performs the following steps:
    endpoint, and a dry-run bounded GBIF import with the production service-role
    credential.
 
+Local and CI database rebuilds require Supabase CLI `2.109.0` or newer. That
+release fixed migration execution for pipeline-incompatible statements such as
+the historical `CREATE INDEX CONCURRENTLY` migrations in this repository.
+Older versions can fail before reaching the migration under test, so treat a
+lower version as an invalid verification environment rather than editing
+already-applied migration files.
+
 Actual GBIF taxonomy imports are intentionally separated into
 `.github/workflows/import-community-taxonomy.yml`. The deploy workflow only
 smoke-tests a dry run; it does not write taxonomy rows or advance import
@@ -84,7 +91,7 @@ function-local `deno.json` change selects that function. Changes to
 fleet because they can affect any bundle. New, deleted, or otherwise
 unresolvable shared runtime files also fall back to the full fleet. Docs and
 test-only changes select no functions. This preserves shared-helper consistency
-without paying for an unconditional 77-function deployment on every backend
+without paying for an unconditional 80-function deployment on every backend
 commit.
 
 Deleting a function directory is intentionally not treated as a zero-function
@@ -377,6 +384,168 @@ full validation suite, and push a new commit. The next dependency-aware plan
 will select changed functions; use manual dispatch when an operator deliberately
 needs a full-fleet reconciliation. Complete the normal smoke checks before
 declaring the release healthy.
+
+## Ghost Account Merge Security Rollout
+
+Migration `20260723043447_secure_atomic_ghost_profile_merge.sql`,
+`merge-ghost-profile`, `reconcile-ghost-profile-merges`, and the proof-capable
+iOS client form one security contract. The legacy client switches away from the
+guest session before it can prove source consent, so the backend must never
+accept its arbitrary source UUID payload.
+
+### Compatibility order
+
+1. Release the proof-capable iOS build first. Against the old backend its
+   `prepare` request fails before the app switches sessions, preserving guest
+   data.
+2. Wait for the required adoption threshold or enforce the existing minimum-app
+   version on the OAuth-conflict path. Do not let an old build attempt an
+   existing-account conflict after the secure endpoint is live.
+3. Deploy both new Edge Functions. Before the migration, `prepare` safely fails
+   because its RPC is absent.
+4. Apply the migration immediately afterward. This activates the RPCs, revokes
+   the legacy helper from client roles, and installs the five-minute cleanup
+   schedule.
+5. Smoke-test both the normal direct-link path and the existing-account
+   conflict path before lifting the release gate.
+
+Never restore client execution of `reparent_user_follows` and never add a
+compatibility request field that lets the caller nominate `ghost_user_id` or
+`target_user_id`.
+
+### Preflight and local verification
+
+Confirm Vault has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; the scheduled
+worker reads those exact names. Confirm the function entries are:
+
+```toml
+[functions.merge-ghost-profile]
+verify_jwt = true
+
+[functions.reconcile-ghost-profile-merges]
+verify_jwt = false
+```
+
+Run from the repository root:
+
+```bash
+make validate-supabase-migrations
+
+deno fmt --check \
+  services/supabase/functions/merge-ghost-profile \
+  services/supabase/functions/reconcile-ghost-profile-merges
+deno lint --config services/supabase/functions/deno.json \
+  services/supabase/functions/merge-ghost-profile \
+  services/supabase/functions/reconcile-ghost-profile-merges
+deno check \
+  --config services/supabase/functions/merge-ghost-profile/deno.json \
+  services/supabase/functions/merge-ghost-profile/index.ts
+deno check \
+  --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
+  services/supabase/functions/reconcile-ghost-profile-merges/index.ts
+deno test \
+  --config services/supabase/functions/merge-ghost-profile/deno.json \
+  services/supabase/functions/_tests/mergeGhostProfile.test.ts
+deno test \
+  --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
+  services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
+
+supabase --workdir services db reset
+supabase --workdir services test db --local \
+  services/supabase/tests/ghost_profile_merge_security.sql
+supabase --workdir services db lint --local --schema public,internal
+supabase --workdir services db advisors --local --type security
+supabase --workdir services db advisors --local --type performance
+```
+
+The pgTAP case must prove the attacker/provider mismatch is rejected, the same
+destination replay is idempotent, every source reference is reparented, AI
+usage stays append-only and attributed, client roles lack cleanup grants, and a
+service-role cleanup claim can be finalized. It must also prove a live bulk
+empty-ghost cleanup reservation blocks handoff issuance. After this migration,
+the current audit script must see protected handoff sources and the current
+cleanup script must reserve each candidate; do not execute an older script
+against production.
+
+Before production:
+
+```bash
+supabase --workdir services db push --linked --dry-run
+supabase --workdir services functions deploy merge-ghost-profile
+supabase --workdir services functions deploy reconcile-ghost-profile-merges
+supabase --workdir services db push --linked
+supabase --workdir services migration list --linked
+```
+
+Do not deploy with `--no-verify-jwt` for `merge-ghost-profile`. The anonymous
+prepare caller has a valid user JWT and receives both gateway verification and
+the live-user/`auth.uid()` checks.
+
+### Smoke matrix
+
+Use disposable staging identities and no real user data:
+
+- New Apple/Google identity: direct `linkIdentityWithIdToken` preserves the
+  guest UUID and creates no handoff.
+- Existing identity: prepare returns HTTP 201, `Cache-Control: no-store`, a
+  43-character base64url secret, and an expiry approximately 30 days out.
+- A different permanent account, including another account using the same
+  provider, receives `handoff_forbidden`; source data and receipt remain
+  unchanged.
+- The bound destination completes once, receives HTTP 200, owns scans,
+  collections, Explore/Field trip/social rows and AI attribution, and a replay
+  reports `already_merged = true`.
+- A transient 503 keeps the iOS Keychain queue item. A terminal 404/410 removes
+  only that item; another queued handoff survives.
+- The source public profile disappears in the merge transaction. The source
+  Auth row is deleted after commit by the foreground call or, if deliberately
+  faulted in staging, by the scheduled worker.
+
+### Monitoring and recovery
+
+Run these read-only queries from the SQL editor or another owner-only
+operational connection:
+
+```sql
+SELECT status, COUNT(*)
+FROM internal.ghost_profile_merge_handoffs
+GROUP BY status
+ORDER BY status;
+
+SELECT
+  id,
+  ghost_user_id,
+  target_user_id,
+  merged_at,
+  cleanup_attempt_count,
+  last_cleanup_error_code,
+  cleanup_claimed_at
+FROM internal.ghost_profile_merge_handoffs
+WHERE status = 'merged'
+  AND auth_deleted_at IS NULL
+ORDER BY merged_at;
+
+SELECT jobname, schedule, active
+FROM cron.job
+WHERE jobname = 'reconcile_ghost_profile_merges_every_five_minutes';
+```
+
+Alert when a merged receipt remains without `auth_deleted_at` for more than 20
+minutes, when cleanup attempts continue increasing, or when Edge logs repeatedly
+emit `ghost_profile_merge_auth_cleanup_pending`,
+`ghost_profile_merge_reconciliation_failed`, or
+`merge_temporarily_unavailable`. Investigate the Auth Admin API and database
+error before manually retrying the worker. Do not edit `secret_hash`,
+`target_user_id`, or receipt status by hand.
+
+If the worker itself is faulty, unschedule only the named cron job, retain every
+receipt, deploy a forward fix, invoke the worker manually with a small limit,
+and restore the schedule. If the merge path is faulty, gate the
+existing-account fallback in the client; normal direct identity linking can
+remain available. Do not roll back the migration, recreate the arbitrary UUID
+API, drop receipt rows, or reparent data manually. Database correction is a
+forward migration. A client rollback must keep old conflict-capable builds
+blocked until they can produce a source-issued proof.
 
 ## Identification Latency Rollout
 

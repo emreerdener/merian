@@ -74,6 +74,10 @@ interface ActivitySource {
   optional?: boolean;
 }
 
+interface ProtectedGhostMergeSourceRow {
+  ghost_user_id: string;
+}
+
 export interface ActivityCounts {
   total: number;
   bySource: Record<string, number>;
@@ -401,6 +405,14 @@ export async function runAudit(rawArgs: string[]): Promise<number> {
     supabaseUrl,
     adminApiKey,
     args.pageSize,
+  );
+  const protectedMergeSources = await fetchProtectedGhostMergeSources(
+    supabaseUrl,
+    adminApiKey,
+  );
+  addProtectedGhostMergeActivity(
+    activityResult.activityByUserId,
+    protectedMergeSources,
   );
   const defaultUsernameResolver = makeDefaultUsernameResolver(
     supabaseUrl,
@@ -731,6 +743,46 @@ async function fetchActivityCounts(
   }
 
   return { activityByUserId, missingOptionalSources };
+}
+
+async function fetchProtectedGhostMergeSources(
+  supabaseUrl: string,
+  adminApiKey: string,
+): Promise<string[]> {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/list_protected_ghost_profile_merge_sources`,
+    {
+      method: "POST",
+      headers: adminApiHeaders(adminApiKey),
+      body: "{}",
+    },
+  );
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `protected ghost-merge source lookup returned HTTP ${response.status}: ${text}`,
+    );
+  }
+
+  const rows = text ? JSON.parse(text) as ProtectedGhostMergeSourceRow[] : [];
+  return rows
+    .map((row) => row.ghost_user_id)
+    .filter((value): value is string =>
+      typeof value === "string" && value.trim() !== ""
+    );
+}
+
+export function addProtectedGhostMergeActivity(
+  activityByUserId: Map<string, ActivityCounts>,
+  protectedUserIds: string[],
+): void {
+  for (const rawUserId of new Set(protectedUserIds.map(normalizeId))) {
+    const counts = activityByUserId.get(rawUserId) ?? emptyActivityCounts();
+    counts.total += 1;
+    counts.bySource.ghost_profile_merge_handoff =
+      (counts.bySource.ghost_profile_merge_handoff ?? 0) + 1;
+    activityByUserId.set(rawUserId, counts);
+  }
 }
 
 async function fetchColumnValues(

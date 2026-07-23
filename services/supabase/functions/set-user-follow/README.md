@@ -52,7 +52,8 @@ Unfollow deletes the `(follower_user_id, followee_user_id)` row. It does not req
 - Unfollow deletes that notification.
 - Follow notifications are postless (`post_id = NULL`) and never trigger APNs push delivery.
 - Blocking either direction removes follow rows and follow notifications.
-- Ghost-account merge reparents follow rows through `public.reparent_user_follows(...)`.
+- Ghost-account merge reparents and deduplicates follow rows inside its private
+  atomic transaction.
 
 ## Local Verification
 

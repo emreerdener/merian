@@ -125,7 +125,9 @@ only that session; disabling membership affects all admin sessions for the user.
 ## Verification before deployment
 
 Run from the repository root. The local database suites are destructive only to
-the local Supabase database and wrap their fixtures in transactions.
+the local Supabase database and wrap their fixtures in transactions. Use
+Supabase CLI `2.109.0` or newer so the reset runner can apply the repository's
+historical pipeline-incompatible index migrations.
 
 ```bash
 supabase --workdir services db reset

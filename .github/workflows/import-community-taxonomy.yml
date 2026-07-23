@@ -78,7 +78,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: 2.101.0
+          version: 2.109.1
 
       - name: Validate import secrets
         run: |

@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import Merian
+import Testing
 
 @Suite("Keychain Manager Tests", .serialized) // Serialized because Keychain runs across shared system process
 struct KeychainManagerTests {
@@ -46,5 +46,31 @@ struct KeychainManagerTests {
         let manager = KeychainManager.shared
         // `testKey` was never set
         #expect(manager.bool(forKey: testKey + "_ghost") == false)
+    }
+
+    @Test func testSensitiveDataRoundTripsAndCanBeRemoved() async {
+        let manager = KeychainManager.shared
+        let key = testKey + "_data"
+        let value = Data((0..<32).map(UInt8.init))
+
+        manager.removeObject(forKey: key)
+        #expect(manager.set(value, forKey: key))
+        #expect(manager.data(forKey: key) == value)
+
+        manager.removeObject(forKey: key)
+        #expect(manager.data(forKey: key) == nil)
+    }
+
+    @Test func testStringRoundTripsWithoutBooleanCoercion() async {
+        let manager = KeychainManager.shared
+        let key = testKey + "_string"
+        let value = "provider-bound-handoff"
+
+        manager.removeObject(forKey: key)
+        #expect(manager.set(value, forKey: key))
+        #expect(manager.string(forKey: key) == value)
+        #expect(manager.bool(forKey: key) == false)
+
+        manager.removeObject(forKey: key)
     }
 }

@@ -95,7 +95,21 @@ when changing web routes.
 - Never write direct Gemini inference code inside iOS Swift controllers — this leaks API keys and bypasses edge limits.
 - Keep the Deno Edge `index.ts` files synchronized with the Swift `IdentifyResponse` API Contract mapped in `docs/backend-and-data/05-api-contracts.md`.
 - Ensure all unstructured display text (e.g. `common_name`) is locked via `systemInstruction` rules to format as Title Case, preventing lowercase UI outputs before values are cached to the database.
-- **Every new Edge Function MUST have a `[functions.<name>]` entry in `services/supabase/config.toml`.** App-facing anonymous-compatible functions should use `verify_jwt = false`; omitting the entry causes Supabase's Kong gateway to default to `verify_jwt = true`, which performs gateway-level JWT validation before the function code runs. This rejects valid ES256 anonymous sessions with `401 Invalid JWT` even though the token is structurally valid. Authenticated endpoints then verify identity inside the function with `withEdgeHandler` / `requireAuth`. Intentional gateway-auth deviations must be documented: `merge-ghost-profile` and `request-export-dwca` use `verify_jwt = true`; `species-dictionary` and `species-observation-stats` use `verify_jwt = false` but intentionally skip `requireAuth` because they return only public species-level data. Internal service-role workers and status endpoints such as species refresh, reference-image refresh, taxonomy import/status/refresh, consensus processing, non-biological purge, scan-media reconciliation, and scan-media health use `verify_jwt = false` so trusted server callers can reach Deno, then require `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with `timingSafeCompare` or the shared service-role auth helper.
+- **Every new Edge Function MUST have a `[functions.<name>]` entry in
+  `services/supabase/config.toml`.** Keep `verify_jwt = true` for routes reached
+  only with Supabase user JWTs; anonymous sessions also have valid user JWTs,
+  and the gateway supports legacy and asymmetric signing keys.
+  `merge-ghost-profile` therefore keeps the gateway check for both phases, then
+  revalidates the live user and binds its RPCs with `auth.uid()`. Use
+  `verify_jwt = false` only for a documented replacement boundary: an
+  intentionally public read, webhook signature, custom in-handler user
+  verification, or service-role worker. `species-dictionary` and
+  `species-observation-stats` are intentionally public species-only reads.
+  Internal workers such as species/reference refresh, taxonomy
+  import/status/refresh, consensus processing, non-biological purge,
+  scan-media reconciliation/health, and ghost-merge reconciliation require
+  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with
+  `timingSafeCompare` or the shared service-role auth helper.
 - **Edge runtime imports must be deploy-stable.** New function entrypoints should
   use `Deno.serve(...)` directly, runtime dependencies must be routed through
   the reviewed `services/supabase/functions/deno.json` manifest, and deployed

@@ -63,18 +63,20 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     anonymous Ghost User) or `signInWithIdToken(credentials:)` (if returning).
     Using `linkIdentityWithIdToken` merges the OAuth provider to the _existing_
     anonymous UUID, ensuring the user's local offline queue and S3 uploads are
-    not stranded during the account upgrade. If `linkIdentityWithIdToken` throws
-    (e.g. account already exists), it falls back to a standard
-    `signInWithIdToken`. To prevent data stranding on this fallback boundary,
-    Merian caches the ephemeral Ghost UUID before executing the sign-in, then
-    invokes a decoupled Edge RPC hook (`/merge-ghost-profile`) which transfers
-    PostgreSQL `scans`, `collections`, Explore posts, Ask the Community request
-    ownership, and follow relationships from the Ghost UUID to the newly
-    verified `session.user.id`, removing the obsolete Ghost shell. To prevent
-    account hijacking (IDOR), the backend verifies
-    `ghostUser.user.is_anonymous === true` before merging, preventing
-    authenticated accounts from being maliciously merged or wiped by other
-    users.
+    not stranded during the account upgrade. Only an
+    `identity_already_exists` error falls back to a standard
+    `signInWithIdToken`; transient and configuration failures leave the Ghost
+    session active. Before switching sessions, the live Ghost session
+    requests a one-use `/merge-ghost-profile` handoff bound to the exact OAuth
+    provider subject and persists its 256-bit secret in a versioned,
+    foreground-accessible, device-only Keychain queue. The proof remains valid
+    for 30 days. After sign-in, only the permanent account that owns that
+    provider identity can consume it. PostgreSQL locks both users, resolves
+    uniqueness conflicts, and re-parents all supported ownership in one
+    transaction; only then does the Edge Function delete the obsolete anonymous
+    Auth shell. The client retains transient failures for idempotent retries,
+    and a five-minute service-role worker finishes Auth cleanup if the client
+    never returns.
   - Once the `session.user` is generated, `SupabaseManager` pipes the raw
     identity payload into `linkExternalTelemetry(user:)`. This extracts GoTrue
     metadata (`email`, `full_name`, `avatar_url`), performs a best-effort read of
@@ -195,8 +197,9 @@ state, a dedicated `revenuecat-webhook` Edge Function listens for global
 subscription events (`INITIAL_PURCHASE`, `RENEWAL`, `EXPIRATION`, and
 `UNCANCELLATION`) plus the exact non-renewing `pro_week` product. This
 endpoint requires a `Bearer REVENUECAT_WEBHOOK_SECRET` `Authorization` header,
-mapped to Env Vars, and deflects unauthenticated requests with a 401 at the
-Kong Gateway via `verify_jwt = false`.
+mapped to Env Vars. `verify_jwt = false` lets the non-Supabase webhook
+credential reach Deno; the handler performs the secret comparison and returns
+401 for an invalid caller.
 
 1. **`app_user_id` UUID validation**: After HMAC authentication,
    `event.app_user_id` is validated against a strict UUID regex before any DB

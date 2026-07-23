@@ -722,3 +722,48 @@ Deno.test("scan ingestion replay retry limit migration caps automatic server rep
     assertStringIncludes(sql, fragment);
   }
 });
+
+Deno.test("ghost profile merge migration keeps ownership atomic and Auth cleanup durable", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260723043447_secure_atomic_ghost_profile_merge.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE internal.ghost_profile_merge_handoffs",
+      "NOW() + INTERVAL '30 days'",
+      "CREATE OR REPLACE FUNCTION public.issue_ghost_profile_merge_handoff",
+      "CREATE OR REPLACE FUNCTION public.consume_ghost_profile_merge_handoff",
+      "CREATE OR REPLACE FUNCTION internal.perform_ghost_profile_merge",
+      "CREATE OR REPLACE FUNCTION public.claim_ghost_profile_merge_auth_cleanups",
+      "FOR UPDATE SKIP LOCKED",
+      "CREATE OR REPLACE FUNCTION public.finish_ghost_profile_merge_auth_cleanup",
+      "CREATE TABLE internal.ghost_user_cleanup_reservations",
+      "CREATE OR REPLACE FUNCTION public.list_protected_ghost_profile_merge_sources",
+      "CREATE OR REPLACE FUNCTION public.reserve_ghost_user_bulk_cleanup",
+      "ghost_cleanup_source_protected_by_merge",
+      "CREATE OR REPLACE FUNCTION public.finish_ghost_user_bulk_cleanup",
+      "ghost_merge_source_cleanup_in_progress",
+      "REVOKE ALL ON FUNCTION public.claim_ghost_profile_merge_auth_cleanups(INTEGER) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.claim_ghost_profile_merge_auth_cleanups(INTEGER) TO service_role",
+      "reconcile_ghost_profile_merges_every_five_minutes",
+      "/functions/v1/reconcile-ghost-profile-merges",
+      "REVOKE ALL ON FUNCTION public.reparent_user_follows(UUID, UUID) FROM PUBLIC, anon, authenticated",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assertBefore(
+    sql,
+    "UPDATE public.ai_usage_events AS event SET user_id = p_target_user_id",
+    "PERFORM internal.reparent_ghost_user_foreign_keys",
+    "append-only AI attribution must be handled before generic FK reparenting",
+  );
+  assert(
+    !sql.includes("ADD CONSTRAINT ai_usage_events_auth_user_fk"),
+    "An Auth FK would bypass the AI ledger's authorized deletion path.",
+  );
+});

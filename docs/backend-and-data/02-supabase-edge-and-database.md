@@ -1272,18 +1272,19 @@ that operate on anonymous IDFV boundaries:
   `.xcconfig`). All LLM calls go through Supabase Edge Functions (`identify`,
   `identify-multimodal`, `enrich-scan`, `insight-chat`, etc.), which hold the
   key server-side.
-- App-facing anonymous-compatible Edge Functions set `verify_jwt = false` in
-  `config.toml`. Authenticated endpoints then perform manual JWT verification
-  via `requireAuth` or the stricter claims strategy inside `withEdgeHandler`.
+- Every Edge Function declares `verify_jwt` explicitly in `config.toml`.
+  Anonymous Supabase sessions carry user JWTs, and the gateway supports both
+  legacy HS256 and asymmetric signing-key JWTs. User-JWT-only routes should
+  retain the gateway check; `merge-ghost-profile` therefore uses
+  `verify_jwt = true` for both its anonymous prepare phase and permanent-account
+  completion phase. `withEdgeHandler` additionally resolves the live Auth user,
+  and both transaction RPCs bind authority again with `auth.uid()`.
+  Routes with `verify_jwt = false` must have a documented replacement boundary:
+  an in-handler `requireAuth`/claims policy, a timing-safe service credential,
+  webhook signature verification, or an intentionally public read contract.
   `/identify-multimodal` and `/update-scan-context` use cached ES256 JWKS claims
-  verification; other routes retain their existing `getUser` verification. This is mandatory for
-  anonymous-compatible routes: omitting an entry causes Supabase's Kong gateway
-  to default to `verify_jwt = true`, which validates the JWT at the gateway
-  layer before the function code runs and rejects valid ES256 anonymous sessions
-  with `401 Invalid JWT`. Current intentional deviations:
-  - **`merge-ghost-profile`**: Keeps `verify_jwt = true` because merging a ghost
-    into an unauthenticated session is semantically invalid and a security risk.
-    The gateway enforces a fully authenticated session before the function runs.
+  verification; other authenticated routes retain their documented `getUser`
+  verification. Current intentional cases include:
   - **`request-export-dwca`**: Keeps `verify_jwt = true` because personal data
     exports require a verified authenticated user identity — anonymous users
     have no stable identity to bind an export to.
@@ -1298,14 +1299,15 @@ that operate on anonymous IDFV boundaries:
     then enforce the service-role bearer header inside Deno with
     `timingSafeCompare`. This includes species refresh, reference-image refresh,
     taxonomy import/status/refresh, consensus processing, non-biological purge,
-    and `backfill-explore-audio-spectrograms` workers.
+    `backfill-explore-audio-spectrograms`, and
+    `reconcile-ghost-profile-merges` workers.
 - **Rule for new Edge Functions**: Every new function directory under
   `services/supabase/functions/` MUST have a corresponding `[functions.<name>]`
-  entry in `config.toml` before deployment. Use `verify_jwt = false` for
-  anonymous-compatible app routes, deliberately public routes, and `pg_net`
-  workers that perform their own service-role secret check; use
-  `verify_jwt = true` only for explicitly authenticated-only routes with no
-  anonymous user path. Public unauthenticated routes must document their
+  entry in `config.toml` before deployment. Use `verify_jwt = true` for routes
+  reached only with user JWTs, including anonymous-user JWTs. Use
+  `verify_jwt = false` for deliberately public routes, `pg_net` workers that
+  perform their own service-role secret check, webhooks, or a reviewed custom
+  verification path. Public unauthenticated routes must document their
   data-exposure boundary in both the function README and
   `docs/backend-and-data/05-api-contracts.md`; internal cron workers must
   document their service-role authorization boundary.
@@ -1749,45 +1751,50 @@ owner matches the requested target. Neither function is a client API.
 
 ## Ghost Account Merge (`merge-ghost-profile`)
 
-When an anonymous (guest) user signs up for a full account, their prior scan
-history is merged into the new authenticated identity:
+Normal Apple/Google linking preserves the anonymous UUID and does not call this
+merge path. The endpoint exists for the conflict case where the selected
+provider identity already belongs to another permanent account.
 
-**Operation order**:
+Only the exact Supabase Auth error `identity_already_exists` enters the merge
+fallback. Network errors, timeouts, disabled manual linking, and every other
+link failure leave the guest session unchanged and are surfaced to the caller.
 
-1. `verifyGhostUser` — confirms the target is an anonymous account (not another
-   authenticated user). Logs and returns `403` on IDOR attempts.
-2. `fetchGhostPublicIdentity` — snapshots the guest's public username, custom
-   display name, and custom avatar before the ghost row can be deleted.
-3. `transferScans` — re-parents all `scans` rows from `ghost_id` to the
-   authenticated `user.id`.
-4. `transferCollections` — re-parents all `collections` rows. **Must run before
-   `purgeGhostUser`**: the `collections` table references
-   `auth.users(id) ON DELETE CASCADE`, so deleting the ghost from `auth.users`
-   would silently drop all collections if this step is skipped.
-5. `transferExplorePosts` — re-parents denormalized `explore_posts.user_id` rows
-   so Explore feeds, profile previews, author sheets, and owned-viewer checks
-   follow the new account.
-6. `transferCommunityRequests` — re-parents
-   `explore_community_requests.requested_by`. This must run before
-   `public.users(ghost_id)` is deleted because Community request ownership
-   cascades through `public.users`; skipping it can make Ask the Community
-   requests disappear from the user's Yours filter or be deleted during purge.
-7. `transferUserFollows` — copies and dedupes follow relationships onto the
-   authenticated account before the ghost public user row is removed.
-8. `syncPublicAuthorIdentity` — refreshes the target user's public Explore
-   identity projection from the Apple/Google provider after scan and Explore
-   post ownership have moved, so provider identity remains the fallback.
-9. `purgeGhostUser` — deletes the ghost from `auth.users` (cascades to
-   `collections` and `export_jobs` — both already transferred or empty) and then
-   explicitly deletes `public.users(ghost_id)`. The `public.users` row has no FK
-   to `auth.users` and must be deleted manually; this cascade also cleans up any
-   `flagged_reviews` and `user_blocks` tied to the ghost identity, which have no
-   value after the merge.
-10. `applyPreservedGhostIdentity` — restores guest custom identity choices on
-    the signed-in account after the ghost public row is gone. Guest custom
-    avatars win over provider avatars, guest display names win when
-    `public_identity_source = 'display_name'`, and guest usernames win only when
-    they differ from the generated default guest username.
+The live anonymous source first calls `operation = prepare` with the OAuth
+provider and exact token subject. The server generates a 256-bit secret, stores
+only its SHA-256 hash, and binds the handoff to `auth.uid()`, that provider
+identity, and a 30-day expiry. iOS persists the secret in a versioned,
+device-only Keychain queue with
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` before switching sessions.
+Multiple interrupted upgrades cannot overwrite one another, and the older
+single-record format is decoded and migrated in place.
+
+After provider sign-in, the permanent destination calls
+`operation = complete`. `public.consume_ghost_profile_merge_handoff(...)`:
+
+1. derives the destination exclusively from `auth.uid()`;
+2. locks the handoff and source/destination Auth and public-user rows;
+3. proves the source is still anonymous and the destination owns the exact
+   provider subject selected by the source;
+4. resolves known uniqueness conflicts, reparents every supported user foreign
+   key, preserves customized guest identity, and deletes the Ghost public row in
+   one transaction;
+5. fails closed if schema drift introduces an unsupported composite user
+   foreign key or leaves a source reference behind; and
+6. records an idempotent merge receipt.
+
+Only after that database transaction commits does the Edge Function delete the
+anonymous Auth user. Failed Auth cleanup returns a retryable response; repeating
+the same completion returns the durable receipt and safely retries deletion.
+The client removes a proof only after success or terminal
+`handoff_expired`/`handoff_invalid`; wrong-destination and transient responses
+remain queued.
+
+The service-role-only `reconcile-ghost-profile-merges` worker runs every five
+minutes. It marks expired prepared rows, claims pending cleanup receipts with
+`FOR UPDATE SKIP LOCKED` plus a ten-minute lease, calls the Auth Admin delete
+API, and records the outcome using the claim token. This closes the cleanup gap
+when the foreground request or client never returns. The legacy
+`public.reparent_user_follows(...)` helper is no longer client executable.
 
 ## Required Edge Function Secrets
 

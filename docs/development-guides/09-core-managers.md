@@ -1132,7 +1132,17 @@ and `KeychainManager` migration logic. Do not inline
 - **DRY OAuth Abstraction**: Apple Sign In and Google Sign In share a single
   `private func finalizeOAuthLogin` path, removing the duplicate
   `.linkIdentityWithIdToken` / `.signInWithIdToken` logic that previously
-  existed in both flows.
+  existed in both flows. The existing-account fallback is entered only for
+  Supabase Auth code `identity_already_exists`; network, timeout, configuration,
+  and other linking errors preserve the active guest session.
+- **Durable Ghost merge completion**: Before switching sessions,
+  `SupabaseManager` stores each source-issued, provider-bound proof in a
+  versioned `WhenUnlockedThisDeviceOnly` Keychain queue. Completion is
+  single-flight per active task generation, so an older cancelled task cannot
+  clear a newer handle after sign-out/re-login. Successful and terminal
+  invalid/expired entries are removed individually; transient,
+  wrong-destination, and Auth-cleanup failures remain queued for session-restore
+  retries.
 - **`keyWindowAnchor()` helper**: A private
   `keyWindowAnchor() -> ASPresentationAnchor` method was extracted to remove the
   identical implementation that was previously copy-pasted into two separate
@@ -1164,6 +1174,9 @@ and `KeychainManager` migration logic. Do not inline
   `[kSecClass: kSecClassGenericPassword, kSecAttrAccount: key]` dictionary. This
   was previously duplicated verbatim in all three methods (`set`, `bool`,
   `removeObject`).
+- Supports `Bool`, `String`, and `Data` values. Callers may select
+  `AfterFirstUnlockThisDeviceOnly` (the default) or the stricter
+  `WhenUnlockedThisDeviceOnly` accessibility used by bearer merge proofs.
 - **`migrateFromUserDefaults()`**: The `init` migration logic was extracted into
   a named method for clarity.
 

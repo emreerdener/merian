@@ -24,11 +24,20 @@ private struct RevenueCatPublicIdentity: Decodable {
 
 enum SupabaseAuthTransitionError: LocalizedError {
     case signOutInProgress
+    case invalidOAuthIdentityToken
+    case guestMergeSessionChanged
+    case guestMergeHandoffPersistenceFailed
 
     var errorDescription: String? {
         switch self {
         case .signOutInProgress:
             return "Authentication is changing. Try again in a moment."
+        case .invalidOAuthIdentityToken:
+            return "The identity provider returned an invalid token."
+        case .guestMergeSessionChanged:
+            return "The guest session changed before the account upgrade could be secured."
+        case .guestMergeHandoffPersistenceFailed:
+            return "The account upgrade could not be secured on this device. Your guest session is unchanged."
         }
     }
 }
@@ -49,8 +58,49 @@ enum SupabaseAuthTransitionError: LocalizedError {
         }
     }
 
-    private struct GhostProfileMergePayload: Encodable {
-        let ghost_id: String
+    private struct GhostProfileMergePreparePayload: Encodable {
+        let operation = "prepare"
+        let provider: String
+        let provider_subject: String
+    }
+
+    private struct GhostProfileMergePrepareResponse: Decodable {
+        let handoff_id: String
+        let handoff_secret: String
+        let expires_at: String
+    }
+
+    private struct GhostProfileMergeCompletePayload: Encodable {
+        let operation = "complete"
+        let handoff_id: String
+        let handoff_secret: String
+    }
+
+    private struct GhostProfileIdentityRefreshPayload: Encodable {
+        let operation = "refresh_identity"
+    }
+
+    struct PendingGhostProfileMerge: Codable, Equatable {
+        let ghostUserId: String
+        let provider: String
+        let providerSubject: String
+        let handoffId: String
+        let handoffSecret: String
+        let expiresAt: String
+    }
+
+    struct PendingGhostProfileMergeQueue: Codable, Equatable {
+        let version: Int
+        var handoffs: [PendingGhostProfileMerge]
+
+        init(handoffs: [PendingGhostProfileMerge]) {
+            self.version = 1
+            self.handoffs = handoffs
+        }
+    }
+
+    private struct GhostProfileMergeErrorPayload: Decodable {
+        let code: String?
     }
 
     // MARK: - Singleton Architecture
@@ -94,6 +144,14 @@ enum SupabaseAuthTransitionError: LocalizedError {
     /// `initializeGhostSession()` while the first network round-trip is suspended; without this
     /// handle they each attempt a fresh anonymous sign-in and race to replace the active session.
     @ObservationIgnored private var ghostSessionTask: Task<Void, Never>?
+    /// Single-flight completion for a persisted provider-bound guest merge.
+    /// Auth callbacks and the interactive login path can observe the same new
+    /// permanent session; both converge on this task rather than racing cleanup.
+    @ObservationIgnored private var ghostProfileMergeTask: Task<Bool, Never>?
+    /// Identifies the currently retained task so a cancelled task that finishes
+    /// later cannot clear the handle for a newer auth session's merge.
+    @ObservationIgnored private var ghostProfileMergeTaskId: UUID?
+    @ObservationIgnored private var ghostProfileMergeTaskTargetUserId: String?
     /// Single-flight sign-out handle. Authenticated request creation is closed as
     /// soon as this transition begins, before the SDK invalidates the session.
     @ObservationIgnored private var signOutTask: Task<Void, Never>?
@@ -159,6 +217,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 lastPublicAuthorIdentityRefreshUserId = nil
                 publicAuthorIdentityRefreshTask?.cancel()
                 publicAuthorIdentityRefreshTask = nil
+                cancelGhostProfileMergeTask()
             }
 
             MerianLog.auth.debug("Auth event: \(String(describing: state.event), privacy: .public) | authenticated: \(self.isAuthenticated, privacy: .private)")
@@ -359,6 +418,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
         publicAuthorIdentityRefreshTask?.cancel()
         publicAuthorIdentityRefreshTask = nil
+        cancelGhostProfileMergeTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
         PostHogManager.shared.reset()
         return cancelledGhostSessionTask
@@ -421,6 +481,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
         lastPublicAuthorIdentityRefreshUserId = nil
         publicAuthorIdentityRefreshTask?.cancel()
         publicAuthorIdentityRefreshTask = nil
+        cancelGhostProfileMergeTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
         PostHogManager.shared.reset()
         await RevenueCatManager.shared.handleSupabaseSignOut()
@@ -493,7 +554,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
             isAuthenticated = true
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
             if didPersistGoogleMetadata {
-                await triggerGhostProfileMerge(from: session.user.id.uuidString)
+                _ = await refreshPublicAuthorIdentity()
             }
             publishPublicAuthorIdentityChanged(
                 previousUserId: previousUserId,
@@ -547,22 +608,61 @@ enum SupabaseAuthTransitionError: LocalizedError {
         accessToken: String?,
         nonce: String?
     ) async throws -> String? {
-        let previousUserId = try? await client.auth.session.user.id.uuidString
+        guard !isSigningOut else {
+            throw SupabaseAuthTransitionError.signOutInProgress
+        }
 
-        if self.isGuestUser {
+        let previousSession = try? await client.auth.session
+        let previousUserId = previousSession?.user.id.uuidString
+
+        if previousSession?.user.isAnonymous == true {
+            let credentials = OpenIDConnectCredentials(
+                provider: provider,
+                idToken: idToken,
+                accessToken: accessToken,
+                nonce: nonce
+            )
+
             do {
                 _ = try await client.auth.linkIdentityWithIdToken(
-                    credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
+                    credentials: credentials
                 )
-                if let ghostId = previousUserId {
-                    await triggerGhostProfileMerge(from: ghostId)
+                if let previousUserId {
+                    clearPendingGhostProfileMerges(
+                        ghostUserId: previousUserId
+                    )
                 }
             } catch {
-                _ = try await client.auth.signInWithIdToken(
-                    credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
+                guard Self.requiresProviderBoundGhostMerge(after: error) else {
+                    throw error
+                }
+                guard !isSigningOut else {
+                    throw SupabaseAuthTransitionError.signOutInProgress
+                }
+                guard let ghostId = previousUserId?.lowercased() else {
+                    throw SupabaseAuthTransitionError.guestMergeSessionChanged
+                }
+
+                let currentGuestSession = try await client.auth.session
+                guard currentGuestSession.user.isAnonymous,
+                      currentGuestSession.user.id.uuidString.lowercased() == ghostId else {
+                    throw SupabaseAuthTransitionError.guestMergeSessionChanged
+                }
+
+                let providerSubject = try Self.oauthProviderSubject(from: idToken)
+                _ = try await prepareGhostProfileMerge(
+                    ghostUserId: ghostId,
+                    provider: provider,
+                    providerSubject: providerSubject
                 )
-                if let ghostId = previousUserId {
-                    await triggerGhostProfileMerge(from: ghostId)
+
+                let targetSession = try await client.auth.signInWithIdToken(credentials: credentials)
+                if targetSession.user.id.uuidString.lowercased() == ghostId {
+                    clearPendingGhostProfileMerges(ghostUserId: ghostId)
+                } else {
+                    _ = await completePendingGhostProfileMergeIfNeeded(
+                        expectedTargetUserId: targetSession.user.id.uuidString
+                    )
                 }
             }
         } else {
@@ -575,18 +675,302 @@ enum SupabaseAuthTransitionError: LocalizedError {
     }
 
     @discardableResult
-    private func triggerGhostProfileMerge(from ghostId: String) async -> Bool {
-        do {
-            _ = try await client.functions.invoke(
-                "merge-ghost-profile",
-                options: .init(body: GhostProfileMergePayload(ghost_id: ghostId))
+    private func prepareGhostProfileMerge(
+        ghostUserId: String,
+        provider: OpenIDConnectCredentials.Provider,
+        providerSubject: String
+    ) async throws -> PendingGhostProfileMerge {
+        let response: GhostProfileMergePrepareResponse = try await client.functions.invoke(
+            "merge-ghost-profile",
+            options: .init(
+                body: GhostProfileMergePreparePayload(
+                    provider: provider.rawValue,
+                    provider_subject: providerSubject
+                )
             )
-            MerianLog.auth.debug("Ghost profile upgrade finalized for \(ghostId, privacy: .private)")
-            return true
+        )
+
+        let pending = PendingGhostProfileMerge(
+            ghostUserId: ghostUserId,
+            provider: provider.rawValue,
+            providerSubject: providerSubject,
+            handoffId: response.handoff_id,
+            handoffSecret: response.handoff_secret,
+            expiresAt: response.expires_at
+        )
+        let queue = Self.enqueuingPendingGhostProfileMerge(
+            pending,
+            in: loadPendingGhostProfileMergeQueue()
+        )
+        try persistPendingGhostProfileMergeQueue(queue)
+        MerianLog.auth.debug("Secured provider-bound guest profile handoff.")
+        return pending
+    }
+
+    @discardableResult
+    private func completePendingGhostProfileMergeIfNeeded(
+        expectedTargetUserId: String? = nil
+    ) async -> Bool {
+        if let existingTask = ghostProfileMergeTask {
+            if ghostProfileMergeTaskTargetUserId
+                == expectedTargetUserId?.lowercased() {
+                return await existingTask.value
+            }
+
+            // A new authenticated identity superseded this in-flight attempt.
+            // The old request remains server-idempotent, but its task must not
+            // suppress completion for the new active session.
+            cancelGhostProfileMergeTask()
+        }
+
+        let taskId = UUID()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return false }
+            return await self.performPendingGhostProfileMerge(
+                expectedTargetUserId: expectedTargetUserId
+            )
+        }
+        ghostProfileMergeTaskId = taskId
+        ghostProfileMergeTaskTargetUserId = expectedTargetUserId?.lowercased()
+        ghostProfileMergeTask = task
+        let result = await task.value
+        if ghostProfileMergeTaskId == taskId {
+            ghostProfileMergeTask = nil
+            ghostProfileMergeTaskId = nil
+            ghostProfileMergeTaskTargetUserId = nil
+        }
+        return result
+    }
+
+    private func performPendingGhostProfileMerge(
+        expectedTargetUserId: String?
+    ) async -> Bool {
+        guard !Task.isCancelled, !isSigningOut else { return false }
+        let pendingHandoffs = loadPendingGhostProfileMergeQueue()
+        guard !pendingHandoffs.isEmpty else { return true }
+
+        do {
+            let session = try await client.auth.session
+            guard !session.user.isAnonymous else { return false }
+
+            let targetUserId = session.user.id.uuidString.lowercased()
+            if let expectedTargetUserId,
+               targetUserId != expectedTargetUserId.lowercased() {
+                MerianLog.auth.error("Refused guest merge retry for an unexpected active account.")
+                return false
+            }
+
+            var allHandoffsResolved = true
+            for pending in pendingHandoffs {
+                guard !Task.isCancelled, !isSigningOut else { return false }
+
+                do {
+                    try await client.functions.invoke(
+                        "merge-ghost-profile",
+                        options: .init(
+                            body: GhostProfileMergeCompletePayload(
+                                handoff_id: pending.handoffId,
+                                handoff_secret: pending.handoffSecret
+                            )
+                        )
+                    )
+                    guard !Task.isCancelled, !isSigningOut else { return false }
+
+                    clearPendingGhostProfileMerge(handoffId: pending.handoffId)
+                    MerianLog.auth.debug(
+                        "Guest profile upgrade finalized for \(pending.ghostUserId, privacy: .private)"
+                    )
+                } catch {
+                    if Self.shouldDiscardPendingGhostProfileMerge(after: error) {
+                        clearPendingGhostProfileMerge(handoffId: pending.handoffId)
+                        MerianLog.auth.error(
+                            "Discarded a terminal guest profile handoff: \(error.localizedDescription, privacy: .private)"
+                        )
+                    } else {
+                        allHandoffsResolved = false
+                        MerianLog.auth.error(
+                            "Guest profile upgrade remains pending and will retry: \(error.localizedDescription, privacy: .private)"
+                        )
+                    }
+                }
+            }
+            return allHandoffsResolved
         } catch {
-            MerianLog.auth.debug("Ghost profile merge failed: \(error.localizedDescription, privacy: .private)")
+            MerianLog.auth.error(
+                "Guest profile upgrade retry could not read the active session: \(error.localizedDescription, privacy: .private)"
+            )
             return false
         }
+    }
+
+    @discardableResult
+    private func refreshPublicAuthorIdentity() async -> Bool {
+        do {
+            try await client.functions.invoke(
+                "merge-ghost-profile",
+                options: .init(body: GhostProfileIdentityRefreshPayload())
+            )
+            return true
+        } catch {
+            MerianLog.auth.debug(
+                "Public author identity refresh failed: \(error.localizedDescription, privacy: .private)"
+            )
+            return false
+        }
+    }
+
+    private func loadPendingGhostProfileMergeQueue() -> [PendingGhostProfileMerge] {
+        guard let data = KeychainManager.shared.data(
+            forKey: KeychainKeys.pendingGhostProfileMerge
+        ) else {
+            return []
+        }
+
+        do {
+            if let queue = try? JSONDecoder().decode(
+                PendingGhostProfileMergeQueue.self,
+                from: data
+            ), queue.version == 1 {
+                return queue.handoffs
+            }
+
+            // Backward compatibility for builds that stored one handoff record.
+            let legacy = try JSONDecoder().decode(
+                PendingGhostProfileMerge.self,
+                from: data
+            )
+            do {
+                try persistPendingGhostProfileMergeQueue([legacy])
+            } catch {
+                // The original record is still readable. Preserve it and retry
+                // the format migration after the next successful Keychain write.
+                MerianLog.auth.error(
+                    "Could not migrate the guest profile handoff queue: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+            return [legacy]
+        } catch {
+            KeychainManager.shared.removeObject(forKey: KeychainKeys.pendingGhostProfileMerge)
+            MerianLog.auth.error("Discarded an unreadable guest profile handoff queue.")
+            return []
+        }
+    }
+
+    private func persistPendingGhostProfileMergeQueue(
+        _ handoffs: [PendingGhostProfileMerge]
+    ) throws {
+        if handoffs.isEmpty {
+            KeychainManager.shared.removeObject(
+                forKey: KeychainKeys.pendingGhostProfileMerge
+            )
+            return
+        }
+
+        let encoded = try JSONEncoder().encode(
+            PendingGhostProfileMergeQueue(handoffs: handoffs)
+        )
+        guard KeychainManager.shared.set(
+            encoded,
+            forKey: KeychainKeys.pendingGhostProfileMerge,
+            accessibility: .whenUnlockedThisDeviceOnly
+        ),
+        KeychainManager.shared.data(
+            forKey: KeychainKeys.pendingGhostProfileMerge
+        ) == encoded else {
+            throw SupabaseAuthTransitionError.guestMergeHandoffPersistenceFailed
+        }
+    }
+
+    private func clearPendingGhostProfileMerge(handoffId: String) {
+        let remaining = loadPendingGhostProfileMergeQueue().filter {
+            $0.handoffId.caseInsensitiveCompare(handoffId) != .orderedSame
+        }
+        do {
+            try persistPendingGhostProfileMergeQueue(remaining)
+        } catch {
+            MerianLog.auth.error(
+                "Could not update the guest profile handoff queue: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    private func clearPendingGhostProfileMerges(ghostUserId: String) {
+        let remaining = loadPendingGhostProfileMergeQueue().filter {
+            $0.ghostUserId.caseInsensitiveCompare(ghostUserId) != .orderedSame
+        }
+        do {
+            try persistPendingGhostProfileMergeQueue(remaining)
+        } catch {
+            MerianLog.auth.error(
+                "Could not update the guest profile handoff queue: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    private func cancelGhostProfileMergeTask() {
+        ghostProfileMergeTask?.cancel()
+        ghostProfileMergeTask = nil
+        ghostProfileMergeTaskId = nil
+        ghostProfileMergeTaskTargetUserId = nil
+    }
+
+    nonisolated static func requiresProviderBoundGhostMerge(after error: Error) -> Bool {
+        guard let authError = error as? AuthError else { return false }
+        return authError.errorCode == .identityAlreadyExists
+    }
+
+    nonisolated static func enqueuingPendingGhostProfileMerge(
+        _ pending: PendingGhostProfileMerge,
+        in handoffs: [PendingGhostProfileMerge]
+    ) -> [PendingGhostProfileMerge] {
+        var updated = handoffs.filter {
+            $0.ghostUserId.caseInsensitiveCompare(pending.ghostUserId)
+                != .orderedSame
+        }
+        updated.append(pending)
+        return updated
+    }
+
+    nonisolated static func shouldDiscardPendingGhostProfileMerge(
+        after error: Error
+    ) -> Bool {
+        guard case let FunctionsError.httpError(_, data) = error,
+              let payload = try? JSONDecoder().decode(
+                  GhostProfileMergeErrorPayload.self,
+                  from: data
+              ) else {
+            return false
+        }
+
+        return payload.code == "handoff_expired"
+            || payload.code == "handoff_invalid"
+    }
+
+    nonisolated static func oauthProviderSubject(from idToken: String) throws -> String {
+        let segments = idToken.split(separator: ".", omittingEmptySubsequences: false)
+        guard segments.count == 3 else {
+            throw SupabaseAuthTransitionError.invalidOAuthIdentityToken
+        }
+
+        var payload = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let padding = (4 - payload.count % 4) % 4
+        payload.append(String(repeating: "=", count: padding))
+
+        guard let data = Data(base64Encoded: payload),
+              let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let subject = object["sub"] as? String else {
+            throw SupabaseAuthTransitionError.invalidOAuthIdentityToken
+        }
+
+        let normalizedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedSubject.isEmpty,
+              normalizedSubject.count <= 255,
+              normalizedSubject.rangeOfCharacter(from: .controlCharacters) == nil else {
+            throw SupabaseAuthTransitionError.invalidOAuthIdentityToken
+        }
+        return normalizedSubject
     }
 
     @discardableResult
@@ -701,7 +1085,11 @@ enum SupabaseAuthTransitionError: LocalizedError {
         }
 
         guard !Task.isCancelled else { return }
-        guard await triggerGhostProfileMerge(from: userId) else { return }
+        _ = await completePendingGhostProfileMergeIfNeeded(
+            expectedTargetUserId: userId
+        )
+        guard !Task.isCancelled else { return }
+        guard await refreshPublicAuthorIdentity() else { return }
         guard !Task.isCancelled else { return }
         guard currentUser?.id.uuidString.lowercased() == userId else { return }
 
@@ -817,7 +1205,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                 isAuthenticated = true
                 _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
                 if didPersistAppleMetadata {
-                    await triggerGhostProfileMerge(from: session.user.id.uuidString)
+                    _ = await refreshPublicAuthorIdentity()
                 }
                 publishPublicAuthorIdentityChanged(
                     previousUserId: previousUserId,

@@ -126,6 +126,9 @@ enum UserDefaultsKeys {
 enum KeychainKeys {
     /// Distinguishes OAuth-authenticated users from anonymous ghost sessions.
     static let hasAuthenticatedOAuth = "Merian_HasAuthenticatedOAuth"
+    /// Provider-bound, one-use proof retained until the server confirms that
+    /// both the guest data merge and Auth cleanup completed.
+    static let pendingGhostProfileMerge = "Merian_PendingGhostProfileMerge"
 }
 
 enum ScanLibraryEvents {
