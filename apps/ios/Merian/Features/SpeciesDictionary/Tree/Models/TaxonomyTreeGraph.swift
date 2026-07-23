@@ -156,70 +156,19 @@ struct TaxonomyTreeGraph: Equatable {
             .map { $0 }
     }
 
-    func visibleNodeIDs(focusedNodeID: String?, selectedNodeID: String?, scale: CGFloat) -> Set<String> {
+    func visibleNodeIDs(focusedNodeID: String?, selectedNodeID _: String?, scale _: CGFloat) -> Set<String> {
         guard !nodes.isEmpty else { return [] }
 
-        let anchorID = focusedNodeID ?? selectedNodeID
-        let overviewRankIndex: Int
-        if scale < 1 {
-            overviewRankIndex = TaxonomyTreeRank.kingdom.sortIndex
-        } else if scale < 1.6 {
-            overviewRankIndex = TaxonomyTreeRank.phylum.sortIndex
-        } else if scale < 2.4 {
-            overviewRankIndex = TaxonomyTreeRank.className.sortIndex
-        } else if scale < 2.8 {
-            overviewRankIndex = TaxonomyTreeRank.order.sortIndex
-        } else if scale < 3.2 {
-            overviewRankIndex = TaxonomyTreeRank.family.sortIndex
-        } else if scale < 3.6 {
-            overviewRankIndex = TaxonomyTreeRank.genus.sortIndex
-        } else {
-            overviewRankIndex = TaxonomyTreeRank.species.sortIndex
-        }
-        var visibleIDs = focusedNodeID == nil
-            ? Set(nodes.filter { $0.rank.sortIndex <= overviewRankIndex }.map(\.id))
-            : []
-
-        guard let anchorID, node(id: anchorID) != nil else {
-            return visibleIDs
+        guard let focusedNodeID, node(id: focusedNodeID) != nil else {
+            // The overview is a persistent map too. Wide zoom uses compact marks and
+            // fewer labels instead of removing ranks from the constellation.
+            return Set(nodes.map(\.id))
         }
 
-        visibleIDs.insert(anchorID)
-        visibleIDs.formUnion(ancestorIDs(of: anchorID))
-
-        if focusedNodeID == nil {
-            visibleIDs.formUnion(contextualSiblingIDs(for: anchorID))
-        }
-
-        visibleIDs.formUnion(
-            descendantIDs(
-                of: anchorID,
-                maximumDepth: descendantExpansionDepth(for: scale)
-            )
-        )
-
+        var visibleIDs: Set<String> = [focusedNodeID]
+        visibleIDs.formUnion(ancestorIDs(of: focusedNodeID))
+        visibleIDs.formUnion(descendantIDs(of: focusedNodeID))
         return visibleIDs
-    }
-
-    private func contextualSiblingIDs(for nodeID: String, limit: Int = 12) -> Set<String> {
-        guard let parentID = parentByChildID[nodeID] else { return [] }
-        let siblings = childrenByParentID[parentID] ?? []
-        guard siblings.count > limit, let selectedIndex = siblings.firstIndex(of: nodeID) else {
-            return Set(siblings)
-        }
-
-        let halfWindow = limit / 2
-        let lowerBound = min(max(0, selectedIndex - halfWindow), siblings.count - limit)
-        return Set(siblings[lowerBound..<(lowerBound + limit)])
-    }
-
-    private func descendantExpansionDepth(for scale: CGFloat) -> Int {
-        if scale < 1.6 { return 1 }
-        if scale < 2.4 { return 2 }
-        if scale < 3.2 { return 3 }
-        if scale < 3.6 { return 4 }
-        if scale < 3.9 { return 5 }
-        return TaxonomyTreeRank.allCases.count
     }
 
     private static func nodeSort(_ lhs: TaxonomyTreeNode, _ rhs: TaxonomyTreeNode) -> Bool {

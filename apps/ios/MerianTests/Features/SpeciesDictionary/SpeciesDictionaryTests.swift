@@ -1121,16 +1121,19 @@ struct SpeciesDictionaryTests {
         #expect(monarchNode.dictionaryRoute?.scientificName == "Danaus plexippus")
         #expect(graph.searchResults(for: "monarch").first?.id == monarchID)
 
+        let allNodeIDs = Set(graph.nodes.map(\.id))
         let distantIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6)
-        #expect(distantIDs == Set([kingdomID]))
+        #expect(distantIDs == allNodeIDs)
 
         let overviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 1.1)
         #expect(overviewIDs.contains(phylumID))
-        #expect(!overviewIDs.contains(classID))
+        #expect(overviewIDs.contains(classID))
+        #expect(overviewIDs == distantIDs)
 
         let closeOverviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 2.1)
         #expect(closeOverviewIDs.contains(classID))
-        #expect(!closeOverviewIDs.contains(orderID))
+        #expect(closeOverviewIDs.contains(orderID))
+        #expect(closeOverviewIDs == distantIDs)
 
         let maximumOverviewIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 4)
         #expect(maximumOverviewIDs.contains(monarchID))
@@ -1138,15 +1141,24 @@ struct SpeciesDictionaryTests {
 
         let selectedClassIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: classID, scale: 1.1)
         #expect(selectedClassIDs.contains(orderID))
-        #expect(!selectedClassIDs.contains(familyID))
+        #expect(selectedClassIDs.contains(familyID))
+        #expect(selectedClassIDs == allNodeIDs)
 
-        let zoomedClassIDs = graph.visibleNodeIDs(focusedNodeID: classID, selectedNodeID: classID, scale: 2.1)
-        #expect(zoomedClassIDs.contains(familyID))
-        #expect(!zoomedClassIDs.contains(danausID))
+        let distantFocusedClassIDs = graph.visibleNodeIDs(
+            focusedNodeID: classID,
+            selectedNodeID: classID,
+            scale: 0.64
+        )
+        #expect(distantFocusedClassIDs.contains(familyID))
+        #expect(distantFocusedClassIDs.contains(danausID))
+        #expect(distantFocusedClassIDs.contains(monarchID))
 
-        let closeClassIDs = graph.visibleNodeIDs(focusedNodeID: classID, selectedNodeID: classID, scale: 3.1)
-        #expect(closeClassIDs.contains(danausID))
-        #expect(!closeClassIDs.contains(monarchID))
+        let closeFocusedClassIDs = graph.visibleNodeIDs(
+            focusedNodeID: classID,
+            selectedNodeID: classID,
+            scale: 4
+        )
+        #expect(distantFocusedClassIDs == closeFocusedClassIDs)
 
         let maximumKingdomIDs = graph.visibleNodeIDs(
             focusedNodeID: kingdomID,
@@ -1178,16 +1190,16 @@ struct SpeciesDictionaryTests {
         #expect(layout.size.height >= 480)
     }
 
-    @Test func testTaxonomyConstellationLaysOutHiddenDescendantsBeforeTheyBecomeVisible() throws {
+    @Test func testTaxonomyConstellationKeepsFocusedDescendantsVisibleWhileZoomingOut() throws {
         let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
         let kingdomID = "taxonomy:kingdom:animalia"
         let monarchID = "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
-        let beforeThreshold = graph.visibleNodeIDs(
+        let distantNodeIDs = graph.visibleNodeIDs(
             focusedNodeID: kingdomID,
             selectedNodeID: kingdomID,
-            scale: 3.89
+            scale: 0.64
         )
-        let afterThreshold = graph.visibleNodeIDs(
+        let closeNodeIDs = graph.visibleNodeIDs(
             focusedNodeID: kingdomID,
             selectedNodeID: kingdomID,
             scale: 4
@@ -1202,8 +1214,8 @@ struct SpeciesDictionaryTests {
         )
         let kingdomPosition = try #require(layout.positions[kingdomID])
 
-        #expect(!beforeThreshold.contains(monarchID))
-        #expect(afterThreshold.contains(monarchID))
+        #expect(distantNodeIDs == closeNodeIDs)
+        #expect(distantNodeIDs.contains(monarchID))
         #expect(layout.positions[monarchID] != nil)
         #expect(kingdomPosition == CGPoint(
             x: layout.size.width / 2,
@@ -1326,6 +1338,26 @@ struct SpeciesDictionaryTests {
         viewModel.setScale(10)
 
         #expect(viewModel.scale == 4)
+    }
+
+    @Test func testTaxonomyTreeCanFitLargeFocusedBranchOnScreen() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        let viewportSize = CGSize(width: 390, height: 760)
+        let contentSize = CGSize(width: 4_500, height: 4_500)
+        let expectedMinimum = viewModel.minimumScale(
+            for: viewportSize,
+            contentSize: contentSize
+        )
+
+        viewModel.zoom(
+            by: 0.01,
+            viewportSize: viewportSize,
+            contentSize: contentSize
+        )
+
+        #expect(expectedMinimum < 0.64)
+        #expect(expectedMinimum >= 0.08)
+        #expect(abs(viewModel.scale - expectedMinimum) < 0.001)
     }
 
     @Test func testTaxonomyTreeDefaultsToAllSpeciesAndResetsOnScopeChange() {

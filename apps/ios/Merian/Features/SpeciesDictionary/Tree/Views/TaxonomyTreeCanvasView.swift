@@ -138,12 +138,20 @@ struct TaxonomyTreeCanvasView: View {
                     canClearFocus: viewModel.focusedNodeID != nil || viewModel.selectedNodeID != nil,
                     onZoomOut: {
                         withAnimation(.snappy(duration: 0.22)) {
-                            viewModel.zoom(by: 0.78, viewportSize: proxy.size)
+                            viewModel.zoom(
+                                by: 0.78,
+                                viewportSize: proxy.size,
+                                contentSize: layout.size
+                            )
                         }
                     },
                     onZoomIn: {
                         withAnimation(.snappy(duration: 0.22)) {
-                            viewModel.zoom(by: 1.35, viewportSize: proxy.size)
+                            viewModel.zoom(
+                                by: 1.35,
+                                viewportSize: proxy.size,
+                                contentSize: layout.size
+                            )
                         }
                     },
                     onReset: {
@@ -159,7 +167,12 @@ struct TaxonomyTreeCanvasView: View {
                 .zIndex(4)
 
             }
-            .simultaneousGesture(viewModel.canvasGesture(in: proxy.size))
+            .simultaneousGesture(
+                viewModel.canvasGesture(
+                    in: proxy.size,
+                    contentSize: layout.size
+                )
+            )
             .onAppear {
                 viewModel.positionInitialViewportIfNeeded(positions: layout.positions, viewportSize: proxy.size)
             }
@@ -257,6 +270,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     @Published var baseScale: CGFloat = 1.1
 
     private let minScale: CGFloat = 0.64
+    private let absoluteMinScale: CGFloat = 0.08
     private let maxScale: CGFloat = 4
     private let initialScale: CGFloat = 1.1
     private let topRootViewportY: CGFloat = 180
@@ -315,7 +329,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         Int((scale / initialScale * 100).rounded())
     }
 
-    func canvasGesture(in viewportSize: CGSize) -> some Gesture {
+    func canvasGesture(in viewportSize: CGSize, contentSize: CGSize) -> some Gesture {
         SimultaneousGesture(
             DragGesture(minimumDistance: 2),
             MagnifyGesture()
@@ -328,7 +342,14 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
                     }
 
                     let anchor = clampedAnchor(magnification.startLocation, in: viewportSize)
-                    updateMagnification(magnification.magnification, anchoredAt: anchor)
+                    updateMagnification(
+                        magnification.magnification,
+                        anchoredAt: anchor,
+                        minimumScale: minimumScale(
+                            for: viewportSize,
+                            contentSize: contentSize
+                        )
+                    )
                     return
                 }
 
@@ -429,23 +450,38 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         }
     }
 
-    func zoom(by multiplier: CGFloat, viewportSize: CGSize) {
+    func zoom(by multiplier: CGFloat, viewportSize: CGSize, contentSize: CGSize? = nil) {
         zoom(
             by: multiplier,
-            anchoredAt: CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+            anchoredAt: CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2),
+            minimumScale: contentSize.map {
+                minimumScale(for: viewportSize, contentSize: $0)
+            }
         )
     }
 
-    func zoom(by multiplier: CGFloat, anchoredAt anchor: CGPoint) {
-        setScale(clampedScale(scale * multiplier), anchoredAt: anchor)
+    func zoom(by multiplier: CGFloat, anchoredAt anchor: CGPoint, minimumScale: CGFloat? = nil) {
+        setScale(
+            clampedScale(scale * multiplier, minimumScale: minimumScale),
+            anchoredAt: anchor,
+            minimumScale: minimumScale
+        )
     }
 
-    func updateMagnification(_ magnification: CGFloat, anchoredAt anchor: CGPoint) {
+    func updateMagnification(
+        _ magnification: CGFloat,
+        anchoredAt anchor: CGPoint,
+        minimumScale: CGFloat? = nil
+    ) {
         guard magnification.isFinite, magnification > 0 else { return }
         let previousMagnification = lastMagnification ?? 1
         let incrementalMagnification = magnification / previousMagnification
         lastMagnification = magnification
-        setScale(clampedScale(scale * incrementalMagnification), anchoredAt: anchor)
+        setScale(
+            clampedScale(scale * incrementalMagnification, minimumScale: minimumScale),
+            anchoredAt: anchor,
+            minimumScale: minimumScale
+        )
     }
 
     func endMagnification() {
@@ -454,9 +490,9 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         dragOffset = .zero
     }
 
-    func setScale(_ value: CGFloat, anchoredAt anchor: CGPoint) {
+    func setScale(_ value: CGFloat, anchoredAt anchor: CGPoint, minimumScale: CGFloat? = nil) {
         applyScale(
-            clampedScale(value),
+            clampedScale(value, minimumScale: minimumScale),
             anchoredAt: anchor,
             startingScale: scale,
             startingOffset: currentOffset
@@ -515,8 +551,24 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         )
     }
 
-    private func clampedScale(_ value: CGFloat) -> CGFloat {
-        min(maxScale, max(minScale, value))
+    func minimumScale(for viewportSize: CGSize, contentSize: CGSize) -> CGFloat {
+        guard viewportSize.width > 0,
+              viewportSize.height > 0,
+              contentSize.width > 0,
+              contentSize.height > 0 else { return minScale }
+        let usableViewport = CGSize(
+            width: viewportSize.width * 0.9,
+            height: max(240, viewportSize.height - 260)
+        )
+        let fitScale = min(
+            usableViewport.width / contentSize.width,
+            usableViewport.height / contentSize.height
+        )
+        return min(minScale, max(absoluteMinScale, fitScale))
+    }
+
+    private func clampedScale(_ value: CGFloat, minimumScale: CGFloat? = nil) -> CGFloat {
+        min(maxScale, max(minimumScale ?? minScale, value))
     }
 
     private func clampedAnchor(_ anchor: CGPoint, in viewportSize: CGSize) -> CGPoint {
@@ -645,7 +697,7 @@ private struct TaxonomyConstellationEdgesCanvas: View {
                 path.move(to: startCenter)
                 path.addLine(to: endCenter)
                 let tint = TaxonomyConstellationPalette.tint(for: endNode)
-                let semanticScale = max(1, scale)
+                let semanticScale = max(0.15, scale)
                 let lineageWeight = min(
                     2.4,
                     0.72 + CGFloat(log10(Double(max(1, endNode.speciesCount)))) * 0.58
@@ -835,14 +887,16 @@ private struct TaxonomyConstellationNodeView: View {
         VStack(spacing: 6) {
             nodeMark
 
-            Text(node.title)
-                .font(titleFont)
-                .foregroundStyle(.primary)
-                .lineLimit(node.isSpecies ? 2 : 1)
-                .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.72)
+            if style.showsTitle || isSelected || isFocused {
+                Text(node.title)
+                    .font(titleFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(node.isSpecies ? 2 : 1)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.72)
+            }
 
-            if style.showsMetadata || isSelected || isFocused {
+            if (style.showsTitle && style.showsMetadata) || isSelected || isFocused {
                 Text(metadataText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -851,11 +905,11 @@ private struct TaxonomyConstellationNodeView: View {
                     .minimumScaleFactor(0.72)
             }
         }
-        .frame(width: style.labelWidth)
+        .frame(width: style.showsTitle || isSelected || isFocused ? style.labelWidth : max(28, style.diameter))
         .contentShape(Rectangle())
         .opacity(isSpotlighted ? 1 : 0.24)
         .scaleEffect(isSelected || isFocused ? 1.06 : 1)
-        .scaleEffect(1 / max(1, scale))
+        .scaleEffect(1 / max(0.4, scale))
         .onTapGesture(perform: action)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
@@ -1037,27 +1091,77 @@ private struct TaxonomyConstellationGlyph: View {
 private struct TaxonomyConstellationNodeStyle {
     let diameter: CGFloat
     let labelWidth: CGFloat
+    let showsTitle: Bool
     let showsMetadata: Bool
     let showsSpeciesImage: Bool
 
     static func style(for node: TaxonomyTreeNode, scale: CGFloat) -> TaxonomyConstellationNodeStyle {
-        let baseDiameter: CGFloat
-        switch node.rank {
-        case .kingdom: baseDiameter = 78
-        case .phylum: baseDiameter = 70
-        case .className: baseDiameter = 64
-        case .order: baseDiameter = 58
-        case .family: baseDiameter = 54
-        case .genus: baseDiameter = 50
-        case .species: baseDiameter = scale >= 2.6 ? 74 : 52
-        }
+        let baseDiameter = diameter(for: node.rank, scale: scale)
+        let titleRankLimit = titleRankLimit(for: scale)
 
         return TaxonomyConstellationNodeStyle(
             diameter: baseDiameter,
             labelWidth: node.isSpecies ? 136 : max(116, baseDiameter + 42),
+            showsTitle: node.rank.sortIndex <= titleRankLimit,
             showsMetadata: scale >= 1.8,
             showsSpeciesImage: node.isSpecies && scale >= 2.6
         )
+    }
+
+    private static func diameter(for rank: TaxonomyTreeRank, scale: CGFloat) -> CGFloat {
+        if scale < 1 {
+            switch rank {
+            case .kingdom: return 58
+            case .phylum: return 44
+            case .className: return 34
+            case .order: return 24
+            case .family: return 17
+            case .genus: return 12
+            case .species: return 8
+            }
+        }
+
+        if scale < 1.6 {
+            switch rank {
+            case .kingdom: return 68
+            case .phylum: return 56
+            case .className: return 46
+            case .order: return 36
+            case .family: return 27
+            case .genus: return 19
+            case .species: return 11
+            }
+        }
+
+        if scale < 2.4 {
+            switch rank {
+            case .kingdom: return 74
+            case .phylum: return 64
+            case .className: return 56
+            case .order: return 48
+            case .family: return 40
+            case .genus: return 31
+            case .species: return 18
+            }
+        }
+
+        switch rank {
+        case .kingdom: return 78
+        case .phylum: return 70
+        case .className: return 64
+        case .order: return 58
+        case .family: return 54
+        case .genus: return 50
+        case .species: return scale >= 2.6 ? 74 : 52
+        }
+    }
+
+    private static func titleRankLimit(for scale: CGFloat) -> Int {
+        if scale < 0.85 { return TaxonomyTreeRank.phylum.sortIndex }
+        if scale < 1.2 { return TaxonomyTreeRank.order.sortIndex }
+        if scale < 1.8 { return TaxonomyTreeRank.family.sortIndex }
+        if scale < 2.6 { return TaxonomyTreeRank.genus.sortIndex }
+        return TaxonomyTreeRank.species.sortIndex
     }
 }
 
