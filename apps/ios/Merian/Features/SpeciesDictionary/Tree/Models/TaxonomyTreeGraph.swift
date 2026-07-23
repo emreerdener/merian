@@ -55,6 +55,7 @@ struct TaxonomyTreeGraph: Equatable {
     let nodesByID: [String: TaxonomyTreeNode]
     let childrenByParentID: [String: [String]]
     let parentByChildID: [String: String]
+    let rootNodeIDs: [String]
 
     static let empty = TaxonomyTreeGraph(nodes: [], edges: [])
 
@@ -65,7 +66,11 @@ struct TaxonomyTreeGraph: Equatable {
         self.nodes = sortedNodes
         self.edges = sortedEdges
         self.nodesByID = nodeLookup
-        self.parentByChildID = Dictionary(uniqueKeysWithValues: sortedEdges.map { ($0.to, $0.from) })
+        let parentLookup = Dictionary(uniqueKeysWithValues: sortedEdges.map { ($0.to, $0.from) })
+        self.parentByChildID = parentLookup
+        self.rootNodeIDs = sortedNodes
+            .filter { parentLookup[$0.id] == nil }
+            .map(\.id)
         self.childrenByParentID = Dictionary(grouping: sortedEdges, by: \.from)
             .mapValues { edges in
                 edges
@@ -77,13 +82,6 @@ struct TaxonomyTreeGraph: Equatable {
                         return Self.nodeSort(lhsNode, rhsNode)
                     }
             }
-    }
-
-    var rootNodeIDs: [String] {
-        nodes
-            .filter { parentByChildID[$0.id] == nil }
-            .sorted(by: Self.nodeSort)
-            .map(\.id)
     }
 
     func node(id: String?) -> TaxonomyTreeNode? {
@@ -595,6 +593,7 @@ struct TaxonomyConstellationEdgeSegment {
 struct TaxonomyConstellationScene {
     let revision: Int
     let layout: TaxonomyConstellationLayout
+    let visibleNodeIDs: Set<String>
 
     private struct PositionedNode {
         let node: TaxonomyTreeNode
@@ -650,6 +649,7 @@ struct TaxonomyConstellationScene {
     ) {
         self.revision = revision
         self.layout = layout
+        self.visibleNodeIDs = layoutNodeIDs
 
         let positionedNodes = graph.nodes.enumerated().compactMap { index, node -> PositionedNode? in
             guard layoutNodeIDs.contains(node.id),

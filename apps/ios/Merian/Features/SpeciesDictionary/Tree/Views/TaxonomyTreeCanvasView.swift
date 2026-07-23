@@ -37,7 +37,7 @@ struct TaxonomyTreeCanvasView: View {
     private var canvas: some View {
         GeometryReader { proxy in
             let scene = viewModel.constellationScene(in: proxy.size)
-            let visibleNodeIDs = viewModel.visibleNodeIDs
+            let visibleNodeIDs = scene.visibleNodeIDs
             let layout = scene.layout
             let selectedNode = viewModel.selectedNode
             let spotlightIDs = viewModel.spotlightNodeIDs
@@ -292,14 +292,6 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 
     var selectedNode: TaxonomyTreeNode? {
         graph.node(id: selectedNodeID)
-    }
-
-    var visibleNodeIDs: Set<String> {
-        graph.visibleNodeIDs(
-            focusedNodeID: focusedNodeID,
-            selectedNodeID: selectedNodeID,
-            scale: scale
-        )
     }
 
     /// Layout coordinates must not change while a pinch is in progress. The active

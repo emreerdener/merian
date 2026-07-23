@@ -3,6 +3,7 @@ import Foundation
 @testable import Merian
 import Testing
 
+@Suite("Species Dictionary Tests", .serialized)
 @MainActor
 struct SpeciesDictionaryTests {
     init() {
@@ -1120,6 +1121,7 @@ struct SpeciesDictionaryTests {
         #expect(danausNode.speciesCount == 2)
         #expect(monarchNode.dictionaryRoute?.scientificName == "Danaus plexippus")
         #expect(graph.searchResults(for: "monarch").first?.id == monarchID)
+        #expect(graph.rootNodeIDs == [kingdomID])
 
         let allNodeIDs = Set(graph.nodes.map(\.id))
         let distantIDs = graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6)
@@ -1413,10 +1415,16 @@ struct SpeciesDictionaryTests {
 
         await viewModel.loadTree()
         let loadedScene = viewModel.constellationScene(in: viewportSize)
+        viewModel.scale = 2.4
+        viewModel.offset = CGSize(width: -180, height: 90)
+        let gestureScene = viewModel.constellationScene(in: viewportSize)
         await viewModel.loadTree()
         let cachedScene = viewModel.constellationScene(in: viewportSize)
 
         #expect(viewModel.graph.nodes.count == 1)
+        #expect(gestureScene.revision == loadedScene.revision)
+        #expect(gestureScene.visibleNodeIDs == loadedScene.visibleNodeIDs)
+        #expect(gestureScene.visibleNodeIDs == ["taxonomy:kingdom:animalia"])
         #expect(cachedScene.revision == loadedScene.revision)
     }
 
