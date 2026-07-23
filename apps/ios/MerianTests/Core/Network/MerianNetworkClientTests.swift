@@ -65,6 +65,115 @@ class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+/// URLProtocol transport whose handlers are isolated by a request header.
+/// Each test owns a `ScopedMockTransport`, so independently configured clients
+/// can run concurrently without sharing endpoint dictionaries or sessions.
+final class ScopedMockURLProtocol: URLProtocol {
+    typealias Handler = (URLRequest) throws -> (HTTPURLResponse, Data)
+
+    private final class Registry: @unchecked Sendable {
+        private let lock = NSLock()
+        private var handlersByScope: [String: [String: Handler]] = [:]
+
+        func register(scopeID: String, path: String, handler: @escaping Handler) {
+            lock.lock()
+            defer { lock.unlock() }
+            handlersByScope[scopeID, default: [:]][path] = handler
+        }
+
+        func handler(scopeID: String, requestPath: String) -> Handler? {
+            lock.lock()
+            defer { lock.unlock() }
+            return handlersByScope[scopeID]?
+                .filter { requestPath.hasSuffix($0.key) }
+                .max { $0.key.count < $1.key.count }?
+                .value
+        }
+
+        func remove(scopeID: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            handlersByScope.removeValue(forKey: scopeID)
+        }
+    }
+
+    fileprivate static let scopeHeader = "X-Merian-Test-Scope"
+    private static let registry = Registry()
+
+    override class func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let scopeID = request.value(forHTTPHeaderField: Self.scopeHeader),
+              let path = request.url?.path,
+              let handler = Self.registry.handler(scopeID: scopeID, requestPath: path) else {
+            let error = NSError(
+                domain: "ScopedMockURLProtocol",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "No scoped endpoint configured"]
+            )
+            client?.urlProtocol(self, didFailWithError: error)
+            return
+        }
+
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+
+    fileprivate static func register(
+        scopeID: String,
+        path: String,
+        handler: @escaping Handler
+    ) {
+        registry.register(scopeID: scopeID, path: path, handler: handler)
+    }
+
+    fileprivate static func remove(scopeID: String) {
+        registry.remove(scopeID: scopeID)
+    }
+}
+
+final class ScopedMockTransport {
+    private let scopeID = UUID().uuidString
+
+    func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ScopedMockURLProtocol.self]
+        configuration.httpAdditionalHeaders = [
+            ScopedMockURLProtocol.scopeHeader: scopeID
+        ]
+        return URLSession(configuration: configuration)
+    }
+
+    func register(
+        path: String,
+        handler: @escaping ScopedMockURLProtocol.Handler
+    ) {
+        ScopedMockURLProtocol.register(
+            scopeID: scopeID,
+            path: path,
+            handler: handler
+        )
+    }
+
+    deinit {
+        ScopedMockURLProtocol.remove(scopeID: scopeID)
+    }
+}
+
 private final class SendableCallbackProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var value = false
@@ -96,6 +205,34 @@ struct MerianNetworkClientTests {
         // Inject so MerianNetworkClient hooks this instead of hitting live internet
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
+    }
+
+    @Test func testScopedMockTransportsIsolateConcurrentSessions() async throws {
+        let firstTransport = ScopedMockTransport()
+        let secondTransport = ScopedMockTransport()
+        let firstSession = firstTransport.makeSession()
+        let secondSession = secondTransport.makeSession()
+        let url = URL(string: "https://example.com/scoped-endpoint")!
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        firstTransport.register(path: "/scoped-endpoint") { _ in
+            (response, Data("first".utf8))
+        }
+        secondTransport.register(path: "/scoped-endpoint") { _ in
+            (response, Data("second".utf8))
+        }
+
+        async let firstResult = firstSession.data(from: url)
+        async let secondResult = secondSession.data(from: url)
+        let (firstData, _) = try await firstResult
+        let (secondData, _) = try await secondResult
+
+        #expect(String(decoding: firstData, as: UTF8.self) == "first")
+        #expect(String(decoding: secondData, as: UTF8.self) == "second")
     }
 
     @Test func testMissingAuthSessionRecoveryOnlyRegeneratesGuestSessions() {

@@ -16,16 +16,19 @@ final class SpeciesDictionaryPageViewModel {
     let speciesId: String?
     let entryPoint: SpeciesDictionaryEntryPoint
     var state: SpeciesDictionaryPageState = .idle
+    private let networkClient: MerianNetworkClient
     private var hasTrackedOpen = false
 
     init(
         scientificName: String,
         speciesId: String? = nil,
-        entryPoint: SpeciesDictionaryEntryPoint = .unknown
+        entryPoint: SpeciesDictionaryEntryPoint = .unknown,
+        networkClient: MerianNetworkClient = .shared
     ) {
         self.scientificName = scientificName
         self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         self.entryPoint = entryPoint
+        self.networkClient = networkClient
     }
 
     var loadedSpecies: SpeciesDictionaryEntry? {
@@ -50,12 +53,12 @@ final class SpeciesDictionaryPageViewModel {
         do {
             let species: SpeciesDictionaryEntry
             if let speciesId {
-                species = try await MerianNetworkClient.shared.getSpeciesDictionary(
+                species = try await networkClient.getSpeciesDictionary(
                     speciesId: speciesId,
                     scientificName: trimmedName.nilIfEmpty
                 )
             } else {
-                species = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: trimmedName)
+                species = try await networkClient.getSpeciesDictionary(scientificName: trimmedName)
             }
             state = .loaded(species)
             AppTelemetry.trackSpeciesDictionaryLoaded(

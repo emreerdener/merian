@@ -3,16 +3,19 @@ import Foundation
 @testable import Merian
 import Testing
 
-@Suite("Species Dictionary Tests", .serialized)
+@Suite("Species Dictionary Tests")
 @MainActor
 struct SpeciesDictionaryTests {
-    init() {
-        MockURLProtocol.mockEndpoints = [:]
+    private let networkClient: MerianNetworkClient
+    private let mockTransport: ScopedMockTransport
 
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [MockURLProtocol.self]
-        MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
-        MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
+    init() {
+        let mockTransport = ScopedMockTransport()
+        let networkClient = MerianNetworkClient()
+        networkClient.overridingSession = mockTransport.makeSession()
+        networkClient.resetSpeciesDictionaryCacheForTesting()
+        self.mockTransport = mockTransport
+        self.networkClient = networkClient
     }
 
     @Test func testSpeciesDictionaryResponseDecodesReferenceImagesAndLookalikes() throws {
@@ -314,7 +317,7 @@ struct SpeciesDictionaryTests {
             headerFields: nil
         )!
 
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+        mockTransport.register(path: "/species-dictionary") { request in
             #expect(request.url?.path.hasSuffix("/species-dictionary") == true)
             #expect(request.httpMethod == "POST")
 
@@ -324,7 +327,7 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let species = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: "Testus floridus")
+        let species = try await networkClient.getSpeciesDictionary(scientificName: "Testus floridus")
 
         #expect(species.id == "species-123")
         #expect(species.commonName == "Field Test")
@@ -445,7 +448,7 @@ struct SpeciesDictionaryTests {
             headerFields: nil
         )!
 
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+        mockTransport.register(path: "/species-dictionary") { request in
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(payload["species_id"] as? String == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
@@ -453,7 +456,7 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let species = try await MerianNetworkClient.shared.getSpeciesDictionary(
+        let species = try await networkClient.getSpeciesDictionary(
             speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
             scientificName: "Testus floridus"
         )
@@ -491,7 +494,7 @@ struct SpeciesDictionaryTests {
         )!
         var requestCount = 0
 
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+        mockTransport.register(path: "/species-dictionary") { request in
             requestCount += 1
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -499,8 +502,8 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let first = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: "Cache testus")
-        let second = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: "  Cache   testus  ")
+        let first = try await networkClient.getSpeciesDictionary(scientificName: "Cache testus")
+        let second = try await networkClient.getSpeciesDictionary(scientificName: "  Cache   testus  ")
 
         #expect(first.id == "species-cache")
         #expect(second.id == "species-cache")
@@ -595,7 +598,7 @@ struct SpeciesDictionaryTests {
         )!
         var requestCount = 0
 
-        MockURLProtocol.mockEndpoints["/species-observation-stats"] = { request in
+        mockTransport.register(path: "/species-observation-stats") { request in
             requestCount += 1
             #expect(request.url?.path.hasSuffix("/species-observation-stats") == true)
             #expect(request.httpMethod == "GET")
@@ -612,11 +615,11 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let first = try await MerianNetworkClient.shared.getSpeciesObservationStats(
+        let first = try await networkClient.getSpeciesObservationStats(
             speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
             scientificName: "Danaus plexippus"
         )
-        let second = try await MerianNetworkClient.shared.getSpeciesObservationStats(
+        let second = try await networkClient.getSpeciesObservationStats(
             speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
             scientificName: "  Danaus   plexippus  "
         )
@@ -627,7 +630,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryViewModelLoadsSpecies() async throws {
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { _ in
+        mockTransport.register(path: "/species-dictionary") { _ in
             let data = Data("""
             {
                 "data": {
@@ -652,7 +655,10 @@ struct SpeciesDictionaryTests {
             return (response, data)
         }
 
-        let viewModel = SpeciesDictionaryPageViewModel(scientificName: "Testus floridus")
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: "Testus floridus",
+            networkClient: networkClient
+        )
         await viewModel.load()
 
         guard case .loaded(let species) = viewModel.state else {
@@ -663,12 +669,15 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryViewModelMaps404ToNotFound() async {
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { _ in
+        mockTransport.register(path: "/species-dictionary") { _ in
             let response = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 404, httpVersion: nil, headerFields: nil)!
             return (response, Data(#"{"error":"Species not found"}"#.utf8))
         }
 
-        let viewModel = SpeciesDictionaryPageViewModel(scientificName: "Missing species")
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: "Missing species",
+            networkClient: networkClient
+        )
         await viewModel.load()
 
         #expect(viewModel.state == .notFound)
@@ -906,7 +915,7 @@ struct SpeciesDictionaryTests {
             headerFields: nil
         )!
 
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+        mockTransport.register(path: "/species-dictionary") { request in
             #expect(request.httpMethod == "POST")
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -923,7 +932,7 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryCatalog(
+        let response = try await networkClient.getSpeciesDictionaryCatalog(
             category: .group,
             group: " birds ",
             query: " Danaus ",
@@ -955,7 +964,7 @@ struct SpeciesDictionaryTests {
             headerFields: nil
         )!
 
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+        mockTransport.register(path: "/species-dictionary") { request in
             #expect(request.httpMethod == "POST")
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -966,7 +975,7 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryOverview(
+        let response = try await networkClient.getSpeciesDictionaryOverview(
             userRegion: " US "
         )
 
@@ -1055,7 +1064,7 @@ struct SpeciesDictionaryTests {
             headerFields: nil
         )!
 
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+        mockTransport.register(path: "/species-dictionary") { request in
             #expect(request.httpMethod == "POST")
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -1067,7 +1076,7 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree()
+        let response = try await networkClient.getSpeciesDictionaryTree()
 
         #expect(response.data.nodes.isEmpty)
         #expect(response.data.edges.isEmpty)
@@ -1090,7 +1099,7 @@ struct SpeciesDictionaryTests {
             headerFields: nil
         )!
 
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+        mockTransport.register(path: "/species-dictionary") { request in
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
 
@@ -1099,7 +1108,7 @@ struct SpeciesDictionaryTests {
             return (mockResponse, testData)
         }
 
-        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree(scope: .myScans)
+        let response = try await networkClient.getSpeciesDictionaryTree(scope: .myScans)
 
         #expect(response.data.nodes.isEmpty)
         #expect(response.data.edges.isEmpty)
@@ -1381,36 +1390,12 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testTaxonomyTreeCachedReloadKeepsActiveScene() async throws {
-        let testData = Data("""
-        {
-            "schema_version": 1,
-            "data": {
-                "nodes": [{
-                    "id": "taxonomy:kingdom:animalia",
-                    "rank": "kingdom",
-                    "title": "Animalia",
-                    "subtitle": "Kingdom",
-                    "parent_id": null,
-                    "species_count": 1,
-                    "child_count": 0,
-                    "lineage": null,
-                    "representative_species": null,
-                    "species": null
-                }],
-                "edges": []
-            }
+        let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
+        var loadCount = 0
+        let viewModel = TaxonomyTreeCanvasViewModel { _ in
+            loadCount += 1
+            return graph
         }
-        """.utf8)
-        let mockResponse = HTTPURLResponse(
-            url: URL(string: "https://example.com")!,
-            statusCode: 200,
-            httpVersion: nil,
-            headerFields: nil
-        )!
-        MockURLProtocol.mockEndpoints["/species-dictionary"] = { _ in
-            (mockResponse, testData)
-        }
-        let viewModel = TaxonomyTreeCanvasViewModel()
         let viewportSize = CGSize(width: 390, height: 760)
 
         await viewModel.loadTree()
@@ -1421,10 +1406,11 @@ struct SpeciesDictionaryTests {
         await viewModel.loadTree()
         let cachedScene = viewModel.constellationScene(in: viewportSize)
 
-        #expect(viewModel.graph.nodes.count == 1)
+        #expect(loadCount == 1)
+        #expect(viewModel.graph == graph)
         #expect(gestureScene.revision == loadedScene.revision)
         #expect(gestureScene.visibleNodeIDs == loadedScene.visibleNodeIDs)
-        #expect(gestureScene.visibleNodeIDs == ["taxonomy:kingdom:animalia"])
+        #expect(gestureScene.visibleNodeIDs == Set(graph.nodes.map(\.id)))
         #expect(cachedScene.revision == loadedScene.revision)
     }
 

@@ -280,6 +280,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     private let maxScale: CGFloat = 4
     private let initialScale: CGFloat = 1.1
     private let topRootViewportY: CGFloat = 180
+    private let graphLoader: (SpeciesDictionaryTreeScope) async throws -> TaxonomyTreeGraph
     private var lastMagnification: CGFloat?
     private var hasPositionedInitialViewport = false
     private var cachedGraphsByScope: [SpeciesDictionaryTreeScope: TaxonomyTreeGraph] = [:]
@@ -289,6 +290,15 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     private var cachedScene: TaxonomyConstellationScene?
     private var cachedSpotlightKey: TaxonomyConstellationSpotlightCacheKey?
     private var cachedSpotlightNodeIDs: Set<String> = []
+
+    init(
+        graphLoader: @escaping (SpeciesDictionaryTreeScope) async throws -> TaxonomyTreeGraph = { scope in
+            let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree(scope: scope)
+            return TaxonomyTreeGraphBuilder.build(from: response.data)
+        }
+    ) {
+        self.graphLoader = graphLoader
+    }
 
     var selectedNode: TaxonomyTreeNode? {
         graph.node(id: selectedNodeID)
@@ -430,8 +440,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree(scope: scope)
-            let loadedGraph = TaxonomyTreeGraphBuilder.build(from: response.data)
+            let loadedGraph = try await graphLoader(scope)
             cachedGraphsByScope[scope] = loadedGraph
             if selectedTreeScope == scope {
                 if applyGraph(loadedGraph) {
