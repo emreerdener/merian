@@ -42,10 +42,6 @@ struct ImageCropperView: View {
         GeometryReader { geometry in
             // Calculate a perfect 1:1 square viewport dynamically inset from screen edges
             let displaySize = max(0, min(geometry.size.width, geometry.size.height) - 32)
-            // Full-screen covers can lay this view out from the physical screen edge.
-            // Anchor the controls below the actual status-bar / Dynamic Island inset
-            // instead of guessing from a device-height threshold.
-            let topToolbarPadding = geometry.safeAreaInsets.top + 12
 
             ZStack {
                 // 1. Immutable Canvas
@@ -114,7 +110,10 @@ struct ImageCropperView: View {
                     }
                     .environment(\.colorScheme, .dark)
                     .padding(.horizontal, 24)
-                    .padding(.top, topToolbarPadding)
+                    // The full-screen cover's foreground layout already begins below
+                    // the status-bar safe area, so adding the inset again pushes this
+                    // toolbar into the body of the viewport.
+                    .padding(.top, 12)
 
                     Spacer()
 
