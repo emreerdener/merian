@@ -635,7 +635,7 @@ struct ScanLibraryFilters: Equatable, Sendable {
             let sortOpt = self.sortOption
             let sortPrimitivesById = self.sortPrimitivesById
             
-            let worker = Task.detached(priority: .userInitiated) {
+            let worker = Task.detached(priority: .userInitiated) { () -> [String] in
                 let filteredIDs = filterIndex.matchingIDs(
                     in: matchingIds,
                     query: activeFilterQuery
