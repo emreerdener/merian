@@ -127,6 +127,33 @@ owner weather/location fields without rerunning inference. See the function-
 local READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
 contract.
 
+### Incremental Species-Count Boundary
+
+Migration `20260724222838_optimize_species_count_trigger.sql` replaces the
+historical per-row full-history recount on `public.scans`. It creates the
+private `internal.user_species_scan_counts` ledger keyed by
+`(user_id, species_id)`, backfills it once while scan writes are locked, repairs
+the public projection, and installs separate statement-level insert, delete,
+update, and truncate triggers.
+
+Insert/delete transition tables aggregate each pair once. The update trigger
+combines complete OLD and NEW transition sets and drops zero-net pairs, so
+ordinary weather, media, moderation, and ingestion-state updates do not touch
+species-count state. Owner or species changes debit the old pair and credit the
+new pair in the same transaction. The private helper locks affected user rows
+in UUID order and changes `users.total_species_discovered` only when a ledger
+row is created or removed. A live-owner underflow fails the scan statement
+instead of silently accepting drift. The all-zero tombstone user and null
+species remain excluded, preserving the previous metric definition.
+
+The ledger and all helper functions deny direct execution or table access to
+`PUBLIC`, `anon`, `authenticated`, and `service_role`; authenticated scan writes
+reach them only through PostgreSQL triggers. Static coverage lives in
+`functions/_tests/speciesCountTriggerMigrationContract.test.ts`. Executable
+catalog and behavior coverage lives in
+`tests/species_count_trigger_security.sql` and is included in
+`make test-supabase-privileged-routines`.
+
 ### Public Species Contract
 
 `species-dictionary` is an intentionally public, read-only Edge Function with
@@ -440,6 +467,17 @@ It also guards the APNs device-token repair so PostgreSQL format validation and
 coverage in `tests/push_device_registration.sql` accepts a normal 64-character
 hex token and rejects short, oversized, and non-hex tokens.
 
+Species-count projection has paired tests:
+
+- `_tests/speciesCountTriggerMigrationContract.test.ts` rejects restoration of
+  `COUNT(DISTINCT ...)`, row-level triggers, missing transition tables, unsafe
+  ACLs/search paths, or removal of deterministic user locking.
+- `tests/species_count_trigger_security.sql` checks the live catalog plus bulk
+  insert, unrelated update, owner transfer, species replacement, duplicate,
+  scan deletion, and dictionary `SET NULL` behavior. It deliberately corrupts
+  one projected total before an unrelated update to prove no hidden
+  full-history recount still runs.
+
 The suite also locks the Explore current-scan reference exclusion helper and
 the unchanged `get_explore_post_detail` response projection. Run the static
 contract plus the executable DB case after changing species-reference ordering,
@@ -484,6 +522,8 @@ supabase --workdir services test db --local \
   services/supabase/tests/push_device_registration.sql
 supabase --workdir services test db --local \
   services/supabase/tests/scan_media_asset_uniqueness.sql
+supabase --workdir services test db --local \
+  services/supabase/tests/species_count_trigger_security.sql
 supabase --workdir services test db --local \
   services/supabase/tests/species_observation_stats_security.sql
 ```

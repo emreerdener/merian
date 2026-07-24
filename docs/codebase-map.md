@@ -262,6 +262,18 @@ lives in
 `_tests/aiQuotaCoverage.test.ts`, `_tests/aiQuotaMigrationContract.test.ts`, and
 `tests/ai_quota_security.sql`.
 
+Server species-count projection:
+
+- `services/supabase/migrations/20260724222838_optimize_species_count_trigger.sql`
+  owns the private `(user_id, species_id)` scan-count ledger, one-time drift
+  repair, deterministic per-user serialization, and the insert/delete/update/
+  truncate transition-table triggers.
+- `services/supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts`
+  locks the statement-level, no-full-recount schema contract.
+- `services/supabase/tests/species_count_trigger_security.sql` exercises bulk
+  inserts, unrelated updates, OLD/NEW owner and species transfers, deletion,
+  dictionary `SET NULL`, catalog shape, fixed search paths, and API-role denial.
+
 Public species data:
 
 - `species-dictionary`

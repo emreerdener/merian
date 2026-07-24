@@ -24,12 +24,14 @@ are identified by a persistent Keychain-backed
 - **`users`**: Binds the IDFV (or authenticated UUID) to the product schema,
   tracking usage limits, subscription tier, public Explore display identity,
   avatar projection, and canonical `public_username` handle.
-- **`unified_species_count_sync`
-  (`20260320132111_unified_species_count_trigger.sql`)**: A unified, idempotent
-  Postgres `AFTER INSERT OR UPDATE OR DELETE ON public.scans` trigger that
-  recalculates `total_species_discovered` in the `users` table via
-  `SELECT COUNT(DISTINCT species_id)`. This replaces the previously split
-  trigger files and eliminates TOCTOU schema drift on moderation updates.
+- **`internal.user_species_scan_counts`
+  (`20260724222838_optimize_species_count_trigger.sql`)**: A private
+  `(user_id, species_id)` ledger with the number of matching scans. Four
+  statement-level transition-table triggers aggregate insert, delete, update,
+  and truncate changes. The total changes only when a ledger row crosses zero;
+  owner transfers include both `OLD.user_id` and `NEW.user_id`, while unrelated
+  scan updates net to no work. The migration replaces the historical
+  `unified_species_count_sync` full-history row trigger.
 
 ## Shared Edge Utilities (`_shared/`)
 
@@ -1431,7 +1433,15 @@ indexes:
   `scans (geoprivacy, is_live_capture, timestamp DESC)` — global discovery feed
   fetches.
 - `idx_scans_user_species` on `scans (user_id, species_id)` — supports the
-  Postgres trigger computing `COUNT(DISTINCT species_id)`.
+  one-time species-ledger backfill, reconciliation diagnostics, and ordinary
+  user/species lookup.
+- `internal.user_species_scan_counts` primary key on `(user_id, species_id)` —
+  serializes one exact owner/species counter and makes existence the distinct
+  species unit.
+- `user_species_scan_counts_species_idx` on
+  `internal.user_species_scan_counts (species_id, user_id)` — supports the
+  deferred dictionary foreign-key check after scan `ON DELETE SET NULL`
+  transitions.
 - `idx_scans_lifecycle` on `scans (timestamp) WHERE image_storage_urls != '{}'`
   — supports media-present scans queries used by public/feed/reference-image
   projections.
@@ -1711,10 +1721,11 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
    storage domain (`https://<account>.r2.cloudflarestorage.com/<bucket>/...`)
    before issuing signed `DELETE` requests via `AwsClient` from `aws4fetch`.
 3. **Database Erasure**: A `.delete()` call removes the scan row.
-4. **Gamification Trigger**: The `decrement_user_species_count()` PL/pgSQL
-   function fires on `AFTER DELETE ON public.scans`. If the deleted scan was the
-   user's last record for that `species_id`, it decrements
-   `users.total_species_discovered` by 1 without going below zero.
+4. **Gamification Projection**: The statement-level scan-delete trigger
+   subtracts the deleted rows from `internal.user_species_scan_counts`. If a
+   `(user_id, species_id)` row reaches zero, the ledger row is removed and
+   `users.total_species_discovered` decreases by one without going below zero.
+   A multi-row delete aggregates each affected pair once.
 
 #### V8 Execution Abstractions
 

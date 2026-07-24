@@ -65,8 +65,8 @@ The workflow performs the following steps:
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the privileged-routine, AI quota, and RevenueCat pgTAP catalog
-   gates.
+   and runs the privileged-routine, AI quota, RevenueCat, species-count,
+   public-species-stats, and waitlist pgTAP catalog gates.
 9. Builds an affected-function deployment plan from the pushed Git diff. Manual
    dispatch and an unresolvable Git diff safely select the full fleet.
 10. Prepares a Postgres connection string for database migrations without
@@ -491,6 +491,120 @@ route live, stop the release and fail provider access closed (including
 temporarily removing the provider secret if necessary) until every affected
 route is on the guarded bundle. Fix forward; keep the quota schema and durable
 reservation evidence.
+
+### Incremental Species-Count Release Gate
+
+Migration `20260724222838_optimize_species_count_trigger.sql` is database-only.
+It replaces the `unified_species_count_sync` row trigger with the private
+`internal.user_species_scan_counts` ledger and four statement-level transition
+triggers. No Edge Function deployment or new secret is required.
+
+The migration deliberately takes `SHARE ROW EXCLUSIVE` on `public.scans`.
+Existing writes finish first; new scan inserts, updates, deletes, and cascading
+owner/species changes wait while one grouped backfill runs, projected totals
+are repaired, and the trigger set is swapped. The lock is held until the
+migration transaction commits. Before production deployment, inspect the
+planner estimate and physical size:
+
+```sql
+SELECT
+    relation.reltuples::BIGINT AS estimated_scan_rows,
+    pg_size_pretty(
+        pg_total_relation_size('public.scans'::REGCLASS)
+    ) AS total_scan_storage
+FROM pg_class AS relation
+WHERE relation.oid = 'public.scans'::REGCLASS;
+```
+
+For a materially larger table than the local/preview fixtures, deploy in a
+low-write window and watch active transactions before the push. Do not remove
+the lock to make the migration appear non-blocking: an unlocked backfill leaves
+a cutover interval where committed scan writes are absent from the ledger.
+
+Run the complete local contract before deployment:
+
+```bash
+make validate-supabase-migrations
+supabase --workdir services db start
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/privileged_routine_security.sql \
+  services/supabase/tests/species_count_trigger_security.sql
+```
+
+After production migration history confirms the file, use a direct read-only
+database session—not PostgREST—to verify the trigger catalog:
+
+```sql
+SELECT
+    trigger_row.tgname,
+    (trigger_row.tgtype::INTEGER & 1) = 0 AS statement_level,
+    trigger_row.tgoldtable,
+    trigger_row.tgnewtable
+FROM pg_trigger AS trigger_row
+JOIN pg_class AS relation_row
+  ON relation_row.oid = trigger_row.tgrelid
+JOIN pg_namespace AS namespace_row
+  ON namespace_row.oid = relation_row.relnamespace
+WHERE namespace_row.nspname = 'public'
+  AND relation_row.relname = 'scans'
+  AND NOT trigger_row.tgisinternal
+  AND trigger_row.tgname LIKE 'sync_user_species_counts_after_%'
+ORDER BY trigger_row.tgname;
+```
+
+Expected: four rows, every `statement_level` is true, insert/delete/update have
+their documented transition aliases, and truncate has no transition alias.
+`unified_species_count_sync` and
+`public.sync_global_species_count()` must be absent.
+
+Then verify the public projection against the private ledger:
+
+```sql
+WITH ledger_totals AS (
+    SELECT
+        users.id AS user_id,
+        COUNT(counts.species_id)::INTEGER AS species_count
+    FROM public.users AS users
+    LEFT JOIN internal.user_species_scan_counts AS counts
+      ON counts.user_id = users.id
+    WHERE users.id
+        <> '00000000-0000-0000-0000-000000000000'::UUID
+    GROUP BY users.id
+)
+SELECT COUNT(*) AS projection_mismatches
+FROM public.users AS users
+JOIN ledger_totals AS totals
+  ON totals.user_id = users.id
+WHERE users.total_species_discovered
+    IS DISTINCT FROM totals.species_count;
+
+SELECT
+    (
+        SELECT COALESCE(SUM(counts.scan_count), 0)
+        FROM internal.user_species_scan_counts AS counts
+    ) AS ledger_assigned_scans,
+    (
+        SELECT COUNT(*)
+        FROM public.scans AS scans
+        WHERE scans.species_id IS NOT NULL
+          AND scans.user_id
+              <> '00000000-0000-0000-0000-000000000000'::UUID
+    ) AS source_assigned_scans;
+```
+
+Expected: zero projection mismatches and equal assigned-scan totals. The second
+query reads the scan index/table and should be run once during the same
+low-traffic verification window. Also confirm API roles have neither table
+access nor EXECUTE on the five internal routines; the disposable pgTAP test
+owns the exact signatures.
+
+If the migration fails before commit, PostgreSQL rolls back the table, backfill,
+function, and trigger changes together. If a post-commit invariant is nonzero,
+stop the release and write a forward repair migration that takes the same scan
+lock and rebuilds the ledger. Never run an unlocked manual backfill, enable the
+legacy row trigger alongside the new triggers, grant API access to the ledger,
+or edit `total_species_discovered` independently.
 
 ### Public Species Observation Stats Release Gate
 

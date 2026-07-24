@@ -38,6 +38,40 @@ catalog pgTAP test. A public definer owned by any role other than `postgres`
 fails the hosted audit because that role's future default privileges are a
 separate security boundary.
 
+### Species-count projection ledger
+
+Migration `20260724222838_optimize_species_count_trigger.sql` replaces the
+historical per-row `COUNT(DISTINCT species_id)` trigger with
+`internal.user_species_scan_counts`:
+
+- primary key `(user_id, species_id)`;
+- positive `scan_count BIGINT`, representing every scan currently assigned to
+  the pair;
+- a cascading user foreign key and a deferred `NO ACTION` dictionary foreign
+  key, allowing the scan's `ON DELETE SET NULL` transition to own the ledger
+  decrement before referential integrity is checked;
+- a reverse `(species_id, user_id)` index for the species foreign key; and
+- RLS plus explicit denial of all direct API-role access.
+
+Separate `AFTER INSERT`, `DELETE`, and `UPDATE` statement triggers consume
+transition tables, aggregate the net delta for each pair, and call one private
+empty-search-path definer helper. The update trigger compares complete OLD and
+NEW statement sets because PostgreSQL does not permit `UPDATE OF` together with
+transition relations. An unrelated update therefore builds no net delta and
+does not touch the ledger or public total. Owner changes lock every affected
+`public.users` row in UUID order before applying deltas, so concurrent writes
+cannot lose a distinct-species boundary and multi-owner helper calls follow one
+deterministic lock order. A negative delta that exceeds a still-live owner's
+ledger state aborts with `user_species_scan_count_underflow` instead of hiding
+corruption. A truncate trigger clears the ledger and projections.
+
+The migration takes a `SHARE ROW EXCLUSIVE` lock on `public.scans`, backfills
+the ledger once, repairs historical `users.total_species_discovered` drift, and
+atomically swaps the triggers. The all-zero tombstone owner remains excluded,
+matching the former trigger's semantics. The ledger intentionally follows raw
+non-null `scans.species_id`; it does not change public Explore's separate
+biological/confirmed-species counting contract.
+
 ### `users`
 
 Tracks the global state of the anonymous/authenticated user.
@@ -67,14 +101,13 @@ Tracks the global state of the anonymous/authenticated user.
   uncertainty floor, and `open` restores exact public coordinates when exact GPS
   exists and species-safety rules allow it.
 - `current_streak_count` (Int): Gamification metric.
-- `total_species_discovered` (Int): Calculated at the database level via a
-  Postgres `AFTER INSERT` trigger (`update_user_species_count()`). To avoid
-  TOCTOU race conditions during bulk offline uploads, it recalculates the sum
-  via a subquery (`COUNT(DISTINCT species_id)`) rather than auto-incrementing.
-  DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS. This metric is
-  also maintained via an `AFTER DELETE` trigger
-  (`decrement_user_species_count()`) that deducts from the sum when a user
-  deletes their last scan of a species.
+- `total_species_discovered` (Int): Server-owned projection of the number of
+  rows in `internal.user_species_scan_counts` for the user. Statement-level
+  scan triggers increment or decrement it only when a non-null
+  `(user_id, species_id)` ledger row is created or removed. Bulk writes are
+  aggregated, owner transfers update both OLD and NEW owners, and unrelated
+  scan updates leave it untouched. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE
+  OR EDGE FUNCTIONS.
 - `abuse_strikes` (INT, DEFAULT 0): Incremented by the `/identify` background
   moderation pipeline each time Gemini's safety ratings flag submitted media as
   `MEDIUM` or `HIGH` probability, or when `finishReason === "SAFETY"`. Never

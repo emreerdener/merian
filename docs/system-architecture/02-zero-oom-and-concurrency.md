@@ -423,6 +423,23 @@ When executing `batchSaveUserPhotos` and `batchShareDiscovery` iteratively, pass
 
 ## 2. Serverless Edge Token Exhaustion & Race Conditions
 
+### Statement-Level Species Count Serialization (PostgreSQL)
+
+The original scan trigger ran `COUNT(DISTINCT species_id)` over a user's entire
+history once for every inserted, updated, or deleted row. Besides quadratic
+bulk-write amplification, an owner transfer updated only `NEW.user_id` and
+could leave the previous owner's projection stale.
+
+Migration `20260724222838_optimize_species_count_trigger.sql` replaces that
+path with the private `internal.user_species_scan_counts` ledger. PostgreSQL
+transition tables collapse each SQL statement into net `(user_id, species_id)`
+deltas, including OLD and NEW owner/species values. The helper locks affected
+user rows in UUID order, changes the public total only when a ledger row crosses
+zero, and keeps the ledger, scan mutation, and projection in the same
+transaction. Unrelated updates produce an empty net set. The deployment
+backfill and trigger swap hold a scan write lock so there is no untracked
+cutover interval.
+
 ### Inference Payload Racing (`identify` vs `enrich-scan`)
 Historically, the `identify` Deno Edge function attempted to pre-warm the database by invoking Gemini text-generation (`fetchStaticEncyclopedicData` and `fetchSimilarSpecies`) concurrently with the primary vision inference inside a background worker. Because the iOS client natively expects to fetch heavy supplementary text metadata explicitly via its own `/enrich-scan` API call during Insight Sheet hydration, the system previously fired dual payloads, duplicating Gemini AI costs globally across all user scans.
 

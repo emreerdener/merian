@@ -844,6 +844,28 @@ the transactional pgTAP file at production. Use
 `MERIAN_DATABASE_URL=... make audit-supabase-privileged-routines` for hosted,
 read-only verification instead.
 
+Incremental species-count maintenance has two complementary checks:
+
+- `_tests/speciesCountTriggerMigrationContract.test.ts` statically requires the
+  private composite ledger, its reverse foreign-key index, RLS/revocations,
+  empty-search-path definer routines, ordered user locks, and four
+  statement-level transition-table triggers. It rejects any new
+  `COUNT(DISTINCT ...)` or `FOR EACH ROW` path in the replacement migration.
+- `tests/species_count_trigger_security.sql` runs on the migrated catalog. It
+  checks trigger shape and transition aliases, legacy-routine removal, private
+  ACLs, and exact ledger/projection behavior across bulk insert, no-op
+  unrelated update, simultaneous OLD/NEW changes, last-duplicate removal, and
+  bulk delete. It rejects a live-owner ledger underflow and forces the deferred
+  dictionary constraint after an `ON DELETE SET NULL` transition. The
+  intentionally corrupted projection before the unrelated update is a
+  regression sentinel: the value must remain untouched, proving that routine
+  updates do not hide a full-history recount.
+
+Both are wired into `make validate-supabase-migrations`,
+`make test-supabase-privileged-routines`, and the deploy workflow. Run the
+database file only against the disposable local stack; it writes fixtures
+inside a transaction and rolls them back.
+
 Authoritative AI quota and entitlement security has four complementary checks:
 
 - `_shared/entitlement_test.ts` proves paid/trial/expired resolution, database

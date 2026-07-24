@@ -140,6 +140,7 @@ jobs:
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
             supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
@@ -220,6 +221,7 @@ jobs:
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
             supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
@@ -300,6 +302,7 @@ jobs:
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
             supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
@@ -431,6 +434,7 @@ jobs:
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
 
       - name: Start disposable database for privileged-routine validation
@@ -449,6 +453,7 @@ jobs:
             supabase/tests/privileged_routine_security.sql \
             supabase/tests/ai_quota_security.sql \
             supabase/tests/revenuecat_webhook_security.sql \
+            supabase/tests/species_count_trigger_security.sql \
             supabase/tests/species_observation_stats_security.sql \
             supabase/tests/waitlist_security.sql
 

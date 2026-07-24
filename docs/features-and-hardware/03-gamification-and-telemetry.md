@@ -37,11 +37,13 @@ Tracks device-local discovery milestones and achievement notification state.
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
 - The profile `Terrarium` presents bundled asset-catalog artwork selected by
   `UserPersona` for the user's current unique-species count.
-- **Erasure Mechanics (`decrement_user_species_count`)**: When a user
-  permanently deletes a scan that was their last documented capture of a
-  specific biological species, a PostgreSQL PL/pgSQL database trigger intercepts
-  the deletion and decrements their `users.total_species_discovered` counter,
-  keeping gamification counts accurate regardless of offline delay. Locally,
+- **Erasure mechanics**: PostgreSQL stores one private
+  `internal.user_species_scan_counts` row per user/species pair, including a
+  positive count of matching scans. Statement-level transition-table triggers
+  aggregate bulk changes. Permanently deleting the final matching scan removes
+  that ledger row and decrements `users.total_species_discovered`; deleting one
+  of several duplicates changes only `scan_count`. Owner transfers debit the
+  previous user and credit the new user in the same transaction. Locally,
   SwiftData recalculates the Scans library and syncs UI state.
 
 ## Track B: Achievements

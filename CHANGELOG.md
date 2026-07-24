@@ -101,6 +101,10 @@ TestFlight, App Store, support, and QA.
   also reads only direct collection memberships instead of repeatedly walking
   the entire local scan history, and server reconciliation now advances through
   existing memberships with a stable cursor before writing only the delta.
+- Made server species totals scale with the species assignments changed by a
+  scan write instead of rescanning a user's complete history. Bulk imports and
+  owner transfers now update one private incremental ledger per SQL statement,
+  and transfers repair both the previous and new owner's totals.
 - Prevented non-finite media geometry from reaching SwiftUI in Explore detail
   zoom and audio playmarkers, eliminating invalid-frame warnings and unstable
   offsets during transient layout/player states.

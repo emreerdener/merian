@@ -49,6 +49,7 @@ validate-supabase-migrations:
 		services/supabase/functions/_tests/migrationMediaContract.test.ts \
 		services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
 		services/supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+		services/supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
 		services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
 
 test-supabase-privileged-routines:
@@ -58,6 +59,7 @@ test-supabase-privileged-routines:
 		services/supabase/tests/privileged_routine_security.sql \
 		services/supabase/tests/ai_quota_security.sql \
 		services/supabase/tests/revenuecat_webhook_security.sql \
+		services/supabase/tests/species_count_trigger_security.sql \
 		services/supabase/tests/species_observation_stats_security.sql \
 		services/supabase/tests/waitlist_security.sql
 
