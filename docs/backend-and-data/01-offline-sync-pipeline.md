@@ -282,6 +282,13 @@ place, but retry ownership is no longer process-local: each job stores attempt
 counts, last errors, next-run times, server status/stage, and user-attention
 state in SwiftData.
 
+When a collection job drains, `BackgroundDatabaseActor.collectionSyncPayloads()`
+fetches only non-Favorites `ScanCollection` rows and prefetches their direct
+inverse `scans` relationships. It emits sorted scan IDs for deterministic
+retries; it does not page through the full `LocalScanRecord` table. The
+`sync-collections` Edge function compares that desired snapshot with current
+membership and writes only the server-side delta.
+
 ### 4. Background Processing & Batch Uploads
 
 The manager guards against expedition mode, connectivity, and an in-flight sync
@@ -946,11 +953,12 @@ disconnected.
    securely before performing a set-based delta sync for `collection_scans`
    membership. It computes the desired membership from the client payload and
    diffs it against the current Supabase state. Existing memberships are fetched
-   for all owned incoming collections with one paginated
+   for all owned incoming collections with one keyset-paginated
    `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`,
-   not one round trip per collection. Only the delta (rows to add and rows to
-   remove) is written. We intentionally do not use implicit destructive diffs
-   for whole collections to prevent devices with missing histories from
+   resuming after the last composite primary key rather than using range/OFFSET
+   pages or one round trip per collection. Only the delta (rows to add and rows
+   to remove) is written. We intentionally do not use implicit destructive
+   diffs for whole collections to prevent devices with missing histories from
    obliterating remote databases. The Edge function actively pre-filters any
    mappings for scans that haven't synced to the cloud yet, preventing Postgres
    FK constraint violations from aborting the overarching database chunk.

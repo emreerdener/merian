@@ -86,16 +86,23 @@ export async function upsertCollectionsAndFetchMemberships(
   const pageSize = 1000;
 
   if (ownedIds.length > 0) {
-    let from = 0;
+    let cursor: MembershipRow | undefined;
     while (true) {
-      const { data, error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("collection_scans")
         .select("collection_id, scan_id")
         .in("collection_id", ownedIds)
         .order("collection_id", { ascending: true })
         .order("scan_id", { ascending: true })
-        .range(from, from + pageSize - 1)
-        .returns<MembershipRow[]>();
+        .limit(pageSize);
+
+      if (cursor) {
+        query = query.or(
+          `collection_id.gt.${cursor.collection_id},and(collection_id.eq.${cursor.collection_id},scan_id.gt.${cursor.scan_id})`,
+        );
+      }
+
+      const { data, error } = await query.returns<MembershipRow[]>();
 
       if (error) {
         throw new Error(`Membership fetch failed: ${error.message}`);
@@ -108,7 +115,7 @@ export async function upsertCollectionsAndFetchMemberships(
       if (data.length < pageSize) {
         break;
       }
-      from += pageSize;
+      cursor = data[data.length - 1];
     }
   }
 

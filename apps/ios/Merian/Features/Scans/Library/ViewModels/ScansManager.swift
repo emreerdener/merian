@@ -11,7 +11,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     var id: String { self.rawValue }
 }
 
-enum ScanDateFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanDateFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case today = "Today"
     case thisWeek = "This week"
     case thisMonth = "This month"
@@ -20,20 +20,20 @@ enum ScanDateFilter: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
-enum ScanLocationFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanLocationFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case hasLocation = "Has location"
     case noLocation = "No location"
     var id: String { rawValue }
 }
 
-enum ScanMediaFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanMediaFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case image = "Image"
     case video = "Video"
     case audio = "Audio"
     var id: String { rawValue }
 }
 
-enum ScanEcologyFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanEcologyFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case wild = "Wild"
     case captive = "Captive"
     case domesticated = "Domesticated"
@@ -41,7 +41,7 @@ enum ScanEcologyFilter: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
-enum ScanQualityFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanQualityFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case highQuality = "High quality"
     case mediumQuality = "Medium quality"
     case lowQuality = "Low quality"
@@ -49,14 +49,14 @@ enum ScanQualityFilter: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
-enum ScanIdentificationFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanIdentificationFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case confirmed = "Confirmed ID"
     case corrected = "Corrected ID"
     case aiOnly = "AI-only ID"
     var id: String { rawValue }
 }
 
-enum ScanSeasonFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanSeasonFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case spring = "Spring"
     case summer = "Summer"
     case fall = "Fall"
@@ -64,12 +64,12 @@ enum ScanSeasonFilter: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
-enum ScanExplorePostFilter: String, CaseIterable, Identifiable, Hashable {
+enum ScanExplorePostFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case shared = "Shared to Explore"
     var id: String { rawValue }
 }
 
-struct ScanLibraryFilterOptions {
+struct ScanLibraryFilterOptions: Equatable, Sendable {
     var customTags: [String] = []
     var hazardTypes: [String] = []
     var conservationStatuses: [String] = []
@@ -81,7 +81,7 @@ struct ScanLibraryFilterOptions {
     var taxonomyGenera: [String] = []
 }
 
-struct ScanLibraryFilters: Equatable {
+struct ScanLibraryFilters: Equatable, Sendable {
     var dateFilters: Set<ScanDateFilter> = []
     var customStartDate: Date?
     var customEndDate: Date?
@@ -140,6 +140,7 @@ struct ScanLibraryFilters: Equatable {
     #if DEBUG
     enum SearchDebugEvent: Equatable {
         case indexingCompleted(documentCount: Int)
+        case filterIndexingCompleted(documentCount: Int)
         case searchCompleted(query: String, resultCount: Int)
     }
     #endif
@@ -191,6 +192,16 @@ struct ScanLibraryFilters: Equatable {
                 }
             }
             .store(in: &cancellables)
+
+        AppEventPublisher.shared.publisher
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                guard case let .exploreShareStateChanged(scanId, _) = event else { return }
+                Task { @MainActor [weak self] in
+                    self?.forceReindex(scanId: scanId)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func bindSettings(_ appSettings: AppSettings) {
@@ -215,16 +226,24 @@ struct ScanLibraryFilters: Equatable {
     var allScans: [LocalScanRecord] = [] {
         didSet { rebuildSearchCaches(oldScans: oldValue) }
     }
+
+    private(set) var filterOptions = ScanLibraryFilterOptions()
+    private(set) var orderedCategoryFilters =
+        ["All"] + SearchCategoryBucket.libraryFilterPriority.map(\.title)
     
     @ObservationIgnored private var searchIndexSnapshot = SearchIndexSnapshot.empty
+    @ObservationIgnored private var filterIndexSnapshot = ScanLibraryFilterIndexSnapshot.empty
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var indexingTask: Task<Void, Never>?
+    @ObservationIgnored private var filterIndexingTask: Task<Void, Never>?
     @ObservationIgnored private var scanIndexById: [String: Int] = [:]
     @ObservationIgnored private var scanRecordById: [String: LocalScanRecord] = [:]
     @ObservationIgnored private var sortPrimitivesById: [String: ScanSortPrimitive] = [:]
     @ObservationIgnored private var allScanSortPrimitives: [ScanSortPrimitive] = []
     @ObservationIgnored private var sortedAllScanIDsCache: [String: [String]] = [:]
+    @ObservationIgnored private var pendingReindexIDs: Set<String> = []
     @ObservationIgnored private var searchCacheGeneration: UInt64 = 0
+    @ObservationIgnored private var filterIndexSnapshotGeneration: UInt64?
     #if DEBUG
     @ObservationIgnored var debugEventHandler: ((SearchDebugEvent) -> Void)?
     #endif
@@ -261,7 +280,79 @@ struct ScanLibraryFilters: Equatable {
         sortedAllScanIDsCache.removeAll(keepingCapacity: true)
         searchCacheGeneration &+= 1
 
+        rebuildFilterIndex()
         updateSearchableData(oldScans: oldScans)
+    }
+
+    private func rebuildFilterIndex() {
+        filterIndexingTask?.cancel()
+        filterIndexSnapshotGeneration = nil
+
+        let cacheGeneration = searchCacheGeneration
+        guard !allScans.isEmpty else {
+            commitFilterIndexSnapshot(.empty, cacheGeneration: cacheGeneration)
+            return
+        }
+
+        filterIndexingTask = Task { [weak self] in
+            guard let self else { return }
+            guard let snapshots = await self.extractRawFilterSnapshotsCooperatively(
+                cacheGeneration: cacheGeneration
+            ) else {
+                return
+            }
+            guard !Task.isCancelled else { return }
+
+            let worker = Task.detached(priority: .utility) {
+                ScanLibraryFilterIndexSnapshot(rawSnapshots: snapshots)
+            }
+            let snapshot = await withTaskCancellationHandler {
+                await worker.value
+            } onCancel: {
+                worker.cancel()
+            }
+            guard !Task.isCancelled, self.searchCacheGeneration == cacheGeneration else {
+                return
+            }
+
+            self.commitFilterIndexSnapshot(snapshot, cacheGeneration: cacheGeneration)
+        }
+    }
+
+    private func extractRawFilterSnapshotsCooperatively(
+        cacheGeneration: UInt64
+    ) async -> [RawScanFilterSnapshot]? {
+        let expectedCount = allScans.count
+        var snapshots: [RawScanFilterSnapshot] = []
+        snapshots.reserveCapacity(expectedCount)
+
+        var startIndex = 0
+        while startIndex < expectedCount {
+            guard !Task.isCancelled, searchCacheGeneration == cacheGeneration else {
+                return nil
+            }
+
+            let endIndex = min(startIndex + Self.rawSnapshotExtractionBatchSize, expectedCount)
+            for index in startIndex..<endIndex {
+                let record = allScans[index]
+                snapshots.append(
+                    RawScanFilterSnapshot(
+                        record: record,
+                        isSharedToExplore: sharedPostIDProvider(record.id) != nil
+                    )
+                )
+            }
+
+            startIndex = endIndex
+            if startIndex < expectedCount {
+                await Task.yield()
+            }
+        }
+
+        guard !Task.isCancelled, searchCacheGeneration == cacheGeneration else {
+            return nil
+        }
+        return snapshots
     }
 
     private func updateSearchableData(oldScans: [LocalScanRecord]) {
@@ -269,6 +360,7 @@ struct ScanLibraryFilters: Equatable {
         
         let oldIds = Set(oldScans.map { $0.id })
         let newIds = Set(allScans.map { $0.id })
+        pendingReindexIDs.formIntersection(newIds)
 
         let addedScans = allScans.filter { !oldIds.contains($0.id) }
         let removedIds = oldIds.subtracting(newIds)
@@ -283,7 +375,9 @@ struct ScanLibraryFilters: Equatable {
             return
         }
 
-        if addedScans.isEmpty && workingSnapshot.count == allScans.count {
+        if addedScans.isEmpty,
+           pendingReindexIDs.isEmpty,
+           workingSnapshot.count == allScans.count {
             commitSearchIndexSnapshot(workingSnapshot)
             return
         }
@@ -307,20 +401,28 @@ struct ScanLibraryFilters: Equatable {
                 ) else { return }
                 guard !Task.isCancelled else { return }
 
-                let processed = await Task.detached(priority: .utility) {
+                let worker = Task.detached(priority: .utility) {
                     SearchDatabaseActor.buildSearchablePayloads(from: snapshots)
-                }.value
+                }
+                let processed = await withTaskCancellationHandler {
+                    await worker.value
+                } onCancel: {
+                    worker.cancel()
+                }
                 guard !Task.isCancelled else { return }
 
                 let snapshot = SearchIndexSnapshot(searchableScans: processed)
                 guard self.searchCacheGeneration == cacheGeneration else { return }
+                self.pendingReindexIDs.removeAll()
                 self.commitSearchIndexSnapshot(snapshot)
             }
         } else {
             // Incremental: only newly added scans. These IDs may not be faulted yet in the
             // @Query result (sync wrote them to the store while we were mid-frame), so
             // let SearchDatabaseActor fetch them fresh from its own ModelContext.
-            let idsToExtract = addedScans.map { $0.id }
+            let idsToExtract = Array(
+                Set(addedScans.map(\.id)).union(pendingReindexIDs)
+            )
             if idsToExtract.isEmpty { return }
             indexingTask = Task { [weak self] in
                 let dbActor = SearchDatabaseActor(modelContainer: container)
@@ -329,6 +431,7 @@ struct ScanLibraryFilters: Equatable {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     guard self.searchCacheGeneration == cacheGeneration else { return }
+                    self.pendingReindexIDs.subtract(idsToExtract)
                     self.commitSearchIndexSnapshot(self.searchIndexSnapshot.upserting(processedNewScans))
                 }
             }
@@ -362,70 +465,81 @@ struct ScanLibraryFilters: Equatable {
     // MARK: - Dedicated Reindexing
     private func forceReindex(scanId: String) {
         guard let scan = record(for: scanId), let container = scan.modelContext?.container else { return }
-        setSearchIndexSnapshot(self.searchIndexSnapshot.removing(ids: Set([scanId])), emitCompletion: false)
 
-        // Cancel any prior reindex so two rapid calls cannot both append to searchableData,
-        // which would produce duplicate SearchableScan entries in the search index.
+        searchTask?.cancel()
         indexingTask?.cancel()
-        indexingTask = Task { [weak self] in
-            let dbActor = SearchDatabaseActor(modelContainer: container)
-            let newPayload = await dbActor.extractSearchablePayloads(from: [scanId])
-            if Task.isCancelled { return }
+        searchCacheGeneration &+= 1
+        let cacheGeneration = searchCacheGeneration
 
-            await MainActor.run { [weak self] in
+        let updatedPrimitive = ScanSortPrimitive(
+            id: scan.id,
+            timestamp: scan.timestamp,
+            commonName: scan.commonName
+        )
+        sortPrimitivesById[scan.id] = updatedPrimitive
+        if let index = scanIndexById[scan.id], allScanSortPrimitives.indices.contains(index) {
+            allScanSortPrimitives[index] = updatedPrimitive
+        }
+        sortedAllScanIDsCache.removeAll(keepingCapacity: true)
+        rebuildFilterIndex()
+
+        pendingReindexIDs.insert(scanId)
+        if searchIndexSnapshot.count != allScans.count {
+            // A notification can arrive while the initial full build is still extracting.
+            // Replacing that task with a one-record fetch would leave every other record
+            // permanently absent from the search index, so rebuild the complete generation.
+            indexingTask = Task { [weak self] in
                 guard let self else { return }
-                self.commitSearchIndexSnapshot(self.searchIndexSnapshot.upserting(newPayload))
+                guard let snapshots = await self.extractRawScanSnapshotsCooperatively(
+                    cacheGeneration: cacheGeneration
+                ) else {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+
+                let worker = Task.detached(priority: .utility) {
+                    SearchDatabaseActor.buildSearchablePayloads(from: snapshots)
+                }
+                let processed = await withTaskCancellationHandler {
+                    await worker.value
+                } onCancel: {
+                    worker.cancel()
+                }
+                guard !Task.isCancelled, self.searchCacheGeneration == cacheGeneration else {
+                    return
+                }
+
+                self.pendingReindexIDs.removeAll()
+                self.commitSearchIndexSnapshot(
+                    SearchIndexSnapshot(searchableScans: processed)
+                )
+            }
+        } else {
+            let idsToExtract = Array(pendingReindexIDs)
+
+            // Carry every superseded ID into the replacement task. Cancellation is
+            // cooperative, so removing the old document before the replacement is ready
+            // would let a rapid A→B update permanently strand A outside the index.
+            indexingTask = Task { [weak self] in
+                let dbActor = SearchDatabaseActor(modelContainer: container)
+                let newPayload = await dbActor.extractSearchablePayloads(from: idsToExtract)
+                if Task.isCancelled { return }
+
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    guard self.searchCacheGeneration == cacheGeneration else { return }
+                    self.pendingReindexIDs.subtract(idsToExtract)
+                    self.commitSearchIndexSnapshot(
+                        self.searchIndexSnapshot.upserting(newPayload)
+                    )
+                }
             }
         }
-    }
 
-    // MARK: - Filter Options
-    var filterOptions: ScanLibraryFilterOptions {
-        ScanLibraryFilterOptions(
-            customTags: uniqueDisplayValues(allScans.flatMap(\.customTags)),
-            hazardTypes: uniqueDisplayValues(allScans.map(\.hazardType)),
-            conservationStatuses: uniqueDisplayValues(allScans.compactMap(\.iucnRedListStatus)),
-            lifeStages: uniqueDisplayValues(allScans.compactMap(\.lifeStage)),
-            weatherConditions: uniqueDisplayValues(allScans.compactMap(\.weatherCondition)),
-            taxonomyClasses: uniqueDisplayValues(allScans.compactMap(\.taxonomyClass)),
-            taxonomyOrders: uniqueDisplayValues(allScans.compactMap(\.taxonomyOrder)),
-            taxonomyFamilies: uniqueDisplayValues(allScans.compactMap(\.taxonomyFamily)),
-            taxonomyGenera: uniqueDisplayValues(allScans.compactMap(\.taxonomyGenus))
-        )
-    }
-
-    var orderedCategoryFilters: [String] {
-        let counts = allScans.reduce(into: [SearchCategoryBucket: Int]()) { result, scan in
-            let category = SearchCategoryBucket(
-                kingdom: scan.taxonomyKingdom?.lowercased() ?? "",
-                className: scan.taxonomyClass?.lowercased() ?? ""
-            )
-            result[category, default: 0] += 1
-        }
-        let priority = Dictionary(
-            uniqueKeysWithValues: SearchCategoryBucket.libraryFilterPriority.enumerated().map { ($1, $0) }
-        )
-        let orderedCategories = SearchCategoryBucket.libraryFilterPriority.sorted { lhs, rhs in
-            let lhsCount = counts[lhs, default: 0]
-            let rhsCount = counts[rhs, default: 0]
-            if lhsCount != rhsCount {
-                return lhsCount > rhsCount
-            }
-            return priority[lhs, default: .max] < priority[rhs, default: .max]
-        }
-
-        return ["All"] + orderedCategories.map(\.title)
-    }
-
-    private func uniqueDisplayValues(_ values: [String]) -> [String] {
-        var valuesByNormalizedKey: [String: String] = [:]
-        for value in values {
-            guard let normalized = normalizedFilterValue(value) else { continue }
-            valuesByNormalizedKey[normalized] = valuesByNormalizedKey[normalized] ?? value.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return valuesByNormalizedKey.values.sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
-        }
+        // A cached advanced-filter result may depend on the changed field (notably custom
+        // tags or Explore share state). Re-run the current query against the replacement
+        // generation instead of leaving the visible result stale until the next UI gesture.
+        performSearch(query: searchQuery, category: activeCategoryFilter)
     }
     
     // MARK: - Search Execution
@@ -444,6 +558,10 @@ struct ScanLibraryFilters: Equatable {
         
         let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let catMatch = currentCategory.lowercased()
+        let cacheGeneration = searchCacheGeneration
+        let activeFilterQuery = ScanLibraryFilterQuery(filters: filters)
+        let searchIndexBuildTask = indexingTask
+        let filterIndexBuildTask = filterIndexingTask
         
         self.isFiltering = true
         
@@ -454,23 +572,55 @@ struct ScanLibraryFilters: Equatable {
             if Task.isCancelled { return }
 
             guard let self = self else { return }
+            guard self.searchCacheGeneration == cacheGeneration else { return }
 
-            if text.isEmpty && catMatch == "all" && !self.filters.hasAdvancedFilters {
-                let sortedIds = await self.sortedAllScanIDs(for: self.sortOption)
-                if Task.isCancelled { return }
+            if text.isEmpty && catMatch == "all" && !activeFilterQuery.hasAdvancedFilters {
+                let sortedIds = await self.sortedAllScanIDs(
+                    for: self.sortOption,
+                    cacheGeneration: cacheGeneration
+                )
+                guard !Task.isCancelled, self.searchCacheGeneration == cacheGeneration else {
+                    return
+                }
                 
                 let finalSorted = self.records(for: sortedIds)
-                self.completeSearch(with: finalSorted, query: text)
+                self.completeSearch(
+                    with: finalSorted,
+                    query: text,
+                    cacheGeneration: cacheGeneration
+                )
+                return
+            }
+
+            if text.isEmpty && catMatch == "all" {
+                await filterIndexBuildTask?.value
+            } else {
+                await searchIndexBuildTask?.value
+                if activeFilterQuery.hasAdvancedFilters {
+                    await filterIndexBuildTask?.value
+                }
+            }
+            guard !Task.isCancelled, self.searchCacheGeneration == cacheGeneration else {
+                return
+            }
+
+            let filterIndex = self.filterIndexSnapshot
+            if activeFilterQuery.hasAdvancedFilters,
+               self.filterIndexSnapshotGeneration != cacheGeneration {
                 return
             }
 
             let matchingIds: [String]
             if text.isEmpty && catMatch == "all" {
-                matchingIds = self.allScans.map(\.id)
+                matchingIds = filterIndex.allDocumentIDs
             } else {
                 let searchIndex = self.searchIndexSnapshot
                 if searchIndex.isEmpty {
-                    self.completeSearch(with: [], query: text)
+                    self.completeSearch(
+                        with: [],
+                        query: text,
+                        cacheGeneration: cacheGeneration
+                    )
                     return
                 }
 
@@ -478,21 +628,43 @@ struct ScanLibraryFilters: Equatable {
                 matchingIds = await filterActor.filter(text: text, searchIndex: searchIndex, catMatch: catMatch)
             }
 
-            if Task.isCancelled { return }
+            guard !Task.isCancelled, self.searchCacheGeneration == cacheGeneration else {
+                return
+            }
 
             let sortOpt = self.sortOption
-            let filteredRecords = self.applyAdvancedFilters(to: self.records(for: matchingIds))
-            let subsetPrimitives = self.sortPrimitives(for: filteredRecords.map(\.id))
+            let sortPrimitivesById = self.sortPrimitivesById
             
-            let sortedIds = await Task.detached(priority: .userInitiated) {
-                return ScansManager.executeDetachedSort(on: subsetPrimitives, sortOption: sortOpt).map { $0.id }
-            }.value
+            let worker = Task.detached(priority: .userInitiated) {
+                let filteredIDs = filterIndex.matchingIDs(
+                    in: matchingIds,
+                    query: activeFilterQuery
+                )
+                if Task.isCancelled { return [] }
+
+                let subsetPrimitives = filteredIDs.compactMap { sortPrimitivesById[$0] }
+                return ScansManager.executeDetachedSort(
+                    on: subsetPrimitives,
+                    sortOption: sortOpt
+                ).map(\.id)
+            }
+            let sortedIds = await withTaskCancellationHandler {
+                await worker.value
+            } onCancel: {
+                worker.cancel()
+            }
             
-            if Task.isCancelled { return }
+            guard !Task.isCancelled, self.searchCacheGeneration == cacheGeneration else {
+                return
+            }
             
             let finalSorted = self.records(for: sortedIds)
             
-            self.completeSearch(with: finalSorted, query: text)
+            self.completeSearch(
+                with: finalSorted,
+                query: text,
+                cacheGeneration: cacheGeneration
+            )
         }
     }
     
@@ -512,236 +684,9 @@ struct ScanLibraryFilters: Equatable {
         }
     }
 
-    private func applyAdvancedFilters(to scans: [LocalScanRecord]) -> [LocalScanRecord] {
-        guard filters.hasAdvancedFilters else { return scans }
-        let activeFilters = filters
-        let calendar = Calendar.current
-        let now = Date()
-
-        return scans.filter { scan in
-            matchesDateFilters(scan, filters: activeFilters, calendar: calendar, now: now)
-                && matchesLocationFilters(scan, filters: activeFilters)
-                && matchesMediaFilters(scan, filters: activeFilters)
-                && matchesCustomTagFilters(scan, filters: activeFilters)
-                && matchesNaturalistFilters(scan, filters: activeFilters)
-                && matchesQualityFilters(scan, filters: activeFilters)
-                && matchesIdentificationFilters(scan, filters: activeFilters)
-                && matchesWeatherSeasonFilters(scan, filters: activeFilters, calendar: calendar)
-                && matchesTaxonomyFilters(scan, filters: activeFilters)
-                && matchesExplorePostFilters(scan, filters: activeFilters)
-        }
-    }
-
-    private func matchesDateFilters(
-        _ scan: LocalScanRecord,
-        filters: ScanLibraryFilters,
-        calendar: Calendar,
-        now: Date
-    ) -> Bool {
-        guard !filters.dateFilters.isEmpty else { return true }
-        let date = scan.captureDate ?? scan.timestamp
-        return filters.dateFilters.contains { filter in
-            switch filter {
-            case .today:
-                return calendar.isDateInToday(date)
-            case .thisWeek:
-                return dateInterval(.weekOfYear, calendar: calendar, now: now)?.contains(date) == true
-            case .thisMonth:
-                return dateInterval(.month, calendar: calendar, now: now)?.contains(date) == true
-            case .thisYear:
-                return dateInterval(.year, calendar: calendar, now: now)?.contains(date) == true
-            case .custom:
-                return matchesCustomDateRange(date, filters: filters, calendar: calendar)
-            }
-        }
-    }
-
-    private func dateInterval(_ component: Calendar.Component, calendar: Calendar, now: Date) -> DateInterval? {
-        calendar.dateInterval(of: component, for: now)
-    }
-
-    private func matchesCustomDateRange(_ date: Date, filters: ScanLibraryFilters, calendar: Calendar) -> Bool {
-        let start = filters.customStartDate.map { calendar.startOfDay(for: $0) }
-        let end = filters.customEndDate.flatMap {
-            calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: $0))
-        }
-
-        if let start, date < start { return false }
-        if let end, date >= end { return false }
-        return start != nil || end != nil
-    }
-
-    private func matchesLocationFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        guard !filters.locationFilters.isEmpty else { return true }
-        let hasLocation = scan.gpsLatitude != nil
-            || scan.gpsLongitude != nil
-            || normalizedFilterValue(scan.locationName) != nil
-
-        return filters.locationFilters.contains { filter in
-            switch filter {
-            case .hasLocation:
-                return hasLocation
-            case .noLocation:
-                return !hasLocation
-            }
-        }
-    }
-
-    private func matchesMediaFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        guard !filters.mediaFilters.isEmpty else { return true }
-        let mediaSummary = scan.capturedMediaSnapshot.summary
-        let hasLegacyCoverImage = scan.coverImagePath?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty == false
-        let hasImage = mediaSummary.hasImage || hasLegacyCoverImage
-        return filters.mediaFilters.contains { filter in
-            switch filter {
-            case .image:
-                return hasImage && !mediaSummary.hasVideo
-            case .video:
-                return mediaSummary.hasVideo
-            case .audio:
-                return mediaSummary.hasAudio
-            }
-        }
-    }
-
-    private func matchesCustomTagFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        matchesAnyNormalizedValue(scan.customTags, selectedValues: filters.customTags)
-    }
-
-    private func matchesNaturalistFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        if filters.isInvasive && !scan.isInvasive { return false }
-        if !matchesNormalizedValue(scan.hazardType, selectedValues: filters.hazardTypes) { return false }
-        if !matchesNormalizedValue(scan.iucnRedListStatus, selectedValues: filters.conservationStatuses) { return false }
-        if !matchesNormalizedValue(scan.lifeStage, selectedValues: filters.lifeStages) { return false }
-
-        guard !filters.ecologyFilters.isEmpty else { return true }
-        return filters.ecologyFilters.contains { filter in
-            switch filter {
-            case .wild:
-                return normalizedFilterValue(scan.ecologyType) == "wild"
-            case .captive:
-                return normalizedFilterValue(scan.ecologyType) == "captive"
-            case .domesticated:
-                return normalizedFilterValue(scan.ecologyType) == "domesticated"
-            case .pet:
-                return scan.petIdentification != nil || normalizedFilterValue(scan.ecologyType) == "pet"
-            }
-        }
-    }
-
-    private func matchesQualityFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        guard !filters.qualityFilters.isEmpty else { return true }
-        return filters.qualityFilters.contains { filter in
-            switch filter {
-            case .highQuality:
-                return (scan.imageQualityScore ?? -1) >= 80
-            case .mediumQuality:
-                guard let imageQualityScore = scan.imageQualityScore else { return false }
-                return imageQualityScore >= 60 && imageQualityScore < 80
-            case .lowQuality:
-                guard let imageQualityScore = scan.imageQualityScore else { return false }
-                return imageQualityScore < 60
-            case .noScore:
-                return scan.imageQualityScore == nil
-            }
-        }
-    }
-
-    private func matchesIdentificationFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        guard !filters.identificationFilters.isEmpty else { return true }
-        let isCorrected = scan.userIdentificationOverride != nil
-        let isConfirmed = scan.userConfirmedIdentification || scan.confirmedSpeciesId != nil
-        return filters.identificationFilters.contains { filter in
-            switch filter {
-            case .confirmed:
-                return isConfirmed
-            case .corrected:
-                return isCorrected
-            case .aiOnly:
-                return !isConfirmed && !isCorrected
-            }
-        }
-    }
-
-    private func matchesWeatherSeasonFilters(
-        _ scan: LocalScanRecord,
-        filters: ScanLibraryFilters,
-        calendar: Calendar
-    ) -> Bool {
-        if !matchesNormalizedValue(scan.weatherCondition, selectedValues: filters.weatherConditions) {
-            return false
-        }
-
-        guard !filters.seasons.isEmpty else { return true }
-        let month = calendar.component(.month, from: scan.captureDate ?? scan.timestamp)
-        guard let season = season(for: month) else { return false }
-        return filters.seasons.contains(season)
-    }
-
-    private func season(for month: Int) -> ScanSeasonFilter? {
-        switch month {
-        case 3...5:
-            return .spring
-        case 6...8:
-            return .summer
-        case 9...11:
-            return .fall
-        case 1, 2, 12:
-            return .winter
-        default:
-            return nil
-        }
-    }
-
-    private func matchesTaxonomyFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        matchesNormalizedValue(scan.taxonomyClass, selectedValues: filters.taxonomyClasses)
-            && matchesNormalizedValue(scan.taxonomyOrder, selectedValues: filters.taxonomyOrders)
-            && matchesNormalizedValue(scan.taxonomyFamily, selectedValues: filters.taxonomyFamilies)
-            && matchesNormalizedValue(scan.taxonomyGenus, selectedValues: filters.taxonomyGenera)
-    }
-
-    private func matchesExplorePostFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
-        guard !filters.explorePostFilters.isEmpty else { return true }
-        let isSharedToExplore = sharedPostIDProvider(scan.id) != nil
-        return filters.explorePostFilters.contains { filter in
-            switch filter {
-            case .shared:
-                return isSharedToExplore
-            }
-        }
-    }
-
-    private func matchesAnyNormalizedValue(_ values: [String], selectedValues: Set<String>) -> Bool {
-        guard !selectedValues.isEmpty else { return true }
-        let normalizedSelectedValues = Set(selectedValues.compactMap(normalizedFilterValue))
-        guard !normalizedSelectedValues.isEmpty else { return true }
-        return values
-            .compactMap(normalizedFilterValue)
-            .contains { normalizedSelectedValues.contains($0) }
-    }
-
-    private func matchesNormalizedValue(_ value: String?, selectedValues: Set<String>) -> Bool {
-        guard !selectedValues.isEmpty else { return true }
-        guard let normalized = normalizedFilterValue(value) else { return false }
-        return Set(selectedValues.compactMap(normalizedFilterValue)).contains(normalized)
-    }
-
-    private func normalizedFilterValue(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalized.isEmpty, normalized != "none", normalized != "unknown" else { return nil }
-        return normalized
-    }
-    
     private func applySort() {
         // Run sort without query context
         performSearch(query: self.searchQuery)
-    }
-
-    private func sortPrimitives(for ids: [String]) -> [ScanSortPrimitive] {
-        ids.compactMap { sortPrimitivesById[$0] }
     }
 
     private func records(for ids: [String]) -> [LocalScanRecord] {
@@ -757,17 +702,25 @@ struct ScanLibraryFilters: Equatable {
         return record.id == id ? record : scanRecordById[id]
     }
 
-    private func sortedAllScanIDs(for sortOption: ScanSortOption) async -> [String] {
+    private func sortedAllScanIDs(
+        for sortOption: ScanSortOption,
+        cacheGeneration: UInt64
+    ) async -> [String] {
         if let cached = sortedAllScanIDsCache[sortOption.rawValue] {
             return cached
         }
 
         let primitives = allScanSortPrimitives
-        let sortedIds = await Task.detached(priority: .userInitiated) {
+        let worker = Task.detached(priority: .userInitiated) {
             ScansManager.executeDetachedSort(on: primitives, sortOption: sortOption).map(\.id)
-        }.value
+        }
+        let sortedIds = await withTaskCancellationHandler {
+            await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
 
-        if !Task.isCancelled {
+        if !Task.isCancelled, searchCacheGeneration == cacheGeneration {
             sortedAllScanIDsCache[sortOption.rawValue] = sortedIds
         }
         return sortedIds
@@ -784,7 +737,24 @@ struct ScanLibraryFilters: Equatable {
         }
     }
 
-    private func completeSearch(with scans: [LocalScanRecord], query: String) {
+    private func commitFilterIndexSnapshot(
+        _ snapshot: ScanLibraryFilterIndexSnapshot,
+        cacheGeneration: UInt64
+    ) {
+        guard searchCacheGeneration == cacheGeneration else { return }
+        filterIndexSnapshot = snapshot
+        filterIndexSnapshotGeneration = cacheGeneration
+        filterOptions = snapshot.filterOptions
+        orderedCategoryFilters = snapshot.orderedCategoryFilters
+        emitFilterIndexingCompletedEvent()
+    }
+
+    private func completeSearch(
+        with scans: [LocalScanRecord],
+        query: String,
+        cacheGeneration: UInt64
+    ) {
+        guard searchCacheGeneration == cacheGeneration, !Task.isCancelled else { return }
         withAnimation {
             filteredScans = scans
             isFiltering = false
@@ -795,6 +765,12 @@ struct ScanLibraryFilters: Equatable {
     private func emitIndexingCompletedEvent() {
         #if DEBUG
         debugEventHandler?(.indexingCompleted(documentCount: searchIndexSnapshot.count))
+        #endif
+    }
+
+    private func emitFilterIndexingCompletedEvent() {
+        #if DEBUG
+        debugEventHandler?(.filterIndexingCompleted(documentCount: filterIndexSnapshot.count))
         #endif
     }
 

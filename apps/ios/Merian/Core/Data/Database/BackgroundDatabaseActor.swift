@@ -1188,7 +1188,7 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Collections Edge Sync
 
-    struct SyncCollectionPayload: Encodable {
+    struct SyncCollectionPayload: Encodable, Equatable, Sendable {
         let id: String
         let name: String
         let created_at: String
@@ -1196,34 +1196,48 @@ actor BackgroundDatabaseActor {
         let scan_ids: [String]
     }
 
-    struct SyncRequestPayload: Encodable {
+    struct SyncRequestPayload: Encodable, Sendable {
         let collections: [SyncCollectionPayload]
     }
 
-    func pushCollectionsToEdge() async -> Bool {
+    /// Projects only syncable collection rows and their direct inverse memberships.
+    ///
+    /// This deliberately avoids paging through every `LocalScanRecord`: unrelated scans do
+    /// not participate in a collection mutation, and OFFSET pages become progressively more
+    /// expensive as a library grows. Sorting IDs also makes retries byte-for-byte stable.
+    func collectionSyncPayloads() -> [SyncCollectionPayload]? {
+        var descriptor = FetchDescriptor<ScanCollection>(
+            predicate: #Predicate { $0.name != "Favorites" },
+            sortBy: [
+                SortDescriptor(\.createdAt),
+                SortDescriptor(\.id)
+            ]
+        )
+        descriptor.relationshipKeyPathsForPrefetching = [\.scans]
+
         let collections: [ScanCollection]
         do {
-            let descriptor = FetchDescriptor<ScanCollection>(
-                predicate: #Predicate { $0.name != "Favorites" }
-            )
             collections = try modelContext.fetch(descriptor)
         } catch {
-            MerianLog.data.debug("pushCollectionsToEdge: fetch failed: \(error, privacy: .private)")
-            return false
+            MerianLog.data.debug(
+                "collectionSyncPayloads: collection fetch failed: \(error, privacy: .private)"
+            )
+            return nil
         }
 
-        let relevantCollectionIDs = Set(collections.map { $0.id.lowercased() })
-        let membersByCollectionID = fetchCollectionMemberIds(relevantCollectionIDs: relevantCollectionIDs)
-
-        let payloadList = collections.map { col -> SyncCollectionPayload in
+        return collections.map { collection in
             SyncCollectionPayload(
-                id: col.id,
-                name: col.name,
-                created_at: DateUtilities.iso8601Formatter.string(from: col.createdAt),
-                is_deleted: col.isDeleted,
-                scan_ids: membersByCollectionID[col.id.lowercased()] ?? []
+                id: collection.id,
+                name: collection.name,
+                created_at: DateUtilities.iso8601Formatter.string(from: collection.createdAt),
+                is_deleted: collection.isDeleted,
+                scan_ids: Array(Set((collection.scans ?? []).map(\.id))).sorted()
             )
         }
+    }
+
+    func pushCollectionsToEdge() async -> Bool {
+        guard let payloadList = collectionSyncPayloads() else { return false }
 
         do {
             try await SupabaseManager.shared.client.functions.invoke(
@@ -1232,7 +1246,23 @@ actor BackgroundDatabaseActor {
             )
             
             // Cloud sync confirmed — purge soft-deleted tombstones so they cannot resurface on reinstall.
-            let tombstones = collections.filter { $0.isDeleted }
+            let tombstoneIDs = payloadList.filter { $0.is_deleted }.map(\.id)
+            let tombstones: [ScanCollection]
+            if tombstoneIDs.isEmpty {
+                tombstones = []
+            } else {
+                let descriptor = FetchDescriptor<ScanCollection>(
+                    predicate: #Predicate { tombstoneIDs.contains($0.id) }
+                )
+                do {
+                    tombstones = try modelContext.fetch(descriptor)
+                } catch {
+                    MerianLog.data.error(
+                        "pushCollectionsToEdge: failed to refetch synced collection tombstones: \(error, privacy: .private)"
+                    )
+                    return false
+                }
+            }
             for tombstone in tombstones {
                 modelContext.delete(tombstone)
             }
@@ -1252,46 +1282,5 @@ actor BackgroundDatabaseActor {
             MerianLog.data.debug("pushCollectionsToEdge: sync failed: \(error, privacy: .private)")
             return false
         }
-    }
-
-    private func fetchCollectionMemberIds(relevantCollectionIDs: Set<String>) -> [String: [String]] {
-        guard !relevantCollectionIDs.isEmpty else { return [:] }
-
-        let batchSize = 200
-        var offset = 0
-        var membersByCollectionID: [String: [String]] = [:]
-
-        while true {
-            var descriptor = FetchDescriptor<LocalScanRecord>(
-                sortBy: [SortDescriptor(\.timestamp)]
-            )
-            descriptor.fetchLimit = batchSize
-            descriptor.fetchOffset = offset
-            descriptor.propertiesToFetch = [\.id]
-            descriptor.relationshipKeyPathsForPrefetching = [\.collections]
-
-            let batch: [LocalScanRecord]
-            do {
-                batch = try modelContext.fetch(descriptor)
-            } catch {
-                MerianLog.data.error("fetchCollectionMemberIds: fetch failed: \(error, privacy: .private)")
-                return membersByCollectionID
-            }
-
-            guard !batch.isEmpty else { break }
-
-            for scan in batch {
-                for collection in scan.collections ?? [] {
-                    let collectionID = collection.id.lowercased()
-                    guard relevantCollectionIDs.contains(collectionID) else { continue }
-                    membersByCollectionID[collectionID, default: []].append(scan.id)
-                }
-            }
-
-            offset += batch.count
-            if batch.count < batchSize { break }
-        }
-
-        return membersByCollectionID
     }
 }

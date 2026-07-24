@@ -15,3 +15,13 @@ To safely manage complex many-to-many Postgres states across highly distributed 
 
 - **`db.ts`**
   Contains isolated Postgres wrappers, specifically handling the algorithmically complex `syncMembershipDelta(...)`. To prevent hammering the Supabase instance, it utilizes an advanced `O(N)` String-Set differencing engine (mapping `collection_id::scan_id`). Existing memberships are hydrated for all owned collections with one paginated `.in("collection_id", ownedIds)` query ordered by `collection_id, scan_id`, avoiding the old N+1 per-collection pagination loop while staying bounded in V8 memory. It batches changes into groups to hit single-index queries, prevents Foreign-Key anomalies via pre-validation against the `scans` table, and explicitly ignores duplicates.
+
+  Pagination is keyset-based: every full page records its final
+  `(collection_id, scan_id)` primary key and the next query resumes strictly
+  after that cursor. Do not replace this with `.range(...)`/OFFSET pagination;
+  large membership sets would pay progressively more database work before the
+  same delta calculation.
+
+The iOS caller supplies deterministically sorted desired memberships projected
+from each non-Favorites `ScanCollection.scans` relationship. It must not rebuild
+that payload by paging across unrelated `LocalScanRecord` rows.

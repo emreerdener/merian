@@ -5261,8 +5261,9 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    query with `.eq("user_id", userId)` as a defence-in-depth layer.
    `deleteCollections` now throws on database error rather than logging
    silently, preventing false-success `200` responses when the deletion fails.
-5. **Bulk Insertion & Mismatched FK Protection**: Setting up `collection_scans`
-   relationships natively in a single atomic upsert avoids N+1 query timeouts.
+5. **Bulk Insertion & Mismatched FK Protection**: Applying
+   `collection_scans` relationships in bounded set-based upsert chunks avoids
+   N+1 query timeouts.
    To prevent PostgreSQL Foreign Key violations from crashing the overarching
    chunk transaction, the Edge Node dynamically pre-validates all incoming
    `scan_id` payloads against the core `scans` table. If a user groups a scan
@@ -5270,10 +5271,11 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    mapping intelligently bypasses that specific missing scan natively. The
    pending relationship rests securely offline on the user's iPhone until the
    next sync pulse. Existing memberships are hydrated for all owned collections
-   with one paginated `.in("collection_id", ownedIds)` query ordered by
+   with one keyset-paginated `.in("collection_id", ownedIds)` query ordered by
    `(collection_id, scan_id)`, rather than one pagination loop per collection.
-   This keeps latency sublinear for users with many collections while bounding
-   each page in V8 memory.
+   Each bounded page resumes after its last composite primary key instead of
+   paying progressively higher range/OFFSET costs. This keeps latency sublinear
+   for users with many collections while bounding each page in V8 memory.
 6. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running
    `.select()` across the user's DB rows, building a `toDelete` array in memory
    and passing it to `.delete().in("id", toDelete)`. This avoids

@@ -44,7 +44,16 @@ Search no longer linearly scans every `SearchableScan` on each keystroke. `Scans
 
 The same principle applies to `BackgroundDatabaseActor.pushCollectionsToEdge()`, which previously fetched every `ScanCollection` unconditionally including Favorites (which is never synced). The fetch now uses a `#Predicate { $0.name != "Favorites" }` to exclude Favorites at the SQLite layer. `propertiesToFetch` is intentionally absent: `ScanCollection` has only three stored attributes (`id`, `name`, `createdAt`) so there is nothing to skip, and partial-attribute mode can prevent the `scans` relationship fault from firing correctly, causing `scan_ids` to be serialised as `[]`.
 
-`pushCollectionsToEdge()` no longer reads `ScanCollection.scans` at all. It builds collection membership from bounded batches of `LocalScanRecord.collections`, keeping relationship faulting under a fixed page size. The same bounded inverse-side strategy is used during historical collection sync, and stale lookalike cache clearing now loops with a biological/cache-present predicate plus `fetchLimit` instead of fetching the whole library.
+`pushCollectionsToEdge()` projects membership from the exact relationship
+owners it is synchronizing: non-Favorites `ScanCollection` rows with their
+inverse `scans` relationship prefetched. It never enumerates unrelated
+`LocalScanRecord` rows and therefore needs neither OFFSET pagination nor a
+full-library membership map. Membership IDs are sorted for deterministic
+retries, while the Edge endpoint reads existing memberships with a composite
+primary-key cursor and applies only the database delta. Historical download
+reconciliation remains separately page-bounded, and stale lookalike cache
+clearing still loops with a biological/cache-present predicate plus
+`fetchLimit`.
 
 Species Observation Charts also obey the "no full library fetch on
 `@MainActor`" rule. `SpeciesObservationStatsViewModel` creates
@@ -454,6 +463,38 @@ Generating a global Darwin Core Archive (DwC-A) over the `/request-export-dwca` 
 ### Main Thread Search Thrashing (`ScansManager`)
 When mapping raw SwiftData query results across thousands of user records, extracting strings synchronously inside `@MainActor` property observers can cause visible stuttering during library updates. `ScansManager` now splits this work into two paths. Full rebuilds extract `RawScanSnapshot: Sendable` values from `allScans` on `@MainActor` in 128-record chunks, yielding between chunks before shipping those plain structs into a detached utility task for string construction. Incremental inserts stay inside `SearchDatabaseActor`, which batch-fetches only the new IDs and appends their `SearchableScan` payloads once the work completes. The entire sequence is guarded by `indexingTask` cancellation and `searchCacheGeneration` checks so rapid changes coalesce cleanly and stale builds cannot overwrite newer snapshots.
 
+### Main-Actor Advanced-Filter Amplification (`ScansManager`)
+
+The filter sheet and advanced predicates previously repeated several complete
+library scans on `@MainActor`: each option dimension rebuilt a normalized
+dictionary, each candidate normalized the same selected string sets, and media
+and taxonomy predicates dereferenced live SwiftData models. One interaction
+therefore generated multiple O(N) passes and substantial short-lived
+allocation.
+
+`ScanLibraryFilterIndexSnapshot` is now rebuilt once per
+`searchCacheGeneration`. `ScansManager` extracts `RawScanFilterSnapshot` values
+in yielding 128-record batches and sends them to a detached utility task. That
+worker constructs:
+
+- one pre-normalized `ScanLibraryFilterDocument` per scan;
+- cached display options for tag, hazard, conservation, life-stage, weather,
+  and taxonomy dimensions;
+- cached category counts and ordering.
+
+Each interaction creates a single `ScanLibraryFilterQuery`, precomputing
+normalized selections and lower-inclusive/upper-exclusive date ranges once.
+Matching and primitive sorting then execute together in a detached
+user-initiated task. Only final ID-to-model materialization and visible-state
+commit return to `@MainActor`. The search, filter, and sorted-ID paths all
+compare their captured generation before caching or publishing results.
+
+Targeted invalidation also uses compare-safe coalescing. A new
+`pendingReindexIDs` set carries every ID owned by a cancelled predecessor into
+its replacement task, so rapid A→B notifications cannot leave A removed from
+the search snapshot. Custom-tag and Explore share-state changes rebuild the
+filter snapshot and rerun the active query.
+
 ### SwiftData Fault Caching Thrash (`ScansManager`)
 While `SearchDatabaseActor.extractSearchablePayloads` insulated the Main Thread, an older implementation still faulted rows individually. The batch-fetch refactor now resolves deltas through one `FetchDescriptor<LocalScanRecord>(predicate: #Predicate { ids.contains($0.id) })`, which materially lowers SQLite churn and prevents thousands of sequential row faults on large libraries.
 
@@ -477,7 +518,12 @@ Updating or deleting a single record previously triggered the `allScans` observe
 **The Refactor**: The global array re-indexing loop was removed. `ScansManager.updateSearchableData` uses a `Set`-based delta update. Deleted records invoke `.removeAll { ... }` directly against the discrete array without touching the background processing thread. Newly captured records jump the background worker queue, incrementally appending only the new entries onto `@MainActor`.
 * **Hot-Swap Updates (Custom Tags)**: Because `Set`-based ID diffing inherently ignores internal property mutations on existing scans, updates to fields like `customTags` are handled via an explicit `NSNotification.Name("ScanRequiresSearchIndexUpdate")`. The `ScansManager` catches this trigger, isolates the singular scan ID, and natively hot-swaps only that scan's indexed search payload via the background `SearchDatabaseActor` thread in under 10ms.
 * **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in `updateSearchableData` previously performed two sequential SwiftData fetches — one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to materialise the same records a second time for index construction. Because `LocalScanRecord` is a SwiftData `@Model` (non-`Sendable`), it cannot cross actor boundaries directly. The fix introduces `RawScanSnapshot: Sendable` — a plain struct mirroring all 21 `LocalScanRecord` fields — extracted on `@MainActor` from the in-memory `allScans` array in yielding chunks, then passed into a `Task.detached` that calls `SearchDatabaseActor.buildSearchablePayloads(from: [RawScanSnapshot])` (a `static` method requiring no `ModelContext` fetch). This eliminates the redundant SQL `SELECT` entirely without monopolizing the main actor during very large initial libraries.
-* **`forceReindex` Task Coalescing**: `forceReindex` (called after every new cloud sync) previously discarded its spawned `Task` handle, allowing rapid successive syncs to launch duplicate concurrent appends into `searchableData`. The task handle is now stored in `indexingTask`; each call cancels the prior task before starting a new one, making append ordering deterministic.
+* **`forceReindex` Task Coalescing**: `forceReindex` stores its task in
+  `indexingTask`, but cancellation alone is insufficient because the cancelled
+  worker may already own an ID. `pendingReindexIDs` is unioned into every
+  replacement extraction and cleared only after a generation-checked upsert.
+  Rapid successive updates therefore cannot duplicate documents or strand a
+  superseded document outside the index.
 * **Search-time cache reuse**: Query execution now reuses `[String: Int]`, `[String: LocalScanRecord]`, and `[String: ScanSortPrimitive]` caches built from the already-resident `allScans` array when it changes. This removes the old per-keystroke `[id: LocalScanRecord]` rebuild and the old `allScans.first(where:)` fallback without issuing any additional SwiftData fetch.
 
 ### UI Body Array Calculations (`UserStats` & Contribution Heatmap)
@@ -903,6 +949,13 @@ The detached task holds no reference to the `@MainActor`-isolated `ScansManager`
 ```
 
 The caches are rebuilt once when `allScans` changes, then reused across all query/filter/sort passes. `record(for:)` resolves through `scanIndexById` first and only falls back to `scanRecordById` if the indexed slot is unavailable or stale during a snapshot transition. `sortPrimitivesById` avoids recreating primitive sort payloads on every keystroke. This keeps CPU predictable without a second SwiftData fetch or per-result linear scan.
+
+Advanced filtering has a parallel immutable cache:
+`ScanLibraryFilterIndexSnapshot` plus its committed generation. It contains
+plain `Sendable` values only; it must never retain `LocalScanRecord` references.
+The filter sheet observes the committed `filterOptions` and
+`orderedCategoryFilters` values rather than deriving either from `allScans` in
+computed properties.
 
 ### Retired Timed Archive Rescue (`ArchiveManager`)
 Merian no longer runs timed local rescue downloads for biological scan media because successful biological evidence is durable in cloud storage regardless of subscription tier. `ArchiveManager` is now limited to generated dataset archive ZIP downloads.

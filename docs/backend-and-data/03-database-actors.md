@@ -58,7 +58,17 @@ transport DTO.
 - `updateScanWithOverrideSpeciesData(scanId:commonName:hazardType:wikipediaOverview:wikipediaUrl:referenceImageUrl:iucnRedListStatus:habitatDescription:gbifTaxonKey:taxonomy:)` — persists species-dictionary data fetched for an identification override or reset so the corrected fields survive sheet dismissal and reopen. Intentionally excludes `scientificName` — that column is preserved as the original-AI identifier and is reused as `aiScientificName` in `InferenceEngine.load(from:)`.
 - `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:alternativeCommonNames:)` — retroactively persists enrichment data returned by the `enrich-scan` Edge Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async enrichment call completes. Updates `habitatDescription`, `gbifTaxonKey`, `lookalikesData` (a JSON-encoded `[SimilarSpeciesEntry]` blob, added in `MerianSchemaV27`), and taxonomic ranks (`Kingdom` through `Genus`) on `LocalScanRecord`. When `alternativeCommonNames` is non-nil, the method also writes it to `record.alternativeCommonNames` on the `LocalScanRecord`. The caller is responsible for encoding `[SimilarSpeciesEntry]` to `Data` via `JSONEncoder` before calling this method.
 - `clearAllLocalLookalikesCache()` — recovery path for stale similar-species caches. Fetches only biological records with `lookalikesData` or `similarSpecies` present, in 200-record batches, saving after each batch. Save failure rolls back the current batch and exits. It must not use an unbounded `FetchDescriptor<LocalScanRecord>()`.
-- `pushCollectionsToEdge()` — serializes local `ScanCollection` records and calls the `sync-collections` Edge function. Membership is built from bounded batches of `LocalScanRecord.collections`, not from `ScanCollection.scans`, to avoid faulting many-to-many arrays for large libraries. Upon a successful HTTP 200 response, it strictly purges any successfully synced tombstoned collections (`isDeleted == true`) from SwiftData to prevent ghost persistence. The tombstone purge save is explicit: failures rollback the actor context and return `false` so `OfflineQueueManager` keeps the collection-sync flag pending for a later retry. Note: callers must route invocation through `OfflineQueueManager`'s shared collection drain (`syncCollectionsIfPending()` / `drainCollectionSyncIfPossible()`) rather than calling it as an unsynchronised side path.
+- `collectionSyncPayloads()` / `pushCollectionsToEdge()` — fetches only
+  non-Favorites `ScanCollection` rows, prefetches their direct inverse `scans`
+  relationships, and emits deterministic, sorted membership IDs. It does not
+  enumerate unrelated `LocalScanRecord` rows and does not use OFFSET
+  pagination. The Edge function then computes the database membership delta.
+  Upon a successful HTTP 200 response, the actor strictly purges successfully
+  synced tombstones (`isDeleted == true`) from SwiftData. A purge save failure
+  rolls back and returns `false`, so `OfflineQueueManager` retains the pending
+  collection job. Callers must use the shared collection drain
+  (`syncCollectionsIfPending()` / `drainCollectionSyncIfPossible()`), never an
+  unsynchronised side path.
 
 **When to create**: Two patterns — ad-hoc for most operations, long-lived for the offline queue state machine:
 
@@ -189,7 +199,16 @@ let localStats = await actor.fetchLocalStats(
 **Declaration**: `@ModelActor actor SearchDatabaseActor`
 
 **Responsibilities:**
-- `extractSearchablePayloads(from:)` — Generates `SearchableScan` structures for O(1) library text filtering. Evaluates attributes including `scientificName`, `ecologyType`, `taxonomy`, location data, and `customTags`. Uses `modelContext.model(for: id)` to map discrete IDs into memory sequentially without faulting the entire SQLite table array, preventing JetSam crashes.
+- `extractSearchablePayloads(from:)` — Generates `SearchableScan` structures
+  for indexed library text filtering. It batch-fetches requested string IDs
+  with one `FetchDescriptor` and restores caller order through an ID map; it
+  does not issue one `model(for:)` fault per record.
+- Full library rebuilds do not create this actor for a second fetch.
+  `ScansManager` cooperatively extracts `RawScanSnapshot` values from its
+  already-resident query, then builds the text snapshot in a detached task.
+- Advanced filters are a separate value-type pipeline in
+  `ScanLibraryFilterIndex.swift`; they do not dereference SwiftData models from
+  `SearchDatabaseActor`.
 - `commonGroupName(for:)` — Generates semantic mapping strings from taxonomy class limits (e.g. "Aves" -> "bird", "Insecta" -> "insect", "Mammalia" -> "mammal") to augment layperson searchability alongside AI reasoning text.
 
 **When to create**: Created ad-hoc by `ScansManager` inside `Task.detached` blocks whenever library models mutate, or when `NSNotification.Name("ScanRequiresSearchIndexUpdate")` necessitates a targeted index hot-swap.
@@ -267,9 +286,20 @@ Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored 
 
 `FileIOActor` is also a singleton because it has no `ModelContext` and manages a single shared resource (the Documents directory).
 
-## 2026-05 Collection Projection Rule
+## 2026-07 Collection Projection Rule
 
-Large collection membership reads should be projected from `LocalScanRecord.collections`, not by repeatedly faulting `ScanCollection.scans` on UI or reconciliation paths. `BackgroundDatabaseActor.pushCollectionsToEdge()` and `ScanRepository.syncCollections` now build membership maps from bounded scan-side batches.
+Collection upload reads must begin with the changed relationship owners.
+`BackgroundDatabaseActor.collectionSyncPayloads()` fetches the bounded
+non-Favorites `ScanCollection` set and prefetches each row's inverse `scans`
+relationship. Do not restore the former 200-row
+`LocalScanRecord.collections` OFFSET walk: it scanned unrelated records,
+repeated progressively more SQLite work, and rebuilt the same memberships on
+every collection job. The Edge endpoint reads current `collection_scans`
+membership with a stable `(collection_id, scan_id)` keyset cursor and writes
+only its delta; range/OFFSET pagination is not part of this upload path.
+Historical download reconciliation remains independently page-bounded because
+it is ingesting remote scan history rather than projecting an existing local
+relationship.
 
 ## 2026-06 Smart Collection Boundary
 

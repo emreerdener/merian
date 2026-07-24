@@ -352,12 +352,18 @@ diContainer.offlineQueueManager.enqueueCapture(
 
 `ScanCollection.scans` is a relationship fault, not a cheap array property. Using it in SwiftUI hot paths (`CollectionCard`, selection toggles, detail filtering) or historical reconciliation can fault a large graph onto the main actor and trigger frame drops or OOM spikes on big libraries.
 
-### ✅ The Pattern: Project Membership From The Scan Side
+### ✅ The Pattern: Project For The Consumer
 
 - Build lightweight membership snapshots from `LocalScanRecord.collections`.
 - Cache collection counts, member ID sets, and optional cover scans in value types such as `CollectionMembershipSnapshot`.
 - Use those snapshots in SwiftUI instead of repeatedly asking a collection for `scans?.count`, `contains`, or full member arrays.
-- For sync paths, scan `LocalScanRecord.collections` in bounded batches (`fetchLimit`, `fetchOffset`) and save between mutation batches. Do not fetch every scan relationship in one `FetchDescriptor`.
+- For collection upload, query the bounded non-Favorites `ScanCollection` owners,
+  prefetch their direct `scans` relationships once, and serialize sorted member
+  IDs. Never rediscover those memberships by walking unrelated
+  `LocalScanRecord` rows with `fetchOffset`.
+- At the Edge boundary, hydrate existing `collection_scans` rows with the
+  `(collection_id, scan_id)` keyset cursor and write only the computed
+  membership delta. Do not reintroduce progressively slower range/offset pages.
 - Recovery sweeps such as lookalike-cache clearing must include a predicate and fetch limit; unbounded full-library fetches are zero-OOM violations.
 
 ## 12. Auth and Store Bootstrap Must Not `fatalError`

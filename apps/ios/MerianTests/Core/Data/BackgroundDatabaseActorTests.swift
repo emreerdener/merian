@@ -91,6 +91,56 @@ struct BackgroundDatabaseActorTests {
         #expect(payloads.first?.id == queuedScan.id, "Sendable Payload struct MUST explicitly carry the offline scan UUID")
     }
 
+    @Test func testCollectionSyncPayloadsReadDirectRelationshipsAndExcludeUnrelatedScans() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let firstMember = LocalScanRecord(
+            id: "collection_member_b",
+            speciesId: "species_b",
+            scientificName: "Quercus alba",
+            commonName: "White Oak"
+        )
+        let secondMember = LocalScanRecord(
+            id: "collection_member_a",
+            speciesId: "species_a",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch"
+        )
+        let unrelated = LocalScanRecord(
+            id: "collection_unrelated",
+            speciesId: "species_unrelated",
+            scientificName: "Turdus migratorius",
+            commonName: "American Robin"
+        )
+        let collection = ScanCollection(
+            id: "collection_direct_members",
+            name: "Field Notes",
+            createdAt: Date(timeIntervalSince1970: 100),
+            scans: [firstMember, secondMember]
+        )
+        let favorites = ScanCollection(
+            id: "collection_favorites",
+            name: "Favorites",
+            createdAt: Date(timeIntervalSince1970: 50),
+            scans: [unrelated]
+        )
+
+        context.insert(firstMember)
+        context.insert(secondMember)
+        context.insert(unrelated)
+        context.insert(collection)
+        context.insert(favorites)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let payloads = await actor.collectionSyncPayloads()
+
+        #expect(payloads?.count == 1)
+        #expect(payloads?.first?.id == collection.id)
+        #expect(payloads?.first?.scan_ids == [secondMember.id, firstMember.id])
+        #expect(payloads?.first?.scan_ids.contains(unrelated.id) == false)
+    }
+
     @Test func testClearAllLocalLookalikesCacheClearsBiologicalRecordsAcrossBatchesOnly() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)

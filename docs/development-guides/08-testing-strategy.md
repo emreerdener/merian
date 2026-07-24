@@ -357,7 +357,11 @@ MerianTests/
   proves a superseded query never emits `searchCompleted`. Also verifies the
   indexed query path preserves substring behavior
   (`testSubstringSearchFilteringPreservesContainsSemantics`) so the candidate
-  index does not regress the user-facing `contains` search contract.
+  index does not regress the user-facing `contains` search contract. Advanced
+  filter tests wait for `filterIndexingCompleted`, verify cached option
+  dimensions refresh after a targeted mutation, confirm selected values are
+  normalized without changing matching semantics, and exercise rapid targeted
+  reindexes so a superseded task cannot drop another document.
 - **`LocalImageLoaderTests.swift`**: Explicitly locks concurrent network payload
   boundaries using overarching `TaskGroup`s. Asserts `fetchNetworkFallback`
   deduplicates asynchronous URL fetches seamlessly to prevent multi-grid render
@@ -592,8 +596,13 @@ MerianTests/
   species/taxonomy/location/field-note ranking, selected-tag exclusion, five-tag
   slot handling, optional Field trip Challenge `eventHashtags`, and
   normalization of typed hashtag input before publishing.
-- **`ScansManagerTests.swift`**: Verifies search-index construction, incremental
-  reindexing, sort behavior, and selection limits for the Scans library.
+- **`ScansManagerTests.swift`**: Verifies text/filter-index construction,
+  incremental and coalesced reindexing, sort behavior, and selection limits for
+  the Scans library.
+- **`BackgroundDatabaseActorTests.swift` collection projection**: Creates
+  member and unrelated scans plus Favorites, then verifies
+  `collectionSyncPayloads()` returns only the non-Favorites collection's direct,
+  deterministically sorted membership IDs.
 - **`AppDIContainerTests.swift` preferred-name coverage**: Verifies matching
   normalized cloud values and existing tombstones are converged without an
   upsert, while real conflicts retain timestamp ordering.
@@ -1349,6 +1358,9 @@ and detail seeking still behaves as documented.
   `console.error`-swallows) when the scan validation query fails, when a
   membership delete operation is rejected, and resolves cleanly on success. Also
   asserts the early-return path for empty `ownedIds` makes no DB calls.
+- **Composite membership cursor**: Verifies the existing-membership reader
+  advances from the final `(collection_id, scan_id)` key of a full page and
+  never falls back to range/OFFSET pagination before calculating the delta.
 
 ### `_shared/entitlement_test.ts` and `_shared/aiQuota_test.ts`
 

@@ -95,6 +95,12 @@ TestFlight, App Store, support, and QA.
   background-expiration callbacks from clearing or cancelling a newer sync
   attempt. Queue progress now remains accurate across rapid reconnects,
   retries, and app suspension.
+- Made search-library filters responsive for large histories by caching filter
+  dimensions and normalized scan values per library generation, then filtering
+  and sorting immutable snapshots away from the main UI actor. Collection sync
+  also reads only direct collection memberships instead of repeatedly walking
+  the entire local scan history, and server reconciliation now advances through
+  existing memberships with a stable cursor before writing only the delta.
 - Prevented non-finite media geometry from reaching SwiftUI in Explore detail
   zoom and audio playmarkers, eliminating invalid-frame warnings and unstable
   offsets during transient layout/player states.

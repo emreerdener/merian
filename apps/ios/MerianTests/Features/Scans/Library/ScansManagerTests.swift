@@ -37,7 +37,7 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertFalse(searchManager.isFiltering)
     }
 
-    func testCategoryFiltersSortByLibraryFrequencyWithStablePriority() throws {
+    func testCategoryFiltersSortByLibraryFrequencyWithStablePriority() async throws {
         let birds = try (0..<2).map { index in
             try createTestScan(
                 commonName: "Bird \(index)",
@@ -67,7 +67,9 @@ final class ScansManagerTests: XCTestCase {
             taxonomyClass: "Reptilia"
         )
 
-        searchManager.allScans = birds + fungi + [plant, reptile]
+        await waitForFilterIndexing(expectedDocumentCount: 6) {
+            searchManager.allScans = birds + fungi + [plant, reptile]
+        }
 
         XCTAssertEqual(
             searchManager.orderedCategoryFilters,
@@ -216,6 +218,17 @@ final class ScansManagerTests: XCTestCase {
     ) async {
         await waitForDebugEvent(description: "search indexing completed", after: trigger) { event in
             guard case let .indexingCompleted(documentCount) = event else { return false }
+            guard let expectedDocumentCount else { return true }
+            return documentCount == expectedDocumentCount
+        }
+    }
+
+    private func waitForFilterIndexing(
+        expectedDocumentCount: Int? = nil,
+        after trigger: @MainActor () -> Void
+    ) async {
+        await waitForDebugEvent(description: "filter indexing completed", after: trigger) { event in
+            guard case let .filterIndexingCompleted(documentCount) = event else { return false }
             guard let expectedDocumentCount else { return true }
             return documentCount == expectedDocumentCount
         }
@@ -709,7 +722,9 @@ final class ScansManagerTests: XCTestCase {
         scan.taxonomyOrder = "Fagales"
         scan.taxonomyFamily = "Fagaceae"
         scan.taxonomyGenus = "Quercus"
-        searchManager.allScans = [scan]
+        await waitForFilterIndexing(expectedDocumentCount: 1) {
+            searchManager.allScans = [scan]
+        }
 
         let options = searchManager.filterOptions
         XCTAssertEqual(options.customTags, ["yard"])
@@ -738,6 +753,81 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertFalse(searchManager.hasActiveFilters)
         XCTAssertEqual(searchManager.activeCategoryFilter, "All")
         XCTAssertEqual(searchManager.searchQuery, "oak")
+    }
+
+    func testTargetedReindexRefreshesCachedFilterDimensions() async throws {
+        let scan = try createTestScan(
+            commonName: "Tagged Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild"
+        )
+        scan.customTags = ["backyard"]
+        scan.hazardType = "irritant"
+        scan.weatherCondition = "Cloudy"
+
+        await waitForFilterIndexing(expectedDocumentCount: 1) {
+            searchManager.allScans = [scan]
+        }
+        XCTAssertEqual(searchManager.filterOptions.customTags, ["backyard"])
+        XCTAssertEqual(searchManager.filterOptions.weatherConditions, ["Cloudy"])
+
+        scan.customTags = ["woodland"]
+        scan.weatherCondition = "Rainy"
+        try context.save()
+
+        await waitForFilterIndexing(expectedDocumentCount: 1) {
+            ScanLibraryEvents.postSearchIndexUpdate(scanId: scan.id)
+        }
+
+        XCTAssertEqual(searchManager.filterOptions.customTags, ["woodland"])
+        XCTAssertEqual(searchManager.filterOptions.weatherConditions, ["Rainy"])
+
+        await waitForFilterCompletion {
+            $0.customTags = ["  WOODLAND  "]
+            $0.weatherConditions = [" rainy "]
+        }
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [scan.id])
+
+        await waitForFilterCompletion {
+            $0.hazardTypes = [" unknown "]
+        }
+        XCTAssertTrue(searchManager.filteredScans.isEmpty)
+    }
+
+    func testRapidTargetedReindexesDoNotDropSupersededDocuments() async throws {
+        let first = try createTestScan(
+            commonName: "First Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild"
+        )
+        let second = try createTestScan(
+            commonName: "Second Oak",
+            scientificName: "Quercus rubra",
+            ecologyType: "wild"
+        )
+
+        await waitForIndexing(expectedDocumentCount: 2) {
+            searchManager.allScans = [first, second]
+        }
+
+        first.customTags = ["alpha_reindex"]
+        second.customTags = ["beta_reindex"]
+        try context.save()
+
+        await waitForIndexing(expectedDocumentCount: 2) {
+            ScanLibraryEvents.postSearchIndexUpdate(scanId: first.id)
+            ScanLibraryEvents.postSearchIndexUpdate(scanId: second.id)
+        }
+
+        await waitForSearchCompletion(for: "alpha_reindex") {
+            searchManager.performSearch(query: "alpha_reindex")
+        }
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [first.id])
+
+        await waitForSearchCompletion(for: "beta_reindex") {
+            searchManager.performSearch(query: "beta_reindex")
+        }
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [second.id])
     }
 
     func testDebounceCancellation() async throws {

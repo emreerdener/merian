@@ -218,6 +218,11 @@ the native iOS source tree.
 | `SearchDatabaseActor`                  | `apps/ios/Merian/Features/Scans/Library/ViewModels/ScansManager.swift`                                 | Ad-hoc for incremental search payload extraction from persistent IDs.                                                                                                                                              |
 | `FileIOActor`                          | `apps/ios/Merian/Core/Data/Database/FileIOActor.swift`                                                 | Singleton actor for image/audio file writes, deletes, and path validation.                                                                                                                                         |
 
+The Scans library's advanced filtering worker is intentionally not a SwiftData
+actor. `Features/Scans/Library/Models/ScanLibraryFilterIndex.swift` accepts only
+`Sendable` projections extracted by `ScansManager`; it caches option dimensions
+and performs normalized matching off-main without owning a `ModelContext`.
+
 ## Supabase Edge Function Inventory
 
 Inference and media staging:

@@ -210,15 +210,26 @@ Deno.test("syncMembershipDelta returns early when ownedIds is empty", async () =
 });
 
 // ---------------------------------------------------------------------------
-// upsertCollectionsAndFetchMemberships — batched paginated membership fetch
+// upsertCollectionsAndFetchMemberships — keyset-paginated membership fetch
 // ---------------------------------------------------------------------------
 
-Deno.test("upsertCollectionsAndFetchMemberships paginates memberships across owned collections in one query", async () => {
-  const collectionIdA = crypto.randomUUID();
-  const collectionIdB = crypto.randomUUID();
-  const rangesRequested: Array<[number, number]> = [];
+Deno.test("upsertCollectionsAndFetchMemberships advances memberships with a composite cursor", async () => {
+  const collectionIdA = "00000000-0000-0000-0000-00000000000a";
+  const collectionIdB = "00000000-0000-0000-0000-00000000000b";
+  const limitsRequested: number[] = [];
+  const cursorFilters: string[] = [];
   const collectionFilters: string[][] = [];
   let upsertCallCount = 0;
+  const firstPage = [
+    ...Array.from({ length: 999 }, (_, index) => ({
+      collection_id: collectionIdA,
+      scan_id: `scan-${String(index).padStart(4, "0")}`,
+    })),
+    {
+      collection_id: collectionIdB,
+      scan_id: "scan-0000",
+    },
+  ];
 
   const client = {
     from: (table: string) => {
@@ -239,44 +250,37 @@ Deno.test("upsertCollectionsAndFetchMemberships paginates memberships across own
               return {
                 order: (..._orderArgs: unknown[]) => ({
                   order: (..._secondOrderArgs: unknown[]) => ({
-                    range: (from: number, to: number) => ({
-                      returns: (..._rangeArgs: unknown[]) => {
-                        rangesRequested.push([from, to]);
-                        if (from === 0) {
-                          return Promise.resolve({
-                            data: Array.from({ length: 1000 }, (_, index) => ({
-                              collection_id: index % 2 === 0 ? collectionIdA : collectionIdB,
-                              scan_id: `scan-${index}`,
-                            })),
-                            error: null,
-                          });
-                        }
-                        if (from === 1000) {
+                    limit: (limit: number) => {
+                      limitsRequested.push(limit);
+                      let cursorFilter: string | undefined;
+                      const page = {
+                        or: (filter: string) => {
+                          cursorFilter = filter;
+                          cursorFilters.push(filter);
+                          return page;
+                        },
+                        returns: (..._rangeArgs: unknown[]) => {
+                          if (!cursorFilter) {
+                            return Promise.resolve({
+                              data: firstPage,
+                              error: null,
+                            });
+                          }
                           return Promise.resolve({
                             data: [{
                               collection_id: collectionIdB,
-                              scan_id: "scan-1000",
+                              scan_id: "scan-0001",
                             }],
                             error: null,
                           });
-                        }
-                        return Promise.resolve({ data: [], error: null });
-                      },
-                    }),
+                        },
+                      };
+                      return page;
+                    },
                   }),
                 }),
               };
             },
-            eq: (_column: string, _value: string) => ({
-              order: (..._orderArgs: unknown[]) => ({
-                range: (from: number, to: number) => ({
-                  returns: (..._rangeArgs: unknown[]) => {
-                    rangesRequested.push([from, to]);
-                    return Promise.resolve({ data: [], error: null });
-                  },
-                }),
-              }),
-            }),
           }),
         };
       }
@@ -307,6 +311,12 @@ Deno.test("upsertCollectionsAndFetchMemberships paginates memberships across own
 
   assertEquals(upsertCallCount, 1);
   assertEquals(memberships.length, 1001);
-  assertEquals(collectionFilters, [[collectionIdA, collectionIdB], [collectionIdA, collectionIdB]]);
-  assertEquals(rangesRequested, [[0, 999], [1000, 1999]]);
+  assertEquals(collectionFilters, [[collectionIdA, collectionIdB], [
+    collectionIdA,
+    collectionIdB,
+  ]]);
+  assertEquals(limitsRequested, [1000, 1000]);
+  assertEquals(cursorFilters, [
+    `collection_id.gt.${collectionIdB},and(collection_id.eq.${collectionIdB},scan_id.gt.scan-0000)`,
+  ]);
 });

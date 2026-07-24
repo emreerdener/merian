@@ -169,6 +169,8 @@ jobs:
             supabase/functions/replay-scan-ingestion \
             supabase/functions/revenuecat-webhook \
             supabase/functions/species-observation-stats \
+            supabase/functions/sync-collections/db.ts \
+            supabase/functions/sync-collections/db_test.ts \
             supabase/functions/scan-media-health
 
       - name: Validate Edge Function lint
@@ -247,6 +249,8 @@ jobs:
             supabase/functions/replay-scan-ingestion \
             supabase/functions/revenuecat-webhook \
             supabase/functions/species-observation-stats \
+            supabase/functions/sync-collections/db.ts \
+            supabase/functions/sync-collections/db_test.ts \
             supabase/functions/scan-media-health
 
       - name: Validate shared Edge runtime checks
@@ -367,6 +371,7 @@ jobs:
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/sync-collections/db_test.ts \
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \

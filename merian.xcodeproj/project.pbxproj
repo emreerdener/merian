@@ -283,6 +283,7 @@
 		89BEE1A64836D0ACFD5C4E84 /* LocationPermissionStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB16E89CB4607F4CB77173E /* LocationPermissionStepView.swift */; };
 		8A4792E491FE1A547AD973E3 /* SpeciesDictionaryReferenceGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DBC96B4FEFC355C434C70C /* SpeciesDictionaryReferenceGallery.swift */; };
 		8AAE4EAE6531012F5058278C /* ZoomSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6216DDED11426B8A1720851D /* ZoomSliderView.swift */; };
+		8C78DAAFD7A52F1A988DD47A /* ScanLibraryFilterIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = E024A1DDA0D9E014CD2D2B42 /* ScanLibraryFilterIndex.swift */; };
 		8CB28B80BCF2962877681372 /* ExplorePostComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAF5E1607411420CCA41580 /* ExplorePostComposerView.swift */; };
 		8CC9E3D1BB8C55EB75B27553 /* ImageFileWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF33046BE74C0283284B8E7 /* ImageFileWrapper.swift */; };
 		8CDB84EA9D6DD5249E701C31 /* ReferralShareContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5B2062404816A152EE09413 /* ReferralShareContentTests.swift */; };
@@ -1027,6 +1028,7 @@
 		DE86F55297CCA1282005D0A5 /* InsightToolbarRecordSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightToolbarRecordSnapshot.swift; sourceTree = "<group>"; };
 		DF10D4CB1ABD756807419719 /* InsightShareButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightShareButton.swift; sourceTree = "<group>"; };
 		E02169C2CA31C8A77886556C /* InsightChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightChatViewModel.swift; sourceTree = "<group>"; };
+		E024A1DDA0D9E014CD2D2B42 /* ScanLibraryFilterIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLibraryFilterIndex.swift; sourceTree = "<group>"; };
 		E1FA337457E0FD14F5BE6EFD /* SelectMultipleScansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectMultipleScansView.swift; sourceTree = "<group>"; };
 		E27C3CEBA04378051256826D /* PublicBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicBrand.swift; sourceTree = "<group>"; };
 		E327C6377502A88D4BC73345 /* CollectionPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionPayloadTests.swift; sourceTree = "<group>"; };
@@ -2015,6 +2017,7 @@
 		4CAA615C27E29A89C3CB797E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				E024A1DDA0D9E014CD2D2B42 /* ScanLibraryFilterIndex.swift */,
 				BAE041D593445A32343578ED /* SearchableScan.swift */,
 			);
 			path = Models;
@@ -4333,6 +4336,7 @@
 				FBD552F932F331C0D412DEE4 /* ScanCollection.swift in Sources */,
 				E15D472AEF88505382BAD5D1 /* ScanDeletionDialogModifier.swift in Sources */,
 				D3DA21D5A41DAADF689AFF1E /* ScanInformationCard.swift in Sources */,
+				8C78DAAFD7A52F1A988DD47A /* ScanLibraryFilterIndex.swift in Sources */,
 				D61A5D3CBD2AE59B054518A0 /* ScanQueueState.swift in Sources */,
 				49B8FB1EE3616CF89ADD1730 /* ScanRepository.swift in Sources */,
 				CBC02F40D84BA8F4BAA3195A /* ScanThumbnail.swift in Sources */,

@@ -1802,12 +1802,14 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
   swallowing via `console.error` — the controller propagates a `500` so the iOS
   client retries rather than treating a partial failure as confirmed.
 - **`collection_scans` membership hydration**: Existing memberships for all
-  owned incoming collections are fetched through one paginated
+  owned incoming collections are fetched through one keyset-paginated
   `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`.
-  Pages are bounded with `.range(...)`, avoiding the previous N+1 membership
-  latency stack while still preventing the theoretical maximum (200 collections
-  × 5000 scan IDs = 1M rows) from loading into one isolate allocation. The
-  existing `PRIMARY KEY (collection_id, scan_id)` supports this access pattern.
+  Each bounded page resumes strictly after the last composite primary key;
+  no progressively slower `.range(...)`/OFFSET walk is used. This avoids the
+  previous N+1 latency stack while preventing the theoretical maximum
+  (200 collections × 5000 scan IDs = 1M rows) from loading into one isolate
+  allocation. The existing `PRIMARY KEY (collection_id, scan_id)` supports the
+  cursor order.
 
 ## Species Preferred Name Sync
 

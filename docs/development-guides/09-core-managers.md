@@ -745,8 +745,23 @@ triggering excessive SwiftUI view rebuilds.
   substring semantics intact (`"yard"` still matches `"backyard"`, and
   one-character queries no longer fall back to the full library) without
   scanning the entire library for every keystroke.
+- **Generation-scoped advanced-filter index**:
+  `ScanLibraryFilterIndexSnapshot` stores one immutable, pre-normalized
+  `ScanLibraryFilterDocument` per scan plus cached filter-sheet dimensions and
+  category counts. Main-actor extraction yields every 128 records; normalization
+  and aggregate construction run on a detached utility task. A filter change
+  builds one `ScanLibraryFilterQuery`, normalizing selected values and date
+  bounds once, then performs matching and sorting together off-main. Never add a
+  computed filter option that scans `allScans` or a predicate that reads
+  `LocalScanRecord` inside the query loop.
+- **Targeted invalidation**: custom-tag notifications and Explore share-state
+  events advance the cache generation, coalesce every pending scan ID into the
+  replacement search task, rebuild the immutable filter snapshot, and rerun the
+  active query. Coalescing is required: cancelling task A before carrying A's ID
+  into task B can silently remove A from the index.
 - **Debug completion hook**: In `DEBUG`, `ScansManager` exposes internal
-  `SearchDebugEvent` callbacks for `indexingCompleted` and `searchCompleted`.
+  `SearchDebugEvent` callbacks for `indexingCompleted`,
+  `filterIndexingCompleted`, and `searchCompleted`.
   The test suite uses these events to await real background completion instead
   of sleeping for guessed debounce/indexing windows, which makes search
   regressions deterministic without changing the production control flow.
@@ -1111,10 +1126,11 @@ and `KeychainManager` migration logic. Do not inline
   logic for `fetchDiagnosticComparison` is extracted into a shared utility,
   preventing 1:1 duplication between the `identify` and `enrich-scan` Edge
   functions.
-- **N+1 Query Prevention (`sync-collections`)**: Instead of issuing sequential
-  Supabase inserts per record, the layer collects all mappings into an array and
-  issues a single `.insert(allMappings)` call, eliminating connection exhaustion
-  under high collection counts.
+- **N+1 Query Prevention (`sync-collections`)**: Collection rows are batch
+  upserted, existing memberships for all owned collection IDs share one
+  composite-keyset read, and membership additions/removals are emitted in
+  bounded set-based chunks. The endpoint never issues one membership read or
+  insert per record.
 - **Explore request guards**: Explore write endpoints now share
   `_shared/http.ts.parseJsonBody(...)` for object-body validation and
   `_shared/explore.ts.assertCanInteractWithExplorePost(...)` for the identical
