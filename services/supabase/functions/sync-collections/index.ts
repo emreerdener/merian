@@ -1,25 +1,21 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 
 import { SyncCollectionPayload } from "./types.ts";
 import {
-  filterOwnedCollections,
   deleteCollections,
-  upsertCollectionsAndFetchMemberships,
+  filterOwnedCollections,
   syncMembershipDelta,
+  upsertCollectionsAndFetchMemberships,
 } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let requestBody;
-    try {
-      requestBody = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const requestBody = await parseJsonBody(req, { limit: "bulk" });
+    if (requestBody instanceof Response) return requestBody;
 
-    const collections: SyncCollectionPayload[] = requestBody.collections;
-
-    if (!collections || !Array.isArray(collections)) {
+    const rawCollections = requestBody.collections;
+    if (!Array.isArray(rawCollections)) {
       return jsonResponse(
         {
           error: "Invalid payload. Expected an array of 'collections'.",
@@ -27,6 +23,7 @@ Deno.serve((req: Request) =>
         400,
       );
     }
+    const collections = rawCollections as SyncCollectionPayload[];
 
     const MAX_COLLECTIONS = 200;
     if (collections.length > MAX_COLLECTIONS) {
@@ -40,10 +37,14 @@ Deno.serve((req: Request) =>
 
     const MAX_SCAN_IDS_PER_COLLECTION = 5000;
     for (const c of collections) {
-      if (Array.isArray(c.scan_ids) && c.scan_ids.length > MAX_SCAN_IDS_PER_COLLECTION) {
+      if (
+        Array.isArray(c.scan_ids) &&
+        c.scan_ids.length > MAX_SCAN_IDS_PER_COLLECTION
+      ) {
         return jsonResponse(
           {
-            error: `Collection "${c.id}" exceeds the scan_ids limit (max ${MAX_SCAN_IDS_PER_COLLECTION}).`,
+            error:
+              `Collection "${c.id}" exceeds the scan_ids limit (max ${MAX_SCAN_IDS_PER_COLLECTION}).`,
           },
           400,
         );
@@ -93,5 +94,5 @@ Deno.serve((req: Request) =>
       },
       200,
     );
-  }),
+  })
 );

@@ -2,15 +2,16 @@ import { createClient } from "@supabase/supabase-js";
 import {
   corsHeaders,
   jsonResponse,
+  parseJsonBody,
   timingSafeCompare,
 } from "../_shared/http.ts";
-import { logStructuredError } from "../_shared/edgeHandler.ts";
+import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import {
   parseSpeciesModelContentRefreshRequest,
   runSpeciesModelContentRefresh,
 } from "./db.ts";
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -27,7 +28,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body = await parseOptionalJsonObjectBody(req);
+    const body = await parseJsonBody<Record<string, unknown>>(req, {
+      allowEmpty: true,
+      limit: "small",
+    });
     if (body instanceof Response) return body;
 
     const parsedRequest = parseSpeciesModelContentRefreshRequest(body);
@@ -70,20 +74,3 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Internal Server Error" }, 500);
   }
 });
-
-async function parseOptionalJsonObjectBody(
-  req: Request,
-): Promise<Record<string, unknown> | Response> {
-  const text = await req.text();
-  if (text.trim().length === 0) return {};
-
-  try {
-    const body = JSON.parse(text);
-    if (body && typeof body === "object" && !Array.isArray(body)) {
-      return body as Record<string, unknown>;
-    }
-    return jsonResponse({ error: "JSON body must be an object." }, 400);
-  } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
-  }
-}

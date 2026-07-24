@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 
 interface ExploreCommentLookup {
   id: string;
@@ -6,7 +7,10 @@ interface ExploreCommentLookup {
   user_id: string;
   deleted_at: string | null;
   moderated_at: string | null;
-  post?: { user_id?: string | null; unshared_at?: string | null } | { user_id?: string | null; unshared_at?: string | null }[] | null;
+  post?: { user_id?: string | null; unshared_at?: string | null } | {
+    user_id?: string | null;
+    unshared_at?: string | null;
+  }[] | null;
 }
 
 function relationValue<T>(value: T | T[] | null | undefined): T | undefined {
@@ -14,10 +18,8 @@ function relationValue<T>(value: T | T[] | null | undefined): T | undefined {
   return value ?? undefined;
 }
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+function makeHttpError(status: number, message: string): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export async function fetchReportableComment(
@@ -49,7 +51,10 @@ export async function fetchReportableComment(
     throw makeHttpError(400, "You cannot report your own comment.");
   }
 
-  if (post?.unshared_at != null || row.deleted_at != null || row.moderated_at != null) {
+  if (
+    post?.unshared_at != null || row.deleted_at != null ||
+    row.moderated_at != null
+  ) {
     throw makeHttpError(404, "Explore comment is no longer available.");
   }
 

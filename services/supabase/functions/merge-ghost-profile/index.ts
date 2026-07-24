@@ -4,6 +4,7 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { syncPublicAuthorIdentity } from "../_shared/explore.ts";
+import { publicErrorResponse } from "../_shared/http.ts";
 import { readRequestJsonWithinBudget } from "../_shared/mediaBudgets.ts";
 import {
   consumeGhostMergeHandoff,
@@ -120,14 +121,11 @@ Deno.serve((req: Request) =>
               targetUserId: receipt.targetUserId,
               errorCode: cleanup.errorCode,
             });
-            return jsonResponse(
-              {
-                code: "auth_cleanup_pending",
-                error:
-                  "Account data was upgraded, but identity cleanup is still pending. Retrying is safe.",
-                retryable: true,
-              },
+            return publicErrorResponse(
+              req,
               503,
+              "auth_cleanup_pending",
+              "Account data was upgraded, but identity cleanup is still pending. Retrying is safe.",
             );
           }
 
@@ -174,9 +172,11 @@ Deno.serve((req: Request) =>
           status: error.status,
           internalMessage: error.internalMessage,
         });
-        return jsonResponse(
-          { code: error.code, error: error.message },
+        return publicErrorResponse(
+          req,
           error.status,
+          error.code,
+          error.message,
         );
       }
       throw error;

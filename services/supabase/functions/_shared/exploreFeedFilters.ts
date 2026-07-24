@@ -1,3 +1,5 @@
+import { PublicHttpError, publicHttpError } from "./http.ts";
+
 export type ExploreMediaType = "image" | "video" | "audio";
 
 export type ExploreSpeciesCategory =
@@ -38,10 +40,8 @@ const ALLOWED_MEDIA_TYPES = new Set<ExploreMediaType>([
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 function normalizeStringFilters<T extends string>(

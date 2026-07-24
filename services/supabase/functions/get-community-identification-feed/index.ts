@@ -10,6 +10,7 @@ import {
   withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 import { makeHttpError } from "../_shared/communityIdentification.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 import { fetchCommunityIdentificationFeed } from "./db.ts";
 import type {
   CommunityIdentificationFeedScope,
@@ -47,12 +48,11 @@ function normalizeCommunityRequestGroup(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: Record<string, unknown> = {};
-    try {
-      body = await req.json();
-    } catch {
-      // Body is optional.
-    }
+    const body = await parseJsonBody(req, {
+      limit: "small",
+      allowEmpty: true,
+    });
+    if (body instanceof Response) return body;
 
     const limit = normalizeLimit(body.limit, 30, 100);
     const beforeRequestedAt = normalizeCursorTimestamp(

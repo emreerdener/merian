@@ -1,23 +1,20 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 
 import { insertFlagRecord, markScanAsFlagged } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "small" });
+    if (body instanceof Response) return body;
 
     const paramErr = requireParams(body, ["scanId", "flagReason"]);
     if (paramErr) return paramErr;
 
     const { scanId, flagReason, userSuggestion } = body;
 
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (typeof scanId !== "string" || !UUID_RE.test(scanId)) {
       return jsonResponse({ error: "scanId must be a valid UUID." }, 400);
     }
@@ -29,9 +26,25 @@ Deno.serve((req: Request) =>
       "Other",
     ]);
 
-    if (!VALID_FLAG_REASONS.has(flagReason)) {
+    if (
+      typeof flagReason !== "string" ||
+      !VALID_FLAG_REASONS.has(flagReason)
+    ) {
       return jsonResponse(
-        { error: `Invalid flagReason. Must be one of: ${[...VALID_FLAG_REASONS].join(", ")}.` },
+        {
+          error: `Invalid flagReason. Must be one of: ${
+            [...VALID_FLAG_REASONS].join(", ")
+          }.`,
+        },
+        400,
+      );
+    }
+    if (
+      userSuggestion !== undefined &&
+      typeof userSuggestion !== "string"
+    ) {
+      return jsonResponse(
+        { error: "userSuggestion must be a string." },
         400,
       );
     }
@@ -57,5 +70,5 @@ Deno.serve((req: Request) =>
       { success: true, message: "Report submitted for moderation." },
       200,
     );
-  }),
+  })
 );

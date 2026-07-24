@@ -6,7 +6,7 @@ import { searchCommunityTaxa } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "small" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
 

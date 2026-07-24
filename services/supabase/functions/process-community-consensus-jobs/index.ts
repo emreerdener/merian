@@ -3,10 +3,13 @@ import { normalizeLimit } from "../_shared/explore.ts";
 import {
   corsHeaders,
   jsonResponse,
+  parseJsonBody,
+  publicErrorResponse,
   timingSafeCompare,
 } from "../_shared/http.ts";
+import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -22,12 +25,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    let body: Record<string, unknown> = {};
-    try {
-      body = await req.json();
-    } catch {
-      body = {};
-    }
+    const body = await parseJsonBody(req, {
+      limit: "small",
+      allowEmpty: true,
+    });
+    if (body instanceof Response) return body;
 
     const limit = normalizeLimit(body.limit, 25, 100);
     const supabaseAdmin = createClient(
@@ -49,6 +51,14 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: true, data: data ?? [] }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return jsonResponse({ error: message }, 500);
+    logStructuredError("community_consensus_processing_failed", {
+      error: message,
+    });
+    return publicErrorResponse(
+      req,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

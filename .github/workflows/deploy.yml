@@ -99,7 +99,11 @@ jobs:
             supabase/functions/_shared/auth.ts \
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
+            supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/http_test.ts \
+            supabase/functions/_shared/mediaBudgets.ts \
+            supabase/functions/_shared/mediaBudgets_test.ts \
             supabase/functions/_shared/clientAddress.ts \
             supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/aiQuota.ts \
@@ -129,6 +133,8 @@ jobs:
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
@@ -171,7 +177,11 @@ jobs:
             supabase/functions/_shared/auth.ts \
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
+            supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/http_test.ts \
+            supabase/functions/_shared/mediaBudgets.ts \
+            supabase/functions/_shared/mediaBudgets_test.ts \
             supabase/functions/_shared/clientAddress.ts \
             supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/aiQuota.ts \
@@ -201,6 +211,8 @@ jobs:
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
@@ -243,7 +255,11 @@ jobs:
             supabase/functions/_shared/auth.ts \
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
+            supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/http_test.ts \
+            supabase/functions/_shared/mediaBudgets.ts \
+            supabase/functions/_shared/mediaBudgets_test.ts \
             supabase/functions/_shared/clientAddress.ts \
             supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/aiQuota.ts \
@@ -273,6 +289,8 @@ jobs:
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
@@ -332,7 +350,11 @@ jobs:
       - name: Test shared Edge helpers
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions/deno.json,supabase/functions/_shared/auth.ts,supabase/functions/_shared/claimsAuth.ts,supabase/functions/_shared/edgeHandler.ts,supabase/functions/identify-multimodal/index.ts \
+            --allow-env \
+            --allow-read=supabase/functions,../apps/web \
+            supabase/functions/_shared/http_test.ts \
+            supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/identify/latencyDb_test.ts \
@@ -399,6 +421,7 @@ jobs:
             --allow-read=supabase/migrations \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/explorePostChatMigration.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
@@ -421,7 +444,8 @@ jobs:
             supabase/tests/privileged_routine_security.sql \
             supabase/tests/ai_quota_security.sql \
             supabase/tests/revenuecat_webhook_security.sql \
-            supabase/tests/species_observation_stats_security.sql
+            supabase/tests/species_observation_stats_security.sql \
+            supabase/tests/waitlist_security.sql
 
       - name: Stop disposable database
         if: always()

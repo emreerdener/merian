@@ -1,6 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { serveEdge } from "../_shared/edgeHandler.ts";
 
-import { corsHeaders, timingSafeCompare } from "../_shared/http.ts";
+import {
+  corsHeaders,
+  parseJsonBody,
+  publicErrorResponse,
+  timingSafeCompare,
+} from "../_shared/http.ts";
 import {
   reconcileScanMediaAssets,
   type ReconcileScanMediaAssetsOptions,
@@ -36,7 +42,7 @@ function parseOptions(value: unknown): ReconcileScanMediaAssetsOptions {
   };
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -52,12 +58,11 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  let body: unknown = {};
-  try {
-    body = await req.json();
-  } catch {
-    body = {};
-  }
+  const body = await parseJsonBody(req, {
+    limit: "small",
+    allowEmpty: true,
+  });
+  if (body instanceof Response) return body;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -76,6 +81,11 @@ Deno.serve(async (req: Request) => {
       error: message,
       ts: new Date().toISOString(),
     }));
-    return jsonResponse({ error: message }, 500);
+    return publicErrorResponse(
+      req,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

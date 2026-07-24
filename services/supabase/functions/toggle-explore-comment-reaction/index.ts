@@ -5,7 +5,7 @@ import { toggleExploreCommentReaction } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "small" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
 
@@ -19,12 +19,17 @@ Deno.serve((req: Request) =>
       return jsonResponse({ error: "emoji must be a valid string." }, 400);
     }
 
-    await toggleExploreCommentReaction(commentId, user.id, emoji, supabaseAdmin);
+    await toggleExploreCommentReaction(
+      commentId,
+      user.id,
+      emoji,
+      supabaseAdmin,
+    );
 
     return jsonResponse({
       success: true,
       comment_id: commentId,
       emoji: emoji,
     });
-  }),
+  })
 );

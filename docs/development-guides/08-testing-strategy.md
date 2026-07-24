@@ -707,6 +707,39 @@ batch retries only its own members and rejects malformed function names.
 This suite exists specifically to prevent local checks from passing against a
 parent config that the remote function bundler does not discover.
 
+JSON ingress and public error behavior have four complementary Deno checks:
+
+- `_shared/http_test.ts` drives declared-length, chunked, oversized, invalid
+  UTF-8, invalid media-type, optional-empty, object-shape, tiny-chunk
+  coalescing, and cancellation-race cases through the canonical streaming
+  reader.
+- `_tests/edgeHandler.test.ts` proves request IDs are server generated and
+  propagated through authenticated and custom-auth handlers, only
+  `PublicHttpError` or a validated `publicErrorResponse(...)` can expose a
+  failure, unexpected exceptions and ordinary returned `5xx` bodies are
+  sanitized, and safe retry headers survive.
+- `_tests/jsonEndpointSecurityCoverage.test.ts` scans deployable production
+  modules and rejects direct request `.json()`/`.text()` reads, missing explicit
+  body limits, and unwrapped custom-auth entrypoints. It also locks the shared
+  exception boundary so arbitrary thrown messages cannot become public errors.
+- `_tests/jsonEndpointSecurityMigrationContract.test.ts` locks the waitlist
+  schema constraints, RLS, revocations, privileged routine grant, and
+  transactional rate-check order.
+
+`services/supabase/tests/waitlist_security.sql` runs against the disposable
+local catalog and verifies direct-table isolation, service-only RPC execution,
+new-row field constraints, duplicate behavior, pre-Turnstile 10-minute/daily
+limits, and exact verified/global rate boundaries. The web companion tests in
+`apps/web/lib/boundedJson.test.ts` and `waitlistSecurity.test.ts` cover the 4
+KiB reader, tiny-chunk coalescing, conservative email normalization, trusted
+proxy parsing, rotating IP HMAC, bounded Siteverify responses, and fail-closed
+Turnstile verification. The suite also proves incomplete Turnstile
+configuration fails before any provider fetch. Migration coverage requires
+both bounded counter-retention paths to use `FOR UPDATE SKIP LOCKED`, preventing
+concurrent request cleanup from becoming a lock convoy.
+`.github/workflows/web-quality.yml` runs those tests, TypeScript checking, and
+a production Next.js build for affected web changes.
+
 Function-local tests under `services/supabase/functions/insight-chat/` verify
 the expanded text-only prompt context, raw image URL/storage-key/coordinate
 exclusion, raw-image-access system instruction, supported action parsing,

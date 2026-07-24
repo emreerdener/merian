@@ -1,6 +1,12 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { jsonResponse } from "../_shared/edgeHandler.ts";
-import { timingSafeCompare } from "../_shared/http.ts";
+import {
+  isJsonMediaType,
+  publicErrorResponse,
+  readRequestBodyWithinLimit,
+  requestIdFor,
+  timingSafeCompare,
+} from "../_shared/http.ts";
 import {
   applyRevenueCatCustomerState,
   getRevenueCatWebhookEventResult,
@@ -36,8 +42,6 @@ export interface RevenueCatWebhookDependencies {
   now?: () => number;
 }
 
-class RevenueCatBodyTooLargeError extends Error {}
-
 function configurationIsComplete(config: RevenueCatWebhookConfig): boolean {
   return config.authorizationSecret.length >= 32 &&
     config.signingSecret.length >= 32 &&
@@ -50,40 +54,6 @@ function databaseErrorIsRetryable(code: string | null): boolean {
     ["40001", "40P01", "53300", "57014", "57P01", "P0001"].includes(code);
 }
 
-async function readBoundedBody(
-  request: Request,
-  maximumBytes: number,
-): Promise<Uint8Array> {
-  if (!request.body) return new Uint8Array();
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > maximumBytes) {
-        await reader.cancel("request body exceeded limit");
-        throw new RevenueCatBodyTooLargeError();
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return body;
-}
-
 export function createRevenueCatWebhookHandler(
   dependencies: RevenueCatWebhookDependencies,
 ): (request: Request) => Promise<Response> {
@@ -91,19 +61,27 @@ export function createRevenueCatWebhookHandler(
   const now = dependencies.now ?? Date.now;
 
   return async (request: Request): Promise<Response> => {
+    const requestId = requestIdFor(request);
     if (request.method !== "POST") {
-      return jsonResponse(
-        { error: "Method not allowed." },
+      return publicErrorResponse(
+        request,
         405,
-        { Allow: "POST" },
+        "method_not_allowed",
+        "Method not allowed.",
+        { extraHeaders: { Allow: "POST" } },
       );
     }
 
     if (!configurationIsComplete(dependencies.config)) {
       console.error(
-        "[revenuecat-webhook] Required RevenueCat secrets are unavailable.",
+        `[revenuecat-webhook] request_id=${requestId} required secrets are unavailable.`,
       );
-      return jsonResponse({ error: "Service unavailable." }, 503);
+      return publicErrorResponse(
+        request,
+        503,
+        "service_unavailable",
+        "The service is temporarily unavailable.",
+      );
     }
 
     const authorization = request.headers.get("Authorization") ?? "";
@@ -113,29 +91,41 @@ export function createRevenueCatWebhookHandler(
         `Bearer ${dependencies.config.authorizationSecret}`,
       )
     ) {
-      return jsonResponse({ error: "Unauthorized." }, 401);
-    }
-
-    const contentLength = Number(request.headers.get("Content-Length"));
-    if (
-      Number.isFinite(contentLength) &&
-      contentLength > MAX_REVENUECAT_WEBHOOK_BYTES
-    ) {
-      return jsonResponse({ error: "Request body too large." }, 413);
-    }
-
-    let rawBytes: Uint8Array;
-    try {
-      rawBytes = await readBoundedBody(
+      return publicErrorResponse(
         request,
-        MAX_REVENUECAT_WEBHOOK_BYTES,
+        401,
+        "unauthorized",
+        "Unauthorized.",
       );
-    } catch (error) {
-      if (error instanceof RevenueCatBodyTooLargeError) {
-        return jsonResponse({ error: "Request body too large." }, 413);
-      }
-      return jsonResponse({ error: "Invalid request body." }, 400);
     }
+
+    if (!isJsonMediaType(request.headers.get("content-type"))) {
+      return publicErrorResponse(
+        request,
+        415,
+        "unsupported_media_type",
+        "Content-Type must be application/json.",
+      );
+    }
+
+    const bodyResult = await readRequestBodyWithinLimit(
+      request,
+      MAX_REVENUECAT_WEBHOOK_BYTES,
+    );
+    if (bodyResult.error || !bodyResult.bytes) {
+      const error = bodyResult.error ?? {
+        status: 400,
+        code: "invalid_json",
+        message: "Invalid request body.",
+      };
+      return publicErrorResponse(
+        request,
+        error.status,
+        error.code,
+        error.message,
+      );
+    }
+    const rawBytes = bodyResult.bytes;
 
     let verifiedSignature;
     try {
@@ -147,13 +137,23 @@ export function createRevenueCatWebhookHandler(
       );
     } catch (error) {
       console.error(
-        "[revenuecat-webhook] Signature verification unavailable:",
+        `[revenuecat-webhook] request_id=${requestId} signature verification unavailable:`,
         error,
       );
-      return jsonResponse({ error: "Service unavailable." }, 503);
+      return publicErrorResponse(
+        request,
+        503,
+        "signature_verification_unavailable",
+        "The service is temporarily unavailable.",
+      );
     }
     if (!verifiedSignature) {
-      return jsonResponse({ error: "Unauthorized." }, 401);
+      return publicErrorResponse(
+        request,
+        401,
+        "invalid_webhook_signature",
+        "Unauthorized.",
+      );
     }
 
     try {
@@ -187,13 +187,17 @@ export function createRevenueCatWebhookHandler(
         console.info(
           `[revenuecat-webhook] duplicate event ${event.id}; ${existingResult.subjectCount} subject(s).`,
         );
-        return jsonResponse({
-          success: true,
-          outcome: "duplicate",
-          subject_count: existingResult.subjectCount,
-          applied_count: existingResult.appliedCount,
-          stale_count: existingResult.staleCount,
-        });
+        return jsonResponse(
+          {
+            success: true,
+            outcome: "duplicate",
+            subject_count: existingResult.subjectCount,
+            applied_count: existingResult.appliedCount,
+            stale_count: existingResult.staleCount,
+          },
+          200,
+          { "X-Request-ID": requestId },
+        );
       }
 
       // RevenueCat recommends fetching CustomerInfo after each webhook. The
@@ -244,58 +248,93 @@ export function createRevenueCatWebhookHandler(
       console.info(
         `[revenuecat-webhook] ${result.outcome} event ${event.id}; ${result.appliedCount} applied, ${result.staleCount} stale.`,
       );
-      return jsonResponse({
-        success: true,
-        outcome: result.outcome,
-        subject_count: result.subjectCount,
-        applied_count: result.appliedCount,
-        stale_count: result.staleCount,
-      });
+      return jsonResponse(
+        {
+          success: true,
+          outcome: result.outcome,
+          subject_count: result.subjectCount,
+          applied_count: result.appliedCount,
+          stale_count: result.staleCount,
+        },
+        200,
+        { "X-Request-ID": requestId },
+      );
     } catch (error) {
       if (error instanceof RevenueCatPayloadError) {
-        return jsonResponse({ error: "Invalid webhook payload." }, 400);
+        return publicErrorResponse(
+          request,
+          400,
+          "invalid_webhook_payload",
+          "Invalid webhook payload.",
+        );
       }
 
       if (error instanceof RevenueCatApiError) {
-        console.error(`[revenuecat-webhook] ${error.message}`);
-        return jsonResponse(
-          { error: "Authoritative entitlement lookup failed." },
+        console.error(
+          `[revenuecat-webhook] request_id=${requestId} ${error.message}`,
+        );
+        return publicErrorResponse(
+          request,
           error.retryable ? 503 : 502,
-          error.retryable ? { "Retry-After": "30" } : {},
+          "entitlement_lookup_failed",
+          "Authoritative entitlement lookup failed.",
+          { retryAfterSeconds: error.retryable ? 30 : undefined },
         );
       }
 
       if (error instanceof RevenueCatDatabaseError) {
         console.error(
-          `[revenuecat-webhook] Database transition failed (${
+          `[revenuecat-webhook] request_id=${requestId} database transition failed (${
             error.code ?? "unknown"
           }): ${error.message}`,
         );
         if (error.message.includes("revenuecat_user_not_found")) {
-          return jsonResponse(
-            { error: "User profile is not ready." },
+          return publicErrorResponse(
+            request,
             503,
-            { "Retry-After": "30" },
+            "user_profile_not_ready",
+            "User profile is not ready.",
+            { retryAfterSeconds: 30 },
           );
         }
         if (error.message.includes("revenuecat_event_id_conflict")) {
-          return jsonResponse({ error: "Event identifier conflict." }, 409);
+          return publicErrorResponse(
+            request,
+            409,
+            "event_identifier_conflict",
+            "Event identifier conflict.",
+          );
         }
         if (error.message.includes("revenuecat_user_mapping_ambiguous")) {
-          return jsonResponse({ error: "Ambiguous customer mapping." }, 409);
+          return publicErrorResponse(
+            request,
+            409,
+            "ambiguous_customer_mapping",
+            "Ambiguous customer mapping.",
+          );
         }
         if (databaseErrorIsRetryable(error.code)) {
-          return jsonResponse(
-            { error: "Database temporarily unavailable." },
+          return publicErrorResponse(
+            request,
             503,
-            { "Retry-After": "30" },
+            "database_unavailable",
+            "Database temporarily unavailable.",
+            { retryAfterSeconds: 30 },
           );
         }
       } else {
-        console.error("[revenuecat-webhook] Unexpected failure:", error);
+        console.error(
+          `[revenuecat-webhook] request_id=${requestId} unexpected failure:`,
+          error,
+        );
       }
 
-      return jsonResponse({ error: "Webhook processing failed." }, 500);
+      return publicErrorResponse(
+        request,
+        500,
+        "internal_error",
+        "Webhook processing failed.",
+      );
     }
   };
 }

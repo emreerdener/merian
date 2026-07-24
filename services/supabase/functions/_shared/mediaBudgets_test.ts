@@ -138,6 +138,7 @@ Deno.test("readRequestJsonWithinBudget parses valid JSON and rejects malformed J
   const valid = await readRequestJsonWithinBudget<{ ok: boolean }>(
     new Request("https://example.test/identify", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ok: true }),
     }),
     MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
@@ -148,6 +149,7 @@ Deno.test("readRequestJsonWithinBudget parses valid JSON and rejects malformed J
   const invalid = await readRequestJsonWithinBudget(
     new Request("https://example.test/identify", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: "{not-json",
     }),
     MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
@@ -155,7 +157,7 @@ Deno.test("readRequestJsonWithinBudget parses valid JSON and rejects malformed J
 
   assertEquals(invalid.error, {
     status: 400,
-    message: "Invalid JSON body",
+    message: "Invalid JSON body.",
   });
 });
 

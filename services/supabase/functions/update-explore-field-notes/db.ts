@@ -9,6 +9,7 @@ import {
   requireApprovedAudioMedia,
 } from "../share-scan-to-explore/db.ts";
 import type { AudioModerationQuota } from "../_shared/audioModeration.ts";
+import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 
 export interface ExistingExplorePostMediaSelection {
   kind: "image" | "video" | "audio";
@@ -21,10 +22,8 @@ export interface ExistingExplorePostMediaSelection {
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export async function updateExploreFieldNotes(

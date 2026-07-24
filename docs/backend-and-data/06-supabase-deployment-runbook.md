@@ -1316,6 +1316,165 @@ waves and the final observation window complete. After validation, update the
 changelog and latency/AI/API/logging/offline-queue docs with the measured p50/p95
 and the chosen Edge-region policy.
 
+## Public Waitlist Security Rollout
+
+Migration `20260724192124_harden_json_endpoints_and_waitlist.sql` and the secured
+Next.js waitlist route are one compatibility unit. Deploy the database boundary
+first. The old direct table upsert cannot work after revocation, while the new
+route cannot work before `claim_beta_waitlist_challenge_attempt(...)` and
+`submit_beta_waitlist_signup(...)` exist.
+
+### One-time production setup
+
+1. In Cloudflare Turnstile, create a **Managed** widget for
+   `naturebook.earth`. Copy its public site key and secret separately. Preview
+   domains should use a separate widget and an explicit preview hostname list;
+   do not broaden the production allowlist with wildcards.
+2. Generate a dedicated waitlist IP-HMAC secret:
+
+   ```bash
+   openssl rand -hex 32
+   ```
+
+3. Configure these Vercel Production environment values:
+
+   | Variable | Production value/contract |
+   | --- | --- |
+   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public key for the production widget |
+   | `TURNSTILE_SECRET_KEY` | Server secret for that same widget |
+   | `TURNSTILE_ALLOWED_HOSTNAMES` | `naturebook.earth` |
+   | `WAITLIST_IP_HASH_SECRET` | Dedicated value generated above; at least 32 random characters |
+   | `WAITLIST_TRUSTED_IP_HEADER` | `x-vercel-forwarded-for` |
+   | `SUPABASE_URL` | Production project URL |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Production server-only service-role key |
+
+   Vercel owns and overwrites `x-vercel-forwarded-for` at the application
+   ingress. If the app moves behind another proxy, explicitly choose one
+   allowlisted header and configure the trusted ingress to overwrite it; never
+   accept a client-appended forwarding chain.
+
+Do not put the Turnstile secret, waitlist HMAC secret, or Supabase service-role
+key in a `NEXT_PUBLIC_` variable, source file, build log, or support ticket.
+Only the Turnstile site key is public.
+
+### Verification and deployment order
+
+From the repository root, complete the static/unit gates and disposable
+database fixture before production:
+
+```bash
+deno test --frozen --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions,services/supabase/migrations \
+  services/supabase/functions/_shared/http_test.ts \
+  services/supabase/functions/_tests/edgeHandler.test.ts \
+  services/supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
+  services/supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts
+
+cd apps/web
+npm test
+npm run typecheck
+npm run build
+```
+
+The production sequence is:
+
+1. Run the normal Supabase workflow so the migration, privileged-routine
+   catalog gate, and `waitlist_security.sql` pass.
+2. Verify both hosted function signatures are executable by `service_role` only
+   and the waitlist tables are not directly accessible by API roles.
+3. Deploy the web application with all Vercel values above.
+4. Submit one real browser signup so Turnstile can issue a valid, single-use
+   token. Repeat the same address and confirm the response is deliberately
+   indistinguishable.
+5. Confirm a non-JSON request returns `415`, a body above 4 KiB returns `413`,
+   and an invalid/expired challenge returns `400 invalid_challenge`. Repeated
+   invalid attempts must reach the distributed pre-challenge `429` boundary,
+   while repeated verified attempts must reach the tighter insertion `429`;
+   both responses include `Retry-After: 600`.
+6. Search server logs by `request_id`. Confirm raw emails, client IPs,
+   Turnstile tokens, database messages, and provider responses are absent.
+
+Post-deploy catalog checks:
+
+```sql
+SELECT
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.submit_beta_waitlist_signup(text,text,text,text)',
+        'EXECUTE'
+    ) AS service_role_can_execute,
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.claim_beta_waitlist_challenge_attempt(text)',
+        'EXECUTE'
+    ) AS service_role_can_claim,
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.submit_beta_waitlist_signup(text,text,text,text)',
+        'EXECUTE'
+    ) AS anon_can_execute,
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.claim_beta_waitlist_challenge_attempt(text)',
+        'EXECUTE'
+    ) AS anon_can_claim,
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.submit_beta_waitlist_signup(text,text,text,text)',
+        'EXECUTE'
+    ) AS authenticated_can_execute,
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.claim_beta_waitlist_challenge_attempt(text)',
+        'EXECUTE'
+    ) AS authenticated_can_claim;
+
+SELECT conname, convalidated
+FROM pg_catalog.pg_constraint
+WHERE conrelid = 'public.beta_waitlist_signups'::pg_catalog.REGCLASS
+  AND conname LIKE 'beta_waitlist_signups_%_shape_check'
+ORDER BY conname;
+
+SELECT scope_type, pg_catalog.SUM(request_count) AS bounded_requests
+FROM internal.beta_waitlist_rate_counters
+GROUP BY scope_type
+ORDER BY scope_type;
+```
+
+Expected privileges are `true, true, false, false, false, false` in the order
+selected. The counter query is aggregate only; do not export or log the HMAC
+scope keys.
+
+The three historical-row constraints begin `NOT VALID` so deployment is not
+blocked by old data, while all new writes are protected immediately. After a
+privacy-reviewed cleanup of any historical invalid rows, validate them:
+
+```sql
+ALTER TABLE public.beta_waitlist_signups
+    VALIDATE CONSTRAINT beta_waitlist_signups_email_shape_check;
+ALTER TABLE public.beta_waitlist_signups
+    VALIDATE CONSTRAINT beta_waitlist_signups_source_shape_check;
+ALTER TABLE public.beta_waitlist_signups
+    VALIDATE CONSTRAINT beta_waitlist_signups_user_agent_shape_check;
+```
+
+If Turnstile verification or the trusted-IP, HMAC, or database boundary fails,
+the route intentionally returns `503` and stores no signup. Configuration
+failures detected by the preflight consume no counter. After configuration
+passes, a request that reaches the distributed pre-challenge gate consumes one
+bounded HMAC counter; this contains provider amplification and stores no raw
+address. Recover by correcting the server configuration or temporarily
+disabling the web form. Do not restore the old direct table upsert, grant table
+access to `service_role`, relax CAPTCHA verification, or accept an untrusted
+forwarding header as a rollback.
+
+The route validates the Turnstile secret, hostname allowlist, trusted client
+address, and HMAC secret before calling the pre-challenge RPC. A configuration
+failure therefore must not increase `challenge_ip_10m` or
+`challenge_ip_day`. Expired-counter maintenance is capped at 500 rows per call
+and uses `FOR UPDATE SKIP LOCKED`; lock-timeout alerts should be investigated
+rather than worked around by raising the public request limits.
+
 ## Required and Optional GitHub Secrets
 
 Set these in the repository's GitHub Actions secrets:

@@ -4,6 +4,77 @@ Naturebook operates through a decoupled backend. The iOS application exclusively
 Functions, abstracting its networking away from 3rd-party providers like Google
 Gemini.
 
+## Fleet-Wide JSON Ingress and Error Contract
+
+Every production Deno endpoint reads JSON through bounded primitives in
+`services/supabase/functions/_shared/http.ts`. Most routes use
+`parseJsonBody(...)`; signed webhooks use the same module's exact raw-byte
+reader, and reviewed media adapters delegate to its bounded JSON reader. The
+ordinary object reader:
+
+- accepts `application/json` and `application/*+json` only;
+- rejects malformed, negative, non-decimal, or conflicting
+  `Content-Length` values;
+- compares the declared size with the actual streamed size;
+- cancels the stream before retaining a chunk that would cross the limit;
+- coalesces accepted chunks into a geometrically growing bounded buffer so
+  allocation stays proportional to byte count rather than transport chunk
+  count;
+- rejects invalid UTF-8 and malformed JSON; and
+- requires a JSON object unless the endpoint explicitly documents another
+  shape.
+
+Routes use the smallest endpoint class that can contain a valid request:
+
+| Class | Maximum body | Intended payload |
+| --- | ---: | --- |
+| `small` | 16 KiB | scalar IDs, actions, and preferences |
+| `standard` | 64 KiB | ordinary structured API requests |
+| `bulk` | 1 MiB | explicitly bounded batches |
+
+Media endpoints may use a reviewed larger ceiling through
+`_shared/mediaBudgets.ts`; they still use the same streaming reader. Bodies are
+uncompressed JSON. These byte limits are an allocation boundary, not a schema
+validator: each endpoint must continue to validate field types, string lengths,
+array counts, UUIDs, and ownership.
+
+Parser failures use stable public codes:
+
+| HTTP | Code |
+| ---: | --- |
+| 400 | `invalid_content_length`, `invalid_json`, or `invalid_json_object` |
+| 413 | `payload_too_large` |
+| 415 | `unsupported_media_type` |
+
+Edge errors return:
+
+```json
+{
+  "error": "A stable caller-safe message",
+  "code": "stable_machine_code",
+  "request_id": "server-generated-uuid"
+}
+```
+
+`X-Request-ID` carries the same UUID and is exposed through CORS. The server
+does not trust an inbound request-ID header. Authenticated routes use
+`withEdgeHandler`; custom-auth, webhook, and intentionally public routes use
+`serveEdge`. Expected thrown failures use `PublicHttpError`, while explicit
+safe response failures use `publicErrorResponse(...)`. Retained returned `4xx`
+contracts must contain only audited validation or caller-state data; the
+boundary validates/adds their stable code and request ID. An arbitrary
+exception is logged privately and becomes `500 internal_error`; an ordinary
+returned `5xx` keeps its status but receives the generic status-derived
+code/message. Retryable public failures may additionally include
+`retry_after_seconds` and a bounded `Retry-After` header.
+
+The Next.js waitlist API uses the equivalent web envelope with `message` in
+place of `error`. Its 4 KiB request ceiling, CAPTCHA, database rate limits, and
+service-only pre-challenge and insertion RPCs are documented in the web README
+and deployment runbook. The distributed IP claim runs before Turnstile; the
+tighter verified-attempt and global-growth transaction runs only after a valid
+challenge.
+
 ## Deno `/field-trips` Edge Node
 
 `/field-trips` is an action-based Explore-adjacent social endpoint. It is

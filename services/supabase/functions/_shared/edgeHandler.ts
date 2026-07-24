@@ -1,6 +1,14 @@
 import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./auth.ts";
-import { corsHeaders, jsonResponse } from "./http.ts";
+import {
+  corsHeaders,
+  defaultPublicErrorCode,
+  isExplicitPublicErrorResponse,
+  jsonResponse,
+  publicErrorResponse,
+  PublicHttpError,
+  requestIdFor,
+} from "./http.ts";
 
 export { jsonResponse };
 
@@ -8,6 +16,10 @@ export type EdgeAuthenticator = (
   req: Request,
   supabaseAdmin: SupabaseClient,
 ) => Promise<{ user: User | null; response: Response | null }>;
+
+export type PublicEdgeHandler = (
+  req: Request,
+) => Response | Promise<Response>;
 
 /**
  * Emits a structured JSON error log for alertable operational events.
@@ -20,9 +32,9 @@ export function logStructuredError(
   details: Record<string, unknown>,
 ): void {
   console.error(JSON.stringify({
+    ...details,
     event,
     ts: new Date().toISOString(),
-    ...details,
   }));
 }
 
@@ -57,8 +69,13 @@ export async function withEdgeHandler(
   ) => Promise<Response>,
   options: { authenticate?: EdgeAuthenticator } = {},
 ): Promise<Response> {
+  const requestId = requestIdFor(req);
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return withRequestMetadata(
+      new Response("ok", { headers: corsHeaders }),
+      requestId,
+    );
   }
 
   try {
@@ -73,57 +90,168 @@ export async function withEdgeHandler(
     const authDuration = performance.now() - authStart;
 
     if (response || !user) {
-      return withAuthServerTiming(
+      return await finalizeEdgeResponse(
+        req,
         response || jsonResponse({ error: "Unauthorized" }, 401),
         authDuration,
       );
     }
 
-    return withAuthServerTiming(
+    return await finalizeEdgeResponse(
+      req,
       await handler(user, supabaseAdmin, { authDurationMs: authDuration }),
       authDuration,
     );
   } catch (error: unknown) {
-    console.error("Edge function error:", error);
-    const msg = error instanceof Error
-      ? error.message
-      : "Internal Server Error";
-    const errorRecord = error && typeof error === "object"
-      ? error as Record<string, unknown>
-      : {};
-    const candidateStatus = errorRecord.status;
-    const customStatus = typeof candidateStatus === "number" &&
-        Number.isInteger(candidateStatus) &&
-        candidateStatus >= 400 && candidateStatus <= 599
-      ? candidateStatus
-      : 500;
-    const candidateCode = errorRecord.code;
-    const code = typeof candidateCode === "string" &&
-        /^[a-z][a-z0-9_]{1,63}$/.test(candidateCode)
-      ? candidateCode
-      : undefined;
-    const candidateRetryAfter = errorRecord.retryAfterSeconds;
-    const retryAfter = typeof candidateRetryAfter === "number" &&
-        Number.isInteger(candidateRetryAfter) &&
-        candidateRetryAfter > 0 &&
-        candidateRetryAfter <= 86400
-      ? candidateRetryAfter
-      : undefined;
-    return jsonResponse(
+    return boundaryFailureResponse(req, error);
+  }
+}
+
+/**
+ * Applies the same request-ID and public-error boundary to deliberately public,
+ * webhook, and service-authenticated handlers that own authentication outside
+ * `withEdgeHandler`.
+ */
+export async function withPublicEdgeHandler(
+  req: Request,
+  handler: PublicEdgeHandler,
+): Promise<Response> {
+  const requestId = requestIdFor(req);
+  try {
+    const response = await handler(req);
+    return await finalizePublicResponse(
+      req,
+      withRequestMetadata(response, requestId),
+      isExplicitPublicErrorResponse(response),
+    );
+  } catch (error: unknown) {
+    return boundaryFailureResponse(req, error);
+  }
+}
+
+/**
+ * Registers a custom-auth/public handler without allowing it to bypass the
+ * fleet-wide response boundary.
+ */
+export function serveEdge(handler: PublicEdgeHandler): void {
+  Deno.serve((req: Request) => withPublicEdgeHandler(req, handler));
+}
+
+async function finalizeEdgeResponse(
+  req: Request,
+  response: Response,
+  durationMs: number,
+): Promise<Response> {
+  const requestId = requestIdFor(req);
+  const responseWithTiming = withAuthServerTiming(
+    response,
+    durationMs,
+    requestId,
+  );
+  return await finalizePublicResponse(
+    req,
+    responseWithTiming,
+    isExplicitPublicErrorResponse(response),
+  );
+}
+
+async function finalizePublicResponse(
+  req: Request,
+  response: Response,
+  explicitPublicError = false,
+): Promise<Response> {
+  const requestId = requestIdFor(req);
+  if (explicitPublicError) return response;
+  if (response.status < 400) return response;
+
+  if (response.status >= 500) {
+    const retryAfterSeconds = retryAfterFromResponse(response);
+    return publicErrorResponse(
+      req,
+      response.status,
+      defaultPublicErrorCode(response.status),
+      response.status === 503
+        ? "The service is temporarily unavailable."
+        : "The request could not be completed.",
       {
-        error: msg,
-        ...(code ? { code } : {}),
-        ...(retryAfter ? { retry_after_seconds: retryAfter } : {}),
+        extraHeaders: safePublicErrorHeaders(response),
+        retryAfterSeconds,
       },
-      customStatus,
-      retryAfter ? { "Retry-After": String(retryAfter) } : {},
     );
   }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  let payload: Record<string, unknown> = {};
+  if (contentType.toLowerCase().includes("application/json")) {
+    try {
+      const parsed = await response.clone().json();
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        payload = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Fall through to the stable generic 4xx envelope.
+    }
+  }
+
+  const existingCode = typeof payload.code === "string" &&
+      /^[a-z][a-z0-9_]{1,63}$/.test(payload.code)
+    ? payload.code
+    : defaultPublicErrorCode(response.status);
+  const existingMessage = typeof payload.error === "string" &&
+      payload.error.trim().length > 0 &&
+      payload.error.length <= 500
+    ? payload.error
+    : "The request is invalid.";
+
+  return jsonResponse(
+    {
+      ...payload,
+      error: existingMessage,
+      code: existingCode,
+      request_id: requestId,
+    },
+    response.status,
+    {
+      ...safePublicErrorHeaders(response),
+      "Cache-Control": "private, no-store",
+      "Content-Type": "application/json",
+      "X-Request-ID": requestId,
+    },
+  );
+}
+
+function boundaryFailureResponse(req: Request, error: unknown): Response {
+  const requestId = requestIdFor(req);
+  logStructuredError("edge_function_request_failed", {
+    request_id: requestId,
+    method: req.method,
+    pathname: safePathname(req.url),
+    error_name: error instanceof Error ? error.name : typeof error,
+    error_message: error instanceof Error ? error.message : String(error),
+  });
+
+  if (error instanceof PublicHttpError) {
+    return publicErrorResponse(
+      req,
+      error.status,
+      error.code,
+      error.message,
+      { retryAfterSeconds: validRetryAfter(error.retryAfterSeconds) },
+    );
+  }
+
+  return publicErrorResponse(
+    req,
+    500,
+    "internal_error",
+    "The request could not be completed.",
+  );
 }
 
 function withAuthServerTiming(
   response: Response,
   durationMs: number,
+  requestId: string,
 ): Response {
   const headers = new Headers(response.headers);
   const existing = headers.get("Server-Timing");
@@ -132,9 +260,53 @@ function withAuthServerTiming(
     "Server-Timing",
     existing ? `${authMetric}, ${existing}` : authMetric,
   );
+  headers.set("X-Request-ID", requestId);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
   });
+}
+
+function withRequestMetadata(response: Response, requestId: string): Response {
+  const headers = new Headers(response.headers);
+  headers.set("X-Request-ID", requestId);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function safePublicErrorHeaders(response: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const name of ["Allow", "Server-Timing", "WWW-Authenticate"]) {
+    const value = response.headers.get(name);
+    if (value) headers[name] = value;
+  }
+  return headers;
+}
+
+function retryAfterFromResponse(response: Response): number | undefined {
+  const value = response.headers.get("Retry-After")?.trim() ?? "";
+  return /^[1-9][0-9]{0,4}$/.test(value)
+    ? validRetryAfter(Number(value))
+    : undefined;
+}
+
+function validRetryAfter(value: number | undefined): number | undefined {
+  return typeof value === "number" &&
+      Number.isInteger(value) &&
+      value > 0 &&
+      value <= 86_400
+    ? value
+    : undefined;
+}
+
+function safePathname(url: string): string {
+  try {
+    return new URL(url).pathname.slice(0, 256);
+  } catch {
+    return "<invalid-url>";
+  }
 }

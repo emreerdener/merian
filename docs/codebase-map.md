@@ -182,12 +182,13 @@ the native iOS source tree.
 | Explore share page | `apps/web/app/explore/post/[postId]/page.tsx`, `apps/web/components/ExploreMediaCarousel.tsx`, `apps/web/components/ExploreBoostedAudio.tsx` | Server-rendered public post page with square ordered media, looping muted video, spectrogram-backed audio, optional local Boost Audio, metadata, and support reporting. |
 | Species share page | `apps/web/app/species/[speciesId]/page.tsx`, `apps/web/app/species/[speciesId]/[slug]/page.tsx`, `apps/web/lib/species.ts` | Server-rendered UUID-first readable Species Dictionary page with UUID-only/stale-slug redirects, strict versioned Edge mapping, rights-filtered reference imagery/metadata, native CTA, and textual lookalike navigation. |
 | Web audio boost stream | `apps/web/app/api/explore/audio/route.ts`, `apps/web/lib/audioProxy.ts` | Range-capable same-origin WAV stream restricted to public Naturebook media on the durable `media.merian.app` technical host; used only when a visitor activates browser-local Boost Audio. |
+| Public beta waitlist | `apps/web/app/api/waitlist/route.ts`, `apps/web/components/WaitlistForm.tsx`, `apps/web/lib/boundedJson.ts`, `apps/web/lib/waitlistSecurity.ts` | 4 KiB streamed JSON boundary, conservative email normalization, explicit Turnstile widget/Siteverify flow, trusted-proxy daily IP HMAC, distributed pre-provider rate claim, stable request IDs, and service-only atomic database insertion. |
 | Policy/support pages       | `apps/web/app/privacy/`, `apps/web/app/privacy-choices/`, `apps/web/app/terms/`, `apps/web/app/guidelines/`, `apps/web/app/support/`, `apps/web/app/legal/`                                 | App Store-friendly public policy, data-choice, community, support, and legal hub pages.                                |
 | Legal/public components    | `apps/web/components/PublicPageShell.tsx`, `apps/web/components/LegalPage.tsx`, `apps/web/components/ThemePreferenceBridge.tsx`, `apps/web/lib/site.ts`, `apps/web/lib/theme-preference.ts` | Shared public page chrome, legal document layout, iOS-to-Mantine theme preference sync, support email/site URL config. |
 | Supabase access            | `apps/web/lib/supabase.ts`, `apps/web/lib/explore.ts`, `apps/web/lib/species.ts`                                                                                                            | Server-only Supabase creation plus strict public Explore RPC and Species Dictionary Edge projection mapping.           |
 | Universal Links           | `apps/web/app/apple-app-site-association/route.ts`, `apps/web/lib/appleAppSiteAssociation.ts`, `apps/web/lib/canonicalHost.ts`, `apps/web/proxy.ts`                                         | Exact Explore/species AASA paths, direct legacy-host AASA exception, and canonical alias redirects.                    |
 | Formatting helpers         | `apps/web/lib/formatting.ts`                                                                                                                                                                | Shared Naturebook web copy and URL formatting.                                                                         |
-| Local setup                | `apps/web/README.md`, `apps/web/.env.example`, `apps/web/package.json`                                                                                                                      | Web setup, env variable contract, npm scripts, and dependency manifest.                                                |
+| Local setup and CI         | `apps/web/README.md`, `apps/web/.env.example`, `apps/web/package.json`, `.github/workflows/web-quality.yml`                                                                                | Web setup, waitlist secret/ingress contract, npm scripts, dependency manifest, tests, typecheck, and production build. |
 
 ## Core Modules
 
@@ -431,6 +432,15 @@ Deno tests live under `services/supabase/functions/_tests/` plus function-local
 ```bash
 deno task test
 ```
+
+Fleet-wide ingress coverage lives in `_shared/http_test.ts`,
+`_tests/edgeHandler.test.ts`,
+`_tests/jsonEndpointSecurityCoverage.test.ts`, and
+`_tests/jsonEndpointSecurityMigrationContract.test.ts`. The executable
+`services/supabase/tests/waitlist_security.sql` fixture verifies the waitlist
+RPC's ACL, constraints, duplicate behavior, and transactional rate ceilings.
+Web parser, email, proxy, HMAC, and Turnstile behavior is covered by
+`apps/web/lib/*.test.ts`.
 
 ## Documentation Maintenance Checklist
 

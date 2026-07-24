@@ -1,16 +1,13 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 
 import { insertFeedbackSurveyResponse } from "./db.ts";
 import { parseFeedbackSurveyPayload } from "./validation.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "standard" });
+    if (body instanceof Response) return body;
 
     const payload = parseFeedbackSurveyPayload(body);
     await insertFeedbackSurveyResponse(user.id, payload, supabaseAdmin);

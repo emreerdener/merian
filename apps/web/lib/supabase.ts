@@ -7,8 +7,7 @@ type SupabaseConfig = {
 
 function getSupabaseConfig(): SupabaseConfig | null {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ??
     process.env.SUPABASE_ANON_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -16,6 +15,13 @@ function getSupabaseConfig(): SupabaseConfig | null {
     return null;
   }
 
+  return { url, key };
+}
+
+function getServiceRoleSupabaseConfig(): SupabaseConfig | null {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
   return { url, key };
 }
 
@@ -43,12 +49,30 @@ export function createServerSupabaseClient() {
   return createClient(config.url, config.key, {
     auth: {
       persistSession: false,
-      autoRefreshToken: false
+      autoRefreshToken: false,
     },
     global: {
       fetch: usesModernSecretKey
         ? createModernSecretKeyFetch(config.key)
-        : undefined
-    }
+        : undefined,
+    },
+  });
+}
+
+export function createServiceRoleSupabaseClient() {
+  const config = getServiceRoleSupabaseConfig();
+  if (!config) return null;
+
+  const usesModernSecretKey = config.key.startsWith("sb_secret_");
+  return createClient(config.url, config.key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      fetch: usesModernSecretKey
+        ? createModernSecretKeyFetch(config.key)
+        : undefined,
+    },
   });
 }

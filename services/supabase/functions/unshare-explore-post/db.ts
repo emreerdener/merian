@@ -1,9 +1,8 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+function makeHttpError(status: number, message: string): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export async function ensureOwnedExplorePost(

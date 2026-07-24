@@ -38,6 +38,77 @@ Edge Functions are written in TypeScript and run on Deno. They handle logic like
   frozen lock install reproducibly, while future unlocked resolutions must age
   before adoption.
 
+### JSON Ingress and Public Error Boundary
+
+All production Edge JSON requests use the bounded primitives in
+`functions/_shared/http.ts`; direct `req.json()` and `req.text()` calls are
+prohibited. Most routes call `parseJsonBody(...)`. Signed webhooks retain exact
+raw bytes through `readRequestBodyWithinLimit(...)`, and media adapters delegate
+to `readBoundedJsonBody(...)`. The shared readers accept JSON media types,
+validate decimal `Content-Length`, stream through the actual byte ceiling,
+reject truncated or overlong bodies and invalid UTF-8, then parse the reviewed
+JSON shape. Routes must pick the smallest reviewed class that fits their schema:
+
+| Class | Ceiling | Typical use |
+| --- | ---: | --- |
+| `small` | 16 KiB | IDs, actions, preference updates |
+| `standard` | 64 KiB | ordinary structured API payloads |
+| `bulk` | 1 MiB | reviewed bounded batches |
+
+Media-bearing routes retain explicit larger budgets through
+`_shared/mediaBudgets.ts`, whose JSON adapter delegates to the same streaming
+reader. The canonical byte accumulator grows geometrically instead of retaining
+one object per transport chunk, keeping memory proportional to accepted bytes.
+Byte bounds do not replace field-level schema, count, or string-length
+validation. Request compression is not part of the contract; clients send
+uncompressed JSON so declared and actual sizes can be compared exactly.
+
+`functions/_shared/edgeHandler.ts` assigns a server UUID to every request and
+returns it in `X-Request-ID`. Authenticated handlers use `withEdgeHandler`;
+public, webhook, and service-authenticated entrypoints register through
+`serveEdge` so they cannot bypass the same response boundary. Expected thrown
+failures use `PublicHttpError`, and explicit safe response contracts use the
+validated `publicErrorResponse(...)` helper. Existing returned `4xx`
+application contracts remain supported only for audited validation or caller
+state; the boundary validates/adds a stable code and request ID. Arbitrary
+thrown objects cannot select an HTTP status or leak a message. Unexpected
+exceptions become `500 internal_error`; ordinary returned `5xx` responses keep
+their status but receive a generic status-derived public envelope. Keep
+operational details, provider responses, schema names, SQL text, and secrets
+out of public bodies.
+
+Static coverage in
+`functions/_tests/jsonEndpointSecurityCoverage.test.ts` prevents unbounded
+request readers and unwrapped custom entrypoints from returning to deployable
+routes, and locks the shared raw-exception sanitization boundary.
+
+### Public Web Waitlist Boundary
+
+Migration `20260724192124_harden_json_endpoints_and_waitlist.sql` revokes direct
+API and service-role table access to `public.beta_waitlist_signups`, adds
+new-row email/source/user-agent constraints, and creates the RLS-protected
+`internal.beta_waitlist_rate_counters` table. The only write path is
+`submit_beta_waitlist_signup(...)`, an empty-search-path, service-role-only
+definer RPC with an explicit privileged-routine allowlist entry.
+
+The Next.js route derives a daily, purpose-separated IP HMAC and calls
+`claim_beta_waitlist_challenge_attempt(...)` before any Cloudflare request.
+PostgreSQL permits at most 20 challenge checks per IP/10 minutes and 100/day.
+The route validates its trusted-IP, HMAC, hostname, and Turnstile-secret
+configuration before claiming a counter. Expired counter pruning is capped,
+indexed, and uses `FOR UPDATE SKIP LOCKED` so concurrent public requests do not
+wait on the same maintenance rows.
+After Turnstile succeeds, the insertion RPC applies the tighter verified limits
+of 5 attempts per IP/10 minutes, 20 per IP/day, and 2,000 new unique rows
+globally/day. Duplicate emails consume a verified IP attempt but not global
+growth. Raw IPs and CAPTCHA tokens never reach PostgreSQL.
+
+Static migration coverage lives in
+`functions/_tests/jsonEndpointSecurityMigrationContract.test.ts`; executable
+ACL, constraint, uniqueness, and rate-limit coverage lives in
+`tests/waitlist_security.sql`. Deploy the migration before enabling the secured
+web form and follow the production rollout in the Supabase deployment runbook.
+
 ### Identification Latency Contract
 
 `identify-multimodal` remains the single production inference request for a

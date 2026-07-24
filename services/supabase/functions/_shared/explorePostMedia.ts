@@ -7,6 +7,7 @@ import {
   makeSourceMediaId,
   parseSourceMediaId,
 } from "./exploreComposerMedia.ts";
+import { PublicHttpError, publicHttpError } from "./http.ts";
 
 export interface ExplorePostMediaSelection {
   kind: ExploreComposerMediaKind;
@@ -28,10 +29,8 @@ export interface ExplorePostMediaSnapshotRow {
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export function buildExplorePostMediaRows(

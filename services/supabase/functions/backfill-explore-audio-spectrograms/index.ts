@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
-import { corsHeaders, timingSafeCompare } from "../_shared/http.ts";
+import { serveEdge } from "../_shared/edgeHandler.ts";
+import {
+  corsHeaders,
+  parseJsonBody,
+  publicErrorResponse,
+  timingSafeCompare,
+} from "../_shared/http.ts";
 import { backfillExploreAudioSpectrograms } from "./worker.ts";
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -9,7 +15,7 @@ function jsonResponse(payload: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (request) => {
+serveEdge(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -27,13 +33,13 @@ Deno.serve(async (request) => {
   }
 
   let limit = 50;
-  try {
-    const body = await request.json() as { limit?: unknown };
-    if (typeof body.limit === "number" && Number.isFinite(body.limit)) {
-      limit = body.limit;
-    }
-  } catch {
-    // The default bounded batch is valid for an empty request body.
+  const body = await parseJsonBody(request, {
+    limit: "small",
+    allowEmpty: true,
+  });
+  if (body instanceof Response) return body;
+  if (typeof body.limit === "number" && Number.isFinite(body.limit)) {
+    limit = body.limit;
   }
 
   try {
@@ -52,6 +58,11 @@ Deno.serve(async (request) => {
       event: "explore_audio_spectrogram_backfill_failed",
       error: message,
     }));
-    return jsonResponse({ error: message }, 500);
+    return publicErrorResponse(
+      request,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

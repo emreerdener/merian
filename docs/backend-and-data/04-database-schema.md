@@ -153,6 +153,52 @@ have no execute privilege. Auth triggers continue to execute the refresh as the
 function owner. Edge read endpoints never call either function; write and
 ghost-merge paths own maintenance.
 
+### `beta_waitlist_signups` and `internal.beta_waitlist_rate_counters`
+
+Migration `20260724192124_harden_json_endpoints_and_waitlist.sql` turns the
+public web waitlist into a bounded service-owned write path.
+
+`public.beta_waitlist_signups` stores only the canonical lowercase email,
+bounded source, bounded sanitized user agent, and its existing timestamps. New
+rows must satisfy:
+
+- email length 3–254 characters of ASCII-shaped canonical input, local part at
+  most 64 characters, domain labels at most 63 characters, and no whitespace,
+  controls, consecutive dots, or leading/trailing label hyphens;
+- `source = 'web_waitlist'` at the RPC boundary and database source length
+  1–64; and
+- optional user-agent length 1–512 with no control characters.
+
+The three check constraints are initially `NOT VALID` so unknown historical
+junk cannot block the production migration; PostgreSQL still enforces them on
+every new or updated row. Operators must audit historical rows and validate the
+constraints after cleanup. Do not weaken the new-row boundary to accommodate
+legacy data.
+
+`internal.beta_waitlist_rate_counters` stores transactional pre-challenge and
+verified 10-minute/daily IP counters plus the daily global growth counter. Its
+IP key is a purpose-separated, daily-rotating HMAC; raw IP addresses, CAPTCHA
+tokens, and submitted email values never enter this table. RLS is enabled and
+all direct access is revoked from API roles and `service_role`. Request-path
+retention work uses the `updated_at` index, deletes at most 500 expired rows,
+and selects them with `FOR UPDATE SKIP LOCKED` so concurrent calls do not
+serialize on maintenance.
+
+`public.claim_beta_waitlist_challenge_attempt(ip_hash)` is the service-only
+distributed gate before Cloudflare Siteverify. It permits 20 challenge attempts
+per IP/10 minutes and 100/day, then rejects before provider work. It has the
+same empty search path, in-function service-role check, explicit revocations,
+and privileged-routine allowlist requirements as the insertion RPC.
+
+`public.submit_beta_waitlist_signup(email, ip_hash, user_agent, source)` is the
+only insertion boundary. It is a service-role-only `SECURITY DEFINER` routine
+with an empty search path and `internal.require_service_role()`. One transaction
+allows at most 5 verified attempts per IP/10 minutes, 20 per IP/day, and 2,000
+new unique rows globally/day. Duplicate canonical emails consume the IP budget
+but not the global growth budget, and return an indistinguishable
+`already_joined` result. The Next.js route must verify Cloudflare Turnstile
+before calling this RPC.
+
 ### `species_dictionary`
 
 The global source-of-truth for biological species models. The identify boundary

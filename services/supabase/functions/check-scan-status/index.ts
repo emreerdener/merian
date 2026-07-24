@@ -4,7 +4,7 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { scanIngestionClientState } from "../_shared/scanIngestionJobs.ts";
 import { fetchScanStatusJob, fetchScanStatusMedia } from "./db.ts";
 import {
@@ -62,7 +62,8 @@ async function buildScanStatusResponse(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const body = await req.json();
+    const body = await parseJsonBody(req, { limit: "standard" });
+    if (body instanceof Response) return body;
 
     if (Array.isArray(body.scans)) {
       if (body.scans.length > 50) {
@@ -114,7 +115,10 @@ Deno.serve((req: Request) =>
     const paramError = requireParams(body, ["scan_id"]);
     if (paramError) return paramError;
 
-    const { scan_id } = body;
+    const scanId = body.scan_id;
+    if (typeof scanId !== "string") {
+      return jsonResponse({ error: "scan_id must be a string." }, 400);
+    }
 
     let requiredVideoCount: number;
     try {
@@ -129,7 +133,7 @@ Deno.serve((req: Request) =>
 
     try {
       const response = await buildScanStatusResponse(
-        { scan_id, required_video_count: requiredVideoCount },
+        { scan_id: scanId, required_video_count: requiredVideoCount },
         user.id,
         supabaseAdmin,
       );
@@ -137,7 +141,7 @@ Deno.serve((req: Request) =>
       return jsonResponse(singleResponse, 200);
     } catch (error) {
       logStructuredError("check_scan_status_failed", {
-        scan_id,
+        scan_id: scanId,
         error: error instanceof Error ? error.message : String(error),
       });
       return jsonResponse({ error: "Internal Server Error" }, 500);

@@ -1,5 +1,10 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
+  parseJsonBody,
+  PublicHttpError,
+  publicHttpError,
+} from "../_shared/http.ts";
+import {
   normalizeCursorTimestamp,
   normalizeExploreHashtag,
   normalizeLimit,
@@ -14,20 +19,17 @@ import { fetchExploreHashtagPosts } from "./db.ts";
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: Record<string, unknown> = {};
-    try {
-      body = await req.json();
-    } catch {
-      // Body is optional.
-    }
+    const body = await parseJsonBody(req, {
+      limit: "small",
+      allowEmpty: true,
+    });
+    if (body instanceof Response) return body;
 
     const hashtag = normalizeExploreHashtag(body.hashtag, "hashtag");
     const limit = normalizeLimit(body.limit, 30, 100);

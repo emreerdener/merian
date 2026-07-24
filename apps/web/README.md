@@ -65,6 +65,25 @@ Required server-side variables:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `WAITLIST_IP_HASH_SECRET` — at least 32 random characters. Generate a
+  dedicated value; do not reuse a Supabase, Turnstile, or application secret.
+- `TURNSTILE_SECRET_KEY` — server-side secret for the production Cloudflare
+  Turnstile widget.
+- `TURNSTILE_ALLOWED_HOSTNAMES` — comma-separated exact widget hostnames.
+  Production is `naturebook.earth`.
+
+Required public variables:
+
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — public site key for the same Turnstile
+  widget.
+
+Ingress configuration:
+
+- `WAITLIST_TRUSTED_IP_HEADER` — use `x-vercel-forwarded-for` on Vercel. The
+  application accepts only a small header allowlist and uses only the first
+  syntactically valid address. A non-Vercel proxy must overwrite its configured
+  header at the trusted ingress; never trust a client-appended forwarding
+  chain.
 
 Optional public variables:
 
@@ -82,6 +101,45 @@ Optional server/public fallback variables:
 
 The service role key must stay server-side only. Do not prefix it with
 `NEXT_PUBLIC_`.
+
+### Waitlist Security Boundary
+
+`POST /api/waitlist` accepts one uncompressed JSON object no larger than 4 KiB:
+
+```json
+{
+  "email": "person@example.com",
+  "turnstile_token": "single-use-widget-token"
+}
+```
+
+The route requires a JSON media type, enforces declared and streamed lengths,
+and coalesces tiny chunks into a bounded buffer so allocation remains
+proportional to accepted bytes. It canonicalizes a conservatively shaped email,
+derives a purpose-separated daily HMAC of the trusted proxy address, discards
+the raw address, and uses the explicit service-role client to claim a
+distributed pre-challenge budget. PostgreSQL allows at most 20 Turnstile checks
+per IP/10 minutes and 100/day, so invalid-token floods cannot invoke Siteverify
+without bound.
+
+All trusted-IP, IP-HMAC, hostname, and Turnstile-secret configuration is
+validated before that claim. An incomplete production configuration returns a
+stable `503` without consuming a database counter or contacting Cloudflare.
+
+After that claim, the route verifies Turnstile with action `waitlist`, exact
+hostname allowlisting, the trusted remote IP, a five-second deadline, a 32 KiB
+streamed response ceiling, and the request UUID as the Siteverify idempotency
+key. A successful challenge permits the separate
+`submit_beta_waitlist_signup` call. Direct table access is revoked. PostgreSQL
+atomically enforces tighter verified limits of 5 attempts per IP/10 minutes, 20
+per IP/day, and 2,000 new unique addresses globally/day. Duplicate addresses
+receive the same success copy and consume only the verified IP budget,
+preventing address enumeration and unbounded table growth. Turnstile tokens,
+raw IP addresses, and emails must not appear in logs.
+
+Errors use stable `code` and server-generated `request_id` fields, plus the same
+ID in `X-Request-ID`. A `429` includes `Retry-After: 600`; internal database or
+provider details are logged privately and never returned.
 
 ## Vercel Deployment
 
@@ -151,6 +209,10 @@ npm run typecheck
 npm run build
 npm audit --audit-level=moderate
 ```
+
+`.github/workflows/web-quality.yml` runs install, unit tests, TypeScript, and a
+production build when the web route, its security helpers, the waitlist
+migration, or the workflow changes.
 
 ## Share URL Shape
 

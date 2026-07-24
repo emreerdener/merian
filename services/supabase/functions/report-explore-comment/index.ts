@@ -12,7 +12,7 @@ const VALID_REPORT_REASONS = new Set([
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "small" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
 
@@ -27,12 +27,20 @@ Deno.serve((req: Request) =>
 
     if (!VALID_REPORT_REASONS.has(reason)) {
       return jsonResponse(
-        { error: `Invalid reason. Must be one of: ${[...VALID_REPORT_REASONS].join(", ")}.` },
+        {
+          error: `Invalid reason. Must be one of: ${
+            [...VALID_REPORT_REASONS].join(", ")
+          }.`,
+        },
         400,
       );
     }
 
-    const comment = await fetchReportableComment(commentId, user.id, supabaseAdmin);
+    const comment = await fetchReportableComment(
+      commentId,
+      user.id,
+      supabaseAdmin,
+    );
     await upsertExploreCommentReport({
       commentId: comment.commentId,
       postId: comment.postId,
@@ -47,5 +55,5 @@ Deno.serve((req: Request) =>
       comment_id: commentId,
       message: "Report submitted for moderation.",
     }, 200);
-  }),
+  })
 );

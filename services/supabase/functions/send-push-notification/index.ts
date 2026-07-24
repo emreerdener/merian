@@ -1,11 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { importPKCS8, SignJWT } from "jose";
 import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
-import { logStructuredError } from "../_shared/edgeHandler.ts";
+import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import {
   corsHeaders,
   jsonResponse,
+  parseJsonBody,
   requireParams,
   timingSafeCompare,
 } from "../_shared/http.ts";
@@ -295,7 +296,7 @@ async function sendApnsPush(
   };
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -310,12 +311,8 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
-  }
+  const body = await parseJsonBody(req, { limit: "small" });
+  if (body instanceof Response) return body;
 
   const paramErr = requireParams(body, ["notification_id"]);
   if (paramErr) return paramErr;

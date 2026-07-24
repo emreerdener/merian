@@ -1,4 +1,5 @@
 import { normalizeCursorTimestamp, requireUuid } from "../_shared/explore.ts";
+import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 
 export interface ExploreSpeciesPostsRequest {
   speciesId: string;
@@ -11,10 +12,8 @@ export interface ExploreSpeciesPostsRequest {
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export function normalizeImageQualityCursor(

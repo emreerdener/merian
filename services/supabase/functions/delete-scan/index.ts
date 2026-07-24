@@ -1,25 +1,22 @@
 import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
 
 import { deleteScanRecord, fetchScanRecord } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let requestBody;
-    try {
-      requestBody = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const requestBody = await parseJsonBody(req, { limit: "small" });
+    if (requestBody instanceof Response) return requestBody;
 
     const paramErr = requireParams(requestBody, ["scanId"]);
     if (paramErr) return paramErr;
 
     const { scanId } = requestBody;
 
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (typeof scanId !== "string" || !UUID_RE.test(scanId)) {
       return jsonResponse({ error: "scanId must be a valid UUID." }, 400);
     }
@@ -44,7 +41,9 @@ Deno.serve((req: Request) =>
         `IDOR attempt: User ${user.id} tried to delete scan ${scanId} owned by ${scan.user_id}`,
       );
       return jsonResponse(
-        { error: "Forbidden: You do not have permission to delete this record." },
+        {
+          error: "Forbidden: You do not have permission to delete this record.",
+        },
         403,
         // Using explicit 403 to indicate malicious tracking, not just 404
       );
@@ -72,5 +71,5 @@ Deno.serve((req: Request) =>
     console.log(`Deleted scan ${scanId} for user ${user.id}`);
 
     return jsonResponse({ success: true, message: "Scan deleted." }, 200);
-  }),
+  })
 );

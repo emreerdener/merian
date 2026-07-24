@@ -148,6 +148,13 @@ Required server-side values:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `WAITLIST_IP_HASH_SECRET` — dedicated high-entropy server secret used only to
+  derive daily rotating waitlist IP HMACs.
+- `WAITLIST_TRUSTED_IP_HEADER` — `x-vercel-forwarded-for` for the production
+  Vercel deployment.
+- `TURNSTILE_SECRET_KEY`
+- `TURNSTILE_ALLOWED_HOSTNAMES` — exact comma-separated hosts; production is
+  `naturebook.earth`.
 
 Optional public values:
 
@@ -156,6 +163,9 @@ Optional public values:
 - `NEXT_PUBLIC_SUPPORT_EMAIL` — public support contact shown on legal/support pages.
 - `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe
   audio playback telemetry.
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — operationally required while the homepage
+  waitlist form is enabled; it is public by design and must match the server
+  secret's widget.
 
 Optional fallback values:
 
@@ -164,6 +174,25 @@ Optional fallback values:
 - `SUPABASE_PUBLIC_VIEWER_ID`
 
 `SUPABASE_SERVICE_ROLE_KEY` must never be prefixed with `NEXT_PUBLIC_`, rendered into HTML, committed to the repo, or used from client components. It is only acceptable inside server-rendered route code or server-only helpers.
+
+### Public Waitlist Boundary
+
+The homepage waitlist is the only public write path in this web surface.
+`POST /api/waitlist` streams at most 4 KiB of uncompressed JSON, accepts only a
+canonical bounded email plus one Turnstile token, and returns a server-generated
+request ID. A trusted proxy address becomes a purpose-separated, daily-rotating
+HMAC; raw addresses and CAPTCHA tokens are never stored or logged. The
+service-only pre-challenge RPC limits Siteverify traffic to 20 attempts per
+IP/10 minutes and 100/day before the route verifies the Turnstile action,
+hostname, remote IP, and bounded provider response.
+
+The route cannot write `beta_waitlist_signups` directly. It calls the
+service-only `submit_beta_waitlist_signup` RPC, which combines uniqueness with
+tighter verified per-IP and global growth limits in one transaction. Duplicate
+addresses return the same success message so the API is not an email-membership
+oracle. The public privacy policy discloses the waitlist email, bounded browser
+metadata, daily rotating network HMAC, and Cloudflare Turnstile processing; keep
+that disclosure aligned with any future provider or retention change.
 
 ## Privacy Contract
 
@@ -342,6 +371,13 @@ npm test
 npm run build
 npm audit --audit-level=moderate
 ```
+
+Local waitlist submissions need a Turnstile test widget and matching test
+secret. Never put a production Turnstile secret or
+`SUPABASE_SERVICE_ROLE_KEY` in a `NEXT_PUBLIC_` variable. An absent or
+inconsistent CAPTCHA, hostname, proxy-header, HMAC, or service-role
+configuration fails closed with `503`; it never falls back to a direct table
+upsert.
 
 ## Vercel Deployment
 

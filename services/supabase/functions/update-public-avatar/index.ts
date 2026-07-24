@@ -1,14 +1,11 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 import { promotePublicAvatar, validatePublicAvatarRequest } from "./avatar.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "small" });
+    if (body instanceof Response) return body;
 
     const parsed = validatePublicAvatarRequest(body, user.id);
     if (parsed.error || !parsed.value) {

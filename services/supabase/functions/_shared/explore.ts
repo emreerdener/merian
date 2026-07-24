@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { PublicHttpError, publicHttpError } from "./http.ts";
 
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,10 +55,8 @@ function relationValue<T>(value: NestedRelation<T>): T | undefined {
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export function requireUuid(value: unknown, fieldName: string): string {
@@ -533,13 +532,11 @@ export async function fetchInteractiveExplorePost(
     .eq("id", postId)
     .single();
 
-  if (error || !data) {
-    throw makeHttpError(
-      404,
-      error
-        ? `DB Error: ${error.message} - ${error.details || ""}`
-        : "Explore post not found.",
-    );
+  if (error) {
+    throw new Error(`Failed to fetch Explore post: ${error.message}`);
+  }
+  if (!data) {
+    throw makeHttpError(404, "Explore post not found.");
   }
 
   const typedRow = data as ExplorePostLookupRow;

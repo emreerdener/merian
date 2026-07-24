@@ -11,7 +11,7 @@ import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
 import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
   buildObservationPrompt,
   normalizeCurrentMonth,
@@ -79,10 +79,36 @@ const modelConfigs = {
   },
 };
 
+interface DescribeRequestBody extends Record<string, unknown> {
+  user_id?: string;
+  description?: string;
+  gpsLatitude?: number | null;
+  gpsLongitude?: number | null;
+  gpsElevation?: number | null;
+  weatherCondition?: string | null;
+  weatherTemperatureF?: number | null;
+  deviceLocale?: string | null;
+  deviceTimeZone?: string | null;
+  deviceRegion?: string | null;
+  currentMonth?: unknown;
+  semanticLocation?: string | null;
+  publicLocationLabel?: string | null;
+  public_location_label?: string | null;
+  geoprivacy?: string | null;
+  timeOfDay?: string | null;
+  timestamp?: string | null;
+  client_scan_id?: unknown;
+  preferred_goal?: unknown;
+  observation_context?: unknown;
+}
+
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
-    const body = await req.json();
+    const body = await parseJsonBody<DescribeRequestBody>(req, {
+      limit: "standard",
+    });
+    if (body instanceof Response) return body;
 
     const paramError = requireParams(body, ["user_id", "description"]);
     if (paramError) return paramError;
@@ -614,15 +640,15 @@ Deno.serve((req: Request) =>
               null,
             invasive_confidence: payloadReadyForClient.invasive_confidence ??
               null,
-            weather_condition: weatherCondition,
-            weather_temperature_f: weatherTemperatureF,
-            semantic_location: semanticLocation,
+            weather_condition: weatherCondition ?? undefined,
+            weather_temperature_f: weatherTemperatureF ?? undefined,
+            semantic_location: semanticLocation ?? undefined,
             public_location_label: publicExploreLocationLabel,
             geoprivacy,
-            device_locale: deviceLocale,
-            device_time_zone: deviceTimeZone,
+            device_locale: deviceLocale ?? undefined,
+            device_time_zone: deviceTimeZone ?? undefined,
             current_month: normalizedCurrentMonth ?? null,
-            time_of_day: timeOfDay,
+            time_of_day: timeOfDay ?? undefined,
             ai_reasoning: parsedData.ai_reasoning ?? null,
             extracted_visual_traits: parsedData.extracted_visual_traits ?? [],
             colors: [],

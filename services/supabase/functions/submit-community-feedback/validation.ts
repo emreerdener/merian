@@ -1,3 +1,5 @@
+import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
+
 const MAX_FEEDBACK_LENGTH = 4000;
 const MAX_METADATA_LENGTH = 160;
 
@@ -84,6 +86,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function badRequest(message: string): Error & { status: number } {
-  return Object.assign(new Error(message), { status: 400 });
+function badRequest(message: string): PublicHttpError {
+  return publicHttpError(400, message);
 }

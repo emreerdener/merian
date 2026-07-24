@@ -3,7 +3,7 @@ import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { parseJsonBody } from "../_shared/http.ts";
+import { parseJsonBody, publicErrorResponse } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { resolveTierForUser } from "../_shared/entitlement.ts";
 import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
@@ -286,7 +286,7 @@ async function generatePromptSuggestions(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "standard" });
     if (parsedBody instanceof Response) return parsedBody;
 
     const action = normalizeAction(parsedBody.action);
@@ -422,10 +422,12 @@ Deno.serve((req: Request) =>
         }).catch((e) =>
           console.error("PostHog InsightChatPromptsGenerated failed:", e)
         );
-        return jsonResponse({
-          code: "prompt_suggestions_unavailable",
-          error: "Prompt suggestions are unavailable right now.",
-        }, 502);
+        return publicErrorResponse(
+          req,
+          502,
+          "prompt_suggestions_unavailable",
+          "Prompt suggestions are unavailable right now.",
+        );
       }
     }
 

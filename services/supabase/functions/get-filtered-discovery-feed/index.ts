@@ -1,4 +1,5 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 
 import { FeedScan } from "./types.ts";
 import { fetchDiscoveryFeed } from "./db.ts";
@@ -35,13 +36,13 @@ Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const MAX_FEED_LIMIT = 100;
     let limit = 20;
-    try {
-      const body = await req.json();
-      if (body.limit && typeof body.limit === "number") {
-        limit = Math.min(Math.floor(body.limit), MAX_FEED_LIMIT);
-      }
-    } catch {
-      // Body is optional, defaults to 20
+    const body = await parseJsonBody(req, {
+      limit: "small",
+      allowEmpty: true,
+    });
+    if (body instanceof Response) return body;
+    if (body.limit && typeof body.limit === "number") {
+      limit = Math.min(Math.floor(body.limit), MAX_FEED_LIMIT);
     }
 
     // Fetch the filtered feed directly via the RPC
@@ -51,5 +52,5 @@ Deno.serve((req: Request) =>
     const sanitizedFeedData = sanitizeFeedData(feedData);
 
     return jsonResponse({ data: sanitizedFeedData }, 200);
-  }),
+  })
 );

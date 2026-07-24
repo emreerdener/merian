@@ -1,3 +1,4 @@
+import { publicHttpError } from "../_shared/http.ts";
 import {
   MAX_MESSAGES_PER_CONVERSATION,
   MAX_USER_MESSAGE_CHARS,
@@ -20,11 +21,9 @@ export function normalizeAction(
   ) {
     return value;
   }
-  throw Object.assign(
-    new Error(
-      "action must be load, send, delete, feedback, feature_feedback, summarize_notes, or suggest_prompts.",
-    ),
-    { status: 400 },
+  throw publicHttpError(
+    400,
+    "action must be load, send, delete, feedback, feature_feedback, summarize_notes, or suggest_prompts.",
   );
 }
 
@@ -35,9 +34,7 @@ export function normalizeFeedbackRating(value: unknown) {
   ) {
     return value;
   }
-  throw Object.assign(new Error("feedback_rating is invalid."), {
-    status: 400,
-  });
+  throw publicHttpError(400, "feedback_rating is invalid.");
 }
 
 export function normalizeFeatureFeedbackSentiment(value: unknown) {
@@ -45,25 +42,20 @@ export function normalizeFeatureFeedbackSentiment(value: unknown) {
   if (value === "positive" || value === "negative") {
     return value;
   }
-  throw Object.assign(
-    new Error("feature_feedback_sentiment is invalid."),
-    { status: 400 },
-  );
+  throw publicHttpError(400, "feature_feedback_sentiment is invalid.");
 }
 
 export function normalizeFeedbackNote(value: unknown): string | null {
   if (value == null) return null;
   if (typeof value !== "string") {
-    throw Object.assign(new Error("feedback_note must be a string."), {
-      status: 400,
-    });
+    throw publicHttpError(400, "feedback_note must be a string.");
   }
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (trimmed.length > 1000) {
-    throw Object.assign(
-      new Error("feedback_note must be 1000 characters or fewer."),
-      { status: 400 },
+    throw publicHttpError(
+      400,
+      "feedback_note must be 1000 characters or fewer.",
     );
   }
   return trimmed;
@@ -71,22 +63,16 @@ export function normalizeFeedbackNote(value: unknown): string | null {
 
 export function normalizeUserMessage(value: unknown): string {
   if (typeof value !== "string") {
-    throw Object.assign(new Error("message_text must be a string."), {
-      status: 400,
-    });
+    throw publicHttpError(400, "message_text must be a string.");
   }
   const trimmed = value.trim();
   if (!trimmed) {
-    throw Object.assign(new Error("message_text cannot be empty."), {
-      status: 400,
-    });
+    throw publicHttpError(400, "message_text cannot be empty.");
   }
   if (trimmed.length > MAX_USER_MESSAGE_CHARS) {
-    throw Object.assign(
-      new Error(
-        `message_text must be ${MAX_USER_MESSAGE_CHARS} characters or fewer.`,
-      ),
-      { status: 400 },
+    throw publicHttpError(
+      400,
+      `message_text must be ${MAX_USER_MESSAGE_CHARS} characters or fewer.`,
     );
   }
   return trimmed;
@@ -94,10 +80,11 @@ export function normalizeUserMessage(value: unknown): string {
 
 export function assertConversationHasRoom(messageCount: number): void {
   if (messageCount >= MAX_MESSAGES_PER_CONVERSATION) {
-    throw Object.assign(new Error("Conversation message limit reached."), {
-      status: 429,
-      code: "conversation_limit_reached",
-    });
+    throw publicHttpError(
+      429,
+      "Conversation message limit reached.",
+      "conversation_limit_reached",
+    );
   }
 }
 

@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { corsHeaders, timingSafeCompare } from "../_shared/http.ts";
+import { serveEdge } from "../_shared/edgeHandler.ts";
+import {
+  corsHeaders,
+  publicErrorResponse,
+  timingSafeCompare,
+} from "../_shared/http.ts";
 import { processExpiredSubscriptionPasses } from "./worker.ts";
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -9,7 +14,7 @@ function jsonResponse(payload: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -35,6 +40,11 @@ Deno.serve(async (req: Request) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`Expire Subscription Passes Error: ${message}`);
-    return jsonResponse({ error: message }, 500);
+    return publicErrorResponse(
+      req,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

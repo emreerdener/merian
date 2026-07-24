@@ -1,8 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
+import { serveEdge } from "../_shared/edgeHandler.ts";
 import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
-import { corsHeaders } from "../_shared/http.ts";
-import { timingSafeCompare } from "../_shared/http.ts";
+import {
+  corsHeaders,
+  publicErrorResponse,
+  timingSafeCompare,
+} from "../_shared/http.ts";
 
 import { deleteScansBulk, fetchStaleNonBioScans } from "./db.ts";
 
@@ -13,7 +17,7 @@ function jsonResponse(payload: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   let step = "request";
 
   if (req.method === "OPTIONS") {
@@ -91,6 +95,11 @@ Deno.serve(async (req: Request) => {
       step,
       error: message,
     }));
-    return jsonResponse({ error: message, step }, 500);
+    return publicErrorResponse(
+      req,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

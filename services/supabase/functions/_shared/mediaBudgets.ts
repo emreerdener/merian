@@ -1,4 +1,5 @@
 import { decodeBase64 } from "./encoding.ts";
+import { readBoundedJsonBody, readByteStreamWithinLimit } from "./http.ts";
 
 export const MEDIA_BUDGETS = {
   maxImageCount: 5,
@@ -170,38 +171,16 @@ export async function readStreamArrayBufferWithinBudget(
   maxBytes: number,
   message: string,
 ): Promise<{ buffer?: ArrayBuffer; error?: MediaBudgetError }> {
-  if (!stream) return { buffer: new ArrayBuffer(0) };
-
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (!value || value.byteLength === 0) continue;
-
-      totalBytes += value.byteLength;
-      if (totalBytes > maxBytes) {
-        await reader.cancel();
-        return { error: budgetError(413, message) };
-      }
-
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
+  const result = await readByteStreamWithinLimit(
+    stream,
+    maxBytes,
+    "response body exceeded limit",
+  );
+  if (result.exceeded || !result.bytes) {
+    return { error: budgetError(413, message) };
   }
 
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return { buffer: exactArrayBuffer(bytes) };
+  return { buffer: exactArrayBuffer(result.bytes) };
 }
 
 export async function readRequestJsonWithinBudget<T>(
@@ -209,24 +188,23 @@ export async function readRequestJsonWithinBudget<T>(
   maxBytes: number,
   message = MEDIA_BUDGET_ERRORS.requestBodyTooLarge,
 ): Promise<{ value?: T; error?: MediaBudgetError }> {
-  const headerError = validateRequestContentLength(request, maxBytes, message);
-  if (headerError) return { error: headerError };
-
-  const readResult = await readStreamArrayBufferWithinBudget(
-    request.body,
+  const result = await readBoundedJsonBody<T>(request, {
+    limit: "standard",
     maxBytes,
-    message,
-  );
-  if (readResult.error || !readResult.buffer) {
-    return { error: readResult.error ?? budgetError(400, "Invalid JSON body") };
+    requireObject: false,
+  });
+  if (result.error || result.value === undefined) {
+    const error = result.error;
+    return {
+      error: budgetError(
+        error?.status ?? 400,
+        error?.code === "payload_too_large"
+          ? message
+          : error?.message ?? "Invalid JSON body",
+      ),
+    };
   }
-
-  try {
-    const raw = new TextDecoder().decode(readResult.buffer);
-    return { value: JSON.parse(raw) as T };
-  } catch {
-    return { error: budgetError(400, "Invalid JSON body") };
-  }
+  return { value: result.value };
 }
 
 export function validateStagingObjectKey(

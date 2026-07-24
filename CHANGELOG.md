@@ -34,6 +34,11 @@ TestFlight, App Store, support, and QA.
   events that could otherwise roll a newer renewal or refund backward.
   RevenueCat account transfers now reconcile both the source and destination
   atomically instead of relying on a follow-up lifecycle event.
+- Hardened every server JSON endpoint against oversized or malformed streamed
+  bodies and replaced internal exception details with stable request-correlated
+  errors. The public beta waitlist now requires a verified security challenge,
+  applies transactional per-network and global growth limits, and keeps raw
+  network addresses out of storage and logs.
 
 ### Species Dictionary
 

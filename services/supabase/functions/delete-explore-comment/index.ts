@@ -1,11 +1,15 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { requireUuid } from "../_shared/explore.ts";
-import { fetchDeletableComment, fetchExplorePostCommentCount, removeExploreComment } from "./db.ts";
+import {
+  fetchDeletableComment,
+  fetchExplorePostCommentCount,
+  removeExploreComment,
+} from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "small" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
 
@@ -13,9 +17,21 @@ Deno.serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const commentId = requireUuid(body.comment_id, "comment_id");
-    const comment = await fetchDeletableComment(commentId, user.id, supabaseAdmin);
-    await removeExploreComment(commentId, comment.action, user.id, supabaseAdmin);
-    const commentCount = await fetchExplorePostCommentCount(comment.postId, supabaseAdmin);
+    const comment = await fetchDeletableComment(
+      commentId,
+      user.id,
+      supabaseAdmin,
+    );
+    await removeExploreComment(
+      commentId,
+      comment.action,
+      user.id,
+      supabaseAdmin,
+    );
+    const commentCount = await fetchExplorePostCommentCount(
+      comment.postId,
+      supabaseAdmin,
+    );
 
     return jsonResponse({
       success: true,
@@ -23,5 +39,5 @@ Deno.serve((req: Request) =>
       comment_count: commentCount,
       action: comment.action,
     });
-  }),
+  })
 );

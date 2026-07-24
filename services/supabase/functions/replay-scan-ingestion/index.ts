@@ -1,7 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { corsHeaders, jsonResponse } from "../_shared/http.ts";
-import { logStructuredError } from "../_shared/edgeHandler.ts";
+import {
+  corsHeaders,
+  jsonResponse,
+  parseJsonBody,
+  publicErrorResponse,
+} from "../_shared/http.ts";
+import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
 import { replayScanIngestion } from "./worker.ts";
 
@@ -28,7 +33,7 @@ function parseOptions(body: Record<string, unknown>) {
   };
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -46,15 +51,11 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  let body: Record<string, unknown> = {};
-  try {
-    const parsed = await req.json();
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      body = parsed as Record<string, unknown>;
-    }
-  } catch {
-    body = {};
-  }
+  const body = await parseJsonBody(req, {
+    limit: "small",
+    allowEmpty: true,
+  });
+  if (body instanceof Response) return body;
 
   try {
     const supabaseAdmin = createClient(supabaseUrl, auth.token, {
@@ -89,6 +90,11 @@ Deno.serve(async (req: Request) => {
     logStructuredError("replay_scan_ingestion_failed", {
       error: message,
     });
-    return jsonResponse({ error: message }, 500);
+    return publicErrorResponse(
+      req,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

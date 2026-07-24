@@ -134,7 +134,7 @@ async function generateAssistantReply(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const body = await parseJsonBody(req);
+    const body = await parseJsonBody(req, { limit: "standard" });
     if (body instanceof Response) return body;
 
     const action = normalizeAction(body.action);

@@ -3,6 +3,7 @@ import {
   SEVEN_DAY_PASS_DURATION_MS,
   SEVEN_DAY_PASS_PRODUCT_ID,
 } from "../_shared/subscriptionPass.ts";
+import { readByteStreamWithinLimit } from "../_shared/http.ts";
 import { RevenueCatWebhookEvent } from "./protocol.ts";
 
 const REVENUECAT_API_BASE_URL = "https://api.revenuecat.com/v1";
@@ -133,36 +134,18 @@ function activePassExpiration(
 async function readBoundedResponseBody(
   response: Response,
 ): Promise<Uint8Array> {
-  if (!response.body) return new Uint8Array();
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_CUSTOMER_INFO_BYTES) {
-        await reader.cancel("CustomerInfo response exceeded limit");
-        throw new RevenueCatApiError(
-          "RevenueCat CustomerInfo response exceeded the size limit.",
-          true,
-        );
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
+  const result = await readByteStreamWithinLimit(
+    response.body,
+    MAX_CUSTOMER_INFO_BYTES,
+    "CustomerInfo response exceeded limit",
+  );
+  if (result.exceeded || !result.bytes) {
+    throw new RevenueCatApiError(
+      "RevenueCat CustomerInfo response exceeded the size limit.",
+      true,
+    );
   }
-
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return body;
+  return result.bytes;
 }
 
 export function deriveRevenueCatEntitlementState(

@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { corsHeaders, timingSafeCompare } from "../_shared/http.ts";
+import { serveEdge } from "../_shared/edgeHandler.ts";
+import {
+  corsHeaders,
+  parseJsonBody,
+  timingSafeCompare,
+} from "../_shared/http.ts";
 import { reconcileGhostProfileMerges } from "./worker.ts";
 
 function jsonResponse(payload: unknown, status: number): Response {
@@ -21,7 +26,7 @@ function parseLimit(value: unknown): number {
     : 25;
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -38,12 +43,11 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
-  let body: unknown = {};
-  try {
-    body = await req.json();
-  } catch {
-    // The scheduled call may omit a body; defaults are safe and bounded.
-  }
+  const body = await parseJsonBody(req, {
+    limit: "small",
+    allowEmpty: true,
+  });
+  if (body instanceof Response) return body;
 
   try {
     const supabaseAdmin = createClient(

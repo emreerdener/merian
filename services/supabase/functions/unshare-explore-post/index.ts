@@ -1,16 +1,12 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import { ensureOwnedExplorePost, unshareExplorePost } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "small" });
+    if (body instanceof Response) return body;
 
     const paramErr = requireParams(body, ["post_id"]);
     if (paramErr) return paramErr;
@@ -21,5 +17,5 @@ Deno.serve((req: Request) =>
     await unshareExplorePost(postId, supabaseAdmin);
 
     return jsonResponse({ success: true, post_id: postId }, 200);
-  }),
+  })
 );

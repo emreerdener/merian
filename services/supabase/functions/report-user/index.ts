@@ -13,7 +13,7 @@ const REASONS = new Set([
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "small" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
     const paramError = requireParams(body, ["reported_user_id", "reason"]);

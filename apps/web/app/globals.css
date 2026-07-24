@@ -97,7 +97,9 @@ a {
   position: relative;
   min-height: 100svh;
   overflow-x: hidden;
-  background: var(--bg-gradient), var(--bg-solid);
+  background:
+    var(--bg-gradient),
+    var(--bg-solid);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -208,9 +210,7 @@ a {
   background: var(--btn-bg) !important;
   color: var(--btn-text) !important;
   border-radius: 9999px;
-  transition:
-    background 0.2s ease,
-    transform 0.1s ease !important;
+  transition: background 0.2s ease, transform 0.1s ease !important;
 }
 
 .waitlist-signup__button:hover {
@@ -219,6 +219,11 @@ a {
 
 .waitlist-signup__button:active {
   transform: scale(0.98);
+}
+
+.waitlist-signup__challenge {
+  min-height: 2px;
+  margin-left: 0.4rem;
 }
 
 .header-cta-button {
@@ -386,9 +391,7 @@ a {
   height: 8px !important;
   border-radius: 4px !important;
   background-color: rgba(255, 255, 255, 0.5) !important;
-  transition:
-    width 250ms ease,
-    background-color 250ms ease !important;
+  transition: width 250ms ease, background-color 250ms ease !important;
 }
 
 .mantine-Carousel-indicator[data-active] {

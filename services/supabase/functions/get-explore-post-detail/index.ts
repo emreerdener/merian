@@ -1,17 +1,13 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import { fetchExplorePostDetail } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "small" });
+    if (body instanceof Response) return body;
 
     const paramErr = requireParams(body, ["post_id"]);
     if (paramErr) return paramErr;

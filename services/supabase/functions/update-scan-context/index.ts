@@ -4,6 +4,7 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -35,12 +36,8 @@ Deno.serve((req: Request) =>
         return jsonResponse({ error: "Method Not Allowed" }, 405);
       }
 
-      let body: Record<string, unknown>;
-      try {
-        body = await req.json();
-      } catch {
-        return jsonResponse({ error: "Invalid JSON body" }, 400);
-      }
+      const body = await parseJsonBody(req, { limit: "small" });
+      if (body instanceof Response) return body;
 
       const scanId = typeof body.scan_id === "string"
         ? body.scan_id.trim().toLowerCase()

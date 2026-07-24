@@ -1,5 +1,5 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
   normalizeLimit,
   requireUuid,
@@ -11,12 +11,8 @@ import { fetchExploreAuthorProfile } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "small" });
+    if (body instanceof Response) return body;
 
     const paramErr = requireParams(body, ["author_user_id"]);
     if (paramErr) return paramErr;

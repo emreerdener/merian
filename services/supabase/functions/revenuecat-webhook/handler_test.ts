@@ -325,6 +325,7 @@ Deno.test("chunked oversized body is stopped before full allocation or HMAC work
     method: "POST",
     headers: {
       Authorization: `Bearer ${AUTHORIZATION_SECRET}`,
+      "Content-Type": "application/json",
       "X-RevenueCat-Webhook-Signature": "invalid",
     },
     body: stream,

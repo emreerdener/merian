@@ -12,7 +12,7 @@ const VALID_REPORT_REASONS = new Set([
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "small" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
     const paramErr = requireParams(body, ["post_id", "reason"]);
@@ -25,7 +25,11 @@ Deno.serve((req: Request) =>
       : null;
     if (!VALID_REPORT_REASONS.has(reason)) {
       return jsonResponse(
-        { error: `Invalid reason. Must be one of: ${[...VALID_REPORT_REASONS].join(", ")}.` },
+        {
+          error: `Invalid reason. Must be one of: ${
+            [...VALID_REPORT_REASONS].join(", ")
+          }.`,
+        },
         400,
       );
     }

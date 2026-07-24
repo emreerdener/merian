@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { publicHttpError } from "../_shared/http.ts";
 
 export async function insertFlagRecord(
   scanId: string,
@@ -18,7 +19,11 @@ export async function insertFlagRecord(
 
   if (insertError) {
     if (insertError.code === "23503") {
-      throw { status: 404, message: "Scan does not exist on server yet." };
+      throw publicHttpError(
+        404,
+        "Scan does not exist on server yet.",
+        "scan_not_found",
+      );
     }
     throw new Error(
       `Failed to insert flagged review record: ${insertError.message}`,

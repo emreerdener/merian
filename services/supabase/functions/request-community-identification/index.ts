@@ -67,7 +67,7 @@ function normalizeSpeciesCommonName(value: unknown): string | null {
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "standard" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
 

@@ -37,17 +37,29 @@ Several utilities are shared across all Edge Functions via
 `services/supabase/functions/_shared/`:
 
 - **`http.ts`**: The unified networking primitive module. Defines `corsHeaders`,
-  export tools for `jsonResponse(payload, status)`, strict POST payload
+  `jsonResponse(payload, status)`, strict POST payload
   `requireParams(body, fields)`, and cryptographic `timingSafeCompare(a, b)` for
-  secret validation (used heavily by `pg_net` cron workers).
+  secret validation. Its canonical `parseJsonBody(...)` reader accepts only
+  JSON media types, enforces declared and streamed byte counts, rejects invalid
+  UTF-8, coalesces transport chunks without retaining a per-chunk object graph,
+  and requires a JSON object by default. Routes select a 16 KiB `small`, 64 KiB
+  `standard`, 1 MiB `bulk`, or reviewed media-specific limit; production
+  handlers must not call `req.json()` or `req.text()` directly.
 - **`edgeHandler.ts`**: Wraps endpoints natively using `withEdgeHandler()`,
   automatically intercepting CORS `OPTIONS` preflights and Deno SDK JWT
   extraction layers, eliminating boilerplate. Exposes `runBackground(task)` via
-  standard `EdgeRuntime.waitUntil`. Also exports
-  `logStructuredError(event, details)`, which emits
-  `JSON.stringify({ event, ts, ...details })` to `console.error` — all functions
-  must use this for alertable operational failures rather than plain
-  `console.error` calls.
+  standard `EdgeRuntime.waitUntil`; custom-auth, webhook, and intentionally
+  public handlers register through `serveEdge(...)`. Both paths create a
+  server-owned UUID for every request and return it in `X-Request-ID`.
+  Unexpected exceptions become `500 internal_error`; ordinary returned `5xx`
+  bodies keep their status but receive a generic status-derived response.
+  Expected thrown failures use `PublicHttpError`, explicit safe response
+  failures use `publicErrorResponse(...)`, and retained `4xx` application
+  responses must contain only audited validation or caller-state fields. Raw
+  exception and provider details are logged server-side with the request ID.
+  `logStructuredError(event, details)` writes details first and then the
+  canonical `event` and `ts`, so caller-controlled detail keys cannot overwrite
+  the log identity.
 - **`biology.ts`**: The centralized Gemini-2.5-Flash LLM taxonomy engine. It
   aggregates the schema logic for calculating `fetchStaticEncyclopedicData`,
   `fetchSimilarSpecies`, and `fetchGroupTags`. Explicitly enforces standard API
@@ -1673,7 +1685,7 @@ background cleanup cron.
 
 **`logStructuredError` alerting requirement**:
 `logStructuredError(event, details)` from `_shared/edgeHandler.ts` emits
-`JSON.stringify({ event, ts, ...details })` to `console.error`. These structured
+`JSON.stringify({ ...details, event, ts })` to `console.error`. These structured
 logs must be connected to a log drain (Logflare or Datadog) with an alert
 configured on `event: "safe_delete_partial_failure"`. Without this alert,
 partial account deletions (auth revoked but tombstone not applied) will silently

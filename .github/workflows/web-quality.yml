@@ -1,0 +1,58 @@
+name: Naturebook Web Quality
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/web-quality.yml"
+      - "apps/web/**"
+      - "services/supabase/migrations/20260724192124_harden_json_endpoints_and_waitlist.sql"
+      - "services/supabase/tests/waitlist_security.sql"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/web-quality.yml"
+      - "apps/web/**"
+      - "services/supabase/migrations/20260724192124_harden_json_endpoints_and_waitlist.sql"
+      - "services/supabase/tests/waitlist_security.sql"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: naturebook-web-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      NEXT_PUBLIC_SITE_URL: https://naturebook.earth
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build production web app
+        run: npm run build

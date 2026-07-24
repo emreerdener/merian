@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
-import { logStructuredError } from "../_shared/edgeHandler.ts";
+import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import {
   fetchAllSpeciesDictionaryTree,
@@ -29,13 +29,13 @@ const privateDictionaryCacheHeaders = {
   "Vary": "Authorization, Accept-Encoding",
 };
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "standard" });
     if (parsedBody instanceof Response) return parsedBody;
 
     const parsedRequest = parseSpeciesDictionaryRequest(parsedBody);

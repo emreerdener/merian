@@ -1,6 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
-import { corsHeaders, jsonResponse } from "../_shared/http.ts";
-import { logStructuredError, runBackground } from "../_shared/edgeHandler.ts";
+import {
+  corsHeaders,
+  jsonResponse,
+  publicErrorResponse,
+} from "../_shared/http.ts";
+import {
+  logStructuredError,
+  runBackground,
+  serveEdge,
+} from "../_shared/edgeHandler.ts";
 import { readRequestJsonWithinBudget } from "../_shared/mediaBudgets.ts";
 import {
   fetchSpeciesObservationStats,
@@ -32,7 +40,7 @@ const privateErrorHeaders = {
   "Vary": "Authorization, Accept-Encoding",
 };
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -105,30 +113,25 @@ Deno.serve(async (req: Request) => {
       error: error instanceof Error ? error.message : String(error),
     });
     if (error instanceof SpeciesObservationStatsError) {
-      const retryAfter = error.retryAfterSeconds;
-      return jsonResponse(
-        {
-          error: error.message,
-          code: error.code,
-          ...(retryAfter ? { retry_after_seconds: retryAfter } : {}),
-        },
+      return publicErrorResponse(
+        req,
         error.status,
+        error.code,
+        error.message,
         {
-          ...privateErrorHeaders,
-          ...(retryAfter ? { "Retry-After": String(retryAfter) } : {}),
+          extraHeaders: privateErrorHeaders,
+          retryAfterSeconds: error.retryAfterSeconds,
         },
       );
     }
-    return jsonResponse(
-      {
-        error: "Species statistics are temporarily unavailable.",
-        code: "species_stats_unavailable",
-        retry_after_seconds: 30,
-      },
+    return publicErrorResponse(
+      req,
       503,
+      "species_stats_unavailable",
+      "Species statistics are temporarily unavailable.",
       {
-        ...privateErrorHeaders,
-        "Retry-After": "30",
+        extraHeaders: privateErrorHeaders,
+        retryAfterSeconds: 30,
       },
     );
   }

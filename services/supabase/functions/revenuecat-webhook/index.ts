@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { serveEdge } from "../_shared/edgeHandler.ts";
 import { createRevenueCatWebhookHandler } from "./handler.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -14,4 +15,4 @@ const handler = createRevenueCatWebhookHandler({
   },
 });
 
-Deno.serve(handler);
+serveEdge(handler);

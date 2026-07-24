@@ -15,6 +15,7 @@ import { runBackground } from "../_shared/edgeHandler.ts";
 import { moderationLatencyBucket } from "../_shared/exploreAudioTelemetry.ts";
 import { createAudioSpectrogramThumbnail } from "../_shared/audioSpectrogram.ts";
 import type { ExplorePostMediaSnapshotRow } from "../_shared/explorePostMedia.ts";
+import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 
 type TrackEvent = typeof trackPostHogEvent;
 type ModerateAudio = typeof moderateExploreAudioUrl;
@@ -158,10 +159,8 @@ async function rollbackPromotedUrls(urls: string[]): Promise<void> {
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export async function fetchShareEligibleScan(

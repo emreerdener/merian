@@ -9,7 +9,8 @@ import {
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How Naturebook collects, uses, shares, and protects information.",
+  description:
+    "How Naturebook collects, uses, shares, and protects information.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -22,9 +23,10 @@ export default function PrivacyPolicyPage() {
       <LegalSection title="Overview">
         <Text>
           Naturebook helps people identify and document plants, animals, fungi,
-          insects, and other ecological observations. To provide the app, Naturebook
-          may process observation media, account information, location context,
-          device diagnostics, payments status, and community activity.
+          insects, and other ecological observations. To provide the app,
+          Naturebook may process observation media, account information,
+          location context, device diagnostics, payments status, and community
+          activity.
         </Text>
       </LegalSection>
 
@@ -41,11 +43,11 @@ export default function PrivacyPolicyPage() {
           <li>
             <Text>
               <strong>Observation content:</strong>{" "}
-              photos you capture, select, or explicitly share to Naturebook, audio
-              clips, descriptions, AI-generated species results, taxonomy,
+              photos you capture, select, or explicitly share to Naturebook,
+              audio clips, descriptions, AI-generated species results, taxonomy,
               field notes, and scan metadata. Sharing one photo from iOS Photos
-              gives Naturebook access to that delivered file, not broad access to
-              your Photo Library.
+              gives Naturebook access to that delivered file, not broad access
+              to your Photo Library.
             </Text>
           </li>
           <li>
@@ -74,6 +76,16 @@ export default function PrivacyPolicyPage() {
               <strong>Analytics and diagnostics:</strong>{" "}
               app events, device state, crashes, performance signals, feature
               usage, and support communications.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              <strong>Web and beta signup information:</strong>{" "}
+              an email address you submit to the beta waitlist, bounded browser
+              metadata, and security-challenge signals used to prevent automated
+              abuse. Naturebook converts the trusted network address into a
+              daily rotating one-way code for rate limiting and does not retain
+              the raw address or challenge token in its database.
             </Text>
           </li>
         </LegalList>
@@ -111,11 +123,11 @@ export default function PrivacyPolicyPage() {
       <LegalSection title="Public Explore Sharing">
         <Text>
           Your personal scans are private unless you choose to share them to
-          Explore. When you share a scan, Naturebook may display the public image,
-          species labels, public author identity, privacy-filtered location
-          label, coarse environmental context, engagement counts, comments, and
-          any field notes you choose to publish. Exact coordinates and private
-          notes are not shown on public Explore pages.
+          Explore. When you share a scan, Naturebook may display the public
+          image, species labels, public author identity, privacy-filtered
+          location label, coarse environmental context, engagement counts,
+          comments, and any field notes you choose to publish. Exact coordinates
+          and private notes are not shown on public Explore pages.
         </Text>
       </LegalSection>
 
@@ -124,21 +136,22 @@ export default function PrivacyPolicyPage() {
           Location improves identification and helps build your personal
           ecological journal. You can control location permission in iOS and
           configure Naturebook geoprivacy as open, obscured, or private. Public
-          Explore surfaces use Naturebook&apos;s filtered location projection, and
-          sensitive species handling may further reduce location precision. A
-          photo selected or shared from Photos may include its embedded capture
-          date and GPS coordinates. You can exclude Location in Photos&apos; share
-          Options; Naturebook does not invent missing coordinates or dates.
+          Explore surfaces use Naturebook&apos;s filtered location projection,
+          and sensitive species handling may further reduce location precision.
+          A photo selected or shared from Photos may include its embedded
+          capture date and GPS coordinates. You can exclude Location in
+          Photos&apos; share Options; Naturebook does not invent missing
+          coordinates or dates.
         </Text>
       </LegalSection>
 
       <LegalSection title="Service Providers">
         <Text>
-          Naturebook uses trusted infrastructure and product providers to operate
-          the app, including Supabase, Cloudflare R2, Google Gemini, Apple
-          platform services, Google sign-in, RevenueCat, PostHog, and Resend.
-          These providers process information only as needed to provide, secure,
-          analyze, or support Naturebook.
+          Naturebook uses trusted infrastructure and product providers to
+          operate the app, including Supabase, Cloudflare R2 and Turnstile,
+          Google Gemini, Apple platform services, Google sign-in, RevenueCat,
+          PostHog, and Resend. These providers process information only as
+          needed to provide, secure, analyze, or support Naturebook.
         </Text>
       </LegalSection>
 
@@ -163,27 +176,27 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="Retention">
         <Text>
-          Naturebook keeps account, scan, subscription, and Explore data for as long
-          as needed to provide the service, maintain records, prevent abuse,
-          comply with legal obligations, and honor deletion requests. Some
-          free-tier cloud media may be subject to lifecycle limits, while local
-          copies may remain on your device until you delete them or remove the
-          app.
+          Naturebook keeps account, waitlist, scan, subscription, and Explore
+          data for as long as needed to provide the service, maintain records,
+          prevent abuse, comply with legal obligations, and honor deletion
+          requests. Some free-tier cloud media may be subject to lifecycle
+          limits, while local copies may remain on your device until you delete
+          them or remove the app.
         </Text>
       </LegalSection>
 
       <LegalSection title="Children">
         <Text>
-          Naturebook is not directed to children under 13. If you believe a child
-          has provided personal information without appropriate consent, contact
-          us so we can review and delete it where required.
+          Naturebook is not directed to children under 13. If you believe a
+          child has provided personal information without appropriate consent,
+          contact us so we can review and delete it where required.
         </Text>
       </LegalSection>
 
       <LegalSection title="Changes and Contact">
         <Text>
-          We may update this policy as Naturebook changes. For privacy questions,
-          account requests, or support, contact <LegalEmailLink />.
+          We may update this policy as Naturebook changes. For privacy
+          questions, account requests, or support, contact <LegalEmailLink />.
         </Text>
       </LegalSection>
     </LegalPage>

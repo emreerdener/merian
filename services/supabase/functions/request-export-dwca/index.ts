@@ -1,23 +1,27 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 import { hasRecentExportJob, queueExportJob } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let requestBody;
-    try {
-      requestBody = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const requestBody = await parseJsonBody(req, { limit: "small" });
+    if (requestBody instanceof Response) return requestBody;
 
     const { includePreciseCoordinates = false, exportScope = "personal" } =
       requestBody;
     const userId = user.id;
 
     const VALID_EXPORT_SCOPES = new Set(["personal", "global"]);
-    if (!VALID_EXPORT_SCOPES.has(exportScope)) {
+    if (
+      typeof exportScope !== "string" ||
+      !VALID_EXPORT_SCOPES.has(exportScope)
+    ) {
       return jsonResponse(
-        { error: `Invalid exportScope. Must be one of: ${[...VALID_EXPORT_SCOPES].join(", ")}.` },
+        {
+          error: `Invalid exportScope. Must be one of: ${
+            [...VALID_EXPORT_SCOPES].join(", ")
+          }.`,
+        },
         400,
       );
     }
@@ -66,5 +70,5 @@ Deno.serve((req: Request) =>
       { success: true, message: "Export job queued successfully." },
       200,
     );
-  }),
+  })
 );

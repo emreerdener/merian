@@ -1,5 +1,10 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { parseJsonBody, requireParams } from "../_shared/http.ts";
+import {
+  parseJsonBody,
+  PublicHttpError,
+  publicHttpError,
+  requireParams,
+} from "../_shared/http.ts";
 import {
   fetchPublicAuthorIdentity,
   hasMutualBlock,
@@ -49,10 +54,8 @@ import { normalizeFieldTripAction } from "./actions.ts";
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 function normalizeCommunityMode(
@@ -178,7 +181,7 @@ function normalizePreferredGoal(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "standard" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
 

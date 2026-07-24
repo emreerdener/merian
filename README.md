@@ -219,9 +219,14 @@ steps are tracked in the
   preserving the decode concurrency ceiling.
 - Image pipeline produces a 1024px JPEG for inference and a 2048px JPEG for display in a single pass.
 - Search index uses O(1) delta updates — only added/removed scans are reprocessed, never the full library.
-- Edge media handlers use capped stream readers for request JSON and R2
-  responses, so missing `Content-Length` and chunked bodies cannot allocate
-  beyond the Deno isolate budget before rejection.
+- Every production Edge JSON endpoint uses a capped streaming reader with an
+  endpoint-class budget, strict JSON content type, declared/actual length
+  agreement, and stable request IDs. Media handlers retain explicit larger
+  ceilings for reviewed payloads and bounded R2 responses, so missing
+  `Content-Length` and chunked bodies cannot allocate beyond the Deno isolate
+  budget before rejection. Unexpected server failures return a generic public
+  code while provider, schema, and implementation details remain in
+  request-correlated server logs.
 
 ### Identity & Monetization
 - Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at launch).

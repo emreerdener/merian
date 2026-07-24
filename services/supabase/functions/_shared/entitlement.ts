@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { PublicHttpError, publicHttpError } from "./http.ts";
 
 export type EffectiveTier = "free" | "pro";
 export type SubscriptionTier = "free" | "pro";
@@ -107,13 +108,12 @@ export function tierTelemetryProperties(
   };
 }
 
-function entitlementUnavailable(): Error & { status: number; code: string } {
-  const error = new Error(
+function entitlementUnavailable(): PublicHttpError {
+  return publicHttpError(
+    503,
     "AI entitlement could not be verified. Please try again.",
-  ) as Error & { status: number; code: string };
-  error.status = 503;
-  error.code = "ai_entitlement_unavailable";
-  return error;
+    "ai_entitlement_unavailable",
+  );
 }
 
 /**

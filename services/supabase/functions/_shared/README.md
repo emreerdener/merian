@@ -9,11 +9,28 @@ multiple functions need the same behavior and the ownership boundary is clear.
 
 ## Infrastructure Map
 
-- **`edgeHandler.ts`**: Authenticated user-facing function wrapper, preflight
-  handling, background task dispatch, structured operational logging, auth
-  timing, and additive `Server-Timing` propagation.
-- **`http.ts`**: CORS headers, JSON responses, parameter validation, JSON-body
-  parsing, body-size checks, and constant-time comparison helpers.
+- **`edgeHandler.ts`**: Authenticated user-facing function wrapper, custom-auth
+  `serveEdge(...)` registration, preflight handling, background task dispatch,
+  structured operational logging, auth timing, and additive `Server-Timing`
+  propagation. Both wrappers assign a server-owned request UUID and add
+  `X-Request-ID` to every response. Expected thrown failures use
+  `PublicHttpError`; explicit safe response failures use
+  `publicErrorResponse(...)`. Audited returned `4xx` application contracts are
+  still supported, while unexpected exceptions become `500 internal_error` and
+  ordinary returned `5xx` bodies keep their status but receive a generic
+  status-derived envelope. Raw exception details remain server-side.
+- **`http.ts`**: CORS headers, JSON responses, parameter validation,
+  constant-time comparison helpers, and the canonical bounded request readers.
+  `parseJsonBody(...)` is the ordinary object API;
+  `readRequestBodyWithinLimit(...)` preserves exact signed webhook bytes; media
+  adapters delegate to `readBoundedJsonBody(...)`. They validate JSON media
+  type where applicable, declared and actual byte counts while streaming, and
+  invalid UTF-8. `readByteStreamWithinLimit(...)` coalesces tiny transport
+  chunks into a geometrically growing bounded buffer, so memory tracks accepted
+  bytes instead of attacker-influenced chunk count. Every route selects a
+  reviewed `JSON_BODY_LIMITS` class (`small`, `standard`, or `bulk`) or an
+  explicit media-specific ceiling. Do not add a direct `req.json()`,
+  `req.text()`, or unbounded clone to a production handler.
 - **`auth.ts`**: Shared bearer parsing, claims validation, and the compatibility
   Auth-server `getUser` strategy used by existing authenticated endpoints.
 - **`clientAddress.ts`**: Shared proxy-observed client-address extraction and
@@ -41,7 +58,9 @@ multiple functions need the same behavior and the ownership boundary is clear.
   response bodies that may be chunked or omit `Content-Length` must be consumed
   through `readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`,
   or `readStreamArrayBufferWithinBudget` so the byte counter rejects oversized
-  streams before V8 can allocate past the Edge heap budget.
+  streams before V8 can allocate past the Edge heap budget. The request JSON
+  adapter delegates to `http.ts`; `mediaBudgets.ts` owns only the larger
+  reviewed ceiling and media-specific error copy.
 - **`concurrency.ts`**: Ordered promise mapping with a fixed worker width. Use
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,

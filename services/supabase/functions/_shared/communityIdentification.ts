@@ -1,3 +1,5 @@
+import { PublicHttpError, publicHttpError } from "./http.ts";
+
 export type CommunityIdentificationDisagreementMode =
   | "implicit_support"
   | "explicit_disagreement"
@@ -8,10 +10,8 @@ export type CommunityLocationSharing = "open" | "obscured" | "private";
 export function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export function normalizeCommunityNote(value: unknown): string | null {

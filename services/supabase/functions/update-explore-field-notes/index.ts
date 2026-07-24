@@ -1,5 +1,10 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { parseJsonBody, requireParams } from "../_shared/http.ts";
+import {
+  parseJsonBody,
+  PublicHttpError,
+  publicHttpError,
+  requireParams,
+} from "../_shared/http.ts";
 import { normalizeExploreHashtag, requireUuid } from "../_shared/explore.ts";
 import { updateExploreFieldNotes } from "./db.ts";
 import type { ExistingExplorePostMediaSelection } from "./db.ts";
@@ -12,10 +17,8 @@ import {
 function makeHttpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 function normalizeFieldNotes(value: unknown): string | null {
@@ -171,7 +174,7 @@ function normalizeNonNegativeInteger(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req);
+    const parsedBody = await parseJsonBody(req, { limit: "standard" });
     if (parsedBody instanceof Response) return parsedBody;
     const body = parsedBody;
 

@@ -6,6 +6,7 @@ import {
   resolveClientAddressHashSecret,
 } from "./clientAddress.ts";
 import { logStructuredError } from "./edgeHandler.ts";
+import { PublicHttpError } from "./http.ts";
 import type { TierResolution } from "./entitlement.ts";
 
 const UUID_PATTERN =
@@ -67,22 +68,15 @@ export interface AIProviderQuotaLease {
   fail(): Promise<boolean>;
 }
 
-export class AIQuotaError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly retryAfterSeconds?: number;
-
+export class AIQuotaError extends PublicHttpError {
   constructor(
     status: number,
     code: string,
     message: string,
     retryAfterSeconds?: number,
   ) {
-    super(message);
+    super(status, code, message, retryAfterSeconds);
     this.name = "AIQuotaError";
-    this.status = status;
-    this.code = code;
-    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 

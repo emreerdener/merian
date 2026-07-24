@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { serveEdge } from "../_shared/edgeHandler.ts";
 import {
   corsHeaders,
   jsonResponse,
+  parseJsonBody,
+  publicErrorResponse,
   timingSafeCompare,
 } from "../_shared/http.ts";
 
@@ -20,7 +23,7 @@ function normalizeSourceRevision(value: unknown): string | null {
   return trimmed;
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -36,12 +39,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    let body: Record<string, unknown> = {};
-    try {
-      body = await req.json();
-    } catch {
-      body = {};
-    }
+    const body = await parseJsonBody(req, {
+      limit: "small",
+      allowEmpty: true,
+    });
+    if (body instanceof Response) return body;
 
     const sourceRevision = normalizeSourceRevision(body.source_revision);
     const supabaseAdmin = createClient(
@@ -64,6 +66,15 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: true, data }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return jsonResponse({ error: message }, 500);
+    console.error(JSON.stringify({
+      event: "taxonomy_node_refresh_failed",
+      error: message,
+    }));
+    return publicErrorResponse(
+      req,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

@@ -1,4 +1,5 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 import {
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
@@ -11,12 +12,11 @@ import { prepareExploreSpeciesPostsPage } from "./response.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: Record<string, unknown> = {};
-    try {
-      body = await req.json();
-    } catch {
-      // The parser below reports the required species_id field.
-    }
+    const body = await parseJsonBody(req, {
+      limit: "small",
+      allowEmpty: true,
+    });
+    if (body instanceof Response) return body;
 
     const parsed = parseExploreSpeciesPostsRequest(body);
 

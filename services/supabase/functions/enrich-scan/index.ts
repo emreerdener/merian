@@ -10,7 +10,7 @@ import {
   fetchStaticEncyclopedicData,
 } from "../_shared/biology.ts";
 import { fetchGBIFVernacularNames } from "../_shared/external.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
 import {
@@ -92,12 +92,8 @@ const _lookalikesInFlight = new Map<string, Promise<void>>();
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "small" });
+    if (body instanceof Response) return body;
 
     const paramErr = requireParams(body, ["scientific_name", "scope"]);
     if (paramErr) return paramErr;

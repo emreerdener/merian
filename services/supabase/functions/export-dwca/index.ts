@@ -1,6 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { serveEdge } from "../_shared/edgeHandler.ts";
 
-import { corsHeaders } from "../_shared/http.ts";
+import {
+  corsHeaders,
+  parseJsonBody,
+  publicErrorResponse,
+} from "../_shared/http.ts";
 import {
   fetchAndFormatScans,
   fetchUserEmail,
@@ -16,7 +21,7 @@ function jsonResponse(payload: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -32,14 +37,20 @@ Deno.serve(async (req: Request) => {
   let currentJobId: string | undefined = undefined;
 
   try {
-    const payload = await req.json();
+    const payload = await parseJsonBody(req, { limit: "small" });
+    if (payload instanceof Response) return payload;
     const { job_id, user_id, export_scope, include_precise_coordinates } =
       payload;
-    currentJobId = job_id;
 
-    if (!job_id || !user_id) {
-      return jsonResponse({ error: "Missing job payload" }, 400);
+    if (
+      typeof job_id !== "string" ||
+      typeof user_id !== "string" ||
+      typeof export_scope !== "string" ||
+      typeof include_precise_coordinates !== "boolean"
+    ) {
+      return jsonResponse({ error: "Invalid job payload" }, 400);
     }
+    currentJobId = job_id;
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -103,6 +114,11 @@ Deno.serve(async (req: Request) => {
       // no-op to avoid crashing during error fallback execution
     }
 
-    return jsonResponse({ error: err.message }, 500);
+    return publicErrorResponse(
+      req,
+      500,
+      "internal_error",
+      "The request could not be completed.",
+    );
   }
 });

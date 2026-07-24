@@ -3,6 +3,7 @@ import {
   logStructuredError,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
+import { parseJsonBody } from "../_shared/http.ts";
 import {
   createStagedScanMediaAssets,
   StagedScanMediaAssetInput,
@@ -68,13 +69,8 @@ function attachStagedAssetIds(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: unknown;
-
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const body = await parseJsonBody(req, { limit: "standard" });
+    if (body instanceof Response) return body;
 
     const parsed = parseStagingUploadFiles(body);
     if (parsed.error || !parsed.files) {

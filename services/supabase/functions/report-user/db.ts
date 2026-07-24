@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 
 interface ReportableProfileRow {
   author_user_id: string;
@@ -7,10 +8,8 @@ interface ReportableProfileRow {
 function httpError(
   status: number,
   message: string,
-): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number };
-  error.status = status;
-  return error;
+): PublicHttpError {
+  return publicHttpError(status, message);
 }
 
 export async function requireReportableUser(

@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import { publicHttpError } from "../_shared/http.ts";
 import {
   ChatScanContext,
   InsightChatConversationRow,
@@ -84,11 +85,10 @@ export async function fetchOwnedScan(
   if (error) throw new Error(`Failed to fetch scan context: ${error.message}`);
   if (!data) return null;
   if (data.user_id !== userId) {
-    throw Object.assign(
-      new Error(
-        "Forbidden: You do not have permission to chat about this scan.",
-      ),
-      { status: 403 },
+    throw publicHttpError(
+      403,
+      "You do not have permission to chat about this scan.",
+      "scan_access_forbidden",
     );
   }
   return data as unknown as ChatScanContext;
