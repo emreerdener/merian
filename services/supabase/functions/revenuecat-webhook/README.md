@@ -162,9 +162,9 @@ no row and therefore leaves the PL/pgSQL variable null; keep the branch as
 not an ordinary catalog routine, so `pg_catalog.COALESCE(...)` fails the
 `plpgsql_check` catalog gate.
 
-The pgTAP fixture inserts `public.users` rows directly and therefore must provide
-identity fields normally derived by the Auth trigger. Keep its deterministic
-usernames within the 3–24 character limit and valid under
+The pgTAP fixture inserts `public.users` rows directly and therefore must
+provide identity fields normally derived by the Auth trigger. Keep its
+deterministic usernames within the 3–24 character limit and valid under
 `public.is_valid_public_username(...)`; do not weaken the production constraint
 for test data.
 
