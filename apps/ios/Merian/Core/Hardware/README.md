@@ -5,6 +5,20 @@ The `Hardware` directory contains managers for monitoring and interacting with t
 ## Purpose
 This area houses the `HardwareOrchestrator`, which monitors `ProcessInfo.thermalState` and `isLowPowerModeEnabled`. It dynamically manages resource intensity (such as capping framerates to 24fps or dropping heavy shaders) under thermal pressure to ensure the app remains stable during intense camera and AI usage.
 
+## Camera frame-rate observation
+
+`CameraManager` observes `HardwareOrchestrator.targetFPS` with one-shot
+observation tracking. The change callback must re-arm observation before it
+suspends. `CameraTargetFPSDebouncer` then cancels and replaces pending
+applications, correlates each task with a UUID generation, and reads the current
+target after the 100 ms debounce. This keeps rapid thermal escalation and
+recovery aligned with the latest hardware target even when cancellation
+finishes cooperatively.
+
+Only the debounce policy and observable target live on `@MainActor`.
+`AVCaptureSession.inputs`, device locking, and frame-duration changes continue
+on the serial camera queue.
+
 ## Camera recording concurrency
 
 `CameraManager` owns AVFoundation session mutations and all movie-output and

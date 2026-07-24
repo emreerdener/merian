@@ -77,6 +77,8 @@ TestFlight, App Store, support, and QA.
 - Prevented delayed camera recording callbacks, timeouts, and automatic-stop
   tasks from completing or stopping a newer video after rapid cancel/retry
   sequences.
+- Fixed rapid thermal or power-state changes occasionally leaving the camera at
+  an older frame-rate limit after the device heated up or recovered.
 - Prevented delayed offline upload, inference, retry, status-probe, and
   background-expiration callbacks from clearing or cancelling a newer sync
   attempt. Queue progress now remains accurate across rapid reconnects,

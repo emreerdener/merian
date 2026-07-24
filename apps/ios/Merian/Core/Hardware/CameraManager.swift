@@ -118,6 +118,72 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     let action: @MainActor @Sendable () -> Void
 }
 
+/// Coalesces target-FPS changes while ensuring only the latest scheduled
+/// application can read or publish a value.
+///
+/// Task cancellation is cooperative, so the UUID generation is the authority
+/// for both applying and clearing state.
+@MainActor
+final class CameraTargetFPSDebouncer {
+    typealias Sleeper = @Sendable (UInt64) async -> Void
+
+    nonisolated static let defaultDelayNanoseconds: UInt64 = 100_000_000
+
+    private let delayNanoseconds: UInt64
+    private let sleep: Sleeper
+    private var generationID: UUID?
+    private var task: Task<Void, Never>?
+
+    init(
+        delayNanoseconds: UInt64 = CameraTargetFPSDebouncer.defaultDelayNanoseconds,
+        sleep: @escaping Sleeper = { nanoseconds in
+            try? await Task.sleep(nanoseconds: nanoseconds)
+        }
+    ) {
+        self.delayNanoseconds = delayNanoseconds
+        self.sleep = sleep
+    }
+
+    @discardableResult
+    func schedule(
+        currentTargetFPS: @escaping @MainActor @Sendable () -> Int,
+        apply: @escaping @MainActor @Sendable (Int) -> Void
+    ) -> Task<Void, Never> {
+        task?.cancel()
+
+        let scheduledGenerationID = UUID()
+        generationID = scheduledGenerationID
+        let delayNanoseconds = delayNanoseconds
+        let sleep = sleep
+
+        let scheduledTask = Task { @MainActor [weak self] in
+            await sleep(delayNanoseconds)
+
+            guard let self,
+                  !Task.isCancelled,
+                  generationID == scheduledGenerationID else { return }
+
+            // Read after the debounce window. A target mutation that happened
+            // while the task slept must supersede the value that triggered it.
+            let latestFPS = currentTargetFPS()
+
+            guard !Task.isCancelled,
+                  generationID == scheduledGenerationID else { return }
+
+            apply(latestFPS)
+            clear(generationID: scheduledGenerationID)
+        }
+        task = scheduledTask
+        return scheduledTask
+    }
+
+    private func clear(generationID expectedGenerationID: UUID) {
+        guard generationID == expectedGenerationID else { return }
+        generationID = nil
+        task = nil
+    }
+}
+
 // MARK: - Camera Manager
 
 /// Manages the AVFoundation capture session, LiDAR depth mapping, photo capture,
@@ -166,6 +232,7 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     @ObservationIgnored nonisolated(unsafe) private var activeVideoRecording: ActiveCameraVideoRecording?
     @ObservationIgnored private var movieRecordingPreparationTask: Task<Bool, Error>?
     @ObservationIgnored private var videoRecordingPresentationGeneration: UUID?
+    @ObservationIgnored private let targetFPSDebouncer = CameraTargetFPSDebouncer()
 
     // MARK: - State
     private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
@@ -236,18 +303,24 @@ private struct CameraVideoRecordingStartHandler: Sendable {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                // Capture the target FPS before the debounce sleep — a second onChange
-                // that fires during the sleep may update targetFPS again, and reading it
-                // after would apply the final value correctly in any case.
-                let fps = HardwareOrchestrator.shared.targetFPS
+
+                // Observation tracking is one-shot. Re-arm before awaiting so every
+                // target change during the debounce window can replace pending work.
                 self.isFPSTrackingRegistered = false
-                // Debounce: coalesce rapid thermal-state change bursts (can fire 3–4×/s under
-                // sustained load) into a single AVFoundation reconfiguration call. Without this,
-                // concurrent session reconfigurations queue up and produce AVFoundation stalls.
-                try? await Task.sleep(nanoseconds: 100_000_000)  // 100 ms
-                guard !Task.isCancelled else { return }
-                self.applyTargetFPS(fps)
                 self.trackFPS()
+
+                // Debounce: coalesce rapid thermal-state change bursts (can fire 3–4×/s
+                // under sustained load) into one AVFoundation reconfiguration. The
+                // debouncer reads targetFPS only after the delay and rejects replaced
+                // generations even when cancellation has not finished cooperatively.
+                self.targetFPSDebouncer.schedule(
+                    currentTargetFPS: {
+                        HardwareOrchestrator.shared.targetFPS
+                    },
+                    apply: { [weak self] fps in
+                        self?.applyTargetFPS(fps)
+                    }
+                )
             }
         }
     }
@@ -329,9 +402,8 @@ private struct CameraVideoRecordingStartHandler: Sendable {
     }
 
     /// Guards the recursive `withObservationTracking` chain against double-registration.
-    /// Two rapid thermal/power-state changes can both fire `onChange` before either
-    /// `trackFPS()` re-registers, spawning two parallel tracking chains that each call
-    /// `applyTargetFPS`. This flag ensures at most one active registration at a time.
+    /// The one-shot observation is re-armed as the first operation in `onChange`;
+    /// this flag ensures that re-arming still produces at most one active registration.
     @ObservationIgnored private var isFPSTrackingRegistered = false
 
     private struct ZoomConfig {

@@ -820,31 +820,22 @@ private func updateHint(_ hint: VUIHint) {  // synchronous
 
 The `isAnalyzing` flag is retained as a re-entrancy guard: if `analyze` is called again before the current `@MainActor` drain cycle finishes (e.g., via a rapid frame callback burst), the second call is dropped immediately rather than queueing work. `pauseAnalysis(for:)` also calls `updateHint(.optimal)` directly instead of wrapping it in a `Task { await updateHint }`.
 
-### `trackFPS` Double-Registration Guard (`CameraManager`)
-`CameraManager.trackFPS()` uses `withObservationTracking { _ = HardwareOrchestrator.shared.targetFPS } onChange:` to re-apply the framerate whenever `targetFPS` changes. The `onChange` closure calls `trackFPS()` recursively to re-arm the observation for the next change.
+### Latest-State FPS Observation (`CameraManager`)
 
-Without a guard, if `onChange` fired while a previous `trackFPS()` call had not yet completed its `withObservationTracking` setup (e.g., under rapid `targetFPS` mutations), multiple concurrent observations would accumulate — each one firing its own duplicate `onChange` on the next `targetFPS` write.
+`CameraManager.trackFPS()` uses `withObservationTracking { _ = HardwareOrchestrator.shared.targetFPS } onChange:` to re-apply the frame rate whenever the hardware target changes. Observation tracking is one-shot: after `onChange` fires, the registration no longer sees subsequent mutations. The callback therefore clears its `isFPSTrackingRegistered` guard and calls `trackFPS()` again as its first operation on `@MainActor`, before starting or awaiting debounce work.
 
-A boolean flag `isFPSTrackingRegistered` (marked `@ObservationIgnored` to exclude it from the `@Observable` tracking graph) prevents this:
+The 100 ms coalescing delay is owned by `CameraTargetFPSDebouncer`. Scheduling a new application cancels the prior task and installs a fresh UUID generation. Cancellation remains an optimization rather than the correctness boundary: the task compares its generation before reading or applying a value, and state is cleared only by the generation that still owns it. The FPS source is evaluated after the delay, so a thermal escalation or recovery that occurred while the task slept supersedes the trigger value.
 
 ```swift
-private func trackFPS() {
-    guard !isFPSTrackingRegistered else { return }
-    isFPSTrackingRegistered = true
-    withObservationTracking {
-        _ = HardwareOrchestrator.shared.targetFPS
-    } onChange: { [weak self] in
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.isFPSTrackingRegistered = false
-            self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
-            self.trackFPS()
-        }
-    }
-}
+self.isFPSTrackingRegistered = false
+self.trackFPS() // Re-arm before any suspension.
+self.targetFPSDebouncer.schedule(
+    currentTargetFPS: { HardwareOrchestrator.shared.targetFPS },
+    apply: { [weak self] fps in self?.applyTargetFPS(fps) }
+)
 ```
 
-The flag is set before `withObservationTracking` registers and cleared inside `onChange` before the recursive `trackFPS()` call, ensuring exactly one active observation at any time.
+`applyTargetFPS(_:)` remains the actor-to-hardware handoff: the debouncer and `HardwareOrchestrator` state stay on `@MainActor`, while session input lookup, device configuration locking, and frame-duration writes execute on the serial camera queue.
 
 ### Concurrent Cloud Deletion Fan-Out with Batch Cap (`OfflineQueueManager`)
 `syncPendingDeletions()` previously called `MerianNetworkClient.shared.deleteScan(scanId:)` for each queued `PendingCloudDeletionTask` in a serial `for` loop. Each deletion is an independent HTTP round-trip to the `delete-scan` Edge function (~300–600 ms each). For a user who deleted 10 scans offline, draining the queue required 3–6 seconds of sequential network time.

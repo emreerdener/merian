@@ -2,6 +2,31 @@ import AVFoundation
 @testable import Merian
 import XCTest
 
+private actor CameraTargetFPSControlledSleeper {
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    func sleep() async {
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func pendingCount() -> Int {
+        continuations.count
+    }
+
+    func resumeOldest() {
+        guard !continuations.isEmpty else { return }
+        continuations.removeFirst().resume()
+    }
+}
+
+@MainActor
+private final class CameraTargetFPSTestState {
+    var currentFPS = 60
+    var appliedFPS: [Int] = []
+}
+
 @MainActor
 final class CameraManagerTests: XCTestCase {
 
@@ -28,6 +53,89 @@ final class CameraManagerTests: XCTestCase {
         XCTAssertEqual(cameraManager.zoomFactor, 1.0)
         XCTAssertEqual(cameraManager.maxZoomFactor, 1.0)
         XCTAssertFalse(cameraManager.isZoomSupported)
+    }
+
+    // MARK: - Target FPS Debounce
+
+    func testTargetFPSDebouncerReadsCurrentTargetAfterDelay() async {
+        let sleeper = CameraTargetFPSControlledSleeper()
+        let state = CameraTargetFPSTestState()
+        let debouncer = CameraTargetFPSDebouncer(
+            sleep: { _ in await sleeper.sleep() }
+        )
+
+        let applicationTask = debouncer.schedule(
+            currentTargetFPS: { state.currentFPS },
+            apply: { state.appliedFPS.append($0) }
+        )
+        await waitForPendingSleepCount(1, in: sleeper)
+
+        state.currentFPS = 15
+        await sleeper.resumeOldest()
+        await applicationTask.value
+
+        XCTAssertEqual(
+            state.appliedFPS,
+            [15],
+            "The FPS value must be read after the debounce window, not captured when scheduling"
+        )
+    }
+
+    func testTargetFPSDebouncerRejectsReplacedGeneration() async {
+        let sleeper = CameraTargetFPSControlledSleeper()
+        let state = CameraTargetFPSTestState()
+        let debouncer = CameraTargetFPSDebouncer(
+            sleep: { _ in await sleeper.sleep() }
+        )
+
+        let replacedTask = debouncer.schedule(
+            currentTargetFPS: { state.currentFPS },
+            apply: { state.appliedFPS.append($0) }
+        )
+        await waitForPendingSleepCount(1, in: sleeper)
+
+        state.currentFPS = 30
+        let replacementTask = debouncer.schedule(
+            currentTargetFPS: { state.currentFPS },
+            apply: { state.appliedFPS.append($0) }
+        )
+        await waitForPendingSleepCount(2, in: sleeper)
+
+        // The injected sleeper intentionally ignores cooperative cancellation.
+        // Resuming the replaced task must still fail its generation check.
+        await sleeper.resumeOldest()
+        await replacedTask.value
+        XCTAssertTrue(state.appliedFPS.isEmpty)
+
+        state.currentFPS = 15
+        await sleeper.resumeOldest()
+        await replacementTask.value
+
+        XCTAssertEqual(
+            state.appliedFPS,
+            [15],
+            "Only the latest generation may read and apply the current target"
+        )
+    }
+
+    private func waitForPendingSleepCount(
+        _ expectedCount: Int,
+        in sleeper: CameraTargetFPSControlledSleeper,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        for _ in 0..<1_000 {
+            if await sleeper.pendingCount() >= expectedCount {
+                return
+            }
+            await Task.yield()
+        }
+
+        XCTFail(
+            "Timed out waiting for \(expectedCount) pending FPS debounce sleep(s)",
+            file: file,
+            line: line
+        )
     }
 
     // MARK: - Video Recording Generations

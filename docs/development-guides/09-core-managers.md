@@ -193,6 +193,13 @@ triggering excessive SwiftUI view rebuilds.
   `lockForConfiguration()` off `@MainActor`, then publish `isFlashEnabled`,
   `zoomFactor`, or other observable state back via `Task { @MainActor in ... }`.
   Never read `session.inputs` synchronously from a SwiftUI action handler.
+- **Latest-State FPS Debounce**: `withObservationTracking` registrations are
+  one-shot. The target-FPS callback must re-arm `trackFPS()` before awaiting or
+  scheduling delayed work. `CameraTargetFPSDebouncer` owns a cancel-and-replace
+  task plus UUID generation, reads `HardwareOrchestrator.targetFPS` after the
+  100 ms delay, and uses compare-before-apply/clear semantics. Never capture an
+  FPS value before the delay or rely on task cancellation alone; either pattern
+  can let a stale thermal generation survive.
 - **Recorded Video Stabilization Boundary**: `AVCaptureMovieFileOutput` may be
   pre-attached during visual camera setup so the hold-to-record path feels
   immediate, but its video connection keeps stabilization off until

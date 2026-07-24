@@ -465,12 +465,15 @@ MerianTests/
 ### Hardware & Ecosystem Integrations
 
 - **`CameraManagerTests.swift`, `CaptureWorkspaceViewModelRefinementTests`**:
-  Validates camera state routing and the video-generation correlation policy.
-  Focused recording tests prove callback URLs bind to the intended temporary
-  file, generation-A callbacks/actions are rejected while generation B is
-  active, and cooperatively cancelled timeout/stop tasks are rejected after
-  their action token is replaced. These policy tests do not require simulator
-  camera hardware. `CaptureWorkspaceViewModelRefinementTests`
+  Validates camera state routing, target-FPS debounce ownership, and the
+  video-generation correlation policy. A controlled async sleeper proves the
+  FPS debouncer reads the current target after its delay and rejects a replaced
+  generation even when the sleeper intentionally ignores cooperative
+  cancellation. Focused recording tests prove callback URLs bind to the
+  intended temporary file, generation-A callbacks/actions are rejected while
+  generation B is active, and cooperatively cancelled timeout/stop tasks are
+  rejected after their action token is replaced. These policy tests do not
+  require simulator camera hardware. `CaptureWorkspaceViewModelRefinementTests`
   drives `startRefinementScan(from:)` through the injected
   `PreparedStagedImageLoader` seam, asserting both the success path
   (bounded display-sized refinement request is committed into `stagedCapture.images`)
