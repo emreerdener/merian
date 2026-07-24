@@ -155,9 +155,17 @@ final class SpeciesObservationStatsViewModel {
             localStats = local
         }
 
+        guard let dictionarySpeciesId = SpeciesObservationStatsReducer.normalizedSpeciesId(speciesId) else {
+            if activeLoadId == loadId {
+                publicStats = nil
+                publicErrorMessage = nil
+            }
+            return
+        }
+
         do {
             let stats = try await MerianNetworkClient.shared.getSpeciesObservationStats(
-                speciesId: speciesId,
+                speciesId: dictionarySpeciesId,
                 scientificName: normalizedName
             )
             if activeLoadId == loadId {

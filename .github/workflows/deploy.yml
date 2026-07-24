@@ -100,6 +100,8 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/clientAddress.ts \
+            supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/aiQuota.ts \
             supabase/functions/_shared/groupTagQuota.ts \
             supabase/functions/_shared/aiQuota_test.ts \
@@ -132,6 +134,8 @@ jobs:
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
@@ -158,6 +162,7 @@ jobs:
             supabase/functions/insight-chat \
             supabase/functions/replay-scan-ingestion \
             supabase/functions/revenuecat-webhook \
+            supabase/functions/species-observation-stats \
             supabase/functions/scan-media-health
 
       - name: Validate Edge Function lint
@@ -167,6 +172,8 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/clientAddress.ts \
+            supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/aiQuota.ts \
             supabase/functions/_shared/groupTagQuota.ts \
             supabase/functions/_shared/aiQuota_test.ts \
@@ -199,6 +206,8 @@ jobs:
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
@@ -225,6 +234,7 @@ jobs:
             supabase/functions/insight-chat \
             supabase/functions/replay-scan-ingestion \
             supabase/functions/revenuecat-webhook \
+            supabase/functions/species-observation-stats \
             supabase/functions/scan-media-health
 
       - name: Validate shared Edge runtime checks
@@ -234,6 +244,8 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/clientAddress.ts \
+            supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/aiQuota.ts \
             supabase/functions/_shared/groupTagQuota.ts \
             supabase/functions/_shared/aiQuota_test.ts \
@@ -266,6 +278,8 @@ jobs:
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
@@ -286,6 +300,9 @@ jobs:
             supabase/functions/replay-scan-ingestion/index.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
             supabase/functions/revenuecat-webhook/index.ts \
+            supabase/functions/species-observation-stats/index.ts \
+            supabase/functions/species-observation-stats/db.test.ts \
+            supabase/functions/species-observation-stats/security.test.ts \
             supabase/functions/revenuecat-webhook/handler_test.ts \
             supabase/functions/revenuecat-webhook/index_test.ts \
             supabase/functions/revenuecat-webhook/signature_test.ts \
@@ -323,6 +340,7 @@ jobs:
             supabase/functions/_shared/scanIngestionIntents_test.ts \
             supabase/functions/_shared/scanIngestionJobs_test.ts \
             supabase/functions/_shared/scanMediaDeletion_test.ts \
+            supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
@@ -335,6 +353,16 @@ jobs:
             supabase/functions/insight-chat/guards_test.ts \
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
+
+      - name: Test public species observation stats boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/config.toml \
+            supabase/functions/_shared/mediaBudgets_test.ts \
+            supabase/functions/species-observation-stats/db.test.ts \
+            supabase/functions/species-observation-stats/security.test.ts \
+            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
 
       - name: Validate authoritative AI quota coverage
         run: |
@@ -374,7 +402,8 @@ jobs:
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
-            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts
+            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
 
       - name: Start disposable database for privileged-routine validation
         env:
@@ -391,7 +420,8 @@ jobs:
           supabase test db --local \
             supabase/tests/privileged_routine_security.sql \
             supabase/tests/ai_quota_security.sql \
-            supabase/tests/revenuecat_webhook_security.sql
+            supabase/tests/revenuecat_webhook_security.sql \
+            supabase/tests/species_observation_stats_security.sql
 
       - name: Stop disposable database
         if: always()

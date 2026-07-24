@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  clientAddressFromHeaders,
+  ClientAddressHashError,
+  hmacClientAddressForPurpose,
+  resolveClientAddressHashSecret,
+} from "./clientAddress.ts";
 import { logStructuredError } from "./edgeHandler.ts";
 import type { TierResolution } from "./entitlement.ts";
 
@@ -147,24 +153,7 @@ export async function deriveAIRequestId(
 }
 
 export function clientAddressForQuota(headers: Headers): string {
-  const realIp = headers.get("x-real-ip")?.trim();
-  if (realIp) return realIp.slice(0, 128).toLowerCase();
-
-  const connectingIp = headers.get("cf-connecting-ip")?.trim();
-  if (connectingIp) return connectingIp.slice(0, 128).toLowerCase();
-
-  // Use the right-most value. Proxies append their observed peer, while a
-  // caller-controlled left-most value must never choose the quota bucket.
-  const forwarded = headers.get("x-forwarded-for")
-    ?.split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const forwardedPeer = forwarded?.at(-1);
-  if (forwardedPeer) return forwardedPeer.slice(0, 128).toLowerCase();
-
-  // Hosted Edge requests normally include x-real-ip. Sharing one fail-safe
-  // bucket when it is unavailable is safer than silently disabling IP limits.
-  return "unavailable";
+  return clientAddressFromHeaders(headers);
 }
 
 export async function hmacClientAddress(
@@ -172,33 +161,21 @@ export async function hmacClientAddress(
   secret: string,
   now = new Date(),
 ): Promise<string> {
-  if (secret.trim().length < 32) {
+  try {
+    return await hmacClientAddressForPurpose(
+      address,
+      secret,
+      "merian-ai-quota-ip-v1",
+      now,
+    );
+  } catch (error) {
+    if (!(error instanceof ClientAddressHashError)) throw error;
     throw new AIQuotaError(
       503,
       "ai_quota_unavailable",
       "AI service is temporarily unavailable.",
     );
   }
-  const day = now.toISOString().slice(0, 10);
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = new Uint8Array(
-    await crypto.subtle.sign(
-      "HMAC",
-      key,
-      encoder.encode(`merian-ai-quota-ip-v1:${day}:${address}`),
-    ),
-  );
-  return Array.from(
-    signature,
-    (byte) => byte.toString(16).padStart(2, "0"),
-  ).join("");
 }
 
 export function resolveQuotaIpHashSecret(input: {
@@ -206,28 +183,16 @@ export function resolveQuotaIpHashSecret(input: {
   platformSecretKey?: string | null;
   serviceRoleKey?: string | null;
 }): string {
-  const dedicated = input.dedicatedSecret?.trim();
-  if (dedicated) {
-    if (dedicated.length < 32) {
-      throw new AIQuotaError(
-        503,
-        "ai_quota_unavailable",
-        "AI service is temporarily unavailable.",
-      );
-    }
-    return dedicated;
-  }
-
-  const platformSecret = input.platformSecretKey?.trim() ||
-    input.serviceRoleKey?.trim();
-  if (!platformSecret || platformSecret.length < 32) {
+  try {
+    return resolveClientAddressHashSecret(input);
+  } catch (error) {
+    if (!(error instanceof ClientAddressHashError)) throw error;
     throw new AIQuotaError(
       503,
       "ai_quota_unavailable",
       "AI service is temporarily unavailable.",
     );
   }
-  return platformSecret;
 }
 
 async function quotaIpHash(req: Request): Promise<string> {

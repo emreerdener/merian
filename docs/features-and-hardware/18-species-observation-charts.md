@@ -110,10 +110,15 @@ Primary files:
 
 - `services/supabase/functions/species-observation-stats/index.ts`
 - `services/supabase/functions/species-observation-stats/db.ts`
+- `services/supabase/functions/species-observation-stats/security.ts`
 - `services/supabase/functions/species-observation-stats/db.test.ts`
 - `services/supabase/migrations/20260517190000_add_species_observation_stats.sql`
+- `services/supabase/migrations/20260724170709_harden_species_observation_stats.sql`
 
-The iOS client uses an unauthenticated public GET:
+The iOS client uses an authenticated GET so normal app traffic receives both
+user and IP budgets. The database-owned IP preflight occurs before optional
+token verification, preventing invalid-token traffic from amplifying Auth
+calls. The endpoint remains usable without a user session:
 
 ```text
 /functions/v1/species-observation-stats?species_id=1cf79982-e5ee-4e3d-8d65-274527e6ae01&scientific_name=Danaus%20plexippus
@@ -128,18 +133,23 @@ The Edge Function still accepts POST JSON for compatibility:
 }
 ```
 
-`scientific_name` is required. `species_id` is optional but preferred when it is
-a dictionary UUID.
+Both values are required. The database verifies that `species_id` names the
+canonical normalized `scientific_name`; unknown/mismatched pairs never reach the
+provider. Compatibility POST bodies are stream-bounded to 4 KiB before JSON
+decoding. iOS also rejects a malformed UUID or a name outside 1...160
+characters before dispatch.
 
-The Edge Function reads `species_dictionary`, uses
-`species_dictionary.inaturalist_taxon_id` when known, resolves exact scientific
-names through iNaturalist when needed, then caches the resulting public payload
-in `species_observation_stats_cache`.
+The Edge Function uses `species_dictionary.inaturalist_taxon_id` when known. A
+database lease owner may resolve the exact canonical name when needed, but all
+observation calls require the resulting `taxon_id`; there is no free-form name
+fallback.
 
 On cold cache misses, the response path fetches core totals, seasonality, and
 history, returns those as `status: "partial"`, and queues life-stage/sex
 annotation buckets through `runBackground`. Usable stale cache rows return
-immediately as `status: "stale"` while a full refresh runs in the background.
+immediately as `status: "stale"` while one fenced database lease owner refreshes
+in the background. A `partial` response always contains useful chart data; a
+provider failure that leaves every bucket empty becomes `unavailable`.
 
 ## Response Contract
 
@@ -151,7 +161,7 @@ series is intentionally not rendered as a chart tab.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "data": {
     "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
     "scientific_name": "Danaus plexippus",
@@ -230,11 +240,32 @@ Backend cache:
 - Key: `species_id + source + scope`.
 - Source: `inaturalist`.
 - Scope: `global`.
-- Fresh TTL: 7 days.
-- Stale fallback window: 30 additional days.
+- Fresh TTLs: seven days for `fresh`, 24 hours for `no_data`, one hour for
+  `partial`, and five minutes for `unavailable`.
+- Positive stale fallback: 30 additional days. Negative `no_data` stale
+  fallback: seven days. `unavailable` is never served stale.
+- If a refresh fails while positive data remains within 37 days of its original
+  `fetched_at`, the database retains that payload, preserves its age, marks it
+  `stale`, records the new row-level cache error, and applies a five-minute
+  retry backoff. Cold/negative/too-old rows use the normal `unavailable` cache.
 
 The backend sends a custom `User-Agent`, spaces live iNaturalist requests
-conservatively, and uses stale cache fallback for provider outages.
+conservatively, applies five-second fetch timeouts plus 15/45-second total
+deadlines, and rejects provider bodies over 1 MiB while streaming.
+Successful response caches vary only by `Accept-Encoding`; the public body does
+not vary by user, so adding Authorization would fragment cache entries by
+token. Error responses remain private/no-store.
+
+Abuse and concurrency controls:
+
+- all requests: 60/user/minute and 120/IP/minute;
+- cold population: 12/user/minute, 30/IP/minute, and four globally/minute;
+- raw IPs are replaced with daily, purpose-separated server HMACs;
+- one 90-second database lease exists per species;
+- cache finalization requires the current lease token, preventing late
+  generations from overwriting newer data;
+- exact taxon misses are cached for 24 hours and provider failures for five
+  minutes.
 
 iOS cache:
 
@@ -242,6 +273,9 @@ iOS cache:
 - TTL: 5 minutes.
 - Limit: 64 entries.
 - Keys: normalized species UUID and normalized scientific name.
+- Admission requires response `schema_version >= 2` plus returned UUID/name
+  identity equal to the canonical request; legacy and mismatched responses fail
+  closed.
 - Cache clears in DEBUG when tests inject a mock `URLSession`.
 
 ## Privacy Contract
@@ -263,9 +297,27 @@ field notes, comments, locations, local media, or preferred-name overrides.
 Backend:
 
 ```sh
-deno fmt --check services/supabase/functions/species-observation-stats
-deno lint --config services/supabase/functions/deno.json services/supabase/functions/species-observation-stats
-deno test --config services/supabase/functions/deno.json services/supabase/functions/species-observation-stats/db.test.ts
+deno fmt --check \
+  services/supabase/functions/_shared/clientAddress.ts \
+  services/supabase/functions/species-observation-stats \
+  services/supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+  services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
+deno lint --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/clientAddress.ts \
+  services/supabase/functions/_shared/clientAddress_test.ts \
+  services/supabase/functions/species-observation-stats \
+  services/supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+  services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
+deno test --frozen --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/config.toml \
+  services/supabase/functions/_shared/clientAddress_test.ts \
+  services/supabase/functions/_shared/mediaBudgets_test.ts \
+  services/supabase/functions/species-observation-stats/db.test.ts \
+  services/supabase/functions/species-observation-stats/security.test.ts \
+  services/supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+  services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
+supabase --workdir services test db --local \
+  services/supabase/tests/species_observation_stats_security.sql
 ```
 
 iOS:

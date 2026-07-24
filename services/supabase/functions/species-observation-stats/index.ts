@@ -1,12 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
-import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
+import { corsHeaders, jsonResponse } from "../_shared/http.ts";
 import { logStructuredError, runBackground } from "../_shared/edgeHandler.ts";
+import { readRequestJsonWithinBudget } from "../_shared/mediaBudgets.ts";
 import {
   fetchSpeciesObservationStats,
   parseSpeciesObservationStatsQuery,
   parseSpeciesObservationStatsRequest,
   SPECIES_OBSERVATION_STATS_SCHEMA_VERSION,
 } from "./db.ts";
+import {
+  resolveSpeciesObservationStatsSecurityContext,
+  SpeciesObservationStatsError,
+} from "./security.ts";
+
+const MAX_REQUEST_BODY_BYTES = 4 * 1024;
 
 const freshStatsCacheHeaders = {
   "Cache-Control":
@@ -20,13 +27,22 @@ const refreshingStatsCacheHeaders = {
   "Vary": "Accept-Encoding",
 };
 
+const privateErrorHeaders = {
+  "Cache-Control": "private, no-store",
+  "Vary": "Authorization, Accept-Encoding",
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "POST" && req.method !== "GET") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    return jsonResponse(
+      { error: "Method not allowed" },
+      405,
+      privateErrorHeaders,
+    );
   }
 
   try {
@@ -34,19 +50,24 @@ Deno.serve(async (req: Request) => {
       ? parseSpeciesObservationStatsQuery(new URL(req.url))
       : await parsePostRequest(req);
     if (parsedRequestOrResponse instanceof Response) {
-      return parsedRequestOrResponse;
+      return privateNoStoreResponse(parsedRequestOrResponse);
     }
     const parsedRequest = parsedRequestOrResponse;
-    if (!parsedRequest.scientificName) {
+    if (!parsedRequest.speciesId || !parsedRequest.scientificName) {
       return jsonResponse(
         { error: parsedRequest.error },
         parsedRequest.status ?? 400,
+        privateErrorHeaders,
       );
     }
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+    const securityContext = await resolveSpeciesObservationStatsSecurityContext(
+      req,
+      supabaseAdmin,
     );
 
     const data = await fetchSpeciesObservationStats(
@@ -56,6 +77,7 @@ Deno.serve(async (req: Request) => {
       },
       supabaseAdmin,
       {
+        securityContext,
         runBackground,
         onBackgroundRefreshError: (error, context) => {
           logStructuredError("species_observation_stats_refresh_failed", {
@@ -77,22 +99,79 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     logStructuredError("species_observation_stats_fetch_failed", {
+      code: error instanceof SpeciesObservationStatsError
+        ? error.code
+        : "species_stats_unavailable",
       error: error instanceof Error ? error.message : String(error),
     });
-    return jsonResponse({ error: "Internal Server Error" }, 500);
+    if (error instanceof SpeciesObservationStatsError) {
+      const retryAfter = error.retryAfterSeconds;
+      return jsonResponse(
+        {
+          error: error.message,
+          code: error.code,
+          ...(retryAfter ? { retry_after_seconds: retryAfter } : {}),
+        },
+        error.status,
+        {
+          ...privateErrorHeaders,
+          ...(retryAfter ? { "Retry-After": String(retryAfter) } : {}),
+        },
+      );
+    }
+    return jsonResponse(
+      {
+        error: "Species statistics are temporarily unavailable.",
+        code: "species_stats_unavailable",
+        retry_after_seconds: 30,
+      },
+      503,
+      {
+        ...privateErrorHeaders,
+        "Retry-After": "30",
+      },
+    );
   }
 });
 
 async function parsePostRequest(req: Request) {
-  const parsedBody = await parseJsonBody(req);
-  if (parsedBody instanceof Response) {
-    return parsedBody;
+  const bodyResult = await readRequestJsonWithinBudget<unknown>(
+    req,
+    MAX_REQUEST_BODY_BYTES,
+  );
+  if (bodyResult.error || bodyResult.value === undefined) {
+    return jsonResponse(
+      { error: bodyResult.error?.message ?? "Invalid JSON body" },
+      bodyResult.error?.status ?? 400,
+    );
   }
-  return parseSpeciesObservationStatsRequest(parsedBody);
+  const parsedBody = bodyResult.value;
+  if (
+    !parsedBody ||
+    typeof parsedBody !== "object" ||
+    Array.isArray(parsedBody)
+  ) {
+    return jsonResponse({ error: "JSON body must be an object." }, 400);
+  }
+  return parseSpeciesObservationStatsRequest(
+    parsedBody as Record<string, unknown>,
+  );
 }
 
 function cacheHeadersForStatus(status: string): Record<string, string> {
   return status === "fresh" || status === "no_data"
     ? freshStatsCacheHeaders
     : refreshingStatsCacheHeaders;
+}
+
+function privateNoStoreResponse(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(privateErrorHeaders)) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }

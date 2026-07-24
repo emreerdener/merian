@@ -241,10 +241,12 @@ results, not dictionary taxa.
   `LocalScanRecord.alternativeCommonNames` (SwiftData V34) for scan surfaces
   only.
 - `inaturalist_taxon_id` (INTEGER, nullable): Stable public iNaturalist taxon ID
-  used by `/species-observation-stats` for observation charts. The stats Edge
-  Function writes this after exact scientific-name resolution so future requests
-  can use `taxon_id` rather than a name fallback. Constraint: `NULL OR > 0`.
-  Added in migration `20260517190000_add_species_observation_stats.sql`.
+  used by `/species-observation-stats` for observation charts. Only the current
+  fenced population owner may write it after resolving the canonical dictionary
+  name exactly; observation queries require `taxon_id` and never fall back to a
+  caller-controlled name. Constraint: `NULL OR > 0`. Added in migration
+  `20260517190000_add_species_observation_stats.sql`; write ownership was
+  hardened in `20260724170709_harden_species_observation_stats.sql`.
 
 **Public dictionary projection**: `/species-dictionary` reads only safe
 species-level columns from this table: identifiers, canonical names, taxonomy,
@@ -492,26 +494,75 @@ migration `20260517190000_add_species_observation_stats.sql`.
 
 - `species_id` (UUID FK -> `species_dictionary.id`, CASCADE DELETE): Owning
   species.
-- `source` (TEXT): Provider key. V1 supports only `inaturalist`.
-- `scope` (TEXT): Public aggregation scope. V1 supports only `global`.
+- `source` (TEXT): Provider key. The current contract supports only
+  `inaturalist`.
+- `scope` (TEXT): Public aggregation scope. The current contract supports only
+  `global`.
 - `scientific_name` (TEXT): Normalized species name used for display/debugging.
 - `payload` (JSONB): Full public stats response payload stored as an object.
 - `status` (TEXT): `fresh`, `stale`, `no_data`, `unavailable`, or `partial`.
 - `provider_error` (TEXT, nullable): Joined provider error messages from the
   most recent refresh attempt.
 - `fetched_at` (TIMESTAMPTZ): Provider/cache payload timestamp.
-- `expires_at` (TIMESTAMPTZ): Freshness cutoff. V1 writes a 7-day TTL.
+- `expires_at` (TIMESTAMPTZ): Status-aware freshness cutoff. V2 writes seven
+  days for `fresh`, 24 hours for `no_data`, one hour for `partial`, and five
+  minutes for `unavailable`.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Audit fields. `updated_at` is
   maintained by trigger.
 - Primary key: `(species_id, source, scope)`.
 - Index: `idx_species_observation_stats_cache_expires_at`.
 - RLS: anyone can read; writes are service-role only.
 
+The fenced finalizer has stale-if-error semantics. When a provider refresh
+finishes as `unavailable`, a positive `fresh`/`partial`/`stale` row whose
+original `fetched_at` is no more than 37 days old is retained. The finalizer
+sets both row and payload status to `stale`, preserves the original payload and
+`fetched_at`, records the latest bounded `provider_error`, and advances only
+`expires_at` by five minutes as a retry backoff. Cold misses, `no_data` rows,
+and positive rows outside that retention ceiling use the ordinary
+five-minute `unavailable` negative cache.
+
 The payload contains public iNaturalist aggregates only: seasonality, rolling
 seven-year history, life-stage annotation series, sex annotation series, total
 observations, most recent observation date, provider metadata, and provider
 errors. It must not contain Merian user IDs, scan IDs, Explore post IDs, field
 notes, local media, locations, or local observation counts.
+
+### `internal.species_observation_stats_rate_counters`
+
+Private fixed-window counters added in migration
+`20260724170709_harden_species_observation_stats.sql`.
+
+- Keys: `(scope_type, scope_key, bucket, window_start)`.
+- Scopes: request user/IP and cold-population user/IP/global.
+- `scope_key` contains a verified user UUID, a daily purpose-separated IP HMAC,
+  or the fixed global key. Raw addresses are never persisted.
+- `request_count` is incremented with a conditional UPSERT; crossing a limit
+  fails the same transaction.
+- No API role, including `service_role`, has direct table privileges. Reviewed
+  `SECURITY DEFINER` RPCs own access.
+- An hourly bounded cleanup removes rows older than two days.
+
+### `internal.species_observation_stats_population_leases`
+
+Private distributed cold-population ownership added in migration
+`20260724170709_harden_species_observation_stats.sql`.
+
+- `species_id` (UUID PK/FK): one active generation per dictionary species.
+- `lease_token` (UUID): fencing token replaced on expired-lease recovery.
+- `lease_started_at` / `lease_expires_at`: 90-second population window.
+- `attempt_count`: counts recovered generations for operations.
+- `claim_species_observation_stats_population(...)` serializes the short claim
+  decision with a transaction advisory lock; the row lease owns work after the
+  RPC connection closes.
+- `finalize_species_observation_stats_population(...)` compares the token and
+  atomically validates provider identity, stores an exact taxon ID, upserts the
+  public cache, and removes the lease. A late generation returns `false`.
+  An unavailable refresh also preserves any still-retained positive payload in
+  the same fenced transaction, so a provider incident cannot replace chart data
+  with an empty response.
+- No API role has direct table privileges; only the four allowlisted
+  service-role RPCs can preflight IP use, authorize, claim, or finalize.
 
 ### `user_species_preferences`
 

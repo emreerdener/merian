@@ -289,6 +289,35 @@ service-role-only recovery worker for interrupted cleanup. It has
 timing-safe service-role bearer comparison in Deno. See the two function
 READMEs and the deployment runbook before changing this protocol.
 
+### Public Species-Stats Resource Boundary
+
+Migration `20260724170709_harden_species_observation_stats.sql` bounds the
+intentionally public `/species-observation-stats` route. The request must bind a
+dictionary UUID to its canonical name. Atomic database counters enforce
+request user/IP limits and colder user/IP/global provider-work limits. Exact
+taxon misses and provider failures receive status-aware negative cache TTLs.
+Provider failures with no useful buckets become `unavailable`, never empty
+`partial` results.
+
+Cold population uses a 90-second database row lease. The final cache write
+compares the lease UUID in the same transaction, so another Edge isolate cannot
+stampede the same species and a delayed generation cannot overwrite newer
+work. The four public-schema wrappers preflight IP use, authorize canonical
+species, claim work, and finalize cache state. Each is `SECURITY DEFINER`, uses
+an empty search path, calls `internal.require_service_role()`, and is executable
+only by `service_role`; their tables have no direct API-role grants. Provider
+fetches also have explicit per-call/operation deadlines and streaming response
+caps. See the function README and deployment runbook before changing these
+limits.
+
+An unavailable refresh cannot erase positive data still inside the 37-day
+retention ceiling. Fenced finalization preserves the payload and original
+`fetched_at`, marks it `stale`, records the current row-level cache error, and
+sets a five-minute retry backoff. The iOS memo cache similarly admits only
+schema-v2 or newer responses whose canonical UUID/name matches its request.
+Successful public responses do not vary by Authorization, preserving shared
+cache reuse instead of creating per-token origin traffic.
+
 ### Testing Edge Functions
 
 Before opening a PR targeting `services/supabase/functions`, run formatting,
@@ -345,6 +374,16 @@ the unchanged `get_explore_post_detail` response projection. Run the static
 contract plus the executable DB case after changing species-reference ordering,
 blocked-media handling, legacy fallback, or scan media fields:
 
+Public species stats have both static and executable security contracts:
+
+- `_tests/speciesObservationStatsCoverage.test.ts` prevents removal of
+  dictionary binding, deadlines, body limits, or fenced RPC calls.
+- `_tests/speciesObservationStatsMigrationContract.test.ts` locks rates, ACLs,
+  lease duration, negative TTLs, and finalization fencing.
+- `tests/species_observation_stats_security.sql` executes canonical denial,
+  persistent rate accounting, cross-isolate claim suppression, expired-token
+  fencing, cache-race closure, and API-role ACL checks.
+
 `_tests/migrationExecutionContract.test.ts` scans every SQL migration after
 removing comments and rejects `CREATE`, `DROP`, or `REINDEX ... CONCURRENTLY`.
 Fresh local and CI databases replay migrations through a Supabase statement
@@ -374,6 +413,8 @@ supabase --workdir services test db --local \
   services/supabase/tests/push_device_registration.sql
 supabase --workdir services test db --local \
   services/supabase/tests/scan_media_asset_uniqueness.sql
+supabase --workdir services test db --local \
+  services/supabase/tests/species_observation_stats_security.sql
 ```
 
 Keep the pgTAP fixture local; do not substitute `--linked`. Before deploying a

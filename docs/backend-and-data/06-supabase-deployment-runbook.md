@@ -307,7 +307,8 @@ supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/ai_quota_security.sql \
-  services/supabase/tests/revenuecat_webhook_security.sql
+  services/supabase/tests/revenuecat_webhook_security.sql \
+  services/supabase/tests/species_observation_stats_security.sql
 ```
 
 ## Authoritative AI Quota Release Gate
@@ -491,6 +492,163 @@ temporarily removing the provider secret if necessary) until every affected
 route is on the guarded bundle. Fix forward; keep the quota schema and durable
 reservation evidence.
 
+### Public Species Observation Stats Release Gate
+
+Migration `20260724170709_harden_species_observation_stats.sql` must land before
+the hardened `species-observation-stats` bundle. The migration adds private
+rate counters, fenced population leases, and four service-only RPCs without
+breaking the older cache table. The IP preflight is consumed before optional
+user-token validation, so invalid-token floods are bounded before reaching
+Supabase Auth. No new production secret is required: daily purpose-separated IP
+HMACs use the built-in server-only Supabase secret/service key. The iOS change
+may ship after the backend; it adds the user bucket by sending the existing
+valid session with its GET.
+
+Preflight:
+
+```bash
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/config.toml \
+  services/supabase/functions/_shared/clientAddress_test.ts \
+  services/supabase/functions/_shared/mediaBudgets_test.ts \
+  services/supabase/functions/species-observation-stats/db.test.ts \
+  services/supabase/functions/species-observation-stats/security.test.ts \
+  services/supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+  services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
+
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/privileged_routine_security.sql \
+  services/supabase/tests/species_observation_stats_security.sql
+
+xcrun swiftc -frontend -parse \
+  apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift \
+  apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
+swiftlint lint --strict \
+  apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift \
+  apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
+```
+
+After production deploy, request one known dictionary UUID/name pair. Expect
+`200`, `schema_version: 2`, the canonical name, and either a positive
+`source.inaturalist_taxon_id` or a bounded `no_data`/`unavailable` result.
+Request the same UUID with a forged name and expect
+`404 species_stats_species_not_found` with no iNaturalist call. A burst past a
+reviewed limit must return `429` with `Retry-After`. A compatibility POST body
+larger than 4 KiB must return `413` without attempting JSON allocation beyond
+that bound.
+
+Confirm public traffic still reaches the function through the hosted Supabase
+gateway. If a custom proxy or CDN is introduced, it must overwrite
+`x-real-ip`, `cf-connecting-ip`, and `x-forwarded-for`; forwarding
+caller-supplied values would make the IP rate boundary untrustworthy. A request
+without a trusted address deliberately joins the shared `unavailable` bucket.
+
+The iOS client must reject malformed UUIDs and empty/overlong names before
+networking. It must also reject—and not memoize—a response below schema version
+2 or whose returned UUID/normalized scientific name differs from the request.
+Inspect a successful response and confirm `Vary: Accept-Encoding` does not
+include Authorization; the body is public and identity-independent. Error
+responses must instead remain `Cache-Control: private, no-store` and vary by
+Authorization.
+
+Use an owner connection for the read-only catalog check:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+SELECT
+    checks.routine_signature,
+    HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS anon_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS authenticated_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS service_role_can_execute
+FROM (
+    VALUES
+        ('public.preflight_species_observation_stats_request(text)'),
+        ('public.authorize_species_observation_stats_request(uuid,text,uuid)'),
+        ('public.claim_species_observation_stats_population(uuid,uuid,text)'),
+        ('public.finalize_species_observation_stats_population(uuid,uuid,integer,jsonb,text,text)')
+) AS checks(routine_signature)
+ORDER BY checks.routine_signature;
+
+SELECT
+    COUNT(*) FILTER (
+        WHERE lease_expires_at > NOW()
+    ) AS active_population_leases,
+    COUNT(*) FILTER (
+        WHERE lease_expires_at <= NOW()
+    ) AS expired_population_leases,
+    MIN(lease_expires_at) AS oldest_expiry,
+    MAX(lease_expires_at) AS newest_expiry
+FROM internal.species_observation_stats_population_leases;
+
+SELECT
+    scope_type,
+    bucket,
+    COUNT(*) AS counter_rows,
+    MAX(request_count) AS peak_count
+FROM internal.species_observation_stats_rate_counters
+WHERE updated_at > NOW() - INTERVAL '15 minutes'
+GROUP BY scope_type, bucket
+ORDER BY scope_type, bucket;
+
+SELECT
+    species_id,
+    scientific_name,
+    status,
+    fetched_at,
+    expires_at,
+    updated_at,
+    pg_catalog.ROUND(
+        EXTRACT(
+            EPOCH FROM (pg_catalog.NOW() - fetched_at)
+        )::NUMERIC / 86400,
+        2
+    ) AS payload_age_days,
+    provider_error
+FROM public.species_observation_stats_cache
+ORDER BY updated_at DESC
+LIMIT 25;
+
+ROLLBACK;
+```
+
+Expected ACLs are `false`, `false`, `true` for all four routines. Monitor Edge
+logs and API metrics for `species_stats_rate_limited`,
+`species_stats_refresh_in_progress`, `species_stats_unavailable`, provider
+timeouts, oversized request/provider responses, and superseded lease
+finalization. Expired lease rows older than the ten-minute cleanup horizon
+indicate a cron or deployment problem.
+
+The local pgTAP fixture deliberately expires a positive row and finalizes a
+failed refresh. It must retain the old payload and `fetched_at`, mark both cache
+and payload `stale`, record the new provider error, remove the lease, and set a
+roughly five-minute retry backoff. It separately proves an exact taxon miss
+receives the 24-hour `no_data` TTL. In production, recent `stale` rows with an
+older `fetched_at`, a newer `updated_at`, and a short `expires_at` are therefore
+expected during a provider incident; an empty `partial` row is not.
+
+Do not recover an incident by restoring `taxon_name`, raising/removing the
+global cold-population ceiling, granting internal tables to API roles, writing
+the cache directly, or making finalization ignore the lease token. Serve stale
+positive data, preserve negative caching, and fix forward.
+
 ### RevenueCat Webhook Release Gate
 
 Migration `20260723201500_secure_revenuecat_webhook_delivery.sql` must land
@@ -537,7 +695,8 @@ supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/ai_quota_security.sql \
-  services/supabase/tests/revenuecat_webhook_security.sql
+  services/supabase/tests/revenuecat_webhook_security.sql \
+  services/supabase/tests/species_observation_stats_security.sql
 ```
 
 After production deploy, send a RevenueCat test webhook for a linked test UUID.

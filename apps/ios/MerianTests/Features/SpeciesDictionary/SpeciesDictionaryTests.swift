@@ -517,7 +517,7 @@ struct SpeciesDictionaryTests {
     @Test func testSpeciesObservationStatsResponseDecodesPublicCharts() throws {
         let data = Data("""
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "data": {
                 "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
                 "scientific_name": "Danaus plexippus",
@@ -561,7 +561,7 @@ struct SpeciesDictionaryTests {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let response = try decoder.decode(SpeciesObservationStatsResponse.self, from: data)
 
-        #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.effectiveSchemaVersion == 2)
         #expect(response.data.scientificName == "Danaus plexippus")
         #expect(response.data.status == .partial)
         #expect(response.data.totalObservations == 450448)
@@ -572,7 +572,7 @@ struct SpeciesDictionaryTests {
     @Test func testGetSpeciesObservationStatsConstructsPayloadAndMemoizes() async throws {
         let testData = Data("""
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "data": {
                 "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
                 "scientific_name": "Danaus plexippus",
@@ -631,6 +631,97 @@ struct SpeciesDictionaryTests {
         #expect(first.totalObservations == 450448)
         #expect(second.totalObservations == 450448)
         #expect(requestCount == 1)
+
+        await #expect(throws: MerianError.invalidResponse) {
+            try await networkClient.getSpeciesObservationStats(
+                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                scientificName: "   "
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await networkClient.getSpeciesObservationStats(
+                speciesId: "not-a-uuid",
+                scientificName: "Danaus plexippus"
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await networkClient.getSpeciesObservationStats(
+                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                scientificName: String(repeating: "x", count: 161)
+            )
+        }
+        #expect(requestCount == 1)
+    }
+
+    @Test func testGetSpeciesObservationStatsRejectsLegacyOrMismatchedResponses() async throws {
+        func responseData(
+            schemaVersion: Int,
+            speciesId: String,
+            scientificName: String
+        ) -> Data {
+            Data("""
+            {
+                "schema_version": \(schemaVersion),
+                "data": {
+                    "species_id": "\(speciesId)",
+                    "scientific_name": "\(scientificName)",
+                    "source": {
+                        "provider": "inaturalist",
+                        "scope": "global",
+                        "inaturalist_taxon_id": 48662,
+                        "fetched_at": "2026-05-17T12:00:00.000Z"
+                    },
+                    "status": "fresh",
+                    "total_observations": 1,
+                    "last_observation_date": "2026-05-17",
+                    "fetched_at": "2026-05-17T12:00:00.000Z",
+                    "provider_errors": [],
+                    "seasonality": [],
+                    "history": [],
+                    "life_stage": [],
+                    "sex": []
+                }
+            }
+            """.utf8)
+        }
+
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        var responses = [
+            responseData(
+                schemaVersion: 1,
+                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                scientificName: "Danaus plexippus"
+            ),
+            responseData(
+                schemaVersion: 2,
+                speciesId: "00000000-0000-4000-8000-000000000999",
+                scientificName: "Danaus plexippus"
+            )
+        ]
+        var requestCount = 0
+        mockTransport.register(path: "/species-observation-stats") { _ in
+            requestCount += 1
+            return (mockResponse, responses.removeFirst())
+        }
+
+        await #expect(throws: MerianError.invalidResponse) {
+            try await networkClient.getSpeciesObservationStats(
+                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                scientificName: "Danaus plexippus"
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await networkClient.getSpeciesObservationStats(
+                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                scientificName: "Danaus plexippus"
+            )
+        }
+        #expect(requestCount == 2)
     }
 
     @Test func testSpeciesDictionaryViewModelLoadsSpecies() async throws {

@@ -1,12 +1,27 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { readResponseArrayBufferWithinBudget } from "../_shared/mediaBudgets.ts";
+import {
+  authorizeSpeciesObservationStatsRequest,
+  claimSpeciesObservationStatsPopulation,
+  finalizeSpeciesObservationStatsPopulation,
+  SpeciesObservationStatsError,
+  type SpeciesObservationStatsPopulationLease,
+  type SpeciesObservationStatsSecurityContext,
+} from "./security.ts";
 
-export const SPECIES_OBSERVATION_STATS_SCHEMA_VERSION = 1;
+export const SPECIES_OBSERVATION_STATS_SCHEMA_VERSION = 2;
 const INAT_BASE_URL = "https://api.inaturalist.org/v1";
 const SOURCE = "inaturalist";
 const SCOPE = "global";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const STALE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const NEGATIVE_STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_DELAY_MS = 1000;
+const DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS = 5_000;
+const DATABASE_TIMEOUT_MS = 5_000;
+const DEFAULT_FOREGROUND_DEADLINE_MS = 15_000;
+const DEFAULT_BACKGROUND_DEADLINE_MS = 45_000;
+const MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024;
 const USER_AGENT =
   "Merian/1.0 species-observation-stats (https://naturebook.earth; public-cache)";
 
@@ -54,12 +69,6 @@ export interface SpeciesObservationStatsPayload {
   sex: SpeciesObservationCategorySeries[];
 }
 
-interface SpeciesDictionaryStatsRow {
-  id?: string | null;
-  scientific_name?: string | null;
-  inaturalist_taxon_id?: number | null;
-}
-
 interface SpeciesStatsCacheRow {
   payload?: SpeciesObservationStatsPayload | null;
   status?: SpeciesObservationStatsPayload["status"] | null;
@@ -69,9 +78,14 @@ interface SpeciesStatsCacheRow {
 }
 
 export interface SpeciesObservationStatsFetchOptions {
+  securityContext: SpeciesObservationStatsSecurityContext;
   fetcher?: typeof fetch;
   now?: Date;
   delayMs?: number;
+  providerRequestTimeoutMs?: number;
+  foregroundDeadlineMs?: number;
+  backgroundDeadlineMs?: number;
+  monotonicNowMs?: () => number;
   runBackground?: (task: Promise<void>) => void;
   onBackgroundRefreshError?: (
     error: unknown,
@@ -81,8 +95,7 @@ export interface SpeciesObservationStatsFetchOptions {
 
 interface InaturalistLookup {
   taxonId: number | null;
-  paramName: "taxon_id" | "taxon_name";
-  paramValue: string;
+  resolution: "resolved" | "not_found" | "unavailable";
   providerErrors: string[];
 }
 
@@ -98,6 +111,12 @@ interface CoreStatsResult {
   seasonality: SpeciesObservationMonthCount[];
   history: SpeciesObservationHistoryCount[];
   payload: SpeciesObservationStatsPayload;
+}
+
+interface ProviderBudget {
+  deadlineAtMs: number;
+  requestTimeoutMs: number;
+  nowMs: () => number;
 }
 
 interface AnnotationValue {
@@ -153,16 +172,20 @@ export function parseSpeciesObservationStatsRequest(
   }
 
   const rawSpeciesId = body.species_id;
-  if (rawSpeciesId === undefined || rawSpeciesId === null) {
-    return { scientificName };
-  }
-
   if (typeof rawSpeciesId !== "string") {
-    return { error: "species_id must be a valid UUID.", status: 400 };
+    return {
+      error: "Missing required parameter: species_id",
+      status: 400,
+    };
   }
 
   const speciesId = rawSpeciesId.trim();
-  if (!speciesId) return { scientificName };
+  if (!speciesId) {
+    return {
+      error: "Missing required parameter: species_id",
+      status: 400,
+    };
+  }
   if (!isUuid(speciesId)) {
     return { error: "species_id must be a valid UUID.", status: 400 };
   }
@@ -187,38 +210,52 @@ export function parseSpeciesObservationStatsQuery(
   return parseSpeciesObservationStatsRequest(body);
 }
 
-const backgroundRefreshKeys = new Set<string>();
-
 export async function fetchSpeciesObservationStats(
-  request: { speciesId?: string; scientificName: string },
+  request: { speciesId: string; scientificName: string },
   supabaseAdmin: SupabaseClient,
-  options: SpeciesObservationStatsFetchOptions = {},
+  options: SpeciesObservationStatsFetchOptions,
 ): Promise<SpeciesObservationStatsPayload> {
   const now = options.now ?? new Date();
-  const row = await fetchSpeciesRow(request, supabaseAdmin);
-  const resolvedSpeciesId = row?.id ?? request.speciesId ?? null;
-  const scientificName = normalizeScientificName(
-    row?.scientific_name ?? request.scientificName,
+  const authorized = await authorizeSpeciesObservationStatsRequest(
+    request,
+    options.securityContext,
+    supabaseAdmin,
   );
+  const resolvedSpeciesId = authorized.speciesId;
+  const scientificName = authorized.scientificName;
 
-  const cached = row?.id ? await fetchCachedStats(row.id, supabaseAdmin) : null;
+  const cached = await fetchCachedStats(resolvedSpeciesId, supabaseAdmin);
   if (cached?.payload && isFresh(cached, now)) {
     return cached.payload;
   }
 
   if (cached?.payload && isStaleUsable(cached, now)) {
-    if (row?.id) {
-      scheduleFullStatsRefresh(
-        {
-          cacheKey: row.id,
+    if (options.runBackground) {
+      try {
+        const lease = await claimSpeciesObservationStatsPopulation(
+          resolvedSpeciesId,
+          options.securityContext,
+          supabaseAdmin,
+        );
+        if (lease.claimed) {
+          scheduleFullStatsRefresh(
+            {
+              speciesId: resolvedSpeciesId,
+              scientificName,
+              storedTaxonId: authorized.inaturalistTaxonId,
+              lease,
+            },
+            supabaseAdmin,
+            options,
+            now,
+          );
+        }
+      } catch (error) {
+        options.onBackgroundRefreshError?.(error, {
           speciesId: resolvedSpeciesId,
           scientificName,
-          storedTaxonId: row?.inaturalist_taxon_id ?? null,
-        },
-        supabaseAdmin,
-        options,
-        now,
-      );
+        });
+      }
     }
 
     return {
@@ -227,42 +264,132 @@ export async function fetchSpeciesObservationStats(
     };
   }
 
+  const lease = await claimSpeciesObservationStatsPopulation(
+    resolvedSpeciesId,
+    options.securityContext,
+    supabaseAdmin,
+  );
+  if (lease.cacheAvailable) {
+    const populated = await fetchCachedStats(resolvedSpeciesId, supabaseAdmin);
+    if (populated?.payload && isFresh(populated, now)) {
+      return populated.payload;
+    }
+    throw new SpeciesObservationStatsError(
+      503,
+      "species_stats_unavailable",
+      "Species statistics are temporarily unavailable.",
+      30,
+    );
+  }
+  if (!lease.claimed || !lease.leaseToken) {
+    throw new SpeciesObservationStatsError(
+      503,
+      "species_stats_refresh_in_progress",
+      "Species statistics are being refreshed.",
+      lease.retryAfterSeconds,
+    );
+  }
+
+  const foregroundBudget = providerBudget(
+    options,
+    options.foregroundDeadlineMs ?? DEFAULT_FOREGROUND_DEADLINE_MS,
+  );
+
+  let core: CoreStatsResult;
   try {
-    const core = await fetchCoreStats(
+    core = await fetchCoreStats(
       {
         speciesId: resolvedSpeciesId,
         scientificName,
-        storedTaxonId: row?.inaturalist_taxon_id ?? null,
+        storedTaxonId: authorized.inaturalistTaxonId,
+      },
+      options,
+      now,
+      foregroundBudget,
+    );
+  } catch (error) {
+    const unavailable = emptyStatsPayload({
+      speciesId: resolvedSpeciesId,
+      scientificName,
+      taxonId: authorized.inaturalistTaxonId,
+      now,
+      status: "unavailable",
+      providerErrors: [
+        error instanceof Error ? error.message : String(error),
+      ],
+    });
+    await finalizeLeasePayload(
+      {
+        speciesId: resolvedSpeciesId,
+        scientificName,
+        leaseToken: lease.leaseToken,
+        payload: unavailable,
+      },
+      supabaseAdmin,
+    );
+    return unavailable;
+  }
+
+  if (!core.lookup.taxonId || !hasPayloadData(core.payload)) {
+    await finalizeLeasePayload(
+      {
+        speciesId: resolvedSpeciesId,
+        scientificName,
+        leaseToken: lease.leaseToken,
+        payload: core.payload,
+      },
+      supabaseAdmin,
+    );
+    return core.payload;
+  }
+
+  if (options.runBackground) {
+    scheduleAnnotationRefreshFromCore(
+      {
+        speciesId: resolvedSpeciesId,
+        leaseToken: lease.leaseToken,
+        core,
       },
       supabaseAdmin,
       options,
       now,
     );
-
-    if (row?.id) {
-      scheduleAnnotationRefreshFromCore(
-        {
-          cacheKey: row.id,
-          core,
-        },
-        supabaseAdmin,
-        options,
-        now,
-      );
-    }
-
     return core.payload;
+  }
+
+  let payload: SpeciesObservationStatsPayload;
+  try {
+    payload = await completeStatsWithAnnotations(
+      core,
+      options,
+      now,
+      providerBudget(
+        options,
+        options.backgroundDeadlineMs ?? DEFAULT_BACKGROUND_DEADLINE_MS,
+      ),
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return emptyStatsPayload({
+    payload = emptyStatsPayload({
       speciesId: resolvedSpeciesId,
       scientificName,
-      taxonId: row?.inaturalist_taxon_id ?? null,
+      taxonId: authorized.inaturalistTaxonId,
       now,
       status: "unavailable",
-      providerErrors: [message],
+      providerErrors: [
+        error instanceof Error ? error.message : String(error),
+      ],
     });
   }
+  await finalizeLeasePayload(
+    {
+      speciesId: resolvedSpeciesId,
+      scientificName,
+      leaseToken: lease.leaseToken,
+      payload,
+    },
+    supabaseAdmin,
+  );
+  return payload;
 }
 
 export function normalizeMonthHistogram(
@@ -343,9 +470,9 @@ async function fetchCoreStats(
     scientificName: string;
     storedTaxonId: number | null;
   },
-  supabaseAdmin: SupabaseClient,
   options: SpeciesObservationStatsFetchOptions,
   now: Date,
+  budget: ProviderBudget,
 ): Promise<CoreStatsResult> {
   const fetcher = options.fetcher ?? fetch;
   const delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
@@ -354,22 +481,38 @@ async function fetchCoreStats(
     request.scientificName,
     request.storedTaxonId,
     fetcher,
+    budget,
   );
   providerErrors.push(...lookup.providerErrors);
 
-  if (
-    request.speciesId && lookup.taxonId &&
-    lookup.taxonId !== request.storedTaxonId
-  ) {
-    await updateTaxonId(request.speciesId, lookup.taxonId, supabaseAdmin);
+  if (!lookup.taxonId) {
+    const status = lookup.resolution === "not_found"
+      ? "no_data"
+      : "unavailable";
+    const payload = emptyStatsPayload({
+      speciesId: request.speciesId,
+      scientificName: request.scientificName,
+      taxonId: null,
+      now,
+      status,
+      providerErrors,
+    });
+    return {
+      lookup,
+      providerErrors,
+      summary: { total: 0, lastObservedOn: null },
+      seasonality: payload.seasonality,
+      history: payload.history,
+      payload,
+    };
   }
 
   const summary = await safeProviderCall(
-    () => fetchObservationSummary(lookup, fetcher),
+    () => fetchObservationSummary(lookup, fetcher, budget),
     providerErrors,
     { total: 0, lastObservedOn: null },
   );
-  await sleep(delayMs);
+  await sleepWithinBudget(delayMs, budget);
 
   const seasonality = await safeProviderCall(
     async () =>
@@ -383,12 +526,13 @@ async function fetchCoreStats(
             verifiable: "true",
           },
           fetcher,
+          budget,
         ),
       ),
     providerErrors,
     emptyMonthCounts(),
   );
-  await sleep(delayMs);
+  await sleepWithinBudget(delayMs, budget);
 
   const history = await safeProviderCall(
     async () =>
@@ -404,6 +548,7 @@ async function fetchCoreStats(
             d2: isoDate(now),
           },
           fetcher,
+          budget,
         ),
         now,
       ),
@@ -415,7 +560,7 @@ async function fetchCoreStats(
     hasAnyCounts(seasonality) ||
     hasAnyHistoryCounts(history);
 
-  if (!hasData && looksLikeProviderOutage(providerErrors)) {
+  if (!hasData && providerErrors.length > 0) {
     throw new Error(dedupeStrings(providerErrors).join("; "));
   }
 
@@ -451,24 +596,28 @@ async function fetchFreshStats(
     scientificName: string;
     storedTaxonId: number | null;
   },
-  supabaseAdmin: SupabaseClient,
   options: SpeciesObservationStatsFetchOptions,
   now: Date,
+  budget: ProviderBudget,
 ): Promise<SpeciesObservationStatsPayload> {
   const core = await fetchCoreStats(
     request,
-    supabaseAdmin,
     options,
     now,
+    budget,
   );
 
-  return await completeStatsWithAnnotations(core, options, now);
+  if (!core.lookup.taxonId || !hasPayloadData(core.payload)) {
+    return core.payload;
+  }
+  return await completeStatsWithAnnotations(core, options, now, budget);
 }
 
 async function completeStatsWithAnnotations(
   core: CoreStatsResult,
   options: SpeciesObservationStatsFetchOptions,
   now: Date,
+  budget: ProviderBudget,
 ): Promise<SpeciesObservationStatsPayload> {
   const fetcher = options.fetcher ?? fetch;
   const delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
@@ -480,6 +629,7 @@ async function completeStatsWithAnnotations(
     fetcher,
     providerErrors,
     delayMs,
+    budget,
   );
   const sex = await fetchAnnotationSeries(
     core.lookup,
@@ -487,6 +637,7 @@ async function completeStatsWithAnnotations(
     fetcher,
     providerErrors,
     delayMs,
+    budget,
   );
 
   const hasData = core.summary.total > 0 ||
@@ -495,7 +646,7 @@ async function completeStatsWithAnnotations(
     lifeStage.some((series) => hasAnyCounts(series.values)) ||
     sex.some((series) => hasAnyCounts(series.values));
 
-  if (!hasData && looksLikeProviderOutage(providerErrors)) {
+  if (!hasData && providerErrors.length > 0) {
     throw new Error(dedupeStrings(providerErrors).join("; "));
   }
 
@@ -524,7 +675,8 @@ async function completeStatsWithAnnotations(
 
 function scheduleAnnotationRefreshFromCore(
   input: {
-    cacheKey: string;
+    speciesId: string;
+    leaseToken: string;
     core: CoreStatsResult;
   },
   supabaseAdmin: SupabaseClient,
@@ -532,9 +684,8 @@ function scheduleAnnotationRefreshFromCore(
   now: Date,
 ): void {
   if (!options.runBackground) return;
-  if (!hasPayloadData(input.core.payload)) return;
   scheduleBackgroundRefresh(
-    input.cacheKey,
+    input.speciesId,
     input.core.payload.scientific_name,
     options,
     async () => {
@@ -543,11 +694,18 @@ function scheduleAnnotationRefreshFromCore(
         input.core,
         options,
         now,
+        providerBudget(
+          options,
+          options.backgroundDeadlineMs ?? DEFAULT_BACKGROUND_DEADLINE_MS,
+        ),
       );
-      await upsertCachedStats(
-        input.cacheKey,
-        input.core.payload.scientific_name,
-        payload,
+      await finalizeLeasePayload(
+        {
+          speciesId: input.speciesId,
+          scientificName: input.core.payload.scientific_name,
+          leaseToken: input.leaseToken,
+          payload,
+        },
         supabaseAdmin,
       );
     },
@@ -556,36 +714,61 @@ function scheduleAnnotationRefreshFromCore(
 
 function scheduleFullStatsRefresh(
   request: {
-    cacheKey: string;
-    speciesId: string | null;
+    speciesId: string;
     scientificName: string;
     storedTaxonId: number | null;
+    lease: SpeciesObservationStatsPopulationLease;
   },
   supabaseAdmin: SupabaseClient,
   options: SpeciesObservationStatsFetchOptions,
   now: Date,
 ): void {
-  if (!options.runBackground) return;
+  const leaseToken = request.lease.leaseToken;
+  if (
+    !options.runBackground ||
+    !request.lease.claimed ||
+    !leaseToken
+  ) return;
   scheduleBackgroundRefresh(
-    request.cacheKey,
+    request.speciesId,
     request.scientificName,
     options,
     async () => {
       await Promise.resolve();
-      const payload = await fetchFreshStats(
+      let payload: SpeciesObservationStatsPayload;
+      try {
+        payload = await fetchFreshStats(
+          {
+            speciesId: request.speciesId,
+            scientificName: request.scientificName,
+            storedTaxonId: request.storedTaxonId,
+          },
+          options,
+          now,
+          providerBudget(
+            options,
+            options.backgroundDeadlineMs ?? DEFAULT_BACKGROUND_DEADLINE_MS,
+          ),
+        );
+      } catch (error) {
+        payload = emptyStatsPayload({
+          speciesId: request.speciesId,
+          scientificName: request.scientificName,
+          taxonId: request.storedTaxonId,
+          now,
+          status: "unavailable",
+          providerErrors: [
+            error instanceof Error ? error.message : String(error),
+          ],
+        });
+      }
+      await finalizeLeasePayload(
         {
           speciesId: request.speciesId,
           scientificName: request.scientificName,
-          storedTaxonId: request.storedTaxonId,
+          leaseToken,
+          payload,
         },
-        supabaseAdmin,
-        options,
-        now,
-      );
-      await upsertCachedStats(
-        request.cacheKey,
-        request.scientificName,
-        payload,
         supabaseAdmin,
       );
     },
@@ -598,17 +781,13 @@ function scheduleBackgroundRefresh(
   options: SpeciesObservationStatsFetchOptions,
   operation: () => Promise<void>,
 ): void {
-  if (!options.runBackground || backgroundRefreshKeys.has(cacheKey)) return;
-  backgroundRefreshKeys.add(cacheKey);
+  if (!options.runBackground) return;
   const task = operation()
     .catch((error) => {
       options.onBackgroundRefreshError?.(error, {
         speciesId: cacheKey,
         scientificName,
       });
-    })
-    .finally(() => {
-      backgroundRefreshKeys.delete(cacheKey);
     });
   options.runBackground(task);
 }
@@ -619,9 +798,14 @@ async function fetchAnnotationSeries(
   fetcher: typeof fetch,
   providerErrors: string[],
   delayMs: number,
+  budget: ProviderBudget,
 ): Promise<SpeciesObservationCategorySeries[]> {
   const histogramsByKey: Record<string, unknown> = {};
   for (const definition of definitions) {
+    if (remainingBudgetMs(budget) <= 0) {
+      providerErrors.push("iNaturalist population deadline exceeded");
+      break;
+    }
     histogramsByKey[definition.key] = await safeProviderCall(
       () =>
         fetchInaturalistJson(
@@ -635,11 +819,12 @@ async function fetchAnnotationSeries(
             term_value_id: String(definition.valueId),
           },
           fetcher,
+          budget,
         ),
       providerErrors,
       {},
     );
-    await sleep(delayMs);
+    await sleepWithinBudget(delayMs, budget);
   }
   return buildAnnotationSeries(definitions, histogramsByKey);
 }
@@ -648,12 +833,12 @@ async function resolveInaturalistLookup(
   scientificName: string,
   storedTaxonId: number | null,
   fetcher: typeof fetch,
+  budget: ProviderBudget,
 ): Promise<InaturalistLookup> {
   if (storedTaxonId && storedTaxonId > 0) {
     return {
       taxonId: storedTaxonId,
-      paramName: "taxon_id",
-      paramValue: String(storedTaxonId),
+      resolution: "resolved",
       providerErrors: [],
     };
   }
@@ -663,21 +848,20 @@ async function resolveInaturalistLookup(
       "/taxa",
       { q: scientificName, per_page: "10" },
       fetcher,
+      budget,
     );
     const taxonId = exactTaxonIdFromResponse(json, scientificName);
     if (taxonId) {
       return {
         taxonId,
-        paramName: "taxon_id",
-        paramValue: String(taxonId),
+        resolution: "resolved",
         providerErrors: [],
       };
     }
   } catch (error) {
     return {
       taxonId: null,
-      paramName: "taxon_name",
-      paramValue: scientificName,
+      resolution: "unavailable",
       providerErrors: [
         `iNaturalist taxon lookup failed: ${
           error instanceof Error ? error.message : String(error)
@@ -688,8 +872,7 @@ async function resolveInaturalistLookup(
 
   return {
     taxonId: null,
-    paramName: "taxon_name",
-    paramValue: scientificName,
+    resolution: "not_found",
     providerErrors: [
       `iNaturalist exact taxon match not found for ${scientificName}`,
     ],
@@ -699,6 +882,7 @@ async function resolveInaturalistLookup(
 async function fetchObservationSummary(
   lookup: InaturalistLookup,
   fetcher: typeof fetch,
+  budget: ProviderBudget,
 ): Promise<ObservationSummary> {
   const json = await fetchInaturalistJson(
     "/observations",
@@ -710,6 +894,7 @@ async function fetchObservationSummary(
       verifiable: "true",
     },
     fetcher,
+    budget,
   );
   const object = asObject(json);
   const total = numericValue(object?.total_results) ?? 0;
@@ -726,46 +911,63 @@ async function fetchInaturalistJson(
   path: string,
   params: Record<string, string>,
   fetcher: typeof fetch,
+  budget: ProviderBudget,
 ): Promise<unknown> {
   const url = new URL(`${INAT_BASE_URL}${path}`);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
 
-  const response = await fetcher(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": USER_AGENT,
-    },
-  });
+  const remainingMs = remainingBudgetMs(budget);
+  if (remainingMs <= 0) {
+    throw new Error("iNaturalist population deadline exceeded");
+  }
+  const timeoutMs = Math.max(
+    1,
+    Math.min(budget.requestTimeoutMs, remainingMs),
+  );
+  const signal = AbortSignal.timeout(timeoutMs);
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": USER_AGENT,
+      },
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error(`iNaturalist ${path} timed out`);
+    }
+    throw error;
+  }
   if (!response.ok) {
     throw new Error(`iNaturalist ${path} returned HTTP ${response.status}`);
   }
-  return await response.json();
+  const readResult = await readResponseArrayBufferWithinBudget(
+    response,
+    MAX_PROVIDER_RESPONSE_BYTES,
+    `iNaturalist ${path} response exceeded the byte limit`,
+  );
+  if (readResult.error || !readResult.buffer) {
+    throw new Error(
+      readResult.error?.message ??
+        `iNaturalist ${path} returned an unreadable response`,
+    );
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(readResult.buffer));
+  } catch {
+    throw new Error(`iNaturalist ${path} returned invalid JSON`);
+  }
 }
 
 function lookupParam(lookup: InaturalistLookup): Record<string, string> {
-  return { [lookup.paramName]: lookup.paramValue };
-}
-
-async function fetchSpeciesRow(
-  request: { speciesId?: string; scientificName: string },
-  supabaseAdmin: SupabaseClient,
-): Promise<SpeciesDictionaryStatsRow | null> {
-  const query = supabaseAdmin
-    .from("species_dictionary")
-    .select("id, scientific_name, inaturalist_taxon_id")
-    .limit(1);
-
-  const { data, error } = request.speciesId
-    ? await query.eq("id", request.speciesId)
-    : await query.eq("scientific_name", request.scientificName);
-
-  if (error) {
-    throw new Error(`Failed to fetch species dictionary row: ${error.message}`);
+  if (!lookup.taxonId) {
+    throw new Error("A resolved iNaturalist taxon id is required");
   }
-
-  return ((data ?? []) as SpeciesDictionaryStatsRow[])[0] ?? null;
+  return { taxon_id: String(lookup.taxonId) };
 }
 
 async function fetchCachedStats(
@@ -778,7 +980,8 @@ async function fetchCachedStats(
     .eq("species_id", speciesId)
     .eq("source", SOURCE)
     .eq("scope", SCOPE)
-    .limit(1);
+    .limit(1)
+    .abortSignal(AbortSignal.timeout(DATABASE_TIMEOUT_MS));
 
   if (error) {
     throw new Error(`Failed to fetch species stats cache: ${error.message}`);
@@ -787,52 +990,71 @@ async function fetchCachedStats(
   return ((data ?? []) as SpeciesStatsCacheRow[])[0] ?? null;
 }
 
-async function upsertCachedStats(
-  speciesId: string,
-  scientificName: string,
-  payload: SpeciesObservationStatsPayload,
+async function finalizeLeasePayload(
+  input: {
+    speciesId: string;
+    scientificName: string;
+    leaseToken: string;
+    payload: SpeciesObservationStatsPayload;
+  },
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  const fetchedAt = new Date(payload.fetched_at);
-  const expiresAt = new Date(fetchedAt.getTime() + CACHE_TTL_MS);
-  const providerError = payload.provider_errors.length > 0
-    ? payload.provider_errors.join("; ")
+  if (input.payload.status === "stale") {
+    throw new Error("A stale payload cannot finalize a population lease");
+  }
+  const providerError = input.payload.provider_errors.length > 0
+    ? input.payload.provider_errors.join("; ").slice(0, 1_000)
     : null;
-
-  const { error } = await supabaseAdmin
-    .from("species_observation_stats_cache")
-    .upsert(
-      {
-        species_id: speciesId,
-        source: SOURCE,
-        scope: SCOPE,
-        scientific_name: scientificName,
-        payload,
-        status: payload.status,
-        provider_error: providerError,
-        fetched_at: payload.fetched_at,
-        expires_at: expiresAt.toISOString(),
-      },
-      { onConflict: "species_id,source,scope" },
+  const finalized = await finalizeSpeciesObservationStatsPopulation(
+    {
+      speciesId: input.speciesId,
+      leaseToken: input.leaseToken,
+      taxonId: input.payload.source.inaturalist_taxon_id,
+      payload: input.payload as unknown as Record<string, unknown>,
+      status: input.payload.status,
+      providerError,
+    },
+    supabaseAdmin,
+  );
+  if (!finalized) {
+    throw new Error(
+      `Species stats population lease was superseded for ${input.speciesId}`,
     );
-
-  if (error) {
-    throw new Error(`Failed to upsert species stats cache: ${error.message}`);
   }
 }
 
-async function updateTaxonId(
-  speciesId: string,
-  taxonId: number,
-  supabaseAdmin: SupabaseClient,
+function providerBudget(
+  options: SpeciesObservationStatsFetchOptions,
+  durationMs: number,
+): ProviderBudget {
+  const nowMs = options.monotonicNowMs ?? (() => performance.now());
+  const boundedDurationMs = Math.max(1, Math.min(durationMs, 60_000));
+  const requestTimeoutMs = Math.max(
+    1,
+    Math.min(
+      options.providerRequestTimeoutMs ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+      15_000,
+    ),
+  );
+  return {
+    deadlineAtMs: nowMs() + boundedDurationMs,
+    requestTimeoutMs,
+    nowMs,
+  };
+}
+
+function remainingBudgetMs(budget: ProviderBudget): number {
+  return Math.max(0, budget.deadlineAtMs - budget.nowMs());
+}
+
+async function sleepWithinBudget(
+  milliseconds: number,
+  budget: ProviderBudget,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("species_dictionary")
-    .update({ inaturalist_taxon_id: taxonId })
-    .eq("id", speciesId);
-  if (error) {
-    throw new Error(`Failed to update iNaturalist taxon id: ${error.message}`);
-  }
+  if (milliseconds <= 0) return;
+  const boundedDelay = Math.min(milliseconds, remainingBudgetMs(budget));
+  if (boundedDelay <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, boundedDelay));
 }
 
 async function safeProviderCall<T>(
@@ -949,8 +1171,11 @@ function isFresh(row: SpeciesStatsCacheRow, now: Date): boolean {
 
 function isStaleUsable(row: SpeciesStatsCacheRow, now: Date): boolean {
   const fetchedAt = row.fetched_at ? Date.parse(row.fetched_at) : Number.NaN;
-  return Number.isFinite(fetchedAt) &&
-    now.getTime() - fetchedAt <= CACHE_TTL_MS + STALE_TTL_MS;
+  if (!Number.isFinite(fetchedAt) || row.status === "unavailable") return false;
+  const staleWindow = row.status === "no_data"
+    ? NEGATIVE_STALE_TTL_MS
+    : CACHE_TTL_MS + STALE_TTL_MS;
+  return now.getTime() - fetchedAt <= staleWindow;
 }
 
 function emptyMonthCounts(): SpeciesObservationMonthCount[] {
@@ -978,28 +1203,12 @@ function hasPayloadData(payload: SpeciesObservationStatsPayload): boolean {
     payload.sex.some((series) => hasAnyCounts(series.values));
 }
 
-function looksLikeProviderOutage(providerErrors: string[]): boolean {
-  return providerErrors.some((error) => {
-    const normalized = error.toLowerCase();
-    return normalized.includes("http") ||
-      normalized.includes("network") ||
-      normalized.includes("fetch") ||
-      normalized.includes("timed out") ||
-      normalized.includes("connection");
-  });
-}
-
 function normalizeScientificName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function sleep(milliseconds: number): Promise<void> {
-  if (milliseconds <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function dedupeStrings(values: string[]): string[] {

@@ -1973,17 +1973,28 @@ final class MerianNetworkClient {
     }
 
     func getSpeciesObservationStats(
-        speciesId: String? = nil,
+        speciesId: String,
         scientificName: String
     ) async throws -> SpeciesObservationStatsEntry {
         let functionUrl = try endpointURL("species-observation-stats")
-        let requestedSpeciesId = normalizedSpeciesDictionaryId(speciesId)
-        let requestedScientificName = scientificName
+        guard
+            let normalizedSpeciesId = normalizedSpeciesDictionaryId(speciesId),
+            let speciesUUID = UUID(uuidString: normalizedSpeciesId)
+        else {
+            throw MerianError.invalidResponse
+        }
+        let requestedSpeciesId = speciesUUID.uuidString.lowercased()
+        let normalizedScientificName = scientificName
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-            .nilIfEmpty
+        guard
+            let requestedScientificName = normalizedScientificName.nilIfEmpty,
+            requestedScientificName.count <= 160
+        else {
+            throw MerianError.invalidResponse
+        }
 
         if let cached = cachedSpeciesObservationStatsEntry(
             speciesId: requestedSpeciesId,
@@ -1993,20 +2004,29 @@ final class MerianNetworkClient {
         }
 
         var components = URLComponents(url: functionUrl, resolvingAgainstBaseURL: false)
-        var queryItems: [URLQueryItem] = []
-        if let requestedSpeciesId {
-            queryItems.append(URLQueryItem(name: "species_id", value: requestedSpeciesId))
-        }
-        if let requestedScientificName {
-            queryItems.append(URLQueryItem(name: "scientific_name", value: requestedScientificName))
-        }
-        components?.queryItems = queryItems.isEmpty ? nil : queryItems
+        components?.queryItems = [
+            URLQueryItem(name: "species_id", value: requestedSpeciesId),
+            URLQueryItem(name: "scientific_name", value: requestedScientificName)
+        ]
         guard let requestURL = components?.url else {
             throw MerianError.invalidURL
         }
 
-        let (data, _) = try await performPublicGETRequest(url: requestURL, timeoutInterval: 20.0)
-        let entry = try makeExploreDecoder().decode(SpeciesObservationStatsResponse.self, from: data).data
+        let (data, _) = try await performAuthenticatedRequest(
+            url: requestURL,
+            method: "GET",
+            timeoutInterval: 20.0
+        )
+        let response = try makeExploreDecoder().decode(SpeciesObservationStatsResponse.self, from: data)
+        let entry = response.data
+        guard
+            response.effectiveSchemaVersion >= 2,
+            normalizedSpeciesDictionaryId(entry.speciesId) == requestedSpeciesId,
+            normalizedSpeciesDictionaryName(entry.scientificName) ==
+                normalizedSpeciesDictionaryName(requestedScientificName)
+        else {
+            throw MerianError.invalidResponse
+        }
         cacheSpeciesObservationStatsEntry(
             entry,
             requestedSpeciesId: requestedSpeciesId,

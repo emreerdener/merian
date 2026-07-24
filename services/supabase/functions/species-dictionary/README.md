@@ -284,8 +284,11 @@ deno test --allow-read=services/supabase/migrations --config services/supabase/f
 
 Species dictionary pages also render observation pattern charts from
 `/species-observation-stats`. That endpoint is separate from this dictionary
-projection because it reads/caches public iNaturalist aggregates and has its own
-stale-cache behavior. Local Merian observation logs are still aggregated
-on-device and are never sent to Supabase. See
+projection because it reads/caches public iNaturalist aggregates and owns
+canonical UUID/name binding, user/IP/global budgets, negative caching, provider
+deadlines, fenced cold-population leases, and stale-if-error retention. The iOS
+consumer validates schema version 2 and the returned UUID/name pair before
+memoizing stats. Local Merian observation logs are still aggregated on-device
+and are never sent to Supabase. See
 `services/supabase/functions/species-observation-stats/README.md` for the stats
 contract.

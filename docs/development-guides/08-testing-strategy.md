@@ -830,8 +830,44 @@ Authoritative AI quota and entitlement security has four complementary checks:
 
 The production workflow applies all migrations to a disposable database and
 runs `privileged_routine_security.sql`, `ai_quota_security.sql`, and
-`revenuecat_webhook_security.sql`. Do not replace that catalog execution with
-source inspection alone.
+`revenuecat_webhook_security.sql`, and
+`species_observation_stats_security.sql`. Do not replace that catalog execution
+with source inspection alone.
+
+Public species-observation stats have layered resource-abuse coverage:
+
+- `_shared/clientAddress_test.ts` locks right-most trusted proxy selection,
+  daily rotation, purpose separation, and strong server-key failure behavior.
+- `_shared/mediaBudgets_test.ts` proves declared and chunked request/provider
+  bodies are rejected before crossing their byte budgets.
+- `species-observation-stats/db.test.ts` proves UUID/name binding happens before
+  provider work, exact taxon misses are negatively cached, non-owners dispatch
+  no provider calls, every fetch receives an abort signal, provider bodies are
+  stream-bounded, failed empty populations resolve `unavailable` instead of
+  `partial`, and failed database finalization is not retried with downgraded
+  cache state.
+- `species-observation-stats/security.test.ts` locks the pre-auth IP budget,
+  stable HTTP mapping for database rate/identity denials, cache-race claim
+  responses, and finalization token forwarding.
+- `_tests/speciesObservationStatsCoverage.test.ts` prevents deletion of
+  dictionary binding, rate/lease RPCs, request/response body caps, deadlines, or
+  the public route's replacement security boundary. It also prevents successful
+  identity-independent responses from regaining per-Authorization cache
+  fragmentation.
+- `_tests/speciesObservationStatsMigrationContract.test.ts` statically locks
+  private counters, user/IP/global limits, service-only ACLs, negative TTLs,
+  lease duration, cache-race closure, token fencing, and stale-positive
+  preservation on an unavailable refresh.
+- `tests/species_observation_stats_security.sql` executes pre-auth IP and
+  verified-user accounting/denial, canonical denial with retained rate usage,
+  concurrent claim suppression, expired-generation replacement, stale-token
+  rejection, atomic cache/taxon finalization, exact 24-hour negative caching,
+  failed-refresh stale-positive retention, and effective API-role ACLs against
+  the fully migrated catalog.
+
+`SpeciesDictionaryTests` additionally proves the iOS request rejects malformed
+UUIDs, empty/overlong names, legacy schemas, and response identity mismatches
+before either network dispatch or memoization.
 
 Owner-level pgTAP fixtures that insert `public.users` directly bypass
 `handle_new_user()`. They must supply a deterministic, unique `public_username`

@@ -115,8 +115,8 @@ after Habitat & Distribution. It owns its own
 `SpeciesObservationStatsDatabaseActor`, aggregates them on-device through
 `SpeciesObservationStatsReducer`, and fetches the public baseline from
 `/species-observation-stats`. The dictionary page passes `species.id` and
-`species.scientificName`, so the stats endpoint can use the dictionary UUID and
-resolve/store `inaturalist_taxon_id`.
+`species.scientificName`; the backend requires that canonical pair before it may
+resolve/store `inaturalist_taxon_id` or call the provider.
 
 `SpeciesCommunitySightingsSection` follows the observation charts and precedes
 similar species. It loads six square tiles, hides itself after an empty or
@@ -523,10 +523,14 @@ MerianNetworkClient.shared.getSpeciesObservationStats(
 )
 ```
 
-That method sends a public GET to `species-observation-stats` with the
-dictionary `species_id` and `scientific_name`. It returns global public
-iNaturalist aggregates only. Local Merian logs are aggregated on-device and are
-not sent to Supabase. See
+That method sends an authenticated GET to the public
+`species-observation-stats` route with the dictionary `species_id` and
+`scientific_name`. Authentication supplies a per-user rate bucket; it does not
+personalize the global iNaturalist response. An IP budget is consumed before
+optional token verification. Local Merian logs are aggregated on-device and
+are not sent to Supabase. The client rejects malformed UUIDs and invalid name
+bounds before networking, then requires response schema version 2 or newer plus
+the same canonical UUID/name pair before memoizing a result. See
 [`Species Observation Charts`](./18-species-observation-charts.md) for the full
 contract, cache behavior, annotation mappings, and privacy rules.
 

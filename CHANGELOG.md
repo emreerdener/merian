@@ -39,6 +39,13 @@ TestFlight, App Store, support, and QA.
 
 - Temporarily hid the unfinished Tree of Life view from Explore’s Index while
   keeping the Species Dictionary catalog available.
+- Hardened public observation charts against duplicate cold refreshes and
+  provider outages. Charts now require a canonical Dictionary species, reuse
+  negatively cached misses, and bound provider work with server-side rate
+  limits, deadlines, and cross-server refresh leases. A failed refresh now
+  keeps still-usable chart data stale instead of replacing it with an empty
+  result, shared public caches are no longer fragmented by session token, and
+  the app rejects legacy or mismatched responses before caching.
 - Added sharing to Species Dictionary pages. Shared links open the matching
   Dictionary page in Naturebook when installed and otherwise show a rich public
   web reference with licensed imagery, attribution, taxonomy, conservation and

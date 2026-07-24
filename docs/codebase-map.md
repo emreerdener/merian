@@ -259,7 +259,10 @@ lives in
 Public species data:
 
 - `species-dictionary`
-- `species-observation-stats`
+- `species-observation-stats` — public global iNaturalist charts behind
+  canonical dictionary binding, optional user plus daily-HMAC IP limits,
+  negative caching, bounded provider fetches, fenced database cold-fill leases,
+  stale-if-error retention, and schema/identity-checked iOS memoization
 
 Explore and social:
 

@@ -631,24 +631,51 @@ entirely on-device by iOS.
 Key rules:
 
 - `verify_jwt = false` is configured in `services/supabase/config.toml`.
-- The function intentionally does not call `withEdgeHandler` / `requireAuth`;
-  user identity must not affect the response.
-- The service role key is used for scoped reads from `species_dictionary`, cache
-  reads/writes to `species_observation_stats_cache`, and best-effort writes to
-  `species_dictionary.inaturalist_taxon_id`.
+- The response remains public. Missing/project-key Authorization uses an
+  IP-only budget; a valid user JWT adds a per-user budget; an invalid supplied
+  user token returns `401`. The atomic IP preflight runs before optional token
+  validation, bounding invalid-token traffic before it reaches Supabase Auth.
+  The hosted gateway must overwrite the proxy-address headers used for the IP
+  HMAC; a custom proxy must not pass through caller-controlled values.
+- `species_id` and `scientific_name` are both required. A service-only RPC
+  rate-limits the request, resolves the UUID from `species_dictionary`, and
+  rejects a non-canonical name before provider work. Compatibility POST bodies
+  are stream-bounded to 4 KiB before JSON decoding.
 - The provider scope is global and source is currently only `inaturalist`.
-- Requests prefer a stored `inaturalist_taxon_id`, fall back to exact
-  scientific-name taxon resolution, and finally fall back to iNaturalist
-  `taxon_name`.
-- Successful payloads are cached for seven days. If provider refresh fails, a
-  usable stale cache payload can be returned for 30 more days with
-  `status: "stale"`.
+- Requests prefer a stored `inaturalist_taxon_id`. A lease owner may resolve an
+  exact canonical dictionary name through `/v1/taxa`; observation calls require
+  the resulting `taxon_id`. There is no free-form `taxon_name` fallback.
+- Request limits are 60/user/minute and 120/IP/minute. Cold population adds
+  12/user/minute, 30/IP/minute, and a global four-populations/minute provider
+  ceiling. IPs are stored only as daily, purpose-separated server HMACs.
+- `internal.species_observation_stats_population_leases` issues a fenced
+  90-second token. Only the current token can finalize a cache row, preventing
+  cross-isolate stampedes and late-owner overwrites.
+- Final cache TTLs are seven days (`fresh`), 24 hours (`no_data`), one hour
+  (`partial`), and five minutes (`unavailable`). Exact taxon misses and provider
+  incidents therefore have negative-cache damping.
 - Cold misses return core totals, seasonality, and history as
   `status: "partial"` while life-stage and sex annotation buckets refresh via
   `runBackground`. Usable stale rows return immediately and refresh in the
   background.
+- Provider calls have five-second fetch timeouts, 15/45-second foreground and
+  background deadlines, and a one-MiB streaming response cap.
+- Database RPCs and cache reads are client-aborted after five seconds; each
+  privileged RPC also carries a five-second PostgreSQL statement timeout.
 - Partial provider failures also return `status: "partial"` when enough buckets
-  are still available to render a useful chart.
+  are still available to render a useful chart. Any provider failure with no
+  useful data becomes `unavailable`; an empty failed result is never cached as
+  `partial`.
+- A failed refresh preserves a positive payload that is still within the
+  37-day retention ceiling. The database marks it `stale`, retains the original
+  `fetched_at`, records the current row-level provider error, and retries after
+  a five-minute backoff instead of replacing it with empty unavailable data.
+- iOS validates the UUID/name bounds before networking and accepts a response
+  for memoization only when `schema_version >= 2` and the returned canonical
+  identity matches the request.
+- Successful responses vary only by content encoding, not Authorization,
+  because the public body is identity-independent. This preserves shared cache
+  reuse across sessions; errors stay private/no-store and authorization-varying.
 - The response must not include Merian scan IDs, user IDs, Explore post IDs,
   field notes, comments, locations, local media, local observation counts, or
   preferred-name overrides.
@@ -1354,9 +1381,11 @@ that operate on anonymous IDFV boundaries:
   - **`species-dictionary`**: Keeps `verify_jwt = false` but intentionally skips
     `requireAuth` because it returns only public species-level dictionary data.
   - **`species-observation-stats`**: Keeps `verify_jwt = false` but
-    intentionally skips `requireAuth` because it returns only public
-    species-level iNaturalist aggregates and cache metadata. Local Merian
-    observation data is not sent to this endpoint.
+    returns only public species-level iNaturalist aggregates and cache metadata.
+    Its replacement boundary is canonical dictionary binding, optional live-user
+    verification, daily HMAC IP identity, atomic request/cold-population limits,
+    and a fenced database lease. Local Merian observation data is not sent to
+    this endpoint.
   - **Internal service-role workers**: Keep `verify_jwt = false` so `pg_net`,
     GitHub Actions, or another trusted server caller can reach the Deno runtime,
     then enforce the service-role bearer header inside Deno with

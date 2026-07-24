@@ -16,6 +16,9 @@ multiple functions need the same behavior and the ownership boundary is clear.
   parsing, body-size checks, and constant-time comparison helpers.
 - **`auth.ts`**: Shared bearer parsing, claims validation, and the compatibility
   Auth-server `getUser` strategy used by existing authenticated endpoints.
+- **`clientAddress.ts`**: Shared proxy-observed client-address extraction and
+  purpose-separated daily HMAC derivation. Abuse controls store only the HMAC;
+  a missing proxy address joins a conservative shared fail-safe bucket.
 - **`claimsAuth.ts`**: Opt-in cached-JWKS `getClaims` authentication for
   latency-sensitive routes. It explicitly validates issuer, audience,
   expiration/not-before, role, and `sub`; accepts anonymous and authenticated
@@ -92,11 +95,11 @@ multiple functions need the same behavior and the ownership boundary is clear.
   service-only maintenance callers pass their reviewed system model explicitly.
 - **`aiQuota.ts`**: Service-role client for the atomic `reserve_ai_quota(...)`
   and `finalize_ai_quota_reservation(...)` RPCs. It validates UUID idempotency
-  keys, HMACs the proxy-observed client address with an optional dedicated
-  override or built-in server-only Supabase key, maps fail-closed database
-  errors to stable HTTP codes, and exposes a fenced provider lease. A route
-  commits immediately before a provider attempt; provider failures remain
-  charged but become retryable, and only a proven pre-provider no-op may refund.
+  keys, uses `clientAddress.ts` with an optional dedicated override or built-in
+  server-only Supabase key, maps fail-closed database errors to stable HTTP
+  codes, and exposes a fenced provider lease. A route commits immediately
+  before a provider attempt; provider failures remain charged but become
+  retryable, and only a proven pre-provider no-op may refund.
 - **`groupTagQuota.ts`**: Optional identification group-tag enrichment behind
   its own database-selected model and quota operation. Quota/provider failures
   are recorded without discarding the successful primary identification.

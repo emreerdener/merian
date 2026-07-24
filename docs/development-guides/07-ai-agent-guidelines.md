@@ -104,7 +104,13 @@ when changing web routes.
   `verify_jwt = false` only for a documented replacement boundary: an
   intentionally public read, webhook signature, custom in-handler user
   verification, or service-role worker. `species-dictionary` and
-  `species-observation-stats` are intentionally public species-only reads.
+  `species-observation-stats` are intentionally public species-only reads. The
+  latter still requires a canonical dictionary UUID/name pair, applies atomic
+  user/IP/global population limits, and fences cache population in Postgres;
+  never replace those controls with isolate-local state or a free-form provider
+  name lookup. Preserve a still-retained positive stats payload when a refresh
+  fails, and never memoize a stats response on iOS unless its schema is version
+  2 or newer and its canonical UUID/name identity matches the request.
   Internal workers such as species/reference refresh, taxonomy
   import/status/refresh, consensus processing, non-biological purge,
   scan-media reconciliation/health, and ghost-merge reconciliation require

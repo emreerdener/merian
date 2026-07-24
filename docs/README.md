@@ -268,8 +268,9 @@ as their permanent engineering identity.
   and Universal Links.
 - **[`/features-and-hardware/18-species-observation-charts.md`](./features-and-hardware/18-species-observation-charts.md)**
   — Reusable species observation charts, local-on-device aggregation, public
-  iNaturalist stats cache, annotation mappings, privacy boundaries, and
-  verification.
+  iNaturalist stats cache, canonical dictionary binding, negative caching,
+  rate/deadline budgets, fenced cold population, annotation mappings, privacy
+  boundaries, and verification.
 - **[`/features-and-hardware/19-native-share-extensions.md`](./features-and-hardware/19-native-share-extensions.md)**
   — Native iOS extensions: shipped Messages scan library, Explore widget cache
   ownership, App Group boundaries, privacy rules, QA, and the boundary between

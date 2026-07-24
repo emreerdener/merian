@@ -2031,6 +2031,8 @@ Request body:
 }
 ```
 
+Compatibility POST bodies are stream-bounded to 4 KiB before JSON decoding.
+
 Validation rules:
 
 - Either `species_id` or `scientific_name` is required.
@@ -2313,10 +2315,13 @@ from local Merian observation aggregation:
 - The Edge Function returns only public iNaturalist-derived species aggregates
   and cache metadata.
 
-The function has `verify_jwt = false` in `services/supabase/config.toml` and
-does not call `requireAuth`. The iOS client uses an unauthenticated public GET;
-legacy POST callers may still send normal app auth headers, but identity is not
-read and must not affect the response.
+The function has `verify_jwt = false` in `services/supabase/config.toml` because
+anonymous public reads remain supported. The first-party iOS client sends its
+normal session headers. A valid JWT adds a per-user rate bucket; a missing
+header or project publishable/anon key uses only the IP bucket; an invalid
+supplied user token returns `401`. Every request consumes the atomic IP
+preflight before optional token validation, so malformed tokens cannot amplify
+Auth traffic. Identity never changes the response body.
 
 ### `/species-observation-stats`
 
@@ -2337,17 +2342,19 @@ Compatibility request body:
 
 Validation rules:
 
+- `species_id` is required and must be a valid dictionary UUID.
 - `scientific_name` is required.
 - `scientific_name` must be a string and non-empty after trimming.
 - Internal whitespace is collapsed before lookup.
 - Names longer than 160 characters return `400`.
-- `species_id`, when present and non-empty, must be a valid UUID.
+- A service-only database RPC binds the UUID to its canonical normalized name.
+  Unknown UUIDs and mismatched names return `404` before provider work.
 
 Current response shape:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "data": {
     "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
     "scientific_name": "Danaus plexippus",
@@ -2382,17 +2389,25 @@ Current response shape:
 }
 ```
 
-`schema_version = 1` marks the current public observation-stats contract. Within
-this version, new response keys must be additive, existing nullable fields may
-remain `null`, and clients should ignore unknown keys.
+`schema_version = 2` marks mandatory dictionary identity and the bounded
+population path. The response shape remains compatible with version 1. New
+response keys must be additive, existing nullable fields may remain `null`, and
+clients should ignore unknown keys. The current iOS client requires schema
+version 2 or newer, checks the returned UUID and normalized scientific name
+against the request, and does not cache a legacy or identity-mismatched
+response. It also rejects malformed UUIDs and names outside the 1...160
+character bound before making a network request.
 
 Status values:
 
 - `fresh`: provider fetch completed and data exists.
-- `no_data`: provider fetch completed but no observation buckets were found.
+- `no_data`: exact taxon resolution found no match, or the provider completed
+  but no observation buckets were found. The result is negatively cached.
 - `partial`: one or more provider buckets failed, but useful data is still
   available. On cold cache misses, core stats may be returned as `partial` while
-  life-stage and sex annotation buckets refresh in the background.
+  life-stage and sex annotation buckets refresh in the background. If provider
+  calls fail and no useful bucket exists, the result is `unavailable`, not an
+  empty `partial`.
 - `stale`: a usable stale cache payload was returned while refresh work is
   deferred off the response path.
 - `unavailable`: provider refresh failed and no usable cache existed.
@@ -2410,8 +2425,10 @@ Series shapes:
 iNaturalist mapping:
 
 - Taxon lookup prefers `species_dictionary.inaturalist_taxon_id`.
-- If absent, Deno resolves an exact `scientific_name` through `/v1/taxa`.
-- If no exact taxon ID is found, Deno falls back to iNaturalist `taxon_name`.
+- If absent, the current lease owner resolves the canonical database
+  `scientific_name` exactly through `/v1/taxa`.
+- Observation and histogram calls require a positive `taxon_id`. There is no
+  caller-controlled `taxon_name` fallback.
 - Observation totals and latest dates use `/v1/observations`.
 - Seasonality, history, life stage, and sex use `/v1/observations/histogram`.
 - Life Stage annotation IDs use `term_id = 1` with values Adult `2`, Teneral
@@ -2425,22 +2442,39 @@ Caching:
 - Cache key: `species_id + source + scope`.
 - Source: `inaturalist`.
 - Scope: `global`.
-- Fresh TTL: 7 days.
-- Stale fallback window: 30 additional days.
+- Fresh TTLs: seven days (`fresh`), 24 hours (`no_data`), one hour (`partial`),
+  and five minutes (`unavailable`).
+- Positive data has a 30-day additional stale window. Negative `no_data` has a
+  seven-day stale refresh window; `unavailable` is never served stale.
 - Cold misses fetch taxon lookup, observation summary, seasonality, and history
   synchronously, then queue life-stage and sex annotation refresh via
   `runBackground`.
-- Usable stale cache rows return immediately and queue a full refresh in the
-  background. Duplicate in-flight refreshes for the same species are suppressed
-  per isolate.
+- Usable stale rows return immediately. A 90-second database lease suppresses
+  cross-isolate duplicate refreshes; fenced finalization prevents an expired
+  generation from overwriting newer work.
+- If that refresh fails, a positive payload within 37 days of its original
+  `fetched_at` remains intact. Finalization marks it `stale`, records the latest
+  row-level cache `provider_error`, preserves its original age, and applies a
+  five-minute retry backoff. Cold/negative/too-old rows instead use the
+  five-minute `unavailable` cache.
+- Atomic request limits are 60/user/minute and 120/IP/minute. Cold population
+  additionally allows 12/user/minute, 30/IP/minute, and four globally/minute.
+- Every provider fetch has a five-second timeout. Foreground/background work
+  has 15/45-second deadlines and each response body is stream-limited to 1 MiB.
+- Database RPCs and cache reads are client-aborted after five seconds; the
+  privileged RPCs independently enforce a five-second statement timeout.
 - Fresh and `no_data` `200 OK` responses include
   `Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800`
   and `Vary: Accept-Encoding`.
 - `partial`, `stale`, and `unavailable` `200 OK` responses use
   `Cache-Control: public, max-age=30, s-maxage=60, stale-while-revalidate=300`
   and `Vary: Accept-Encoding`.
+- Successful payloads do not vary by Authorization because identity affects
+  only abuse accounting, not the public body. This avoids per-token cache
+  fragmentation. Errors remain `private, no-store` and vary by Authorization.
 - iOS adds a 5-minute, 64-key in-memory memo cache in `MerianNetworkClient`,
-  keyed by normalized `species_id` and scientific name.
+  keyed by normalized `species_id` and scientific name. Only schema-v2-or-newer
+  responses with an exact canonical identity match enter that cache.
 
 Privacy:
 
@@ -2451,12 +2485,18 @@ Privacy:
 
 Error responses:
 
-| Status | Body                                                         | Meaning                                   |
-| ------ | ------------------------------------------------------------ | ----------------------------------------- |
-| `400`  | `{ "error": "Missing required parameter: scientific_name" }` | Missing, non-string, or blank name        |
-| `400`  | `{ "error": "species_id must be a valid UUID." }`            | Invalid species ID                        |
-| `400`  | `{ "error": "scientific_name is too long." }`                | Scientific name exceeds the request bound |
-| `500`  | `{ "error": "Internal Server Error" }`                       | Database or unexpected function failure   |
+| Status | Code | Meaning |
+| ------ | ---- | ------- |
+| `400` | `species_stats_invalid_request` or validation message | Missing/invalid UUID or bounded name |
+| `401` | `invalid_session_token` | Invalid supplied user credential |
+| `404` | `species_stats_species_not_found` | Unknown dictionary UUID or canonical-name mismatch |
+| `413` | validation message | Compatibility POST body exceeds 4 KiB |
+| `429` | `species_stats_rate_limited` | Request or cold-population budget exhausted |
+| `503` | `species_stats_refresh_in_progress` | Another isolate owns the cold lease |
+| `503` | `species_stats_unavailable` | Database/security boundary unavailable |
+
+`429`/`503` retry responses include `retry_after_seconds` and `Retry-After`.
+Every error response is `private, no-store`.
 
 Swift mapping:
 
