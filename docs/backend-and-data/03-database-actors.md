@@ -42,8 +42,8 @@ transport DTO.
 - `markScanAsStaged(scanId:r2Keys:)` — called once the last media upload for a scan confirms HTTP 200. Persists the confirmed image/audio R2 object keys into `stagedR2Keys` and transitions `.uploading → .staged`. Source-state guard: only advances from `.uploading`; prevents a concurrent tombstone from being resurrected. Save failure rolls back the actor context.
 - `tryClaimForInference(scanId:)` — atomic distributed lock for inference. Transitions `.staged → .inferencing`; returns `false` if the scan is already `.inferencing`, not found, or if the save fails and rolls back. Because `BackgroundDatabaseActor` serializes all calls on its executor, only one pipeline can win this claim per scan — the race between `processUploadCompletion` and `replayInferenceForUploadedScans` is closed here.
 - `transitionScanToStaged(id:)` — retreats `.inferencing → .staged` on transient inference failure so `replayInferenceForUploadedScans` can reclaim the scan on the next connectivity restore. Source-state guard: only retreats from `.inferencing` — will not overwrite a concurrent `softDeleteQueuedScan` tombstone (`.failed`) written by the MainActor. Save failure rolls back the actor context.
-- `reconcileOrphanedUploadingScans(activeScanIds:)` — called once per process life on first connectivity restore. Resets `.uploading → .pending` for scans with no active URLSession task and returns `true` only when that save commits. Safe because no upload tasks are dispatched during the startup window.
-- `reconcileOrphanedInferencingScans(activeInferenceScanIds:)` — cross-references live `"inference_*"` URLSession tasks before resetting `.inferencing → .staged`. Only scans with no live OS task are reset, preventing duplicate inference dispatch against tasks still owned by the system after a relaunch. Save failure rolls back the actor context.
+- `reconcileOrphanedUploadingScans(activeScanIds:observedThrough:)` — resets `.uploading → .pending` for scans with no active URLSession task and returns `true` only when that save commits. The caller captures `observedThrough` before enumerating tasks; rows claimed after that snapshot have a newer `queueUpdatedAt` and cannot be reset by the delayed reconciliation pass.
+- `reconcileOrphanedInferencingScans(activeInferenceScanIds:observedThrough:)` — cross-references current and legacy inference URLSession tasks before resetting `.inferencing → .staged`. It uses the same snapshot cutoff, so a replacement inference claim cannot be mistaken for an orphan while the actor call is queued. Save failure rolls back the actor context.
 
 *Offline scan processing:*
 - `processAndCleanupOfflineScan(...)` — the top-level orchestration boundary. Accepts the queued scan's ordered mixed-media timeline, decodes an edge inference result, orchestrates two inner helpers, then saves the `LocalScanRecord` to the background context. **The `OfflineQueuedScan` is intentionally NOT deleted here** — that is delegated to the main actor's queue-deletion path so the main `ModelContext` always has a real pending deletion when it saves (the only reliable `@Query` re-evaluation trigger in a presented sheet — SwiftData platform limitation: background-context saves do not reliably propagate to `@Query` in open sheets). Video-aware completion uses `deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)`, allowing queued inference frames to be purged while video/audio/display media adopted by the final `LocalScanRecord` survives:
@@ -60,7 +60,7 @@ transport DTO.
 - `clearAllLocalLookalikesCache()` — recovery path for stale similar-species caches. Fetches only biological records with `lookalikesData` or `similarSpecies` present, in 200-record batches, saving after each batch. Save failure rolls back the current batch and exits. It must not use an unbounded `FetchDescriptor<LocalScanRecord>()`.
 - `pushCollectionsToEdge()` — serializes local `ScanCollection` records and calls the `sync-collections` Edge function. Membership is built from bounded batches of `LocalScanRecord.collections`, not from `ScanCollection.scans`, to avoid faulting many-to-many arrays for large libraries. Upon a successful HTTP 200 response, it strictly purges any successfully synced tombstoned collections (`isDeleted == true`) from SwiftData to prevent ghost persistence. The tombstone purge save is explicit: failures rollback the actor context and return `false` so `OfflineQueueManager` keeps the collection-sync flag pending for a later retry. Note: callers must route invocation through `OfflineQueueManager`'s shared collection drain (`syncCollectionsIfPending()` / `drainCollectionSyncIfPossible()`) rather than calling it as an unsynchronised side path.
 
-**When to create**: Two patterns — ad-hoc for most operations, long-lived for inference:
+**When to create**: Two patterns — ad-hoc for most operations, long-lived for the offline queue state machine:
 
 ```swift
 // Ad-hoc: for live scan saving, enrichment, Wikipedia, collections
@@ -74,13 +74,13 @@ await dbActor.saveLiveScanRecord(
     mediaTimeline: mediaTimeline
 )
 
-// Long-lived: for the offline inference pipeline
-// OfflineQueueManager maintains a single shared instance via resolvedInferenceDbActor(container:).
-// This serializes markScanAsStaged + tryClaimForInference + transitionScanToStaged on one executor,
-// closing the double-pipeline race between processUploadCompletion and replayInferenceForUploadedScans.
-// Never call resolvedInferenceDbActor directly from outside OfflineQueueManager.
-let inferenceActor = resolvedInferenceDbActor(container: container)
-guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
+// Long-lived: for offline upload/inference claims, retries, and orphan recovery.
+// OfflineQueueManager maintains one instance via resolvedQueueDbActor(container:).
+// The shared executor plus observedThrough cutoffs keep a stale reconcile from
+// overwriting a replacement upload or inference claim.
+// Never call resolvedQueueDbActor directly from outside OfflineQueueManager.
+let queueActor = resolvedQueueDbActor(container: container)
+guard await queueActor.tryClaimForInference(scanId: scanId) else { return }
 ```
 
 ---
@@ -259,9 +259,9 @@ Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored 
 2. **Backpressure is explicit** — if `syncHistoricalScansDown` creates an actor and `await`s it, the caller naturally blocks until reconciliation is complete. A singleton with a queue would make this implicit and harder to reason about.
 3. **No state leakage** — each operation starts with a fresh context. There is no risk of a previous operation's unflushed changes affecting the next one.
 
-**Exception — long-lived inference actor**: `OfflineQueueManager` stores a single `BackgroundDatabaseActor` instance in `_inferenceDbActor` (accessed via `resolvedInferenceDbActor(container:)`). This is intentional:
+**Exception — long-lived queue actor**: `OfflineQueueManager` stores a single `BackgroundDatabaseActor` instance in `_queueDbActor` (accessed via `resolvedQueueDbActor(container:)`). This is intentional:
 
-- **Serialization**: All inference-path state transitions (`markScanAsStaged`, `tryClaimForInference`, `transitionScanToStaged`) must execute on the *same* actor executor to close the race between `processUploadCompletion` and `replayInferenceForUploadedScans`. A fresh actor per call would have its own executor, defeating the serial guarantee.
+- **Serialization**: Upload claims/reconciliation and inference transitions (`markScansAsUploading`, `markScanAsStaged`, `tryClaimForInference`, `transitionScanToStaged`, and both orphan reconcilers) execute on the *same* actor executor. Snapshot cutoffs then remain meaningful even if replacement work reaches the actor before an older reconciliation call.
 - **Performance**: Offline upload bursts can complete multiple scans in rapid succession. Reusing one actor avoids repeated `ModelContainer → ModelContext` setup cost per completion.
 - The shared actor is still safe for concurrent callers — Swift actors serialize all calls through their executor automatically.
 
@@ -283,11 +283,11 @@ Smart default collections are local, auto-managed UI projections. `SmartCollecti
 |---|---|
 | Save a live scan result | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)` |
 | Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:)` |
-| Transition scan state for upload pipeline | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
-| Claim a scan for inference (`tryClaimForInference`) | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
-| Reset scan to `.staged` on transient failure | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
-| Process an offline scan after upload | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
-| Startup reconciliation (orphan reset) | `BackgroundDatabaseActor` (ad-hoc, one-time per process) |
+| Transition scan state for upload pipeline | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived) |
+| Claim a scan for inference (`tryClaimForInference`) | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived) |
+| Reset scan to `.staged` on transient failure | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived) |
+| Process an offline scan after upload | Fresh `BackgroundDatabaseActor` for final record persistence; shared `resolvedQueueDbActor` for queue transitions |
+| Startup/ongoing orphan reconciliation | `BackgroundDatabaseActor` via `resolvedQueueDbActor`, with a pre-enumeration `observedThrough` cutoff |
 | Sync historical scans from cloud | `HistoricalDatabaseActor` (ad-hoc) |
 | Calculate all profile data (stats + heatmap + awards) | `ProfileDatabaseActor.calculateAll()` (ad-hoc) |
 | Calculate achievement awards only (post-inference) | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived) |

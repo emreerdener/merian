@@ -45,12 +45,22 @@ enum SyncPhase: Equatable {
     // MARK: - State
 
     /// Current phase of the sync pipeline.
-    var phase: SyncPhase = .idle
+    private(set) var phase: SyncPhase = .idle
 
-    /// Number of inference pipelines currently in-flight (inferencing → finalizing → complete).
-    /// `completeSync()` only transitions to `.idle` when this reaches zero, preventing a burst
-    /// of concurrent scans from prematurely clearing the sync indicator when the first one finishes.
-    private var activeInferenceCount: Int = 0
+    private struct UploadActivity {
+        let generation: UUID
+        let itemCount: Int
+    }
+
+    private enum InferenceActivity {
+        case inferencing
+        case finalizing
+    }
+
+    /// Upload and inference work is tracked by generation rather than an integer count.
+    /// A late completion can remove only the exact generation that originally began work.
+    private var activeUpload: UploadActivity?
+    private var activeInferences: [UUID: InferenceActivity] = [:]
 
     // MARK: - Computed Compatibility Shims
 
@@ -70,49 +80,67 @@ enum SyncPhase: Equatable {
     // MARK: - Sync Control
 
     /// Transitions to `.uploading` for a known batch size.
-    func beginSync(itemCount: Int) {
-        phase = .uploading(count: itemCount)
+    func beginSync(itemCount: Int, generation: UUID) {
+        activeUpload = UploadActivity(
+            generation: generation,
+            itemCount: itemCount
+        )
+        refreshPhase()
     }
 
-    /// Transitions to `.inferencing` and increments the active count for this scan's pipeline.
-    func beginInferencing() {
-        activeInferenceCount += 1
-        phase = .inferencing
+    /// Registers one inference generation. Re-registering the same token is idempotent.
+    func beginInferencing(generation: UUID) {
+        if activeInferences[generation] == nil {
+            activeInferences[generation] = .inferencing
+        }
+        refreshPhase()
     }
 
     /// Transitions to `.finalizing` once inference has returned and persistence is about to begin.
-    func beginFinalizing() {
-        phase = .finalizing
+    func beginFinalizing(generation: UUID) {
+        guard activeInferences[generation] != nil else { return }
+        activeInferences[generation] = .finalizing
+        refreshPhase()
     }
 
-    /// Decrements the active inference pipeline count. Resets to `.idle` only when all in-flight
-    /// pipelines have completed — prevents a burst of concurrent scans from prematurely clearing
-    /// the indicator when the first one finishes while others are still inferencing or finalizing.
+    /// Completes only the matching inference generation. Unknown or already-completed tokens
+    /// are harmless no-ops, so a late callback cannot decrement newer work.
     ///
     /// Call this ONLY from the inference completion path (`processInferenceDownloadResult`).
-    /// Upload-phase completions use `completeUploadPhase()` to avoid touching the count.
-    func completeSync() {
-        activeInferenceCount = max(0, activeInferenceCount - 1)
-        if activeInferenceCount == 0 {
-            phase = .idle
-        }
+    /// Upload-phase completions use `completeUploadPhase(generation:)`.
+    func completeSync(generation: UUID) {
+        activeInferences[generation] = nil
+        refreshPhase()
     }
 
-    /// Transitions to `.idle` only if no inference pipelines are currently active.
-    ///
-    /// Call this from upload-phase completions (e.g. empty scan queue, URL generation failure)
-    /// where there was no inference to begin with — these paths never call `beginInferencing()`,
-    /// so they must not decrement `activeInferenceCount`.
-    func completeUploadPhase() {
-        if activeInferenceCount == 0 {
-            phase = .idle
-        }
+    /// Clears only the matching upload generation. A stale expiration or delegate callback
+    /// cannot clear a replacement batch.
+    func completeUploadPhase(generation: UUID) {
+        guard activeUpload?.generation == generation else { return }
+        activeUpload = nil
+        refreshPhase()
     }
 
-    /// Resets immediately to `.idle` regardless of active count. Used on connectivity loss to
-    /// circuit-break all in-flight pipelines — they will replay when connectivity is restored.
+    /// Invalidates all current tokens. Late completions become no-ops because their
+    /// generations are no longer registered.
     func forceIdle() {
-        activeInferenceCount = 0
-        phase = .idle
+        activeUpload = nil
+        activeInferences.removeAll()
+        refreshPhase()
+    }
+
+    private func refreshPhase() {
+        if activeInferences.values.contains(where: { activity in
+            if case .finalizing = activity { return true }
+            return false
+        }) {
+            phase = .finalizing
+        } else if !activeInferences.isEmpty {
+            phase = .inferencing
+        } else if let activeUpload {
+            phase = .uploading(count: activeUpload.itemCount)
+        } else {
+            phase = .idle
+        }
     }
 }

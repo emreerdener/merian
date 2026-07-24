@@ -77,7 +77,7 @@ Upload (background URLSession upload task)
     │   NotConnectedToInternet / DataNotAllowed / InternationalRoamingOff)
     │   └── retain in queue with persisted queueNextRetryAt until retry budget ends
     ├── Other transport error → log, retain in queue with persisted retry metadata until retry budget ends
-    ├── HTTP 200 → dispatch background inference download task ("inference_{scanId}")
+    ├── HTTP 200 → dispatch a generation-tagged background inference download task
     ├── HTTP 429 / 5xx → retain in queue (recoverable)
     ├── HTTP 401 / 403 → needs attention (auth failure, terminal)
     └── HTTP 4xx (other) → needs attention (terminal)
@@ -100,12 +100,27 @@ Collection sync (OfflineJobRecord id "collection-sync")
 Both uploads and inference use the same background `URLSession`
 (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`,
 so iOS can re-attach in-flight tasks on app relaunch and deliver inference
-results while the app is completely suspended. Upload task descriptions are
-`upload|{scanId}|{uploadIndex}` and inference task descriptions are
-`"inference_\(scanId)"` — both are used for deduplication against
-already-running tasks after a relaunch. Retry state lives in SwiftData
-(`OfflineQueuedScan.queue*` plus `OfflineJobRecord`) rather than in process
-memory.
+results while the app is completely suspended. Current upload task descriptions
+are `upload|{scanId}|{uploadIndex}|{syncGeneration}`. Current inference task
+descriptions are `inference_v2|{inferenceGeneration}|{scanId}`. Parsers continue
+to accept the earlier three-part upload form and `inference_{scanId}` for
+in-flight tasks created by an older app version.
+
+The generation in each current description is an ownership fence, not merely a
+deduplication key. Delayed callbacks, retry timers, server-status probes, and
+background-expiration handlers must still own that exact generation before
+they clear manager state, cancel a URLSession task, delete a queued scan, or
+complete a UI progress token. Cancellation remains cooperative, so task
+dictionaries also use compare-before-clear registry tokens. Retry state itself
+lives in SwiftData (`OfflineQueuedScan.queue*` plus `OfflineJobRecord`) rather
+than in process memory.
+
+Delayed status probes and server polls retain their registry token across
+awaited status checks, URLSession cancellation, targeted recovery, and queue
+state transitions. Every post-await mutation requires the same token and a
+non-cancelled task. Do not clear a slot before starting its async action: doing
+so permits a replacement to install itself while the old action is still able
+to write.
 
 ---
 

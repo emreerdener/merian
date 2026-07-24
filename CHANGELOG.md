@@ -77,6 +77,10 @@ TestFlight, App Store, support, and QA.
 - Prevented delayed camera recording callbacks, timeouts, and automatic-stop
   tasks from completing or stopping a newer video after rapid cancel/retry
   sequences.
+- Prevented delayed offline upload, inference, retry, status-probe, and
+  background-expiration callbacks from clearing or cancelling a newer sync
+  attempt. Queue progress now remains accurate across rapid reconnects,
+  retries, and app suspension.
 - Prevented non-finite media geometry from reaching SwiftUI in Explore detail
   zoom and audio playmarkers, eliminating invalid-frame warnings and unstable
   offsets during transient layout/player states.

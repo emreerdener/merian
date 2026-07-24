@@ -283,11 +283,21 @@ select an unavailable overload. The AI quota advisory key intentionally calls
 `pg_catalog.HASHTEXTEXTENDED(text, bigint)` and casts its seed as `0::BIGINT`;
 `aiQuotaMigrationContract.test.ts` prevents either part from drifting.
 
-If `ai_quota_security.sql` instead fails a `public.users` `NOT NULL` constraint,
+Do not schema-qualify PostgreSQL conditional expressions as though they were
+entries in `pg_proc`. For example, `COALESCE` is syntax, so
+`pg_catalog.COALESCE(...)` fails static validation with SQLSTATE `42883`. For an
+idempotent insert using
+`ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`, use
+`event_inserted IS NOT TRUE` to recognize the null left when no row is returned.
+
+If any catalog fixture instead fails a `public.users` identity constraint,
 update the owner-only fixture to include `public_username`,
 `public_author_name`, and `public_identity_source`. Direct table inserts bypass
-the Auth trigger that normally derives those fields. Do not relax a production
-identity constraint to make a fixture pass.
+the Auth trigger that normally derives those fields. A fixture username must
+pass `public.is_valid_public_username(...)`: it is currently 3–24 lowercase
+characters, starts with a letter, ends with an alphanumeric character, contains
+no `__`, and is not reserved. Keep it deterministic and unique. Do not relax a
+production identity constraint to make a fixture pass.
 
 Repair the routine or fixture, preserve the ACL/search-path/constraint checks,
 and rerun the same disposable-database sequence:

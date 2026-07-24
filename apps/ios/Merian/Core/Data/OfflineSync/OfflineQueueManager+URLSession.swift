@@ -27,24 +27,33 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
     /// All result processing happens in `processInferenceDownloadResult` via a BackgroundTaskWrapper
     /// so iOS grants extended execution time to complete the SwiftData write and push notification.
     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let taskDescription = downloadTask.taskDescription,
-              taskDescription.hasPrefix("inference_") else { return }
+        guard let taskIdentity = InferenceURLSessionTaskContract.parse(
+            downloadTask.taskDescription
+        ) else { return }
 
-        let scanId = String(taskDescription.dropFirst("inference_".count))
+        let scanId = taskIdentity.scanId
+        let generation = taskIdentity.generation
         let statusCode = (downloadTask.response as? HTTPURLResponse)?.statusCode
+        let taskIdentifier = downloadTask.taskIdentifier
         MerianLog.data.debug(
             "urlSession didFinishDownloadingTo: inference scanId=\(scanId, privacy: .private) status=\(statusCode ?? -1, privacy: .public)"
         )
 
         // Copy the temp file before the system deletes it at callback return.
-        let tempDestination = URL.temporaryDirectory.appendingPathComponent("\(scanId)_inference.json")
+        let tempDestination = URL.temporaryDirectory.appendingPathComponent(
+            "\(scanId)_\(taskIdentifier)_inference.json"
+        )
         try? FileManager.default.removeItem(at: tempDestination)
         do {
             try FileManager.default.copyItem(at: location, to: tempDestination)
         } catch {
             MerianLog.data.error("Background inference download: failed to preserve temp file for \(scanId, privacy: .private): \(error, privacy: .private)")
             BackgroundTaskWrapper.execute(name: "OfflineInferenceError") { _ in
-                await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(scanId: scanId, error: error)
+                await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(
+                    scanId: scanId,
+                    generation: generation,
+                    error: error
+                )
             }
             return
         }
@@ -52,6 +61,7 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
         BackgroundTaskWrapper.execute(name: "OfflineInferenceResult") { _ in
             await OfflineQueueManager.shared.processInferenceDownloadResult(
                 scanId: scanId,
+                generation: generation,
                 resultFileURL: tempDestination,
                 statusCode: statusCode
             )
@@ -72,13 +82,17 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
         ) { _ in
             // Route inference download task failures.
             // On success, didFinishDownloadingTo already handled the result — skip here.
-            if let taskDesc = taskDescription, taskDesc.hasPrefix("inference_") {
-                let scanId = String(taskDesc.dropFirst("inference_".count))
+            if let inferenceIdentity = InferenceURLSessionTaskContract.parse(taskDescription) {
+                let scanId = inferenceIdentity.scanId
                 MerianLog.data.debug(
                     "urlSession didCompleteWithError: inference scanId=\(scanId, privacy: .private) status=\(responseStatusCode ?? -1, privacy: .public) error=\((error?.localizedDescription ?? "nil"), privacy: .private)"
                 )
                 if let error {
-                    await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(scanId: scanId, error: error)
+                    await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(
+                        scanId: scanId,
+                        generation: inferenceIdentity.generation,
+                        error: error
+                    )
                 }
                 // Inference tasks are not counted in the upload isSyncing state machine.
                 return
@@ -104,18 +118,27 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
             // Re-query allTasks here (not reusing the snapshot from processUploadCompletion)
             // because dispatchInferenceDownloadTask may have added new download tasks during
             // handleResult — those must be excluded from the upload-completion gate.
+            guard let completedUpload = MediaStagingContract.parseUploadTaskDescription(
+                taskDescription
+            ) else { return }
             let remaining = await session.allTasks
             let activeUploadTasks = remaining.filter {
-                $0.taskIdentifier != taskIdentifier &&
-                MediaStagingContract.parseUploadTaskDescription($0.taskDescription) != nil
+                guard $0.taskIdentifier != taskIdentifier,
+                      let identity = MediaStagingContract.parseUploadTaskDescription(
+                        $0.taskDescription
+                      ) else {
+                    return false
+                }
+                return identity.syncGeneration == completedUpload.syncGeneration
             }
             if activeUploadTasks.isEmpty {
                 await MainActor.run {
-                    OfflineQueueManager.shared.isSyncing = false
-                    if OfflineQueueManager.shared.unsyncedItemsCount > 0 {
-                        OfflineQueueManager.shared.syncPendingScans()
-                    } else {
-                        SyncStateManager.shared.completeUploadPhase()
+                    let manager = OfflineQueueManager.shared
+                    guard manager.finishUploadSync(
+                        generation: completedUpload.syncGeneration
+                    ) else { return }
+                    if manager.unsyncedItemsCount > 0 {
+                        manager.syncPendingScans()
                     }
                 }
             }
@@ -149,9 +172,22 @@ extension OfflineQueueManager {
     ) async {
         guard let uploadIdentity = MediaStagingContract.parseUploadTaskDescription(taskDescription) else { return }
         let scanId = uploadIdentity.scanId
-        _ = uploadCompletionScanIds.insert(scanId)
+        guard isUploadGenerationCurrent(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration
+        ) else {
+            MerianLog.data.debug(
+                "processUploadCompletion: ignored stale upload generation scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
+
+        let completionToken = beginUploadCompletion(scanId: scanId)
         defer {
-            _ = uploadCompletionScanIds.remove(scanId)
+            _ = finishUploadCompletion(
+                scanId: scanId,
+                token: completionToken
+            )
             MerianLog.data.debug(
                 "processUploadCompletion: cleared upload completion lock scanId=\(scanId, privacy: .public)"
             )
@@ -163,15 +199,57 @@ extension OfflineQueueManager {
 
         // 1. Compute completion state universally upfront to prevent state-machine deadlocks.
         let remainingTasks = await session.allTasks
+        guard isUploadCompletionCurrent(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            token: completionToken
+        ) else {
+            MerianLog.data.debug(
+                "processUploadCompletion: superseded while enumerating tasks scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
+        let hasReplacementTaskForScan = remainingTasks.contains {
+            guard $0.taskIdentifier != taskIdentifier,
+                  $0.state != .canceling,
+                  $0.state != .completed,
+                  let identity = MediaStagingContract.parseUploadTaskDescription(
+                    $0.taskDescription
+                  ) else {
+                return false
+            }
+            return identity.scanId == scanId
+                && identity.syncGeneration != uploadIdentity.syncGeneration
+        }
+        let hasReplacementPreparation = uploadPreparationGenerations[scanId]
+            .map { $0 != uploadIdentity.syncGeneration } ?? false
+        guard !hasReplacementTaskForScan, !hasReplacementPreparation else {
+            MerianLog.data.debug(
+                "processUploadCompletion: replacement upload owns scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
         let hasActiveTasksForScan = remainingTasks.contains {
-            $0.taskIdentifier != taskIdentifier &&
-            MediaStagingContract.uploadTaskDescription($0.taskDescription, belongsTo: scanId)
+            guard $0.taskIdentifier != taskIdentifier,
+                  let identity = MediaStagingContract.parseUploadTaskDescription(
+                    $0.taskDescription
+                  ) else {
+                return false
+            }
+            return identity.scanId == scanId
+                && identity.syncGeneration == uploadIdentity.syncGeneration
         }
         MerianLog.data.debug(
             "processUploadCompletion: scanId=\(scanId, privacy: .public) hasActiveTasksForScan=\(hasActiveTasksForScan, privacy: .public) remainingTasks=\(remainingTasks.count, privacy: .public)"
         )
 
-        let didFail = await handleUploadFallback(scanId: scanId, uploadError: uploadError, responseStatusCode: responseStatusCode)
+        let didFail = handleUploadFallback(
+            scanId: scanId,
+            uploadError: uploadError,
+            responseStatusCode: responseStatusCode,
+            uploadGeneration: uploadIdentity.syncGeneration,
+            completionToken: completionToken
+        )
         guard !didFail else { return }
 
         // Only trigger inference for files that landed in the staging bucket.
@@ -195,6 +273,13 @@ extension OfflineQueueManager {
 
         // Fetch scan metadata on the main actor before handing off to background inference.
         let extracted = await fetchScanMetadata(for: scanId)
+        guard isUploadCompletionCurrent(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            token: completionToken
+        ) else {
+            return
+        }
         guard let extracted else {
             MerianLog.data.error(
                 "processUploadCompletion: missing queued scan metadata scanId=\(scanId, privacy: .public)"
@@ -205,6 +290,13 @@ extension OfflineQueueManager {
         // Compute confirmed object keys through the shared media staging contract so
         // completion, replay, and request construction cannot drift on filename rules.
         let stagingUserId = await currentMediaStagingUserId()
+        guard isUploadCompletionCurrent(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            token: completionToken
+        ) else {
+            return
+        }
         let stagedKeys = MediaStagingContract.splitObjectKeys(
             [],
             scanId: scanId,
@@ -222,8 +314,15 @@ extension OfflineQueueManager {
         // markScanAsStaged and tryClaimForInference are serialized on a single executor.
         // This closes the race where processUploadCompletion and replayInferenceForUploadedScans
         // could both see the scan in .staged and both dispatch concurrent inference tasks.
-        let inferenceActor = resolvedInferenceDbActor(container: extracted.container)
-        await inferenceActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+        let queueActor = resolvedQueueDbActor(container: extracted.container)
+        await queueActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+        guard isUploadCompletionCurrent(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            token: completionToken
+        ) else {
+            return
+        }
 
         // The foreground request still owns identification for an eligible
         // live-camera still. Keep the durable row staged, but do not dispatch a
@@ -239,13 +338,36 @@ extension OfflineQueueManager {
         // Atomically claim the scan for inference. If replayInferenceForUploadedScans already
         // claimed it between markScanAsStaged and here (same actor, so serialized), skip —
         // the replay path already dispatched the background download task.
-        await MainActor.run { _ = self.inferencePreparationScanIds.insert(scanId) }
-        let didClaimInference = await inferenceActor.tryClaimForInference(scanId: scanId)
+        guard let preparationGeneration = await MainActor.run(body: {
+            self.beginInferencePreparation(scanId: scanId)
+        }) else {
+            MerianLog.data.debug(
+                "processUploadCompletion: preparation already active scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
+        let didClaimInference = await queueActor.tryClaimForInference(scanId: scanId)
+        guard isUploadCompletionCurrent(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            token: completionToken
+        ) else {
+            clearInferencePreparation(
+                scanId: scanId,
+                generation: preparationGeneration
+            )
+            return
+        }
         if !didClaimInference {
             MerianLog.data.debug(
                 "processUploadCompletion: inference claim skipped scanId=\(scanId, privacy: .public)"
             )
-            await MainActor.run { _ = self.inferencePreparationScanIds.remove(scanId) }
+            await MainActor.run {
+                self.clearInferencePreparation(
+                    scanId: scanId,
+                    generation: preparationGeneration
+                )
+            }
             return
         }
         MerianLog.data.debug(
@@ -263,15 +385,60 @@ extension OfflineQueueManager {
             visualMediaItemsJSON: extracted.visualMediaItemsJSON,
             preferredGoal: extracted.preferredGoal
         )
-        await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
+        await dispatchInferenceDownloadTask(
+            scanId: scanId,
+            extracted: extractedWithKeys,
+            preparationGeneration: preparationGeneration
+        )
     }
 
     // MARK: - Post-Upload Helpers
 
+    func isUploadGenerationCurrent(
+        scanId: String,
+        generation: UUID?
+    ) -> Bool {
+        if let preparationGeneration = uploadPreparationGenerations[scanId] {
+            return generation == preparationGeneration
+        }
+        if let latestGeneration = latestUploadGenerations[scanId] {
+            return generation == latestGeneration
+        }
+        // After process launch there may be a legacy or generation-tagged
+        // URLSession task but no in-memory ownership yet. It remains eligible
+        // until a new preparation claims this scan.
+        return true
+    }
+
+    private func isUploadCompletionCurrent(
+        scanId: String,
+        generation: UUID?,
+        token: UUID
+    ) -> Bool {
+        uploadCompletionTokens[scanId]?.contains(token) == true
+            && isUploadGenerationCurrent(
+                scanId: scanId,
+                generation: generation
+            )
+    }
+
     /// Handles transport-level and HTTP-level upload errors.
     /// Returns `true` if an error was found and handled (caller should abort), `false` on success.
-    private func handleUploadFallback(scanId: String, uploadError: Error?, responseStatusCode: Int?) async -> Bool {
-        let currentAttempt = await MainActor.run { queueAttemptCount(for: scanId) }
+    private func handleUploadFallback(
+        scanId: String,
+        uploadError: Error?,
+        responseStatusCode: Int?,
+        uploadGeneration: UUID?,
+        completionToken: UUID
+    ) -> Bool {
+        guard isUploadCompletionCurrent(
+            scanId: scanId,
+            generation: uploadGeneration,
+            token: completionToken
+        ) else {
+            return true
+        }
+        let currentAttempt = queueAttemptCount(for: scanId)
         let disposition = OfflineQueueRetryPolicy.classifyUpload(
             error: uploadError,
             statusCode: responseStatusCode,
@@ -280,53 +447,45 @@ extension OfflineQueueManager {
 
         switch disposition {
         case .success:
-            await MainActor.run {
-                clearQueueRetry(scanId: scanId)
-                recordQueueEvent(
-                    scanId: scanId,
-                    jobId: Self.scanIngestionJobId(scanId: scanId),
-                    kind: .uploadCompleted,
-                    message: "Queued scan media upload completed.",
-                    httpStatus: responseStatusCode
-                )
-            }
+            clearQueueRetry(scanId: scanId)
+            recordQueueEvent(
+                scanId: scanId,
+                jobId: Self.scanIngestionJobId(scanId: scanId),
+                kind: .uploadCompleted,
+                message: "Queued scan media upload completed.",
+                httpStatus: responseStatusCode
+            )
             return false
         case .retry(let delay, let code, let message):
-            await MainActor.run {
-                let attempt = updateQueuedScanForRetry(
-                    scanId: scanId,
-                    code: code,
-                    message: message,
-                    httpStatus: responseStatusCode,
-                    delay: delay,
-                    resetTo: .pending
-                )
-                MerianLog.data.debug(
-                    "handleUploadFallback: scheduled upload retry scanId=\(scanId, privacy: .public) attempt=\(attempt, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s code=\(code, privacy: .public)"
-                )
-            }
+            let attempt = updateQueuedScanForRetry(
+                scanId: scanId,
+                code: code,
+                message: message,
+                httpStatus: responseStatusCode,
+                delay: delay,
+                resetTo: .pending
+            )
+            MerianLog.data.debug(
+                "handleUploadFallback: scheduled upload retry scanId=\(scanId, privacy: .public) attempt=\(attempt, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s code=\(code, privacy: .public)"
+            )
             return true
         case .needsAttention(let code, let message):
-            await MainActor.run {
-                _ = softDeleteQueuedScan(
-                    scanId: scanId,
-                    reason: message,
-                    errorCode: code,
-                    httpStatus: responseStatusCode,
-                    needsAttention: true
-                )
-            }
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: message,
+                errorCode: code,
+                httpStatus: responseStatusCode,
+                needsAttention: true
+            )
             return true
         case .terminal(let code, let message):
-            await MainActor.run {
-                _ = softDeleteQueuedScan(
-                    scanId: scanId,
-                    reason: message,
-                    errorCode: code,
-                    httpStatus: responseStatusCode,
-                    needsAttention: false
-                )
-            }
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: message,
+                errorCode: code,
+                httpStatus: responseStatusCode,
+                needsAttention: false
+            )
             return true
         case .waitForServer:
             return true
@@ -419,26 +578,107 @@ extension OfflineQueueManager {
 
     // MARK: - Background Inference Dispatch
 
+    private func claimInferenceGeneration(
+        scanId: String,
+        proposedGeneration: UUID?
+    ) -> UUID? {
+        if let proposedGeneration,
+           retiredInferenceGenerations.contains(proposedGeneration) {
+            return nil
+        }
+        if let currentGeneration = activeInferenceGenerations[scanId] {
+            guard currentGeneration == proposedGeneration else {
+                MerianLog.data.debug(
+                    "claimInferenceGeneration: ignored stale callback scanId=\(scanId, privacy: .public)"
+                )
+                return nil
+            }
+            return currentGeneration
+        }
+
+        let generation = proposedGeneration ?? UUID()
+        activeInferenceGenerations[scanId] = generation
+        SyncStateManager.shared.beginInferencing(generation: generation)
+        return generation
+    }
+
+    private func isInferenceGenerationCurrent(
+        scanId: String,
+        expectedGeneration: UUID?
+    ) -> Bool {
+        activeInferenceGenerations[scanId] == expectedGeneration
+    }
+
+    private func finishInferenceGeneration(
+        scanId: String,
+        generation: UUID
+    ) {
+        inferenceStatusProbeTasks.cancel(scanId, ifOwnedBy: generation)
+        retiredInferenceGenerations.insert(generation)
+        SyncStateManager.shared.completeSync(generation: generation)
+
+        guard activeInferenceGenerations[scanId] == generation else { return }
+        activeInferenceGenerations[scanId] = nil
+        inferenceDispatchDates[scanId] = nil
+    }
+
     /// Fetches WeatherKit backfill, builds an authenticated request, and dispatches it as a
     /// background URLSession download task so inference results arrive while the app is suspended.
     ///
     /// Weather backfill is persisted to SwiftData before dispatch so the delegate can read the
     /// hydrated telemetry from the store when the OS delivers the result — even after a relaunch.
     ///
-    /// Task description: `"inference_{scanId}"` — used by the delegate to route completion.
-    func dispatchInferenceDownloadTask(scanId: String, extracted: ExtractedScanData) async {
+    /// Task description carries both scan ID and a UUID generation so stale delegate,
+    /// watchdog, and retry paths cannot act on a replacement attempt.
+    func dispatchInferenceDownloadTask(
+        scanId: String,
+        extracted: ExtractedScanData,
+        preparationGeneration: UUID
+    ) async {
+        var ownsInferenceGeneration = false
+        var didDispatch = false
         defer {
-            inferencePreparationScanIds.remove(scanId)
+            clearInferencePreparation(
+                scanId: scanId,
+                generation: preparationGeneration
+            )
+            if ownsInferenceGeneration, !didDispatch {
+                finishInferenceGeneration(
+                    scanId: scanId,
+                    generation: preparationGeneration
+                )
+            }
+        }
+        guard isOnline,
+              isInferencePreparationCurrent(
+                scanId: scanId,
+                generation: preparationGeneration
+              ) else {
+            return
         }
         MerianLog.data.debug(
             "dispatchInferenceDownloadTask: requested scanId=\(scanId, privacy: .public) r2Keys=\(extracted.r2Keys.count, privacy: .public)"
         )
 
         let existingInferenceTasks = await backgroundSession.allTasks
+        guard isOnline,
+              isInferencePreparationCurrent(
+                scanId: scanId,
+                generation: preparationGeneration
+              ) else {
+            return
+        }
         if existingInferenceTasks.contains(where: { isLiveInferenceTask($0, scanId: scanId) }) {
             MerianLog.data.debug("dispatchInferenceDownloadTask: inference task already active for \(scanId, privacy: .private); skipping duplicate dispatch")
             return
         }
+        guard claimInferenceGeneration(
+            scanId: scanId,
+            proposedGeneration: preparationGeneration
+        ) != nil else {
+            return
+        }
+        ownsInferenceGeneration = true
 
         // The app may have backgrounded or relaunched after the foreground body
         // reached Edge but before its response returned. Consult the durable
@@ -448,8 +688,17 @@ extension OfflineQueueManager {
         // allowing the queued recovery request to proceed.
         let serverRecovery = await recoverCompletedInferenceFromServer(
             scanId: scanId,
-            reason: "pre-background-inference dispatch"
+            reason: "pre-background-inference dispatch",
+            expectedGeneration: preparationGeneration
         )
+        guard isOnline,
+              isInferencePreparationCurrent(
+                scanId: scanId,
+                generation: preparationGeneration
+              ),
+              activeInferenceGenerations[scanId] == preparationGeneration else {
+            return
+        }
         guard serverRecovery == .unresolved else {
             MerianLog.data.debug(
                 "dispatchInferenceDownloadTask: server owns or completed scanId=\(scanId, privacy: .public); skipping duplicate inference"
@@ -467,34 +716,68 @@ extension OfflineQueueManager {
             MerianLog.data.error(
                 "dispatchInferenceDownloadTask: preparation timed out scanId=\(scanId, privacy: .public)"
             )
-            await handleInferenceRetry(scanId: scanId, reason: "pre-dispatch timeout")
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: preparationGeneration,
+                reason: "pre-dispatch timeout"
+            )
             return
         } catch is CancellationError {
             MerianLog.data.error(
                 "dispatchInferenceDownloadTask: preparation cancelled scanId=\(scanId, privacy: .public)"
             )
-            await handleInferenceRetry(scanId: scanId, reason: "pre-dispatch cancelled")
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: preparationGeneration,
+                reason: "pre-dispatch cancelled"
+            )
             return
         } catch {
             MerianLog.data.error("dispatchInferenceDownloadTask: failed to build request for \(scanId, privacy: .private): \(error, privacy: .private)")
-            await handleInferenceRetry(scanId: scanId, reason: "request build failed")
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: preparationGeneration,
+                reason: "request build failed"
+            )
+            return
+        }
+        guard isOnline,
+              isInferencePreparationCurrent(
+                scanId: scanId,
+                generation: preparationGeneration
+              ),
+              activeInferenceGenerations[scanId] == preparationGeneration else {
             return
         }
 
         // Dispatch the background download task. The OS serializes the URLRequest (including
         // httpBody) at resume() time — safe to use inline httpBody on background sessions.
         let tasksBeforeDispatch = await backgroundSession.allTasks
+        guard isOnline,
+              isInferencePreparationCurrent(
+                scanId: scanId,
+                generation: preparationGeneration
+              ),
+              activeInferenceGenerations[scanId] == preparationGeneration else {
+            return
+        }
         if tasksBeforeDispatch.contains(where: { isLiveInferenceTask($0, scanId: scanId) }) {
             MerianLog.data.debug("dispatchInferenceDownloadTask: inference task appeared for \(scanId, privacy: .private); skipping duplicate dispatch")
             return
         }
 
         let task = backgroundSession.downloadTask(with: request)
-        task.taskDescription = "inference_\(scanId)"
-        await MainActor.run { SyncStateManager.shared.beginInferencing() }
+        task.taskDescription = InferenceURLSessionTaskContract.taskDescription(
+            scanId: scanId,
+            generation: preparationGeneration
+        )
         inferenceDispatchDates[scanId] = Date()
+        didDispatch = true
         task.resume()
-        scheduleInferenceStatusProbe(scanId: scanId)
+        scheduleInferenceStatusProbe(
+            scanId: scanId,
+            generation: preparationGeneration
+        )
 
         MerianLog.data.debug("🚀 BACKGROUND INFERENCE: Dispatched download task for \(scanId, privacy: .public)")
     }
@@ -638,16 +921,39 @@ extension OfflineQueueManager {
     /// - HTTP 4xx → tombstone (permanent failure)
     /// - HTTP 5xx / missing data → retry via durable queue metadata and `.staged` reset
     /// - HTTP 200 → persist `LocalScanRecord`, delete `OfflineQueuedScan`, fire notifications
-    func processInferenceDownloadResult(scanId: String, resultFileURL: URL, statusCode: Int?) async {
+    func processInferenceDownloadResult(
+        scanId: String,
+        generation proposedGeneration: UUID?,
+        resultFileURL: URL,
+        statusCode: Int?
+    ) async {
         defer { try? FileManager.default.removeItem(at: resultFileURL) }
-        _ = inferenceCompletionScanIds.insert(scanId)
+        guard let generation = claimInferenceGeneration(
+            scanId: scanId,
+            proposedGeneration: proposedGeneration
+        ) else {
+            MerianLog.data.debug(
+                "processInferenceDownloadResult: ignored stale result scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
         defer {
-            _ = inferenceCompletionScanIds.remove(scanId)
+            finishInferenceGeneration(scanId: scanId, generation: generation)
+        }
+
+        inferenceCompletionGenerations[scanId] = generation
+        defer {
+            if inferenceCompletionGenerations[scanId] == generation {
+                inferenceCompletionGenerations[scanId] = nil
+            }
             MerianLog.data.debug(
                 "processInferenceDownloadResult: cleared inference completion lock scanId=\(scanId, privacy: .public)"
             )
         }
-        cancelInferenceStatusProbe(scanId: scanId)
+        cancelInferenceStatusProbe(
+            scanId: scanId,
+            generation: generation
+        )
         MerianLog.data.debug(
             "processInferenceDownloadResult: scanId=\(scanId, privacy: .public) status=\(statusCode ?? -1, privacy: .public) file=\(resultFileURL.path, privacy: .public)"
         )
@@ -659,14 +965,21 @@ extension OfflineQueueManager {
                 await MainActor.run { _ = OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
             } else {
                 MerianLog.data.debug("Inference download non-200 [\(code)] for \(scanId, privacy: .private) — retry")
-                await handleInferenceRetry(scanId: scanId)
+                await handleInferenceRetry(
+                    scanId: scanId,
+                    generation: generation
+                )
             }
             return
         }
 
         guard let resultData = try? Data(contentsOf: resultFileURL), !resultData.isEmpty else {
             MerianLog.data.error("Background inference download: result file unreadable for \(scanId, privacy: .private)")
-            await handleInferenceRetry(scanId: scanId, reason: "empty response file")
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: generation,
+                reason: "empty response file"
+            )
             return
         }
 
@@ -688,7 +1001,9 @@ extension OfflineQueueManager {
         }
 
         let pipelineStart = CFAbsoluteTimeGetCurrent()
-        await MainActor.run { SyncStateManager.shared.beginFinalizing() }
+        await MainActor.run {
+            SyncStateManager.shared.beginFinalizing(generation: generation)
+        }
 
         // Use a fresh actor so a failed atomic save doesn't corrupt the shared actor's context.
         let cleanupActor = BackgroundDatabaseActor(modelContainer: extracted.container)
@@ -703,6 +1018,16 @@ extension OfflineQueueManager {
             videoFilePaths: extracted.videoFilePaths,
             capturedMediaJSON: extracted.capturedMediaJSON
         )
+
+        guard isInferenceGenerationCurrent(
+            scanId: scanId,
+            expectedGeneration: generation
+        ) else {
+            MerianLog.data.debug(
+                "processInferenceDownloadResult: ownership changed during finalization scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
 
         // Delete the OfflineQueuedScan from the main ModelContext so @Query re-evaluates in
         // any open sheet. The background actor intentionally left it alive (see wasCleaned doc);
@@ -721,7 +1046,10 @@ extension OfflineQueueManager {
             didDeleteQueuedScan = await OfflineQueueManager.shared.deleteQueuedScan(
                 scanId: scanId,
                 explicitlyAdoptedMediaPaths: adoptedMediaPaths,
-                preservePreferredGoalHint: true
+                preservePreferredGoalHint: true,
+                inferenceExpectation: InferenceGenerationExpectation(
+                    generation: generation
+                )
             )
         } else {
             didDeleteQueuedScan = false
@@ -793,6 +1121,15 @@ extension OfflineQueueManager {
                 "processInferenceDownloadResult: did not delete queued scanId=\(scanId, privacy: .public) wasCleaned=\(processingResult.wasCleaned, privacy: .public)"
             )
         }
+        guard isInferenceGenerationCurrent(
+            scanId: scanId,
+            expectedGeneration: generation
+        ) else {
+            MerianLog.data.debug(
+                "processInferenceDownloadResult: skipped stale post-finalization state scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
         MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
         await MainActor.run {
             // updateUnsyncedItemCount() is already called by deleteQueuedScan above;
@@ -802,7 +1139,6 @@ extension OfflineQueueManager {
             }
             CircuitBreakerManager.shared.recordSuccess()
             OfflineQueueManager.shared.markScanJobComplete(scanId: scanId)
-            SyncStateManager.shared.completeSync()
         }
     }
 
@@ -840,59 +1176,174 @@ extension OfflineQueueManager {
         }
     }
 
-    private func scheduleInferenceStatusProbe(scanId: String) {
-        inferenceStatusProbeTasks[scanId]?.cancel()
-        inferenceStatusProbeTasks[scanId] = Task { [weak self] in
-            // Cumulative ~105s: longer than the 90s inference request timeout, so the
-            // watchdog only fires when URLSession did not deliver either success or failure.
-            let delays: [Duration] = [.seconds(10), .seconds(30), .seconds(65)]
-            for delay in delays {
-                try? await Task.sleep(for: delay)
-                guard !Task.isCancelled else { return }
+    private func scheduleInferenceStatusProbe(
+        scanId: String,
+        generation: UUID
+    ) {
+        inferenceStatusProbeTasks.replace(
+            for: scanId,
+            ownerGeneration: generation
+        ) { [weak self] token in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
-                let recovered = await self.recoverCompletedInferenceFromServer(
-                    scanId: scanId,
-                    reason: "delayed probe"
-                )
-                if recovered != .unresolved { return }
-                let activeTaskCount = await self.activeInferenceTaskCount(scanId: scanId)
-                MerianLog.data.debug(
-                    "scheduleInferenceStatusProbe: scan still pending scanId=\(scanId, privacy: .public) activeTasks=\(activeTaskCount, privacy: .public)"
-                )
-            }
+                defer {
+                    _ = self.inferenceStatusProbeTasks.clearIfCurrent(
+                        scanId,
+                        token: token
+                    )
+                }
 
-            await MainActor.run {
-                guard let self else { return }
+                // Cumulative ~105s: longer than the 90s inference request timeout, so the
+                // watchdog only fires when URLSession did not deliver either success or failure.
+                let delays: [Duration] = [.seconds(10), .seconds(30), .seconds(65)]
+                for delay in delays {
+                    do {
+                        try await Task.sleep(for: delay)
+                    } catch {
+                        return
+                    }
+                    guard self.inferenceStatusProbeTasks.isCurrent(
+                        scanId,
+                        token: token,
+                        ownerGeneration: generation
+                    ),
+                    self.activeInferenceGenerations[scanId] == generation else {
+                        return
+                    }
+
+                    let recovered = await self.recoverCompletedInferenceFromServer(
+                        scanId: scanId,
+                        reason: "delayed probe",
+                        expectedGeneration: generation
+                    )
+                    if recovered != .unresolved {
+                        guard self.inferenceStatusProbeTasks.isCurrent(
+                            scanId,
+                            token: token,
+                            ownerGeneration: generation
+                        ),
+                        self.activeInferenceGenerations[scanId] == generation else {
+                            return
+                        }
+                        let cancelledCount = await self.cancelActiveInferenceTasks(
+                            scanId: scanId,
+                            generation: generation
+                        )
+                        guard self.activeInferenceGenerations[scanId] == generation else {
+                            return
+                        }
+                        guard self.inferenceStatusProbeTasks.clearIfCurrent(
+                            scanId,
+                            token: token
+                        ) else {
+                            return
+                        }
+                        self.finishInferenceGeneration(
+                            scanId: scanId,
+                            generation: generation
+                        )
+                        MerianLog.data.debug(
+                            "scheduleInferenceStatusProbe: server assumed ownership scanId=\(scanId, privacy: .public) cancelledTasks=\(cancelledCount, privacy: .public)"
+                        )
+                        return
+                    }
+
+                    guard self.inferenceStatusProbeTasks.isCurrent(
+                        scanId,
+                        token: token,
+                        ownerGeneration: generation
+                    ),
+                    self.activeInferenceGenerations[scanId] == generation else {
+                        return
+                    }
+
+                    let activeTaskCount = await self.activeInferenceTaskCount(
+                        scanId: scanId,
+                        generation: generation
+                    )
+                    MerianLog.data.debug(
+                        "scheduleInferenceStatusProbe: scan still pending scanId=\(scanId, privacy: .public) activeTasks=\(activeTaskCount, privacy: .public)"
+                    )
+                }
+
+                guard self.inferenceStatusProbeTasks.isCurrent(
+                    scanId,
+                    token: token,
+                    ownerGeneration: generation
+                ),
+                self.activeInferenceGenerations[scanId] == generation else {
+                    return
+                }
+
                 let elapsed = self.inferenceDispatchDates[scanId]
                     .map { Date().timeIntervalSince($0) } ?? -1
-                self.inferenceStatusProbeTasks[scanId] = nil
-                self.inferenceDispatchDates[scanId] = nil
                 MerianLog.data.debug(
                     "scheduleInferenceStatusProbe: watchdog firing scanId=\(scanId, privacy: .public) elapsed=\(String(format: "%.1f", elapsed), privacy: .public)s"
                 )
-            }
 
-            guard let self else { return }
-            let cancelledCount = await self.cancelActiveInferenceTasks(scanId: scanId)
-            MerianLog.data.debug(
-                "scheduleInferenceStatusProbe: cancelled hung inference tasks scanId=\(scanId, privacy: .public) count=\(cancelledCount, privacy: .public)"
-            )
-            await self.handleInferenceRetry(scanId: scanId, reason: "watchdog")
+                let cancelledCount = await self.cancelActiveInferenceTasks(
+                    scanId: scanId,
+                    generation: generation
+                )
+                guard self.inferenceStatusProbeTasks.clearIfCurrent(
+                    scanId,
+                    token: token
+                ),
+                self.activeInferenceGenerations[scanId] == generation else {
+                    return
+                }
+                self.finishInferenceGeneration(
+                    scanId: scanId,
+                    generation: generation
+                )
+                MerianLog.data.debug(
+                    "scheduleInferenceStatusProbe: cancelled hung inference tasks scanId=\(scanId, privacy: .public) count=\(cancelledCount, privacy: .public)"
+                )
+
+                guard self.activeInferenceGenerations[scanId] == nil else { return }
+                await self.handleInferenceRetry(
+                    scanId: scanId,
+                    generation: nil,
+                    reason: "watchdog"
+                )
+            }
         }
         MerianLog.data.debug("scheduleInferenceStatusProbe: scheduled scanId=\(scanId, privacy: .public)")
     }
 
-    private func cancelInferenceStatusProbe(scanId: String) {
-        inferenceStatusProbeTasks[scanId]?.cancel()
-        inferenceStatusProbeTasks[scanId] = nil
-        inferenceDispatchDates[scanId] = nil
+    private func cancelInferenceStatusProbe(
+        scanId: String,
+        generation: UUID
+    ) {
+        inferenceStatusProbeTasks.cancel(
+            scanId,
+            ifOwnedBy: generation
+        )
+        if activeInferenceGenerations[scanId] == generation {
+            inferenceDispatchDates[scanId] = nil
+        }
         MerianLog.data.debug("cancelInferenceStatusProbe: cancelled scanId=\(scanId, privacy: .public)")
     }
 
-    private func clearServerIngestionState(scanId: String) {
-        serverIngestionPollTasks[scanId]?.cancel()
-        serverIngestionPollTasks[scanId] = nil
+    private func clearServerIngestionState(
+        scanId: String,
+        preservingPollToken: UUID? = nil
+    ) {
+        if preservingPollToken == nil {
+            serverIngestionPollTasks.cancel(scanId)
+        }
         scanIngestionJobStates[scanId] = nil
+    }
+
+    private func isServerIngestionPollCurrent(
+        scanId: String,
+        token: UUID?
+    ) -> Bool {
+        guard let token else { return true }
+        return serverIngestionPollTasks.isCurrent(
+            scanId,
+            token: token
+        )
     }
 
     private func scheduleServerIngestionPoll(
@@ -900,17 +1351,39 @@ extension OfflineQueueManager {
         delay: TimeInterval,
         reason: String
     ) {
-        serverIngestionPollTasks[scanId]?.cancel()
-        serverIngestionPollTasks[scanId] = Task { [weak self] in
-            let nanoseconds = UInt64(max(1, delay) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            guard !Task.isCancelled else { return }
-            guard let self else { return }
-            await MainActor.run {
-                self.serverIngestionPollTasks[scanId] = nil
+        serverIngestionPollTasks.replace(
+            for: scanId,
+            ownerGeneration: nil
+        ) { [weak self] token in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                defer {
+                    _ = self.serverIngestionPollTasks.clearIfCurrent(
+                        scanId,
+                        token: token
+                    )
+                }
+                let nanoseconds = UInt64(max(1, delay) * 1_000_000_000)
+                do {
+                    try await Task.sleep(nanoseconds: nanoseconds)
+                } catch {
+                    return
+                }
+                guard self.serverIngestionPollTasks.isCurrent(
+                    scanId,
+                    token: token
+                ),
+                self.activeInferenceGenerations[scanId] == nil,
+                self.isOnline else {
+                    return
+                }
+                await self.handleInferenceRetry(
+                    scanId: scanId,
+                    generation: nil,
+                    reason: reason,
+                    serverPollToken: token
+                )
             }
-            guard await MainActor.run(body: { self.isOnline }) else { return }
-            await self.handleInferenceRetry(scanId: scanId, reason: reason)
         }
         MerianLog.data.debug(
             "scheduleServerIngestionPoll: scheduled scanId=\(scanId, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s reason=\(reason, privacy: .public)"
@@ -931,19 +1404,43 @@ extension OfflineQueueManager {
             resetTo: nil
         )
 
-        serverIngestionPollTasks[scanId]?.cancel()
-        serverIngestionPollTasks[scanId] = Task { [weak self] in
-            let nanoseconds = UInt64(max(1, delay) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            guard !Task.isCancelled else { return }
-            guard let self else { return }
-            await MainActor.run {
-                self.serverIngestionPollTasks[scanId] = nil
-            }
-            guard await MainActor.run(body: { self.isOnline }) else { return }
-            let retryActor = await MainActor.run { self.resolvedInferenceDbActor(container: container) }
-            await retryActor.transitionScanToStaged(id: scanId)
-            await MainActor.run {
+        serverIngestionPollTasks.replace(
+            for: scanId,
+            ownerGeneration: nil
+        ) { [weak self] token in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                defer {
+                    _ = self.serverIngestionPollTasks.clearIfCurrent(
+                        scanId,
+                        token: token
+                    )
+                }
+                let nanoseconds = UInt64(max(1, delay) * 1_000_000_000)
+                do {
+                    try await Task.sleep(nanoseconds: nanoseconds)
+                } catch {
+                    return
+                }
+                guard self.serverIngestionPollTasks.isCurrent(
+                    scanId,
+                    token: token
+                ),
+                self.activeInferenceGenerations[scanId] == nil,
+                self.isOnline else {
+                    return
+                }
+
+                let retryActor = self.resolvedQueueDbActor(container: container)
+                await retryActor.transitionScanToStaged(id: scanId)
+                guard !Task.isCancelled,
+                      self.serverIngestionPollTasks.isCurrent(
+                        scanId,
+                        token: token
+                      ),
+                      self.activeInferenceGenerations[scanId] == nil else {
+                    return
+                }
                 self.updateUnsyncedItemCount()
                 self.replayInferenceForUploadedScans()
             }
@@ -954,15 +1451,25 @@ extension OfflineQueueManager {
     }
 
     private func isLiveInferenceTask(_ task: URLSessionTask, scanId: String) -> Bool {
-        task.taskDescription == "inference_\(scanId)"
+        InferenceURLSessionTaskContract.parse(task.taskDescription)?.scanId == scanId
             && task.state != .canceling
             && task.state != .completed
     }
 
-    private func cancelActiveInferenceTasks(scanId: String) async -> Int {
+    private func cancelActiveInferenceTasks(
+        scanId: String,
+        generation: UUID
+    ) async -> Int {
         let tasks = await backgroundSession.allTasks
         let matchingTasks = tasks.filter {
-            $0.taskDescription == "inference_\(scanId)" && $0.state != .completed
+            guard let identity = InferenceURLSessionTaskContract.parse(
+                $0.taskDescription
+            ) else {
+                return false
+            }
+            return identity.scanId == scanId
+                && identity.generation == generation
+                && $0.state != .completed
         }
         for task in matchingTasks {
             task.cancel()
@@ -970,12 +1477,39 @@ extension OfflineQueueManager {
         return matchingTasks.count
     }
 
-    private func activeInferenceTaskCount(scanId: String) async -> Int {
+    private func activeInferenceTaskCount(
+        scanId: String,
+        generation: UUID
+    ) async -> Int {
         let tasks = await backgroundSession.allTasks
-        return tasks.filter { isLiveInferenceTask($0, scanId: scanId) }.count
+        return tasks.filter { task in
+            guard isLiveInferenceTask(task, scanId: scanId),
+                  let identity = InferenceURLSessionTaskContract.parse(
+                    task.taskDescription
+                  ) else {
+                return false
+            }
+            return identity.generation == generation
+        }.count
     }
 
-    private func recoverCompletedInferenceFromServer(scanId: String, reason: String) async -> ScanStatusRecoveryAction {
+    private func recoverCompletedInferenceFromServer(
+        scanId: String,
+        reason: String,
+        expectedGeneration: UUID?,
+        serverPollToken: UUID? = nil
+    ) async -> ScanStatusRecoveryAction {
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
+            return .unresolved
+        }
         let requiredVideoCount = requiredVideoCountForQueuedScan(scanId: scanId)
         let response: ScanStatusResponse
         do {
@@ -987,6 +1521,18 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "recoverCompletedInferenceFromServer: status check failed scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
+            return .unresolved
+        }
+
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
             return .unresolved
         }
 
@@ -1003,7 +1549,12 @@ extension OfflineQueueManager {
         )
         switch action {
         case .recovered:
-            return await recoverFoundScanFromServer(scanId: scanId, reason: reason) ? .recovered : .unresolved
+            return await recoverFoundScanFromServer(
+                scanId: scanId,
+                reason: reason,
+                expectedGeneration: expectedGeneration,
+                serverPollToken: serverPollToken
+            ) ? .recovered : .unresolved
         case .waitForServer(let delay):
             scheduleServerIngestionPoll(
                 scanId: scanId,
@@ -1028,16 +1579,37 @@ extension OfflineQueueManager {
                 errorCode: "server_terminal_failure",
                 needsAttention: true
             )
-            clearServerIngestionState(scanId: scanId)
+            clearServerIngestionState(
+                scanId: scanId,
+                preservingPollToken: serverPollToken
+            )
             return action
         case .unresolved:
             return .unresolved
         }
     }
 
-    private func recoverFoundScanFromServer(scanId: String, reason: String) async -> Bool {
-        clearServerIngestionState(scanId: scanId)
-        cancelInferenceStatusProbe(scanId: scanId)
+    private func recoverFoundScanFromServer(
+        scanId: String,
+        reason: String,
+        expectedGeneration: UUID?,
+        serverPollToken: UUID?
+    ) async -> Bool {
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
+            return false
+        }
+        clearServerIngestionState(
+            scanId: scanId,
+            preservingPollToken: serverPollToken
+        )
         clearQueueRetry(scanId: scanId)
         let didSyncTarget: Bool
         if let context = modelContext {
@@ -1049,6 +1621,18 @@ extension OfflineQueueManager {
             didSyncTarget = false
         }
 
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
+            return false
+        }
+
         let didPromoteLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
         guard didPromoteLocalRecord else {
             MerianLog.data.debug(
@@ -1056,22 +1640,64 @@ extension OfflineQueueManager {
             )
             if !didSyncTarget, let context = modelContext {
                 await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
+                guard !Task.isCancelled,
+                      isServerIngestionPollCurrent(
+                          scanId: scanId,
+                          token: serverPollToken
+                      ),
+                      isInferenceGenerationCurrent(
+                          scanId: scanId,
+                          expectedGeneration: expectedGeneration
+                      ) else {
+                    return false
+                }
                 ScanLibraryEvents.postLibraryDidUpdate()
             }
             return false
         }
 
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
+            return false
+        }
+
         let didDeleteQueue = await deleteQueuedScan(
             scanId: scanId,
-            preservePreferredGoalHint: true
+            preservePreferredGoalHint: true,
+            inferenceExpectation: InferenceGenerationExpectation(
+                generation: expectedGeneration
+            ),
+            serverPollTokenToPreserve: serverPollToken
         )
-        if didDeleteQueue {
-            await ScanMilestoneCoordinator.shared.processCompletedScan(
-                scanId: scanId,
-                speciesData: nil,
-                modelContainer: modelContext?.container,
-                preferredGoal: buildPreferredGoalHint(scanId: scanId)
+        guard didDeleteQueue else {
+            MerianLog.data.debug(
+                "recoverCompletedInferenceFromServer: queue deletion lost ownership or failed scanId=\(scanId, privacy: .public)"
             )
+            return false
+        }
+        await ScanMilestoneCoordinator.shared.processCompletedScan(
+            scanId: scanId,
+            speciesData: nil,
+            modelContainer: modelContext?.container,
+            preferredGoal: buildPreferredGoalHint(scanId: scanId)
+        )
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
+            return false
         }
         markScanJobComplete(scanId: scanId)
         updateUnsyncedItemCount()
@@ -1080,7 +1706,6 @@ extension OfflineQueueManager {
             "recoverCompletedInferenceFromServer: recovered scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public) promotedLocal=\(didPromoteLocalRecord, privacy: .public) deletedQueue=\(didDeleteQueue, privacy: .public)"
         )
 
-        SyncStateManager.shared.completeSync()
         return true
     }
 
@@ -1094,7 +1719,8 @@ extension OfflineQueueManager {
 
     func serverOwnedInferencingScanIds(
         excluding locallyActiveScanIds: Set<String>,
-        reason: String
+        reason: String,
+        observedThrough: Date
     ) async -> Set<String> {
         guard isOnline, let context = modelContext else { return [] }
         let inferencingRaw = ScanQueueState.inferencing.rawValue
@@ -1102,14 +1728,18 @@ extension OfflineQueueManager {
             predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
         )
         let candidateIds = ((try? context.fetch(descriptor)) ?? [])
+            .filter {
+                $0.queueUpdatedAt <= observedThrough
+                    && !locallyActiveScanIds.contains($0.id)
+            }
             .map(\.id)
-            .filter { !locallyActiveScanIds.contains($0) }
 
         var retained = Set<String>()
         for scanId in candidateIds {
             let action = await recoverCompletedInferenceFromServer(
                 scanId: scanId,
-                reason: reason
+                reason: reason,
+                expectedGeneration: nil
             )
             switch action {
             case .waitForServer, .retryAfter:
@@ -1164,15 +1794,39 @@ extension OfflineQueueManager {
     /// Code=-999 (NSURLErrorCancelled) is special-cased: it means an owner path explicitly
     /// cancelled the task. Either the parallel live inference path already succeeded, the user
     /// deleted the queued scan, or the inference watchdog reset the scan to `.staged`.
-    func handleInferenceTaskNetworkFailure(scanId: String, error: Error) async {
-        cancelInferenceStatusProbe(scanId: scanId)
+    func handleInferenceTaskNetworkFailure(
+        scanId: String,
+        generation proposedGeneration: UUID?,
+        error: Error
+    ) async {
+        guard let generation = claimInferenceGeneration(
+            scanId: scanId,
+            proposedGeneration: proposedGeneration
+        ) else {
+            MerianLog.data.debug(
+                "handleInferenceTaskNetworkFailure: ignored stale failure scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
+        defer {
+            finishInferenceGeneration(scanId: scanId, generation: generation)
+        }
+
+        cancelInferenceStatusProbe(
+            scanId: scanId,
+            generation: generation
+        )
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
             MerianLog.data.debug("Background inference cancelled for \(scanId, privacy: .private) — owner path handled retry or cleanup")
             return
         }
         MerianLog.data.debug("Background inference download failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-        await handleInferenceRetry(scanId: scanId, reason: "network failure")
+        await handleInferenceRetry(
+            scanId: scanId,
+            generation: generation,
+            reason: "network failure"
+        )
     }
 
     /// Records durable retry metadata for a scan and resets it to `.staged` for the next
@@ -1183,23 +1837,54 @@ extension OfflineQueueManager {
     /// the response, a naive retry would re-run inference and insert a duplicate row. When
     /// the scan is found server-side, targeted historical sync restores the `LocalScanRecord`
     /// and the queue entry is deleted.
-    private func handleInferenceRetry(scanId: String, reason: String = "retry") async {
+    private func handleInferenceRetry(
+        scanId: String,
+        generation: UUID?,
+        reason: String = "retry",
+        serverPollToken: UUID? = nil
+    ) async {
+        guard isServerIngestionPollCurrent(
+            scanId: scanId,
+            token: serverPollToken
+        ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: generation
+              ) else {
+            return
+        }
         guard let container = modelContext?.container else { return }
 
-        let recoveryAction = await recoverCompletedInferenceFromServer(scanId: scanId, reason: reason)
+        let recoveryAction = await recoverCompletedInferenceFromServer(
+            scanId: scanId,
+            reason: reason,
+            expectedGeneration: generation,
+            serverPollToken: serverPollToken
+        )
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ) else {
+            return
+        }
         if recoveryAction != .unresolved {
             return
         }
+        guard isInferenceGenerationCurrent(
+            scanId: scanId,
+            expectedGeneration: generation
+        ) else {
+            return
+        }
 
-        let currentAttempt = await MainActor.run { queueAttemptCount(for: scanId) }
+        let currentAttempt = queueAttemptCount(for: scanId)
         guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: currentAttempt) else {
-            await MainActor.run {
-                markQueuedScanNeedsAttention(
-                    scanId: scanId,
-                    code: "automatic_retry_limit_reached",
-                    message: OfflineQueueRetryPolicy.automaticRetryLimitMessage()
-                )
-            }
+            markQueuedScanNeedsAttention(
+                scanId: scanId,
+                code: "automatic_retry_limit_reached",
+                message: OfflineQueueRetryPolicy.automaticRetryLimitMessage()
+            )
             MerianLog.data.debug(
                 "Inference retry limit reached for \(scanId, privacy: .private) after \(currentAttempt, privacy: .public) attempts"
             )
@@ -1207,23 +1892,48 @@ extension OfflineQueueManager {
         }
 
         let delay = OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1)
-        let retries = await MainActor.run {
-            updateQueuedScanForRetry(
-                scanId: scanId,
-                code: "inference_retry",
-                message: reason,
-                delay: delay,
-                resetTo: nil
-            )
-        }
-        let retryActor = resolvedInferenceDbActor(container: container)
+        let retries = updateQueuedScanForRetry(
+            scanId: scanId,
+            code: "inference_retry",
+            message: reason,
+            delay: delay,
+            resetTo: nil
+        )
+        let retryActor = resolvedQueueDbActor(container: container)
         await retryActor.transitionScanToStaged(id: scanId)
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: generation
+              ) else {
+            return
+        }
         MerianLog.data.debug("Inference failed for \(scanId, privacy: .private) — scheduled durable retry \(retries, privacy: .public) reason=\(reason, privacy: .private)")
         updateUnsyncedItemCount()
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(delay))
-            guard !Task.isCancelled else { return }
-            self.replayInferenceForUploadedScans()
+        inferenceRetryTasks.replace(
+            for: scanId,
+            ownerGeneration: nil
+        ) { [weak self] token in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    try await Task.sleep(for: .seconds(delay))
+                } catch {
+                    return
+                }
+                guard self.inferenceRetryTasks.clearIfCurrent(
+                    scanId,
+                    token: token
+                ),
+                self.activeInferenceGenerations[scanId] == nil else {
+                    return
+                }
+                self.replayInferenceForUploadedScans()
+            }
         }
     }
 }

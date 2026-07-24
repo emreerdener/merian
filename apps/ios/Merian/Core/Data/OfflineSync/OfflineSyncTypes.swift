@@ -82,6 +82,140 @@ struct StagedMediaObjectKeys: Sendable, Equatable {
 struct MediaStagingUploadTaskIdentity: Sendable, Equatable {
     let scanId: String
     let uploadIndex: Int?
+    let syncGeneration: UUID?
+}
+
+struct InferenceURLSessionTaskIdentity: Sendable, Equatable {
+    let scanId: String
+    let generation: UUID?
+}
+
+/// Optional guard used by queue deletion paths that originate from inference work.
+///
+/// The wrapper is itself optional so `nil` can continue to mean "explicit,
+/// unguarded deletion", while `InferenceGenerationExpectation(generation: nil)`
+/// means "delete only while this scan still has no in-process generation".
+struct InferenceGenerationExpectation: Sendable, Equatable {
+    let generation: UUID?
+}
+
+enum InferenceURLSessionTaskContract {
+    private static let currentPrefix = "inference_v2"
+    private static let legacyPrefix = "inference_"
+
+    static func taskDescription(scanId: String, generation: UUID) -> String {
+        "\(currentPrefix)|\(generation.uuidString.lowercased())|\(scanId)"
+    }
+
+    static func parse(_ description: String?) -> InferenceURLSessionTaskIdentity? {
+        guard let description else { return nil }
+
+        if description.hasPrefix("\(currentPrefix)|") {
+            let parts = description.split(
+                separator: "|",
+                maxSplits: 2,
+                omittingEmptySubsequences: false
+            )
+            guard parts.count == 3,
+                  String(parts[0]) == currentPrefix,
+                  let generation = UUID(uuidString: String(parts[1])),
+                  !parts[2].isEmpty else {
+                return nil
+            }
+            return InferenceURLSessionTaskIdentity(
+                scanId: String(parts[2]),
+                generation: generation
+            )
+        }
+
+        guard description.hasPrefix(legacyPrefix) else { return nil }
+        let scanId = String(description.dropFirst(legacyPrefix.count))
+        guard !scanId.isEmpty else { return nil }
+        return InferenceURLSessionTaskIdentity(scanId: scanId, generation: nil)
+    }
+}
+
+/// Main-actor task registry with compare-before-clear ownership.
+///
+/// Cancelling a Swift task is cooperative. A replaced task may therefore resume
+/// after its successor has occupied the same key. Every task receives a unique
+/// token and must still own that token before clearing the slot or performing
+/// delayed work.
+@MainActor
+final class GenerationTaskRegistry<Key: Hashable> {
+    private struct Entry {
+        let token: UUID
+        let ownerGeneration: UUID?
+        let task: Task<Void, Never>
+    }
+
+    private var entries: [Key: Entry] = [:]
+
+    var keys: Set<Key> {
+        Set(entries.keys)
+    }
+
+    var count: Int {
+        entries.count
+    }
+
+    @discardableResult
+    func replace(
+        for key: Key,
+        ownerGeneration: UUID?,
+        makeTask: (UUID) -> Task<Void, Never>
+    ) -> UUID {
+        let previous = entries.removeValue(forKey: key)
+        previous?.task.cancel()
+
+        let token = UUID()
+        let task = makeTask(token)
+        entries[key] = Entry(
+            token: token,
+            ownerGeneration: ownerGeneration,
+            task: task
+        )
+        return token
+    }
+
+    func isCurrent(
+        _ key: Key,
+        token: UUID,
+        ownerGeneration: UUID? = nil
+    ) -> Bool {
+        guard let entry = entries[key], entry.token == token else { return false }
+        return ownerGeneration == nil || entry.ownerGeneration == ownerGeneration
+    }
+
+    @discardableResult
+    func clearIfCurrent(
+        _ key: Key,
+        token: UUID,
+        cancel: Bool = false
+    ) -> Bool {
+        guard let entry = entries[key], entry.token == token else { return false }
+        entries[key] = nil
+        if cancel {
+            entry.task.cancel()
+        }
+        return true
+    }
+
+    func cancel(_ key: Key) {
+        let entry = entries.removeValue(forKey: key)
+        entry?.task.cancel()
+    }
+
+    func cancel(_ key: Key, ifOwnedBy ownerGeneration: UUID) {
+        guard entries[key]?.ownerGeneration == ownerGeneration else { return }
+        cancel(key)
+    }
+
+    func cancelAll() {
+        let tasks = entries.values.map(\.task)
+        entries.removeAll()
+        tasks.forEach { $0.cancel() }
+    }
 }
 
 struct StagingUploadFile: Codable, Sendable, Equatable {
@@ -269,18 +403,33 @@ enum MediaStagingContract {
         }
     }
 
-    static func uploadTaskDescription(scanId: String, uploadIndex: Int) -> String {
-        "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)"
+    static func uploadTaskDescription(
+        scanId: String,
+        uploadIndex: Int,
+        syncGeneration: UUID? = nil
+    ) -> String {
+        if let syncGeneration {
+            return "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)|\(syncGeneration.uuidString.lowercased())"
+        }
+        return "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)"
     }
 
     static func parseUploadTaskDescription(_ description: String?) -> MediaStagingUploadTaskIdentity? {
         guard let description, !description.hasPrefix("inference_") else { return nil }
 
         let parts = description.split(separator: "|", omittingEmptySubsequences: false)
-        if parts.count == 3, String(parts[0]) == uploadTaskPrefix {
+        if parts.count == 3 || parts.count == 4,
+           String(parts[0]) == uploadTaskPrefix {
+            let syncGeneration = parts.count == 4
+                ? UUID(uuidString: String(parts[3]))
+                : nil
+            if parts.count == 4, syncGeneration == nil {
+                return nil
+            }
             return MediaStagingUploadTaskIdentity(
                 scanId: String(parts[1]),
-                uploadIndex: Int(parts[2])
+                uploadIndex: Int(parts[2]),
+                syncGeneration: syncGeneration
             )
         }
 
@@ -288,7 +437,8 @@ enum MediaStagingContract {
         guard let legacyScanId = legacyParts.first, !legacyScanId.isEmpty else { return nil }
         return MediaStagingUploadTaskIdentity(
             scanId: legacyScanId,
-            uploadIndex: legacyParts.dropFirst().first.flatMap(Int.init)
+            uploadIndex: legacyParts.dropFirst().first.flatMap(Int.init),
+            syncGeneration: nil
         )
     }
 

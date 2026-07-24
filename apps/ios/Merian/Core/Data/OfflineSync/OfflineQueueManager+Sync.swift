@@ -270,22 +270,31 @@ extension OfflineQueueManager {
             return
         }
 
+        let generation = UUID()
         isSyncing = true
+        syncGeneration = generation
 
         syncTask = BackgroundTaskWrapper.execute(
             name: "OfflineQueueSync",
-            expirationHandler: {
+            expirationHandler: { [weak self] in
                 MerianLog.data.debug("OfflineQueueSync background task expired")
-                Task { @MainActor in
-                    OfflineQueueManager.shared.isSyncing = false
-                    SyncStateManager.shared.completeUploadPhase()
+                Task { @MainActor [weak self] in
+                    self?.expireUploadSync(generation: generation)
                 }
             }
         ) { [weak self] _ in
             guard let self else { return }
+            guard await MainActor.run(body: {
+                self.isCurrentUploadSync(generation)
+            }) else { return }
 
-            let dbActor = BackgroundDatabaseActor(modelContainer: container)
+            let dbActor = await MainActor.run {
+                self.resolvedQueueDbActor(container: container)
+            }
             let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
+            guard await MainActor.run(body: {
+                self.isCurrentUploadSync(generation)
+            }) else { return }
             let session  = await MainActor.run { self.backgroundSession }
             let allowsLargeUploads = await MainActor.run { self.allowsLargeQueuedUploadsOnCurrentNetwork }
             let forcedLargeUploadIds = await MainActor.run { self.userRequestedLargeUploadScanIds }
@@ -301,22 +310,29 @@ extension OfflineQueueManager {
             )
 
             guard !filteredScans.isEmpty else {
-                await MainActor.run {
-                    self.isSyncing = false
-                    if scanData.isEmpty { SyncStateManager.shared.completeUploadPhase() }
+                _ = await MainActor.run {
+                    self.finishUploadSync(generation: generation)
                 }
                 return
             }
 
             await MainActor.run {
-                SyncStateManager.shared.beginSync(itemCount: filteredScans.count)
+                guard self.isCurrentUploadSync(generation) else { return }
+                SyncStateManager.shared.beginSync(
+                    itemCount: filteredScans.count,
+                    generation: generation
+                )
             }
 
             let stagingUserId = await self.currentMediaStagingUserId()
+            guard await MainActor.run(body: {
+                self.isCurrentUploadSync(generation)
+            }) else { return }
             let preparation = self.prepareUploadItems(from: filteredScans, userId: stagingUserId)
 
             if !preparation.rejectedScanIds.isEmpty {
                 await MainActor.run {
+                    guard self.isCurrentUploadSync(generation) else { return }
                     for scanId in preparation.rejectedScanIds {
                         self.softDeleteQueuedScan(scanId: scanId)
                     }
@@ -329,23 +345,35 @@ extension OfflineQueueManager {
             )
 
             guard !uploadItems.isEmpty else {
-                await MainActor.run {
-                    self.isSyncing = false
-                    SyncStateManager.shared.completeUploadPhase()
+                _ = await MainActor.run {
+                    self.finishUploadSync(generation: generation)
                 }
                 return
             }
 
             let candidateUploadScanIds = Set(uploadItems.map(\.scanId))
             await MainActor.run {
-                self.uploadPreparationScanIds.formUnion(candidateUploadScanIds)
+                guard self.isCurrentUploadSync(generation) else { return }
+                self.trackUploadPreparation(
+                    scanIds: candidateUploadScanIds,
+                    generation: generation
+                )
                 MerianLog.data.debug(
                     "syncPendingScans: tracking upload preparation ids=\(candidateUploadScanIds.sorted().joined(separator: ","), privacy: .private)"
                 )
             }
 
+            guard await MainActor.run(body: {
+                self.isCurrentUploadSync(generation)
+            }) else { return }
             let claimedScanIds = await dbActor.markScansAsUploading(scanIds: Array(candidateUploadScanIds))
+            guard await MainActor.run(body: {
+                self.isCurrentUploadSync(generation)
+            }) else { return }
             await MainActor.run {
+                for scanId in claimedScanIds {
+                    self.latestUploadGenerations[scanId] = generation
+                }
                 self.userRequestedLargeUploadScanIds.subtract(claimedScanIds)
             }
             MerianLog.data.debug(
@@ -354,7 +382,10 @@ extension OfflineQueueManager {
             let unclaimedScanIds = candidateUploadScanIds.subtracting(claimedScanIds)
             if !unclaimedScanIds.isEmpty {
                 await MainActor.run {
-                    self.uploadPreparationScanIds.subtract(unclaimedScanIds)
+                    self.clearUploadPreparation(
+                        scanIds: unclaimedScanIds,
+                        generation: generation
+                    )
                 }
             }
             let claimedUploadPairs = zip(uploadItems, preparation.uploadFiles).filter { claimedScanIds.contains($0.0.scanId) }
@@ -364,9 +395,11 @@ extension OfflineQueueManager {
             guard !claimedUploadItems.isEmpty else {
                 MerianLog.data.error("syncPendingScans: no scans could be claimed for upload; leaving queue for retry")
                 await MainActor.run {
-                    self.uploadPreparationScanIds.subtract(candidateUploadScanIds)
-                    self.isSyncing = false
-                    SyncStateManager.shared.completeUploadPhase()
+                    self.clearUploadPreparation(
+                        scanIds: candidateUploadScanIds,
+                        generation: generation
+                    )
+                    self.finishUploadSync(generation: generation)
                 }
                 return
             }
@@ -375,57 +408,149 @@ extension OfflineQueueManager {
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(
                     uploadFiles: claimedUploadFiles
                 )
+                guard await MainActor.run(body: {
+                    self.isCurrentUploadSync(generation)
+                }) else { return }
                 MerianLog.data.debug(
                     "syncPendingScans: received presigned URLs=\(presignedUrls.count, privacy: .public)"
                 )
                 let dispatchedScanIDs = await self.dispatchUploadTasks(
                     session: session,
                     uploadItems: claimedUploadItems,
-                    presignedUrls: presignedUrls
+                    presignedUrls: presignedUrls,
+                    syncGeneration: generation
                 )
                 await MainActor.run {
-                    self.uploadPreparationScanIds.subtract(claimedScanIds)
+                    guard self.isCurrentUploadSync(generation) else { return }
+                    self.clearUploadPreparation(
+                        scanIds: claimedScanIds,
+                        generation: generation
+                    )
                     MerianLog.data.debug(
                         "syncPendingScans: cleared upload preparation ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .private) dispatched=\(dispatchedScanIDs.sorted().joined(separator: ","), privacy: .private)"
                     )
                 }
 
                 if dispatchedScanIDs.isEmpty {
-                    let taskCount = await session.allTasks.count
+                    let taskCount = await self.activeUploadTaskCount(
+                        session: session,
+                        generation: generation
+                    )
                     MerianLog.data.debug(
                         "syncPendingScans: dispatched no upload tasks activeTaskCount=\(taskCount, privacy: .public)"
                     )
                     if taskCount == 0 {
-                        await MainActor.run {
-                            self.isSyncing = false
-                            SyncStateManager.shared.completeUploadPhase()
+                        _ = await MainActor.run {
+                            self.finishUploadSync(generation: generation)
                         }
                     }
                 }
             } catch {
                 await MainActor.run {
-                    self.uploadPreparationScanIds.subtract(claimedScanIds)
+                    guard self.isCurrentUploadSync(generation) else { return }
+                    self.clearUploadPreparation(
+                        scanIds: claimedScanIds,
+                        generation: generation
+                    )
                 }
                 await self.handleSyncNetworkFailure(
                     error: error,
                     affectedScanIds: claimedScanIds,
                     session: session,
-                    dbActor: dbActor
+                    dbActor: dbActor,
+                    syncGeneration: generation
                 )
                 return
             }
 
             // Failsafe: if no tasks were spawned, unlock manually.
-            let activeTaskCount = await session.allTasks.count
+            let activeTaskCount = await self.activeUploadTaskCount(
+                session: session,
+                generation: generation
+            )
             MerianLog.data.debug(
                 "syncPendingScans: active task count after dispatch=\(activeTaskCount, privacy: .public)"
             )
             if activeTaskCount == 0 {
-                await MainActor.run {
-                    self.isSyncing = false
-                    SyncStateManager.shared.completeUploadPhase()
+                _ = await MainActor.run {
+                    self.finishUploadSync(generation: generation)
                 }
             }
+        }
+    }
+
+    private func activeUploadTaskCount(
+        session: URLSession,
+        generation: UUID
+    ) async -> Int {
+        let tasks = await session.allTasks
+        return tasks.filter { task in
+            guard task.state != .canceling,
+                  task.state != .completed,
+                  let identity = MediaStagingContract.parseUploadTaskDescription(
+                    task.taskDescription
+                  ) else {
+                return false
+            }
+            return identity.syncGeneration == generation
+        }.count
+    }
+
+    func isCurrentUploadSync(_ generation: UUID) -> Bool {
+        syncGeneration == generation
+    }
+
+    @discardableResult
+    func finishUploadSync(generation: UUID?) -> Bool {
+        if let generation {
+            guard syncGeneration == generation else {
+                MerianLog.data.debug(
+                    "finishUploadSync: ignored stale generation=\(generation.uuidString, privacy: .private)"
+                )
+                return false
+            }
+            SyncStateManager.shared.completeUploadPhase(generation: generation)
+        } else {
+            // Compatibility for upload tasks attached by an older app build.
+            guard syncGeneration == nil else { return false }
+        }
+
+        syncGeneration = nil
+        syncTask = nil
+        isSyncing = false
+        return true
+    }
+
+    func expireUploadSync(generation: UUID) {
+        guard isCurrentUploadSync(generation) else {
+            MerianLog.data.debug(
+                "expireUploadSync: ignored stale generation=\(generation.uuidString, privacy: .private)"
+            )
+            return
+        }
+        syncTask?.cancel()
+        uploadPreparationGenerations = uploadPreparationGenerations.filter {
+            $0.value != generation
+        }
+        _ = finishUploadSync(generation: generation)
+    }
+
+    private func trackUploadPreparation(
+        scanIds: Set<String>,
+        generation: UUID
+    ) {
+        for scanId in scanIds {
+            uploadPreparationGenerations[scanId] = generation
+        }
+    }
+
+    private func clearUploadPreparation(
+        scanIds: Set<String>,
+        generation: UUID
+    ) {
+        for scanId in scanIds
+        where uploadPreparationGenerations[scanId] == generation {
+            uploadPreparationGenerations[scanId] = nil
         }
     }
 
@@ -490,7 +615,8 @@ extension OfflineQueueManager {
     private func dispatchUploadTasks(
         session: URLSession,
         uploadItems: [ScanUploadItem],
-        presignedUrls: [PreSignedURL]
+        presignedUrls: [PreSignedURL],
+        syncGeneration: UUID
     ) async -> Set<String> {
         return await withTaskGroup(of: String?.self) { group in
             for (index, presignedURL) in presignedUrls.enumerated() {
@@ -509,26 +635,47 @@ extension OfflineQueueManager {
                 guard presignedURL.fileName == item.fileName,
                       presignedURL.objectKey == item.objectKey else {
                     MerianLog.data.error("dispatchUploadTasks: staging contract mismatch for \(item.scanId, privacy: .private)")
-                    Task { @MainActor in self.softDeleteQueuedScan(scanId: item.scanId) }
+                    guard isCurrentUploadSync(syncGeneration),
+                          latestUploadGenerations[item.scanId] == syncGeneration else {
+                        continue
+                    }
+                    softDeleteQueuedScan(scanId: item.scanId)
                     continue
                 }
 
                 guard FileManager.default.fileExists(atPath: item.fileURL.path) else {
                     MerianLog.data.debug("dispatchUploadTasks: source missing for \(item.fileURL.lastPathComponent, privacy: .private)")
-                    Task { @MainActor in self.softDeleteQueuedScan(scanId: item.scanId) }
+                    guard isCurrentUploadSync(syncGeneration),
+                          latestUploadGenerations[item.scanId] == syncGeneration else {
+                        continue
+                    }
+                    softDeleteQueuedScan(scanId: item.scanId)
                     continue
                 }
 
                 group.addTask { () -> String? in
+                    guard !Task.isCancelled else { return nil }
+                    guard await MainActor.run(body: {
+                        self.isCurrentUploadSync(syncGeneration)
+                    }) else { return nil }
                     var request = URLRequest(url: remoteUrl)
                     request.httpMethod = "PUT"
                     request.setValue(item.contentType, forHTTPHeaderField: "Content-Type")
                     let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
                     uploadTask.taskDescription = MediaStagingContract.uploadTaskDescription(
                         scanId: item.scanId,
-                        uploadIndex: item.uploadIndex
+                        uploadIndex: item.uploadIndex,
+                        syncGeneration: syncGeneration
                     )
-                    uploadTask.resume()
+                    let didResume = await MainActor.run {
+                        guard self.isCurrentUploadSync(syncGeneration) else {
+                            uploadTask.cancel()
+                            return false
+                        }
+                        uploadTask.resume()
+                        return true
+                    }
+                    guard didResume else { return nil }
                     MerianLog.data.debug("🚀 BACKGROUND UPLOAD: Dispatched upload task for \(item.scanId, privacy: .private)")
                     return item.scanId
                 }
@@ -546,16 +693,24 @@ extension OfflineQueueManager {
         error: Error,
         affectedScanIds: Set<String>,
         session: URLSession,
-        dbActor: BackgroundDatabaseActor
+        dbActor: BackgroundDatabaseActor,
+        syncGeneration: UUID
     ) async {
+        guard isCurrentUploadSync(syncGeneration) else { return }
         MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
 
         // Reset orphaned uploads
+        let observedThrough = Date()
         let liveTasks = await session.allTasks
+        guard isCurrentUploadSync(syncGeneration) else { return }
         let activeUploadIds = Set(liveTasks.compactMap { task in
             MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
         })
-        await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
+        await dbActor.reconcileOrphanedUploadingScans(
+            activeScanIds: activeUploadIds,
+            observedThrough: observedThrough
+        )
+        guard isCurrentUploadSync(syncGeneration) else { return }
 
         var retryDelays: [TimeInterval] = []
         for scanId in affectedScanIds {
@@ -581,15 +736,13 @@ extension OfflineQueueManager {
         }
 
         guard let delay = retryDelays.min() else {
-            isSyncing = false
-            SyncStateManager.shared.completeUploadPhase()
+            finishUploadSync(generation: syncGeneration)
             retryBackoffTask?.cancel()
             retryBackoffTask = nil
             return
         }
 
-        isSyncing = false
-        SyncStateManager.shared.completeUploadPhase()
+        finishUploadSync(generation: syncGeneration)
         retryBackoffTask?.cancel()
         retryBackoffTask = Task { [weak self] in
             guard let self else { return }

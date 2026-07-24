@@ -147,6 +147,14 @@ overloaded arguments. The quota reservation lock, for example, deliberately uses
 `pg_catalog.HASHTEXTEXTENDED(..., 0::BIGINT)`, and the migration contract locks
 that signature.
 
+PostgreSQL conditional expressions are not ordinary catalog routines and must
+not be schema-qualified. In particular, do not write
+`pg_catalog.COALESCE(...)`. When an
+`INSERT ... ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted` statement
+returns no row, PL/pgSQL leaves `event_inserted` null; branch on
+`event_inserted IS NOT TRUE` so both null and false take the durable-duplicate
+path. The catalog gate validates this routine body after migration replay.
+
 ```bash
 make validate-supabase-migrations
 make test-supabase-privileged-routines
@@ -194,12 +202,14 @@ operation in `AIQuotaOperation`,
 `aiQuotaMigrationContract.test.ts`, `aiQuotaCoverage.test.ts`, and
 `tests/ai_quota_security.sql` aligned.
 
-The executable quota fixture inserts its test profile directly instead of
-running the Auth signup trigger. Any such owner-only `public.users` fixture must
-provide a valid, deterministic, unique `public_username`, a non-empty
-`public_author_name`, and a CHECK-valid `public_identity_source`; all three
-columns are `NOT NULL`. Fix a stale fixture rather than weakening the production
-identity constraints.
+Executable security fixtures insert test profiles directly instead of running
+the Auth signup trigger. Any such owner-only `public.users` fixture must
+provide a deterministic, unique `public_username` accepted by
+`public.is_valid_public_username(...)`, a non-empty `public_author_name`, and a
+CHECK-valid `public_identity_source`; all three columns are `NOT NULL`. Usernames
+are currently 3–24 lowercase characters, must start with a letter and end with
+an alphanumeric character, cannot contain `__`, and cannot be reserved. Fix a
+stale fixture rather than weakening the production identity constraints.
 
 `users.entitlement_version` advances whenever the tier or timed expiry changes.
 `_shared/entitlement.ts` performs durable reads for non-provider checks; it

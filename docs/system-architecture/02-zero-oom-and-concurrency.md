@@ -163,7 +163,12 @@ To prevent iOS from suspending the application before background I/O queues tear
 
 `urlSession(_:task:didCompleteWithError:)` extracts non-Sendable `task.taskDescription` and HTTP string properties into local immutable variables on the delegate context before crossing the background wrapper boundary.
 
-Early function return paths in `OfflineQueueManager` that skipped inference on `504` error codes also unintentionally skipped `SyncStateManager.shared.completeSync()`, permanently deadlocking the offline queue. Merian enforces teardowns via a `defer` block that checks `session.allTasks.isEmpty` and runs the teardown unconditionally, overriding all possible abort paths.
+Every upload teardown path carries the batch UUID into
+`finishUploadSync(generation:)`. Empty batches, signing failures, zero-task
+dispatches, background expiration, and delegate completion can release only the
+matching batch. Inference result/failure paths use a `defer` that completes only
+their exact inference UUID. This preserves unconditional cleanup without
+allowing a delayed teardown to clear a replacement operation.
 
 When chunking pending offline scans into Edge Function payloads, Merian caps loop payloads via `.prefix(5)` on the `filteredScans` array. Previously, applying a secondary `.prefix(5)` limit on the flattened `fileNames`, `fileURLs`, and `scanIDs` arrays severed multi-capture payloads (since one offline scan can have up to 2 local captures). Removing the truncation on the flattened arrays and relying solely on the scan-level limit guarantees a partial payload is never pushed to Cloudflare R2, preventing silent `HTTP 400 Array Length` errors. Before signing URLs, `BackgroundDatabaseActor.markScansAsUploading(scanIds:)` now returns the scan IDs whose `.pending → .uploading` transition actually committed. `syncPendingScans` signs and dispatches only those claimed records; if the actor rolls back on fetch/save failure, no URLSession upload is launched against unpersisted state. To comply with Swift 6 concurrency, redundant `await` hooks preceding `session.uploadTask(with:fromFile:)` were removed. Since this URLSession factory creates a deferred upload object synchronously, calling `await` forced unnecessary thread hops and produced compiler concurrency faults.
 
@@ -639,14 +644,82 @@ enum SyncPhase: Equatable {
 ```
 
 `OfflineQueueManager` transitions the phase at each boundary:
-- `beginSync(itemCount:)` → `.uploading(count:)` when the batch is dispatched
-- `beginInferencing()` → `.inferencing` immediately before dispatching the background download task; increments an internal `activeInferenceCount`
-- `beginFinalizing()` → `.finalizing` immediately before `processAndCleanupOfflineScan`
-- `completeSync()` → decrements `activeInferenceCount`; transitions to `.idle` only when count reaches zero — prevents a burst of concurrent scans from prematurely clearing the indicator when the first pipeline finishes while others are still inferencing or finalizing
-- `completeUploadPhase()` → transitions to `.idle` only if `activeInferenceCount == 0`; used by upload-path completions (empty queue, URL generation failure) that never called `beginInferencing()` and must not touch the count
-- `forceIdle()` → hard resets `activeInferenceCount = 0` and `phase = .idle`; used exclusively on connectivity loss where all in-flight tasks are cancelled and will replay when connectivity restores
+
+- `beginSync(itemCount:generation:)` registers one upload batch UUID and exposes
+  `.uploading(count:)`.
+- `beginInferencing(generation:)` idempotently registers the scan generation
+  before request preparation can suspend.
+- `beginFinalizing(generation:)` advances only that registered inference token.
+- `completeSync(generation:)` removes only the matching inference token. Unknown,
+  retired, or already-completed UUIDs are no-ops.
+- `completeUploadPhase(generation:)` removes only the matching upload batch.
+- `forceIdle()` invalidates the current upload and all inference tokens. It is
+  used on connectivity loss; a late completion from before the reset cannot
+  decrement or clear work registered afterward.
+
+The manager stores one `UploadActivity(generation,itemCount)` and an
+`[UUID: InferenceActivity]` map instead of an integer inference count. Phase
+selection is deterministic: any finalizer wins, then any inferencer, then the
+upload batch, otherwise idle. Exact-token removal eliminates the count-reset
+race where a late generation-A completion could decrement generation B after a
+forced reset.
 
 Computed shims (`isSyncing: Bool { phase.isActive }` and `pendingUploadCount: Int`) preserve backward compatibility for existing UI components.
+
+### Offline Retry ABA Protection (`OfflineQueueManager`)
+
+Swift task cancellation is cooperative. Removing or cancelling a task handle
+does not prove that its body will never resume after the next suspension point.
+All replaceable offline-sync work therefore follows two ownership rules:
+
+1. **Operation generation** identifies the upload batch or inference attempt
+   allowed to mutate domain state. New upload descriptions use
+   `upload|scanId|uploadIndex|generation`; new inference descriptions use
+   `inference_v2|generation|scanId`. URLSession callbacks parse and carry this
+   value through result, failure, retry, cancellation, and deletion paths.
+2. **Registry token** identifies the current delayed task occupying a per-scan
+   slot. `GenerationTaskRegistry.replace` removes the old entry before
+   cancelling it, installs a fresh UUID, and exposes `isCurrent` /
+   `clearIfCurrent`. A resumed old probe, server poll, or retry task cannot clear
+   or execute the replacement. Probes and server polls keep their slot while
+   awaited recovery/cancellation/database work runs and revalidate it after
+   each suspension; clearing the slot before beginning that work would recreate
+   the same ABA window.
+
+Inference preparation is single-flight and its UUID becomes the URLSession
+generation before status probing or request construction awaits. Upload
+completion has a separate token per callback until it hands ownership to that
+preparation; removing one token cannot hide another callback for the same
+multi-file scan. The latest successfully claimed upload generation remains
+recorded per scan after preparation, so a delayed generation-A callback stays
+invalid even after replacement B has finished. Background expiration captures
+the upload UUID and uses `finishUploadSync(generation:)`; it never writes the
+global latch directly.
+
+Any inference-driven queue deletion carries an
+`InferenceGenerationExpectation`. `deleteQueuedScan` checks it both before and
+after `await backgroundSession.allTasks`; server-poll recovery additionally
+carries the exact poll-slot token through that boundary. It then performs
+cancellation and SwiftData deletion without another ownership gap. Result
+finalization also rechecks the inference generation after the background actor
+save and before post-finalization job/UI side effects. This
+compare-after-await is required: checking only before URLSession enumeration
+would leave an ABA window in which a replacement could start and then be
+cancelled by the old deleter. Explicit user deletion intentionally omits the
+expectation because the requested outcome is to cancel every generation.
+
+Connectivity loss cancels the registries, retires active inference UUIDs,
+invalidates preparation slots, removes preparation entries belonging to the
+current upload batch, and force-resets UI tokens. Durable SwiftData states and
+URLSession enumeration remain the restart/reconnect recovery source; in-memory
+generations are process-local fencing, not persistence.
+
+Upload claims, inference claims, retries, and both orphan reconcilers use one
+long-lived `BackgroundDatabaseActor`. Before a reconciler enumerates
+URLSession tasks it captures an `observedThrough` cutoff. The actor resets only
+rows whose `queueUpdatedAt` is at or before that snapshot; a replacement claim
+queued while reconciliation is suspended is therefore ordered on the same
+actor and excluded as newer work.
 
 ### Centralized Magic Numbers (`MerianConfig`)
 Batch sizes, fetch limits, pagination page sizes, and retention windows were previously scattered as literals across `OfflineQueueManager`, `ScanRepository`, and `BackgroundDatabaseActor`. Divergence between these call sites introduced silent bugs (e.g., a fetch limit of 50 and a batch limit of 5 in different files with no linking comment).
@@ -867,20 +940,32 @@ The helper preserves the one intentional modality difference through `LiveRefere
 
 ### Singleton Lifecycle Consistency in Child Tasks (`OfflineQueueManager+Sync`)
 
-Inside `syncPendingScans`, when a source image file is found missing before upload, a fire-and-forget inner task tombstoned the scan by calling `OfflineQueueManager.shared.softDeleteQueuedScan(scanId:)` directly — bypassing the `[weak self]` capture established at the outer `BackgroundTaskWrapper.execute` boundary. If `self` had been deallocated, the outer `guard let self` exits cleanly, but any `withTaskGroup` child task already dispatched continues executing; those tasks created inner `Task { @MainActor in OfflineQueueManager.shared... }` closures that bound strongly to the singleton's method against a potentially torn-down `modelContext`. The fix captures `self` (already non-nil, verified by the outer `guard let self`) before the group loop and passes it into the inner task, keeping the lifecycle contract consistent with the rest of the function.
+Inside `syncPendingScans`, invalid staging metadata and missing source files used to create fire-and-forget inner tasks that tombstoned a scan later. Those closures could outlive the upload batch that discovered the problem and mutate a replacement attempt. These preflight failures are now handled synchronously on the main actor and require both the exact upload-batch UUID and the scan's latest claimed upload generation before changing durable queue state.
 
-**Rule:** When an inner fire-and-forget `Task` is created inside a `withTaskGroup` child that already lives within an outer `[weak self]` closure, always use the already-verified `self` reference — never re-access the singleton via `ClassName.shared`.
+**Rule:** Terminal queue mutations must not be delegated to an unowned inner task. Keep them inside the generation-owned operation and compare ownership immediately before the mutation.
 
-### O(N) `session.allTasks` Enumeration on Every Sync Cycle (`OfflineQueueManager`)
+### Bounded Authoritative URLSession Enumeration (`OfflineQueueManager`)
 
-`syncPendingScans` called `await session.allTasks` on every invocation — an async URLSession enumeration — to build an `activeScanIDs` set used to skip scans already in-flight. On a warm device with many queued scans, this async round-trip adds latency on every reconnect event and every background-URLSession-completion-triggered re-sync.
+OS-owned background tasks survive process suspension and relaunch, so an
+in-memory active-ID set cannot be authoritative. Merian enumerates
+`session.allTasks` only at ownership boundaries that require the OS view:
+cold/ongoing orphan reconciliation, same-scan final-chunk detection, guarded
+queue deletion, status-watchdog cancellation, and upload-batch completion.
+Ordinary pending-scan selection relies on the durable
+`.pending → .uploading` claim and does not enumerate the session first.
 
-`OfflineQueueManager` now maintains a locally-tracked `Set<String>` (`activeScanUploadIds`) that is kept in sync incrementally:
-- **Cold launch seed (once):** Guarded by `hasSeededActiveScanIds: Bool`, the first sync after a cold start still calls `session.allTasks` to re-attach any upload tasks that survived an app restart. The set and flag are written on `@MainActor`.
-- **Incremental add:** After `withTaskGroup` dispatches each upload batch, `activeScanUploadIds.formUnion(Set(scanIDs))` is called on `@MainActor` to track the dispatched IDs.
-- **Incremental remove:** `processUploadCompletion` calls `activeScanUploadIds.remove(scanId)` immediately when a task settles, so the ID is never considered in-flight past its completion.
+Every task description is parsed into a typed identity. Upload enumeration
+filters by both scan ID and batch generation; inference enumeration filters by
+scan ID and inference generation. The relevant code revalidates its in-memory
+generation after each awaited enumeration before it clears registries, cancels
+tasks, or mutates SwiftData. This pays the async enumeration cost only where
+restart-safe truth is required and closes the ABA window introduced by treating
+a pre-await ownership check as sufficient.
 
-Every subsequent sync cycle reads the local set directly — no async URLSession enumeration needed. The existing `session.allTasks` call in `urlSessionDidCompleteWithError` (used to detect when all tasks have settled for the `isSyncing = false` teardown) is **unchanged** — that use-case requires an authoritative task count from the OS.
+Orphan reconciliation also captures an `observedThrough` timestamp before
+enumerating URLSession tasks. Rows with a newer `queueUpdatedAt` are excluded,
+so a reconciliation pass built from snapshot A cannot reset a claim created
+after that snapshot while it waits for the shared queue database actor.
 
 ### `reconcileScanPage` ID-Only Column Projection (`ScanRepository`)
 

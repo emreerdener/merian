@@ -64,6 +64,9 @@ import SwiftData
 
     /// Active upload batch task. Cancelled immediately on connectivity loss.
     var syncTask: Task<Void, Never>?
+    /// Generation currently allowed to mutate the global upload-sync latch.
+    /// Expiration and completion paths must compare this value before clearing state.
+    @ObservationIgnored var syncGeneration: UUID?
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     /// Returns `true` when the attempt succeeded and `false` when the pending bit
     /// should be left in place for a later retry opportunity.
@@ -78,17 +81,37 @@ import SwiftData
     /// Scans that have been claimed as `.inferencing` while the background URLSession
     /// download task is still being built. Replay must treat these as active so the
     /// WeatherKit/request-construction window does not get mistaken for an orphan.
-    @ObservationIgnored var inferencePreparationScanIds: Set<String> = []
+    @ObservationIgnored var inferencePreparationGenerations: [String: UUID] = [:]
+
+    var inferencePreparationScanIds: Set<String> {
+        Set(inferencePreparationGenerations.keys)
+    }
 
     /// Scans that have been claimed as `.uploading` while signed URLs are being fetched
     /// and URLSession upload tasks are being created. Upload orphan reconciliation must
     /// treat these as active so it does not reset a live upload before its task exists.
-    @ObservationIgnored var uploadPreparationScanIds: Set<String> = []
+    @ObservationIgnored var uploadPreparationGenerations: [String: UUID] = [:]
 
-    /// Scans whose upload task has completed and is being promoted from `.uploading`
-    /// to `.staged`. During this tiny window the URLSession task is gone, so orphan
-    /// reconciliation must still treat the scan as active.
-    @ObservationIgnored var uploadCompletionScanIds: Set<String> = []
+    var uploadPreparationScanIds: Set<String> {
+        Set(uploadPreparationGenerations.keys)
+    }
+
+    /// Latest upload generation that successfully claimed each queued scan.
+    ///
+    /// This remains after preparation ends so a delayed completion from an older
+    /// upload cannot be re-adopted after a replacement batch has finished.
+    @ObservationIgnored var latestUploadGenerations: [String: UUID] = [:]
+
+    /// Scans whose upload callbacks are being promoted from `.uploading` to
+    /// `.staged`. Each callback owns one token, so finishing an older callback
+    /// removes only its own membership and cannot hide a newer callback.
+    @ObservationIgnored var uploadCompletionTokens: [String: Set<UUID>] = [:]
+
+    var uploadCompletionScanIds: Set<String> {
+        Set(uploadCompletionTokens.compactMap { key, tokens in
+            tokens.isEmpty ? nil : key
+        })
+    }
 
     /// Live scans that are durably queued but intentionally held until the
     /// foreground inference request has finished sending its body. This avoids
@@ -100,13 +123,24 @@ import SwiftData
     /// but background inference must wait so Gemini is not called twice.
     @ObservationIgnored var foregroundInferenceScanIds: Set<String> = []
 
-    /// Delayed status probes for inference tasks. The edge function can persist the
-    /// scan but lose the background response path; these probes recover from that gap.
-    @ObservationIgnored var inferenceStatusProbeTasks: [String: Task<Void, Never>] = [:]
+    /// Delayed status probes for inference tasks. Registry tokens prevent a
+    /// cooperatively-cancelled probe from clearing or acting on its replacement.
+    @ObservationIgnored let inferenceStatusProbeTasks = GenerationTaskRegistry<String>()
 
     /// Delayed polls for scans owned by the server-side ingestion job after the
     /// background URLSession task has finished or been cancelled locally.
-    @ObservationIgnored var serverIngestionPollTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored let serverIngestionPollTasks = GenerationTaskRegistry<String>()
+
+    /// Per-scan delayed inference replay tasks. These share the same
+    /// compare-before-clear ownership contract as probes and server polls.
+    @ObservationIgnored let inferenceRetryTasks = GenerationTaskRegistry<String>()
+
+    /// Current inference generation for each scan. URLSession callbacks and
+    /// watchdogs from older generations must not mutate a newer entry.
+    @ObservationIgnored var activeInferenceGenerations: [String: UUID] = [:]
+    /// Generations explicitly completed or invalidated during this process.
+    /// Prevents a delayed URLSession callback from re-adopting retired work.
+    @ObservationIgnored var retiredInferenceGenerations: Set<UUID> = []
 
     /// Last server-side ingestion job status observed for queued scans. Used only for
     /// user-facing transient copy while the backend remains the durable source of truth.
@@ -117,7 +151,11 @@ import SwiftData
 
     /// Scans whose inference response is being processed. During this window the
     /// URLSession task is already gone, but replay must not treat the scan as orphaned.
-    @ObservationIgnored var inferenceCompletionScanIds: Set<String> = []
+    @ObservationIgnored var inferenceCompletionGenerations: [String: UUID] = [:]
+
+    var inferenceCompletionScanIds: Set<String> {
+        Set(inferenceCompletionGenerations.keys)
+    }
 
     /// Dispatch timestamps for active inference tasks, used only for watchdog logging.
     @ObservationIgnored var inferenceDispatchDates: [String: Date] = [:]
@@ -141,26 +179,72 @@ import SwiftData
 
     // MARK: - Long-Lived Database Actors
 
-    /// Persistent `BackgroundDatabaseActor` reused across offline inference calls.
-    /// Avoids the per-call actor allocation + ModelContext setup overhead when scans
-    /// complete in rapid succession. Initialized lazily on first use after `modelContext` is set.
-    @ObservationIgnored private var _inferenceDbActor: BackgroundDatabaseActor?
-    /// Container that owns `_inferenceDbActor`. Tracked to detect container swaps (e.g. in
+    /// Persistent `BackgroundDatabaseActor` reused for queue claims, reconciliation,
+    /// and replay. A single actor keeps upload and inference transitions ordered and
+    /// prevents stale ModelContext snapshots from overwriting replacement work.
+    @ObservationIgnored private var _queueDbActor: BackgroundDatabaseActor?
+    /// Container that owns `_queueDbActor`. Tracked to detect container swaps (e.g. in
     /// tests) so a stale actor bound to a dead container is not returned to callers.
-    @ObservationIgnored private var _inferenceDbActorContainer: ModelContainer?
+    @ObservationIgnored private var _queueDbActorContainer: ModelContainer?
     /// Persistent `ProfileDatabaseActor` reused for award recalculation.
     @ObservationIgnored private var _profileDbActor: ProfileDatabaseActor?
 
-    /// Returns the shared inference actor, creating it if the container changed or the actor
+    /// Claims the pre-dispatch single-flight slot for a scan.
+    ///
+    /// Returning `nil` is intentional: replacing an existing preparation would
+    /// make its eventual compare-before-clear invisible to orphan reconciliation.
+    func beginInferencePreparation(scanId: String) -> UUID? {
+        guard inferencePreparationGenerations[scanId] == nil else { return nil }
+        let generation = UUID()
+        inferencePreparationGenerations[scanId] = generation
+        return generation
+    }
+
+    func clearInferencePreparation(
+        scanId: String,
+        generation: UUID
+    ) {
+        guard inferencePreparationGenerations[scanId] == generation else { return }
+        inferencePreparationGenerations[scanId] = nil
+    }
+
+    func isInferencePreparationCurrent(
+        scanId: String,
+        generation: UUID
+    ) -> Bool {
+        inferencePreparationGenerations[scanId] == generation
+    }
+
+    func beginUploadCompletion(scanId: String) -> UUID {
+        let token = UUID()
+        uploadCompletionTokens[scanId, default: []].insert(token)
+        return token
+    }
+
+    @discardableResult
+    func finishUploadCompletion(
+        scanId: String,
+        token: UUID
+    ) -> Bool {
+        guard uploadCompletionTokens[scanId]?.remove(token) != nil else {
+            return false
+        }
+        if uploadCompletionTokens[scanId]?.isEmpty == true {
+            uploadCompletionTokens[scanId] = nil
+        }
+        return true
+    }
+
+    /// Returns the shared queue actor, creating it if the container changed or the actor
     /// has not yet been created. In production the container is a process-lifetime singleton,
     /// so this is effectively a one-time allocation. In tests each test suite creates an
     /// in-memory container, and the identity check prevents returning a stale actor backed
     /// by a previous test's already-deallocated store.
-    func resolvedInferenceDbActor(container: ModelContainer) -> BackgroundDatabaseActor {
-        if let existing = _inferenceDbActor, _inferenceDbActorContainer === container { return existing }
+    func resolvedQueueDbActor(container: ModelContainer) -> BackgroundDatabaseActor {
+        if let existing = _queueDbActor, _queueDbActorContainer === container { return existing }
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        _inferenceDbActor = actor
-        _inferenceDbActorContainer = container
+        _queueDbActor = actor
+        _queueDbActorContainer = container
         return actor
     }
 
@@ -217,19 +301,34 @@ import SwiftData
                         await OfflineJobScheduler.shared.drainRunnableJobs(using: self)
                     }
                 } else {
-                    self?.releaseAllDeferredLiveUploads(reason: "connectivity_lost")
-                    self?.releaseAllForegroundInferenceClaims(reason: "connectivity_lost")
+                    guard let self else { return }
+                    self.releaseAllDeferredLiveUploads(reason: "connectivity_lost")
+                    self.releaseAllForegroundInferenceClaims(reason: "connectivity_lost")
                     // Circuit-break active uploads immediately on connectivity loss.
-                    self?.reconnectDebounceTask?.cancel()
-                    self?.reconnectDebounceTask = nil
-                    self?.syncTask?.cancel()
-                    self?.collectionSyncTask?.cancel()
+                    self.reconnectDebounceTask?.cancel()
+                    self.reconnectDebounceTask = nil
+                    self.syncTask?.cancel()
+                    self.syncTask = nil
+                    if let uploadGeneration = self.syncGeneration {
+                        self.uploadPreparationGenerations = self.uploadPreparationGenerations.filter {
+                            $0.value != uploadGeneration
+                        }
+                    }
+                    self.syncGeneration = nil
+                    self.collectionSyncTask?.cancel()
                     // Cancel any pending backoff retry — it must not fire while offline.
-                    self?.retryBackoffTask?.cancel()
-                    self?.serverIngestionPollTasks.values.forEach { $0.cancel() }
-                    self?.serverIngestionPollTasks.removeAll()
-                    self?.isSyncing = false
-                    self?.isCollectionSyncing = false
+                    self.retryBackoffTask?.cancel()
+                    self.inferenceStatusProbeTasks.cancelAll()
+                    self.serverIngestionPollTasks.cancelAll()
+                    self.inferenceRetryTasks.cancelAll()
+                    self.retiredInferenceGenerations.formUnion(
+                        self.activeInferenceGenerations.values
+                    )
+                    self.activeInferenceGenerations.removeAll()
+                    self.inferencePreparationGenerations.removeAll()
+                    self.inferenceDispatchDates.removeAll()
+                    self.isSyncing = false
+                    self.isCollectionSyncing = false
                     SyncStateManager.shared.forceIdle()
                 }
             }

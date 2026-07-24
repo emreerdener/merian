@@ -499,6 +499,19 @@ triggering excessive SwiftUI view rebuilds.
   `syncPendingScans()` recursively when a completed batch detects
   `unsyncedItemsCount > 0`, draining the queue automatically without user
   intervention.
+- **Generation-fenced ownership**: Every upload batch and inference attempt has
+  a UUID carried through background expiration, request preparation, URLSession
+  task descriptions, delegate callbacks, retry/status scheduling, task
+  cancellation, UI progress, and inference-driven queue deletion. Per-scan
+  delayed work uses `GenerationTaskRegistry` slot tokens and
+  compare-before-clear. A cooperatively cancelled task from attempt A cannot
+  clear or cancel replacement B after resuming from an `await`. Status probes
+  and server polls keep their token for the full awaited operation and
+  revalidate after each suspension instead of clearing ownership before work
+  begins. Current task
+  descriptions are `upload|scanId|uploadIndex|generation` and
+  `inference_v2|generation|scanId`; parsers retain legacy compatibility for
+  tasks created by older app builds.
 - **Orphaned `.uploading` Reconciliation**: `markScansAsUploading` runs before
   `generateUploadURLs`, returns the scan IDs whose `.pending → .uploading`
   transition actually committed, and `syncPendingScans` signs/dispatches only
@@ -511,7 +524,11 @@ triggering excessive SwiftUI view rebuilds.
   `queueNeedsAttention` rather than scheduling another in-memory retry.
   Additionally,
   `replayInferenceForUploadedScans` cross-references live URLSession tasks on
-  every call to catch orphans that bypass the catch block.
+  every call to catch orphans that bypass the catch block. Upload/inference
+  claims, retries, and both reconcilers use one cached queue actor. Each
+  reconciliation captures `observedThrough` before URLSession enumeration and
+  excludes rows updated later, so a stale task snapshot cannot reset a newer
+  claim while waiting for that actor.
 - **Server-Owned Inference Recovery**: Before replay resets an orphaned
   `.inferencing` scan, it polls `/check-scan-status` with the queued scan's
   required video count. `found` scans are synced down and the queue row is
@@ -610,19 +627,20 @@ triggering excessive SwiftUI view rebuilds.
   coordinator from new scan-finalization entry points.
 - Backward-compatible computed shims (`isSyncing`, `pendingUploadCount`) are
   preserved for existing consumers.
-- **Write API** — three completion methods with distinct semantics:
-  - `beginSync(itemCount:)` / `beginInferencing()` / `beginFinalizing()` — phase
-    transitions
-  - `completeSync()` — inference pipeline completion; decrements
-    `activeInferenceCount`, transitions to `.idle` only when count reaches zero.
-    Use exclusively from `processInferenceDownloadResult`.
-  - `completeUploadPhase()` — upload-path completion (empty queue, URL
-    generation failure, etc.); transitions to `.idle` only if no inference is in
-    flight, without touching the count. Use from all `syncPendingScans`
-    early-exit paths and upload task settlement.
-  - `forceIdle()` — hard reset; zeros `activeInferenceCount` and sets
-    `phase = .idle` immediately. Use on connectivity loss where all in-flight
-    tasks are cancelled.
+- **Write API** — all normal lifecycle methods require the operation UUID:
+  - `beginSync(itemCount:generation:)` registers or replaces the upload batch;
+    `beginInferencing(generation:)` idempotently registers an inference;
+    `beginFinalizing(generation:)` advances only that inference token.
+  - `completeSync(generation:)` removes only the matching inference token. Use
+    from inference result/failure teardown.
+  - `completeUploadPhase(generation:)` removes only the matching upload batch.
+    Use from generation-checked `finishUploadSync`.
+  - `forceIdle()` invalidates the current upload and all inference tokens. Late
+    completions become no-ops and cannot decrement work started after
+    connectivity restores.
+- Internally, one `UploadActivity` and an `[UUID: InferenceActivity]` map replace
+  the former force-resettable integer count. Phase priority is finalizing,
+  inferencing, uploading, then idle.
 
 ### `ScanRepository`
 

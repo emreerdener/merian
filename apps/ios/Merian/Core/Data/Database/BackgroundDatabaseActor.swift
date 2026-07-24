@@ -287,14 +287,21 @@ actor BackgroundDatabaseActor {
     /// Marks scans in `.uploading` state that have no active URLSession task as `.pending`,
     /// so `syncPendingScans` re-dispatches them on the next sync cycle.
     ///
+    /// `observedThrough` fences the URLSession snapshot: a scan claimed after
+    /// that instant belongs to newer work and must not be reset by this pass.
+    ///
     /// Returns `true` if at least one orphan was reset, `false` if nothing changed.
     /// Callers that need to react to an actual state change (e.g. triggering a new sync)
     /// can use the return value; all other call sites may discard it.
     ///
-    /// Called once per process lifetime on first connectivity restore. Safe because no
-    /// URLSession tasks are dispatched during the window between process start and this call.
+    /// Callers capture `observedThrough` before enumerating URLSession tasks. The
+    /// cutoff makes both cold-start and later safety-net passes safe if new work
+    /// is claimed while the actor call is waiting to run.
     @discardableResult
-    func reconcileOrphanedUploadingScans(activeScanIds: Set<String>) -> Bool {
+    func reconcileOrphanedUploadingScans(
+        activeScanIds: Set<String>,
+        observedThrough: Date = Date()
+    ) -> Bool {
         let uploadingRaw = ScanQueueState.uploading.rawValue
         let pendingRaw   = ScanQueueState.pending.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -309,7 +316,9 @@ actor BackgroundDatabaseActor {
         }
         var changed = false
         var resetIds: [String] = []
-        for scan in scans where !activeScanIds.contains(scan.id) {
+        for scan in scans
+        where scan.queueUpdatedAt <= observedThrough
+            && !activeScanIds.contains(scan.id) {
             scan.scanStateRaw = pendingRaw
             scan.queueUpdatedAt = Date()
             changed = true
@@ -336,7 +345,12 @@ actor BackgroundDatabaseActor {
     /// Replaces `resetOrphanedInferencingScans` with a cross-reference against the live
     /// URLSession task list so that background download tasks still owned by the OS are
     /// not blindly reset — which would cause a duplicate inference dispatch on relaunch.
-    func reconcileOrphanedInferencingScans(activeInferenceScanIds: Set<String>) {
+    /// The snapshot cutoff also excludes generations claimed while reconciliation awaits
+    /// this actor.
+    func reconcileOrphanedInferencingScans(
+        activeInferenceScanIds: Set<String>,
+        observedThrough: Date = Date()
+    ) {
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         let stagedRaw      = ScanQueueState.staged.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -350,7 +364,9 @@ actor BackgroundDatabaseActor {
             return
         }
         var changed = false
-        for scan in scans where !activeInferenceScanIds.contains(scan.id) {
+        for scan in scans
+        where scan.queueUpdatedAt <= observedThrough
+            && !activeInferenceScanIds.contains(scan.id) {
             scan.scanStateRaw = stagedRaw
             scan.queueUpdatedAt = Date()
             changed = true

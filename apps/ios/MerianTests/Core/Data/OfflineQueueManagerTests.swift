@@ -354,12 +354,164 @@ struct OfflineQueueManagerTests {
 
     @Test func testMediaStagingUploadTaskDescriptionPreservesUnderscoredScanIds() {
         let scanId = "queued_nonvisual_audio_only"
-        let description = MediaStagingContract.uploadTaskDescription(scanId: scanId, uploadIndex: 12)
+        let syncGeneration = UUID()
+        let description = MediaStagingContract.uploadTaskDescription(
+            scanId: scanId,
+            uploadIndex: 12,
+            syncGeneration: syncGeneration
+        )
         let identity = MediaStagingContract.parseUploadTaskDescription(description)
 
         #expect(identity?.scanId == scanId)
         #expect(identity?.uploadIndex == 12)
+        #expect(identity?.syncGeneration == syncGeneration)
         #expect(MediaStagingContract.uploadTaskDescription(description, belongsTo: scanId))
+    }
+
+    @Test func testInferenceTaskDescriptionPreservesGenerationAndUnderscoredScanId() {
+        let scanId = "queued_nonvisual_audio_only"
+        let generation = UUID()
+        let description = InferenceURLSessionTaskContract.taskDescription(
+            scanId: scanId,
+            generation: generation
+        )
+
+        #expect(
+            InferenceURLSessionTaskContract.parse(description)
+                == InferenceURLSessionTaskIdentity(
+                    scanId: scanId,
+                    generation: generation
+                )
+        )
+        #expect(
+            InferenceURLSessionTaskContract.parse("inference_\(scanId)")
+                == InferenceURLSessionTaskIdentity(
+                    scanId: scanId,
+                    generation: nil
+                )
+        )
+    }
+
+    @Test func testInferencePreparationIsSingleFlightAndCompareCleared() throws {
+        let manager = OfflineQueueManager.shared
+        let scanId = "preparation-generation-test"
+        manager.inferencePreparationGenerations[scanId] = nil
+        defer {
+            manager.inferencePreparationGenerations[scanId] = nil
+        }
+
+        let firstGeneration = try #require(
+            manager.beginInferencePreparation(scanId: scanId)
+        )
+        let replacementAttempt = manager.beginInferencePreparation(scanId: scanId)
+
+        #expect(replacementAttempt == nil)
+
+        manager.clearInferencePreparation(
+            scanId: scanId,
+            generation: UUID()
+        )
+        #expect(manager.inferencePreparationGenerations[scanId] == firstGeneration)
+
+        manager.clearInferencePreparation(
+            scanId: scanId,
+            generation: firstGeneration
+        )
+        #expect(manager.inferencePreparationGenerations[scanId] == nil)
+    }
+
+    @Test func testUploadGenerationRejectsDelayedReplacementCallback() {
+        let manager = OfflineQueueManager.shared
+        let scanId = "upload-generation-test"
+        let staleGeneration = UUID()
+        let currentGeneration = UUID()
+        manager.uploadPreparationGenerations[scanId] = nil
+        manager.latestUploadGenerations[scanId] = currentGeneration
+        defer {
+            manager.uploadPreparationGenerations[scanId] = nil
+            manager.latestUploadGenerations[scanId] = nil
+        }
+
+        #expect(
+            !manager.isUploadGenerationCurrent(
+                scanId: scanId,
+                generation: staleGeneration
+            )
+        )
+        #expect(
+            manager.isUploadGenerationCurrent(
+                scanId: scanId,
+                generation: currentGeneration
+            )
+        )
+        #expect(
+            !manager.isUploadGenerationCurrent(
+                scanId: scanId,
+                generation: nil
+            )
+        )
+    }
+
+    @Test func testUploadCompletionClearsOnlyTheOwningCallbackToken() {
+        let manager = OfflineQueueManager.shared
+        let scanId = "upload-completion-token-test"
+        manager.uploadCompletionTokens[scanId] = nil
+        defer {
+            manager.uploadCompletionTokens[scanId] = nil
+        }
+
+        let firstToken = manager.beginUploadCompletion(scanId: scanId)
+        let replacementToken = manager.beginUploadCompletion(scanId: scanId)
+
+        #expect(
+            manager.finishUploadCompletion(
+                scanId: scanId,
+                token: firstToken
+            )
+        )
+        #expect(manager.uploadCompletionScanIds.contains(scanId))
+        #expect(manager.uploadCompletionTokens[scanId] == [replacementToken])
+
+        #expect(
+            manager.finishUploadCompletion(
+                scanId: scanId,
+                token: replacementToken
+            )
+        )
+        #expect(!manager.uploadCompletionScanIds.contains(scanId))
+    }
+
+    @Test func testStaleUploadGenerationCannotFinishReplacementSync() {
+        let manager = OfflineQueueManager.shared
+        let staleGeneration = UUID()
+        let currentGeneration = UUID()
+
+        manager.syncTask?.cancel()
+        manager.syncTask = nil
+        manager.syncGeneration = currentGeneration
+        manager.isSyncing = true
+        SyncStateManager.shared.forceIdle()
+        SyncStateManager.shared.beginSync(
+            itemCount: 4,
+            generation: currentGeneration
+        )
+        defer {
+            manager.syncTask?.cancel()
+            manager.syncTask = nil
+            manager.syncGeneration = nil
+            manager.isSyncing = false
+            SyncStateManager.shared.forceIdle()
+        }
+
+        #expect(!manager.finishUploadSync(generation: staleGeneration))
+        #expect(manager.syncGeneration == currentGeneration)
+        #expect(manager.isSyncing)
+        #expect(SyncStateManager.shared.pendingUploadCount == 4)
+
+        #expect(manager.finishUploadSync(generation: currentGeneration))
+        #expect(manager.syncGeneration == nil)
+        #expect(!manager.isSyncing)
+        #expect(SyncStateManager.shared.pendingUploadCount == 0)
     }
 
     @Test func testMediaStagingContractRejectsOversizedAudioBeforeUpload() throws {

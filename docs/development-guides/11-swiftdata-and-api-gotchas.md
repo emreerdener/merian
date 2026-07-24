@@ -277,14 +277,17 @@ The `tryClaimForInference` guard always returned `false` because the shared acto
 State machine transitions that must see each other's effects must run on the **same actor instance**, so all reads and writes share the same in-memory object graph:
 
 ```swift
-// ✅ Shared actor resets AND claims — both see the same in-memory state
-let sharedActor = resolvedInferenceDbActor(container: container)
-await sharedActor.resetOrphanedInferencingScans()  // .inferencing → .staged in shared context
+// ✅ Shared actor reconciles AND claims — both see the same in-memory state
+let sharedActor = resolvedQueueDbActor(container: container)
+await sharedActor.reconcileOrphanedInferencingScans(
+    activeInferenceScanIds: activeIds,
+    observedThrough: taskSnapshotDate
+)
 // tryClaimForInference now sees .staged because it reads from the same context
 guard await sharedActor.tryClaimForInference(scanId: scanId) else { return }
 ```
 
-The shared inference actor (`_inferenceDbActor`) is specifically reserved for state-machine operations that must be serialized. One-shot actors (e.g., reconciliation at startup) are fine as long as they do not need to share in-memory state with the long-lived actor.
+The shared queue actor (`_queueDbActor`) is reserved for upload/inference state-machine operations that must be serialized. Upload claims, both orphan reconcilers, staging, inference claims, and retry transitions all use this instance. Every live-task reconciliation also captures an `observedThrough` date before its first suspension and ignores rows with a newer `queueUpdatedAt`; a queued stale reconcile therefore cannot overwrite a replacement claim. Final `LocalScanRecord` persistence remains a fresh-actor operation so a failed save cannot poison this long-lived context.
 
 ---
 
@@ -446,8 +449,8 @@ In SwiftData (built on Core Data), a failed `save()` call leaves all pending cha
 `processAndCleanupOfflineScan` inserts a `LocalScanRecord` into the background context and calls `save()`. If the save fails (e.g., unique-constraint violation on `LocalScanRecord.id`), the pending INSERT remains on the context. On the next retry a second `processAndCleanupOfflineScan` call stacks a second pending INSERT with the same `id` on top of the first → guaranteed unique-constraint failure on every subsequent attempt.
 
 ```swift
-// ❌ Reusing the shared actor for cleanup: a failed save corrupts the shared context
-let sharedActor = resolvedInferenceDbActor(container: container)
+// ❌ Reusing the shared queue actor for cleanup: a failed save corrupts the shared context
+let sharedActor = resolvedQueueDbActor(container: container)
 await sharedActor.processAndCleanupOfflineScan(...)  // save() fails
 // Now sharedActor.modelContext has a stale pending INSERT stuck in it
 await sharedActor.tryClaimForInference(...)           // next attempt stacks a second INSERT →

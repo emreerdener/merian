@@ -1,7 +1,7 @@
-import Testing
-import SwiftData
 import Foundation
 @testable import Merian
+import SwiftData
+import Testing
 
 @MainActor
 struct BackgroundDatabaseActorTests {
@@ -555,7 +555,12 @@ struct BackgroundDatabaseActorTests {
 
         for scenario in scenarios {
             let observationContextsJSON = try scenario.observationContexts.map {
-                String(decoding: try JSONEncoder().encode($0), as: UTF8.self)
+                try #require(
+                    String(
+                        bytes: try JSONEncoder().encode($0),
+                        encoding: .utf8
+                    )
+                )
             }
 
             let mappedData = SpeciesData(
@@ -916,11 +921,11 @@ struct BackgroundDatabaseActorTests {
         let context = ModelContext(container)
 
         // Only .pending scans should be fetched for upload dispatch.
-        let pending    = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8),    scanState: .pending)
-        let uploading  = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("uploading.webp")]), encoding: .utf8),  scanState: .uploading)
-        let staged     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("staged.webp")]), encoding: .utf8),     scanState: .staged)
+        let pending    = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8), scanState: .pending)
+        let uploading  = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("uploading.webp")]), encoding: .utf8), scanState: .uploading)
+        let staged     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("staged.webp")]), encoding: .utf8), scanState: .staged)
         let inferencing = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("inferencing.webp")]), encoding: .utf8), scanState: .inferencing)
-        let failed     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("failed.webp")]), encoding: .utf8),     scanState: .failed)
+        let failed     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("failed.webp")]), encoding: .utf8), scanState: .failed)
 
         for scan in [pending, uploading, staged, inferencing, failed] {
             context.insert(scan)
@@ -1080,7 +1085,7 @@ struct BackgroundDatabaseActorTests {
         let firstClaim  = await actor.tryClaimForInference(scanId: scanId)
         let secondClaim = await actor.tryClaimForInference(scanId: scanId)
 
-        #expect(firstClaim == true,  "First claim on a .staged scan must succeed")
+        #expect(firstClaim == true, "First claim on a .staged scan must succeed")
         #expect(secondClaim == false, "Second claim on the same scan must fail — pipeline already in progress")
     }
 
@@ -1237,8 +1242,8 @@ struct BackgroundDatabaseActorTests {
 
         #expect(byId[pending.id]   == ScanQueueState.uploading.rawValue, ".pending must advance to .uploading")
         #expect(byId[uploading.id] == ScanQueueState.uploading.rawValue, "already-.uploading must stay .uploading")
-        #expect(byId[staged.id]    == ScanQueueState.staged.rawValue,    ".staged must not be regressed")
-        #expect(byId[failed.id]    == ScanQueueState.failed.rawValue,    ".failed tombstone must not be touched")
+        #expect(byId[staged.id]    == ScanQueueState.staged.rawValue, ".staged must not be regressed")
+        #expect(byId[failed.id]    == ScanQueueState.failed.rawValue, ".failed tombstone must not be touched")
     }
 
     // MARK: - reconcileOrphanedUploadingScans: startup recovery (V33)
@@ -1262,9 +1267,9 @@ struct BackgroundDatabaseActorTests {
         let all = try context.fetch(allDescriptor)
         let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
 
-        #expect(byId[orphan.id]  == ScanQueueState.pending.rawValue,   "orphaned .uploading scan must reset to .pending")
+        #expect(byId[orphan.id]  == ScanQueueState.pending.rawValue, "orphaned .uploading scan must reset to .pending")
         #expect(byId[active.id]  == ScanQueueState.uploading.rawValue, ".uploading scan with active task must stay .uploading")
-        #expect(byId[pending.id] == ScanQueueState.pending.rawValue,   ".pending scan must be unaffected")
+        #expect(byId[pending.id] == ScanQueueState.pending.rawValue, ".pending scan must be unaffected")
     }
 
     @Test func testReconcileOrphanedUploadingScansWithEmptyActiveSet() async throws {
@@ -1290,6 +1295,42 @@ struct BackgroundDatabaseActorTests {
         }
     }
 
+    @Test func testUploadReconciliationDoesNotResetWorkNewerThanSnapshot() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let observedThrough = Date()
+        let oldScan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([SerializedMediaItem.image("old.webp")]),
+                encoding: .utf8
+            ),
+            scanState: .uploading,
+            queueUpdatedAt: observedThrough.addingTimeInterval(-10)
+        )
+        let replacementScan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([SerializedMediaItem.image("replacement.webp")]),
+                encoding: .utf8
+            ),
+            scanState: .uploading,
+            queueUpdatedAt: observedThrough.addingTimeInterval(10)
+        )
+        context.insert(oldScan)
+        context.insert(replacementScan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.reconcileOrphanedUploadingScans(
+            activeScanIds: [],
+            observedThrough: observedThrough
+        )
+
+        let all = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
+        #expect(byId[oldScan.id] == ScanQueueState.pending.rawValue)
+        #expect(byId[replacementScan.id] == ScanQueueState.uploading.rawValue)
+    }
+
     // MARK: - reconcileOrphanedInferencingScans
 
     @Test func testReconcileOrphanedInferencingScansResetsAllToStaged() async throws {
@@ -1298,8 +1339,8 @@ struct BackgroundDatabaseActorTests {
 
         let inf1   = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("i1.webp")]), encoding: .utf8), scanState: .inferencing)
         let inf2   = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("i2.webp")]), encoding: .utf8), scanState: .inferencing)
-        let staged = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("s.webp")]), encoding: .utf8),  scanState: .staged)
-        let failed = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("f.webp")]), encoding: .utf8),  scanState: .failed)
+        let staged = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("s.webp")]), encoding: .utf8), scanState: .staged)
+        let failed = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("f.webp")]), encoding: .utf8), scanState: .failed)
 
         for scan in [inf1, inf2, staged, failed] { context.insert(scan) }
         try context.save()
@@ -1311,10 +1352,46 @@ struct BackgroundDatabaseActorTests {
         let all = try context.fetch(allDescriptor)
         let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
 
-        #expect(byId[inf1.id]   == ScanQueueState.staged.rawValue,     ".inferencing must reset to .staged")
-        #expect(byId[inf2.id]   == ScanQueueState.staged.rawValue,     "all .inferencing scans must reset")
-        #expect(byId[staged.id] == ScanQueueState.staged.rawValue,     ".staged must be unaffected")
-        #expect(byId[failed.id] == ScanQueueState.failed.rawValue,     ".failed tombstone must be unaffected")
+        #expect(byId[inf1.id]   == ScanQueueState.staged.rawValue, ".inferencing must reset to .staged")
+        #expect(byId[inf2.id]   == ScanQueueState.staged.rawValue, "all .inferencing scans must reset")
+        #expect(byId[staged.id] == ScanQueueState.staged.rawValue, ".staged must be unaffected")
+        #expect(byId[failed.id] == ScanQueueState.failed.rawValue, ".failed tombstone must be unaffected")
+    }
+
+    @Test func testInferenceReconciliationDoesNotResetWorkNewerThanSnapshot() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let observedThrough = Date()
+        let oldScan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([SerializedMediaItem.image("old-inference.webp")]),
+                encoding: .utf8
+            ),
+            scanState: .inferencing,
+            queueUpdatedAt: observedThrough.addingTimeInterval(-10)
+        )
+        let replacementScan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([SerializedMediaItem.image("replacement-inference.webp")]),
+                encoding: .utf8
+            ),
+            scanState: .inferencing,
+            queueUpdatedAt: observedThrough.addingTimeInterval(10)
+        )
+        context.insert(oldScan)
+        context.insert(replacementScan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.reconcileOrphanedInferencingScans(
+            activeInferenceScanIds: [],
+            observedThrough: observedThrough
+        )
+
+        let all = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
+        #expect(byId[oldScan.id] == ScanQueueState.staged.rawValue)
+        #expect(byId[replacementScan.id] == ScanQueueState.inferencing.rawValue)
     }
 
     // MARK: - Full state machine lifecycle (V33)

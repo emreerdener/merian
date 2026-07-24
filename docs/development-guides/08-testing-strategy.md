@@ -310,7 +310,15 @@ MerianTests/
   correctly (covering the `MerianSchemaV27` field added for rich lookalike
   persistence). `BackgroundDatabaseActorTests` uses `CurrentSchema` and a
   disk-isolated container to validate actor-boundary `Sendable` payload
-  extraction across a `Task.detached` boundary.
+  extraction across a `Task.detached` boundary. Its upload and inference
+  reconciliation tests also seed rows on both sides of an `observedThrough`
+  cutoff and prove the older orphan resets while newer replacement work
+  remains claimed. `SyncStateManagerTests` also
+  locks the generation-fencing contract: a stale upload completion cannot
+  clear a replacement batch; a completion delivered after `forceIdle()` cannot
+  remove a newer inference token; a stale finalizing transition cannot advance
+  the replacement's UI phase; and `GenerationTaskRegistry` rejects
+  compare-before-clear and owner-cancel attempts from a replaced slot.
   **`testFetchPendingScansExcludesNonPendingScans`** (V33) seeds scans in all
   five states (`.pending`, `.uploading`, `.staged`, `.inferencing`, `.failed`)
   and asserts `fetchPendingScans` returns only the `.pending` record — directly
@@ -368,6 +376,15 @@ MerianTests/
     `MerianConfig` matches the documented file, audio, and video budgets.
     Also covers the canonical video scan upload shape: five sampled inference
     frame files plus one playback video file must fit in one signing batch.
+  - **Background task identity and single-flight ownership**: Verifies current
+    upload descriptions round-trip underscored scan IDs, media indices, and the
+    batch UUID; verifies current
+    `inference_v2|generation|scanId` and legacy `inference_scanId` parsing; and
+    proves inference preparation rejects a second claimant and ignores a
+    compare-clear from the wrong UUID. Upload ownership tests prove a delayed
+    batch UUID is rejected after replacement, one completion callback cannot
+    remove another callback's membership token, and an old batch cannot release
+    the replacement's global latch or UI activity.
   - **Disk Teardown**: Confirms that sandbox files in `URL.documentsDirectory`
     are deleted during purges to prevent storage bloat.
   - **`isSyncing` Latch Safety
@@ -402,6 +419,21 @@ MerianTests/
     `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. Video
     cases must assert durable playback media remains required while image,
     audio, and description-only scans use the same scheduler.
+
+  For any change to offline task ownership, the minimum regression matrix is:
+
+  1. generation A is replaced by B before A resumes from a suspension point;
+  2. A attempts to clear a registry slot, global upload latch, or UI phase;
+  3. A attempts to cancel URLSession work after `allTasks` enumeration;
+  4. connectivity loss invalidates A, B starts after reconnect, then A
+     completes;
+  5. orphan reconciliation snapshots at A, work is updated at B, and the
+     `observedThrough` cutoff preserves B;
+  6. current and legacy task-description parsers recover the intended scan ID.
+
+  Assertions must prove B remains registered and active, not merely that A
+  reports `Task.isCancelled`. Swift task cancellation is cooperative and is not
+  an ownership assertion.
 - **`CompositeLibraryTests.swift`**
   (`apps/ios/MerianTests/Features/Scans/Library/`): Validates the bounding
   behaviors of the composite `ScansGrid` that renders both `OfflineQueuedScan`
@@ -744,7 +776,11 @@ Privileged routine security has three complementary checks:
   ambiguous identifiers or unresolved names fail the catalog gate. Failures
   report the exact routine signature, source line, SQLSTATE, statement, query,
   detail, and hint; a later pg_prove `Bad plan` is fallout from that exception,
-  not a separate test failure.
+  not a separate test failure. Conditional expressions such as `COALESCE` are
+  SQL syntax rather than catalog functions and must not be written as
+  `pg_catalog.COALESCE(...)`. For an idempotent insert whose
+  `RETURNING TRUE INTO flag` can return no row, prefer `flag IS NOT TRUE` to
+  handle the resulting null explicitly.
 - `scripts/audit_privileged_routine_acl_test.ts` exercises the fail-closed
   report evaluator. The deployment workflow then runs the read-only audit
   against production before migration in report mode and after migration in
@@ -790,15 +826,18 @@ Authoritative AI quota and entitlement security has four complementary checks:
   transitions.
 
 The production workflow applies all migrations to a disposable database and
-runs both `privileged_routine_security.sql` and `ai_quota_security.sql`. Do not
-replace that catalog execution with source inspection alone.
+runs `privileged_routine_security.sql`, `ai_quota_security.sql`, and
+`revenuecat_webhook_security.sql`. Do not replace that catalog execution with
+source inspection alone.
 
 Owner-level pgTAP fixtures that insert `public.users` directly bypass
-`handle_new_user()`. They must supply a valid unique `public_username`, a
-non-empty `public_author_name`, and a CHECK-valid `public_identity_source`, in
-addition to the fields relevant to the behavior under test. Keep fixture values
-deterministic and transactional; never drop or weaken a production constraint
-to accommodate stale test data.
+`handle_new_user()`. They must supply a deterministic, unique `public_username`
+accepted by `public.is_valid_public_username(...)`, a non-empty
+`public_author_name`, and a CHECK-valid `public_identity_source`, in addition to
+the fields relevant to the behavior under test. Usernames are currently 3–24
+lowercase characters, start with a letter, end with an alphanumeric character,
+contain no `__`, and cannot be reserved. Keep fixtures transactional; never drop
+or weaken a production constraint to accommodate stale test data.
 
 Identification latency has focused contract coverage at each boundary:
 
