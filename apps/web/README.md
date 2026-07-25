@@ -102,6 +102,30 @@ Optional server/public fallback variables:
 The service role key must stay server-side only. Do not prefix it with
 `NEXT_PUBLIC_`.
 
+### Environment Ownership Boundary
+
+Configure only the variables listed above. Do not bulk-copy the GitHub
+`Production` environment into Vercel. In particular, this web application does
+not consume and must not receive:
+
+- `DWCA_PSEUDONYM_HMAC_KEY_V1`
+- `REVENUECAT_SECRET_API_KEY`
+- `REVENUECAT_WEBHOOK_SECRET`
+- `REVENUECAT_WEBHOOK_SIGNING_SECRET`
+- `SUPABASE_ACCESS_TOKEN`
+- `SUPABASE_DB_PASSWORD`
+- `SUPABASE_DB_URL`
+
+The deployment workflow uses the last three values to operate Supabase and
+synchronizes the DwC-A and RevenueCat values into Supabase Edge. They are not
+web application configuration. `SUPABASE_URL` above is the HTTPS project API
+endpoint; do not substitute the privileged PostgreSQL `SUPABASE_DB_URL`.
+
+Keep production server secrets in Vercel's Production environment only. Use a
+separate staging Supabase project and Turnstile widget if preview deployments
+need live backend behavior. See the canonical destination matrix in
+[`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
+
 ### Waitlist Security Boundary
 
 `POST /api/waitlist` accepts one uncompressed JSON object no larger than 4 KiB:

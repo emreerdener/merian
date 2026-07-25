@@ -1868,6 +1868,28 @@ rather than worked around by raising the public request limits.
 
 ## Required and Optional GitHub Secrets
 
+This section is the GitHub Actions control-plane contract, not a Vercel
+application environment template. Never copy the complete GitHub `Production`
+secret set into either Vercel project.
+
+| GitHub secret | Runtime destination |
+| --- | --- |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1` | Synchronized by the workflow to Supabase Edge only |
+| `REVENUECAT_SECRET_API_KEY` | Synchronized by the workflow to Supabase Edge only |
+| `REVENUECAT_WEBHOOK_SECRET` | Synchronized by the workflow to Supabase Edge only |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Synchronized by the workflow to Supabase Edge only |
+| `SUPABASE_ACCESS_TOKEN` | Used by the GitHub runner to operate the Supabase CLI |
+| `SUPABASE_DB_URL` | Used by the GitHub runner for database migration/audit access |
+| `SUPABASE_DB_PASSWORD` | Used only by the runner's alternative pooler connection path |
+
+None of these seven values belongs in Vercel. The public-web Vercel contract is
+the explicit table in **Public Web Waitlist Release** above and
+[`apps/web/.env.example`](../../apps/web/.env.example). Do not confuse its
+`SUPABASE_URL` HTTPS API endpoint with the privileged `SUPABASE_DB_URL`
+PostgreSQL connection string. The separate internal-admin Vercel project
+receives only the three public variables listed under **Internal Admin
+Release**.
+
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.

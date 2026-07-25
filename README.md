@@ -367,6 +367,11 @@ For Vercel production, configure the project Root Directory as `apps/web` and
 attach `naturebook.earth`, `naturebook.app`, their `www` aliases, and the legacy
 `merian.earth` aliases to that project. A plain Vercel
 `404: NOT_FOUND` response means the request has not reached the Next.js app.
+Use only the environment variables allowlisted by `apps/web/.env.example`;
+never mirror GitHub `Production` secrets or direct database credentials into
+Vercel. The exact GitHub, Supabase Edge, public-web, and internal-admin ownership
+matrix is documented in
+[`docs/development-guides/05-keychain-and-secrets.md`](docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
 ### Local Internal Admin
 

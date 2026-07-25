@@ -37,6 +37,46 @@ Merian.
 
 ---
 
+## Deployment Environment Ownership
+
+GitHub `Production`, Supabase Edge, the public-web Vercel project, and the
+internal-admin Vercel project are separate trust boundaries. Never clone one
+environment's complete variable set into another. Add a value only when the
+target application's documented environment contract names it.
+
+The backend deployment secrets commonly shown together in GitHub have these
+destinations:
+
+| GitHub `Production` variable | Deployment/runtime purpose | Copy to Vercel? |
+| --- | --- | --- |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1` | The deploy workflow synchronizes it to Supabase Edge for global DwC-A export pseudonyms | No |
+| `REVENUECAT_SECRET_API_KEY` | The deploy workflow synchronizes it to Supabase Edge for authoritative subscriber reads | No |
+| `REVENUECAT_WEBHOOK_SECRET` | The deploy workflow synchronizes it to Supabase Edge for webhook Authorization | No |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | The deploy workflow synchronizes it to Supabase Edge for raw-body signature verification | No |
+| `SUPABASE_ACCESS_TOKEN` | Authenticates the Supabase CLI running in GitHub Actions | No |
+| `SUPABASE_DB_URL` | Preferred direct PostgreSQL connection used by migration and catalog-audit steps | No |
+| `SUPABASE_DB_PASSWORD` | Used only by the alternative GitHub database connection path | No |
+
+The public `apps/web` Vercel project has its own allowlist in
+[`apps/web/.env.example`](../../apps/web/.env.example). In particular,
+`SUPABASE_URL` is the HTTPS project API endpoint used by server code; it is not
+`SUPABASE_DB_URL`, which is a privileged PostgreSQL connection string. The
+public-web project receives `SUPABASE_SERVICE_ROLE_KEY` only as a sensitive,
+server-side value for its reviewed server routes. It must never appear in a
+`NEXT_PUBLIC_` variable or in the separately deployed admin project.
+
+The `apps/admin` Vercel project receives only
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
+`NEXT_PUBLIC_ADMIN_ORIGIN`. It must not receive a service-role key, a direct
+database credential, or any GitHub deployment/Edge provider secret.
+
+Removing or changing a Vercel environment variable takes effect only in a new
+deployment. Preview deployments that need functional backend access must use
+separate staging credentials; do not reuse production server secrets merely to
+make previews work.
+
+---
+
 ## API Key Rules
 
 Merian uses two different categories of keys/configuration:

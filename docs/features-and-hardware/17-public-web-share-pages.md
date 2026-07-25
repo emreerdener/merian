@@ -175,6 +175,15 @@ Optional fallback values:
 
 `SUPABASE_SERVICE_ROLE_KEY` must never be prefixed with `NEXT_PUBLIC_`, rendered into HTML, committed to the repo, or used from client components. It is only acceptable inside server-rendered route code or server-only helpers.
 
+This allowlist is intentionally unrelated to the GitHub deployment secret set.
+Do not add `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_URL`,
+`SUPABASE_DB_PASSWORD`, any `REVENUECAT_*` server secret, or
+`DWCA_PSEUDONYM_HMAC_KEY_V1` to Vercel. GitHub Actions consumes the deployment
+credentials and synchronizes the provider/export credentials to Supabase Edge.
+`SUPABASE_URL` here means the HTTPS project API endpoint, not the direct
+PostgreSQL `SUPABASE_DB_URL`. See the canonical
+[deployment environment ownership matrix](../development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
+
 ### Public Waitlist Boundary
 
 The homepage waitlist is the only public write path in this web surface.

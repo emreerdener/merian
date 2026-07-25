@@ -9,6 +9,13 @@ analytics token in this project. Every data operation goes through a narrowly
 granted authenticated RPC that rechecks Google identity, active membership,
 TOTP `aal2`, the live Supabase Auth `session_id`, internal session age, and role.
 
+Do not clone the GitHub `Production` or public-web Vercel environment into this
+project. This explicitly excludes `SUPABASE_ACCESS_TOKEN`,
+`SUPABASE_DB_URL`, `SUPABASE_DB_PASSWORD`, every `REVENUECAT_*` server secret,
+and `DWCA_PSEUDONYM_HMAC_KEY_V1`. The complete cross-environment destination
+matrix is in
+[`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
+
 ## Documentation
 
 - Architecture, roles, data model, RPCs, metrics, review lifecycle, and AI
