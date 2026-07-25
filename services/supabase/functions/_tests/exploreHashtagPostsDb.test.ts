@@ -48,21 +48,22 @@ Deno.test("Explore hashtag posts DB - returns visible tagged posts with cursor p
         });
       }
 
-      const privateScanId = crypto.randomUUID();
-      const privatePostId = crypto.randomUUID();
+      const mediaEmptyScanId = crypto.randomUUID();
+      const mediaEmptyPostId = crypto.randomUUID();
       await insertScan(client, {
-        id: privateScanId,
+        id: mediaEmptyScanId,
         userId: authorId,
         speciesId,
         latitude: 30.2,
         longitude: -97.2,
-        geoprivacy: "private",
+        geoprivacy: "open",
       });
       await insertExplorePost(client, {
-        id: privatePostId,
+        id: mediaEmptyPostId,
         userId: authorId,
-        scanId: privateScanId,
+        scanId: mediaEmptyScanId,
         sharedAt: "2026-05-13T12:00:00.000Z",
+        refreshMedia: false,
       });
 
       const untaggedScanId = crypto.randomUUID();
@@ -87,7 +88,7 @@ Deno.test("Explore hashtag posts DB - returns visible tagged posts with cursor p
           INSERT INTO public.explore_post_hashtags (post_id, tag)
           VALUES ($1, 'citybioblitz'), ($2, 'citybioblitz'), ($3, 'citybioblitz')
         `,
-        [visiblePostIds[0], visiblePostIds[1], privatePostId],
+        [visiblePostIds[0], visiblePostIds[1], mediaEmptyPostId],
       );
 
       const firstPage = await client.queryObject<ExploreHashtagPostRow>(

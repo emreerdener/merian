@@ -3041,9 +3041,10 @@ Validation and availability rules:
 - Public achievement progress includes the full current app achievement catalog,
   including domestic cat and dog scan achievements.
 - Preview posts use the same Explore visibility rules as feed/library posts and
-  never include private, unshared, tombstoned, media-less, or non-species-backed
-  posts. Administratively hidden posts (`moderated_at IS NOT NULL`) are also
-  excluded from both profile discoverability and previews.
+  never include unshared, tombstoned, media-less, or non-species-backed posts.
+  Private post location sharing withholds location but does not hide the post.
+  Administratively hidden posts (`moderated_at IS NOT NULL`) are also excluded
+  from both profile discoverability and previews.
 - Achievement progress never includes qualifying scan IDs.
 - Follower/following counts are aggregate-only and do not expose browsable
   identities.

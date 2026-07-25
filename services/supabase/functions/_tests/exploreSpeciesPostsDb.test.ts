@@ -21,10 +21,6 @@ async function insertSpeciesPost(
   options: SpeciesPostFixture,
 ): Promise<void> {
   await insertExplorePost(client, options);
-  await client.queryArray(
-    "SELECT public.refresh_explore_post_media($1)",
-    [options.id],
-  );
 }
 
 async function fetchSpeciesPosts(
@@ -241,6 +237,7 @@ Deno.test("Explore species posts DB - uses confirmed and community-resolved spec
 
       const communityScanId = crypto.randomUUID();
       const communityPostId = crypto.randomUUID();
+      const communityRequestId = crypto.randomUUID();
       await insertScan(client, {
         id: communityScanId,
         userId: authorId,
@@ -286,20 +283,50 @@ Deno.test("Explore species posts DB - uses confirmed and community-resolved spec
       );
       await client.queryArray(
         `
+          INSERT INTO public.explore_community_requests (
+            id,
+            post_id,
+            scan_id,
+            requested_by,
+            status,
+            resolved_taxon_node_id,
+            resolved_observation_taxon_node_id,
+            resolved_at,
+            explore_published_at
+          )
+          VALUES ($1, $2, $3, $4, 'resolved', $5, $5, now(), now())
+        `,
+        [
+          communityRequestId,
+          communityPostId,
+          communityScanId,
+          authorId,
+          taxonNodeId,
+        ],
+      );
+      await client.queryArray(
+        `
           INSERT INTO public.explore_observation_projection (
             post_id,
             scan_id,
             projection_state,
+            community_request_id,
             public_taxon_node_id,
             resolved_taxon_node_id
           )
-          VALUES ($1, $2, 'community_resolved', $3, $3)
+          VALUES ($1, $2, 'community_resolved', $3, $4, $4)
           ON CONFLICT (post_id) DO UPDATE
           SET projection_state = EXCLUDED.projection_state,
+              community_request_id = EXCLUDED.community_request_id,
               public_taxon_node_id = EXCLUDED.public_taxon_node_id,
               resolved_taxon_node_id = EXCLUDED.resolved_taxon_node_id
         `,
-        [communityPostId, communityScanId, taxonNodeId],
+        [
+          communityPostId,
+          communityScanId,
+          communityRequestId,
+          taxonNodeId,
+        ],
       );
 
       const confirmedRows = await fetchSpeciesPosts(

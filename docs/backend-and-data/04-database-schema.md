@@ -509,6 +509,14 @@ the detail response's top-level `inference_tier` comes from
 distinguishing feature. The Community request queue can be scoped to all visible
 unresolved requests or to unresolved requests created by the viewer.
 
+Migration `20260725045544_repair_complete_edge_database_contracts.sql` restores
+that publication gate in the canonical media-backed
+`explore_projected_post_cards` projection after a later media migration
+overwrote it. It preserves the later reversible-moderation exclusion and keeps
+a withdrawn request visible through its original observation. Species sightings
+reuse this projection, so an unpublished resolved request cannot remain visible
+through a species-specific read.
+
 ### `explore_identifications`
 
 Append-only human identification audit rows for community requests.
@@ -583,6 +591,11 @@ provenance fields were added in
   `reference_image_id`, to resolve only the contributor's public user ID and
   current public username. Source scan/post IDs, confidence snapshots, and other
   provenance are not exposed.
+- The repair migration keeps candidate upserts and stale-source
+  disqualification disjoint, then links promoted rows and demotes valid
+  unselected rows in sequential statements. A provenance row is never targeted
+  by competing sibling mutations, so active links converge and unshared or
+  otherwise ineligible media is deterministically marked disqualified.
 
 ### `species_observation_stats_cache`
 
@@ -2105,11 +2118,12 @@ coordinates to the client contract.
   `preview_limit` preview posts, and Field trip summaries. Aggregate scan stats
   are computed from all non-tombstoned scans; follow counts are computed from
   `user_follows`; preview posts use the stricter Explore visibility filters and
-  never include private, unshared, tombstoned, media-less, or
-  non-species-backed scans. Active Field trip summaries include checklist
-  status only and never return scan IDs, media URLs, field notes, exact
-  coordinates, public location labels, or private evidence. Achievement
-  progress never returns qualifying scan IDs.
+  never include unshared, tombstoned, media-less, or non-species-backed posts.
+  Backing-scan geoprivacy does not hide an explicitly shared post; the
+  post-owned location setting controls public location output. Active Field
+  trip summaries include checklist status only and never return scan IDs, media
+  URLs, field notes, exact coordinates, public location labels, or private
+  evidence. Achievement progress never returns qualifying scan IDs.
 - `public.get_explore_author_posts(self_id UUID, target_author_user_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   Returns the author's currently visible published Explore posts for the full
   profile library. Rows share the same card projection as the feed, use the same
@@ -2302,6 +2316,13 @@ coordinates to the client contract.
   same transaction. Any error rolls back every component. Scan-ingestion and
   identification-correction triggers call this function; the Edge progress
   action calls it again to retrieve the response for notifications.
+- `public.get_first_field_trip_achievement_progress(self_id UUID)`:
+  Private `SECURITY INVOKER` achievement projection executable only by
+  `service_role`. The repair migration adds that role's missing read access to
+  `user_field_trips`, `field_trip_templates`, and
+  `field_trip_challenge_participants`, the three source tables required by this
+  function. Existing client-table access remains governed by each table's
+  original grants and RLS policies; API roles cannot execute this projection.
 - `public.get_field_trip_scan_contributions(self_id UUID, target_scan_id UUID)`:
   Private service-role-only read model returning every standard outing/Event
   credit owned by one saved biological scan. Rows contain source and routing

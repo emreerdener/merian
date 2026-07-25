@@ -94,13 +94,22 @@ export async function insertUser(
         public_avatar_url,
         public_username
       )
-      VALUES ($1, $2, $3, 'alias', $4, public.build_default_public_username($1::uuid))
+      VALUES (
+        $1,
+        $2,
+        $3,
+        'alias',
+        $4,
+        public.build_unique_public_username(
+          public.build_default_public_username($1::uuid),
+          $1::uuid
+        )
+      )
       ON CONFLICT (id) DO UPDATE
       SET email = EXCLUDED.email,
           public_author_name = EXCLUDED.public_author_name,
           public_identity_source = EXCLUDED.public_identity_source,
-          public_avatar_url = EXCLUDED.public_avatar_url,
-          public_username = EXCLUDED.public_username
+          public_avatar_url = EXCLUDED.public_avatar_url
     `,
     [
       id,
@@ -257,6 +266,7 @@ type InsertExplorePostOptions = {
   fieldNotes?: string | null;
   speciesCommonName?: string | null;
   locationSharing?: "open" | "obscured" | "private";
+  refreshMedia?: boolean;
 };
 
 export async function insertExplorePost(
@@ -286,4 +296,11 @@ export async function insertExplorePost(
       options.locationSharing ?? "open",
     ],
   );
+
+  if (options.refreshMedia !== false) {
+    await client.queryArray(
+      "SELECT public.refresh_explore_post_media($1::uuid)",
+      [options.id],
+    );
+  }
 }

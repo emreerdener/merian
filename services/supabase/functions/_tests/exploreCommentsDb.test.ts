@@ -67,7 +67,15 @@ Deno.test("Explore comments DB - cursor pagination preserves stable ordering acr
           ($6, $2, $3, 'Comment three', '2026-04-28T10:05:00Z'),
           ($7, $2, $5, 'Comment four', '2026-04-28T10:10:00Z')
       `,
-      [commentIds[0], postId, authorOneId, commentIds[1], authorTwoId, commentIds[2], commentIds[3]],
+      [
+        commentIds[0],
+        postId,
+        authorOneId,
+        commentIds[1],
+        authorTwoId,
+        commentIds[2],
+        commentIds[3],
+      ],
     );
 
     const firstPage = await client.queryObject<ExploreCommentRow>(
@@ -152,7 +160,14 @@ Deno.test("Explore comments DB - replies stay one-level and paginate under visib
           ($1, $2, $3, $4, 'First reply', '2026-05-19T10:01:00Z'),
           ($5, $2, $3, $6, 'Second reply', '2026-05-19T10:02:00Z')
       `,
-      [replyOneId, postId, topLevelCommentId, replierOneId, replyTwoId, replierTwoId],
+      [
+        replyOneId,
+        postId,
+        topLevelCommentId,
+        replierOneId,
+        replyTwoId,
+        replierTwoId,
+      ],
     );
 
     const topLevelRows = await client.queryObject<ExploreCommentRow>(
@@ -195,18 +210,26 @@ Deno.test("Explore comments DB - replies stay one-level and paginate under visib
         firstReplyPage.rows[0].comment_id,
       ],
     );
-    assertEquals(secondReplyPage.rows.map((row) => row.comment_id), [replyTwoId]);
+    assertEquals(secondReplyPage.rows.map((row) => row.comment_id), [
+      replyTwoId,
+    ]);
 
-    await assertRejects(
-      () =>
-        client.queryArray(
-          `
-            INSERT INTO public.explore_post_comments (id, post_id, parent_comment_id, user_id, body)
-            VALUES ($1, $2, $3, $4, 'Nested reply should fail')
-          `,
-          [crypto.randomUUID(), postId, replyOneId, viewerId],
-        ),
-    );
+    await client.queryArray("SAVEPOINT nested_reply_rejection");
+    try {
+      await assertRejects(
+        () =>
+          client.queryArray(
+            `
+              INSERT INTO public.explore_post_comments (id, post_id, parent_comment_id, user_id, body)
+              VALUES ($1, $2, $3, $4, 'Nested reply should fail')
+            `,
+            [crypto.randomUUID(), postId, replyOneId, viewerId],
+          ),
+      );
+    } finally {
+      await client.queryArray("ROLLBACK TO SAVEPOINT nested_reply_rejection");
+      await client.queryArray("RELEASE SAVEPOINT nested_reply_rejection");
+    }
 
     const countResult = await client.queryObject<{ comment_count: number }>(
       `
@@ -236,7 +259,9 @@ Deno.test("Explore comments DB - replies stay one-level and paginate under visib
     );
     assertEquals(hiddenReplyRows.rows.length, 0);
 
-    const hiddenCountResult = await client.queryObject<{ comment_count: number }>(
+    const hiddenCountResult = await client.queryObject<
+      { comment_count: number }
+    >(
       `
         SELECT comment_count
         FROM public.explore_posts
@@ -337,7 +362,13 @@ Deno.test("Explore comments DB - blocked authors are filtered and hidden posts s
           ($1, $2, $3, 'Visible comment', '2026-04-28T11:00:00Z'),
           ($4, $2, $5, 'Blocked comment', '2026-04-28T11:05:00Z')
       `,
-      [crypto.randomUUID(), postId, visibleAuthorId, crypto.randomUUID(), blockedAuthorId],
+      [
+        crypto.randomUUID(),
+        postId,
+        visibleAuthorId,
+        crypto.randomUUID(),
+        blockedAuthorId,
+      ],
     );
 
     await client.queryArray(

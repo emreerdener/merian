@@ -518,30 +518,38 @@ Deno.test("Explore feed DB - cursor pagination preserves stable ordering across 
   });
 });
 
-Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excluded from the feed", async () => {
+Deno.test("Explore feed DB - blocked, unshared, media-cleared, and moderated posts are excluded while withdrawn requests fall back", async () => {
   await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
     const viewerId = crypto.randomUUID();
     const visibleOwnerId = crypto.randomUUID();
+    const withdrawnOwnerId = crypto.randomUUID();
     const blockedOwnerId = crypto.randomUUID();
     const mediaClearedOwnerId = crypto.randomUUID();
     const unsharedOwnerId = crypto.randomUUID();
+    const moderatedOwnerId = crypto.randomUUID();
     const speciesId = crypto.randomUUID();
 
     await insertUser(client, viewerId, "Feed Viewer");
     await insertUser(client, visibleOwnerId, "Visible Owner");
+    await insertUser(client, withdrawnOwnerId, "Withdrawn Owner");
     await insertUser(client, blockedOwnerId, "Blocked Owner");
     await insertUser(client, mediaClearedOwnerId, "Media Cleared Owner");
     await insertUser(client, unsharedOwnerId, "Unshared Owner");
+    await insertUser(client, moderatedOwnerId, "Moderated Owner");
     await insertSpecies(client, speciesId, "Rosa visibilis");
 
     const visibleScanId = crypto.randomUUID();
+    const withdrawnScanId = crypto.randomUUID();
     const blockedScanId = crypto.randomUUID();
     const mediaClearedScanId = crypto.randomUUID();
     const unsharedScanId = crypto.randomUUID();
+    const moderatedScanId = crypto.randomUUID();
     const visiblePostId = crypto.randomUUID();
+    const withdrawnPostId = crypto.randomUUID();
     const blockedPostId = crypto.randomUUID();
     const mediaClearedPostId = crypto.randomUUID();
     const unsharedPostId = crypto.randomUUID();
+    const moderatedPostId = crypto.randomUUID();
 
     await insertScan(client, {
       id: visibleScanId,
@@ -549,6 +557,14 @@ Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excl
       speciesId,
       latitude: 30.2672,
       longitude: -97.7431,
+      geoprivacy: "open",
+    });
+    await insertScan(client, {
+      id: withdrawnScanId,
+      userId: withdrawnOwnerId,
+      speciesId,
+      latitude: 30.2722,
+      longitude: -97.7481,
       geoprivacy: "open",
     });
     await insertScan(client, {
@@ -575,12 +591,26 @@ Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excl
       longitude: -97.7731,
       geoprivacy: "open",
     });
+    await insertScan(client, {
+      id: moderatedScanId,
+      userId: moderatedOwnerId,
+      speciesId,
+      latitude: 30.3072,
+      longitude: -97.7831,
+      geoprivacy: "open",
+    });
 
     await insertExplorePost(client, {
       id: visiblePostId,
       userId: visibleOwnerId,
       scanId: visibleScanId,
       sharedAt: "2026-04-28T12:00:00.000Z",
+    });
+    await insertExplorePost(client, {
+      id: withdrawnPostId,
+      userId: withdrawnOwnerId,
+      scanId: withdrawnScanId,
+      sharedAt: "2026-04-28T12:02:00.000Z",
     });
     await insertExplorePost(client, {
       id: blockedPostId,
@@ -600,6 +630,26 @@ Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excl
       scanId: unsharedScanId,
       sharedAt: "2026-04-28T12:15:00.000Z",
     });
+    await insertExplorePost(client, {
+      id: moderatedPostId,
+      userId: moderatedOwnerId,
+      scanId: moderatedScanId,
+      sharedAt: "2026-04-28T12:20:00.000Z",
+    });
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_observation_projection (
+          post_id,
+          scan_id,
+          projection_state
+        )
+        VALUES ($1, $2, 'withdrawn')
+        ON CONFLICT (post_id) DO UPDATE
+        SET projection_state = EXCLUDED.projection_state
+      `,
+      [withdrawnPostId, withdrawnScanId],
+    );
 
     await client.queryArray(
       `
@@ -617,6 +667,10 @@ Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excl
       `,
       [mediaClearedScanId],
     );
+    await client.queryArray(
+      "DELETE FROM public.explore_post_media WHERE post_id = $1",
+      [mediaClearedPostId],
+    );
 
     await client.queryArray(
       `
@@ -625,6 +679,14 @@ Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excl
         WHERE id = $1
       `,
       [unsharedPostId],
+    );
+    await client.queryArray(
+      `
+        UPDATE public.explore_posts
+        SET moderated_at = NOW()
+        WHERE id = $1
+      `,
+      [moderatedPostId],
     );
 
     const rows = await client.queryObject<ExploreFeedRow>(
@@ -635,7 +697,10 @@ Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excl
       [viewerId],
     );
 
-    assertEquals(rows.rows.map((row) => row.post_id), [visiblePostId]);
+    assertEquals(rows.rows.map((row) => row.post_id), [
+      withdrawnPostId,
+      visiblePostId,
+    ]);
   });
 });
 

@@ -66,6 +66,7 @@ Deno.test("Explore scan share state DB - returns active Explore post for an owne
         id: postId,
         userId: ownerId,
         scanId,
+        refreshMedia: false,
       });
       await insertExplorePostMedia(client, postId);
 
@@ -121,6 +122,7 @@ Deno.test("Explore scan share state DB - keeps the shared post when scan geopriv
         userId: ownerId,
         scanId,
         locationSharing: "open",
+        refreshMedia: false,
       });
       await insertExplorePostMedia(client, postId);
 
@@ -184,6 +186,7 @@ Deno.test("Explore scan share state DB - hides post rows that have no public med
         id: postId,
         userId: ownerId,
         scanId,
+        refreshMedia: false,
       });
 
       const result = await client.queryObject<ExploreScanShareStateRow>(
@@ -237,6 +240,7 @@ Deno.test("Explore scan share state DB - restores pending community request stat
         userId: ownerId,
         scanId,
         locationSharing: "obscured",
+        refreshMedia: false,
       });
       await insertExplorePostMedia(client, postId);
       await client.queryArray(
@@ -306,6 +310,7 @@ Deno.test("Explore scan share state DB - hides resolved community requests until
         id: postId,
         userId: ownerId,
         scanId,
+        refreshMedia: false,
       });
       await insertExplorePostMedia(client, postId);
       await client.queryArray(

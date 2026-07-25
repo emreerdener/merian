@@ -148,6 +148,10 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Kept resolved Community IDs out of normal Explore and species sightings until
+  the owner explicitly publishes them. Changing a backing scan's geoprivacy no
+  longer removes an already shared post; the post's saved location choice
+  remains authoritative.
 - Added the floating **Field chat** control to every visible Explore post
   detail, including the viewer's own posts. Each Pro viewer gets a private
   conversation visible only to them, grounded in the published observation and

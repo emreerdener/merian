@@ -43,6 +43,16 @@ makes an unavailable database a test failure. CI must run the complete task
 rather than substituting a hand-selected subset whose permissions happen to
 pass.
 
+Explore database fixtures must represent the canonical write model. The shared
+post helper snapshots media through `refresh_explore_post_media`; disable that
+step only for deliberate partial-write/no-media cases or when the test inserts
+its own media rows. Scan geoprivacy does not hide a shared post, and clearing a
+scan's source URL array does not erase an already published post snapshot.
+Negative SQL assertions inside a transaction must use a savepoint so the
+expected error does not abort later assertions. Community-resolved fixtures
+must create the matching request and set `explore_published_at` before expecting
+the post on normal Explore or Species Dictionary surfaces.
+
 `lib/species.test.ts` locks canonical/native UUID URLs, versioned Edge response
 mapping, 404-versus-transient failure behavior, shared attribution filtering,
 and the exact AASA path list. The corresponding iOS suites cover canonical and

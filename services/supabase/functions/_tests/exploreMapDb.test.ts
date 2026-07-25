@@ -490,7 +490,7 @@ Deno.test("Explore map DB - wrapped longitude queries return discoveries across 
   });
 });
 
-Deno.test("Explore map DB - blocked authors and media-cleared scans are excluded from map results", async () => {
+Deno.test("Explore map DB - blocked authors and media-cleared posts are excluded from map results", async () => {
   await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
     const viewerId = crypto.randomUUID();
     const visibleOwnerId = crypto.randomUUID();
@@ -567,6 +567,10 @@ Deno.test("Explore map DB - blocked authors and media-cleared scans are excluded
         WHERE id = $1
       `,
       [mediaClearedScanId],
+    );
+    await client.queryArray(
+      "DELETE FROM public.explore_post_media WHERE post_id = $1",
+      [mediaClearedPostId],
     );
 
     const mapRows = await client.queryObject<ExploreMapRow>(

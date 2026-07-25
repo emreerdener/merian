@@ -151,7 +151,7 @@ The profile and library have deliberately different privacy scopes:
 - Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
 - The `Follow` button is hidden for the viewer's own public profile. It follows asymmetrically; there are no friend requests, mutual-only states, DMs, or access changes to private scans.
 
-The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without public post-owned media, posts without a species key, and non-visible Field trips are all filtered using the same visibility posture as the rest of Explore.
+The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, posts without public post-owned media, posts without a species key, and non-visible Field trips are all filtered using the same visibility posture as the rest of Explore. Backing-scan geoprivacy does not hide an explicitly shared post; the post-owned location setting controls public location output.
 
 The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
 
@@ -718,9 +718,12 @@ Explore map coordinates must be stricter than the scan library's private map usa
 
 Rules:
 
-- `private` scans remain entirely absent from Explore, including the map
-- `open` scans may render with exact public coordinates
-- `obscured` scans may remain visible on non-map Explore surfaces, but the shipped map excludes them unless a future explicit per-post override is added
+- Backing-scan geoprivacy seeds the composer but does not override an explicitly
+  saved post location choice.
+- Posts saved as `open` may render with privacy-safe public coordinates, even
+  when the backing scan later becomes private.
+- Posts saved as `obscured` or `private` remain visible on non-map Explore
+  surfaces but are excluded from the map.
 - If Merian applies an endangered-species safety offset, the Explore map must use that already-sanitized public coordinate rather than the original point
 - The client should never receive raw coordinates for non-open posts
 - The client should receive a display hint such as `coordinate_visibility: exact|obscured`

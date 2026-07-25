@@ -2481,6 +2481,16 @@ rollback procedures are in
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- For `20260725045544_repair_complete_edge_database_contracts.sql`, verify a
+  resolved Community request without `explore_published_at` is absent from the
+  feed and species-sightings RPC, then publish it with the owner flow and verify
+  it appears. Verify a withdrawn request falls back to its original observation
+  and a moderated post remains absent. Confirm `service_role` can execute the
+  first Field trip achievement projection while API roles cannot, and that the
+  service role has `SELECT` on its three source tables without changing their
+  existing client RLS policies. On staging, refresh reference images, unshare
+  one promoted source, refresh again, and verify its provenance is disqualified
+  rather than merely demoted.
 - Run the privileged-routine audit in enforcement mode and retain its JSON.
   `PUBLIC` and `anon` must execute no public definer; authenticated and service
   execution must exactly match `internal.privileged_routine_grants`; every

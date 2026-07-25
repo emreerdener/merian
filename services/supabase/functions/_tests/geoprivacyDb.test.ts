@@ -69,7 +69,7 @@ Deno.test("Geoprivacy DB - changing the user default reprojects existing scan lo
     assertEquals(projection.geoprivacy, "open");
     assertAlmostEquals(projection.gps_lat_public ?? 0, 30.2672, 0.0001);
     assertAlmostEquals(projection.gps_long_public ?? 0, -97.7431, 0.0001);
-    assertEquals(projection.public_location_label, "Austin, Texas");
+    assertEquals(projection.public_location_label, "Austin, TX");
 
     await client.queryArray(
       "UPDATE public.users SET default_geoprivacy = 'private' WHERE id = $1",
@@ -93,6 +93,6 @@ Deno.test("Geoprivacy DB - changing the user default reprojects existing scan lo
     assertAlmostEquals(projection.gps_lat_public ?? 0, 30.3, 0.0001);
     assertAlmostEquals(projection.gps_long_public ?? 0, -97.7, 0.0001);
     assertEquals(projection.coordinate_uncertainty_in_meters, 10000);
-    assertEquals(projection.public_location_label, "Austin, Texas");
+    assertEquals(projection.public_location_label, "Austin, TX");
   });
 });

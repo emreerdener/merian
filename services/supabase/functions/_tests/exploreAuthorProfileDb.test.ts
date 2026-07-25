@@ -160,7 +160,7 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
   );
 });
 
-Deno.test("Explore author posts DB - excludes private, unshared, tombstoned, and paginates by cursor", async () => {
+Deno.test("Explore author posts DB - excludes media-empty, unshared, tombstoned, and paginates by cursor", async () => {
   await withExploreDbTest(
     "exploreAuthorProfileDb.test",
     async (client: Client) => {
@@ -197,22 +197,23 @@ Deno.test("Explore author posts DB - excludes private, unshared, tombstoned, and
         });
       }
 
-      const privateScanId = crypto.randomUUID();
+      const mediaEmptyScanId = crypto.randomUUID();
       const unsharedScanId = crypto.randomUUID();
       const tombstonedScanId = crypto.randomUUID();
       await insertScan(client, {
-        id: privateScanId,
+        id: mediaEmptyScanId,
         userId: authorId,
         speciesId,
         latitude: 30.1,
         longitude: -97.1,
-        geoprivacy: "private",
+        geoprivacy: "open",
       });
       await insertExplorePost(client, {
         id: crypto.randomUUID(),
         userId: authorId,
-        scanId: privateScanId,
+        scanId: mediaEmptyScanId,
         sharedAt: "2026-05-11T12:00:00.000Z",
+        refreshMedia: false,
       });
 
       await insertScan(client, {

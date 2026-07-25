@@ -129,8 +129,9 @@ Example browse request:
 ```
 
 All hashtag browse rows keep the standard Explore visibility posture: unshared
-posts, hidden media, tombstoned scans, private scans, missing-species posts,
-shadowbanned authors, and blocked relationships are excluded.
+posts, hidden media, tombstoned scans, missing-species posts, shadowbanned
+authors, and blocked relationships are excluded. Private location sharing
+withholds location fields without hiding an otherwise visible tagged post.
 
 ## iOS Touchpoints
 

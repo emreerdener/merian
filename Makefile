@@ -45,6 +45,7 @@ validate-supabase-migrations:
 		--allow-read=services/supabase/migrations \
 		services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
 		services/supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
+		services/supabase/functions/_tests/completeEdgeDatabaseRepairMigrationContract.test.ts \
 		services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
 		services/supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
 		services/supabase/functions/_tests/migrationExecutionContract.test.ts \

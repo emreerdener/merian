@@ -148,7 +148,12 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
           'model_enrichment',
           0
         )
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (species_id, lookalike_id) DO UPDATE
+        SET reason = EXCLUDED.reason,
+            visual_traits = EXCLUDED.visual_traits,
+            confidence = EXCLUDED.confidence,
+            source = EXCLUDED.source,
+            sort_order = EXCLUDED.sort_order
       `,
         [speciesId, lookalikeId],
       );

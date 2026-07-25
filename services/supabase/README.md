@@ -710,6 +710,17 @@ when that default stack is unavailable. When `SUPABASE_DB_TEST_URL` is set
 explicitly, a connection failure fails the test; this is the required mode for
 CI and release validation.
 
+The shared Explore fixture snapshots scan media by calling
+`public.refresh_explore_post_media(...)` after inserting a post. Pass
+`refreshMedia: false` only when a test intentionally models a partial post
+write or supplies its own deterministic `explore_post_media` rows. Public
+Explore reads are post-media based: changing scan geoprivacy or clearing
+`scans.image_storage_urls` does not retroactively remove an existing public
+snapshot. Tests for media removal must exercise the cleanup contract by
+removing the post-owned media. Expected database errors inside the helper's
+transaction must use a savepoint and roll back to it before making subsequent
+assertions.
+
 ```bash
 SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
   deno test --allow-env --allow-net \

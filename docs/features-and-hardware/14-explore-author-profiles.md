@@ -65,10 +65,12 @@ The feature has two separate data scopes:
 | Field trip Challenge Badges | Badge cards from `field_trip_challenge_badges`, without scan evidence |
 
 Profile aggregates intentionally include private scans because they mirror the
-user's own profile stats at a high level. Published grids never include private
-scans, unshared posts, tombstoned scans, posts without saved public media, or
-scans that no longer resolve to a species-backed row. Audio-only posts remain
-eligible through their media snapshot plus reference-thumbnail projection.
+user's own profile stats at a high level. Published grids exclude unshared
+posts, tombstoned scans, posts without saved public media, and scans that no
+longer resolve to a species-backed row. A private backing scan may support an
+explicitly shared post; the post-owned location setting determines whether
+public location is withheld. Audio-only posts remain eligible through their
+media snapshot plus reference-thumbnail projection.
 
 The backend returns a profile only when the target author has at least one
 Explore post currently visible to the requesting viewer or at least one visible

@@ -179,6 +179,8 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
       const sourceRows = await client.queryObject<{
         total: number;
         promoted: number;
+        linked: number;
+        unselected_unlinked: number;
         active: number;
         confirmed_sources: number;
       }>(
@@ -186,6 +188,15 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
           SELECT
             COUNT(*)::INTEGER AS total,
             COUNT(*) FILTER (WHERE is_promoted)::INTEGER AS promoted,
+            COUNT(*) FILTER (
+              WHERE is_promoted
+                AND reference_image_id IS NOT NULL
+            )::INTEGER AS linked,
+            COUNT(*) FILTER (
+              WHERE NOT is_promoted
+                AND reference_image_id IS NULL
+                AND disqualified_at IS NULL
+            )::INTEGER AS unselected_unlinked,
             COUNT(*) FILTER (WHERE disqualified_at IS NULL)::INTEGER AS active,
             COUNT(*) FILTER (WHERE species_confidence_source = 'confirmed_species')::INTEGER AS confirmed_sources
           FROM public.species_reference_image_merian_sources
@@ -196,6 +207,8 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
       assertEquals(sourceRows.rows[0], {
         total: 9,
         promoted: 8,
+        linked: 8,
+        unselected_unlinked: 1,
         active: 9,
         confirmed_sources: 9,
       });
@@ -324,11 +337,14 @@ Deno.test("Merian reference images DB - requires high species confidence and ima
 
       const provenance = await client.queryObject<{
         image_url: string;
-        species_confidence_score: number;
+        species_confidence_score: string;
         species_confidence_source: string;
       }>(
         `
-          SELECT image_url, species_confidence_score, species_confidence_source
+          SELECT
+            image_url,
+            species_confidence_score::TEXT AS species_confidence_score,
+            species_confidence_source
           FROM public.species_reference_image_merian_sources
           ORDER BY image_url
         `,
@@ -337,13 +353,13 @@ Deno.test("Merian reference images DB - requires high species confidence and ima
         {
           image_url:
             "https://media.merian.app/public_uploads/pro/confirmed-low-ai.webp",
-          species_confidence_score: 0.42,
+          species_confidence_score: "0.42",
           species_confidence_source: "confirmed_species",
         },
         {
           image_url:
             "https://media.merian.app/public_uploads/pro/high-both.webp",
-          species_confidence_score: 0.96,
+          species_confidence_score: "0.96",
           species_confidence_source: "ai",
         },
       ]);

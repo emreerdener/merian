@@ -94,12 +94,20 @@ async function insertUser(
         public_identity_source,
         public_username
       )
-      VALUES ($1, $2, $3, 'alias', public.build_default_public_username($1::uuid))
+      VALUES (
+        $1,
+        $2,
+        $3,
+        'alias',
+        public.build_unique_public_username(
+          public.build_default_public_username($1::uuid),
+          $1::uuid
+        )
+      )
       ON CONFLICT (id) DO UPDATE
       SET email = EXCLUDED.email,
           public_author_name = EXCLUDED.public_author_name,
-          public_identity_source = EXCLUDED.public_identity_source,
-          public_username = EXCLUDED.public_username
+          public_identity_source = EXCLUDED.public_identity_source
     `,
     [
       id,
@@ -144,6 +152,11 @@ async function insertExplorePost(
       VALUES ($1, $2, $3)
     `,
     [id, userId, scanId],
+  );
+
+  await client.queryArray(
+    "SELECT public.refresh_explore_post_media($1::uuid)",
+    [id],
   );
 }
 
@@ -1137,6 +1150,19 @@ Deno.test("Explore notifications DB - cursor pagination preserves stable orderin
           ($4, $2, $5, 'Second cursor comment', '2026-04-28T12:01:00Z')
       `,
       [commentOneId, postId, actorOneId, commentTwoId, actorTwoId],
+    );
+
+    // Comment inserts create their canonical notifications through triggers.
+    // This test supplies deterministic notification IDs and timestamps to
+    // exercise cursor ordering, so remove only those generated rows first.
+    await client.queryArray(
+      `
+        DELETE FROM public.explore_post_notifications
+        WHERE user_id = $1
+          AND post_id = $2
+          AND comment_id IN ($3, $4)
+      `,
+      [ownerId, postId, commentOneId, commentTwoId],
     );
 
     const notificationIdOne = "00000000-0000-0000-0000-000000000010";
