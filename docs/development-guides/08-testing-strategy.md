@@ -844,6 +844,32 @@ the transactional pgTAP file at production. Use
 `MERIAN_DATABASE_URL=... make audit-supabase-privileged-routines` for hosted,
 read-only verification instead.
 
+Durable account deletion has five complementary checks:
+
+- `_tests/safeDelete.test.ts` executes the actual handler/worker modules with
+  injected boundaries. It proves intake precedes processing, cleanup failure
+  never calls Auth, `auth_pending` recovery repeats idempotent cleanup before
+  Auth, Auth failure is deferred after cleanup, and a lost completion response
+  remains retryable.
+- `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
+  Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
+  `config.toml`, and workflow wiring present.
+- `_tests/accountDeletionMigrationContract.test.ts` locks the private state
+  machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order,
+  cleanup verification, profile-recreation guard, terminal UUID minimization,
+  service-only ACLs, and five-minute cron.
+- `tests/account_deletion_security.sql` executes the live catalog transitions:
+  durable intake leaves Auth/data intact, premature Auth completion is denied,
+  cleanup commits while Auth still exists, active deletion blocks profile
+  resurrection, retries preserve `auth_pending`, final completion erases the
+  direct UUID, and duplicate completion is idempotent.
+- `MerianNetworkClientTests.testSafeDeleteAccountEndpoint` returns
+  `202 Accepted` from the mock route and proves the shared authenticated request
+  boundary recognizes durable acceptance as a successful 2xx response.
+
+Run the pgTAP fixture only against the disposable local stack. It inserts and
+deletes Auth fixtures inside a transaction and rolls everything back.
+
 Incremental species-count maintenance has two complementary checks:
 
 - `_tests/speciesCountTriggerMigrationContract.test.ts` statically requires the

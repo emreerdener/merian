@@ -2039,7 +2039,7 @@ struct MerianNetworkClientTests {
     }
     
     @Test func testSafeDeleteAccountEndpoint() async throws {
-        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 202, httpVersion: nil, headerFields: nil)!
         MockURLProtocol.mockEndpoints["/safe-delete"] = { request in
             #expect(request.url?.path.hasSuffix("/safe-delete") == true)
             #expect(request.httpMethod == "POST")

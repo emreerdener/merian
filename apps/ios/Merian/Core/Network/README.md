@@ -151,3 +151,7 @@ Call `transitionToGhostSession()` for user-facing sign-out or anonymous-session
 recovery. It creates the replacement guest identity only after sign-out and
 external identity cleanup finish. Account deletion intentionally calls
 `signOut()` alone so it does not recreate an identity during deletion.
+The `/safe-delete` call may return immediate `200` completion or `202` durable
+acceptance; the shared request layer treats either 2xx response as success.
+Backend cleanup is persisted before the client signs out, and the scheduled
+account-deletion reaper owns any remaining retry.

@@ -2643,6 +2643,45 @@ Indexes cover event receipt time, subject user foreign keys, and the watermark's
 event foreign key so account deletion and operational joins do not scan the
 private tables.
 
+### `internal.account_deletion_jobs`
+
+Migration `20260725030308_durable_account_deletion.sql` adds the private,
+durable account-erasure state machine. It has RLS enabled and revokes direct
+table access from `PUBLIC`, `anon`, `authenticated`, and `service_role`.
+
+Important columns and invariants:
+
+- `status`: `pending`, `auth_pending`, or `completed`
+- nullable `user_id`, with one active job per UUID; terminal completion sets it
+  to `NULL` for data minimization
+- `cleanup_completed_at`, `auth_deleted_at`, and `completed_at`, constrained to
+  match the state
+- `claim_token`, `claimed_at`, and `claim_expires_at`, which are either all
+  present or all absent
+- `attempt_count`, `next_attempt_at`, and a bounded `last_error_code`
+
+Partial indexes cover due active work and expired claims. The service-only
+state transitions are:
+
+- `request_account_deletion(uuid)` — idempotent durable intake
+- `claim_account_deletion_jobs(integer,uuid)` — bounded `SKIP LOCKED` leasing;
+  the optional UUID is only for the initiating authenticated route's fast path
+- `complete_account_deletion_cleanup(uuid,uuid)` — claim-fenced outbox insert,
+  idempotent tombstone, verification, and `auth_pending` transition in one
+  transaction; every Auth retry invokes it again
+- `finish_account_deletion_attempt(uuid,uuid,boolean,text)` — terminal Auth
+  receipt or database-calculated retry
+
+`trg_reject_account_deletion_profile_recreation` runs before inserts on
+`public.users` and rejects the original UUID while an active job exists. This
+prevents Auth metadata triggers or backend upserts from recreating the profile
+between verified cleanup and Auth deletion.
+
+Every RPC is a public-schema discovery name with `SECURITY DEFINER`,
+`search_path = ''`, an `internal.require_service_role()` caller check, and an
+explicit `service_role` allowlist entry. Client API roles have no execution
+grant.
+
 ### `internal.ghost_profile_merge_handoffs`
 
 Private source-issued proofs and durable receipts for anonymous-to-existing
@@ -3421,11 +3460,13 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
   passed to the Edge function for safe cloud erasure instead of destructive
   state-diffs.)
 
-**`pending_storage_deletions` — cleanup index** (`20260405000002`): Added
-composite index `idx_pending_storage_deletions_status_user` on
-`(status, target_user_id, created_at)`. The table had no index at creation — any
-background cleanup sweep filtering by `status = 'pending'` was performing a full
-sequential scan.
+**`pending_storage_deletions` — cleanup indexes**: Migration `20260405000002`
+added composite index `idx_pending_storage_deletions_status_user` on
+`(status, target_user_id, created_at)` for background sweeps. Migration
+`20260725030308` deduplicates historical rows and adds unique index
+`pending_storage_deletions_target_user_unique_idx` on `target_user_id`, making
+account-deletion outbox retries idempotent. Cleanup preserves a terminal or
+active outbox row; otherwise it resets the existing row to `pending`.
 
 ### `PendingCloudDeletionTask`
 

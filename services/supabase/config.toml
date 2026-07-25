@@ -406,6 +406,9 @@ verify_jwt = false
 [functions.safe-delete]
 verify_jwt = false
 
+[functions.reconcile-account-deletions]
+verify_jwt = false
+
 [functions.export-dwca]
 verify_jwt = false
 

@@ -18,6 +18,19 @@ lifecycle (signing in/out and deletion). It operates in conjunction with the
 `ProfileViewModel` and updates the app's global state and preferences through
 the injected `AppSettings` boundary.
 
+## Account deletion
+
+`DeleteAccountSheet` calls the authenticated `safe-delete` Edge Function and
+must treat every successful `2xx` response as an accepted deletion. A `200`
+means the first worker attempt also finished; a `202` means the request is
+durably recorded and the server-side reaper will resume it. Both responses are
+safe points for local sign-out and device-data cleanup.
+
+The server owns all ordering and retry semantics. The app must not send a target
+user ID, attempt to delete the Auth identity directly, or retry individual
+cleanup phases. Database anonymization is verified before Auth removal, while
+media deletion continues through the existing durable storage-cleanup outbox.
+
 ## Plan and prelaunch purchase testing
 
 Settings → Plan is the canonical manual entry point for `PaywallView`. Every

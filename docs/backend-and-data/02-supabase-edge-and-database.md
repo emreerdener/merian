@@ -1691,44 +1691,54 @@ metadata linkage. Token totals, operation/model classifications, and estimated
 cost remain available for anonymous aggregate analysis; the ledger cannot be
 updated or deleted through ordinary service-role writes.
 
-**Operation order**: The `safe-delete` function executes in the following
-sequence to minimise the window in which a revoked user can still issue API
-calls: (1) **Revoke auth** — `supabaseAdmin.auth.admin.deleteUser(user.id)` is
-called first, preventing refresh and causing Auth-backed `getUser` checks to
-fail; a previously issued signed JWT can remain valid until expiry, so database
-ACL/RLS remains authoritative; (2) **Tombstone** —
-`apply_user_tombstone` RPC reassigns scans and marks the user as deleted; (3)
-**Queue storage deletion** — R2 object purges are enqueued for background
-processing. The handler passes only the user ID returned by its verified
-session. Database execution is granted only to `service_role`, and the function
-also calls `internal.require_service_role()` before accepting the target UUID;
-ordinary direct-data operations remain constrained by RLS throughout cleanup.
+**Operation order**: Migration `20260725030308_durable_account_deletion.sql`
+adds the private `internal.account_deletion_jobs` state machine. `/safe-delete`
+first persists an idempotent `pending` receipt, then claims it with a
+five-minute UUID lease. The claim writes the storage-cleanup outbox row, invokes
+`apply_user_tombstone`, verifies that no public profile or scan still references
+the user, and commits `auth_pending` in one database transaction. Only then can
+the worker call `supabaseAdmin.auth.admin.deleteUser`. This ordering guarantees
+that a cleanup failure leaves the login identity available for retry instead of
+stranding personal data behind an inaccessible account.
 
-**Partial-failure handling**: If `applyUserTombstone` throws after auth has
-already been successfully revoked, the function logs a structured error via
-`logStructuredError` with `event: "safe_delete_partial_failure"` and
-`action_required: "Manually run apply_user_tombstone RPC"`, then re-throws the
-error so the response is `500` rather than a false-success `200`. This prevents
-silent data-integrity gaps where auth is gone but the tombstone was never
-applied. `queueStorageDeletion` failures are intentionally non-throwing —
-storage queue failures log a structured error via `logStructuredError` but do
-not block account deletion. The JWT has already been revoked and the user
-tombstoned at this point, so blocking here would leave a completed deletion
-appearing as a `500` to the client; the storage objects will be swept by the
-background cleanup cron.
+Every claimed retry repeats cleanup and verification immediately before Auth
+deletion. A private deletion-state trigger rejects attempts to recreate
+`public.users` while a job is active, including Auth metadata-triggered
+upserts, closing the interval between the database transaction and the external
+Auth operation.
+
+The handler passes only the user ID returned by its verified session. The
+database routines are granted only to `service_role`, call
+`internal.require_service_role()`, use an empty `search_path`, and expose no
+direct job-table privileges to API roles.
+
+**Retry and crash handling**: The request tries its own job immediately and
+returns `200` when fully complete. A `202` means deletion was durably accepted
+and will continue automatically. The scheduled
+`reconcile-account-deletions` route leases due `pending` or `auth_pending` jobs
+every five minutes and re-runs idempotent cleanup for both states. Cleanup
+failure never reaches Auth deletion; Auth failure leaves the already-anonymized
+job at `auth_pending` with bounded backoff. HTTP
+`404` and Auth code `user_not_found` are idempotent success, so a lost
+completion response is recoverable. Expired claim tokens cannot clear or finish
+a newer attempt.
+
+The terminal transition re-verifies cleanup, records Auth deletion, clears the
+claim, and sets the private job's `user_id` to `NULL`. The idempotent
+`pending_storage_deletions` outbox continues its separate R2 lifecycle.
 
 **`logStructuredError` alerting requirement**:
 `logStructuredError(event, details)` from `_shared/edgeHandler.ts` emits
 `JSON.stringify({ ...details, event, ts })` to `console.error`. These structured
-logs must be connected to a log drain (Logflare or Datadog) with an alert
-configured on `event: "safe_delete_partial_failure"`. Without this alert,
-partial account deletions (auth revoked but tombstone not applied) will silently
-accumulate and require manual intervention to detect. All functions that call
-`logStructuredError` for operationally critical events must have a corresponding
-alert rule.
+logs must be connected to a log drain (Logflare or Datadog) with alerts on
+`account_deletion_attempt_deferred` and
+`account_deletion_reconciliation_deferred`. Operators must also alert on
+overdue active rows or repeatedly increasing `attempt_count`; remediation is to
+repair the failing cleanup/Auth dependency and let the reaper resume the
+claim-fenced job, not to delete Auth manually.
 
-On `200 OK`, the iOS client performs local Supabase sign-out for the current
-device, tears down the local SQLite database via
+On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
+sign-out for the current device, tears down the local SQLite database via
 `ScanRepository.shared.purgeAllData()`, and clears all cached image files from
 disk. Ordinary in-app sign-out also uses local scope so another simulator or
 device session is not revoked.

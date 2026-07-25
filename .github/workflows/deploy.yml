@@ -148,6 +148,8 @@ jobs:
             supabase/functions/_shared/subscriptionPass.ts \
             supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/_tests/accountDeletionCoverage.test.ts \
+            supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
@@ -162,6 +164,7 @@ jobs:
             supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/functions/_tests/safeDelete.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
@@ -172,7 +175,8 @@ jobs:
             supabase/scripts/sync_function_deno_configs.ts \
             supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
-            supabase/functions/safe-delete/index.ts \
+            supabase/functions/safe-delete \
+            supabase/functions/reconcile-account-deletions \
             supabase/functions/identify \
             supabase/functions/identify-describe \
             supabase/functions/identify-multimodal/index.ts \
@@ -233,6 +237,8 @@ jobs:
             supabase/functions/_shared/subscriptionPass.ts \
             supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/_tests/accountDeletionCoverage.test.ts \
+            supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
@@ -247,6 +253,7 @@ jobs:
             supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/functions/_tests/safeDelete.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
@@ -258,6 +265,8 @@ jobs:
             supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
+            supabase/functions/safe-delete \
+            supabase/functions/reconcile-account-deletions \
             supabase/functions/identify \
             supabase/functions/identify-describe \
             supabase/functions/identify-multimodal/index.ts \
@@ -318,6 +327,8 @@ jobs:
             supabase/functions/_shared/subscriptionPass.ts \
             supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/share-scan-to-explore/index.ts \
+            supabase/functions/_tests/accountDeletionCoverage.test.ts \
+            supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/auth.test.ts \
@@ -332,6 +343,7 @@ jobs:
             supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/functions/_tests/safeDelete.test.ts \
             supabase/scripts/audit_privileged_routine_acl.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
@@ -343,6 +355,10 @@ jobs:
             supabase/scripts/validate_function_dependencies.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
+            supabase/functions/safe-delete/index.ts \
+            supabase/functions/safe-delete/handler.ts \
+            supabase/functions/safe-delete/worker.ts \
+            supabase/functions/reconcile-account-deletions/index.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/update-scan-context/index.ts \
@@ -417,6 +433,14 @@ jobs:
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
 
+      - name: Test durable account deletion boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/config.toml,../.github/workflows/deploy.yml \
+            supabase/functions/_tests/safeDelete.test.ts \
+            supabase/functions/_tests/accountDeletionCoverage.test.ts \
+            supabase/functions/_tests/accountDeletionMigrationContract.test.ts
+
       - name: Test public species observation stats boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
@@ -473,6 +497,7 @@ jobs:
         run: |
           deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/migrations \
+            supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
             supabase/functions/_tests/explorePostChatMigration.test.ts \
@@ -497,6 +522,7 @@ jobs:
         run: |
           supabase db push --local
           supabase test db --local \
+            supabase/tests/account_deletion_security.sql \
             supabase/tests/privileged_routine_security.sql \
             supabase/tests/ai_quota_security.sql \
             supabase/tests/export_dwca_security.sql \

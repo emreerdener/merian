@@ -194,7 +194,9 @@ steps are tracked in the
 **Notifications** — species discovery alerts, achievement milestone alerts.
 **Changelog** — bundled feature notes, release notes, and selected in-progress work.
 **Export** — Darwin Core Archive (DwC-A) formatted data export for academic/research use.
-**Account** — Sign in with Apple or Google, anonymous Ghost Sessions, account deletion with full data wipe.
+**Account** — Sign in with Apple or Google, anonymous Ghost Sessions, and
+durable account deletion that anonymizes retained observations, queues media
+cleanup, and removes login access only after database cleanup is verified.
 
 ---
 

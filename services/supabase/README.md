@@ -82,6 +82,31 @@ Static coverage in
 request readers and unwrapped custom entrypoints from returning to deployable
 routes, and locks the shared raw-exception sanitization boundary.
 
+### Durable Account Deletion Boundary
+
+Migration `20260725030308_durable_account_deletion.sql` makes deletion a private
+`pending → auth_pending → completed` state machine. `/safe-delete` persists
+intent before destructive work, then a five-minute claim-fenced transaction
+writes the idempotent storage outbox, tombstones relational data, and verifies
+that the public profile and original scan ownership are gone. Auth Admin
+deletion is allowed only after that transaction commits.
+
+Every retry repeats the idempotent cleanup immediately before Auth deletion. An
+internal insert trigger rejects recreation of `public.users` while a deletion
+is active, so Auth metadata synchronization cannot restore a profile in the
+cleanup-to-Auth interval.
+
+`reconcile-account-deletions` is a scheduled service-role worker that resumes
+due jobs. Auth `404` / `user_not_found` is success, transient failures receive
+database-calculated backoff, and expired workers cannot finish a newer claim.
+Terminal jobs clear their direct user UUID. The worker accepts no target UUID
+from HTTP.
+
+Coverage lives in `_tests/safeDelete.test.ts`,
+`_tests/accountDeletionCoverage.test.ts`,
+`_tests/accountDeletionMigrationContract.test.ts`, and
+`tests/account_deletion_security.sql`.
+
 ### Darwin Core Export Boundary
 
 Migration `20260724230849_harden_dwca_export_jobs.sql` makes the database queue
@@ -555,6 +580,8 @@ is available:
 make validate-supabase-migrations
 make test-supabase-privileged-routines
 supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/account_deletion_security.sql
 supabase --workdir services test db --local \
   services/supabase/tests/push_device_registration.sql
 supabase --workdir services test db --local \

@@ -195,8 +195,11 @@ single-responsibility functions under `/services/supabase/functions/`.
 - **Data Lifecycle & Offline Sync**
   - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the
     Postgres single source of truth.
-  - `/delete-scan` & `/safe-delete`: Atomic operations cascading Postgres
-    deletions out to Cloudflare R2 blobs to prevent orphaned objects.
+  - `/delete-scan`: Owner-bound scan and Cloudflare R2 media erasure.
+  - `/safe-delete`: Persists a private deletion job, atomically tombstones and
+    verifies relational data, then removes Auth only after cleanup commits.
+  - `/reconcile-account-deletions`: Five-minute service-role reaper with
+    claim-token fencing, backoff, and idempotent Auth-not-found recovery.
   - `/auto-purge-nonbio`: Automated webhook/cron job trimming non-biological
     captures while preserving biological sighting evidence.
 - **Public Species Content**

@@ -233,7 +233,12 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 
 ### Danger Zone & Data Lifecycle
 - **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background `OfflineQueueManager` URLSession transfers mid-sync from being cleared during manual cache management.
-- **Account Erasure**: A "Delete Account & Data" action behind a `.destructive` `.confirmationDialog` executes a sequential 4-part wipe: triggering the Deno `/safe-delete` endpoint, destroying the GoTrue identity locally (`signOut`), and purging the entire device SQLite boundary (`ScanRepository.shared.purgeAllData`), returning the user to the Camera interface without crashing.
+- **Account Erasure**: A "Delete Account & Data" action behind a `.destructive`
+  `.confirmationDialog` calls the durable Deno `/safe-delete` endpoint. Both
+  immediate `200` completion and `202` durable acceptance are successful:
+  backend cleanup continues through its scheduled reaper, while the client
+  signs out locally and purges the device SQLite boundary through
+  `ScanRepository.shared.purgeAllData()`.
 
 
 ## 5. Hardware Integrations (`AVCaptureEventInteraction`)

@@ -780,6 +780,80 @@ global cold-population ceiling, granting internal tables to API roles, writing
 the cache directly, or making finalization ignore the lease token. Serve stale
 positive data, preserve negative caching, and fix forward.
 
+### Durable Account Deletion Release Gate
+
+Migration `20260725030308_durable_account_deletion.sql`,
+`safe-delete`, and `reconcile-account-deletions` form one release unit. No new
+secret is required: the reaper uses the existing Supabase service-role value
+from Vault. The migration:
+
+- creates private `internal.account_deletion_jobs`;
+- blocks public-profile recreation while an account-deletion job is active;
+- deduplicates `pending_storage_deletions` and adds one-row-per-user
+  idempotency;
+- installs service-only intake, claim, cleanup, and finish RPCs; and
+- schedules `reconcile_account_deletions_every_five_minutes`.
+
+Run before deployment:
+
+```bash
+deno test --frozen --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/config.toml,.github/workflows/deploy.yml \
+  services/supabase/functions/_tests/safeDelete.test.ts \
+  services/supabase/functions/_tests/accountDeletionCoverage.test.ts \
+  services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts
+
+make validate-supabase-migrations
+make test-supabase-privileged-routines
+```
+
+The production workflow applies migrations before Edge bundles. During that
+short interval the previous `safe-delete` bundle still has its historical
+Auth-first behavior; avoid deliberately exercising account deletion until both
+new functions are deployed. Do not revoke `apply_user_tombstone` from
+`service_role` during this rollout, because the old bundle must remain
+functional until replacement.
+
+After deployment, confirm the cron and aggregate state without printing user
+identifiers:
+
+```sql
+SELECT jobname, schedule, active
+FROM cron.job
+WHERE jobname = 'reconcile_account_deletions_every_five_minutes';
+
+SELECT
+    status,
+    COUNT(*) AS jobs,
+    MAX(attempt_count) AS max_attempt_count,
+    MIN(next_attempt_at) AS oldest_next_attempt
+FROM internal.account_deletion_jobs
+GROUP BY status
+ORDER BY status;
+```
+
+Smoke-test with a staging-only account that owns at least one scan. Confirm:
+
+1. `/safe-delete` returns `200 completed` or `202 pending`;
+2. the scan is retained under the zero-UUID tombstone with
+   `is_tombstoned = true`;
+3. the original public profile is absent and one storage outbox row exists;
+4. recreating the original public profile while the job is active is rejected;
+5. Auth disappears only after the job reaches `auth_pending`; and
+6. the terminal job is `completed` with `user_id IS NULL`.
+
+Alert on `account_deletion_attempt_deferred`,
+`account_deletion_reconciliation_deferred`, overdue active jobs, and repeated
+attempt growth. Repair the dependency and let the reaper retry. Never recover a
+`pending` job by deleting Auth manually. A legacy Auth-first incident can be
+placed into the durable pipeline only after an operator verifies the recorded
+UUID and invokes `request_account_deletion` through a reviewed service-role or
+owner session.
+
+Do not roll back by dropping the private table, unique outbox index, or cron;
+that would discard deletion intent. Fix forward while keeping the reaper
+available.
+
 ### Darwin Core Export Release Gate
 
 Migration `20260724230849_harden_dwca_export_jobs.sql` must land with the

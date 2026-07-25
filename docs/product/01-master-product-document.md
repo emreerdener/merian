@@ -408,7 +408,13 @@ about domesticated observations.
 
 ## 10.3 Deletion - Implemented
 
-Account deletion uses `/safe-delete` to revoke authentication, tombstone scan ownership to a zero UUID where retention integrity requires it, anonymize cost and linkage records, and queue object-store deletion. After backend success, the client removes the local store.
+Account deletion uses `/safe-delete` to persist deletion intent before any
+destructive action. A claim-fenced database transaction queues object-store
+cleanup, tombstones scan ownership to a zero UUID where retention integrity
+requires it, anonymizes cost/linkage records, and verifies cleanup before Auth
+is deleted. A scheduled reaper resumes transient failures. After immediate
+completion or durable acceptance, the client signs out locally and removes its
+local store.
 
 Deleting an individual scan uses an owner-bound `/delete-scan` path that removes owned media and then the database record. Deletion user experience should clearly separate local removal, server completion, and any legally required residual anonymized records.
 

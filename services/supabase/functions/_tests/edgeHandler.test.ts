@@ -123,17 +123,17 @@ Deno.test("logStructuredError — emits JSON with event, ts, and all detail fiel
   const original = console.error;
   console.error = (...args: unknown[]) => logs.push(args[0]);
 
-  logStructuredError("safe_delete_partial_failure", {
-    user_id: "u123",
-    state: "auth_deleted_data_not_anonymised",
+  logStructuredError("account_deletion_attempt_deferred", {
+    job_id: "job123",
+    stage: "cleanup",
   });
 
   console.error = original;
   assertEquals(logs.length, 1);
   const parsed = JSON.parse(logs[0] as string);
-  assertEquals(parsed.event, "safe_delete_partial_failure");
-  assertEquals(parsed.user_id, "u123");
-  assertEquals(parsed.state, "auth_deleted_data_not_anonymised");
+  assertEquals(parsed.event, "account_deletion_attempt_deferred");
+  assertEquals(parsed.job_id, "job123");
+  assertEquals(parsed.stage, "cleanup");
   assert(typeof parsed.ts === "string", "ts field must be present");
   assert(parsed.ts.endsWith("Z"), "ts must be UTC ISO-8601");
 });

@@ -346,7 +346,12 @@ Data lifecycle, identity, and exports:
   anonymous Auth shell.
 - `reconcile-ghost-profile-merges` — scheduled service-role worker that leases
   committed merge receipts and retries obsolete anonymous Auth deletion.
-- `safe-delete`
+- `safe-delete` — authenticated intake plus immediate processing for the
+  durable `pending → auth_pending → completed` account-erasure state machine;
+  cleanup is committed and verified before Auth deletion.
+- `reconcile-account-deletions` — scheduled service-role worker that leases and
+  resumes incomplete account deletion jobs without accepting caller-selected
+  user IDs.
 - `delete-scan`
 - `flag-issue` — disputed-identification review only; writes `flagged_reviews`
   and marks the scan for review

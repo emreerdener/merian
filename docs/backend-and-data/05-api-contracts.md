@@ -5559,29 +5559,58 @@ prevent IDOR vulnerabilities.
 
 1. Calls `supabaseAdmin.auth.getUser()` to extract the authenticated user's UUID
    from the `Authorization: Bearer` header.
-2. **Revokes auth first** — calls `supabaseAdmin.auth.admin.deleteUser(user.id)`
-   before any data mutation. This prevents refresh and makes Auth-backed
-   `getUser` checks fail. A previously issued signed JWT can remain valid until
-   expiry, so database ACL/RLS and the tombstone remain mandatory.
-3. Executes the `apply_user_tombstone` PostgreSQL RPC against the authenticated
-   `user.id`. The RPC is executable only by the reviewed `service_role`
-   boundary and calls `internal.require_service_role()` before accepting the
-   target. It tombstones retained scans and deletes the public user so
-   relational cascades remove user-owned application rows.
-4. Queues storage deletion for background processing. Queue failure is
-   best-effort: it emits a structured storage-cleanup error but does not turn a
-   completed Auth/tombstone deletion into a false failure.
-5. **Partial-failure handling**: If step 3 throws after auth has already been
-   revoked, a structured error is logged via `logStructuredError` with
-   `event: "safe_delete_partial_failure"` and
-   `action_required: "Manually run apply_user_tombstone RPC"`, and the error is
-   re-thrown so the response is `500 Internal Server Error` rather than a
-   false-success `200 OK`.
-6. Returns `200 OK` after Auth revocation and relational tombstoning succeed.
-   The iOS client then performs local Supabase sign-out for the current device,
-   drops all local SQLite `ModelContext` state via
-   `ScanRepository.purgeAllData()`, and resets to Guest. Ordinary in-app logout
-   also uses local scope so other active devices are not revoked.
+2. Calls service-only `request_account_deletion(user.id)`. This inserts or
+   returns the active private job before any destructive work.
+3. Attempts a target-bound lease through
+   `claim_account_deletion_jobs(1, user.id)`. Another live claim produces a
+   durable `202` response rather than duplicate work.
+4. For every `pending` or `auth_pending` claim,
+   `complete_account_deletion_cleanup` atomically writes the idempotent
+   storage-deletion outbox, invokes `apply_user_tombstone`, verifies no public
+   user or scan still references the UUID, and advances or preserves
+   `auth_pending`. Repeating cleanup immediately before Auth removal protects
+   delayed retries.
+5. Only `auth_pending` may call
+   `supabaseAdmin.auth.admin.deleteUser(user.id)`. HTTP `404` and exact Auth
+   code `user_not_found` are treated as idempotent success.
+6. `finish_account_deletion_attempt` records terminal completion or releases
+   the claim with bounded retry backoff. Completion clears the private job's
+   direct `user_id`.
+
+All state-machine RPCs are `service_role`-only, call
+`internal.require_service_role()`, and have empty `search_path` values. The
+caller cannot supply a user ID in the body.
+
+While the job is active, a private database trigger rejects recreation of the
+original `public.users` row. Auth metadata synchronization and trusted backend
+upserts therefore cannot restore a profile after cleanup but before the
+external Auth call.
+
+### Responses
+
+- `200 OK`, `{ "success": true, "status": "completed", ... }`: relational
+  cleanup was verified, Auth deletion is confirmed, and the terminal job no
+  longer retains the user UUID.
+- `202 Accepted`, `{ "success": true, "status": "pending", ... }`: the request
+  is durably recorded. A five-minute scheduled reaper resumes it. This is a
+  successful deletion request, not a prompt to submit another target.
+- `405 Method Not Allowed`: any method except `POST`.
+- `500 Internal Server Error`: durable intake itself failed, so no destructive
+  work began.
+
+After either success response, the iOS client performs local Supabase sign-out,
+drops all local SQLite `ModelContext` state through
+`ScanRepository.purgeAllData()`, and resets to Guest.
+
+### Service-only reaper
+
+`/reconcile-account-deletions` accepts a bounded optional `{ "limit": n }`
+object and authenticates the complete service-role bearer value with a
+timing-safe comparison. It never accepts a target UUID. The worker leases at
+most 100 due jobs and returns only aggregate `claimed`, `completed`, and
+`deferred` counts. Claim expiry, cleanup verification, idempotent Auth
+not-found handling, and database-calculated backoff make crashes and lost
+responses resumable.
 
 ---
 

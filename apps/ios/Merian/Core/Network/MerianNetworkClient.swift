@@ -852,7 +852,7 @@ final class MerianNetworkClient {
             throw MerianError.invalidResponse
         }
 
-        if httpResponse.statusCode != 200 {
+        if !(200..<300).contains(httpResponse.statusCode) {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
             MerianLog.network.debug("Edge function failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
 
@@ -1561,7 +1561,7 @@ final class MerianNetworkClient {
     func safeDeleteAccount() async throws {
         let functionUrl = try endpointURL("safe-delete")
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST")
-        MerianLog.network.debug("Account deletion complete.")
+        MerianLog.network.debug("Account deletion accepted.")
     }
 
     // MARK: - Darwin Core Export

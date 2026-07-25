@@ -1,175 +1,265 @@
-// _tests/safeDelete.test.ts
-//
-// Unit tests for safe-delete/index.ts operation ordering and partial-failure handling.
-// All logic is inline-stubbed — no live Supabase client required.
-//
-// Covers:
-//   - Three-phase delete order: auth revoke → tombstone → storage queue
-//   - Auth-first guarantee: deleteAuthProfile throws → subsequent steps never run
-//   - Partial failure: tombstone throws after auth deleted → structured error emitted
-//   - logStructuredError event shape for safe_delete_partial_failure
-//   - Re-throw on partial failure (caller receives 500, not false-success 200)
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  assert,
+  assertEquals,
+  assertRejects,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import type { AccountDeletionClaim } from "../safe-delete/db.ts";
+import { handleSafeDelete } from "../safe-delete/handler.ts";
+import { processAccountDeletionJobs } from "../safe-delete/worker.ts";
 
-import { assertEquals, assertRejects, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+const supabaseAdmin = {} as SupabaseClient;
 
-// ---------------------------------------------------------------------------
-// Three-phase operation order simulation
-// Mirrors the execution flow in safe-delete/index.ts.
-// ---------------------------------------------------------------------------
-
-type PhaseResult = { order: string[]; outcome: "success" | "auth_failed" | "partial_failure" };
-
-async function simulateSafeDelete(
-  deleteAuth: () => Promise<void>,
-  tombstone: () => Promise<void>,
-  queueStorage: () => Promise<void>,
-): Promise<PhaseResult> {
-  const order: string[] = [];
-
-  // Phase 1 — always runs first. If this throws, phases 2+3 never execute.
-  await deleteAuth();
-  order.push("deleteAuth");
-
-  // Phases 2+3 — run after auth is revoked. Failure here is a partial failure.
-  try {
-    await tombstone();
-    order.push("tombstone");
-
-    await queueStorage();
-    order.push("queueStorage");
-
-    return { order, outcome: "success" };
-  } catch {
-    return { order, outcome: "partial_failure" };
-  }
-}
-
-Deno.test("safe-delete — full success executes all three phases in order", async () => {
-  const result = await simulateSafeDelete(
-    async () => {},
-    async () => {},
-    async () => {},
-  );
-  assertEquals(result.outcome, "success");
-  assertEquals(result.order, ["deleteAuth", "tombstone", "queueStorage"]);
-});
-
-Deno.test("safe-delete — auth failure aborts before tombstone and storage queue", async () => {
-  let tombstoneCalled = false;
-  let storageCalled = false;
-
-  await assertRejects(
-    () => simulateSafeDelete(
-      async () => { throw new Error("auth delete failed"); },
-      async () => { tombstoneCalled = true; },
-      async () => { storageCalled = true; },
-    ),
-  );
-
-  assertEquals(tombstoneCalled, false, "tombstone must NOT run after auth failure");
-  assertEquals(storageCalled, false, "storage queue must NOT run after auth failure");
-});
-
-Deno.test("safe-delete — tombstone failure after auth revoked returns partial_failure (not success)", async () => {
-  const result = await simulateSafeDelete(
-    async () => {},
-    async () => { throw new Error("tombstone RPC failed"); },
-    async () => {},
-  );
-  assertEquals(result.outcome, "partial_failure");
-  // deleteAuth ran before the failure
-  assert(result.order.includes("deleteAuth"));
-  // tombstone and queueStorage did not complete
-  assertEquals(result.order.includes("tombstone"), false);
-  assertEquals(result.order.includes("queueStorage"), false);
-});
-
-Deno.test("safe-delete — storage queue failure after auth+tombstone returns partial_failure", async () => {
-  const result = await simulateSafeDelete(
-    async () => {},
-    async () => {},
-    async () => { throw new Error("storage queue failed"); },
-  );
-  assertEquals(result.outcome, "partial_failure");
-  assert(result.order.includes("deleteAuth"));
-  assert(result.order.includes("tombstone"));
-  assertEquals(result.order.includes("queueStorage"), false);
-});
-
-// ---------------------------------------------------------------------------
-// logStructuredError shape for safe_delete_partial_failure
-// Verifies the structured error payload emitted on partial failure contains
-// the fields an operator needs to manually recover the account.
-// ---------------------------------------------------------------------------
-
-interface PartialFailurePayload {
-  event: string;
-  user_id: string;
-  error: string;
-  state: string;
-  action_required: string;
-}
-
-function buildPartialFailurePayload(userId: string, error: Error): PartialFailurePayload {
+function pendingClaim(): AccountDeletionClaim {
   return {
-    event: "safe_delete_partial_failure",
-    user_id: userId,
-    error: error.message,
-    state: "auth_deleted_data_not_anonymised",
-    action_required: "Manually run apply_user_tombstone RPC for this user_id.",
+    jobId: "00000000-0000-0000-0000-00000000d101",
+    userId: "00000000-0000-0000-0000-00000000d102",
+    status: "pending",
+    claimToken: "00000000-0000-0000-0000-00000000d103",
+    claimExpiresAt: "2026-07-25T04:00:00.000Z",
   };
 }
 
-Deno.test("safe_delete_partial_failure — event field is correct", () => {
-  const payload = buildPartialFailurePayload(crypto.randomUUID(), new Error("rpc failed"));
-  assertEquals(payload.event, "safe_delete_partial_failure");
-});
-
-Deno.test("safe_delete_partial_failure — state field identifies the inconsistent condition", () => {
-  const payload = buildPartialFailurePayload(crypto.randomUUID(), new Error("rpc failed"));
-  assertEquals(payload.state, "auth_deleted_data_not_anonymised");
-});
-
-Deno.test("safe_delete_partial_failure — action_required field contains recovery instruction", () => {
-  const payload = buildPartialFailurePayload(crypto.randomUUID(), new Error("rpc failed"));
-  assert(payload.action_required.includes("apply_user_tombstone"), "action must reference the RPC to run");
-});
-
-Deno.test("safe_delete_partial_failure — user_id is propagated from the failing request", () => {
-  const userId = crypto.randomUUID();
-  const payload = buildPartialFailurePayload(userId, new Error("rpc failed"));
-  assertEquals(payload.user_id, userId);
-});
-
-Deno.test("safe_delete_partial_failure — error message is propagated from the thrown error", () => {
-  const payload = buildPartialFailurePayload(crypto.randomUUID(), new Error("tombstone constraint violation"));
-  assertEquals(payload.error, "tombstone constraint violation");
-});
-
-// ---------------------------------------------------------------------------
-// Re-throw guarantee
-// After logging the structured error, safe-delete re-throws so the response
-// is HTTP 500 — not a false-success 200.
-// ---------------------------------------------------------------------------
-
-Deno.test("safe-delete — partial failure re-throws after logging (caller receives error, not success)", async () => {
-  let errorWasLogged = false;
-  const tombstoneError = new Error("tombstone failed");
-
-  async function runWithPartialFailure() {
-    // Simulate: auth deleted, tombstone throws
-    try {
-      throw tombstoneError;
-    } catch (e) {
-      errorWasLogged = true; // represents logStructuredError call
-      throw e;               // re-throw, as in the real function
-    }
-  }
-
-  await assertRejects(
-    () => runWithPartialFailure(),
-    Error,
-    "tombstone failed",
+Deno.test("safe-delete persists intent before cleanup and Auth deletion", async () => {
+  const order: string[] = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    { targetUserId: pendingClaim().userId, limit: 1 },
+    {
+      claim: () => {
+        order.push("claim");
+        return Promise.resolve([pendingClaim()]);
+      },
+      cleanup: () => {
+        order.push("cleanup");
+        return Promise.resolve();
+      },
+      deleteAuth: () => {
+        order.push("delete_auth");
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: (_client, _claim, authDeleted) => {
+        order.push(authDeleted ? "complete" : "defer");
+        return Promise.resolve();
+      },
+    },
   );
-  assert(errorWasLogged, "structured error must be logged before re-throw");
+
+  assertEquals(order, ["claim", "cleanup", "delete_auth", "complete"]);
+  assertEquals(result.completed, 1);
+  assertEquals(result.deferred, 0);
+});
+
+Deno.test("cleanup failure never deletes the Auth identity", async () => {
+  let authCalled = false;
+  const finishes: boolean[] = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => Promise.reject(new Error("database unavailable")),
+      deleteAuth: () => {
+        authCalled = true;
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: (_client, _claim, authDeleted) => {
+        finishes.push(authDeleted);
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(authCalled, false);
+  assertEquals(finishes, [false]);
+  assertEquals(result.completed, 0);
+  assertEquals(result.deferred, 1);
+  assertEquals(result.failures[0]?.stage, "cleanup");
+});
+
+Deno.test("Auth failure is deferred only after cleanup commits", async () => {
+  const order: string[] = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => {
+        order.push("cleanup");
+        return Promise.resolve();
+      },
+      deleteAuth: () => {
+        order.push("delete_auth");
+        return Promise.resolve({
+          succeeded: false,
+          errorCode: "auth_http_503",
+        });
+      },
+      finish: (_client, _claim, authDeleted, errorCode) => {
+        order.push(authDeleted ? "complete" : `defer:${errorCode}`);
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(order, [
+    "cleanup",
+    "delete_auth",
+    "defer:auth_http_503",
+  ]);
+  assertEquals(result.deferred, 1);
+  assertEquals(result.failures[0]?.stage, "auth");
+});
+
+Deno.test("reclaimed auth_pending jobs revalidate cleanup before Auth", async () => {
+  const order: string[] = [];
+  const claim = { ...pendingClaim(), status: "auth_pending" as const };
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([claim]),
+      cleanup: () => {
+        order.push("cleanup");
+        return Promise.resolve();
+      },
+      deleteAuth: () => {
+        order.push("delete_auth");
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: () => {
+        order.push("complete");
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(order, ["cleanup", "delete_auth", "complete"]);
+  assertEquals(result.completed, 1);
+});
+
+Deno.test("lost completion response leaves a retryable Auth-safe job", async () => {
+  const finishCalls: boolean[] = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => Promise.resolve(),
+      deleteAuth: () => Promise.resolve({ succeeded: true }),
+      finish: (_client, _claim, authDeleted) => {
+        finishCalls.push(authDeleted);
+        if (authDeleted) {
+          return Promise.reject(new Error("response lost"));
+        }
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(finishCalls, [true, false]);
+  assertEquals(result.deferred, 1);
+  assertEquals(result.failures[0]?.stage, "completion");
+});
+
+Deno.test("safe-delete handler records the job before its fast-path worker", async () => {
+  const order: string[] = [];
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      request: () => {
+        order.push("request");
+        return Promise.resolve({
+          jobId: pendingClaim().jobId,
+          status: "pending",
+        });
+      },
+      process: () => {
+        order.push("process");
+        return Promise.resolve({
+          claimed: 1,
+          completed: 1,
+          deferred: 0,
+          failures: [],
+        });
+      },
+    },
+  );
+
+  assertEquals(order, ["request", "process"]);
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).status, "completed");
+});
+
+Deno.test("safe-delete returns accepted after durable retry scheduling", async () => {
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      request: () =>
+        Promise.resolve({
+          jobId: pendingClaim().jobId,
+          status: "pending",
+        }),
+      process: () =>
+        Promise.resolve({
+          claimed: 1,
+          completed: 0,
+          deferred: 1,
+          failures: [{
+            jobId: pendingClaim().jobId,
+            stage: "cleanup",
+            code: "cleanup_failed",
+          }],
+        }),
+    },
+  );
+
+  assertEquals(response.status, 202);
+  assertEquals((await response.json()).status, "pending");
+});
+
+Deno.test("safe-delete remains accepted if fast-path claiming fails", async () => {
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      request: () =>
+        Promise.resolve({
+          jobId: pendingClaim().jobId,
+          status: "pending",
+        }),
+      process: () => Promise.reject(new Error("database unavailable")),
+    },
+  );
+
+  assertEquals(response.status, 202);
+  assertEquals((await response.json()).status, "pending");
+});
+
+Deno.test("safe-delete does no destructive work if durable intake fails", async () => {
+  let processCalled = false;
+  await assertRejects(
+    () =>
+      handleSafeDelete(
+        pendingClaim().userId,
+        supabaseAdmin,
+        {
+          request: () => Promise.reject(new Error("intake failed")),
+          process: () => {
+            processCalled = true;
+            return Promise.resolve({
+              claimed: 0,
+              completed: 0,
+              deferred: 0,
+              failures: [],
+            });
+          },
+        },
+      ),
+    Error,
+    "intake failed",
+  );
+  assert(!processCalled);
 });

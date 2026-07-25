@@ -49,6 +49,11 @@ TestFlight, App Store, support, and QA.
   overwrites, and email delivery is idempotent. Global attribution now uses a
   dedicated versioned HMAC key instead of a Supabase credential or fallback
   salt.
+- Made account deletion durable and recoverable. Naturebook now records the
+  deletion request before anonymizing account data, verifies that cleanup, and
+  removes sign-in access only as the final step. Interrupted attempts are
+  resumed automatically instead of leaving an inaccessible account with
+  personal profile data still present.
 
 ### Species Dictionary
 
