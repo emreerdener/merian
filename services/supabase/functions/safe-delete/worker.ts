@@ -79,7 +79,9 @@ export async function processAccountDeletionJobs(
     try {
       // Re-run the idempotent cleanup even for auth_pending retries. This
       // revalidates the database immediately before the external Auth delete
-      // and removes any state written by an older rollout worker.
+      // and removes any state written by an older rollout worker. Relational
+      // completion means retained scans are ownerless tombstones; it never
+      // depends on a synthetic public or Auth user.
       await cleanup(supabaseAdmin, claim);
 
       stage = "auth";

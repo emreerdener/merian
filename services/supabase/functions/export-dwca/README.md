@@ -88,9 +88,11 @@ colliding active export with the stable `owner_changed` code.
 
 ## Pseudonymization
 
-Global exports replace non-tombstone user UUIDs with a versioned,
-domain-separated HMAC-SHA256 pseudonym. They never use `SUPABASE_JWT_SECRET`, a
-raw hash, or a fallback salt.
+Global exports replace owned, non-tombstone user UUIDs with a versioned,
+domain-separated HMAC-SHA256 pseudonym. Ownerless account-deletion tombstones
+use the generic `Naturebook Citizen Scientist` recorder and are never passed to
+the pseudonymizer. Exports never use `SUPABASE_JWT_SECRET`, a raw hash, or a
+fallback salt.
 
 Version 1 requires `DWCA_PSEUDONYM_HMAC_KEY_V1`, encoded as Base64 and decoding
 to at least 32 random bytes:

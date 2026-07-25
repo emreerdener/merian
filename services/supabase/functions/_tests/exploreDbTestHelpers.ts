@@ -48,6 +48,42 @@ export async function insertUser(
   publicName: string,
   publicAvatarUrl: string | null = null,
 ): Promise<void> {
+  const email = `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`;
+  await client.queryArray(
+    `
+      INSERT INTO auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        email_confirmed_at,
+        last_sign_in_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        is_anonymous
+      )
+      VALUES (
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        $1::uuid,
+        'authenticated',
+        'authenticated',
+        $2,
+        pg_catalog.now(),
+        pg_catalog.now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        '{}'::jsonb,
+        pg_catalog.now(),
+        pg_catalog.now(),
+        false
+      )
+      ON CONFLICT (id) DO NOTHING
+    `,
+    [id, email],
+  );
+
   await client.queryArray(
     `
       INSERT INTO public.users (
@@ -59,10 +95,16 @@ export async function insertUser(
         public_username
       )
       VALUES ($1, $2, $3, 'alias', $4, public.build_default_public_username($1::uuid))
+      ON CONFLICT (id) DO UPDATE
+      SET email = EXCLUDED.email,
+          public_author_name = EXCLUDED.public_author_name,
+          public_identity_source = EXCLUDED.public_identity_source,
+          public_avatar_url = EXCLUDED.public_avatar_url,
+          public_username = EXCLUDED.public_username
     `,
     [
       id,
-      `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`,
+      email,
       publicName,
       publicAvatarUrl,
     ],

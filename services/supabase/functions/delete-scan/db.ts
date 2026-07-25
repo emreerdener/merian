@@ -2,7 +2,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 
 export interface DBScanRow {
   id: string;
-  user_id: string;
+  user_id: string | null;
   image_storage_urls: string[];
   video_storage_urls: string[];
   audio_storage_urls: string[];

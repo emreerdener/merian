@@ -356,6 +356,19 @@ export async function replayScanIngestion(
   for (const row of rows) {
     const existingScan = scansById.get(row.scan_id);
     if (existingScan) {
+      if (existingScan.user_id === null) {
+        await markComplete(
+          {
+            scanId: row.scan_id,
+            userId: row.user_id,
+            stage: "server_replay_found_ownerless_tombstone",
+          },
+          supabaseAdmin,
+        );
+        result.completedExisting++;
+        continue;
+      }
+
       const requiredVideos = requiredVideoCount(row);
       if (existingScan.user_id === row.user_id) {
         if (scanMediaIsComplete(existingScan, requiredVideos)) {

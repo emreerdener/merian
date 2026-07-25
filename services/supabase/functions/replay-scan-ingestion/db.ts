@@ -18,7 +18,7 @@ export interface ReplayableScanIngestionRow {
 
 export interface ReplayScanRow {
   id: string;
-  user_id: string;
+  user_id: string | null;
   video_storage_urls: string[] | null;
   captured_media: unknown[] | null;
 }

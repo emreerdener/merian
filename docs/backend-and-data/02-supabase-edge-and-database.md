@@ -1678,18 +1678,21 @@ deployment and incident response.
 
 Account deletions use the `apply_user_tombstone` PL/pgSQL function
 (introduced by `00006_apply_user_tombstone.sql` and hardened by later forward
-migrations). Instead of cascade-deleting scan rows, it reassigns the user's
-scans to a permanent anonymous tombstone user
-(`00000000-0000-0000-0000-000000000000`) and sets `is_tombstoned = true`. The
-original user record and telemetry are then deleted without losing the
-biological observation data.
+migrations). Instead of cascade-deleting retained observations, migration
+`20260725041308_ownerless_account_deletion_tombstones.sql` makes those scans
+ownerless (`user_id = NULL`) and sets `is_tombstoned = true`. It clears exact
+latitude, longitude, elevation, and free-form intervention notes before the
+original public profile is removed. A validated check constraint permits an
+ownerless scan only when it is tombstoned, and the anonymous table-read policy
+explicitly excludes tombstones.
 
-Migration `20260725035737_repair_tombstone_profile_seed.sql` creates that
-all-zero UUID owner as schema infrastructure with a collision-safe
-`public_username`, matching `public_author_name`, and `alias`
-`public_identity_source`. The routine verifies the seed before any scan update;
-it does not lazily insert a partial profile. Missing infrastructure fails with
-`account_deletion_tombstone_missing` before relational anonymization begins.
+`20260725035737_repair_tombstone_profile_seed.sql` is a no-op compatibility
+bridge for production run 1461. The attempted public-only all-zero profile
+could not satisfy production's canonical `public.users.id → auth.users.id`
+foreign key. The forward migration preserves that relationship with
+`ON DELETE RESTRICT`, ensuring an Auth-first delete is rejected until verified
+relational cleanup removes the profile, and never creates a synthetic Auth or
+public user.
 
 The internal-admin foundation extends this deletion boundary to the append-only
 AI ledger. When the `public.users` row is deleted, a protected trigger clears

@@ -53,7 +53,10 @@ TestFlight, App Store, support, and QA.
   deletion request before anonymizing account data, verifies that cleanup, and
   removes sign-in access only as the final step. Interrupted attempts are
   resumed automatically instead of leaving an inaccessible account with
-  personal profile data still present.
+  personal profile data still present. Retained scientific observations now
+  become ownerless tombstones with exact location and free-form notes removed,
+  rather than relying on a synthetic login/profile identity. Delayed ingestion
+  replay treats those tombstones as terminal and cannot invoke AI for them.
 
 ### Species Dictionary
 

@@ -788,25 +788,54 @@ positive data, preserve negative caching, and fix forward.
 
 ### Durable Account Deletion Release Gate
 
-Migrations `20260725030308_durable_account_deletion.sql` and
+Migrations `20260725030308_durable_account_deletion.sql`,
 `20260725035737_repair_tombstone_profile_seed.sql`,
-`safe-delete`, and `reconcile-account-deletions` form one release unit. No new
-secret is required: the reaper uses the existing Supabase service-role value
-from Vault. The migrations:
+`20260725041308_ownerless_account_deletion_tombstones.sql`, `safe-delete`,
+`reconcile-account-deletions`, and `replay-scan-ingestion` form one release
+unit. No new secret is required: the reaper uses the existing Supabase
+service-role value from Vault.
+
+The `20260725035737` file is an explicit executable no-op. It is a compatibility
+bridge for production run 1461, where its superseded public-only sentinel
+insert failed the existing profile-to-Auth foreign key before the migration
+version was recorded. The no-op ensures the failed timestamp is recorded
+without mutating data. The following forward migration converges both
+production and any preview/local catalog that happened to accept the earlier
+sentinel. Together the migrations:
 
 - creates private `internal.account_deletion_jobs`;
 - blocks public-profile recreation while an account-deletion job is active;
 - deduplicates `pending_storage_deletions` and adds one-row-per-user
   idempotency;
-- seeds the permanent all-zero UUID tombstone owner with every required public
-  identity field and removes lazy profile construction from
-  `apply_user_tombstone`;
+- makes `scans.user_id` nullable under a validated constraint that allows only
+  tombstoned ownerless rows;
+- migrates any legacy all-zero-owner scans to ownerless tombstones, clears
+  exact coordinates/elevation and intervention notes, and removes the invalid
+  public-only sentinel;
+- fails closed if an operator previously manufactured an all-zero Auth user,
+  which must be reviewed and removed through Auth Admin before retry;
+- normalizes `public.users.id → auth.users.id` as a validated
+  `ON DELETE RESTRICT` foreign key, blocking Auth-first deletion without
+  creating an Auth identity;
+- excludes tombstoned scans from the broad anonymous scans policy;
+- removes all synthetic-profile behavior from `apply_user_tombstone`;
+- excludes the public profile's own Auth foreign key from generic Ghost
+  reparenting;
 - installs service-only intake, claim, cleanup, and finish RPCs; and
 - schedules `reconcile_account_deletions_every_five_minutes`.
+
+The ownerless migration takes bounded `SHARE ROW EXCLUSIVE` locks in
+Auth → scans → public-profile order. A lock timeout is a safe deployment
+failure; retry the unchanged migration after the conflicting transaction
+finishes.
 
 Run before deployment:
 
 ```bash
+cd services/supabase/functions
+deno task test
+cd ../../..
+
 deno test --frozen --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/config.toml,.github/workflows/deploy.yml \
   services/supabase/functions/_tests/safeDelete.test.ts \
@@ -820,25 +849,57 @@ make test-supabase-privileged-routines
 The production workflow applies migrations before Edge bundles. During that
 short interval the previous `safe-delete` bundle still has its historical
 Auth-first behavior; avoid deliberately exercising account deletion until both
-new functions are deployed. Do not revoke `apply_user_tombstone` from
-`service_role` during this rollout, because the old bundle must remain
-functional until replacement.
+new functions are deployed. The `functions/deno.json` permission correction is
+a deployment control-path change and deliberately selects the complete
+function fleet, ensuring the current `safe-delete`,
+`reconcile-account-deletions`, and `replay-scan-ingestion` bundles are installed
+after run 1461 stopped before Edge deployment.
 
-After deployment, confirm the cron and aggregate state without printing user
-identifiers:
+After deployment, confirm the relational invariants, cron, and aggregate state
+without printing user identifiers:
 
 ```sql
+SELECT
+    constraint_row.conname,
+    constraint_row.convalidated,
+    constraint_row.confdeltype = 'r' AS blocks_auth_first_delete
+FROM pg_catalog.pg_constraint AS constraint_row
+WHERE constraint_row.contype = 'f'
+  AND constraint_row.conrelid = 'public.users'::REGCLASS
+  AND constraint_row.confrelid = 'auth.users'::REGCLASS;
+
+SELECT
+    attribute.attnotnull = FALSE AS scan_owner_is_nullable,
+    constraint_row.convalidated AS ownerless_check_validated
+FROM pg_catalog.pg_attribute AS attribute
+JOIN pg_catalog.pg_constraint AS constraint_row
+  ON constraint_row.conrelid = attribute.attrelid
+ AND constraint_row.conname = 'scans_ownerless_requires_tombstone_check'
+WHERE attribute.attrelid = 'public.scans'::REGCLASS
+  AND attribute.attname = 'user_id'
+  AND NOT attribute.attisdropped;
+
+SELECT
+    COUNT(*) FILTER (
+        WHERE user_id IS NULL AND is_tombstoned IS NOT TRUE
+    ) AS invalid_ownerless_scans,
+    COUNT(*) FILTER (
+        WHERE user_id =
+            '00000000-0000-0000-0000-000000000000'::UUID
+    ) AS legacy_sentinel_scans
+FROM public.scans;
+
+SELECT COUNT(*) AS invalid_sentinel_profiles
+FROM public.users
+WHERE id = '00000000-0000-0000-0000-000000000000'::UUID;
+
+SELECT COUNT(*) AS invalid_synthetic_auth_users
+FROM auth.users
+WHERE id = '00000000-0000-0000-0000-000000000000'::UUID;
+
 SELECT jobname, schedule, active
 FROM cron.job
 WHERE jobname = 'reconcile_account_deletions_every_five_minutes';
-
-SELECT
-    id,
-    public_username,
-    public_author_name,
-    public_identity_source
-FROM public.users
-WHERE id = '00000000-0000-0000-0000-000000000000'::UUID;
 
 SELECT
     status,
@@ -850,20 +911,21 @@ GROUP BY status
 ORDER BY status;
 ```
 
-Expected: one tombstone row with a valid non-empty username/author name and
-`public_identity_source = 'alias'`, plus the active cron. Do not delete or
-repurpose the tombstone row. `account_deletion_tombstone_missing` is an
-infrastructure incident that intentionally stops cleanup before any scans move.
+Expected: at least one validated restrictive profile/Auth foreign key, a nullable
+scan owner plus validated ownerless check, zero invalid ownerless scans, zero
+legacy sentinel scans/profiles, zero synthetic all-zero Auth users, and the
+active cron.
 
 Smoke-test with a staging-only account that owns at least one scan. Confirm:
 
 1. `/safe-delete` returns `200 completed` or `202 pending`;
-2. the scan is retained under the zero-UUID tombstone with
-   `is_tombstoned = true`;
-3. the original public profile is absent and one storage outbox row exists;
-4. recreating the original public profile while the job is active is rejected;
-5. Auth disappears only after the job reaches `auth_pending`; and
-6. the terminal job is `completed` with `user_id IS NULL`.
+2. the retained scan has `user_id IS NULL` and `is_tombstoned = true`;
+3. its exact latitude, longitude, elevation, and intervention notes are null;
+4. anonymous table access does not return the tombstoned scan;
+5. the original public profile is absent and one storage outbox row exists;
+6. recreating the original public profile while the job is active is rejected;
+7. Auth disappears only after the job reaches `auth_pending`; and
+8. the terminal job is `completed` with `user_id IS NULL`.
 
 Alert on `account_deletion_attempt_deferred`,
 `account_deletion_reconciliation_deferred`, overdue active jobs, and repeated
@@ -877,15 +939,37 @@ Do not roll back by dropping the private table, unique outbox index, or cron;
 that would discard deletion intent. Fix forward while keeping the reaper
 available.
 
-Workflow run 1460 caught two disposable-catalog regressions before production
-push. A `public.users.public_author_name` `NOT NULL` error from
-`apply_user_tombstone` means an obsolete routine is still lazily constructing
-the sentinel; restore the forward seed/routine migration. A “constraint does
-not exist” error for the species ledger after dictionary deletion means the
-test named the internal foreign key without its schema; restore the
-`internal.user_species_scan_counts_species_id_fkey` qualification. These
-failures occur before hosted migration history is changed; fix forward and
-rerun the complete disposable database gate.
+#### Run 1461 partial-production recovery
+
+Run 1461 committed the species-count, export, and durable deletion-state
+migrations individually, then failed before recording `20260725035737` and
+before deploying Edge Functions. Until a corrective workflow succeeds, do not
+exercise account deletion in production.
+
+On the next push:
+
+1. Supabase should skip the three already-recorded migrations.
+2. It should execute and record the no-op `20260725035737` bridge.
+3. It should apply `20260725041308`, then deploy the complete function fleet.
+4. Run the invariant queries and staging-only smoke test above.
+
+Do not mark the failed version applied with migration repair, insert an
+all-zero `auth.users` row, drop/disable the production foreign key, or edit one
+of the already-applied migrations. If the forward migration encounters a lock
+timeout, stop deliberate account-deletion testing, allow the conflicting
+transaction to finish, and rerun the workflow unchanged.
+
+`legacy_auth_sentinel_requires_operator_removal` means an out-of-band
+workaround created the forbidden all-zero Auth principal. Verify that exact
+reserved UUID has no legitimate identity or sessions, remove it through the
+Supabase Auth Admin API/dashboard, and rerun. Do not delete arbitrary Auth rows
+from SQL.
+
+Workflow run 1460 separately caught two disposable-catalog test regressions:
+direct `public.users` fixtures must first create matching transactional Auth
+fixtures, and the deferred species-ledger foreign key must be referenced as
+`internal.user_species_scan_counts_species_id_fkey`. Keep both protections in
+the complete disposable database gate.
 
 ### Darwin Core Export Release Gate
 

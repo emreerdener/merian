@@ -15,7 +15,7 @@ export interface ClaimedExportJob {
 
 export interface DBScanRow {
   id: string;
-  user_id: string;
+  user_id: string | null;
   timestamp?: string;
   gps_lat_exact?: number | null;
   gps_long_exact?: number | null;

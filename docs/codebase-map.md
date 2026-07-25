@@ -348,7 +348,8 @@ Data lifecycle, identity, and exports:
   committed merge receipts and retries obsolete anonymous Auth deletion.
 - `safe-delete` — authenticated intake plus immediate processing for the
   durable `pending → auth_pending → completed` account-erasure state machine;
-  cleanup is committed and verified before Auth deletion.
+  retained scans become personal-data-cleared ownerless tombstones, and cleanup
+  is committed and verified before Auth deletion.
 - `reconcile-account-deletions` — scheduled service-role worker that leases and
   resumes incomplete account deletion jobs without accepting caller-selected
   user IDs.

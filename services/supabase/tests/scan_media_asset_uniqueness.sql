@@ -32,6 +32,35 @@ SELECT extensions.pass(
   'legacy global scan/order uniqueness is replaced by source-aware uniqueness'
 );
 
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  email_confirmed_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  is_anonymous
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000'::UUID,
+  '00000000-0000-0000-0000-000000000501'::UUID,
+  'authenticated',
+  'authenticated',
+  'scan-media-uniqueness@naturebook.invalid',
+  pg_catalog.NOW(),
+  pg_catalog.NOW(),
+  '{"provider":"email","providers":["email"]}'::JSONB,
+  '{}'::JSONB,
+  pg_catalog.NOW(),
+  pg_catalog.NOW(),
+  FALSE
+);
+
 INSERT INTO public.users (
   id,
   email,
@@ -45,7 +74,12 @@ VALUES (
   'scan_media_501',
   'Scan Media',
   'alias'
-);
+)
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    public_username = EXCLUDED.public_username,
+    public_author_name = EXCLUDED.public_author_name,
+    public_identity_source = EXCLUDED.public_identity_source;
 
 INSERT INTO public.scans (id, user_id, ai_confidence_score)
 VALUES (

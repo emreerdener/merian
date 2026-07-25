@@ -185,6 +185,49 @@ Deno.test("replayScanIngestion marks already-complete scan rows complete without
   assertEquals(invoked.length, 0);
 });
 
+Deno.test("replayScanIngestion terminates ownerless tombstones without invoking identify", async () => {
+  const invoked: unknown[] = [];
+  const completed: unknown[] = [];
+  const scan: ReplayScanRow = {
+    id: "scan-1",
+    user_id: null,
+    video_storage_urls: [],
+    captured_media: [],
+  };
+
+  const result = await replayScanIngestion(
+    {} as never,
+    {
+      identifyUrl: "https://example.test/functions/v1/identify-multimodal",
+      serviceRoleKey: "service-role",
+      awaitInvocations: true,
+    },
+    {
+      claimJobs: () => Promise.resolve([replayRow()]),
+      fetchScans: () => Promise.resolve([scan]),
+      markComplete: (input) => {
+        completed.push(input);
+        return Promise.resolve();
+      },
+      markFailure: () => Promise.resolve(),
+      invokeIdentify: (input) => {
+        invoked.push(input);
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(result.claimed, 1);
+  assertEquals(result.dispatched, 0);
+  assertEquals(result.completedExisting, 1);
+  assertEquals(completed, [{
+    scanId: "scan-1",
+    userId: "user-1",
+    stage: "server_replay_found_ownerless_tombstone",
+  }]);
+  assertEquals(invoked.length, 0);
+});
+
 Deno.test("replayScanIngestion leaves existing incomplete video scans for repair", async () => {
   const failures: unknown[] = [];
   const scan: ReplayScanRow = {

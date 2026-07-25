@@ -91,11 +91,23 @@ writes the idempotent storage outbox, tombstones relational data, and verifies
 that the public profile and original scan ownership are gone. Auth Admin
 deletion is allowed only after that transaction commits.
 
-Migration `20260725035737_repair_tombstone_profile_seed.sql` seeds the permanent
-all-zero UUID owner with every required public identity field. The tombstone
-routine now verifies that seed instead of lazily inserting an incomplete
-`public.users` row, so later identity constraints cannot make first-time
-anonymization fail after deletion intent is accepted.
+Migration `20260725035737_repair_tombstone_profile_seed.sql` is an intentional
+no-op compatibility bridge for production run 1461, where the attempted
+public-only tombstone profile correctly failed the existing
+`public.users.id → auth.users.id` foreign key. The immediately following
+`20260725041308_ownerless_account_deletion_tombstones.sql` removes that invalid
+sentinel design. Retained scans become ownerless tombstones, exact
+location/elevation and free-form intervention notes are cleared, and a
+validated check permits `NULL user_id` only when `is_tombstoned = true`.
+`replay-scan-ingestion` treats that state as terminal and cannot dispatch
+another AI request for a deleted account's scan.
+
+The same migration declares the production Auth/profile relationship with
+`ON DELETE RESTRICT`, so an Auth Admin call cannot bypass verified relational
+cleanup. It also excludes tombstones from the broad anonymous scan-read policy
+and prevents the catalog-driven Ghost merge from trying to rewrite the public
+profile's own Auth foreign key. Account deletion never creates a synthetic
+`auth.users` or `public.users` principal.
 
 Every retry repeats the idempotent cleanup immediately before Auth deletion. An
 internal insert trigger rejects recreation of `public.users` while a deletion
@@ -210,8 +222,9 @@ species-count state. Owner or species changes debit the old pair and credit the
 new pair in the same transaction. The private helper locks affected user rows
 in UUID order and changes `users.total_species_discovered` only when a ledger
 row is created or removed. A live-owner underflow fails the scan statement
-instead of silently accepting drift. The all-zero tombstone user and null
-species remain excluded, preserving the previous metric definition.
+instead of silently accepting drift. Ownerless tombstones, the legacy all-zero
+owner, and null species remain excluded, preserving the previous metric
+definition.
 
 The ledger and all helper functions deny direct execution or table access to
 `PUBLIC`, `anon`, `authenticated`, and `service_role`; authenticated scan writes
@@ -368,13 +381,15 @@ operation in `AIQuotaOperation`,
 `tests/ai_quota_security.sql` aligned.
 
 Executable security fixtures insert test profiles directly instead of running
-the Auth signup trigger. Any such owner-only `public.users` fixture must
-provide a deterministic, unique `public_username` accepted by
+the Auth signup trigger. Any such owner-only fixture must first insert the
+matching transactional `auth.users` row, then insert `public.users` with a
+deterministic, unique `public_username` accepted by
 `public.is_valid_public_username(...)`, a non-empty `public_author_name`, and a
-CHECK-valid `public_identity_source`; all three columns are `NOT NULL`. Usernames
-are currently 3–24 lowercase characters, must start with a letter and end with
-an alphanumeric character, cannot contain `__`, and cannot be reserved. Fix a
-stale fixture rather than weakening the production identity constraints.
+CHECK-valid `public_identity_source`; all three columns are `NOT NULL`.
+Usernames are currently 3–24 lowercase characters, must start with a letter and
+end with an alphanumeric character, cannot contain `__`, and cannot be
+reserved. Fix a stale fixture rather than weakening the Auth FK or production
+identity constraints.
 
 `users.entitlement_version` advances whenever the tier or timed expiry changes.
 `_shared/entitlement.ts` performs durable reads for non-provider checks; it
@@ -453,6 +468,9 @@ service-role-only recovery worker for interrupted cleanup. It has
 `verify_jwt = false` solely for `pg_net` compatibility and performs a
 timing-safe service-role bearer comparison in Deno. See the two function
 READMEs and the deployment runbook before changing this protocol.
+`tests/ghost_profile_merge_security.sql` runs in the disposable catalog through
+`make test-supabase-privileged-routines` and protects the exact
+profile/Auth-FK exclusion used by generic ownership reparenting.
 
 ### Public Species-Stats Resource Boundary
 
@@ -492,6 +510,7 @@ linting, dependency-policy validation, and type checking:
 cd services/supabase/functions
 deno fmt --check
 deno lint --config deno.json
+deno task test
 cd ../../..
 deno run --allow-read=services/supabase \
   services/supabase/scripts/sync_function_deno_configs.ts --check
@@ -512,10 +531,18 @@ stale generated configs, unlocked packages, direct runtime specifiers, and any
 missing or stale `config.toml` function entry. When the fleet changes, fix the
 reported name mismatch; never update a numeric expected-function count.
 
-Run Deno tests:
+The checked-in `deno task test` is the canonical complete function source and
+unit suite. Its read allowlist includes the function tree plus the migration,
+Supabase config, deployment-workflow, and waitlist-route surfaces inspected by
+security contract tests. Deployment CI runs it after migrating the disposable
+database so database-backed cases cannot silently skip. Do not replace it in CI
+with a selected test subset.
+
+Run it directly:
+
 ```bash
-deno test --config deno.json --allow-env --allow-net \
-  --allow-read=../migrations _tests/
+cd services/supabase/functions
+deno task test
 ```
 
 ### Testing Database Migrations

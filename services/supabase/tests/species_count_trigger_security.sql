@@ -170,6 +170,45 @@ BEGIN
         END IF;
     END LOOP;
 
+    INSERT INTO auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        email_confirmed_at,
+        last_sign_in_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        is_anonymous
+    )
+    SELECT
+        '00000000-0000-0000-0000-000000000000'::UUID,
+        seed.user_id,
+        'authenticated',
+        'authenticated',
+        seed.email,
+        pg_catalog.NOW(),
+        pg_catalog.NOW(),
+        '{"provider":"email","providers":["email"]}'::JSONB,
+        '{}'::JSONB,
+        pg_catalog.NOW() - INTERVAL '30 days',
+        pg_catalog.NOW(),
+        FALSE
+    FROM (
+        VALUES
+            (
+                first_user_id,
+                'species-count-first@example.invalid'
+            ),
+            (
+                second_user_id,
+                'species-count-second@example.invalid'
+            )
+    ) AS seed(user_id, email);
+
     INSERT INTO public.users (
         id,
         email,
@@ -197,7 +236,14 @@ BEGIN
             'alias',
             pg_catalog.NOW() - INTERVAL '30 days',
             'free'
-        );
+        )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        public_username = EXCLUDED.public_username,
+        public_author_name = EXCLUDED.public_author_name,
+        public_identity_source = EXCLUDED.public_identity_source,
+        created_at = EXCLUDED.created_at,
+        subscription_tier = EXCLUDED.subscription_tier;
 
     INSERT INTO public.species_dictionary (
         id,
@@ -388,6 +434,33 @@ BEGIN
     ) THEN
         RAISE EXCEPTION
             'last-scan deletion did not remove one distinct-species unit';
+    END IF;
+
+    -- Account erasure retains the biological row as an ownerless tombstone.
+    -- Its OLD owner must lose the final species unit while the NULL NEW owner
+    -- is excluded from the private ledger.
+    UPDATE public.scans AS scans
+    SET user_id = NULL,
+        is_tombstoned = TRUE
+    WHERE scans.id = third_scan_id;
+
+    IF (
+        SELECT users.total_species_discovered
+        FROM public.users AS users
+        WHERE users.id = first_user_id
+    ) <> 0 OR EXISTS (
+        SELECT 1
+        FROM internal.user_species_scan_counts AS counts
+        WHERE counts.user_id = first_user_id
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM public.scans AS scans
+        WHERE scans.id = third_scan_id
+          AND scans.user_id IS NULL
+          AND scans.is_tombstoned
+    ) THEN
+        RAISE EXCEPTION
+            'ownerless tombstone did not clear OLD owner species state';
     END IF;
 
     DELETE FROM public.scans AS scans

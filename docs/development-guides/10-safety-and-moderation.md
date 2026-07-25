@@ -449,5 +449,7 @@ never be deleted as part of incident cleanup. Full incident procedures are in
 - `is_tombstoned` (BOOLEAN) — GDPR-compliant account deletion marker. Anonymizes
   scan metadata while preserving the row for offline cache continuity.
   Initially introduced by `00006_apply_user_tombstone.sql`; the durable
-  state-machine and complete tombstone-owner seed are installed by the
-  `20260725030308` and `20260725035737` forward migrations.
+  state machine and ownerless retained-observation model are installed by the
+  `20260725030308` and `20260725041308` forward migrations. Ownerless rows must
+  be tombstoned, clear exact location/elevation and intervention notes, and are
+  excluded from anonymous scan-table reads.

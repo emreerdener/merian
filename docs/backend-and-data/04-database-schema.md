@@ -70,11 +70,11 @@ lock on `public.scans`, backfills the ledger once, repairs historical
 `users.total_species_discovered` drift, atomically swaps the triggers, and
 commits only after the final trigger exists. PostgreSQL rejects `LOCK TABLE`
 outside a transaction block; the explicit boundary is therefore part of the
-migration contract rather than optional deployment syntax. The all-zero
-tombstone owner remains excluded, matching the former trigger's semantics. The
-ledger intentionally follows raw non-null `scans.species_id`; it does not
-change public Explore's separate biological/confirmed-species counting
-contract.
+migration contract rather than optional deployment syntax. Ownerless
+tombstones are excluded because their user ID is null; the historical all-zero
+owner guard remains as migration compatibility. The ledger intentionally
+follows raw non-null `scans.species_id`; it does not change public Explore's
+separate biological/confirmed-species counting contract.
 
 The dictionary foreign key lives in the `internal` namespace. Any diagnostic or
 test that forces its deferred check must use
@@ -166,19 +166,19 @@ service-owned boundaries.
 
 Auth signup normally derives the three required public-identity columns through
 `handle_new_user()`. Owner-only repair scripts and transactional database tests
-that insert `public.users` directly bypass that trigger and must explicitly
-supply a valid unique `public_username`, a non-empty `public_author_name`, and a
-CHECK-valid `public_identity_source`. These columns have no direct-insert
-fallback defaults; do not weaken their `NOT NULL`, validation, or uniqueness
-constraints for fixture convenience.
+that insert `public.users` directly bypass that trigger and must first insert a
+matching transactional `auth.users` fixture, then supply a valid unique
+`public_username`, a non-empty `public_author_name`, and a CHECK-valid
+`public_identity_source`. These columns have no direct-insert fallback
+defaults; do not weaken their Auth foreign key, `NOT NULL`, validation, or
+uniqueness constraints for fixture convenience.
 
-The permanent all-zero UUID tombstone owner is a schema-infrastructure row, not
-an Auth-backed account. Migration
-`20260725035737_repair_tombstone_profile_seed.sql` seeds it with all three
-required public-identity fields using a collision-safe username.
-`apply_user_tombstone` verifies that row before moving scans and never constructs
-a partial `public.users` row during deletion. A missing tombstone aborts before
-scan ownership changes with `account_deletion_tombstone_missing`.
+Migration `20260725041308_ownerless_account_deletion_tombstones.sql` normalizes
+the profile primary key as a validated `ON DELETE RESTRICT` foreign key to
+`auth.users(id)`. Every public profile therefore represents a real Auth
+identity, and Auth deletion cannot precede relational cleanup. Deletion
+infrastructure must never manufacture an all-zero or other synthetic profile;
+retained observations use ownerless tombstones instead.
 
 **Public identity refresh helpers**:
 `refresh_public_author_identity(target_user_id)` and `handle_new_user()`
@@ -885,7 +885,11 @@ same coverage counts. Do not show gamified completion claims until the target's
 The transaction log for every successful identification.
 
 - `id` (UUID)
-- `user_id` (UUID - Foreign Key)
+- `user_id` (UUID - Foreign Key, nullable only for tombstones): Normally
+  references `public.users(id)`. Account-deleted retained observations set it
+  to `NULL`; validated
+  `scans_ownerless_requires_tombstone_check` rejects every ownerless row whose
+  `is_tombstoned` value is not true.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the
   Gemini schema description ruleset.
@@ -1000,9 +1004,11 @@ The transaction log for every successful identification.
   back to legacy media arrays for older rows.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
-- `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for
-  GDPR-compliant account deletions. Anonymizes historical AI data while
-  preserving offline cache continuity.
+- `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` and
+  the ownerless forward migration for account deletions. Retained rows have no
+  owner and clear exact coordinates, elevation, and free-form intervention
+  notes. They remain available to trusted scientific exports but are excluded
+  from the broad anonymous scans policy.
 - `custom_tags` (Text Array): User-defined plain-text labels for personal
   categorization. Synchronized via direct PostgREST RPC, favoring the cloud
   state as the source-of-truth. Added in

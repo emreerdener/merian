@@ -5569,10 +5569,9 @@ prevent IDOR vulnerabilities.
    storage-deletion outbox, invokes `apply_user_tombstone`, verifies no public
    user or scan still references the UUID, and advances or preserves
    `auth_pending`. Repeating cleanup immediately before Auth removal protects
-   delayed retries. The permanent all-zero UUID tombstone owner is seeded with
-   its complete public identity by
-   `20260725035737_repair_tombstone_profile_seed.sql`; a missing seed fails
-   before scan ownership changes rather than constructing a partial user row.
+   delayed retries. Retained scans become ownerless tombstones and clear exact
+   location/elevation plus free-form intervention notes. No synthetic
+   `auth.users` or `public.users` identity is created.
 5. Only `auth_pending` may call
    `supabaseAdmin.auth.admin.deleteUser(user.id)`. HTTP `404` and exact Auth
    code `user_not_found` are treated as idempotent success.

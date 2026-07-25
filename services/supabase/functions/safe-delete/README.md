@@ -9,13 +9,18 @@ Migration `20260725030308_durable_account_deletion.sql` replaces the former
 Auth-first sequence with a private `internal.account_deletion_jobs` state
 machine:
 
-Migration `20260725035737_repair_tombstone_profile_seed.sql` seeds the permanent
-all-zero UUID tombstone owner with the complete required public identity
-(`public_username`, `public_author_name`, and `public_identity_source`).
-`apply_user_tombstone` no longer attempts to construct that profile lazily from
-an obsolete subset of `public.users`; it verifies the infrastructure row before
-mutating scans and fails with `account_deletion_tombstone_missing` if the
-invariant is broken.
+Migration `20260725035737_repair_tombstone_profile_seed.sql` is an explicit
+executable no-op compatibility bridge for production run 1461. Its superseded
+public-only sentinel insert could not satisfy production's
+`public.users.id → auth.users.id` foreign key. Migration
+`20260725041308_ownerless_account_deletion_tombstones.sql` is the forward fix:
+retained scans become ownerless tombstones, exact coordinates/elevation and
+free-form intervention notes are cleared, and no synthetic Auth or public user
+is created. A validated constraint permits a null scan owner only for a
+tombstone. The public profile's restrictive Auth foreign key also rejects any
+Auth-first delete until cleanup has removed that profile. The scan-ingestion
+replay worker treats an ownerless tombstone as terminal and never dispatches
+another AI request for it.
 
 1. `request_account_deletion(user_id)` inserts or returns the active `pending`
    job. This durable receipt is always the first mutation.
@@ -26,7 +31,8 @@ invariant is broken.
    idempotent `pending_storage_deletions` outbox row, calls
    `apply_user_tombstone`, verifies that no public profile or scan still
    references the user, and advances or preserves `auth_pending` in the same
-   transaction.
+   transaction. Retained observations have `user_id IS NULL` and are excluded
+   from anonymous scan-table reads.
 4. Only an `auth_pending` claim may call `supabaseAdmin.auth.admin.deleteUser`.
    HTTP `404` and exact Auth code `user_not_found` are idempotent success.
 5. `finish_account_deletion_attempt(...)` either records `completed` and erases
@@ -78,9 +84,9 @@ Do not manually delete an Auth user to recover a pending job. Repair the
 underlying cleanup failure and invoke the service reaper. For a legacy
 Auth-first incident that predates this migration, an operator may create a
 durable job for the recorded UUID through the service-only intake RPC, then run
-the reaper. Review the target and current relational state before doing so.
-Treat the all-zero tombstone profile as schema infrastructure: do not delete it
-or repurpose its identity.
+the reaper. Review the target and current relational state before doing so. Do
+not create an all-zero Auth/profile sentinel or weaken the profile foreign key;
+ownerless tombstones are the only supported retained-observation state.
 
 ## Source layout
 

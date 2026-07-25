@@ -523,6 +523,7 @@ jobs:
           supabase db push --local
           supabase test db --local \
             supabase/tests/account_deletion_security.sql \
+            supabase/tests/ghost_profile_merge_security.sql \
             supabase/tests/privileged_routine_security.sql \
             supabase/tests/ai_quota_security.sql \
             supabase/tests/export_dwca_security.sql \
@@ -530,6 +531,11 @@ jobs:
             supabase/tests/species_count_trigger_security.sql \
             supabase/tests/species_observation_stats_security.sql \
             supabase/tests/waitlist_security.sql
+
+      - name: Test complete Edge Function suite
+        env:
+          SUPABASE_DB_TEST_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: deno task --config supabase/functions/deno.json test
 
       - name: Stop disposable database
         if: always()

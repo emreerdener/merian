@@ -166,6 +166,35 @@ BEGIN
             END IF;
     END;
 
+    INSERT INTO auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        email_confirmed_at,
+        last_sign_in_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        is_anonymous
+    )
+    VALUES (
+        '00000000-0000-0000-0000-000000000000'::UUID,
+        test_user_id,
+        'authenticated',
+        'authenticated',
+        'ai-quota-test@example.invalid',
+        pg_catalog.NOW(),
+        pg_catalog.NOW(),
+        '{"provider":"email","providers":["email"]}'::JSONB,
+        '{}'::JSONB,
+        pg_catalog.NOW() - INTERVAL '30 days',
+        pg_catalog.NOW(),
+        FALSE
+    );
+
     INSERT INTO public.users (
         id,
         email,
@@ -183,7 +212,14 @@ BEGIN
         'alias',
         NOW() - INTERVAL '30 days',
         'free'
-    );
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        public_username = EXCLUDED.public_username,
+        public_author_name = EXCLUDED.public_author_name,
+        public_identity_source = EXCLUDED.public_identity_source,
+        created_at = EXCLUDED.created_at,
+        subscription_tier = EXCLUDED.subscription_tier;
 
     SELECT users.entitlement_version
     INTO initial_entitlement_version

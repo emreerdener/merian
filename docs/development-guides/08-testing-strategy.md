@@ -27,6 +27,22 @@ credentials, and unsupported formats. Browser
 verification should cover Boost → Boosted → original transitions because Web
 Audio context activation cannot be proven by TypeScript alone.
 
+The complete Supabase Edge source/unit suite is the checked-in Deno task:
+
+```bash
+cd services/supabase/functions
+deno task test
+```
+
+Its narrow read allowlist includes the full function tree and the repository
+surfaces inspected by security contracts: migrations, Supabase config, the
+deployment workflow, and the web waitlist route. Deployment CI runs this task
+after the disposable database is migrated, so database-backed cases execute
+rather than reporting connection skips; its explicit `SUPABASE_DB_TEST_URL`
+makes an unavailable database a test failure. CI must run the complete task
+rather than substituting a hand-selected subset whose permissions happen to
+pass.
+
 `lib/species.test.ts` locks canonical/native UUID URLs, versioned Edge response
 mapping, 404-versus-transient failure behavior, shared attribution filtering,
 and the exact AASA path list. The corresponding iOS suites cover canonical and
@@ -763,8 +779,8 @@ locks sanitized replay-intent construction and inline-media redaction;
 identify/describe/audio compatibility bridge so staged media and text-only
 requests replay through `/identify-multimodal` while inline media stays redacted
 and non-resumable; `replay-scan-ingestion/worker_test.ts` covers staged payload
-reconstruction, existing complete scan short-circuiting, and incomplete video
-rows being left for repair instead of duplicate AI replay;
+reconstruction, existing complete scan and ownerless-tombstone short-circuiting,
+and incomplete video rows being left for repair instead of duplicate AI replay;
 `reconcile-scan-media-assets/worker_test.ts` covers video repair, abandoned
 media cleanup, active-job waiting, ownership matching by user plus scan id, and
 job completion/failure feedback; `_tests/scanMediaIngestionContract.test.ts` is
@@ -857,14 +873,19 @@ Durable account deletion has five complementary checks:
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order,
   cleanup verification, profile-recreation guard, terminal UUID minimization,
-  service-only ACLs, five-minute cron, complete migration-seeded tombstone
-  identity, and the absence of schema-coupled lazy user creation.
+  service-only ACLs, five-minute cron, the failed-version no-op bridge,
+  ownerless-tombstone constraint/location clearing, the Auth/profile foreign
+  key, and the absence of synthetic user creation.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
-  durable intake leaves Auth/data intact, premature Auth completion is denied,
-  cleanup commits while Auth still exists, the permanent tombstone retains a
-  complete valid public identity, active deletion blocks profile resurrection,
-  retries preserve `auth_pending`, final completion erases the direct UUID, and
-  duplicate completion is idempotent.
+  durable intake leaves Auth/data intact, the restrictive profile FK rejects an
+  Auth-first delete, premature Auth completion is denied, cleanup commits while
+  Auth still exists, retained scans are ownerless tombstones with personal
+  fields cleared, no all-zero profile exists, active deletion blocks profile
+  resurrection, retries preserve `auth_pending`, final completion erases the
+  direct UUID, and duplicate completion is idempotent.
+- `tests/ghost_profile_merge_security.sql` runs in the same disposable-catalog
+  gate and proves the restrictive profile/Auth identity key is skipped only for
+  the source profile row while all real Ghost-owned references are reparented.
 - `MerianNetworkClientTests.testSafeDeleteAccountEndpoint` returns
   `202 Accepted` from the mock route and proves the shared authenticated request
   boundary recognizes durable acceptance as a successful 2xx response.
@@ -964,13 +985,15 @@ UUIDs, empty/overlong names, legacy schemas, and response identity mismatches
 before either network dispatch or memoization.
 
 Owner-level pgTAP fixtures that insert `public.users` directly bypass
-`handle_new_user()`. They must supply a deterministic, unique `public_username`
+`handle_new_user()`. They must first create a matching transactional
+`auth.users` fixture, then supply a deterministic, unique `public_username`
 accepted by `public.is_valid_public_username(...)`, a non-empty
-`public_author_name`, and a CHECK-valid `public_identity_source`, in addition to
-the fields relevant to the behavior under test. Usernames are currently 3–24
-lowercase characters, start with a letter, end with an alphanumeric character,
-contain no `__`, and cannot be reserved. Keep fixtures transactional; never drop
-or weaken a production constraint to accommodate stale test data.
+`public_author_name`, and a CHECK-valid `public_identity_source`, in addition
+to the fields relevant to the behavior under test. Usernames are currently
+3–24 lowercase characters, start with a letter, end with an alphanumeric
+character, contain no `__`, and cannot be reserved. Keep fixtures
+transactional; never drop or weaken the Auth FK or another production
+constraint to accommodate stale test data.
 
 Identification latency has focused contract coverage at each boundary:
 

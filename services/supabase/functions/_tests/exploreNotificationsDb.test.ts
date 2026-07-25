@@ -6,7 +6,8 @@ import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 
 const DEFAULT_DB_URL =
   "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
-const DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL") ?? DEFAULT_DB_URL;
+const CONFIGURED_DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL");
+const DB_URL = CONFIGURED_DB_URL ?? DEFAULT_DB_URL;
 
 async function withDbTest(
   fn: (client: Client) => Promise<void>,
@@ -16,10 +17,16 @@ async function withDbTest(
   try {
     await client.connect();
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (CONFIGURED_DB_URL != null) {
+      throw new Error(
+        `[exploreNotificationsDb.test] Could not connect to configured DB integration test database ${DB_URL}: ${message}`,
+        { cause: error },
+      );
+    }
+
     console.warn(
-      `[exploreNotificationsDb.test] Skipping DB integration test. Could not connect to ${DB_URL}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      `[exploreNotificationsDb.test] Skipping DB integration test. Could not connect to ${DB_URL}: ${message}`,
     );
     return;
   }
@@ -42,6 +49,42 @@ async function insertUser(
   id: string,
   publicName: string,
 ): Promise<void> {
+  const email = `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`;
+  await client.queryArray(
+    `
+      INSERT INTO auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        email_confirmed_at,
+        last_sign_in_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        is_anonymous
+      )
+      VALUES (
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        $1::uuid,
+        'authenticated',
+        'authenticated',
+        $2,
+        pg_catalog.now(),
+        pg_catalog.now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        '{}'::jsonb,
+        pg_catalog.now(),
+        pg_catalog.now(),
+        false
+      )
+      ON CONFLICT (id) DO NOTHING
+    `,
+    [id, email],
+  );
+
   await client.queryArray(
     `
       INSERT INTO public.users (
@@ -52,10 +95,15 @@ async function insertUser(
         public_username
       )
       VALUES ($1, $2, $3, 'alias', public.build_default_public_username($1::uuid))
+      ON CONFLICT (id) DO UPDATE
+      SET email = EXCLUDED.email,
+          public_author_name = EXCLUDED.public_author_name,
+          public_identity_source = EXCLUDED.public_identity_source,
+          public_username = EXCLUDED.public_username
     `,
     [
       id,
-      `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`,
+      email,
       publicName,
     ],
   );
@@ -590,7 +638,7 @@ Deno.test("Explore notifications DB - blocked comment actors are filtered and un
       [ownerId, actorId],
     );
 
-    let feedResult = await client.queryObject<NotificationFeedRow>(
+    const feedResult = await client.queryObject<NotificationFeedRow>(
       `
         SELECT *
         FROM public.get_explore_notifications($1, 50, NULL, NULL)

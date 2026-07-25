@@ -76,7 +76,8 @@ Deno.test("export identity and delivery use dedicated idempotent secrets", async
     "DWCA_PSEUDONYM_HMAC_KEY_V${keyVersion}",
   );
   assertStringIncludes(pseudonym, '{ name: "HMAC", hash: "SHA-256" }');
-  assertStringIncludes(dwca, "pseudonymizer.pseudonymize(scan.user_id)");
+  assertStringIncludes(dwca, "ownerUserId === null");
+  assertStringIncludes(dwca, "pseudonymizer.pseudonymize(ownerUserId)");
   assertStringIncludes(mail, '"Idempotency-Key": `dwca-export/${jobId}`');
   assert(
     productionSources.every((value) =>

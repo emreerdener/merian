@@ -557,7 +557,9 @@ an upsert with `onConflict: "id", ignoreDuplicates: true`, so a replayed
 inference request for an already-inserted scan is a silent no-op rather than a
 duplicate-key error, while the job ledger plus intent lets status polling,
 reconciliation, and server replay distinguish the same-media retry from a
-changed media shape for the same scan id.
+changed media shape for the same scan id. Account-deletion tombstones have no
+owner and are terminal for replay; a delayed ingestion job cannot dispatch
+another provider request for them.
 
 > **Critical**: The `taskDescription` for each new upload task is
 > `upload|{scanId}|{uploadIndex}|{syncGeneration}`, where `uploadIndex` is the

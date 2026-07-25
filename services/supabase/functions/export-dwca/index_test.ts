@@ -80,6 +80,27 @@ Deno.test("personal DwC-A rows retain the requesting user's UUID", async () => {
   assertEquals(splitCsvRow(result.occurrenceRow).map(unquote)[2], userId);
 });
 
+Deno.test("ownerless tombstones retain no linkable recorder", async () => {
+  const result = await generateDwcARow(
+    {
+      id: "scan_ownerless_tombstone",
+      user_id: null,
+      gps_lat_exact: 41.881832,
+      gps_long_exact: -87.623177,
+      gps_lat_public: 41.8,
+      gps_long_public: -87.6,
+    },
+    "global",
+    true,
+    "00000000-0000-4000-8000-000000000402",
+    null,
+  );
+  const fields = splitCsvRow(result.occurrenceRow).map(unquote);
+  assertEquals(fields[2], "Naturebook Citizen Scientist");
+  assertEquals(fields[11], "41.8");
+  assertEquals(fields[12], "-87.6");
+});
+
 Deno.test("protected species always use coarse public coordinates", async () => {
   const userId = "00000000-0000-4000-8000-000000000403";
   const result = await generateDwcARow(

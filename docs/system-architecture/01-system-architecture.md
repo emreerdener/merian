@@ -197,7 +197,8 @@ single-responsibility functions under `/services/supabase/functions/`.
     Postgres single source of truth.
   - `/delete-scan`: Owner-bound scan and Cloudflare R2 media erasure.
   - `/safe-delete`: Persists a private deletion job, atomically tombstones and
-    verifies relational data, then removes Auth only after cleanup commits.
+    clears ownership/personal fields from retained observations, verifies
+    relational data, then removes Auth only after cleanup commits.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
     claim-token fencing, backoff, and idempotent Auth-not-found recovery.
   - `/auto-purge-nonbio`: Automated webhook/cron job trimming non-biological

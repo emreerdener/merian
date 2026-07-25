@@ -11,6 +11,10 @@ const tombstoneRepairMigrationUrl = new URL(
   "../../migrations/20260725035737_repair_tombstone_profile_seed.sql",
   import.meta.url,
 );
+const ownerlessTombstoneMigrationUrl = new URL(
+  "../../migrations/20260725041308_ownerless_account_deletion_tombstones.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -112,39 +116,82 @@ Deno.test("account deletion RPCs remain service-only", async () => {
   );
 });
 
+Deno.test("failed tombstone-owner rollout is an executable no-op bridge", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(tombstoneRepairMigrationUrl),
+  );
+
+  assertStringIncludes(sql, "DO $migration$ BEGIN NULL; END; $migration$;");
+  assert(
+    !/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b/i
+      .test(
+        sql.replaceAll(/--[^\r\n]*/g, " "),
+      ),
+    "The failed production migration must record only a no-op and never retry the invalid public-only user insert.",
+  );
+});
+
 Deno.test(
-  "account deletion has a complete migration-seeded tombstone owner",
+  "account deletion uses ownerless tombstones and Auth-backed profiles",
   async () => {
     const sql = normalized(
-      await Deno.readTextFile(tombstoneRepairMigrationUrl),
+      await Deno.readTextFile(ownerlessTombstoneMigrationUrl),
     );
 
     for (
       const fragment of [
-        "INSERT INTO public.users AS tombstone_user",
-        "id, public_username, public_author_name, public_identity_source",
-        "public.build_unique_public_username( 'deleted_account', '00000000-0000-0000-0000-000000000000'::UUID )",
-        "ON CONFLICT (id) DO NOTHING",
+        "BEGIN; SET LOCAL lock_timeout = '10s'; SET LOCAL statement_timeout = '2min'",
+        "LOCK TABLE auth.users IN SHARE ROW EXCLUSIVE MODE",
+        "LOCK TABLE public.scans IN SHARE ROW EXCLUSIVE MODE",
+        "LOCK TABLE public.users IN SHARE ROW EXCLUSIVE MODE",
+        "legacy_auth_sentinel_requires_operator_removal",
+        "ALTER TABLE public.scans ALTER COLUMN user_id DROP NOT NULL",
+        "ADD CONSTRAINT scans_ownerless_requires_tombstone_check CHECK (user_id IS NOT NULL OR is_tombstoned) NOT VALID",
+        "SET user_id = NULL, is_tombstoned = TRUE, gps_lat_exact = NULL, gps_long_exact = NULL, gps_elevation = NULL, human_intervention_notes = NULL",
+        "VALIDATE CONSTRAINT scans_ownerless_requires_tombstone_check",
+        "DELETE FROM public.users AS users WHERE users.id = '00000000-0000-0000-0000-000000000000'::UUID",
+        "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE RESTRICT NOT VALID",
+        'DROP POLICY IF EXISTS "Anyone can read open and live scans" ON public.scans',
+        "AND is_tombstoned = FALSE",
         "CREATE OR REPLACE FUNCTION public.apply_user_tombstone",
         "PERFORM internal.require_service_role()",
         "SET search_path = ''",
-        "account_deletion_tombstone_missing",
-        "UPDATE public.scans SET user_id = tombstone_user_id, is_tombstoned = TRUE",
-        "DELETE FROM public.users WHERE id = target_user_id",
+        "WHERE scans.user_id = target_user_id",
+        "DELETE FROM public.users AS users WHERE users.id = target_user_id",
+        "CREATE OR REPLACE FUNCTION internal.reparent_ghost_user_foreign_keys",
         "REVOKE ALL ON FUNCTION public.apply_user_tombstone(UUID) FROM PUBLIC, anon, authenticated, service_role",
         "GRANT EXECUTE ON FUNCTION public.apply_user_tombstone(UUID) TO service_role",
+        "COMMIT;",
       ]
     ) {
       assertStringIncludes(sql, fragment);
     }
 
+    const profileIdentityPredicate =
+      "constraint_row.conrelid = 'public.users'::REGCLASS AND constraint_row.confrelid = 'auth.users'::REGCLASS AND source_column.attname = 'id' AND target_column.attname = 'id'";
+    assert(
+      sql.split(profileIdentityPredicate).length - 1 >= 2,
+      "Only the exact profile identity FK may be skipped in both Ghost reparenting passes.",
+    );
+
+    assert(
+      !sql.includes("INSERT INTO auth.users") &&
+        !sql.includes("INSERT INTO public.users"),
+      "Deletion infrastructure must never manufacture an Auth or public user.",
+    );
+
     const routineStart = sql.indexOf(
       "CREATE OR REPLACE FUNCTION public.apply_user_tombstone",
     );
-    const routineSql = sql.slice(routineStart);
+    const routineEnd = sql.indexOf(
+      "COMMENT ON FUNCTION public.apply_user_tombstone",
+      routineStart,
+    );
+    const routineSql = sql.slice(routineStart, routineEnd);
     assert(
-      !routineSql.includes("INSERT INTO public.users"),
-      "Routine execution must not lazily construct a schema-coupled user row.",
+      routineSql.indexOf("SET user_id = NULL") <
+        routineSql.indexOf("DELETE FROM public.users"),
+      "Scan ownership must be erased before the Auth-backed profile is deleted.",
     );
   },
 );

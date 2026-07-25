@@ -80,6 +80,52 @@ BEGIN
         RAISE EXCEPTION
             'service_role is missing an account-deletion worker RPC';
     END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_attribute AS column_row
+        WHERE column_row.attrelid = 'public.scans'::REGCLASS
+          AND column_row.attname = 'user_id'
+          AND column_row.attnotnull
+          AND NOT column_row.attisdropped
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid = 'public.scans'::REGCLASS
+          AND constraint_row.conname =
+              'scans_ownerless_requires_tombstone_check'
+          AND constraint_row.contype = 'c'
+          AND constraint_row.convalidated
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_constraint AS constraint_row
+        JOIN pg_catalog.pg_attribute AS source_column
+          ON source_column.attrelid = constraint_row.conrelid
+         AND source_column.attnum = constraint_row.conkey[1]
+        JOIN pg_catalog.pg_attribute AS target_column
+          ON target_column.attrelid = constraint_row.confrelid
+         AND target_column.attnum = constraint_row.confkey[1]
+        WHERE constraint_row.contype = 'f'
+          AND constraint_row.conrelid = 'public.users'::REGCLASS
+          AND constraint_row.confrelid = 'auth.users'::REGCLASS
+          AND constraint_row.confdeltype = 'r'
+          AND constraint_row.convalidated
+          AND pg_catalog.ARRAY_LENGTH(constraint_row.conkey, 1) = 1
+          AND pg_catalog.ARRAY_LENGTH(constraint_row.confkey, 1) = 1
+          AND source_column.attname = 'id'
+          AND target_column.attname = 'id'
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_policies AS policy_row
+        WHERE policy_row.schemaname = 'public'
+          AND policy_row.tablename = 'scans'
+          AND policy_row.policyname =
+              'Anyone can read open and live scans'
+          AND policy_row.qual ~* 'is_tombstoned.*false'
+    ) THEN
+        RAISE EXCEPTION
+            'Ownerless tombstone or Auth-profile catalog invariants are missing';
+    END IF;
 END;
 $$;
 
@@ -132,12 +178,20 @@ SET email = EXCLUDED.email;
 INSERT INTO public.scans (
     id,
     user_id,
-    ai_confidence_score
+    ai_confidence_score,
+    gps_lat_exact,
+    gps_long_exact,
+    gps_elevation,
+    human_intervention_notes
 )
 VALUES (
     '00000000-0000-0000-0000-00000000d211'::UUID,
     '00000000-0000-0000-0000-00000000d201'::UUID,
-    0.91
+    0.91,
+    41.881832,
+    -87.623177,
+    181.0,
+    'account deletion personal note'
 );
 
 CREATE TEMP TABLE account_deletion_test_job (
@@ -192,6 +246,26 @@ BEGIN
     ) THEN
         RAISE EXCEPTION
             'Durable intake or claim mutated Auth or user data';
+    END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+    auth_first_delete_rejected BOOLEAN := FALSE;
+BEGIN
+    BEGIN
+        DELETE FROM auth.users AS auth_user
+        WHERE auth_user.id =
+            '00000000-0000-0000-0000-00000000d201'::UUID;
+    EXCEPTION
+        WHEN SQLSTATE '23503' THEN
+            auth_first_delete_rejected := TRUE;
+    END;
+
+    IF NOT auth_first_delete_rejected THEN
+        RAISE EXCEPTION
+            'Profile foreign key allowed Auth deletion before cleanup';
     END IF;
 END;
 $$;
@@ -256,20 +330,22 @@ BEGIN
         FROM public.scans AS scan
         WHERE scan.id =
             '00000000-0000-0000-0000-00000000d211'::UUID
-          AND scan.user_id =
-            '00000000-0000-0000-0000-000000000000'::UUID
+          AND scan.user_id IS NULL
           AND scan.is_tombstoned
-    ) OR NOT EXISTS (
+          AND scan.gps_lat_exact IS NULL
+          AND scan.gps_long_exact IS NULL
+          AND scan.gps_elevation IS NULL
+          AND scan.human_intervention_notes IS NULL
+    ) OR EXISTS (
         SELECT 1
-        FROM public.users AS tombstone_user
-        WHERE tombstone_user.id =
+        FROM public.users AS invalid_sentinel
+        WHERE invalid_sentinel.id =
             '00000000-0000-0000-0000-000000000000'::UUID
-          AND public.is_valid_public_username(
-              tombstone_user.public_username
-          )
-          AND tombstone_user.public_author_name =
-              tombstone_user.public_username
-          AND tombstone_user.public_identity_source = 'alias'
+    ) OR EXISTS (
+        SELECT 1
+        FROM auth.users AS invalid_auth_sentinel
+        WHERE invalid_auth_sentinel.id =
+            '00000000-0000-0000-0000-000000000000'::UUID
     ) OR NOT EXISTS (
         SELECT 1
         FROM public.pending_storage_deletions AS deletion

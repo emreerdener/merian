@@ -100,7 +100,9 @@ export async function generateOccurrenceRow(
 ): Promise<string> {
   const species = scan.species_dictionary;
   const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
-  const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
+  const ownerUserId = scan.user_id;
+  const isTombstoned = ownerUserId === null ||
+    ownerUserId === "00000000-0000-0000-0000-000000000000";
   let recordedBy = "Naturebook Citizen Scientist";
 
   if (!isTombstoned) {
@@ -111,9 +113,9 @@ export async function generateOccurrenceRow(
           "Global exports require a dedicated pseudonymizer.",
         );
       }
-      recordedBy = await pseudonymizer.pseudonymize(scan.user_id);
+      recordedBy = await pseudonymizer.pseudonymize(ownerUserId);
     } else {
-      recordedBy = scan.user_id;
+      recordedBy = ownerUserId;
     }
   }
 
@@ -124,7 +126,7 @@ export async function generateOccurrenceRow(
     "near_threatened",
   ].includes(species?.iucn_red_list_status || "");
   const canAccessPrecise = includePreciseCoordinates &&
-    (scan.user_id === requestingUserId);
+    (ownerUserId === requestingUserId);
 
   let lat: number | string | undefined | null = canAccessPrecise && !isProtected
     ? scan.gps_lat_exact
