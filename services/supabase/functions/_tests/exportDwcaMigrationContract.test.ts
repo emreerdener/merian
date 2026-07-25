@@ -9,6 +9,11 @@ const migrationUrl = new URL(
   import.meta.url,
 );
 const migration = await Deno.readTextFile(migrationUrl);
+const boundedMigrationUrl = new URL(
+  "../../migrations/20260725052339_bound_dwca_export_work.sql",
+  import.meta.url,
+);
+const boundedMigration = await Deno.readTextFile(boundedMigrationUrl);
 
 Deno.test("DwC-A migration installs a private atomic claim lease", () => {
   for (
@@ -124,4 +129,55 @@ Deno.test("DwC-A migration supports indexed keysets and versioned HMAC keys", ()
   ) {
     assertStringIncludes(migration, expected);
   }
+});
+
+Deno.test("DwC-A work is canonical, bounded, and resumable across invocations", () => {
+  for (
+    const expected of [
+      "ADD COLUMN max_export_rows INTEGER NOT NULL DEFAULT 5000",
+      "ADD COLUMN max_archive_bytes BIGINT NOT NULL DEFAULT 8388608",
+      "export_job_budget_is_immutable",
+      "idx_scans_dwca_personal_active_keyset",
+      "idx_scans_dwca_global_active_keyset",
+      "is_tombstoned = FALSE",
+      "CREATE TABLE internal.export_job_work",
+      "CREATE TABLE internal.export_job_chunks",
+      "phase TEXT NOT NULL DEFAULT 'occurrence'",
+      "occurrence_after_id UUID",
+      "multimedia_after_id UUID",
+      "csv_bytes BIGINT NOT NULL DEFAULT 0",
+      "CREATE OR REPLACE FUNCTION public.get_due_export_job_ids",
+      "CREATE OR REPLACE FUNCTION public.claim_export_job_step",
+      "CREATE OR REPLACE FUNCTION public.advance_export_job_step",
+      "p_next_after_id <= current_after_id",
+      "|| '-' || p_claim_token::TEXT || '.csv'",
+      "export_budget_exceeded",
+      "work_row.occurrence_rows + work_row.multimedia_rows",
+      "job_row.max_export_rows",
+      "job_row.max_archive_bytes - 65536",
+      "CREATE OR REPLACE FUNCTION public.get_export_job_chunks",
+      "CREATE OR REPLACE FUNCTION public.stage_prepared_export_archive",
+      "CREATE OR REPLACE FUNCTION public.complete_prepared_export_job",
+      "CREATE OR REPLACE FUNCTION public.release_export_job_step",
+      "resume_dwca_exports_every_minute",
+      "'/functions/v1/export-dwca'",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+    ]
+  ) {
+    assertStringIncludes(boundedMigration, expected);
+  }
+
+  assertEquals(
+    boundedMigration.includes("pg_catalog.COALESCE"),
+    false,
+  );
+  assertEquals(
+    boundedMigration.includes("pg_catalog.GREATEST"),
+    false,
+  );
+  assertEquals(
+    boundedMigration.includes("pg_catalog.LEAST"),
+    false,
+  );
 });

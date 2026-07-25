@@ -325,7 +325,14 @@ The `Achievements` component sorts awards using a `smartSort` heuristic: recentl
 
 ## ExportScans (DWC-A)
 
-`ExportScans` (Settings) calls `MerianNetworkClient.shared.requestDwcAExport()`, which hits the `/request-export-dwca` Edge function with a 15-second timeout. This enqueues an asynchronous export job server-side rather than blocking on the CPU-intensive archive generation. The user receives a notification or email when the export is ready. See `docs/backend-and-data/05-api-contracts.md` for the full endpoint contract.
+`ExportScans` (Settings) calls
+`MerianNetworkClient.shared.requestDwcAExport()`, which hits the
+`/request-export-dwca` Edge Function with a 15-second timeout. The public route
+queues a personal export only. Server-side work advances through
+cursor-persisted 100-row CSV phases, bounded assembly, and idempotent delivery
+under canonical row/archive budgets rather than blocking the client or one Edge
+invocation. The user receives an email when the export is ready. See
+`docs/backend-and-data/05-api-contracts.md` for the full endpoint contract.
 
 ## 2026-04 Hardening Updates
 

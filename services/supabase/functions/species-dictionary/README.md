@@ -1,8 +1,8 @@
 # Species Dictionary
 
 Returns public species-level dictionary data for the standalone iOS and public
-web species pages. The endpoint is intentionally shared-safe and must not
-expose user-specific scan data.
+web species pages. The endpoint is intentionally shared-safe and must not expose
+user-specific scan data.
 
 ## Request
 
@@ -106,13 +106,13 @@ Vary: Accept-Encoding
 
 Overview mode returns the featured species card plus category, high-level group,
 and region summaries. It uses `Cache-Control: no-store` so randomized category
-thumbnails and featured species choices can refresh on each request.
-Overview, catalog, and the `all_species` tree scope only publish rows that look
-like biological taxa: a row must have a scientific name plus either a positive
-GBIF taxon key or usable taxonomy with a kingdom and at least one downstream
-rank. This prevents generic encyclopedia concepts from appearing as Species
-Dictionary records. The `my_scans` tree scope applies the same public species
-projection after selecting the current user's scanned species.
+thumbnails and featured species choices can refresh on each request. Overview,
+catalog, and the `all_species` tree scope only publish rows that look like
+biological taxa: a row must have a scientific name plus either a positive GBIF
+taxon key or usable taxonomy with a kingdom and at least one downstream rank.
+This prevents generic encyclopedia concepts from appearing as Species Dictionary
+records. The `my_scans` tree scope applies the same public species projection
+after selecting the current user's scanned species.
 
 `400`, `404`, and `500` responses do not include those cache headers. Missing
 rows and transient failures must be able to recover as soon as the backing
@@ -142,9 +142,9 @@ with status `404`.
 ## Public Web Consumer
 
 `apps/web/lib/species.ts` is the server-only consumer for
-`/species/[speciesId]/[slug]` and its UUID-only compatibility route. It validates
-the route UUID before invoking this function with `species_id`, requires
-`schema_version = 1`, verifies the returned identity, and maps only the
+`/species/[speciesId]/[slug]` and its UUID-only compatibility route. It
+validates the route UUID before invoking this function with `species_id`,
+requires `schema_version = 1`, verifies the returned identity, and maps only the
 documented public fields. The slug is derived from returned names and is never
 part of this function's request or identity contract. It must not replace the
 Edge call with direct service-role table reads.
@@ -185,10 +185,10 @@ The FK hint is required because `species_lookalikes` has both `species_id` and
 ## Mapping Rules
 
 The Deno mapping lives in
-`services/supabase/functions/_shared/publicSpeciesProjection.ts`. Explore detail similar
-species use matching SQL helpers so common-name fallback, reference-image
-fallback, and private-field exclusions stay aligned across public species
-surfaces.
+`services/supabase/functions/_shared/publicSpeciesProjection.ts`. Explore detail
+similar species use matching SQL helpers so common-name fallback,
+reference-image fallback, and private-field exclusions stay aligned across
+public species surfaces.
 
 Common name fallback:
 
@@ -231,12 +231,12 @@ fields in V1. The scheduled `refresh-species-content` worker claims
 to `public.get_species_content_refresh_queue(...)` for older provenance-driven
 refreshes, and refreshes GBIF/Wikipedia-backed fields: alternate common names,
 taxonomy, Wikipedia URL/overview, GBIF taxon key, and reference images.
-`refresh-species-model-content` claims `habitat`, `lookalikes`, and
-`group_tags` jobs from the same queue. New dictionary rows and existing sparse
-rows enter that queue through
-`20260707153931_species_dictionary_enrichment_queue_backfill.sql`.
-Common-name overrides, conservation, and hazard data remain curation-owned.
-Merian source scan/post/user provenance is stored privately in
+`refresh-species-model-content` claims `habitat`, `lookalikes`, and `group_tags`
+jobs from the same queue. New dictionary rows and existing sparse rows enter
+that queue through
+`20260707153931_species_dictionary_enrichment_queue_backfill.sql`. Common-name
+overrides, conservation, and hazard data remain curation-owned. Merian source
+scan/post/user provenance is stored privately in
 `public.species_reference_image_merian_sources`; the public dictionary response
 exposes only URL, source, license, attribution, and optional image dimensions.
 Merian images qualify only when the source scan is publicly visible, has a high

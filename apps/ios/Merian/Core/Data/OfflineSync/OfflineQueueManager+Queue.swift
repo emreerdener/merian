@@ -233,11 +233,50 @@ extension OfflineQueueManager {
         inferenceExpectation: InferenceGenerationExpectation? = nil,
         serverPollTokenToPreserve: UUID? = nil
     ) async -> Bool {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return false
+        }
+        let didDelete = await deleteQueuedScanAssumingPersistenceLock(
+            scanId: scanId,
+            explicitlyAdoptedMediaPaths: explicitlyAdoptedMediaPaths,
+            preservePreferredGoalHint: preservePreferredGoalHint,
+            inferenceExpectation: inferenceExpectation,
+            serverPollTokenToPreserve: serverPollTokenToPreserve
+        )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return didDelete
+    }
+
+    private func deleteQueuedScanAssumingPersistenceLock(
+        scanId: String,
+        explicitlyAdoptedMediaPaths: [String],
+        preservePreferredGoalHint: Bool,
+        inferenceExpectation: InferenceGenerationExpectation?,
+        serverPollTokenToPreserve: UUID?
+    ) async -> Bool {
         if let inferenceExpectation {
             guard activeInferenceGenerations[scanId]
                     == inferenceExpectation.generation else {
                 MerianLog.data.debug(
                     "deleteQueuedScan: ignored stale inference owner scanId=\(scanId, privacy: .public)"
+                )
+                return false
+            }
+        }
+        if let expectedGeneration = inferenceExpectation?.generation {
+            guard let container = modelContext?.container else { return false }
+            let validationActor = BackgroundDatabaseActor(
+                modelContainer: container
+            )
+            guard await validationActor
+                .inferenceGenerationIsCurrentAssumingPersistenceLock(
+                    scanId: scanId,
+                    expectedGeneration: expectedGeneration
+                ) else {
+                MerianLog.data.debug(
+                    "deleteQueuedScan: durable inference owner changed scanId=\(scanId, privacy: .public)"
                 )
                 return false
             }
@@ -657,7 +696,10 @@ extension OfflineQueueManager {
                     )
                     return
                 }
-                let didClaim = await dbActor.tryClaimForInference(scanId: scanId)
+                let didClaim = await dbActor.tryClaimForInference(
+                    scanId: scanId,
+                    generation: preparationGeneration
+                )
                 if !didClaim {
                     MerianLog.data.debug(
                         "replayInferenceStagedScans: claim skipped scanId=\(scanId, privacy: .public)"

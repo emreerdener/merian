@@ -129,17 +129,18 @@ published posts from the author's grid.
 Each author-post row includes both `hero_image_url` and optional
 `reference_thumbnail_url`. The latter resolves through
 `public_species_first_reference_image_url(scan.species_id,
-species_dictionary.reference_image_url)`, preferring normalized
-`species_reference_images` and retaining the legacy dictionary URL fallback.
-The Edge function adds ordered `media_items` separately, so clients can detect
-audio without losing the durable recording URL.
+species_dictionary.reference_image_url)`,
+preferring normalized `species_reference_images` and retaining the legacy
+dictionary URL fallback. The Edge function adds ordered `media_items`
+separately, so clients can detect audio without losing the durable recording
+URL.
 
 Compact clients should prefer `reference_thumbnail_url` when `media_items`
 contains audio, add an audio indicator, and use `hero_image_url` otherwise.
 Feed/detail playback remains media-item-driven and is not replaced by the
-reference image. A missing reference URL is valid and should fall through to
-the client's normal unavailable/pending thumbnail state. The current user's
-iOS Profile grids may use the matching local scan's `referenceImageUrl` as a
+reference image. A missing reference URL is valid and should fall through to the
+client's normal unavailable/pending thumbnail state. The current user's iOS
+Profile grids may use the matching local scan's `referenceImageUrl` as a
 compatibility fallback while older deployed RPC payloads remain in circulation.
 
 ## Local Verification

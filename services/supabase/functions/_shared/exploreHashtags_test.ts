@@ -231,5 +231,8 @@ Deno.test("withExplorePostMediaItems attaches ordered media and empty arrays for
 });
 
 Deno.test("normalizeExploreHashtag accepts display hashtags for collection lookup", () => {
-  assertEquals(normalizeExploreHashtag(" #CityBioBlitz ", "hashtag"), "citybioblitz");
+  assertEquals(
+    normalizeExploreHashtag(" #CityBioBlitz ", "hashtag"),
+    "citybioblitz",
+  );
 });

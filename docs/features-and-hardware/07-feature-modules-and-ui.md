@@ -226,19 +226,21 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 - **Export Scans (DwC-A)**: *(Auth Required)* Queues a background ZIP
   generation via `/request-export-dwca`. Because PostgreSQL wakes a leased
   service worker asynchronously, the UI immediately displays a queued alert and
-  releases the main thread. The worker keyset-pages metadata into a multipart R2
-  archive and sends one idempotent Resend request containing the signed
-  download link. A "Sign in with Apple" prompt prevents anonymous users from
-  generating exports before creating an account.
+  releases the main thread. The worker advances cursor-persisted 100-row CSV
+  phases under canonical row/archive budgets, then streams their durable
+  manifest into multipart R2 and sends one idempotent Resend request containing
+  the signed download link. A "Sign in with Apple" prompt prevents anonymous
+  users from generating exports before creating an account.
 
 ### Danger Zone & Data Lifecycle
 - **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background `OfflineQueueManager` URLSession transfers mid-sync from being cleared during manual cache management.
 - **Account Erasure**: A "Delete Account & Data" action behind a `.destructive`
   `.confirmationDialog` calls the durable Deno `/safe-delete` endpoint. Both
   immediate `200` completion and `202` durable acceptance are successful:
-  backend cleanup continues through its scheduled reaper, while the client
-  signs out locally and purges the device SQLite boundary through
-  `ScanRepository.shared.purgeAllData()`.
+  backend cleanup continues through its scheduled reaper, cursor-sweeps and
+  delayed-verifies every canonical R2 prefix, and removes Auth only after
+  verification, while the client signs out locally and purges the device
+  SQLite boundary through `ScanRepository.shared.purgeAllData()`.
 
 
 ## 5. Hardware Integrations (`AVCaptureEventInteraction`)

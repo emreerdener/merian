@@ -4,6 +4,7 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { parseJsonBody } from "../_shared/http.ts";
+import { accountDeletionIsActive } from "../_shared/accountDeletion.ts";
 import {
   createStagedScanMediaAssets,
   StagedScanMediaAssetInput,
@@ -69,6 +70,16 @@ function attachStagedAssetIds(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    if (await accountDeletionIsActive(user.id, supabaseAdmin)) {
+      return jsonResponse(
+        {
+          error: "Account deletion is already in progress.",
+          code: "account_deletion_in_progress",
+        },
+        409,
+      );
+    }
+
     const body = await parseJsonBody(req, { limit: "standard" });
     if (body instanceof Response) return body;
 

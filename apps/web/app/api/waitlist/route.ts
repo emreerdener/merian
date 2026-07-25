@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { readBoundedJsonObject } from "@/lib/boundedJson";
-import { createServiceRoleSupabaseClient } from "@/lib/supabase";
+import { createAdminSupabaseClient } from "@/lib/supabaseAdmin";
 import {
   normalizedUserAgent,
   normalizeWaitlistEmail,
@@ -110,7 +110,7 @@ async function handleWaitlistPost(request: Request, requestId: string) {
     );
   }
 
-  const supabase = createServiceRoleSupabaseClient();
+  const supabase = createAdminSupabaseClient();
   if (!supabase) {
     console.error(JSON.stringify({
       event: "waitlist_database_configuration_unavailable",

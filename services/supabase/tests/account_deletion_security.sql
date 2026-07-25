@@ -35,6 +35,23 @@ BEGIN
             'API roles unexpectedly have direct account-deletion internals access';
     END IF;
 
+    IF pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.pending_storage_deletions',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.pending_storage_deletions',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.pending_storage_deletions',
+        'SELECT'
+    ) THEN
+        RAISE EXCEPTION
+            'An API role can bypass the account-storage erasure worker';
+    END IF;
+
     IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
         'public.request_account_deletion(uuid)',
@@ -79,6 +96,31 @@ BEGIN
     ) THEN
         RAISE EXCEPTION
             'service_role is missing an account-deletion worker RPC';
+    END IF;
+
+    IF NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.claim_pending_storage_deletions(integer)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.advance_pending_storage_deletion(uuid,uuid,text,boolean)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.fail_pending_storage_deletion(uuid,uuid,text)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.claim_pending_storage_deletions(integer)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.claim_pending_storage_deletions(integer)',
+        'EXECUTE'
+    ) THEN
+        RAISE EXCEPTION
+            'Invalid account-storage erasure worker RPC grants';
     END IF;
 
     IF EXISTS (
@@ -182,7 +224,11 @@ INSERT INTO public.scans (
     gps_lat_exact,
     gps_long_exact,
     gps_elevation,
-    human_intervention_notes
+    human_intervention_notes,
+    image_storage_urls,
+    video_storage_urls,
+    audio_storage_urls,
+    captured_media
 )
 VALUES (
     '00000000-0000-0000-0000-00000000d211'::UUID,
@@ -191,7 +237,20 @@ VALUES (
     41.881832,
     -87.623177,
     181.0,
-    'account deletion personal note'
+    'account deletion personal note',
+    ARRAY[
+        'https://media.example.invalid/public_uploads/free/'
+            || '00000000-0000-0000-0000-00000000d201/image.jpg'
+    ]::TEXT[],
+    ARRAY[
+        'https://media.example.invalid/public_uploads/free/'
+            || '00000000-0000-0000-0000-00000000d201/video.mp4'
+    ]::TEXT[],
+    ARRAY[
+        'https://media.example.invalid/public_uploads/free/'
+            || '00000000-0000-0000-0000-00000000d201/audio.m4a'
+    ]::TEXT[],
+    '[{"kind":"image","url":"https://media.example.invalid/private.jpg"}]'::JSONB
 );
 
 CREATE TEMP TABLE account_deletion_test_job (
@@ -250,6 +309,101 @@ BEGIN
 END;
 $$;
 
+-- Complete all five sweep prefixes and all five delayed verification prefixes.
+-- The fixture shortens only the real-world signature-expiry delay.
+UPDATE public.pending_storage_deletions AS deletion
+SET verification_not_before = pg_catalog.NOW(),
+    next_attempt_at = pg_catalog.NOW()
+WHERE deletion.target_user_id =
+    '00000000-0000-0000-0000-00000000d201'::UUID;
+
+SET LOCAL ROLE service_role;
+
+DO $$
+DECLARE
+    storage_claim RECORD;
+    advancement TEXT;
+    step_number INTEGER;
+BEGIN
+    FOR step_number IN 1..10 LOOP
+        SELECT *
+        INTO STRICT storage_claim
+        FROM public.claim_pending_storage_deletions(1);
+
+        advancement := public.advance_pending_storage_deletion(
+            storage_claim.deletion_id,
+            storage_claim.claim_token,
+            NULL,
+            TRUE
+        );
+
+        IF step_number < 5 AND advancement <> 'pending' THEN
+            RAISE EXCEPTION 'storage sweep advanced to an invalid phase';
+        ELSIF step_number = 5 AND advancement <> 'verifying' THEN
+            RAISE EXCEPTION 'storage sweep skipped delayed verification';
+        ELSIF step_number BETWEEN 6 AND 9
+              AND advancement <> 'pending' THEN
+            RAISE EXCEPTION 'storage verification advanced incorrectly';
+        ELSIF step_number = 10 AND advancement <> 'completed' THEN
+            RAISE EXCEPTION 'storage verification did not become terminal';
+        END IF;
+    END LOOP;
+END;
+$$;
+
+DELETE FROM account_deletion_test_claim;
+
+INSERT INTO account_deletion_test_claim
+SELECT *
+FROM public.claim_account_deletion_jobs(
+    1,
+    '00000000-0000-0000-0000-00000000d201'::UUID
+);
+
+-- Auth is still present. Revalidate idempotent relational cleanup under the
+-- new claim; only the terminal storage outbox permits auth_pending.
+SELECT public.complete_account_deletion_cleanup(
+    (SELECT job_id FROM account_deletion_test_claim),
+    (SELECT claim_token FROM account_deletion_test_claim)
+);
+SELECT public.complete_account_deletion_cleanup(
+    (SELECT job_id FROM account_deletion_test_claim),
+    (SELECT claim_token FROM account_deletion_test_claim)
+);
+
+RESET ROLE;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.pending_storage_deletions AS deletion
+        WHERE deletion.target_user_id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+          AND deletion.status = 'completed'
+          AND deletion.phase = 'verification'
+          AND deletion.completed_at IS NOT NULL
+          AND deletion.claim_token IS NULL
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS deletion_job
+        WHERE deletion_job.id = (
+            SELECT job_id FROM account_deletion_test_job
+        )
+          AND deletion_job.status = 'auth_pending'
+          AND deletion_job.storage_completed_at IS NOT NULL
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM auth.users AS auth_user
+        WHERE auth_user.id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+    ) THEN
+        RAISE EXCEPTION
+            'Verified storage completion did not gate auth_pending correctly';
+    END IF;
+END;
+$$;
+
 DO $$
 DECLARE
     auth_first_delete_rejected BOOLEAN := FALSE;
@@ -294,13 +448,6 @@ SELECT public.complete_account_deletion_cleanup(
     (SELECT claim_token FROM account_deletion_test_claim)
 );
 
--- Every delivery, including auth_pending recovery, repeats the idempotent
--- cleanup immediately before the external Auth step.
-SELECT public.complete_account_deletion_cleanup(
-    (SELECT job_id FROM account_deletion_test_claim),
-    (SELECT claim_token FROM account_deletion_test_claim)
-);
-
 RESET ROLE;
 
 DO $$
@@ -336,6 +483,10 @@ BEGIN
           AND scan.gps_long_exact IS NULL
           AND scan.gps_elevation IS NULL
           AND scan.human_intervention_notes IS NULL
+          AND scan.image_storage_urls = ARRAY[]::TEXT[]
+          AND scan.video_storage_urls = ARRAY[]::TEXT[]
+          AND scan.audio_storage_urls = ARRAY[]::TEXT[]
+          AND scan.captured_media IS NULL
     ) OR EXISTS (
         SELECT 1
         FROM public.users AS invalid_sentinel
@@ -351,6 +502,8 @@ BEGIN
         FROM public.pending_storage_deletions AS deletion
         WHERE deletion.target_user_id =
             '00000000-0000-0000-0000-00000000d201'::UUID
+          AND deletion.status = 'pending'
+          AND deletion.phase = 'sweep'
     ) OR NOT EXISTS (
         SELECT 1
         FROM internal.account_deletion_jobs AS deletion_job
@@ -358,8 +511,10 @@ BEGIN
             SELECT job_id
             FROM account_deletion_test_job
         )
-          AND deletion_job.status = 'auth_pending'
+          AND deletion_job.status = 'storage_pending'
           AND deletion_job.cleanup_completed_at IS NOT NULL
+          AND deletion_job.storage_completed_at IS NULL
+          AND deletion_job.claim_token IS NULL
     ) THEN
         RAISE EXCEPTION
             'Relational cleanup did not commit and verify the expected state';

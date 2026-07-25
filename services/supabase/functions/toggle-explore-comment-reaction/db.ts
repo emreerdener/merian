@@ -15,7 +15,9 @@ export async function toggleExploreCommentReaction(
     .maybeSingle();
 
   if (selectError) {
-    throw new Error(`Failed to check existing reaction: ${selectError.message}`);
+    throw new Error(
+      `Failed to check existing reaction: ${selectError.message}`,
+    );
   }
 
   if (data) {

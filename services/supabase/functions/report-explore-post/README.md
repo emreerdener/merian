@@ -40,8 +40,8 @@ expose the service-role key to either iOS or the public web client.
 
 ## Client behavior
 
-- Native Explore calls this endpoint and locally removes the reported post
-  after a successful response.
+- Native Explore calls this endpoint and locally removes the reported post after
+  a successful response.
 - The anonymous public web detail page does not call this endpoint. Its centered
   **Report this post** action opens a support email containing the immutable
   public post id.

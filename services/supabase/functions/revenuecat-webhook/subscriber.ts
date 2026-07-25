@@ -44,25 +44,31 @@ function parseDateMs(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function entitlementIsActive(
+function activeEntitlementExpiration(
   entitlement: unknown,
   snapshotAtMs: number,
-): boolean {
-  if (!isRecord(entitlement)) return false;
-  if (entitlement.expires_date === null) return true;
+): number | null | undefined {
+  if (!isRecord(entitlement)) return undefined;
+  // RevenueCat reserves a null expiration for genuinely non-expiring
+  // entitlements (for example, a lifetime product).
+  if (entitlement.expires_date === null) return null;
 
   const expiresAtMs = parseDateMs(entitlement.expires_date);
   const gracePeriodExpiresAtMs = parseDateMs(
     entitlement.grace_period_expires_date,
   );
-  return Math.max(expiresAtMs ?? 0, gracePeriodExpiresAtMs ?? 0) >
-    snapshotAtMs;
+  const accessEndsAtMs = Math.max(
+    expiresAtMs ?? 0,
+    gracePeriodExpiresAtMs ?? 0,
+  );
+  return accessEndsAtMs > snapshotAtMs ? accessEndsAtMs : undefined;
 }
 
 function revokedPassTransactionIds(
-  event: RevenueCatWebhookEvent,
+  event: RevenueCatWebhookEvent | undefined,
 ): Set<string> {
   if (
+    !event ||
     !isSevenDayPassProduct(event.productId) ||
     !PASS_REVOCATION_EVENTS.has(event.type)
   ) {
@@ -78,7 +84,7 @@ function revokedPassTransactionIds(
 function activePassExpiration(
   subscriber: Record<string, unknown>,
   snapshotAtMs: number,
-  event: RevenueCatWebhookEvent,
+  event: RevenueCatWebhookEvent | undefined,
 ): number | null {
   const nonSubscriptions = subscriber.non_subscriptions;
   if (!isRecord(nonSubscriptions)) return null;
@@ -86,7 +92,8 @@ function activePassExpiration(
   const transactions = nonSubscriptions[SEVEN_DAY_PASS_PRODUCT_ID];
   if (!Array.isArray(transactions)) return null;
 
-  const revocationEvent = isSevenDayPassProduct(event.productId) &&
+  const revocationEvent = event !== undefined &&
+    isSevenDayPassProduct(event.productId) &&
     PASS_REVOCATION_EVENTS.has(event.type);
   const revokedIds = revokedPassTransactionIds(event);
   const hasExplicitRevocationMatch = revokedIds.size > 0 &&
@@ -116,7 +123,7 @@ function activePassExpiration(
       revokedIds.has(transactionId);
     const conservativelyRevoked = revocationEvent &&
       !hasExplicitRevocationMatch &&
-      purchaseAtMs <= event.eventTimestampMs;
+      purchaseAtMs <= (event?.eventTimestampMs ?? -1);
     if (explicitlyRevoked || conservativelyRevoked) continue;
 
     const expiresAtMs = purchaseAtMs + SEVEN_DAY_PASS_DURATION_MS;
@@ -150,18 +157,43 @@ async function readBoundedResponseBody(
 
 export function deriveRevenueCatEntitlementState(
   customerInfo: RevenueCatCustomerInfo,
-  event: RevenueCatWebhookEvent,
+  event?: RevenueCatWebhookEvent,
+  allowNonSubscriptionPassGrant = true,
 ): RevenueCatEntitlementState {
   const entitlements = customerInfo.subscriber.entitlements;
+  let latestRecurringExpiration: number | undefined;
   if (isRecord(entitlements)) {
     for (const [entitlementId, entitlement] of Object.entries(entitlements)) {
-      if (
-        PAID_ENTITLEMENT_IDS.has(entitlementId) &&
-        entitlementIsActive(entitlement, customerInfo.requestDateMs)
-      ) {
+      if (!PAID_ENTITLEMENT_IDS.has(entitlementId)) continue;
+      const expiration = activeEntitlementExpiration(
+        entitlement,
+        customerInfo.requestDateMs,
+      );
+      if (expiration === null) {
         return { targetTier: "pro", expiresAt: null };
       }
+      if (
+        expiration !== undefined &&
+        (latestRecurringExpiration === undefined ||
+          expiration > latestRecurringExpiration)
+      ) {
+        latestRecurringExpiration = expiration;
+      }
     }
+  }
+  if (latestRecurringExpiration !== undefined) {
+    return {
+      targetTier: "pro",
+      expiresAt: new Date(latestRecurringExpiration).toISOString(),
+    };
+  }
+
+  // CustomerInfo retains historical non-renewing purchases after a refund.
+  // Webhook deliveries carry the revocation event needed to distinguish that
+  // history. A periodic repair may grant a pass only when the database claim
+  // proves there is no prior free/revoked watermark to overwrite.
+  if (!allowNonSubscriptionPassGrant) {
+    return { targetTier: "free", expiresAt: null };
   }
 
   const passExpiration = activePassExpiration(

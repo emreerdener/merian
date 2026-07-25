@@ -1,29 +1,47 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { createDwcaArchiveStream } from "./archive.ts";
 import {
+  createPreparedDwcaArchiveStream,
+  EncodedExportBatch,
+  encodeExportBatch,
+} from "./archive.ts";
+import {
+  advanceExportJobStep,
   claimExportJob,
-  completeExportJob,
-  failExportJob,
+  completePreparedExportJob,
+  fetchExportJobChunks,
+  fetchExportScanBatch,
   fetchUserEmail,
+  releaseExportJobStep,
   renewExportJobClaim,
-  stageExportJobArchive,
+  stagePreparedExportArchive,
 } from "./db.ts";
 import { sendExportEmail } from "./mail.ts";
 import { loadUserPseudonymizer, UserPseudonymizer } from "./pseudonym.ts";
 import {
   exportObjectKey,
   ExportUploadResult,
+  exportWorkChunkObjectKey,
+  putExportWorkChunk,
   uploadDwcaArchive,
 } from "./storage.ts";
-import { ClaimedExportJob, ExportWorkerError } from "./types.ts";
+import {
+  ClaimedExportJob,
+  DBScanRow,
+  ExportChunkManifestEntry,
+  ExportWorkerError,
+  ExportWorkPhase,
+} from "./types.ts";
 
-const HEARTBEAT_INTERVAL_MS = 60_000;
 const COMPLETION_RETRY_DELAYS_MS = [0, 100, 500] as const;
+const TERMINAL_FAILURE_CODES = new Set([
+  "export_too_large",
+  "pseudonym_key_unavailable",
+]);
 
 export interface ExportWorkerResult {
-  disposition: "completed" | "not_claimed";
-  attemptCount?: number;
-  reusedArchive?: boolean;
+  disposition: "advanced" | "completed" | "not_claimed";
+  phase?: ExportWorkPhase;
+  rowCount?: number;
   uploadedBytes?: number;
   uploadedParts?: number;
 }
@@ -31,17 +49,42 @@ export interface ExportWorkerResult {
 export interface ExportWorkerServices {
   claim(jobId: string, claimToken: string): Promise<ClaimedExportJob | null>;
   renew(jobId: string, claimToken: string): Promise<void>;
-  fetchEmail(userId: string): Promise<string>;
-  loadPseudonymizer(keyVersion: number): Promise<UserPseudonymizer>;
-  createArchive(
+  fetchBatch(
     job: ClaimedExportJob,
+    phase: "occurrence" | "multimedia",
+    afterId: string | null,
+  ): Promise<DBScanRow[]>;
+  loadPseudonymizer(keyVersion: number): Promise<UserPseudonymizer>;
+  encodeBatch(
+    job: ClaimedExportJob,
+    phase: "occurrence" | "multimedia",
+    scans: DBScanRow[],
     pseudonymizer: UserPseudonymizer | null,
+  ): Promise<EncodedExportBatch>;
+  putChunk(bytes: Uint8Array, objectKey: string): Promise<void>;
+  advance(
+    job: ClaimedExportJob,
+    claimToken: string,
+    phase: "occurrence" | "multimedia",
+    nextAfterId: string | null,
+    rowCount: number,
+    objectKey: string,
+    byteCount: number,
+    pageComplete: boolean,
+  ): Promise<ExportWorkPhase>;
+  fetchManifest(
+    jobId: string,
+    claimToken: string,
+  ): Promise<ExportChunkManifestEntry[]>;
+  createArchive(
+    manifest: ExportChunkManifestEntry[],
     onProgress: () => Promise<void>,
   ): ReadableStream<Uint8Array>;
   uploadArchive(
     archive: ReadableStream<Uint8Array>,
     objectKey: string,
     onProgress: () => Promise<void>,
+    maximumBytes: number,
   ): Promise<ExportUploadResult>;
   stageArchive(
     jobId: string,
@@ -49,14 +92,15 @@ export interface ExportWorkerServices {
     objectKey: string,
     signedUrl: string,
   ): Promise<void>;
+  fetchEmail(userId: string): Promise<string>;
   sendEmail(email: string, signedUrl: string, jobId: string): Promise<string>;
   complete(jobId: string, claimToken: string): Promise<void>;
-  fail(
+  release(
     jobId: string,
     claimToken: string,
     failureCode: string,
+    terminal: boolean,
   ): Promise<boolean>;
-  now(): number;
   sleep(milliseconds: number): Promise<void>;
 }
 
@@ -68,33 +112,109 @@ function defaultServices(
       claimExportJob(jobId, claimToken, supabaseAdmin),
     renew: (jobId, claimToken) =>
       renewExportJobClaim(jobId, claimToken, supabaseAdmin),
-    fetchEmail: (userId) => fetchUserEmail(userId, supabaseAdmin),
+    fetchBatch: (job, phase, afterId) =>
+      fetchExportScanBatch(job, phase, afterId, supabaseAdmin),
     loadPseudonymizer: loadUserPseudonymizer,
-    createArchive: (job, pseudonymizer, onProgress) =>
-      createDwcaArchiveStream(
+    encodeBatch: encodeExportBatch,
+    putChunk: putExportWorkChunk,
+    advance: (
+      job,
+      claimToken,
+      phase,
+      nextAfterId,
+      rowCount,
+      objectKey,
+      byteCount,
+      pageComplete,
+    ) =>
+      advanceExportJobStep(
         job,
+        claimToken,
+        phase,
+        nextAfterId,
+        rowCount,
+        objectKey,
+        byteCount,
+        pageComplete,
         supabaseAdmin,
-        pseudonymizer,
-        onProgress,
       ),
-    uploadArchive: uploadDwcaArchive,
+    fetchManifest: (jobId, claimToken) =>
+      fetchExportJobChunks(jobId, claimToken, supabaseAdmin),
+    createArchive: createPreparedDwcaArchiveStream,
+    uploadArchive: (
+      archive,
+      objectKey,
+      onProgress,
+      maximumBytes,
+    ) =>
+      uploadDwcaArchive(
+        archive,
+        objectKey,
+        onProgress,
+        undefined,
+        maximumBytes,
+      ),
     stageArchive: (jobId, claimToken, objectKey, signedUrl) =>
-      stageExportJobArchive(
+      stagePreparedExportArchive(
         jobId,
         claimToken,
         objectKey,
         signedUrl,
         supabaseAdmin,
       ),
+    fetchEmail: (userId) => fetchUserEmail(userId, supabaseAdmin),
     sendEmail: sendExportEmail,
     complete: (jobId, claimToken) =>
-      completeExportJob(jobId, claimToken, supabaseAdmin),
-    fail: (jobId, claimToken, failureCode) =>
-      failExportJob(jobId, claimToken, failureCode, supabaseAdmin),
-    now: Date.now,
+      completePreparedExportJob(jobId, claimToken, supabaseAdmin),
+    release: (jobId, claimToken, failureCode, terminal) =>
+      releaseExportJobStep(
+        jobId,
+        claimToken,
+        failureCode,
+        terminal,
+        supabaseAdmin,
+      ),
     sleep: (milliseconds) =>
       new Promise((resolve) => setTimeout(resolve, milliseconds)),
   };
+}
+
+function failureFrom(error: unknown): ExportWorkerError {
+  if (error instanceof ExportWorkerError) return error;
+  return new ExportWorkerError(
+    "archive_generation_failed",
+    "The export worker failed unexpectedly.",
+    false,
+    { cause: error },
+  );
+}
+
+function validateBatch(
+  scans: DBScanRow[],
+  afterId: string | null,
+): void {
+  if (!Array.isArray(scans) || scans.length > 100) {
+    throw new ExportWorkerError(
+      "database_unavailable",
+      "The export batch exceeded its fixed page size.",
+      false,
+    );
+  }
+  let previousId = afterId;
+  for (const scan of scans) {
+    if (
+      typeof scan.id !== "string" ||
+      scan.id.length === 0 ||
+      (previousId !== null && scan.id <= previousId)
+    ) {
+      throw new ExportWorkerError(
+        "database_unavailable",
+        "The export batch was not a monotonic keyset page.",
+        false,
+      );
+    }
+    previousId = scan.id;
+  }
 }
 
 async function retryCompletion(
@@ -111,25 +231,132 @@ async function retryCompletion(
       lastError = error;
     }
   }
-  if (lastError instanceof Error) throw lastError;
-  throw new ExportWorkerError(
-    "database_unavailable",
-    "The export completion could not be persisted.",
-    false,
-  );
+  throw failureFrom(lastError);
 }
 
-function failureFrom(error: unknown): ExportWorkerError {
-  if (error instanceof ExportWorkerError) return error;
-  return new ExportWorkerError(
-    "archive_generation_failed",
-    "The export worker failed unexpectedly.",
-    true,
-    { cause: error },
+async function processPreparationStep(
+  job: ClaimedExportJob,
+  claimToken: string,
+  services: ExportWorkerServices,
+): Promise<ExportWorkerResult> {
+  const phase = job.workPhase;
+  if (phase !== "occurrence" && phase !== "multimedia") {
+    throw new TypeError("Preparation requires a CSV phase.");
+  }
+  const afterId = phase === "occurrence"
+    ? job.occurrenceAfterId
+    : job.multimediaAfterId;
+  const scans = await services.fetchBatch(job, phase, afterId);
+  validateBatch(scans, afterId);
+  const pseudonymizer = phase === "occurrence" && job.exportScope === "global"
+    ? await services.loadPseudonymizer(job.pseudonymKeyVersion)
+    : null;
+  const batch = await services.encodeBatch(
+    job,
+    phase,
+    scans,
+    pseudonymizer,
   );
+  if (
+    job.occurrenceRows + job.multimediaRows + batch.rowCount >
+      job.maxExportRows ||
+    job.csvBytes + batch.bytes.byteLength > job.maxArchiveBytes - 65_536
+  ) {
+    throw new ExportWorkerError(
+      "export_too_large",
+      "The export exceeded its canonical row or byte budget.",
+    );
+  }
+  // The claim token is part of the temporary key. If this lease expires after
+  // PUT but before the fenced database advance, a replacement step writes a
+  // different object and its committed manifest cannot be corrupted by the
+  // delayed worker.
+  const objectKey = exportWorkChunkObjectKey(job, phase, claimToken);
+  await services.putChunk(batch.bytes, objectKey);
+  const nextAfterId = scans.length > 0 ? scans[scans.length - 1].id : afterId;
+  const nextPhase = await services.advance(
+    job,
+    claimToken,
+    phase,
+    nextAfterId,
+    batch.rowCount,
+    objectKey,
+    batch.bytes.byteLength,
+    scans.length < 100,
+  );
+  return {
+    disposition: "advanced",
+    phase: nextPhase,
+    rowCount: batch.rowCount,
+  };
 }
 
-export async function processExportJob(
+async function processAssemblyStep(
+  job: ClaimedExportJob,
+  claimToken: string,
+  services: ExportWorkerServices,
+): Promise<ExportWorkerResult> {
+  const manifest = await services.fetchManifest(job.id, claimToken);
+  const manifestBytes = manifest.reduce(
+    (total, chunk) => total + chunk.byteCount,
+    0,
+  );
+  if (
+    manifestBytes !== job.csvBytes ||
+    manifestBytes > job.maxArchiveBytes - 65_536
+  ) {
+    throw new ExportWorkerError(
+      "archive_generation_failed",
+      "The prepared export manifest did not match durable budget state.",
+      false,
+    );
+  }
+
+  const heartbeat = () => services.renew(job.id, claimToken);
+  const archive = services.createArchive(manifest, heartbeat);
+  const objectKey = exportObjectKey(job, claimToken);
+  const uploaded = await services.uploadArchive(
+    archive,
+    objectKey,
+    heartbeat,
+    job.maxArchiveBytes,
+  );
+  await services.stageArchive(
+    job.id,
+    claimToken,
+    objectKey,
+    uploaded.signedUrl,
+  );
+  return {
+    disposition: "advanced",
+    phase: "delivering",
+    uploadedBytes: uploaded.uploadedBytes,
+    uploadedParts: uploaded.uploadedParts,
+  };
+}
+
+async function processDeliveryStep(
+  job: ClaimedExportJob,
+  claimToken: string,
+  services: ExportWorkerServices,
+): Promise<ExportWorkerResult> {
+  if (!job.archiveObjectKey || !job.fileUrl || !job.archiveReadyAt) {
+    throw new ExportWorkerError(
+      "archive_stage_failed",
+      "Delivery requires a durably staged archive.",
+      false,
+    );
+  }
+  const email = await services.fetchEmail(job.userId);
+  await services.sendEmail(email, job.fileUrl, job.id);
+  await retryCompletion(
+    () => services.complete(job.id, claimToken),
+    services,
+  );
+  return { disposition: "completed", phase: "completed" };
+}
+
+export async function processExportJobStep(
   jobId: string,
   supabaseAdmin: SupabaseClient,
   overrides: Partial<ExportWorkerServices> = {},
@@ -139,87 +366,38 @@ export async function processExportJob(
   const job = await services.claim(jobId, claimToken);
   if (!job) return { disposition: "not_claimed" };
 
-  let lastHeartbeatAt = services.now();
-  let deliveryAccepted = false;
-  const heartbeat = async (force = false): Promise<void> => {
-    const now = services.now();
-    if (!force && now - lastHeartbeatAt < HEARTBEAT_INTERVAL_MS) return;
-    await services.renew(job.id, claimToken);
-    lastHeartbeatAt = now;
-  };
-
   try {
-    const email = await services.fetchEmail(job.userId);
-    let objectKey = job.archiveObjectKey;
-    let signedUrl = job.fileUrl;
-    let reusedArchive = Boolean(
-      objectKey && signedUrl && job.archiveReadyAt,
-    );
-    let uploadResult: ExportUploadResult | null = null;
-
-    if (!reusedArchive) {
-      objectKey = exportObjectKey(job, claimToken);
-      const pseudonymizer = job.exportScope === "global"
-        ? await services.loadPseudonymizer(job.pseudonymKeyVersion)
-        : null;
-      const archive = services.createArchive(
-        job,
-        pseudonymizer,
-        heartbeat,
-      );
-      uploadResult = await services.uploadArchive(
-        archive,
-        objectKey,
-        heartbeat,
-      );
-      signedUrl = uploadResult.signedUrl;
-      await heartbeat(true);
-      await services.stageArchive(
-        job.id,
-        claimToken,
-        objectKey,
-        signedUrl,
-      );
-      reusedArchive = false;
+    switch (job.workPhase) {
+      case "occurrence":
+      case "multimedia":
+        return await processPreparationStep(job, claimToken, services);
+      case "assembling":
+        return await processAssemblyStep(job, claimToken, services);
+      case "delivering":
+        return await processDeliveryStep(job, claimToken, services);
+      case "completed":
+        return { disposition: "completed", phase: "completed" };
     }
-
-    if (!objectKey || !signedUrl) {
-      throw new ExportWorkerError(
-        "archive_stage_failed",
-        "The worker reached delivery without a staged archive.",
-      );
-    }
-
-    await heartbeat(true);
-    await services.sendEmail(email, signedUrl, job.id);
-    deliveryAccepted = true;
-    await retryCompletion(
-      () => services.complete(job.id, claimToken),
-      services,
-    );
-
-    return {
-      disposition: "completed",
-      attemptCount: job.attemptCount,
-      reusedArchive,
-      uploadedBytes: uploadResult?.uploadedBytes,
-      uploadedParts: uploadResult?.uploadedParts,
-    };
   } catch (error) {
     const failure = failureFrom(error);
-    if (failure.safeToFailJob && !deliveryAccepted) {
-      try {
-        await services.fail(job.id, claimToken, failure.code);
-      } catch (recordingError) {
-        console.error(JSON.stringify({
-          event: "dwca_export_failure_recording_failed",
-          job_id: job.id,
-          error: recordingError instanceof Error
-            ? recordingError.message
-            : String(recordingError),
-          ts: new Date().toISOString(),
-        }));
-      }
+    const terminal = TERMINAL_FAILURE_CODES.has(failure.code);
+    try {
+      await services.release(
+        job.id,
+        claimToken,
+        failure.code,
+        terminal,
+      );
+    } catch (releaseError) {
+      console.error(JSON.stringify({
+        event: "dwca_export_step_release_failed",
+        job_id: job.id,
+        failure_code: failure.code,
+        error: releaseError instanceof Error
+          ? releaseError.message
+          : String(releaseError),
+        ts: new Date().toISOString(),
+      }));
     }
     throw failure;
   }

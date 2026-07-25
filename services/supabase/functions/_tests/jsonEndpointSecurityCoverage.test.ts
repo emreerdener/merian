@@ -184,7 +184,7 @@ Deno.test("public waitlist uses Turnstile and the atomic database RPC", async ()
   const configurationUnavailable = route.indexOf(
     '"waitlist_security_configuration_unavailable"',
   );
-  const serviceClient = route.indexOf("createServiceRoleSupabaseClient()");
+  const serviceClient = route.indexOf("createAdminSupabaseClient()");
   const challengeRateClaim = route.indexOf(
     '"claim_beta_waitlist_challenge_attempt"',
   );

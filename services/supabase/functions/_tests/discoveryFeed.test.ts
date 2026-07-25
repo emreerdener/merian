@@ -115,14 +115,20 @@ Deno.test("user_blocks query bound — limit is 10000", () => {
 
 Deno.test("user_blocks query bound — a block list at the limit is fully returned", () => {
   const USER_BLOCKS_QUERY_LIMIT = 10000;
-  const mockBlockList = Array.from({ length: 10000 }, () => crypto.randomUUID());
+  const mockBlockList = Array.from(
+    { length: 10000 },
+    () => crypto.randomUUID(),
+  );
   const result = mockBlockList.slice(0, USER_BLOCKS_QUERY_LIMIT);
   assertEquals(result.length, 10000);
 });
 
 Deno.test("user_blocks query bound — a block list exceeding the limit is truncated", () => {
   const USER_BLOCKS_QUERY_LIMIT = 10000;
-  const mockBlockList = Array.from({ length: 15000 }, () => crypto.randomUUID());
+  const mockBlockList = Array.from(
+    { length: 15000 },
+    () => crypto.randomUUID(),
+  );
   const result = mockBlockList.slice(0, USER_BLOCKS_QUERY_LIMIT);
   assertEquals(result.length, 10000);
 });

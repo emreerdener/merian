@@ -219,33 +219,41 @@ alone to decide access.
    immediately so provider retries cannot amplify API traffic. Every new event
    calls RevenueCat `GET /v1/subscribers/{app_user_id}` for each mapped customer with
    `REVENUECAT_SECRET_API_KEY`. Active `pro` or `Naturalist Tier` entitlement
-   state controls standard Pro. The detached `pro_week` purchase is derived
-   from authoritative non-subscription transactions with a seven-day expiry;
-   matching refunds/revocations are excluded. An API error or malformed response
-   returns a retryable failure and leaves the database unchanged. Both transfer
-   lookups finish before either side can be written.
+   state controls standard Pro and carries the later of recurring expiration
+   and grace-period expiration. The detached `pro_week` purchase is derived from
+   authoritative non-subscription transactions with a seven-day expiry;
+   matching refunds/revocations are excluded. An API error or malformed
+   response returns a retryable failure and leaves the database unchanged. Both
+   transfer lookups finish before either side can be written.
 4. **Transactional ordering**:
    `public.apply_revenuecat_customer_state(...)` stores each event ID once,
    locks every resolved user in sorted UUID order, and advances each subject
-   only when
-   `(event_timestamp_ms, CustomerInfo request_date_ms, event_id)` is newer than
-   that user's durable watermark. Duplicate and stale deliveries are audited
-   but cannot overwrite access. A newer refund therefore cannot be undone by a
-   delayed purchase, and a newer renewal cannot be overwritten by a delayed
-   expiration. Transfer source/destination changes share one event transaction
-   and cannot partially commit.
+   only when the authoritative CustomerInfo `request_date_ms` is newer than that
+   user's durable watermark. Provider event timestamp and event ID break only
+   exact snapshot ties. Duplicate and stale deliveries are audited but cannot
+   overwrite access. A newer refund therefore cannot be undone by a delayed
+   purchase, and a newer renewal cannot be overwritten by a delayed expiration.
+   Transfer source/destination changes share one event transaction and cannot
+   partially commit.
 5. **Tier and expiry projection**: Active standard entitlement state writes
-   `subscription_tier = pro` with no timed expiry. An active `pro_week` writes
-   its calculated expiration. No active paid state writes `free` and clears the
-   expiry. The existing trigger advances `users.entitlement_version` only when
-   the projected tier or expiry changes; all AI authorization reads that durable
-   version.
+   `subscription_tier = pro` with the later recurring/grace expiration.
+   `NULL` is reserved for an explicitly non-expiring lifetime entitlement. An
+   active `pro_week` writes its calculated expiration. No active paid state
+   writes `free` and clears the expiry. The existing trigger advances
+   `users.entitlement_version` only when the projected tier or expiry changes;
+   all AI authorization reads that durable version.
 6. **Timed-pass repair and media stability**:
-   `expire-subscription-passes` remains an hourly repair for a timed row that
-   reaches its expiry. The dynamic seven-day new-user trial is instead derived
-   from `users.created_at` by the server quota policy and is never stored as paid
-   Pro. Tier changes do not relocate scan media: both
+   `expire-subscription-passes` remains an hourly fail-safe for any recurring,
+   grace-period, or pass row that reaches its expiry. The dynamic seven-day
+   new-user trial is instead derived from `users.created_at` by the server quota
+   policy and is never stored as paid Pro. Tier changes do not relocate scan media: both
    `public_uploads/free/` and `public_uploads/pro/` are durable prefixes.
+7. **Missed-delivery repair**: A private durable queue invokes
+   `reconcile-revenuecat-subscribers` every 15 minutes. It leases at most ten
+   linked customers, fetches with concurrency three, and applies only a newer
+   authoritative snapshot under its claim token. Pro users are revisited every
+   six hours and free users every 24 hours. The sweep cannot newly grant
+   historical `pro_week` history after a revoked/free watermark.
 
 RevenueCat delivers webhooks at least once, so a `200` response may report
 `applied`, `duplicate`, `stale`, `mixed`, or `ignored`, together with subject,

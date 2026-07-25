@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "./supabase";
+import { createPublicServerSupabaseClient } from "./supabasePublic";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -576,7 +576,7 @@ async function fetchExplorePostDetail(
     return null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPublicServerSupabaseClient();
 
   if (!supabase) {
     return null;
@@ -620,7 +620,7 @@ export async function fetchExplorePost(
     return null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPublicServerSupabaseClient();
 
   if (!supabase) {
     console.error("explore_post_supabase_config_missing", {
@@ -707,7 +707,7 @@ export async function fetchExplorePostPage(
 }
 
 export async function fetchExploreFeedPosts(limit = 16): Promise<ExplorePost[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = createPublicServerSupabaseClient();
   if (!supabase) {
     return [];
   }

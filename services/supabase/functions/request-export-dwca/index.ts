@@ -20,25 +20,29 @@ Deno.serve((req: Request) =>
       requestBody;
     const userId = user.id;
 
-    const VALID_EXPORT_SCOPES = new Set(["personal", "global"]);
-    if (
-      typeof exportScope !== "string" ||
-      !VALID_EXPORT_SCOPES.has(exportScope)
-    ) {
-      return jsonResponse(
-        {
-          error: `Invalid exportScope. Must be one of: ${
-            [...VALID_EXPORT_SCOPES].join(", ")
-          }.`,
-        },
+    if (typeof exportScope !== "string") {
+      return publicErrorResponse(
+        req,
         400,
+        "invalid_export_scope",
+        "exportScope must be a string.",
+      );
+    }
+    if (exportScope !== "personal") {
+      return publicErrorResponse(
+        req,
+        403,
+        "global_export_forbidden",
+        "Global exports require an internal administrative workflow.",
       );
     }
 
     if (typeof includePreciseCoordinates !== "boolean") {
-      return jsonResponse(
-        { error: "includePreciseCoordinates must be a boolean." },
+      return publicErrorResponse(
+        req,
         400,
+        "invalid_coordinate_option",
+        "includePreciseCoordinates must be a boolean.",
       );
     }
 

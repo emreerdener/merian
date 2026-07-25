@@ -92,11 +92,13 @@ Tracks the global state of the anonymous/authenticated user.
   subscriber attributes also mirror auth email and public identity fields for
   support lookups.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
-- `subscription_expires_at` (TIMESTAMPTZ, nullable): Set only for Merian-owned
-  timed Pro grants such as the detached `pro_week` non-renewing purchase.
-  Standard RevenueCat subscriptions leave this null. The hourly
-  `expire-subscription-passes` worker downgrades expired timed grants and clears
-  this value.
+- `subscription_expires_at` (TIMESTAMPTZ, nullable): For recurring RevenueCat
+  access, the later of entitlement expiration and grace-period expiration. It
+  is also set for timed grants such as the detached `pro_week` non-renewing
+  purchase. `NULL` is reserved for an explicitly non-expiring lifetime
+  entitlement. The hourly `expire-subscription-passes` worker downgrades any
+  expired timed access and clears this value, even when the final provider
+  webhook never arrives.
 - `entitlement_version` (BIGINT, default 1): Monotonic durable version advanced
   by `bump_user_entitlement_version` whenever `subscription_tier` or
   `subscription_expires_at` changes. Callers cannot increment it independently.
@@ -1250,6 +1252,10 @@ Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
 - `include_precise_coordinates` (Boolean): Access control flag.
 - `pseudonym_key_version` (Smallint): Immutable key version pinned when the job
   is inserted. Version `n` selects `DWCA_PSEUDONYM_HMAC_KEY_V{n}`.
+- `max_export_rows` (Integer): Immutable canonical budget, default 5,000 and
+  constrained to 1...20,000.
+- `max_archive_bytes` (Bigint): Immutable final archive budget, default 8 MiB
+  and constrained to 1...16 MiB.
 - `archive_object_key` (Text): Attempt-fenced R2 object key staged by the
   current worker before delivery.
 - `archive_ready_at` (TIMESTAMPTZ): Time the archive and reusable signed URL
@@ -1260,19 +1266,20 @@ Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
 - `error_message` (Text): Public-safe failure copy, capped at 500 characters.
 - `created_at`, `completed_at` (TIMESTAMPTZ): Lifecycle tracking metrics.
 
-The request fields and creation time are immutable after insert. Direct
-`anon`/`authenticated` insertion is revoked; `request-export-dwca` validates and
-queues with its service client. A partial unique index permits at most one
-pending/processing job per user, while the recent-job lookup excludes failures.
+The request fields, budgets, and creation time are immutable after insert.
+Direct `anon`/`authenticated` insertion is revoked; `request-export-dwca`
+queues only personal exports with its service client. Global rows can be
+created only by a reviewed internal administrative workflow. A partial unique
+index permits at most one pending/processing job per user, while the recent-job
+lookup excludes failures.
 
-`internal.export_job_claims` stores the private claim UUID, ten-minute lease,
+`internal.export_job_claims` stores the private claim UUID, short lease,
 heartbeat, and bounded attempt count. It has RLS, no API-role table grants, and
 is accessible only through service-authorized, empty-search-path definer RPCs.
-Every worker state mutation checks
-the current unexpired token. The webhook
+Every worker state mutation checks the current unexpired token. The webhook
 therefore treats only the opaque job UUID as authoritative; canonical user,
-scope, precision, and key version are loaded transactionally by
-`claim_export_job(...)`.
+scope, precision, key version, budgets, and durable phase are loaded
+transactionally by `claim_export_job_step(...)`.
 
 `internal.export_worker_protocol` is a private singleton with the finite
 `legacy_payload_until` deadline. Pre-existing nonterminal jobs and jobs created
@@ -1300,6 +1307,24 @@ pending beyond 30 minutes or processing without a live claim. It writes a stable
 failure code/message so the user can request a new job. The watchdog is
 a plain SQL function (`public.expire_stuck_export_jobs()`) run by the existing cron
 schedule; no additional Edge Function is required.
+
+Migration `20260725052339_bound_dwca_export_work.sql` adds two private tables:
+
+- `internal.export_job_work`: one row per job containing phase
+  (`occurrence`, `multimedia`, `assembling`, `delivering`, or `completed`),
+  separate UUID keyset cursors, cumulative row/CSV-byte counts, chunk sequence,
+  next-attempt time, and bounded retries.
+- `internal.export_job_chunks`: an ordered manifest keyed by
+  `(job_id, phase, sequence)` with a claim-token-fenced R2 object key and byte
+  count for each CSV page.
+
+Each Edge invocation claims exactly one phase. Data phases read at most 100
+scans and commit at most a 512 KiB chunk, cursor, manifest row, and cumulative
+budgets transactionally. The expected object key includes the active claim
+token, preventing a lease-expired writer from overwriting a replacement's
+chunk. A minute-level cron calls the worker with an empty body to resume one due
+phase. The updated watchdog fails only work with no live claim and no phase
+progress for two hours.
 
 ### `failed_scan_ingestions`
 
@@ -2670,12 +2695,13 @@ matches as ambiguous. It takes all affected user locks in sorted UUID order, so
 a transfer cannot deadlock another transfer or commit only one side. The event
 can omit a transfer source that has already been deleted, because no Merian
 entitlement remains to revoke; a missing normal or destination profile remains
-retryable. The event primary key makes repeated delivery idempotent, while the
-per-user tuple
-`(event_timestamp_ms, authoritative_snapshot_at_ms, event_id)` makes state
-monotonic. A new tuple updates tier/expiry, its subject row, and the watermark
-in the same transaction. A duplicate returns aggregate counts without another
-write; an older tuple is retained as `stale`. Reusing an event ID with a
+retryable. The event primary key makes repeated delivery idempotent. Migration
+`20260725052338_reconcile_revenuecat_subscribers.sql` makes authoritative
+CustomerInfo snapshot time the primary per-user version; provider event
+timestamp and event ID break only exact snapshot ties. A newer version updates
+tier/expiry, its subject row, and the watermark in the same transaction. A
+duplicate returns aggregate counts without another write; an older version is
+retained as `stale`. Reusing an event ID with a
 different timestamp, type, or payload digest raises a unique-conflict error.
 Normal events can contain at most one `customer` subject; transfers can contain
 at most one source and one destination, enforced in both the RPC and a
@@ -2684,19 +2710,30 @@ Indexes cover event receipt time, subject user foreign keys, and the watermark's
 event foreign key so account deletion and operational joins do not scan the
 private tables.
 
+`internal.revenuecat_reconciliation_queue` holds one durable repair row per
+linked Merian user. It stores the RevenueCat lookup ID, next due time, bounded
+attempt/backoff state, a two-minute claim token/lease, last provider snapshot,
+and last successful reconciliation. The 15-minute cron invokes the service-only
+worker, which claims at most ten rows and limits CustomerInfo concurrency to
+three. Pro users are rescheduled for six hours and free users for 24 hours.
+Only a snapshot newer than `internal.revenuecat_customer_state` can change
+access. Webhook processing schedules affected subjects transactionally.
+Background reconciliation never newly grants a historical seven-day pass.
+
 ### `internal.account_deletion_jobs`
 
-Migration `20260725030308_durable_account_deletion.sql` adds the private,
-durable account-erasure state machine. It has RLS enabled and revokes direct
+Migration `20260725030308_durable_account_deletion.sql` adds durable intake;
+migration `20260725052337_enforce_account_storage_erasure.sql` completes the
+private account-erasure state machine. It has RLS enabled and revokes direct
 table access from `PUBLIC`, `anon`, `authenticated`, and `service_role`.
 
 Important columns and invariants:
 
-- `status`: `pending`, `auth_pending`, or `completed`
+- `status`: `pending`, `storage_pending`, `auth_pending`, or `completed`
 - nullable `user_id`, with one active job per UUID; terminal completion sets it
   to `NULL` for data minimization
-- `cleanup_completed_at`, `auth_deleted_at`, and `completed_at`, constrained to
-  match the state
+- `cleanup_completed_at`, `storage_completed_at`, `auth_deleted_at`, and
+  `completed_at`, constrained to match the state
 - `claim_token`, `claimed_at`, and `claim_expires_at`, which are either all
   present or all absent
 - `attempt_count`, `next_attempt_at`, and a bounded `last_error_code`
@@ -2707,11 +2744,18 @@ state transitions are:
 - `request_account_deletion(uuid)` — idempotent durable intake
 - `claim_account_deletion_jobs(integer,uuid)` — bounded `SKIP LOCKED` leasing;
   the optional UUID is only for the initiating authenticated route's fast path
-- `complete_account_deletion_cleanup(uuid,uuid)` — claim-fenced outbox insert,
-  idempotent tombstone, verification, and `auth_pending` transition in one
-  transaction; every Auth retry invokes it again
+- `complete_account_deletion_cleanup(uuid,uuid)` — claim-fenced storage-job
+  insert, idempotent tombstone, and relational verification; returns
+  `storage_pending` until delayed storage verification permits `auth_pending`
 - `finish_account_deletion_attempt(uuid,uuid,boolean,text)` — terminal Auth
-  receipt or database-calculated retry
+  receipt or database-calculated retry; success verifies completed storage
+  again
+
+The separate service-only storage transitions are
+`claim_pending_storage_deletions(integer)`,
+`advance_pending_storage_deletion(uuid,uuid,text,boolean)`, and
+`fail_pending_storage_deletion(uuid,uuid,text)`. They lease and advance one
+bounded R2 prefix page under a UUID claim token.
 
 `trg_reject_account_deletion_profile_recreation` runs before inserts on
 `public.users` and rejects the original UUID while an active job exists. This
@@ -3506,8 +3550,19 @@ added composite index `idx_pending_storage_deletions_status_user` on
 `(status, target_user_id, created_at)` for background sweeps. Migration
 `20260725030308` deduplicates historical rows and adds unique index
 `pending_storage_deletions_target_user_unique_idx` on `target_user_id`, making
-account-deletion outbox retries idempotent. Cleanup preserves a terminal or
-active outbox row; otherwise it resets the existing row to `pending`.
+account-deletion outbox retries idempotent.
+
+Migration `20260725052337_enforce_account_storage_erasure.sql` converts the
+outbox marker into a resumable R2-erasure job. It stores exactly five canonical
+prefixes (free uploads, Pro uploads, staging, avatars, and exports), sweep or
+verification phase, current prefix index, monotonic `start_after_key`, delayed
+`verification_not_before`, due/retry state, and a five-minute UUID claim. The
+worker lists at most 50 keys per claim, deletes with concurrency eight, and
+persists progress before releasing ownership. After the first full sweep it
+waits at least 25 hours and repeats every prefix from the beginning. Only an
+empty delayed verification pass sets `status = 'completed'` and wakes the
+corresponding account job. Existing unconsumed markers are reset to the new
+sweep contract during migration.
 
 ### `PendingCloudDeletionTask`
 

@@ -450,8 +450,10 @@ same scan. This replaces the in-memory `activeScanUploadIds` set which was lost
 on process death.
 
 **Generation ownership and ABA safety**: Durable queue state prevents duplicate
-claims across processes; in-process generations prevent a delayed callback from
-acting on a replacement attempt after suspension:
+claims across processes, and the winning inference UUID is persisted in the
+scan-ingestion `OfflineJobRecord.metadataJSON` in the same save as
+`.staged → .inferencing`. In-memory generations and slot tokens provide an
+additional callback fence, but they are not the persistence authority:
 
 - An upload batch receives one UUID before its background wrapper starts.
   Expiration, URL-generation failure, zero-task completion, and URLSession
@@ -461,12 +463,19 @@ acting on a replacement attempt after suspension:
   upload generation after preparation ends; a delayed callback from an older
   batch is rejected even after the replacement batch has already finished.
 - A scan receives a single-flight inference preparation UUID before
-  `.staged → .inferencing`. The same UUID becomes the active inference
-  generation and is encoded as
+  `.staged → .inferencing`. `ScanInferencePersistenceCoordinator` serializes
+  claims and retry retreats for that scan across independent SwiftData
+  `ModelContext` actors, closing their fetch-then-save window. The same UUID is
+  stored durably, becomes the active inference generation, and is encoded as
   `inference_v2|{generation}|{scanId}` in the background download task. Request
   preparation, delayed status probes, retry scheduling, delegate callbacks,
   result processing, task cancellation, and queue deletion all compare that
   UUID before mutating state.
+- Retry accounting plus `.inferencing → .staged` is one persistence operation
+  and succeeds only when the `OfflineJobRecord` still contains the expected
+  generation. A stale callback therefore cannot consume retry budget or make a
+  replacement runnable. Upgrade recovery may adopt a generation only when the
+  legacy metadata is `nil`; once any UUID is present, ownership is exact.
 - Delayed probe, server-poll, and replay tasks live in
   `GenerationTaskRegistry`. Each registry entry has both an owner generation
   and a unique slot token. Replacing an entry removes the old slot before
@@ -485,8 +494,11 @@ acting on a replacement attempt after suspension:
 - Inference-driven queue deletion carries an
   `InferenceGenerationExpectation` and revalidates it after awaiting
   `URLSession.allTasks`. A recovery initiated by a server-poll slot carries that
-  slot token through the same check. Explicit user deletion remains
-  intentionally unguarded and cancels all work for that scan.
+  slot token through the same check. It then acquires the per-scan persistence
+  coordinator, validates both `.inferencing` and durable generation, and keeps
+  that ownership across URLSession cancellation and the main-context queue
+  deletion save. Explicit user deletion remains intentionally unguarded and
+  cancels all work for that scan.
 - Connectivity loss invalidates the current upload and inference generations,
   cancels registered delayed tasks, clears preparation ownership, and calls
   `SyncStateManager.forceIdle()`. Late callbacks carry retired UUIDs and become
@@ -690,7 +702,8 @@ the latch without waiting for a URLSession delegate callback.
   `BackgroundDatabaseActor.processAndCleanupOfflineScan` decodes the JSON,
   inserts `LocalScanRecord` when confidence is positive, writes
   `audioFilePaths`, `videoFilePaths`, and `capturedMediaJSON`, and calls
-  `modelContext.save()`. The background actor intentionally does not delete the
+  `modelContext.save()` while the same per-scan persistence coordinator still
+  protects the durable generation. The background actor intentionally does not delete the
   `OfflineQueuedScan`; after the save succeeds,
   `processInferenceDownloadResult` rechecks the inference generation before it
   calls

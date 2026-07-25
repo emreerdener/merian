@@ -59,8 +59,9 @@ function customerInfoResponse(): Response {
   );
 }
 
-Deno.test("valid webhook reconciles CustomerInfo before one transactional RPC", async () => {
+Deno.test("valid webhook reconciles CustomerInfo before one entitlement transaction", async () => {
   const rpcCalls: Record<string, unknown>[] = [];
+  const scheduleCalls: Record<string, unknown>[] = [];
   let lookupCount = 0;
   let fetchCount = 0;
   const supabaseAdmin = {
@@ -71,6 +72,10 @@ Deno.test("valid webhook reconciles CustomerInfo before one transactional RPC", 
       if (name === "get_revenuecat_webhook_event_result") {
         lookupCount += 1;
         return Promise.resolve({ data: [], error: null });
+      }
+      if (name === "schedule_revenuecat_reconciliation") {
+        scheduleCalls.push(args);
+        return Promise.resolve({ data: 1, error: null });
       }
       rpcCalls.push(args);
       return Promise.resolve({
@@ -113,24 +118,32 @@ Deno.test("valid webhook reconciles CustomerInfo before one transactional RPC", 
   assertEquals(lookupCount, 1);
   assertEquals(fetchCount, 1);
   assertEquals(rpcCalls.length, 1);
+  assertEquals(scheduleCalls, [{
+    p_subjects: [{
+      subject_kind: "customer",
+      lookup_app_user_id: USER_ID,
+      candidate_user_ids: [USER_ID],
+    }],
+  }]);
   const rpcArguments = rpcCalls[0];
   assertEquals(rpcArguments.p_event_id, "event-123");
   assertEquals(rpcArguments.p_event_timestamp_ms, NOW_MS - 1_000);
   assertEquals(rpcArguments.p_subjects, [{
     subject_kind: "customer",
+    lookup_app_user_id: USER_ID,
     candidate_user_ids: [USER_ID],
     authoritative_snapshot_at_ms: NOW_MS,
     target_tier: "pro",
-    target_expires_at: null,
+    target_expires_at: "2026-08-01T00:00:00.000Z",
   }]);
 });
 
 Deno.test("committed duplicate bypasses another CustomerInfo request", async () => {
   let fetchCount = 0;
   const supabaseAdmin = {
-    rpc: () =>
+    rpc: (name: string) =>
       Promise.resolve({
-        data: [{
+        data: name === "schedule_revenuecat_reconciliation" ? 1 : [{
           outcome: "duplicate",
           subject_count: 1,
           applied_count: 1,
@@ -402,6 +415,9 @@ Deno.test("anonymous RevenueCat customer is durably ignored without a provider l
       if (name === "get_revenuecat_webhook_event_result") {
         return Promise.resolve({ data: [], error: null });
       }
+      if (name === "schedule_revenuecat_reconciliation") {
+        return Promise.resolve({ data: 0, error: null });
+      }
       return Promise.resolve({
         data: [{
           outcome: "ignored",
@@ -448,6 +464,7 @@ Deno.test("anonymous RevenueCat customer is durably ignored without a provider l
   assertEquals(rpcNames, [
     "get_revenuecat_webhook_event_result",
     "apply_revenuecat_customer_state",
+    "schedule_revenuecat_reconciliation",
   ]);
 });
 
@@ -460,6 +477,9 @@ Deno.test("TRANSFER reconciles source and destination before one atomic RPC", as
     rpc: (name: string, args: Record<string, unknown>) => {
       if (name === "get_revenuecat_webhook_event_result") {
         return Promise.resolve({ data: [], error: null });
+      }
+      if (name === "schedule_revenuecat_reconciliation") {
+        return Promise.resolve({ data: 2, error: null });
       }
       mutationArguments.push(args);
       return Promise.resolve({
@@ -534,6 +554,7 @@ Deno.test("TRANSFER reconciles source and destination before one atomic RPC", as
   assertEquals(mutationArguments[0].p_subjects, [
     {
       subject_kind: "transfer_source",
+      lookup_app_user_id: sourceUserId,
       candidate_user_ids: [sourceUserId],
       authoritative_snapshot_at_ms: NOW_MS,
       target_tier: "free",
@@ -541,10 +562,11 @@ Deno.test("TRANSFER reconciles source and destination before one atomic RPC", as
     },
     {
       subject_kind: "transfer_destination",
+      lookup_app_user_id: destinationUserId,
       candidate_user_ids: [destinationUserId],
       authoritative_snapshot_at_ms: NOW_MS,
       target_tier: "pro",
-      target_expires_at: null,
+      target_expires_at: "2026-08-01T00:00:00.000Z",
     },
   ]);
 });

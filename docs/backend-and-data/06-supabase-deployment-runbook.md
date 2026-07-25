@@ -9,7 +9,8 @@ validation.
 ## Legacy Location-Label Repair
 
 If a scan has exact coordinates but no `semantic_location`, changing an Explore
-post’s `location_sharing` cannot produce a label. Preview a targeted repair with:
+post’s `location_sharing` cannot produce a label. Preview a targeted repair
+with:
 
 ```bash
 SCAN_ID=<scan-uuid> DRY_RUN=true deno run --allow-net --allow-env \
@@ -36,49 +37,59 @@ that Supabase migrations or Edge Functions deployed. The deployment and iOS
 guardrail workflows write a **Workflow context** summary that shows purpose,
 trigger, commit, attempt, and changed-file categories so an operator can quickly
 tell whether a visible failure belongs to backend deployment, iOS startup
-safety, or another independent check.
-Large commits render at most 100 changed-file bullets and then append a
-truncation marker. `test-ci-run-summary.sh` locks that behavior without an
-early-closing pipeline, because `set -o pipefail` would otherwise turn an
-expected SIGPIPE into exit 141 before validation or deployment begins.
+safety, or another independent check. Large commits render at most 100
+changed-file bullets and then append a truncation marker.
+`test-ci-run-summary.sh` locks that behavior without an early-closing pipeline,
+because `set -o pipefail` would otherwise turn an expected SIGPIPE into exit 141
+before validation or deployment begins.
 
 The workflow performs the following steps:
 
 1. Writes the workflow context summary and exercises its large-change regression
    test.
-2. Installs the exact reviewed Deno `2.9.2` runtime.
-3. Installs the reviewed Supabase CLI `2.109.1`.
-4. Fails fast if required deployment, RevenueCat, or DwC-A pseudonym credentials are missing; if
-   either webhook credential is shorter than 32 characters; if
-   the DwC-A key is invalid Base64 or decodes below 32 bytes; or if an explicitly
-   configured AI quota HMAC override is shorter than 32 characters.
-5. Validates Edge Function formatting, lint, and shared runtime type checks.
+2. Uses every third-party action by an immutable reviewed 40-character commit
+   SHA, under explicit workflow-level `contents: read` permission.
+   `_tests/workflowSecurity.test.ts` enforces those pins and permissions across
+   every checked-in workflow, rejects job-scoped secret references, and limits
+   `contents: write` to the taxonomy checklist workflow that commits its result.
+3. Installs the exact reviewed Deno `2.9.2` runtime and Supabase CLI `2.109.1`.
+4. Fails fast if required deployment, RevenueCat, or DwC-A pseudonym credentials
+   are missing; if either webhook credential is shorter than 32 characters; if
+   the DwC-A key is invalid Base64 or decodes below 32 bytes; or if an
+   explicitly configured AI quota HMAC override is shorter than 32 characters.
+5. Validates whole-tree Edge Function formatting and lint, then shared runtime
+   type checks. Deployment/provider secrets are scoped only to the individual
+   steps that consume them; they are not job-wide environment values and are
+   never persisted through `GITHUB_ENV`.
 6. Confirms exact set parity between function entrypoints and
    `[functions.<name>]` entries, then verifies every function has a current
    generated local `deno.json`, only approved aliased runtime imports, and a
    graph fully represented by the shared frozen `dependencies.lock`; finally it
    type-checks all entrypoints with the exact local config Supabase will
    discover.
-7. Runs focused shared-helper, deployment-planner, AI quota, RevenueCat webhook,
-   DwC-A claim/stream/idempotency,
-   and static migration-contract tests. The migration execution contract
-   enumerates every SQL migration and rejects pipeline-incompatible concurrent
-   index DDL. The species-count contract separately requires its explicit
+7. Runs focused workflow-policy, shared-helper, deployment-planner, AI quota,
+   RevenueCat webhook, DwC-A claim/stream/idempotency, and static
+   migration-contract tests. The migration execution contract enumerates every
+   SQL migration and rejects pipeline-incompatible concurrent index DDL. The
+   species-count contract separately requires its explicit
    `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover ordering.
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the privileged-routine, AI quota, RevenueCat, DwC-A, species-count,
-   public-species-stats, and waitlist pgTAP catalog gates.
+   and runs the account deletion, privileged-routine, AI quota, RevenueCat,
+   DwC-A, species-count, public-species-stats, and waitlist pgTAP catalog gates.
+   It then invokes the checked-in recursive `deno task test` with an explicit
+   database URL, so route-local tests cannot be omitted by a curated CI list and
+   database-backed tests cannot silently skip.
 9. Builds an affected-function deployment plan from the pushed Git diff. Manual
    dispatch and an unresolvable Git diff safely select the full fleet.
 10. Prepares a Postgres connection string for database migrations without
-   calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
-   can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
-   `SUPABASE_DB_PASSWORD`.
-11. Runs a read-only production `pg_proc.proacl`,
-    `has_function_privilege()`, search-path, owner, allowlist, and
-    default-privilege report before any database write.
+    calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
+    can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
+    `SUPABASE_DB_PASSWORD`.
+11. Runs a read-only production `pg_proc.proacl`, `has_function_privilege()`,
+    search-path, owner, allowlist, and default-privilege report before any
+    database write.
 12. Pushes database migrations with `supabase db push --db-url`.
 13. Re-runs the production catalog audit in enforcement mode and stops the
     release if any privileged-routine invariant fails.
@@ -115,8 +126,8 @@ Actual GBIF taxonomy imports are intentionally separated into
 smoke-tests a dry run; it does not write taxonomy rows or advance import
 cursors.
 
-The deployment subset is computed from the TypeScript import graph rather than
-a hand-maintained list. A route-local runtime change selects that route. A
+The deployment subset is computed from the TypeScript import graph rather than a
+hand-maintained list. A route-local runtime change selects that route. A
 shared-module change selects every function that transitively imports it. A
 function-local `deno.json` change selects that function. Changes to
 `config.toml`, the root dependency manifest, or the shared lock select the full
@@ -165,9 +176,9 @@ Database/function releases use an expand/migrate/contract sequence. A migration
 in the deploy workflow must be backward-compatible with the function versions
 already serving traffic: add nullable columns, new tables, or compatible RPCs
 first; deploy readers/writers that understand both shapes; backfill or observe;
-then remove old columns, constraints, RPC signatures, or compatibility code in
-a later release. The workflow deliberately does not pretend migrations and
-Edge bundles switch atomically.
+then remove old columns, constraints, RPC signatures, or compatibility code in a
+later release. The workflow deliberately does not pretend migrations and Edge
+bundles switch atomically.
 
 ## Privileged Routine ACL Release Gate
 
@@ -175,9 +186,8 @@ Migration `20260723144640_harden_privileged_routine_execution.sql` is the
 deny-by-default boundary for public-schema `SECURITY DEFINER` functions. It
 revokes historical execution, installs owner-only function defaults for the
 `postgres` migration owner, applies an empty `search_path`, and restores only
-the exact authenticated/service entries in
-`internal.privileged_routine_grants`. Every authenticated entry has a
-caller-bound check; every service entry calls
+the exact authenticated/service entries in `internal.privileged_routine_grants`.
+Every authenticated entry has a caller-bound check; every service entry calls
 `internal.require_service_role()`.
 
 Before a manual production push, run:
@@ -197,9 +207,9 @@ deno run --frozen \
 The report is read-only and intentionally includes every public definer's
 identity, owner, language, raw `proacl`, `proconfig`, and effective
 `has_function_privilege()` result for `anon`, `authenticated`, and
-`service_role`. It also reports default-privilege leaks, API roles with
-`CREATE` on `public`, and API roles able to read the private allowlist. Retain
-this JSON with the release evidence.
+`service_role`. It also reports default-privilege leaks, API roles with `CREATE`
+on `public`, and API roles able to read the private allowlist. Retain this JSON
+with the release evidence.
 
 For an independent SQL spot-check, use an owner connection:
 
@@ -255,13 +265,13 @@ source of truth.
 
 Treat a pre-deploy `PUBLIC` or `anon` finding as an active security incident.
 Apply the reviewed hardening migration as soon as an owner connection is
-available; do not wait for an Edge release. If post-deploy enforcement fails,
-do not deploy functions. Preserve the revocations and default privileges, fix
-the allowlist/body/search path with a forward migration, and rerun enforcement.
+available; do not wait for an Edge release. If post-deploy enforcement fails, do
+not deploy functions. Preserve the revocations and default privileges, fix the
+allowlist/body/search path with a forward migration, and rerun enforcement.
 Never recover availability by granting `PUBLIC`, `anon`, or a blanket
-`authenticated` grant. Any emergency out-of-band ACL correction must be
-captured immediately in an idempotent repository migration so the next rebuild
-cannot reintroduce drift.
+`authenticated` grant. Any emergency out-of-band ACL correction must be captured
+immediately in an idempotent repository migration so the next rebuild cannot
+reintroduce drift.
 
 The repository migration role cannot alter a Supabase-managed owner's default
 privileges. If the audit finds a public application definer owned by
@@ -479,12 +489,12 @@ five-minute cleanup interval. A growing older population indicates cron,
 settlement, or database availability problems.
 
 Monitor Edge logs for `ai_quota_reservation_failed`,
-`ai_quota_reservation_invalid_response`, and
-`ai_quota_finalization_failed`, and API responses for:
+`ai_quota_reservation_invalid_response`, and `ai_quota_finalization_failed`, and
+API responses for:
 
 - elevated `503 ai_entitlement_unavailable` (database/profile/policy incident);
-- elevated `429 ai_user_rate_limit_exceeded` or
-  `ai_ip_rate_limit_exceeded` (automation or ceilings too low);
+- elevated `429 ai_user_rate_limit_exceeded` or `ai_ip_rate_limit_exceeded`
+  (automation or ceilings too low);
 - unexpected `409 ai_request_already_completed` (client reused a key for a new
   logical request);
 - provider traffic without a corresponding reservation (release blocker).
@@ -506,13 +516,13 @@ triggers. No Edge Function deployment or new secret is required.
 
 The migration deliberately takes `SHARE ROW EXCLUSIVE` on `public.scans`.
 Existing writes finish first; new scan inserts, updates, deletes, and cascading
-owner/species changes wait while one grouped backfill runs, projected totals
-are repaired, and the trigger set is swapped. The lock is held until the
-migration transaction commits. The migration file must retain its explicit
-`BEGIN` before `LOCK TABLE` and final `COMMIT`; PostgreSQL rejects a table lock
-outside a transaction block, and removing either boundary also destroys the
-atomic cutover guarantee. Before production deployment, inspect the planner
-estimate and physical size:
+owner/species changes wait while one grouped backfill runs, projected totals are
+repaired, and the trigger set is swapped. The lock is held until the migration
+transaction commits. The migration file must retain its explicit `BEGIN` before
+`LOCK TABLE` and final `COMMIT`; PostgreSQL rejects a table lock outside a
+transaction block, and removing either boundary also destroys the atomic cutover
+guarantee. Before production deployment, inspect the planner estimate and
+physical size:
 
 ```sql
 SELECT
@@ -542,9 +552,9 @@ supabase --workdir services test db --local \
 
 The dictionary-delete case forces the deferred ledger foreign key after the
 scan's `ON DELETE SET NULL` transition. Its constraint name must remain
-schema-qualified as
-`internal.user_species_scan_counts_species_id_fkey`; an unqualified name is not
-visible when the fixture's search path excludes `internal`.
+schema-qualified as `internal.user_species_scan_counts_species_id_fkey`; an
+unqualified name is not visible when the fixture's search path excludes
+`internal`.
 
 Workflow run 1458 failed during disposable `supabase db start` with
 `SQLSTATE 25P01: LOCK TABLE can only be used in transaction blocks`. Treat that
@@ -578,8 +588,8 @@ ORDER BY trigger_row.tgname;
 
 Expected: four rows, every `statement_level` is true, insert/delete/update have
 their documented transition aliases, and truncate has no transition alias.
-`unified_species_count_sync` and
-`public.sync_global_species_count()` must be absent.
+`unified_species_count_sync` and `public.sync_global_species_count()` must be
+absent.
 
 Then verify the public projection against the private ledger:
 
@@ -619,8 +629,8 @@ SELECT
 Expected: zero projection mismatches and equal assigned-scan totals. The second
 query reads the scan index/table and should be run once during the same
 low-traffic verification window. Also confirm API roles have neither table
-access nor EXECUTE on the five internal routines; the disposable pgTAP test
-owns the exact signatures.
+access nor EXECUTE on the five internal routines; the disposable pgTAP test owns
+the exact signatures.
 
 If the migration fails before commit, PostgreSQL rolls back the table, backfill,
 function, and trigger changes together. If a post-commit invariant is nonzero,
@@ -632,14 +642,14 @@ or edit `total_species_discovered` independently.
 ### Public Species Observation Stats Release Gate
 
 Migration `20260724170709_harden_species_observation_stats.sql` must land before
-the hardened `species-observation-stats` bundle. The migration adds private
-rate counters, fenced population leases, and four service-only RPCs without
-breaking the older cache table. The IP preflight is consumed before optional
-user-token validation, so invalid-token floods are bounded before reaching
-Supabase Auth. No new production secret is required: daily purpose-separated IP
-HMACs use the built-in server-only Supabase secret/service key. The iOS change
-may ship after the backend; it adds the user bucket by sending the existing
-valid session with its GET.
+the hardened `species-observation-stats` bundle. The migration adds private rate
+counters, fenced population leases, and four service-only RPCs without breaking
+the older cache table. The IP preflight is consumed before optional user-token
+validation, so invalid-token floods are bounded before reaching Supabase Auth.
+No new production secret is required: daily purpose-separated IP HMACs use the
+built-in server-only Supabase secret/service key. The iOS change may ship after
+the backend; it adds the user bucket by sending the existing valid session with
+its GET.
 
 Preflight:
 
@@ -679,10 +689,10 @@ larger than 4 KiB must return `413` without attempting JSON allocation beyond
 that bound.
 
 Confirm public traffic still reaches the function through the hosted Supabase
-gateway. If a custom proxy or CDN is introduced, it must overwrite
-`x-real-ip`, `cf-connecting-ip`, and `x-forwarded-for`; forwarding
-caller-supplied values would make the IP rate boundary untrustworthy. A request
-without a trusted address deliberately joins the shared `unavailable` bucket.
+gateway. If a custom proxy or CDN is introduced, it must overwrite `x-real-ip`,
+`cf-connecting-ip`, and `x-forwarded-for`; forwarding caller-supplied values
+would make the IP rate boundary untrustworthy. A request without a trusted
+address deliberately joins the shared `unavailable` bucket.
 
 The iOS client must reject malformed UUIDs and empty/overlong names before
 networking. It must also reject—and not memoize—a response below schema version
@@ -790,18 +800,19 @@ positive data, preserve negative caching, and fix forward.
 
 Migrations `20260725030308_durable_account_deletion.sql`,
 `20260725035737_repair_tombstone_profile_seed.sql`,
-`20260725041308_ownerless_account_deletion_tombstones.sql`, `safe-delete`,
-`reconcile-account-deletions`, and `replay-scan-ingestion` form one release
-unit. No new secret is required: the reaper uses the existing Supabase
-service-role value from Vault.
+`20260725041308_ownerless_account_deletion_tombstones.sql`, and
+`20260725052337_enforce_account_storage_erasure.sql`, plus `safe-delete`,
+`reconcile-account-deletions`, `generate-upload-urls`, and
+`replay-scan-ingestion`, form one release unit. No new secret is required: the
+reaper uses the existing Supabase service-role and R2 values.
 
 The `20260725035737` file is an explicit executable no-op. It is a compatibility
-bridge for production run 1461, where its superseded public-only sentinel
-insert failed the existing profile-to-Auth foreign key before the migration
-version was recorded. The no-op ensures the failed timestamp is recorded
-without mutating data. The following forward migration converges both
-production and any preview/local catalog that happened to accept the earlier
-sentinel. Together the migrations:
+bridge for production run 1461, where its superseded public-only sentinel insert
+failed the existing profile-to-Auth foreign key before the migration version was
+recorded. The no-op ensures the failed timestamp is recorded without mutating
+data. The following forward migration converges both production and any
+preview/local catalog that happened to accept the earlier sentinel. Together the
+migrations:
 
 - creates private `internal.account_deletion_jobs`;
 - blocks public-profile recreation while an account-deletion job is active;
@@ -809,8 +820,8 @@ sentinel. Together the migrations:
   idempotency;
 - makes `scans.user_id` nullable under a validated constraint that allows only
   tombstoned ownerless rows;
-- migrates any legacy all-zero-owner scans to ownerless tombstones, clears
-  exact coordinates/elevation and intervention notes, and removes the invalid
+- migrates any legacy all-zero-owner scans to ownerless tombstones, clears exact
+  coordinates/elevation and intervention notes, and removes the invalid
   public-only sentinel;
 - fails closed if an operator previously manufactured an all-zero Auth user,
   which must be reviewed and removed through Auth Admin before retry;
@@ -821,13 +832,20 @@ sentinel. Together the migrations:
 - removes all synthetic-profile behavior from `apply_user_tombstone`;
 - excludes the public profile's own Auth foreign key from generic Ghost
   reparenting;
-- installs service-only intake, claim, cleanup, and finish RPCs; and
+- clears every compatibility media URL, captured-media reference, semantic
+  location, device locale/time-zone context, exact location/elevation, free-form
+  note, and custom tag on retained tombstones;
+- upgrades the storage marker to a five-prefix cursor-persisted sweep, capped at
+  four 50-key pages per Edge invocation, followed by a delayed 25-hour
+  verification sweep;
+- prevents new signed uploads while deletion is active;
+- adds `storage_pending` and requires completed storage before `auth_pending`;
+- installs service-only account and storage claim/advance/failure RPCs; and
 - schedules `reconcile_account_deletions_every_five_minutes`.
 
-The ownerless migration takes bounded `SHARE ROW EXCLUSIVE` locks in
-Auth → scans → public-profile order. A lock timeout is a safe deployment
-failure; retry the unchanged migration after the conflicting transaction
-finishes.
+The ownerless migration takes bounded `SHARE ROW EXCLUSIVE` locks in Auth →
+scans → public-profile order. A lock timeout is a safe deployment failure; retry
+the unchanged migration after the conflicting transaction finishes.
 
 Run before deployment:
 
@@ -840,7 +858,8 @@ deno test --frozen --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/config.toml,.github/workflows/deploy.yml \
   services/supabase/functions/_tests/safeDelete.test.ts \
   services/supabase/functions/_tests/accountDeletionCoverage.test.ts \
-  services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts
+  services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
+  services/supabase/functions/safe-delete/storageWorker_test.ts
 
 make validate-supabase-migrations
 make test-supabase-privileged-routines
@@ -849,11 +868,11 @@ make test-supabase-privileged-routines
 The production workflow applies migrations before Edge bundles. During that
 short interval the previous `safe-delete` bundle still has its historical
 Auth-first behavior; avoid deliberately exercising account deletion until both
-new functions are deployed. The `functions/deno.json` permission correction is
-a deployment control-path change and deliberately selects the complete
-function fleet, ensuring the current `safe-delete`,
-`reconcile-account-deletions`, and `replay-scan-ingestion` bundles are installed
-after run 1461 stopped before Edge deployment.
+new functions are deployed. The `functions/deno.json` permission correction is a
+deployment control-path change and deliberately selects the complete function
+fleet, ensuring the current `safe-delete`, `reconcile-account-deletions`, and
+`replay-scan-ingestion` bundles are installed after run 1461 stopped before Edge
+deployment.
 
 After deployment, confirm the relational invariants, cron, and aggregate state
 without printing user identifiers:
@@ -909,31 +928,47 @@ SELECT
 FROM internal.account_deletion_jobs
 GROUP BY status
 ORDER BY status;
+
+SELECT
+    status,
+    phase,
+    COUNT(*) AS jobs,
+    MAX(attempt_count) AS max_attempt_count,
+    MIN(next_attempt_at) AS oldest_next_attempt
+FROM public.pending_storage_deletions
+GROUP BY status, phase
+ORDER BY status, phase;
 ```
 
-Expected: at least one validated restrictive profile/Auth foreign key, a nullable
-scan owner plus validated ownerless check, zero invalid ownerless scans, zero
-legacy sentinel scans/profiles, zero synthetic all-zero Auth users, and the
-active cron.
+Expected: at least one validated restrictive profile/Auth foreign key, a
+nullable scan owner plus validated ownerless check, zero invalid ownerless
+scans, zero legacy sentinel scans/profiles, zero synthetic all-zero Auth users,
+and the active cron.
 
 Smoke-test with a staging-only account that owns at least one scan. Confirm:
 
 1. `/safe-delete` returns `200 completed` or `202 pending`;
 2. the retained scan has `user_id IS NULL` and `is_tombstoned = true`;
-3. its exact latitude, longitude, elevation, and intervention notes are null;
+3. all compatibility media URLs and structured media references are empty, and
+   its exact location/elevation, semantic location, device context, notes, and
+   custom tags are null/empty;
 4. anonymous table access does not return the tombstoned scan;
-5. the original public profile is absent and one storage outbox row exists;
+5. the original public profile is absent and one storage job exists with all
+   five canonical prefixes;
 6. recreating the original public profile while the job is active is rejected;
-7. Auth disappears only after the job reaches `auth_pending`; and
-8. the terminal job is `completed` with `user_id IS NULL`.
+7. a new upload-signing request is rejected while deletion is active;
+8. Auth remains present through `storage_pending`, and disappears only after an
+   empty delayed verification pass permits `auth_pending`; and
+9. the terminal job is `completed` with `user_id IS NULL`.
 
 Alert on `account_deletion_attempt_deferred`,
-`account_deletion_reconciliation_deferred`, overdue active jobs, and repeated
-attempt growth. Repair the dependency and let the reaper retry. Never recover a
-`pending` job by deleting Auth manually. A legacy Auth-first incident can be
-placed into the durable pipeline only after an operator verifies the recorded
-UUID and invokes `request_account_deletion` through a reviewed service-role or
-owner session.
+`account_deletion_reconciliation_deferred`, `account_storage_erasure_deferred`,
+overdue active account/storage jobs, and repeated attempt growth. Repair the
+dependency and let the reaper retry. Never recover a `pending` or
+`storage_pending` job by deleting Auth manually. A legacy Auth-first incident
+can be placed into the durable pipeline only after an operator verifies the
+recorded UUID and invokes `request_account_deletion` through a reviewed
+service-role or owner session.
 
 Do not roll back by dropping the private table, unique outbox index, or cron;
 that would discard deletion intent. Fix forward while keeping the reaper
@@ -950,20 +985,20 @@ On the next push:
 
 1. Supabase should skip the three already-recorded migrations.
 2. It should execute and record the no-op `20260725035737` bridge.
-3. It should apply `20260725041308`, then deploy the complete function fleet.
+3. It should apply `20260725041308` and the later account/storage hardening
+   migration, then deploy the complete function fleet.
 4. Run the invariant queries and staging-only smoke test above.
 
-Do not mark the failed version applied with migration repair, insert an
-all-zero `auth.users` row, drop/disable the production foreign key, or edit one
-of the already-applied migrations. If the forward migration encounters a lock
-timeout, stop deliberate account-deletion testing, allow the conflicting
-transaction to finish, and rerun the workflow unchanged.
+Do not mark the failed version applied with migration repair, insert an all-zero
+`auth.users` row, drop/disable the production foreign key, or edit one of the
+already-applied migrations. If the forward migration encounters a lock timeout,
+stop deliberate account-deletion testing, allow the conflicting transaction to
+finish, and rerun the workflow unchanged.
 
-`legacy_auth_sentinel_requires_operator_removal` means an out-of-band
-workaround created the forbidden all-zero Auth principal. Verify that exact
-reserved UUID has no legitimate identity or sessions, remove it through the
-Supabase Auth Admin API/dashboard, and rerun. Do not delete arbitrary Auth rows
-from SQL.
+`legacy_auth_sentinel_requires_operator_removal` means an out-of-band workaround
+created the forbidden all-zero Auth principal. Verify that exact reserved UUID
+has no legitimate identity or sessions, remove it through the Supabase Auth
+Admin API/dashboard, and rerun. Do not delete arbitrary Auth rows from SQL.
 
 Workflow run 1460 separately caught two disposable-catalog test regressions:
 direct `public.users` fixtures must first create matching transactional Auth
@@ -973,9 +1008,10 @@ the complete disposable database gate.
 
 ### Darwin Core Export Release Gate
 
-Migration `20260724230849_harden_dwca_export_jobs.sql` must land with the
-hardened `export-dwca` bundle. Before the first deployment, generate a dedicated
-version-1 pseudonym key:
+Migrations `20260724230849_harden_dwca_export_jobs.sql` and
+`20260725052339_bound_dwca_export_work.sql` must land with `request-export-dwca`
+and the resumable `export-dwca` bundle. Before the first deployment, generate a
+dedicated version-1 pseudonym key:
 
 ```bash
 openssl rand -base64 32
@@ -986,24 +1022,37 @@ environment. Do not reuse a JWT secret, service-role key, R2 credential, Resend
 key, or an example value. CI requires valid Base64 decoding to at least 32 bytes
 and synchronizes the exact value to Supabase before function deployment.
 
+The public request route queues personal exports only. Do not expose global
+scope to iOS or ordinary authenticated callers; repository-wide exports require
+a reviewed internal workflow. Every job pins immutable canonical budgets: 5,000
+CSV rows and an 8 MiB archive by default, with hard database ceilings of 20,000
+rows and 16 MiB.
+
+The current worker does not finish a complete export in `waitUntil`. A
+minute-level cron resumes one due job, and each invocation performs one 100-scan
+occurrence page, one 100-scan multimedia page, assembly, or delivery. CSV pages
+are stored as claim-token-fenced R2 chunks and committed to a durable
+cursor/manifest with cumulative budgets. This phase boundary is the production
+memory/time contract.
+
 Because production migrations precede function bundles, applying the migration
 creates a private two-hour legacy payload deadline. Only jobs created in that
 finite cohort receive canonical row hints understood by the previous bundle.
 Pre-existing nonterminal jobs remain eligible to finish under the same bounded
 compatibility path but do not receive a new webhook merely because the migration
-landed.
-After the deadline, new webhook bodies contain `job_id` only and the database
-rejects direct processing without a claim. The hardened bundle ignores the hints
-at all times. If function deployment has not converged by the deadline, export
-intake fails closed: finish or roll forward the function deployment and let
-affected jobs reach the watchdog/retry path. Do not extend the private deadline
-or weaken the claim trigger out of band. Once a new worker has claimed a cohort
-job, the transition trigger rejects an old bundle's redundant `processing`
-write, raw failure, and staged-result overwrite; terminal result fields are
-immutable. The previous bundle did not inspect update errors reliably, so do
-not manually redeliver a cohort job while an old invocation may still be
-running. The new worker never claims an unclaimed cohort row already marked
-`processing`; let the 30-minute watchdog fail it and then issue a new request.
+landed. After the deadline, new webhook bodies contain `job_id` only and the
+database rejects direct processing without a claim. The hardened bundle ignores
+the hints at all times. If function deployment has not converged by the
+deadline, export intake fails closed: finish or roll forward the function
+deployment and let affected jobs reach the watchdog/retry path. Do not extend
+the private deadline or weaken the claim trigger out of band. Once a new worker
+has claimed a cohort job, the transition trigger rejects an old bundle's
+redundant `processing` write, raw failure, and staged-result overwrite; terminal
+result fields are immutable. The previous bundle did not inspect update errors
+reliably, so do not manually redeliver a cohort job while an old invocation may
+still be running. The new worker never claims an unclaimed cohort row already
+marked `processing`; let the 30-minute watchdog fail it and then issue a new
+request.
 
 The checked-in migration uses ordinary idempotent index DDL because fresh-schema
 pipeline replay cannot run `CREATE INDEX CONCURRENTLY`. Before the production
@@ -1072,11 +1121,12 @@ supabase --workdir services test db --local \
 ```
 
 Post-deploy, queue one personal test export and deliberately redeliver the same
-job UUID while its first worker owns the lease. Both webhook deliveries return
-`202 accepted`; the duplicate must log `not_claimed` and must not create another
-claim attempt. The storage test suite also proves that an S3-compatible HTTP-200
-`<Error>` completion body is rejected and that R2/Resend response bodies stop at
-their byte ceilings. After completion, verify with an owner connection:
+job UUID while its first phase owns the lease. Both wake-ups return `200`; one
+result advances the phase and the duplicate reports `not_claimed` without source
+or provider work. Allow the minute cron to advance every phase. The storage test
+suite also proves that an S3-compatible HTTP-200 `<Error>` completion body is
+rejected and that R2/Resend response bodies stop at their byte ceilings. After
+completion, verify with an owner connection:
 
 ```sql
 BEGIN TRANSACTION READ ONLY;
@@ -1087,6 +1137,8 @@ SELECT
     jobs.user_id,
     jobs.export_scope,
     jobs.pseudonym_key_version,
+    jobs.max_export_rows,
+    jobs.max_archive_bytes,
     jobs.status,
     jobs.archive_object_key,
     jobs.archive_ready_at,
@@ -1097,6 +1149,31 @@ FROM public.export_jobs AS jobs
 LEFT JOIN internal.export_job_claims AS claims
   ON claims.job_id = jobs.id
 WHERE jobs.id = '<test-job-uuid>'::UUID;
+
+SELECT
+    work.phase,
+    work.occurrence_after_id,
+    work.multimedia_after_id,
+    work.occurrence_rows,
+    work.multimedia_rows,
+    work.csv_bytes,
+    work.chunk_sequence,
+    work.retry_count
+FROM internal.export_job_work AS work
+WHERE work.job_id = '<test-job-uuid>'::UUID;
+
+SELECT
+    chunks.phase,
+    chunks.sequence,
+    chunks.byte_count,
+    chunks.object_key ~
+        '/work/(occurrence|multimedia)/[0-9]{8}-[0-9a-f-]{36}\.csv$'
+        AS claim_fenced_key
+FROM internal.export_job_chunks AS chunks
+WHERE chunks.job_id = '<test-job-uuid>'::UUID
+ORDER BY
+    CASE chunks.phase WHEN 'occurrence' THEN 0 ELSE 1 END,
+    chunks.sequence;
 
 SELECT
     protocol.legacy_payload_until,
@@ -1123,23 +1200,28 @@ SELECT
     ) AS service_role_can_execute
 FROM (
     VALUES
-        ('public.claim_export_job(uuid,uuid)'),
-        ('public.renew_export_job_claim(uuid,uuid)'),
-        ('public.stage_export_job_archive(uuid,uuid,text,text)'),
-        ('public.complete_export_job(uuid,uuid)'),
-        ('public.fail_export_job(uuid,uuid,text)')
+        ('public.get_due_export_job_ids(integer)'),
+        ('public.claim_export_job_step(uuid,uuid)'),
+        ('public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,boolean)'),
+        ('public.get_export_job_chunks(uuid,uuid)'),
+        ('public.stage_prepared_export_archive(uuid,uuid,text,text)'),
+        ('public.complete_prepared_export_job(uuid,uuid)'),
+        ('public.release_export_job_step(uuid,uuid,text,boolean)'),
+        ('public.renew_export_job_claim(uuid,uuid)')
 ) AS checks(routine_signature)
 ORDER BY checks.routine_signature;
 
 ROLLBACK;
 ```
 
-The completed row must use key version `1`, an attempt-scoped
-`exports/{user}/{job}/{claim}.zip` key, and no failure code. ACL results must be
-`false`, `false`, `true` for each routine. Verify the received message contains
-one 24-hour signed URL and that duplicate processing did not send a second
-email. The protocol query is operational visibility only; all API roles,
-including `service_role`, must lack direct `SELECT` on that private table.
+The completed row must be a personal export within both canonical budgets, use
+key version `1`, have an attempt-scoped `exports/{user}/{job}/{claim}.zip` key,
+and have no failure code. The work phase must be `completed`; every chunk key
+must be claim-fenced. ACL results must be `false`, `false`, `true` for each
+routine. Verify the received message contains one 24-hour signed URL and that
+duplicate processing did not send a second email. The private
+protocol/work/manifest tables are owner-visible operational state only; API
+roles, including `service_role`, must lack direct `SELECT`.
 
 For key rotation, first add `DWCA_PSEUDONYM_HMAC_KEY_V2` to GitHub, extend the
 workflow to validate/synchronize it, and deploy code capable of reading both
@@ -1159,27 +1241,27 @@ expiration rule.
 
 ### RevenueCat Webhook Release Gate
 
-Migration `20260723201500_secure_revenuecat_webhook_delivery.sql` must land
-before the hardened `revenuecat-webhook` bundle calls
-`apply_revenuecat_customer_state(...)`. Populate and configure the credentials
-before merging the first deployment:
+Migrations `20260723201500_secure_revenuecat_webhook_delivery.sql` and
+`20260725052338_reconcile_revenuecat_subscribers.sql` must land before the
+hardened `revenuecat-webhook` and `reconcile-revenuecat-subscribers` bundles.
+Populate and configure the credentials before merging the first deployment:
 
-1. Generate at least 32 random characters for
-   `REVENUECAT_WEBHOOK_SECRET`, for example `openssl rand -hex 32`. Configure
-   RevenueCat's webhook Authorization header as `Bearer <that value>` and store
-   the raw value in the GitHub `Production` environment secret.
+1. Generate at least 32 random characters for `REVENUECAT_WEBHOOK_SECRET`, for
+   example `openssl rand -hex 32`. Configure RevenueCat's webhook Authorization
+   header as `Bearer <that value>` and store the raw value in the GitHub
+   `Production` environment secret.
 2. Enable HMAC signing for the webhook in RevenueCat. Copy the signing secret
-   shown once into GitHub `Production` as
-   `REVENUECAT_WEBHOOK_SIGNING_SECRET`. Do not generate a different local value.
+   shown once into GitHub `Production` as `REVENUECAT_WEBHOOK_SIGNING_SECRET`.
+   Do not generate a different local value.
 3. Create or select a RevenueCat secret server API key authorized for the same
    project and store it as `REVENUECAT_SECRET_API_KEY`. It must begin with
    `sk_`; do not use any public SDK/Test Store key.
 4. Confirm the webhook URL targets the production
    `/functions/v1/revenuecat-webhook` route and that the RevenueCat project
-   contains the reviewed `pro` or `Naturalist Tier` entitlement plus
-   `pro_week`. If the integration filters event types, it must include
-   `TRANSFER` as well as the subscription/purchase lifecycle events; RevenueCat
-   sends no separate expiration/renewal pair for a transfer.
+   contains the reviewed `pro` or `Naturalist Tier` entitlement plus `pro_week`.
+   If the integration filters event types, it must include `TRANSFER` as well as
+   the subscription/purchase lifecycle events; RevenueCat sends no separate
+   expiration/renewal pair for a transfer.
 
 Run the complete preflight:
 
@@ -1192,7 +1274,8 @@ deno test --frozen \
   services/supabase/functions/revenuecat-webhook/handler_test.ts \
   services/supabase/functions/revenuecat-webhook/index_test.ts \
   services/supabase/functions/revenuecat-webhook/signature_test.ts \
-  services/supabase/functions/revenuecat-webhook/subscriber_test.ts
+  services/supabase/functions/revenuecat-webhook/subscriber_test.ts \
+  services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
@@ -1248,6 +1331,15 @@ JOIN public.users AS users
 WHERE states.merian_user_id = '<test-user-uuid>'::UUID;
 
 SELECT
+    queue.next_reconcile_at,
+    queue.last_snapshot_at_ms,
+    queue.last_reconciled_at,
+    queue.attempt_count,
+    queue.claim_token IS NULL AS claim_released
+FROM internal.revenuecat_reconciliation_queue AS queue
+WHERE queue.merian_user_id = '<test-user-uuid>'::UUID;
+
+SELECT
     checks.routine_signature,
     HAS_FUNCTION_PRIVILEGE(
         'anon',
@@ -1267,7 +1359,11 @@ SELECT
 FROM (
     VALUES
         ('public.get_revenuecat_webhook_event_result(text,bigint,text,text)'),
-        ('public.apply_revenuecat_customer_state(text,bigint,text,text,bigint,jsonb)')
+        ('public.apply_revenuecat_customer_state(text,bigint,text,text,bigint,jsonb)'),
+        ('public.schedule_revenuecat_reconciliation(jsonb)'),
+        ('public.claim_revenuecat_reconciliations(integer)'),
+        ('public.apply_revenuecat_reconciliation(uuid,uuid,bigint,text,timestamp with time zone)'),
+        ('public.fail_revenuecat_reconciliation(uuid,uuid,text)')
 ) AS checks(routine_signature)
 ORDER BY checks.routine_signature;
 
@@ -1278,9 +1374,18 @@ Expected ACLs are `false`, `false`, `true` for both rows. Redeliver the same
 RevenueCat test event: the ledger row count for its ID must remain one, the HTTP
 outcome must be `duplicate`, and no second CustomerInfo request should appear in
 Edge logs. Compare the projected tier with the RevenueCat CustomerInfo shown for
-that App User ID. Standard entitlement state must have a null timed expiry;
-`pro_week` must have an expiry exactly seven days after its authoritative
-purchase time.
+that App User ID. A recurring entitlement must persist the later of its
+expiration and grace-period expiration; only an explicitly lifetime entitlement
+may have a null expiry. `pro_week` must have an expiry exactly seven days after
+its authoritative purchase time.
+
+Confirm the active `reconcile_revenuecat_subscribers_every_fifteen_minutes`
+cron, then invoke the service-only route once. Its aggregate response must
+report no unpersisted failures, its queue claim must be released, and an
+equal/older CustomerInfo snapshot must report stale without changing the tier.
+Temporarily suppressing a staging webhook and allowing the sweep to observe a
+newer authoritative snapshot is the missed-delivery recovery smoke test. Pro
+rows should next be due in roughly six hours and free rows in roughly 24 hours.
 
 Also exercise the configured RevenueCat restore/transfer behavior with two
 disposable test customers. The single `TRANSFER` event must show
@@ -1291,8 +1396,8 @@ newer watermark; there must never be a one-sided database commit after a failed
 provider lookup.
 
 Rotate the API key by deploying the new key before revoking the old key. For the
-Authorization or HMAC credential, coordinate the RevenueCat dashboard change
-and GitHub secret update in one supervised window, immediately dispatch the
+Authorization or HMAC credential, coordinate the RevenueCat dashboard change and
+GitHub secret update in one supervised window, immediately dispatch the
 workflow, then send a test event. HMAC rotation invalidates the previous signing
 secret immediately; non-2xx deliveries during the short window should retry.
 
@@ -1337,11 +1442,12 @@ select pg_get_functiondef(
 ```
 
 All three reserved-name results must be true, the stale count must be zero, and
-the function check must be true. Smoke-test user-facing response and
-export email copy, but continue to expect durable Merian values in internal
-logs, headers, analytics, source fields, and route names. See the
+the function check must be true. Smoke-test user-facing response and export
+email copy, but continue to expect durable Merian values in internal logs,
+headers, analytics, source fields, and route names. See the
 [public brand compatibility contract](../system-architecture/08-public-brand-compatibility.md)
-and [rebrand rollout runbook](../development-guides/15-naturebook-rebrand-rollout.md).
+and
+[rebrand rollout runbook](../development-guides/15-naturebook-rebrand-rollout.md).
 
 ## Manual Data Repair Utilities
 
@@ -1391,18 +1497,18 @@ row to `scan_media_reconciliation_runs`.
 
 Video audio-metadata fixes are also migration-plus-function releases. The
 `20260707041259_fix_video_has_audio_metadata.sql` helper/backfill and the
-composer/share/edit function bundles must deploy together so
-`scan_media_assets` and `explore_post_media` only set `has_audio` when
-`captured_media` proves an audio companion exists.
+composer/share/edit function bundles must deploy together so `scan_media_assets`
+and `explore_post_media` only set `has_audio` when `captured_media` proves an
+audio companion exists.
 
 Audio moderation-attestation releases are migration-first. Apply
 `20260711055524_add_explore_audio_moderation_attestations.sql` before deploying
 the updated `_shared/audioModeration.ts`, `share-scan-to-explore`,
 `request-community-identification`, and `update-explore-field-notes` bundles.
 Functions safely fall back to live Gemini when the table is temporarily
-unavailable, but deploying the migration first avoids unnecessary provider
-calls and cache-error logs. Never deploy a function
-that treats a cache error as approval.
+unavailable, but deploying the migration first avoids unnecessary provider calls
+and cache-error logs. Never deploy a function that treats a cache error as
+approval.
 
 Legacy-audio sharing also requires
 `20260711143348_repair_scan_media_assets_audio_constraints.sql` in production.
@@ -1424,9 +1530,8 @@ posters. Legacy non-WAV rows are intentionally outside the backfill candidate
 set and retain normal playback plus the speaker fallback.
 
 Field trips releases are migration-plus-function releases too. Deploy
-`20260708021110_field_trips_v1.sql` before
-`20260708033451_field_trips_v2.sql` before
-`20260708042713_field_trips_v3_community.sql` before
+`20260708021110_field_trips_v1.sql` before `20260708033451_field_trips_v2.sql`
+before `20260708042713_field_trips_v3_community.sql` before
 `20260708051414_field_trips_v4_challenges.sql` before
 `20260717150222_contextual_outing_objective_guides.sql` before
 `20260717195751_active_outing_capture_context.sql` before
@@ -1444,38 +1549,37 @@ Field trips releases are migration-plus-function releases too. Deploy
 `20260722195453_exclude_ants_from_bee_wasp_goal.sql` before
 `20260722211636_tighten_field_trip_goal_matching.sql`, then deploy the updated
 scan-ingestion functions, `field-trips`, and the Explore/profile activity
-bundles together. V1
-creates the Field trip tables, progress/publication/comment storage, profile
-visibility helpers, and publication snapshots. V2 adds guided template detail,
-explicit starts, Recent compatibility pagination, and profile pins. V3 adds
-the Community publication RPC, Field trip in-app activity storage, and Explore
-activity union/read/count RPC updates. V4 adds curated seasonal challenge
-storage, explicit joins, challenge-specific item completions, completion badges,
-challenge entry snapshots, challenge entry comments/likes, and scan-scoped
-hashtag suggestion helpers. The contextual-guide migration supplies the
-structured Tips content used by focused target navigation. The capture-context
-migration adds the private service-role RPC and its active-field trip/challenge
-lookup indexes consumed by the Scan indicator. The preservation migration keeps
-the shared standard field trip eligible after a Seasonal Challenge join while
-leaving challenge-specific progress out of the capture payload. The Forest
-retirement migration deactivates the placeholder while retaining
-existing progress and evidence. The completion-evidence migration redefines
-the private catalog/detail projections to expose the exact completing scan ID
-without a media URL and restricts both RPCs to `service_role`. The publication-
-status migration keeps template detail private and adds only the owner's active,
-non-deleted publication ID/timestamp for the Private/Published badge. The
-credited-progress migrations replace the standard/challenge progress RPC bodies
-without changing their signatures or permissions and adds optional credited
-level/count fields for scan-completion feedback. Those values preserve the
-just-completed level when the existing current-level fields have already
+bundles together. V1 creates the Field trip tables, progress/publication/comment
+storage, profile visibility helpers, and publication snapshots. V2 adds guided
+template detail, explicit starts, Recent compatibility pagination, and profile
+pins. V3 adds the Community publication RPC, Field trip in-app activity storage,
+and Explore activity union/read/count RPC updates. V4 adds curated seasonal
+challenge storage, explicit joins, challenge-specific item completions,
+completion badges, challenge entry snapshots, challenge entry comments/likes,
+and scan-scoped hashtag suggestion helpers. The contextual-guide migration
+supplies the structured Tips content used by focused target navigation. The
+capture-context migration adds the private service-role RPC and its active-field
+trip/challenge lookup indexes consumed by the Scan indicator. The preservation
+migration keeps the shared standard field trip eligible after a Seasonal
+Challenge join while leaving challenge-specific progress out of the capture
+payload. The Forest retirement migration deactivates the placeholder while
+retaining existing progress and evidence. The completion-evidence migration
+redefines the private catalog/detail projections to expose the exact completing
+scan ID without a media URL and restricts both RPCs to `service_role`. The
+publication- status migration keeps template detail private and adds only the
+owner's active, non-deleted publication ID/timestamp for the Private/Published
+badge. The credited-progress migrations replace the standard/challenge progress
+RPC bodies without changing their signatures or permissions and adds optional
+credited level/count fields for scan-completion feedback. Those values preserve
+the just-completed level when the existing current-level fields have already
 advanced to the next level and stay scoped to checklist items matched by the
 current attempt when an older scan is re-identified. The first-achievement
 migration adds the server-authoritative earliest completion, and the lifecycle
 migration adds private active periods plus Stop/Reset. The persistent-
 contribution migration enforces one credit per scan per outing/Event, adds the
 private selected-goal preference, supports correction removal/move for
-unfinished experiences, and creates the service-role-only scan contribution
-read model used by Insight. It transactionally aborts if completed trips,
+unfinished experiences, and creates the service-role-only scan contribution read
+model used by Insight. It transactionally aborts if completed trips,
 publications, completed/badged Event participations, Event badges, or Event
 entries already exist. Confirm the expected empty-artifact assumption before
 deployment; an abort is a data/product review blocker and must not be bypassed.
@@ -1485,43 +1589,41 @@ progress, selected-goal persistence, and first-outing achievement evaluation in
 one transaction, repairs completed-outing publication materialization, and
 replaces the profile-pin RPC's temporary table with a lintable ordered-array
 mutation. It revokes every Field trip/Event `SECURITY DEFINER` routine from
-direct client roles. Only `service_role` retains execute.
-The ant-exclusion migration introduces the excluded-family matcher and repairs
-ant-backed Bee or wasp credit. The goal-hardening migration then makes the final
-active catalog authoritative: compound goals require both their taxonomy and
-their ecology/habitat/semantic signal; Spider requires `Araneae`; Backyard
-Butterfly requires the butterfly category; Bee or wasp requires Hymenoptera plus
+direct client roles. Only `service_role` retains execute. The ant-exclusion
+migration introduces the excluded-family matcher and repairs ant-backed Bee or
+wasp credit. The goal-hardening migration then makes the final active catalog
+authoritative: compound goals require both their taxonomy and their
+ecology/habitat/semantic signal; Spider requires `Araneae`; Backyard Butterfly
+requires the butterfly category; Bee or wasp requires Hymenoptera plus
 `bee|wasp`; unverifiable “near flowers” prompt text is removed; and Pollinator
 habitat becomes Meadow plant. It removes newly invalid standard/Event
 completions, reopens affected progress, clears stale preferences/receipts and
-badges, and withdraws invalid completion publications/entries.
-A function-only deploy cannot serve `capture_context` or V4 actions until all
-migrations are applied; a database-only deploy leaves the app without the
-Field trips action router. Do not release the indicator-enabled iOS client until
-both the capture-context migration and updated function are live. Do not release
-the completed-goal thumbnail route until the completion-evidence migration is
-live; its optional decode keeps older database responses compatible during a
-staged rollout. Release the status badge only after the publication-status
-migration; its optional fields render Private against the older payload.
-Deploy both credited-progress migrations, in order, before the progress-toast
-iOS client.
+badges, and withdraws invalid completion publications/entries. A function-only
+deploy cannot serve `capture_context` or V4 actions until all migrations are
+applied; a database-only deploy leaves the app without the Field trips action
+router. Do not release the indicator-enabled iOS client until both the
+capture-context migration and updated function are live. Do not release the
+completed-goal thumbnail route until the completion-evidence migration is live;
+its optional decode keeps older database responses compatible during a staged
+rollout. Release the status badge only after the publication-status migration;
+its optional fields render Private against the older payload. Deploy both
+credited-progress migrations, in order, before the progress-toast iOS client.
 The client can decode the legacy shape and fall back to current counts during a
 staged rollout. All Field Trip migrations through
 `20260722211636_tighten_field_trip_goal_matching.sql`, updated ingestion
 functions, and updated `field-trips` must precede the Insight-card iOS client
 because that client may send optional `preferred_goal`, retain it until
-acknowledgement, and request
-`scan_contributions`. Older clients omit the hint and continue to receive
-deterministic fallback behavior.
+acknowledgement, and request `scan_contributions`. Older clients omit the hint
+and continue to receive deterministic fallback behavior.
 
 Current client rollout (2026-07-22): standard Field trips/Outings are public,
-while Seasonal Challenge Events remain staged through
-the `.fieldTripEvents` default in the iOS `FeatureFlags` registry. The tester
-account and simulator builds bypass that default. This is not a Supabase
-feature flag or an authorization boundary, and the current backend remains
-deployed for both standard and challenge actions. Publishing Events later
-requires an iOS build; do not run migrations or redeploy `field-trips` solely
-for that flag change. Follow the canonical release checklist in
+while Seasonal Challenge Events remain staged through the `.fieldTripEvents`
+default in the iOS `FeatureFlags` registry. The tester account and simulator
+builds bypass that default. This is not a Supabase feature flag or an
+authorization boundary, and the current backend remains deployed for both
+standard and challenge actions. Publishing Events later requires an iOS build;
+do not run migrations or redeploy `field-trips` solely for that flag change.
+Follow the canonical release checklist in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
@@ -1532,8 +1634,8 @@ auth inside Deno; the known authenticated-only exceptions are documented in
 
 `services/supabase/functions/deno.json` is the reviewed dependency source, not
 the deploy-time parent config. `sync_function_deno_configs.ts` generates a
-`deno.json` inside every function directory, and each generated config points
-at the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
+`deno.json` inside every function directory, and each generated config points at
+the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
 discovers the function-local config while bundling. Do not pass the retired
 `--import-map` flag. Runtime code imports configured aliases; direct esm.sh,
 deno.land, npm, and JSR specifiers are rejected from production graphs. The
@@ -1541,12 +1643,12 @@ fleet uses one exact `@supabase/supabase-js@2.110.6` dependency for both
 `getUser` and `getClaims`. `_shared/claimsAuth.ts` remains opt-in to avoid
 silently changing authentication policy for unrelated routes, not to isolate a
 second SDK. `functions/dependencies.lock` is the only lockfile; do not add a
-root or function-local `deno.lock` that can silently diverge from it.
-The root and generated configs explicitly set `minimumDependencyAge` to `P1D`.
-Deno 2.9 applies a one-day default even when the field is absent, but spelling
-the policy out prevents toolchain drift. A fresh CI cache may download a version
-already integrity-pinned in the frozen lock; newly resolved npm/JSR versions
-must still satisfy the one-day delay. Do not disable the protection with
+root or function-local `deno.lock` that can silently diverge from it. The root
+and generated configs explicitly set `minimumDependencyAge` to `P1D`. Deno 2.9
+applies a one-day default even when the field is absent, but spelling the policy
+out prevents toolchain drift. A fresh CI cache may download a version already
+integrity-pinned in the frozen lock; newly resolved npm/JSR versions must still
+satisfy the one-day delay. Do not disable the protection with
 `--minimum-dependency-age=0` to repair CI. Refresh and commit the lock through
 the reviewed dependency-update flow instead.
 
@@ -1599,8 +1701,8 @@ accept its arbitrary source UUID payload.
 4. Apply the migration immediately afterward. This activates the RPCs, revokes
    the legacy helper from client roles, and installs the five-minute cleanup
    schedule.
-5. Smoke-test both the normal direct-link path and the existing-account
-   conflict path before lifting the release gate.
+5. Smoke-test both the normal direct-link path and the existing-account conflict
+   path before lifting the release gate.
 
 Never restore client execution of `reparent_user_follows` and never add a
 compatibility request field that lets the caller nominate `ghost_user_id` or
@@ -1652,8 +1754,8 @@ supabase --workdir services db advisors --local --type performance
 ```
 
 The pgTAP case must prove the attacker/provider mismatch is rejected, the same
-destination replay is idempotent, every source reference is reparented, AI
-usage stays append-only and attributed, client roles lack cleanup grants, and a
+destination replay is idempotent, every source reference is reparented, AI usage
+stays append-only and attributed, client roles lack cleanup grants, and a
 service-role cleanup claim can be finalized. It must also prove a live bulk
 empty-ghost cleanup reservation blocks handoff issuance. After this migration,
 the current audit script must see protected handoff sources and the current
@@ -1690,9 +1792,9 @@ Use disposable staging identities and no real user data:
   reports `already_merged = true`.
 - A transient 503 keeps the iOS Keychain queue item. A terminal 404/410 removes
   only that item; another queued handoff survives.
-- The source public profile disappears in the merge transaction. The source
-  Auth row is deleted after commit by the foreground call or, if deliberately
-  faulted in staging, by the scheduled worker.
+- The source public profile disappears in the merge transaction. The source Auth
+  row is deleted after commit by the foreground call or, if deliberately faulted
+  in staging, by the scheduled worker.
 
 ### Monitoring and recovery
 
@@ -1726,19 +1828,18 @@ WHERE jobname = 'reconcile_ghost_profile_merges_every_five_minutes';
 Alert when a merged receipt remains without `auth_deleted_at` for more than 20
 minutes, when cleanup attempts continue increasing, or when Edge logs repeatedly
 emit `ghost_profile_merge_auth_cleanup_pending`,
-`ghost_profile_merge_reconciliation_failed`, or
-`merge_temporarily_unavailable`. Investigate the Auth Admin API and database
-error before manually retrying the worker. Do not edit `secret_hash`,
-`target_user_id`, or receipt status by hand.
+`ghost_profile_merge_reconciliation_failed`, or `merge_temporarily_unavailable`.
+Investigate the Auth Admin API and database error before manually retrying the
+worker. Do not edit `secret_hash`, `target_user_id`, or receipt status by hand.
 
 If the worker itself is faulty, unschedule only the named cron job, retain every
 receipt, deploy a forward fix, invoke the worker manually with a small limit,
-and restore the schedule. If the merge path is faulty, gate the
-existing-account fallback in the client; normal direct identity linking can
-remain available. Do not roll back the migration, recreate the arbitrary UUID
-API, drop receipt rows, or reparent data manually. Database correction is a
-forward migration. A client rollback must keep old conflict-capable builds
-blocked until they can produce a source-issued proof.
+and restore the schedule. If the merge path is faulty, gate the existing-account
+fallback in the client; normal direct identity linking can remain available. Do
+not roll back the migration, recreate the arbitrary UUID API, drop receipt rows,
+or reparent data manually. Database correction is a forward migration. A client
+rollback must keep old conflict-capable builds blocked until they can produce a
+source-issued proof.
 
 ## Identification Latency Rollout
 
@@ -1746,23 +1847,23 @@ The image-analysis latency change is a staged operational rollout, not a reason
 to change Gemini configuration. Free remains `gemini-2.5-flash`; Pro remains
 `gemini-2.5-pro`. Prompts, schema, thinking budgets, image resolution,
 `maxOutputTokens`, and the single primary identification model call per scan are
-release invariants.
-Audio and video receive the additive timing instrumentation but no client
-behavioral change in this pass.
+release invariants. Audio and video receive the additive timing instrumentation
+but no client behavioral change in this pass.
 
 Release in three observable waves:
 
 1. Deploy compatible timing instrumentation and establish pre-change p50/p95
-   baselines for Gemini, non-Gemini Edge work, response-to-first-render, failures,
-   missing remote scans, and stuck ingestion jobs.
-2. Roll out the iOS critical-path changes: eligible live-camera still-image
-   150 ms context grace, pinned-session prewarm, inline/background upload
-   handoff, and first-result-before-secondary-work commit.
+   baselines for Gemini, non-Gemini Edge work, response-to-first-render,
+   failures, missing remote scans, and stuck ingestion jobs.
+2. Roll out the iOS critical-path changes: eligible live-camera still-image 150
+   ms context grace, pinned-session prewarm, inline/background upload handoff,
+   and first-result-before-secondary-work commit.
 3. Roll out the Edge/database optimization. Within this wave, apply
-   `20260715153946_reduce_identification_latency_round_trips.sql` before deploying
-   `identify-multimodal`, `_shared` dependents, and `update-scan-context`. The
-   identify handler has a temporary old-helper fallback for propagation safety;
-   repeated fallback logs after rollout are an incident, not a steady state.
+   `20260715153946_reduce_identification_latency_round_trips.sql` before
+   deploying `identify-multimodal`, `_shared` dependents, and
+   `update-scan-context`. The identify handler has a temporary old-helper
+   fallback for propagation safety; repeated fallback logs after rollout are an
+   incident, not a steady state.
 
 Advance Edge traffic through 10%, 50%, and 100% only when the observation window
 meets every gate:
@@ -1791,8 +1892,8 @@ Before increasing traffic, verify:
 - internal replay still requires the timing-safe service credential and explicit
   replay-user identity;
 - `Server-Timing` contains `auth`, `body_read`, `tier`, `pre_gemini_db`,
-  `gemini`, `dictionary`, `post_gemini`, and `edge_total` and contains no private
-  identifiers;
+  `gemini`, `dictionary`, `post_gemini`, and `edge_total` and contains no
+  private identifiers;
 - the latency event includes only approved aggregate tags;
 - a deferred-context call updates an existing owner scan or stages against a
   claimed ingestion job, and cannot update another user;
@@ -1821,23 +1922,23 @@ where relname = 'scan_deferred_context_updates';
 
 Do not describe the latency targets as production-validated until all three
 waves and the final observation window complete. After validation, update the
-changelog and latency/AI/API/logging/offline-queue docs with the measured p50/p95
-and the chosen Edge-region policy.
+changelog and latency/AI/API/logging/offline-queue docs with the measured
+p50/p95 and the chosen Edge-region policy.
 
 ## Public Waitlist Security Rollout
 
-Migration `20260724192124_harden_json_endpoints_and_waitlist.sql` and the secured
-Next.js waitlist route are one compatibility unit. Deploy the database boundary
-first. The old direct table upsert cannot work after revocation, while the new
-route cannot work before `claim_beta_waitlist_challenge_attempt(...)` and
-`submit_beta_waitlist_signup(...)` exist.
+Migration `20260724192124_harden_json_endpoints_and_waitlist.sql` and the
+secured Next.js waitlist route are one compatibility unit. Deploy the database
+boundary first. The old direct table upsert cannot work after revocation, while
+the new route cannot work before `claim_beta_waitlist_challenge_attempt(...)`
+and `submit_beta_waitlist_signup(...)` exist.
 
 ### One-time production setup
 
-1. In Cloudflare Turnstile, create a **Managed** widget for
-   `naturebook.earth`. Copy its public site key and secret separately. Preview
-   domains should use a separate widget and an explicit preview hostname list;
-   do not broaden the production allowlist with wildcards.
+1. In Cloudflare Turnstile, create a **Managed** widget for `naturebook.earth`.
+   Copy its public site key and secret separately. Preview domains should use a
+   separate widget and an explicit preview hostname list; do not broaden the
+   production allowlist with wildcards.
 2. Generate a dedicated waitlist IP-HMAC secret:
 
    ```bash
@@ -1846,15 +1947,15 @@ route cannot work before `claim_beta_waitlist_challenge_attempt(...)` and
 
 3. Configure these Vercel Production environment values:
 
-   | Variable | Production value/contract |
+   | Variable                         | Production value/contract                                      |
    | -------------------------------- | -------------------------------------------------------------- |
-   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public key for the production widget |
-   | `TURNSTILE_SECRET_KEY` | Server secret for that same widget |
-   | `TURNSTILE_ALLOWED_HOSTNAMES` | `naturebook.earth` |
-   | `WAITLIST_IP_HASH_SECRET` | Dedicated value generated above; at least 32 random characters |
-   | `WAITLIST_TRUSTED_IP_HEADER` | `x-vercel-forwarded-for` |
-   | `SUPABASE_URL` | Production project URL |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Production server-only service-role key |
+   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public key for the production widget                           |
+   | `TURNSTILE_SECRET_KEY`           | Server secret for that same widget                             |
+   | `TURNSTILE_ALLOWED_HOSTNAMES`    | `naturebook.earth`                                             |
+   | `WAITLIST_IP_HASH_SECRET`        | Dedicated value generated above; at least 32 random characters |
+   | `WAITLIST_TRUSTED_IP_HEADER`     | `x-vercel-forwarded-for`                                       |
+   | `SUPABASE_URL`                   | Production project URL                                         |
+   | `SUPABASE_SERVICE_ROLE_KEY`      | Production server-only service-role key                        |
 
    Vercel owns and overwrites `x-vercel-forwarded-for` at the application
    ingress. If the app moves behind another proxy, explicitly choose one
@@ -1867,8 +1968,8 @@ Only the Turnstile site key is public.
 
 ### Verification and deployment order
 
-From the repository root, complete the static/unit gates and disposable
-database fixture before production:
+From the repository root, complete the static/unit gates and disposable database
+fixture before production:
 
 ```bash
 deno test --frozen --config services/supabase/functions/deno.json \
@@ -1886,8 +1987,8 @@ npm run build
 
 The production sequence is:
 
-1. Run the normal Supabase workflow so the migration, privileged-routine
-   catalog gate, and `waitlist_security.sql` pass.
+1. Run the normal Supabase workflow so the migration, privileged-routine catalog
+   gate, and `waitlist_security.sql` pass.
 2. Verify both hosted function signatures are executable by `service_role` only
    and the waitlist tables are not directly accessible by API roles.
 3. Deploy the web application with all Vercel values above.
@@ -1897,10 +1998,10 @@ The production sequence is:
 5. Confirm a non-JSON request returns `415`, a body above 4 KiB returns `413`,
    and an invalid/expired challenge returns `400 invalid_challenge`. Repeated
    invalid attempts must reach the distributed pre-challenge `429` boundary,
-   while repeated verified attempts must reach the tighter insertion `429`;
-   both responses include `Retry-After: 600`.
-6. Search server logs by `request_id`. Confirm raw emails, client IPs,
-   Turnstile tokens, database messages, and provider responses are absent.
+   while repeated verified attempts must reach the tighter insertion `429`; both
+   responses include `Retry-After: 600`.
+6. Search server logs by `request_id`. Confirm raw emails, client IPs, Turnstile
+   tokens, database messages, and provider responses are absent.
 
 Post-deploy catalog checks:
 
@@ -1971,17 +2072,17 @@ the route intentionally returns `503` and stores no signup. Configuration
 failures detected by the preflight consume no counter. After configuration
 passes, a request that reaches the distributed pre-challenge gate consumes one
 bounded HMAC counter; this contains provider amplification and stores no raw
-address. Recover by correcting the server configuration or temporarily
-disabling the web form. Do not restore the old direct table upsert, grant table
-access to `service_role`, relax CAPTCHA verification, or accept an untrusted
-forwarding header as a rollback.
+address. Recover by correcting the server configuration or temporarily disabling
+the web form. Do not restore the old direct table upsert, grant table access to
+`service_role`, relax CAPTCHA verification, or accept an untrusted forwarding
+header as a rollback.
 
 The route validates the Turnstile secret, hostname allowlist, trusted client
 address, and HMAC secret before calling the pre-challenge RPC. A configuration
-failure therefore must not increase `challenge_ip_10m` or
-`challenge_ip_day`. Expired-counter maintenance is capped at 500 rows per call
-and uses `FOR UPDATE SKIP LOCKED`; lock-timeout alerts should be investigated
-rather than worked around by raising the public request limits.
+failure therefore must not increase `challenge_ip_10m` or `challenge_ip_day`.
+Expired-counter maintenance is capped at 500 rows per call and uses
+`FOR UPDATE SKIP LOCKED`; lock-timeout alerts should be investigated rather than
+worked around by raising the public request limits.
 
 ## Required and Optional GitHub Secrets
 
@@ -1989,15 +2090,15 @@ This section is the GitHub Actions control-plane contract, not a Vercel
 application environment template. Never copy the complete GitHub `Production`
 secret set into either Vercel project.
 
-| GitHub secret | Runtime destination |
-| --- | --- |
-| `DWCA_PSEUDONYM_HMAC_KEY_V1` | Synchronized by the workflow to Supabase Edge only |
-| `REVENUECAT_SECRET_API_KEY` | Synchronized by the workflow to Supabase Edge only |
-| `REVENUECAT_WEBHOOK_SECRET` | Synchronized by the workflow to Supabase Edge only |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Synchronized by the workflow to Supabase Edge only |
-| `SUPABASE_ACCESS_TOKEN` | Used by the GitHub runner to operate the Supabase CLI |
-| `SUPABASE_DB_URL` | Used by the GitHub runner for database migration/audit access |
-| `SUPABASE_DB_PASSWORD` | Used only by the runner's alternative pooler connection path |
+| GitHub secret                       | Runtime destination                                           |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`        | Synchronized by the workflow to Supabase Edge only            |
+| `REVENUECAT_SECRET_API_KEY`         | Synchronized by the workflow to Supabase Edge only            |
+| `REVENUECAT_WEBHOOK_SECRET`         | Synchronized by the workflow to Supabase Edge only            |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Synchronized by the workflow to Supabase Edge only            |
+| `SUPABASE_ACCESS_TOKEN`             | Used by the GitHub runner to operate the Supabase CLI         |
+| `SUPABASE_DB_URL`                   | Used by the GitHub runner for database migration/audit access |
+| `SUPABASE_DB_PASSWORD`              | Used only by the runner's alternative pooler connection path  |
 
 None of these seven values belongs in Vercel. The public-web Vercel contract is
 the explicit table in **Public Web Waitlist Release** above and
@@ -2042,14 +2143,13 @@ Set these in the repository's GitHub Actions secrets:
     alone; a region screenshot confirms geography but not the specific Supavisor
     pooler tenant host. If the host is wrong, Supavisor can still accept the TCP
     connection and then fail with
-    `tenant/user postgres.<project-ref> not found`.
-    Merian production's confirmed session-pooler host is
-    `aws-1-us-east-1.pooler.supabase.com`.
+    `tenant/user postgres.<project-ref> not found`. Merian production's
+    confirmed session-pooler host is `aws-1-us-east-1.pooler.supabase.com`.
 
 Optional GitHub Actions variables:
 
-- `SUPABASE_DB_POOLER_PORT` — defaults to `5432`, Supabase shared-pooler
-  session mode.
+- `SUPABASE_DB_POOLER_PORT` — defaults to `5432`, Supabase shared-pooler session
+  mode.
 - `SUPABASE_DB_NAME` — defaults to `postgres`.
 
 Use the shared pooler for CI because GitHub-hosted runners are IPv4-only in
@@ -2058,9 +2158,9 @@ resolve to IPv6 only and fail before Postgres authentication.
 
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
-the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus
-the configured database connection. Post-deploy smoke checks and manual
-taxonomy imports resolve the service-role key at runtime through
+the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus the
+configured database connection. Post-deploy smoke checks and manual taxonomy
+imports resolve the service-role key at runtime through
 `supabase projects api-keys --project-ref qlarqavoqhkuwzmevrmf`, then mask it in
 GitHub Actions logs.
 
@@ -2069,18 +2169,16 @@ pooler host in production secrets. Wait for the dashboard to recover, or get the
 existing shared-pooler host from another operator who already has access. The
 `supabase link` command also uses the Management API, so `504` or `500`
 responses during a Supabase incident can block linking even when the migration
-SQL itself is fine.
-Using `db push --db-url` only removes the project-status lookup from the
-migration step. Edge Function deploys, service-role key lookup, and smoke tests
-still depend on Supabase's hosted APIs and can fail during an active platform
-incident.
+SQL itself is fine. Using `db push --db-url` only removes the project-status
+lookup from the migration step. Edge Function deploys, service-role key lookup,
+and smoke tests still depend on Supabase's hosted APIs and can fail during an
+active platform incident.
 
-The workflow also inherits normal Supabase project Edge secrets at runtime.
-Most live only in Supabase. The three RevenueCat credentials, required DwC-A
-versioned pseudonym key, and optional
-AI quota override are reviewed exceptions: GitHub `Production` is their deploy
-source and the workflow synchronizes them to Supabase. The complete Edge-secret
-inventory is documented in
+The workflow also inherits normal Supabase project Edge secrets at runtime. Most
+live only in Supabase. The three RevenueCat credentials, required DwC-A
+versioned pseudonym key, and optional AI quota override are reviewed exceptions:
+GitHub `Production` is their deploy source and the workflow synchronizes them to
+Supabase. The complete Edge-secret inventory is documented in
 `docs/backend-and-data/02-supabase-edge-and-database.md`.
 
 ## Manual Production Deploy
@@ -2119,9 +2217,9 @@ key at runtime through the Supabase CLI, calls `/scan-media-health`, writes JSON
 and Markdown summary artifacts, and appends the Markdown report to the job
 summary. The Markdown report includes an **Incident Actions** table that maps
 each issue code to an owner, next step, runbook, and sample-field hint; use that
-table as the first triage view before opening raw database rows.
-It also includes a visible **Sample Preview** table with the first sample row
-for each issue code. Expand the per-issue sample blocks or download the
+table as the first triage view before opening raw database rows. It also
+includes a visible **Sample Preview** table with the first sample row for each
+issue code. Expand the per-issue sample blocks or download the
 `scan-media-health-summary-<run_number>` artifact when you need the complete
 sample set.
 
@@ -2158,14 +2256,12 @@ service-role endpoint. Start triage from the issue code:
   `stage = 'server_replay_limit_reached'` exhausted the 10-claim server replay
   ceiling and should be reviewed as terminal incidents, not rescheduled by hand
   unless the replay payload or backend bug has been fixed first. If `last_error`
-  starts with
-  `insertScan: column reference "image_url" is ambiguous`, first confirm
-  migration
+  starts with `insertScan: column reference "image_url" is ambiguous`, first
+  confirm migration
   `20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` has reached
   production; retrying before that migration is deployed will only re-create the
   same failed job. For a manual service-role retry after the underlying error is
-  fixed, POST
-  `{ "limit": 5, "awaitInvocations": true }` to
+  fixed, POST `{ "limit": 5, "awaitInvocations": true }` to
   `/functions/v1/replay-scan-ingestion`.
 - `video_scan_missing_captured_media_video`: inspect the scan's
   `video_storage_urls`, `captured_media`, and ready playback
@@ -2178,17 +2274,17 @@ service-role endpoint. Start triage from the issue code:
   ready playback row from the manifest; if it only has legacy arrays, the
   refresh falls back to `video_storage_urls` and chooses a poster thumbnail from
   `image_storage_urls`. If the refresh still leaves `ready_video_asset_count`
-  below the durable video count, run
-  `reconcile-scan-media-assets` with `dryRun = true` before allowing a repair.
+  below the durable video count, run `reconcile-scan-media-assets` with
+  `dryRun = true` before allowing a repair.
 - `audio_scan_missing_ready_audio_asset`: confirm migrations
   `20260711143348_repair_scan_media_assets_audio_constraints.sql` and
   `20260711171512_backfill_missing_ready_audio_assets.sql` reached production.
   The first permits normalized audio rows; the second makes standalone audio
   part of `refresh_scan_media_assets(...)` and backfills every scan with a
-  durable `audio_storage_urls` entry. After deploy, rerun the health monitor.
-  If a sample remains, call `refresh_scan_media_assets(sample_scan_id)` and
-  compare the ready audio URLs to `audio_storage_urls` before touching R2; the
-  durable recording must be preserved.
+  durable `audio_storage_urls` entry. After deploy, rerun the health monitor. If
+  a sample remains, call `refresh_scan_media_assets(sample_scan_id)` and compare
+  the ready audio URLs to `audio_storage_urls` before touching R2; the durable
+  recording must be preserved.
 - `explore_video_missing_thumbnail`: inspect `explore_post_media.thumbnail_url`
   and the source scan's first safe image/poster thumbnail.
 - Blank standalone-audio `explore_post_media.thumbnail_url`: deploy
@@ -2393,11 +2489,11 @@ make functions-deploy
 If neither `SUPABASE_DB_URL` nor the pooler pieces are set, `make db-push` falls
 back to the linked-project CLI behavior. `supabase link` reaches Supabase's
 Management API to retrieve remote project status before it writes local link
-metadata. A `504` at that step is a transient remote/status lookup failure, not a
-migration failure. The GitHub workflow intentionally avoids that status lookup by
-requiring an explicit database connection and using `db push --db-url` instead.
-Direct Supabase database hosts can resolve to IPv6-only addresses; use the
-pooler connection string in CI when a runner cannot reach IPv6. The local
+metadata. A `504` at that step is a transient remote/status lookup failure, not
+a migration failure. The GitHub workflow intentionally avoids that status lookup
+by requiring an explicit database connection and using `db push --db-url`
+instead. Direct Supabase database hosts can resolve to IPv6-only addresses; use
+the pooler connection string in CI when a runner cannot reach IPv6. The local
 configuration uses the current `[local_smtp]` section. It also keeps Apple Auth
 enabled for integration testing, so local CLI commands need
 `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` in the environment. Schema-only CI scopes
@@ -2501,20 +2597,20 @@ After deployment:
   prove it returns `duplicate` without advancing `entitlement_version`. Confirm
   the event and customer-state tables remain inaccessible to API roles and the
   duplicate-lookup and state-mutation RPC ACLs are exactly
-  anon/authenticated/service-role =
-  `false`/`false`/`true`. Treat elevated `401` as credential/signature drift and
-  elevated `502`/`503` as RevenueCat API, profile, or database availability;
-  never bypass reconciliation to clear the retry queue.
+  anon/authenticated/service-role = `false`/`false`/`true`. Treat elevated `401`
+  as credential/signature drift and elevated `502`/`503` as RevenueCat API,
+  profile, or database availability; never bypass reconciliation to clear the
+  retry queue.
 - For an exact external-reference-media suppression, apply its cleanup/write
   prevention migration before deploying dependent functions. Deploy every
   transitive consumer selected for `_shared/externalImagePolicy.ts`,
   `_shared/external.ts`, and `_shared/publicSpeciesProjection.ts` changes,
   including identify/enrichment, Species Dictionary, Explore post detail, and
-  `refresh-species-content` surfaces. Query normalized and legacy reference
-  data to confirm the denied path is absent, attempt a service-role normalized
-  insert to confirm the trigger skips it, then confirm the public first-image
-  helper promotes the next permitted URL. For media `605615444`, manually open
-  the pictured Brown Tabby scan and verify the European wildcat card remains
+  `refresh-species-content` surfaces. Query normalized and legacy reference data
+  to confirm the denied path is absent, attempt a service-role normalized insert
+  to confirm the trigger skips it, then confirm the public first-image helper
+  promotes the next permitted URL. For media `605615444`, manually open the
+  pictured Brown Tabby scan and verify the European wildcat card remains
   navigable with a non-disturbing replacement or leaf placeholder in Insight,
   Explore, and Species Dictionary. Released clients that fetch GBIF directly
   still require the iOS update.
@@ -2530,40 +2626,39 @@ After deployment:
   `recent_publications`, `challenges_catalog`, `challenge_detail`,
   `join_challenge`, `challenge_publications`, `scan_challenge_hashtags`, and
   `profile_summaries`, plus `apply_scan_progress` and `scan_contributions`,
-  after the V1, V2, V3, V4, contextual-guide, and
-  capture-context migrations plus the standard-preservation, Forest-retirement,
-  completion-evidence, publication-status, credited-progress, first-achievement,
-  lifecycle, persistent-contribution, and atomic-hardening follow-ups. Verify
-  `capture_context` returns only accessible
-  incomplete standard field trips and current-level unfinished targets, orders
-  field trips by recent engagement, ignores Seasonal Challenge-specific completions
-  without hiding the shared standard field trip, and returns no scan IDs, media,
-  locations, field notes, species completion data, or other evidence. Confirm
-  `PUBLIC`, `anon`, and `authenticated` cannot execute
-  `public.get_field_trip_capture_context(uuid)` while `service_role` can.
-  Verify catalog and template detail return each completed item's exact
-  `user_field_trip_item_completions.scan_id`, return no media URL, and keep
-  incomplete items evidence-free. Confirm `PUBLIC`, `anon`, and
-  `authenticated` cannot execute `public.get_field_trip_catalog(...)` or
+  after the V1, V2, V3, V4, contextual-guide, and capture-context migrations
+  plus the standard-preservation, Forest-retirement, completion-evidence,
+  publication-status, credited-progress, first-achievement, lifecycle,
+  persistent-contribution, and atomic-hardening follow-ups. Verify
+  `capture_context` returns only accessible incomplete standard field trips and
+  current-level unfinished targets, orders field trips by recent engagement,
+  ignores Seasonal Challenge-specific completions without hiding the shared
+  standard field trip, and returns no scan IDs, media, locations, field notes,
+  species completion data, or other evidence. Confirm `PUBLIC`, `anon`, and
+  `authenticated` cannot execute `public.get_field_trip_capture_context(uuid)`
+  while `service_role` can. Verify catalog and template detail return each
+  completed item's exact `user_field_trip_item_completions.scan_id`, return no
+  media URL, and keep incomplete items evidence-free. Confirm `PUBLIC`, `anon`,
+  and `authenticated` cannot execute `public.get_field_trip_catalog(...)` or
   `public.get_field_trip_template_detail(...)`, while `service_role` can.
   Confirm `completed_scan_id` is absent from capture context, public profile
   summaries, publication/challenge snapshots, Explore feed, and map payloads.
   Verify template detail returns `publication_id`/`published_at` only for the
   requesting owner's active non-deleted snapshot. Catalog and public/capture
   projections must remain unchanged, and direct client roles must remain unable
-  to execute template detail.
-  Start two standard outings and join one live Event, then submit one matching
-  scan and confirm at most one credit in each experience. Verify a valid visible
-  `preferred_goal` wins inside its standard outing, while missing/stale/foreign/
-  nonmatching hints fall back deterministically. Confirm a delayed upload uses
-  the scan timestamp even after the activity period or Event ends. Correct the
-  identification and verify unfinished credit moves or disappears, while a
-  completed experience remains unchanged. Reapply the same scan concurrently
-  and confirm the scan-first uniqueness constraints remain idempotent.
-  `scan_contributions` must return every owned standard/Event credit with typed
-  routing and credited-level counts, but no media, storage URL, coordinates,
-  place labels, or notes. Confirm `PUBLIC`, `anon`, and `authenticated` cannot
-  read `field_trip_scan_goal_preferences` or execute
+  to execute template detail. Start two standard outings and join one live
+  Event, then submit one matching scan and confirm at most one credit in each
+  experience. Verify a valid visible `preferred_goal` wins inside its standard
+  outing, while missing/stale/foreign/ nonmatching hints fall back
+  deterministically. Confirm a delayed upload uses the scan timestamp even after
+  the activity period or Event ends. Correct the identification and verify
+  unfinished credit moves or disappears, while a completed experience remains
+  unchanged. Reapply the same scan concurrently and confirm the scan-first
+  uniqueness constraints remain idempotent. `scan_contributions` must return
+  every owned standard/Event credit with typed routing and credited-level
+  counts, but no media, storage URL, coordinates, place labels, or notes.
+  Confirm `PUBLIC`, `anon`, and `authenticated` cannot read
+  `field_trip_scan_goal_preferences` or execute
   `public.get_field_trip_scan_contributions(uuid, uuid)`; `service_role` can.
   Enumerate every public-schema `SECURITY DEFINER` function whose name contains
   `field_trip` or `challenge`: `PUBLIC`, `anon`, and `authenticated` must have
@@ -2572,32 +2667,31 @@ After deployment:
   a scan through the ingestion-intent path and confirm standard/Event updates
   plus preference, first-achievement state, and receipt commit together. Inject
   an Event RPC failure and confirm all of them roll back; retry the unchanged
-  scan and confirm the stored result is returned. Publish a completed outing
-  and verify its snapshot item rows reference the returned publication ID.
-  While Events are staged, verify a physical non-allowlisted account and ghost
-  user see Outings but not the Events segment, requests, badges, routes, or
-  hashtag suggestions; verify the allowlisted tester and simulator still see
-  the full Events flow. Before public Events release, set the client release
-  flag intentionally, promote the gated bundled changelog entry, update the
-  rollout documentation and test lock, and rerun the Field trips iOS/Deno suites
-  plus an unsigned device build. No backend deploy is implied unless a backend
-  contract changed independently.
-  Publishing a Field trip or challenge entry must not write `explore_posts`, map points,
-  normal Explore post notification rows, APNs, widgets, public web share pages,
-  prize rows, or leaderboard rows. Field trip comment/reply/followed-publication
-  activity may appear in `field_trip_activity_notifications` and the in-app
-  Explore activity feed.
+  scan and confirm the stored result is returned. Publish a completed outing and
+  verify its snapshot item rows reference the returned publication ID. While
+  Events are staged, verify a physical non-allowlisted account and ghost user
+  see Outings but not the Events segment, requests, badges, routes, or hashtag
+  suggestions; verify the allowlisted tester and simulator still see the full
+  Events flow. Before public Events release, set the client release flag
+  intentionally, promote the gated bundled changelog entry, update the rollout
+  documentation and test lock, and rerun the Field trips iOS/Deno suites plus an
+  unsigned device build. No backend deploy is implied unless a backend contract
+  changed independently. Publishing a Field trip or challenge entry must not
+  write `explore_posts`, map points, normal Explore post notification rows,
+  APNs, widgets, public web share pages, prize rows, or leaderboard rows. Field
+  trip comment/reply/followed-publication activity may appear in
+  `field_trip_activity_notifications` and the in-app Explore activity feed.
 - For Explore author-maintenance releases, apply
   `20260720042641_optimize_explore_author_maintenance.sql` before deploying the
   affected write and read functions. Confirm `PUBLIC`, `anon`, and
   `authenticated` cannot execute `refresh_public_author_identity(uuid)` or
-  `repair_explore_post_ownership_for_user(uuid)`, while `service_role` can.
-  Run `_tests/exploreIdentityDb.test.ts` with an explicit
-  `SUPABASE_DB_TEST_URL`; verify a second converged refresh preserves the user
-  row version. Smoke-test one feed/profile read and confirm it performs no
-  maintenance RPC, then share or comment once and confirm the public author
-  projection is current. During ghost-merge QA, verify scans and Explore posts
-  move to the target account before the identity refresh and ghost purge.
+  `repair_explore_post_ownership_for_user(uuid)`, while `service_role` can. Run
+  `_tests/exploreIdentityDb.test.ts` with an explicit `SUPABASE_DB_TEST_URL`;
+  verify a second converged refresh preserves the user row version. Smoke-test
+  one feed/profile read and confirm it performs no maintenance RPC, then share
+  or comment once and confirm the public author projection is current. During
+  ghost-merge QA, verify scans and Explore posts move to the target account
+  before the identity refresh and ghost purge.
 - For video-upload contract releases, confirm `scan_media_assets.scan_id` and
   `scan_media_assets.url` are nullable in production
   (`information_schema.columns.is_nullable = YES`) before expecting six-file
@@ -2628,7 +2722,8 @@ After deployment:
   `success = true` with a status of `ok`, `warning`, or `critical`.
 - Share approved and policy-violating staging audio. Confirm only approved audio
   creates/reactivates a post, web and iOS playback requires user interaction,
-  widgets omit audio-only posts, and moderation logs contain no transcript or URL.
+  widgets omit audio-only posts, and moderation logs contain no transcript or
+  URL.
 - Share an approved WAV and confirm its audio `explore_post_media.thumbnail_url`
   and matching `scan_media_assets.thumbnail_url` point to the same
   `spectrogram-v1-{sha256}.png` under the recording's durable R2 directory.
@@ -2639,9 +2734,9 @@ After deployment:
   object, and a legacy M4A remains playable with the speaker fallback.
 - Re-share the unchanged approved clip and confirm
   `explore_audio_moderation_cache_hit` appears without a second Gemini
-  classification. Replace the bytes and confirm a new decision is created.
-  Query the attestation table as service role and verify it contains only
-  checksum, policy/model, decision, MIME type, byte size, and timestamp.
+  classification. Replace the bytes and confirm a new decision is created. Query
+  the attestation table as service role and verify it contains only checksum,
+  policy/model, decision, MIME type, byte size, and timestamp.
 - On a disposable legacy audio scan with a surviving local file, share once and
   confirm staging promotion populates `audio_storage_urls`, replaces the local
   `captured_media` audio reference, creates a ready normalized audio asset, and
@@ -2651,8 +2746,8 @@ After deployment:
   scan; confirm their source recordings and derived spectrogram objects
   disappear before their database rows do.
 - Submit or replay a short video scan and verify Edge logs do not show
-  `Payload Too Large` for the normal six-file manifest or
-  `scan_media_assets` nullability errors during staged row creation.
+  `Payload Too Large` for the normal six-file manifest or `scan_media_assets`
+  nullability errors during staged row creation.
 - Share one video scan with extracted audio and one without microphone/audio
   evidence, then verify composer/share payloads preserve `has_audio = true` and
   `false` respectively.

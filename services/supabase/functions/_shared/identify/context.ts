@@ -75,37 +75,45 @@ export function normalizeCurrentMonth(value: unknown): number | undefined {
   return undefined;
 }
 
-export function buildTelemetryItems(telemetry: TelemetryContextInput): string[] {
+export function buildTelemetryItems(
+  telemetry: TelemetryContextInput,
+): string[] {
   return [
     telemetry.safeGpsLat != null && telemetry.safeGpsLon != null
       ? `GPS:${telemetry.safeGpsLat},${telemetry.safeGpsLon}`
       : null,
     telemetry.gpsElevation != null ? `Elev:${telemetry.gpsElevation}m` : null,
     telemetry.depthScaleText ? `Depth:${telemetry.depthScaleText}` : null,
-    telemetry.zoomFactor != null && Number.isFinite(telemetry.zoomFactor) && telemetry.zoomFactor > 1
+    telemetry.zoomFactor != null && Number.isFinite(telemetry.zoomFactor) &&
+      telemetry.zoomFactor > 1
       ? `Zoom:${telemetry.zoomFactor.toFixed(1)}x`
       : null,
     telemetry.estimatedSizeCm != null &&
-        Number.isFinite(telemetry.estimatedSizeCm) &&
-        telemetry.estimatedSizeCm > 0
+      Number.isFinite(telemetry.estimatedSizeCm) &&
+      telemetry.estimatedSizeCm > 0
       ? `Size:${telemetry.estimatedSizeCm}cm`
       : null,
     telemetry.semanticLocation ? `Loc:${telemetry.semanticLocation}` : null,
     telemetry.weatherCondition ? `Wx:${telemetry.weatherCondition}` : null,
-    telemetry.weatherTemperatureF != null ? `Temp:${telemetry.weatherTemperatureF}F` : null,
+    telemetry.weatherTemperatureF != null
+      ? `Temp:${telemetry.weatherTemperatureF}F`
+      : null,
     telemetry.deviceLocale ? `Locale:${telemetry.deviceLocale}` : null,
     telemetry.deviceTimeZone ? `TZ:${telemetry.deviceTimeZone}` : null,
     telemetry.deviceRegion ? `Region:${telemetry.deviceRegion}` : null,
     telemetry.currentMonth != null ? `Month:${telemetry.currentMonth}` : null,
     telemetry.timeOfDay ? `Time:${telemetry.timeOfDay}` : null,
-  ].filter((item): item is string => typeof item === "string" && item.length > 0);
+  ].filter((item): item is string =>
+    typeof item === "string" && item.length > 0
+  );
 }
 
 export function buildContextText(
   telemetry: TelemetryContextInput,
   trailingInstruction?: string,
 ): string {
-  const contextBody = buildTelemetryItems(telemetry).join(", ") || "no telemetry";
+  const contextBody = buildTelemetryItems(telemetry).join(", ") ||
+    "no telemetry";
   if (trailingInstruction) {
     return `Context: ${contextBody}. ${trailingInstruction}`;
   }
@@ -136,7 +144,11 @@ export function sanitizeReproductiveCondition(
   value: string | null | undefined,
 ): ReproductiveCondition {
   if (value == null) return undefined;
-  if (VALID_REPRODUCTIVE_CONDITIONS.has(value as NonNullable<ReproductiveCondition>)) {
+  if (
+    VALID_REPRODUCTIVE_CONDITIONS.has(
+      value as NonNullable<ReproductiveCondition>,
+    )
+  ) {
     return value as NonNullable<ReproductiveCondition>;
   }
   return "not_applicable";

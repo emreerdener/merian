@@ -308,16 +308,16 @@ allows a pre-stop scan to count after late approval while permanently excluding
 scans captured during a stopped gap. V4 also updates joined live challenge
 progress for the same scan when the scan was created after `joined_at` and
 before `ends_at`; upload after the period/Event closes remains eligible because
-the scan timestamp, not request time, owns the boundary. Eligibility is independent of photo/video modality once the
-biological scan is saved. One scan can complete at most one current-level item
-per eligible standard outing and one per joined live challenge; it may still
-advance several experiences, and every created completion row retains the same
-scan ID. The optional preference is honored only for its owned, active,
-current, visible, matching standard goal. Otherwise the database ranks exact
-species, scientific name, taxonomy from genus through kingdom, taxonomy with an
-explicit excluded family, taxonomy combined with a required
-ecology/habitat/semantic signal, semantic tag, ecology, habitat, curated
-checklist order, and item ID. Compound matching requires every populated
+the scan timestamp, not request time, owns the boundary. Eligibility is
+independent of photo/video modality once the biological scan is saved. One scan
+can complete at most one current-level item per eligible standard outing and one
+per joined live challenge; it may still advance several experiences, and every
+created completion row retains the same scan ID. The optional preference is
+honored only for its owned, active, current, visible, matching standard goal.
+Otherwise the database ranks exact species, scientific name, taxonomy from genus
+through kingdom, taxonomy with an explicit excluded family, taxonomy combined
+with a required ecology/habitat/semantic signal, semantic tag, ecology, habitat,
+curated checklist order, and item ID. Compound matching requires every populated
 taxonomy and signal constraint. Park Pollinators' **Bee or wasp** goal uses
 Hymenoptera plus either the `bee` or `wasp` semantic category, so ants,
 sawflies, and other broader-order members do not satisfy it. Compound semantic
@@ -377,10 +377,10 @@ cannot return its historical level again alongside a newly credited item.
 
 `preferred_goal` is an optional additive request field; legacy clients continue
 to omit it and receive deterministic fallback ranking. Clients should treat a
-progress update as newly credited only when `newly_completed_items` is
-nonempty. An unchanged reapplication returns the scan-revision receipt so a
-client that terminated after ingestion can recover the original notification;
-iOS owns acknowledgement and scan-ID milestone deduplication. `removed_item_ids`
+progress update as newly credited only when `newly_completed_items` is nonempty.
+An unchanged reapplication returns the scan-revision receipt so a client that
+terminated after ingestion can recover the original notification; iOS owns
+acknowledgement and scan-ID milestone deduplication. `removed_item_ids`
 identifies prior unfinished credit invalidated by an identification correction.
 Completed outings and Events are immutable.
 
@@ -529,10 +529,10 @@ MerianNetworkClient.shared.createFieldTripComment(publicationId:body:parentComme
 MerianNetworkClient.shared.createFieldTripChallengeEntryComment(entryId:body:parentCommentId:)
 ```
 
-Progress correctness is server-owned. Scan ingestion invokes the atomic
-mutation in the scan transaction; the later Edge call retrieves its receipt for
-feedback. If any progress component fails, the scan transaction rolls back and
-the ingestion retry remains authoritative.
+Progress correctness is server-owned. Scan ingestion invokes the atomic mutation
+in the scan transaction; the later Edge call retrieves its receipt for feedback.
+If any progress component fails, the scan transaction rolls back and the
+ingestion retry remains authoritative.
 
 ## Deployment Order
 
@@ -583,18 +583,19 @@ Before deployment, verify the active objective catalog against the canonical
 criteria table in
 [`docs/features-and-hardware/25-field-trips.md`](../../../../docs/features-and-hardware/25-field-trips.md#active-objective-matching-contract).
 At minimum, the database suite must prove that moths do not satisfy Backyard
-Butterfly;
-ticks/scorpions do not satisfy Spider; ants and sawflies do not satisfy Bee or
-wasp; cultivated/urban plants do not satisfy animal ecology goals; a fern does
-not satisfy Flowering plant; and a fruit fly, deer, or meadowlark does not
-satisfy the corresponding fruiting-, wild-, or meadow-plant goal.
+Butterfly; ticks/scorpions do not satisfy Spider; ants and sawflies do not
+satisfy Bee or wasp; cultivated/urban plants do not satisfy animal ecology
+goals; a fern does not satisfy Flowering plant; and a fruit fly, deer, or
+meadowlark does not satisfy the corresponding fruiting-, wild-, or meadow-plant
+goal.
 
-The capture-context, progress, lifecycle, atomic, security, and publication database integration tests require
-a running local Supabase/Postgres stack. A reported skip because port `54322` is
-unavailable is not a successful database execution and must be covered before
-release or by the linked deployment validation path. The progress test
-re-identifies one scan after standard and challenge level advancement and
-asserts that only rows inserted by the current attempt appear in the response.
+The capture-context, progress, lifecycle, atomic, security, and publication
+database integration tests require a running local Supabase/Postgres stack. A
+reported skip because port `54322` is unavailable is not a successful database
+execution and must be covered before release or by the linked deployment
+validation path. The progress test re-identifies one scan after standard and
+challenge level advancement and asserts that only rows inserted by the current
+attempt appear in the response.
 
 The static migration contract also verifies that both private checklist RPCs
 project `completed_scan_id` and grant execution only to `service_role`. Release

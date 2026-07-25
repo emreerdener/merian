@@ -1,8 +1,8 @@
 # Get Explore Notifications
 
 Returns the viewer's in-app Explore activity feed. This is the source of truth
-for the Explore bell badge and notifications sheet, including Field
-Trip-only activity rows that surface inside the same in-app sheet.
+for the Explore bell badge and notifications sheet, including Field Trip-only
+activity rows that surface inside the same in-app sheet.
 
 ## Request
 
@@ -73,8 +73,8 @@ The SQL RPC filters hidden activity before returning rows:
 - soft-deleted or moderated comments are excluded
 - follow notifications require the active `user_follows` row to still exist
 - Field trip activity requires a visible published completed Field trip
-- Field trip activity is hidden when the publication, comment, author, actor,
-  or follow relationship is no longer visible
+- Field trip activity is hidden when the publication, comment, author, actor, or
+  follow relationship is no longer visible
 
 Post `location_sharing` controls public location fields; it does not hide
 post-backed activity.

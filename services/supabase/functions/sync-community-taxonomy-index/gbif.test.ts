@@ -60,28 +60,30 @@ Deno.test("GBIF taxonomy import - filters unsupported and duplicate page rows", 
 
 Deno.test("GBIF taxonomy import - fetches species search pages with bounded params", async () => {
   const requestedUrls: string[] = [];
-  const fetcher = async (input: URL | Request | string) => {
+  const fetcher = (input: URL | Request | string) => {
     requestedUrls.push(String(input));
-    return new Response(
-      JSON.stringify({
-        offset: 25,
-        limit: 25,
-        count: 50,
-        endOfRecords: true,
-        results: [
-          {
-            key: 2492321,
-            rank: "SPECIES",
-            canonicalName: "Setophaga petechia",
-            class: "Aves",
-            classKey: 212,
-          },
-        ],
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      },
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          offset: 25,
+          limit: 25,
+          count: 50,
+          endOfRecords: true,
+          results: [
+            {
+              key: 2492321,
+              rank: "SPECIES",
+              canonicalName: "Setophaga petechia",
+              class: "Aves",
+              classKey: 212,
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
   };
 

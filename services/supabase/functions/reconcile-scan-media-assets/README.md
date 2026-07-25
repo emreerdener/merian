@@ -60,8 +60,8 @@ rows are separate records and may legitimately share a scan `order_index`.
 Migration `20260720230648_repair_scan_media_asset_uniqueness.sql` removes the
 legacy global `UNIQUE (scan_id, order_index)` rule and replaces it with:
 
-- source-aware generated uniqueness on
-  `(scan_id, source, role, order_index)` for `scan_refresh` and `backfill`;
+- source-aware generated uniqueness on `(scan_id, source, role, order_index)`
+  for `scan_refresh` and `backfill`;
 - staged-session uniqueness on `(upload_session_id, order_index)` when an upload
   session is present.
 

@@ -133,8 +133,11 @@ environment variable.**
   `refresh-merian-reference-images`, and `auto-purge-nonbio` may receive it only
   as a server-to-server
   `Authorization: Bearer ...` header from `pg_net`/Vault. The Next.js web app
-  may read it only from server-rendered route/helpers such as
-  `apps/web/lib/supabase.ts`.
+  may read it only through `apps/web/lib/supabaseAdmin.ts`, which imports
+  `server-only`. Public projection readers use
+  `apps/web/lib/supabasePublic.ts` and cannot acquire service-role authority.
+  Keep these modules separate and never re-export an admin-capable default
+  client.
 - `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is
   injected via `Config.xcconfig` into `MerianEnvironment.swift`.
 - `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `GIDClientID`, and

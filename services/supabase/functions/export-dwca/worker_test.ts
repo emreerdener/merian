@@ -1,22 +1,32 @@
 import {
+  assert,
   assertEquals,
   assertRejects,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { ExportWorkerServices, processExportJob } from "./worker.ts";
+import { ExportWorkerServices, processExportJobStep } from "./worker.ts";
 import { ClaimedExportJob, ExportWorkerError } from "./types.ts";
 
 const job: ClaimedExportJob = {
   id: "00000000-0000-4000-8000-000000000201",
   userId: "00000000-0000-4000-8000-000000000202",
-  exportScope: "global",
+  exportScope: "personal",
   includePreciseCoordinates: false,
   pseudonymKeyVersion: 1,
+  maxExportRows: 5000,
+  maxArchiveBytes: 8 * 1024 * 1024,
   archiveObjectKey: null,
   fileUrl: null,
   archiveReadyAt: null,
   attemptCount: 1,
-  leaseExpiresAt: "2026-07-24T23:59:00.000Z",
+  leaseExpiresAt: "2026-07-25T23:59:00.000Z",
+  workPhase: "occurrence",
+  occurrenceAfterId: null,
+  multimediaAfterId: null,
+  occurrenceRows: 0,
+  multimediaRows: 0,
+  csvBytes: 0,
+  chunkSequence: 0,
 };
 
 const unusedClient = {} as SupabaseClient;
@@ -43,9 +53,11 @@ function successfulServices(
       events.push("renew");
       return Promise.resolve();
     },
-    fetchEmail() {
-      events.push("email_lookup");
-      return Promise.resolve("export@example.invalid");
+    fetchBatch() {
+      events.push("fetch_batch");
+      return Promise.resolve([
+        { id: "00000000-0000-4000-8000-000000000301", user_id: job.userId },
+      ]);
     },
     loadPseudonymizer() {
       events.push("pseudonym_key");
@@ -56,12 +68,31 @@ function successfulServices(
         },
       });
     },
-    createArchive(_job, _pseudonymizer, _onProgress) {
+    encodeBatch() {
+      events.push("encode_batch");
+      return Promise.resolve({
+        bytes: new Uint8Array([1, 2, 3]),
+        rowCount: 1,
+      });
+    },
+    putChunk(_bytes, objectKey) {
+      events.push(`put:${objectKey}`);
+      return Promise.resolve();
+    },
+    advance() {
+      events.push("advance");
+      return Promise.resolve("multimedia");
+    },
+    fetchManifest() {
+      events.push("manifest");
+      return Promise.resolve([]);
+    },
+    createArchive() {
       events.push("archive");
       return emptyArchive();
     },
-    uploadArchive(_archive, objectKey) {
-      events.push(`upload:${objectKey}`);
+    uploadArchive(_archive, objectKey, _onProgress, maximumBytes) {
+      events.push(`upload:${objectKey}:${maximumBytes}`);
       return Promise.resolve({
         objectKey,
         signedUrl: "https://r2.example.invalid/export.zip?signed=1",
@@ -73,6 +104,10 @@ function successfulServices(
       events.push("stage");
       return Promise.resolve();
     },
+    fetchEmail() {
+      events.push("email_lookup");
+      return Promise.resolve("export@example.invalid");
+    },
     sendEmail() {
       events.push("send");
       return Promise.resolve("email-id");
@@ -81,18 +116,19 @@ function successfulServices(
       events.push("complete");
       return Promise.resolve();
     },
-    fail(_jobId, _claimToken, code) {
-      events.push(`fail:${code}`);
+    release(_jobId, _claimToken, code, terminal) {
+      events.push(`release:${code}:${terminal}`);
       return Promise.resolve(true);
     },
-    now: () => 1_000,
-    sleep: () => Promise.resolve(),
+    sleep() {
+      return Promise.resolve();
+    },
   };
 }
 
-Deno.test("duplicate delivery exits when the atomic claim returns no job", async () => {
+Deno.test("duplicate delivery exits when the atomic step claim returns no job", async () => {
   const events: string[] = [];
-  const result = await processExportJob(
+  const result = await processExportJobStep(
     job.id,
     unusedClient,
     successfulServices(events, null),
@@ -101,136 +137,155 @@ Deno.test("duplicate delivery exits when the atomic claim returns no job", async
   assertEquals(events, ["claim"]);
 });
 
-Deno.test("claimed job uses canonical state and an attempt-fenced storage key", async () => {
+Deno.test("preparation performs one fixed keyset page and durably advances", async () => {
   const events: string[] = [];
-  const result = await processExportJob(
+  const result = await processExportJobStep(
     job.id,
     unusedClient,
     successfulServices(events),
   );
 
   assertEquals(result, {
-    disposition: "completed",
-    attemptCount: 1,
-    reusedArchive: false,
+    disposition: "advanced",
+    phase: "multimedia",
+    rowCount: 1,
+  });
+  assertEquals(events.slice(0, 3), ["claim", "fetch_batch", "encode_batch"]);
+  assert(events[3].startsWith(
+    `put:exports/${job.userId}/${job.id}/work/occurrence/00000000-`,
+  ));
+  assert(
+    /^put:.*\/00000000-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.csv$/i
+      .test(events[3]),
+  );
+  assertEquals(events[4], "advance");
+  assertEquals(events.includes("archive"), false);
+  assertEquals(events.includes("send"), false);
+});
+
+Deno.test("assembly consumes only the durable bounded manifest", async () => {
+  const events: string[] = [];
+  const assembling: ClaimedExportJob = {
+    ...job,
+    workPhase: "assembling",
+    occurrenceRows: 1,
+    csvBytes: 3,
+  };
+  const services = successfulServices(events, assembling);
+  services.fetchManifest = () => {
+    events.push("manifest");
+    return Promise.resolve([{
+      phase: "occurrence",
+      sequence: 0,
+      objectKey: `exports/${job.userId}/${job.id}/work/occurrence/00000000.csv`,
+      byteCount: 3,
+    }]);
+  };
+
+  const result = await processExportJobStep(
+    job.id,
+    unusedClient,
+    services,
+  );
+
+  assertEquals(result, {
+    disposition: "advanced",
+    phase: "delivering",
     uploadedBytes: 3,
     uploadedParts: 1,
   });
-  assertEquals(events.slice(0, 4), [
-    "claim",
-    "email_lookup",
-    "pseudonym_key",
-    "archive",
-  ]);
-  const uploadEvent = events[4];
-  const objectKeyPrefix = `upload:exports/${job.userId}/${job.id}/`;
-  assertEquals(uploadEvent.startsWith(objectKeyPrefix), true);
-  assertEquals(uploadEvent.endsWith(".zip"), true);
-  assertEquals(events.slice(5), [
-    "renew",
-    "stage",
-    "renew",
-    "send",
-    "complete",
-  ]);
+  assertEquals(events.slice(0, 3), ["claim", "manifest", "archive"]);
+  assert(events[3].startsWith(
+    `upload:exports/${job.userId}/${job.id}/`,
+  ));
+  assert(events[3].endsWith(`.zip:${job.maxArchiveBytes}`));
+  assertEquals(events.at(-1), "stage");
 });
 
-Deno.test("lease retry reuses the staged URL and idempotent email", async () => {
+Deno.test("delivery retries only the fenced idempotent completion write", async () => {
   const events: string[] = [];
-  const stagedJob: ClaimedExportJob = {
+  const delivering: ClaimedExportJob = {
     ...job,
-    archiveObjectKey:
-      `exports/${job.userId}/${job.id}/00000000-0000-4000-8000-000000000203.zip`,
+    workPhase: "delivering",
+    archiveObjectKey: `exports/${job.userId}/${job.id}/archive.zip`,
     fileUrl: "https://r2.example.invalid/export.zip?signed=stable",
-    archiveReadyAt: "2026-07-24T23:00:00.000Z",
-    attemptCount: 2,
+    archiveReadyAt: "2026-07-25T23:00:00.000Z",
   };
-  const result = await processExportJob(
+  const services = successfulServices(events, delivering);
+  let completions = 0;
+  services.complete = () => {
+    events.push("complete");
+    completions += 1;
+    return completions < 3
+      ? Promise.reject(new Error("database unavailable"))
+      : Promise.resolve();
+  };
+
+  const result = await processExportJobStep(
     job.id,
     unusedClient,
-    successfulServices(events, stagedJob),
+    services,
   );
-
-  assertEquals(result.reusedArchive, true);
-  assertEquals(events, [
-    "claim",
-    "email_lookup",
-    "renew",
-    "send",
-    "complete",
-  ]);
+  assertEquals(result, {
+    disposition: "completed",
+    phase: "completed",
+  });
+  assertEquals(events.filter((event) => event === "send").length, 1);
+  assertEquals(events.filter((event) => event === "complete").length, 3);
 });
 
-Deno.test("terminal generation failures are fenced into failed state", async () => {
+Deno.test("canonical budget failures become terminal under the active fence", async () => {
   const events: string[] = [];
-  const services = successfulServices(events);
-  services.createArchive = () => {
-    throw new ExportWorkerError(
-      "pseudonym_key_unavailable",
-      "missing key",
-    );
+  const budgetExhausted: ClaimedExportJob = {
+    ...job,
+    occurrenceRows: job.maxExportRows,
   };
+  const services = successfulServices(events, budgetExhausted);
 
   const error = await assertRejects(
-    () => processExportJob(job.id, unusedClient, services),
+    () => processExportJobStep(job.id, unusedClient, services),
     ExportWorkerError,
   );
-  assertEquals(error.code, "pseudonym_key_unavailable");
-  assertEquals(events.at(-1), "fail:pseudonym_key_unavailable");
+  assertEquals(error.code, "export_too_large");
+  assertEquals(events.some((event) => event.startsWith("put:")), false);
+  assertEquals(events.includes("advance"), false);
+  assertEquals(events.at(-1), "release:export_too_large:true");
 });
 
-Deno.test("retryable delivery failures leave the lease recoverable", async () => {
+Deno.test("canonical CSV byte failures are rejected before R2 upload", async () => {
   const events: string[] = [];
-  const services = successfulServices(events, {
+  const budgetExhausted: ClaimedExportJob = {
     ...job,
-    archiveObjectKey:
-      `exports/${job.userId}/${job.id}/00000000-0000-4000-8000-000000000203.zip`,
-    fileUrl: "https://r2.example.invalid/export.zip?signed=stable",
-    archiveReadyAt: "2026-07-24T23:00:00.000Z",
-  });
-  services.sendEmail = () => {
-    events.push("send");
-    return Promise.reject(
+    csvBytes: job.maxArchiveBytes - 65_536,
+  };
+  const services = successfulServices(events, budgetExhausted);
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "export_too_large");
+  assertEquals(events.some((event) => event.startsWith("put:")), false);
+  assertEquals(events.includes("advance"), false);
+  assertEquals(events.at(-1), "release:export_too_large:true");
+});
+
+Deno.test("transient provider or storage failures release for durable retry", async () => {
+  const events: string[] = [];
+  const services = successfulServices(events);
+  services.putChunk = () =>
+    Promise.reject(
       new ExportWorkerError(
-        "delivery_failed",
-        "temporary upstream failure",
+        "storage_unavailable",
+        "temporary R2 failure",
         false,
       ),
     );
-  };
 
   const error = await assertRejects(
-    () => processExportJob(job.id, unusedClient, services),
+    () => processExportJobStep(job.id, unusedClient, services),
     ExportWorkerError,
   );
-  assertEquals(error.code, "delivery_failed");
-  assertEquals(events.some((event) => event.startsWith("fail:")), false);
-});
-
-Deno.test("accepted delivery is never rolled back by completion failure", async () => {
-  const events: string[] = [];
-  const services = successfulServices(events, {
-    ...job,
-    archiveObjectKey:
-      `exports/${job.userId}/${job.id}/00000000-0000-4000-8000-000000000203.zip`,
-    fileUrl: "https://r2.example.invalid/export.zip?signed=stable",
-    archiveReadyAt: "2026-07-24T23:00:00.000Z",
-  });
-  services.complete = () => {
-    events.push("complete");
-    return Promise.reject(
-      new ExportWorkerError(
-        "database_unavailable",
-        "database unavailable",
-      ),
-    );
-  };
-
-  const error = await assertRejects(
-    () => processExportJob(job.id, unusedClient, services),
-    ExportWorkerError,
-  );
-  assertEquals(error.code, "database_unavailable");
-  assertEquals(events.filter((event) => event === "complete").length, 3);
-  assertEquals(events.some((event) => event.startsWith("fail:")), false);
+  assertEquals(error.code, "storage_unavailable");
+  assertEquals(events.at(-1), "release:storage_unavailable:false");
 });

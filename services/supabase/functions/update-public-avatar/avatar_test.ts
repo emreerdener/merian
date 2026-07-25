@@ -61,13 +61,15 @@ Deno.test("update-public-avatar promotes to durable avatar prefix", async () => 
     "https://media.merian.app/avatars/user-1/old.webp",
     {
       r2Config: config,
-      copyObject: async (sourceKey, targetKey) => {
+      copyObject: (sourceKey, targetKey) => {
         copied.push({ source: sourceKey, target: targetKey });
-        return new Response(null, { status: 200, statusText: "OK" });
+        return Promise.resolve(
+          new Response(null, { status: 200, statusText: "OK" }),
+        );
       },
-      deleteAvatarObject: async (avatarUrl) => {
+      deleteAvatarObject: (avatarUrl) => {
         deleted.push(avatarUrl);
-        return new Response(null, { status: 204 });
+        return Promise.resolve(new Response(null, { status: 204 }));
       },
     },
   );

@@ -3,7 +3,7 @@ import { User } from "@supabase/supabase-js";
 export async function trackPostHogEvent(
   userOrId: string | User,
   event: string,
-  properties: Record<string, unknown> = {}
+  properties: Record<string, unknown> = {},
 ) {
   const apiKey = Deno.env.get("POSTHOG_API_KEY");
   if (!apiKey) {
@@ -17,7 +17,8 @@ export async function trackPostHogEvent(
   const setProps: Record<string, unknown> = {};
   if (userObj) {
     if (userObj.email) setProps.email = userObj.email;
-    const name = userObj.user_metadata?.full_name || userObj.user_metadata?.name;
+    const name = userObj.user_metadata?.full_name ||
+      userObj.user_metadata?.name;
     if (name) setProps.name = name;
   }
 
@@ -46,7 +47,9 @@ export async function trackPostHogEvent(
     });
 
     if (!res.ok) {
-      console.error(`PostHog event '${event}' failed: ${res.status} ${res.statusText}`);
+      console.error(
+        `PostHog event '${event}' failed: ${res.status} ${res.statusText}`,
+      );
     }
   } catch (err) {
     console.error(`PostHog fetch error for event '${event}':`, err);

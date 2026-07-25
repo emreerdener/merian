@@ -153,5 +153,7 @@ external identity cleanup finish. Account deletion intentionally calls
 `signOut()` alone so it does not recreate an identity during deletion.
 The `/safe-delete` call may return immediate `200` completion or `202` durable
 acceptance; the shared request layer treats either 2xx response as success.
-Backend cleanup is persisted before the client signs out, and the scheduled
-account-deletion reaper owns any remaining retry.
+Backend intent and relational cleanup are persisted before the client signs
+out. The scheduled account-deletion reaper owns cursor-persisted R2 sweeps,
+delayed empty verification, and terminal Auth removal; a new request therefore
+normally receives `202`.

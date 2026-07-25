@@ -52,7 +52,10 @@ authenticated in-product report write.
 
 1. The iOS app shares `https://naturebook.earth/explore/post/{postId}` in the message text.
 2. Next.js server-rendering handles `/explore/post/[postId]`.
-3. `apps/web/lib/explore.ts` creates a server Supabase client through `apps/web/lib/supabase.ts`.
+3. `apps/web/lib/explore.ts` creates an anonymous projection client through
+   `apps/web/lib/supabasePublic.ts`. Service-role operations are isolated in
+   `supabaseAdmin.ts`, which imports `server-only`, and public post/species
+   readers cannot import it.
 4. The page calls the `get_explore_post` RPC with:
 
    ```ts
@@ -368,7 +371,7 @@ installed current build during release QA.
 ```bash
 cd apps/web
 cp .env.example .env.local
-npm install
+npm ci
 npm run dev
 ```
 
@@ -388,6 +391,14 @@ inconsistent CAPTCHA, hostname, proxy-header, HMAC, or service-role
 configuration fails closed with `503`; it never falls back to a direct table
 upsert.
 
+The web package pins the reviewed Next.js version exactly. `proxy.ts` creates a
+fresh nonce and applies the same nonce-based CSP to the request and response;
+`layout.tsx` binds the color-scheme bootstrap script to that nonce. The policy
+uses `'strict-dynamic'` and intentionally makes pages dynamic. Production also
+sets HSTS, while all environments set explicit referrer, framing, MIME,
+permissions, and cross-origin headers. Do not add `'unsafe-inline'` to
+`script-src` or move service-role access out of the `server-only` admin module.
+
 ## Vercel Deployment
 
 The Vercel project for `naturebook.earth` must be configured as a monorepo app with:
@@ -395,7 +406,7 @@ The Vercel project for `naturebook.earth` must be configured as a monorepo app w
 - Root Directory: `apps/web`
 - Framework Preset: Next.js
 - Build Command: `npm run build`
-- Install Command: `npm install`
+- Install Command: `npm ci`
 - Production domains: `naturebook.earth`, `www.naturebook.earth`,
   `naturebook.app`, `www.naturebook.app`, `merian.earth`, and `www.merian.earth`
 

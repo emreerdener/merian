@@ -4,7 +4,13 @@ import {
   assertRejects,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { R2Config } from "../_shared/aws.ts";
-import { fixedSizeParts, uploadDwcaArchive } from "./storage.ts";
+import {
+  fetchExportWorkChunk,
+  fixedSizeParts,
+  MAXIMUM_WORK_CHUNK_BYTES,
+  putExportWorkChunk,
+  uploadDwcaArchive,
+} from "./storage.ts";
 import { ExportWorkerError } from "./types.ts";
 import { readableStreamFromAsyncIterable } from "./zip.ts";
 
@@ -29,6 +35,8 @@ function fakeR2Config(options: {
   completeBody?: string;
   createBody?: string;
   failPart?: boolean;
+  getBody?: Uint8Array;
+  getDeclaredLength?: number;
   requests: Array<{ method: string; url: string; bytes: number }>;
 }): R2Config {
   const client = {
@@ -62,6 +70,15 @@ function fakeR2Config(options: {
       }
       if (request.method === "DELETE") {
         return new Response(null, { status: 204 });
+      }
+      if (request.method === "GET" && options.getBody) {
+        return new Response(options.getBody as unknown as BodyInit, {
+          headers: {
+            "Content-Length": String(
+              options.getDeclaredLength ?? options.getBody.byteLength,
+            ),
+          },
+        });
       }
       throw new Error(`Unexpected request: ${request.method} ${request.url}`);
     },
@@ -160,4 +177,58 @@ Deno.test("multipart upload caps provider XML before parsing", async () => {
 
   assertEquals(error.code, "storage_unavailable");
   assertEquals(requests.map((request) => request.method), ["POST"]);
+});
+
+Deno.test("multipart upload enforces the canonical byte budget before PUT", async () => {
+  const requests: Array<{ method: string; url: string; bytes: number }> = [];
+  const error = await assertRejects(
+    () =>
+      uploadDwcaArchive(
+        readableStreamFromAsyncIterable(byteChunks([[1, 2, 3]])),
+        "exports/user/job.zip",
+        () => {},
+        fakeR2Config({ requests }),
+        2,
+      ),
+    ExportWorkerError,
+  );
+
+  assertEquals(error.code, "export_too_large");
+  assertEquals(requests.map((request) => request.method), ["POST", "DELETE"]);
+});
+
+Deno.test("prepared work chunks enforce their hard byte limit before PUT", async () => {
+  const requests: Array<{ method: string; url: string; bytes: number }> = [];
+  const error = await assertRejects(
+    () =>
+      putExportWorkChunk(
+        new Uint8Array(MAXIMUM_WORK_CHUNK_BYTES + 1),
+        "exports/user/job/work/occurrence/00000000.csv",
+        fakeR2Config({ requests }),
+      ),
+    ExportWorkerError,
+  );
+
+  assertEquals(error.code, "export_too_large");
+  assertEquals(requests, []);
+});
+
+Deno.test("prepared work chunk downloads must exactly match the durable manifest", async () => {
+  const requests: Array<{ method: string; url: string; bytes: number }> = [];
+  const error = await assertRejects(
+    () =>
+      fetchExportWorkChunk(
+        "exports/user/job/work/occurrence/00000000.csv",
+        2,
+        fakeR2Config({
+          getBody: new Uint8Array([1, 2, 3]),
+          getDeclaredLength: 3,
+          requests,
+        }),
+      ),
+    ExportWorkerError,
+  );
+
+  assertEquals(error.code, "archive_generation_failed");
+  assertEquals(requests.map((request) => request.method), ["GET"]);
 });

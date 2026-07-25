@@ -1,7 +1,7 @@
 # check-scan-status
 
-Confirms whether an authenticated user's scan row exists in `public.scans`.
-iOS uses this as the outbox probe before retrying a background inference request
+Confirms whether an authenticated user's scan row exists in `public.scans`. iOS
+uses this as the outbox probe before retrying a background inference request
 whose response body may have been lost after the server committed the scan.
 
 ## Request

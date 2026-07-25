@@ -1,5 +1,9 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { coalesceTaxonomyValue, hasUsableLookalikeTaxonomy, normalizeTaxonomyValue } from "./taxonomy.ts";
+import {
+  coalesceTaxonomyValue,
+  hasUsableLookalikeTaxonomy,
+  normalizeTaxonomyValue,
+} from "./taxonomy.ts";
 
 Deno.test("normalizeTaxonomyValue collapses placeholder strings to null", () => {
   assertEquals(normalizeTaxonomyValue(null), null);
@@ -15,14 +19,52 @@ Deno.test("normalizeTaxonomyValue preserves real taxonomy labels", () => {
 });
 
 Deno.test("coalesceTaxonomyValue chooses the first usable taxonomy value", () => {
-  assertEquals(coalesceTaxonomyValue(null, "Unknown", "Malvaceae"), "Malvaceae");
+  assertEquals(
+    coalesceTaxonomyValue(null, "Unknown", "Malvaceae"),
+    "Malvaceae",
+  );
   assertEquals(coalesceTaxonomyValue("Unknown", " ", null), null);
 });
 
 Deno.test("hasUsableLookalikeTaxonomy requires real kingdom plus order or family", () => {
-  assertEquals(hasUsableLookalikeTaxonomy({ kingdom: "Plantae", order: "Malvales", family: null }), true);
-  assertEquals(hasUsableLookalikeTaxonomy({ kingdom: "Plantae", order: null, family: "Malvaceae" }), true);
-  assertEquals(hasUsableLookalikeTaxonomy({ kingdom: "Unknown", order: "Malvales", family: null }), false);
-  assertEquals(hasUsableLookalikeTaxonomy({ kingdom: "Plantae", order: "Unknown", family: null }), false);
-  assertEquals(hasUsableLookalikeTaxonomy({ kingdom: "Plantae", order: null, family: null }), false);
+  assertEquals(
+    hasUsableLookalikeTaxonomy({
+      kingdom: "Plantae",
+      order: "Malvales",
+      family: null,
+    }),
+    true,
+  );
+  assertEquals(
+    hasUsableLookalikeTaxonomy({
+      kingdom: "Plantae",
+      order: null,
+      family: "Malvaceae",
+    }),
+    true,
+  );
+  assertEquals(
+    hasUsableLookalikeTaxonomy({
+      kingdom: "Unknown",
+      order: "Malvales",
+      family: null,
+    }),
+    false,
+  );
+  assertEquals(
+    hasUsableLookalikeTaxonomy({
+      kingdom: "Plantae",
+      order: "Unknown",
+      family: null,
+    }),
+    false,
+  );
+  assertEquals(
+    hasUsableLookalikeTaxonomy({
+      kingdom: "Plantae",
+      order: null,
+      family: null,
+    }),
+    false,
+  );
 });

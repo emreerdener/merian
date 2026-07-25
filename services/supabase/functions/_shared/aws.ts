@@ -1,10 +1,16 @@
 import { AwsClient } from "aws4fetch";
 import { mapWithConcurrencyLimit } from "./concurrency.ts";
+import { readByteStreamWithinLimit } from "./http.ts";
 
 export interface R2Config {
   s3Client: AwsClient;
   bucketName: string;
   endpoint: string;
+}
+
+export interface R2ObjectPage {
+  keys: string[];
+  isTruncated: boolean;
 }
 
 export const R2_MEDIA_PREFIXES = {
@@ -159,7 +165,106 @@ export async function deleteR2Object(
 ): Promise<Response> {
   const { s3Client, bucketName, endpoint } = config;
   const deleteUrl = `${endpoint}/${bucketName}/${key}`;
-  return await s3Client.fetch(new Request(deleteUrl, { method: "DELETE" }));
+  return await s3Client.fetch(
+    new Request(deleteUrl, {
+      method: "DELETE",
+      signal: AbortSignal.timeout(R2_OBJECT_REQUEST_TIMEOUT_MS),
+    }),
+  );
+}
+
+const R2_LIST_RESPONSE_LIMIT_BYTES = 256 * 1024;
+const R2_LIST_TIMEOUT_MS = 10_000;
+const R2_OBJECT_REQUEST_TIMEOUT_MS = 10_000;
+
+function decodeXmlText(value: string): string {
+  return value
+    .replaceAll("&apos;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&gt;", ">")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&amp;", "&");
+}
+
+export async function listR2ObjectKeys(
+  prefix: string,
+  startAfter: string | null,
+  config: R2Config,
+  maximumKeys = 50,
+): Promise<R2ObjectPage> {
+  if (
+    !prefix ||
+    prefix.startsWith("/") ||
+    prefix.includes("..") ||
+    !Number.isSafeInteger(maximumKeys) ||
+    maximumKeys < 1 ||
+    maximumKeys > 1000
+  ) {
+    throw new TypeError("Invalid bounded R2 list request.");
+  }
+
+  const { s3Client, bucketName, endpoint } = config;
+  const listUrl = new URL(`${endpoint}/${bucketName}`);
+  listUrl.searchParams.set("list-type", "2");
+  listUrl.searchParams.set("encoding-type", "url");
+  listUrl.searchParams.set("prefix", prefix);
+  listUrl.searchParams.set("max-keys", String(maximumKeys));
+  if (startAfter) listUrl.searchParams.set("start-after", startAfter);
+
+  const response = await s3Client.fetch(
+    new Request(listUrl, {
+      method: "GET",
+      signal: AbortSignal.timeout(R2_LIST_TIMEOUT_MS),
+    }),
+  );
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`R2 list returned HTTP ${response.status}.`);
+  }
+
+  const body = await readByteStreamWithinLimit(
+    response.body,
+    R2_LIST_RESPONSE_LIMIT_BYTES,
+    "R2 list response exceeded limit",
+  );
+  if (body.exceeded || !body.bytes) {
+    throw new Error("R2 list returned an oversized response.");
+  }
+  const xml = new TextDecoder("utf-8", { fatal: true }).decode(body.bytes);
+  const isTruncatedText = xml.match(
+    /<IsTruncated>(true|false)<\/IsTruncated>/i,
+  )?.[1]?.toLowerCase();
+  if (!isTruncatedText) {
+    throw new Error("R2 list response omitted IsTruncated.");
+  }
+
+  const keys = [...xml.matchAll(/<Key>([^<]*)<\/Key>/g)].map((match) => {
+    const encodedKey = decodeXmlText(match[1]);
+    try {
+      return decodeURIComponent(encodedKey);
+    } catch {
+      throw new Error("R2 list returned an invalid encoded key.");
+    }
+  });
+  if (keys.length > maximumKeys) {
+    throw new Error("R2 list exceeded its requested page size.");
+  }
+
+  let previousKey = startAfter;
+  for (const key of keys) {
+    if (
+      !key.startsWith(prefix) ||
+      (previousKey !== null && key <= previousKey)
+    ) {
+      throw new Error("R2 list returned invalid cursor ordering.");
+    }
+    previousKey = key;
+  }
+
+  return {
+    keys,
+    isTruncated: isTruncatedText === "true",
+  };
 }
 
 export async function headR2Object(

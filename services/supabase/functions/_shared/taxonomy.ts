@@ -7,7 +7,9 @@ export interface TaxonomyLike {
   genus?: string | null;
 }
 
-export function normalizeTaxonomyValue(value: string | null | undefined): string | null {
+export function normalizeTaxonomyValue(
+  value: string | null | undefined,
+): string | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   return trimmed.toLowerCase() == "unknown" ? null : trimmed;
@@ -24,7 +26,10 @@ export function coalesceTaxonomyValue(
 }
 
 export function hasUsableLookalikeTaxonomy(
-  taxonomy: Pick<TaxonomyLike, "kingdom" | "order" | "family"> | null | undefined,
+  taxonomy:
+    | Pick<TaxonomyLike, "kingdom" | "order" | "family">
+    | null
+    | undefined,
 ): boolean {
   return normalizeTaxonomyValue(taxonomy?.kingdom) !== null &&
     (

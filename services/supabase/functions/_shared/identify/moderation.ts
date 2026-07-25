@@ -151,7 +151,9 @@ export async function evaluateAndProcessPayload(
       console.warn(`Unsafe media detected for user ${userId}.`);
 
       const stagedKeysToDelete = [
-        ...((!imageBase64s || imageBase64s.length === 0) ? r2ObjectKeys ?? [] : []),
+        ...((!imageBase64s || imageBase64s.length === 0)
+          ? r2ObjectKeys ?? []
+          : []),
         ...additionalStagedKeysToDeleteOnUnsafe,
       ];
       if (stagedKeysToDelete.length > 0) {

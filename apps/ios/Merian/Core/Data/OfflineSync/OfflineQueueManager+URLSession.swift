@@ -346,7 +346,10 @@ extension OfflineQueueManager {
             )
             return
         }
-        let didClaimInference = await queueActor.tryClaimForInference(scanId: scanId)
+        let didClaimInference = await queueActor.tryClaimForInference(
+            scanId: scanId,
+            generation: preparationGeneration
+        )
         guard isUploadCompletionCurrent(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
@@ -1016,7 +1019,8 @@ extension OfflineQueueManager {
             observationContextsJSON: extracted.observationContextsJSON,
             audioFilePaths: extracted.audioFilePaths,
             videoFilePaths: extracted.videoFilePaths,
-            capturedMediaJSON: extracted.capturedMediaJSON
+            capturedMediaJSON: extracted.capturedMediaJSON,
+            expectedGeneration: generation
         )
 
         guard isInferenceGenerationCurrent(
@@ -1393,16 +1397,23 @@ extension OfflineQueueManager {
     private func scheduleRetryableServerFailure(
         scanId: String,
         delay: TimeInterval,
-        reason: String
+        reason: String,
+        expectedGeneration: UUID?
     ) async {
         guard let container = modelContext?.container else { return }
-        let retries = updateQueuedScanForRetry(
-            scanId: scanId,
+        let retryActor = resolvedQueueDbActor(container: container)
+        guard let retries = await retryActor.scheduleInferenceRetry(
+            id: scanId,
+            expectedGeneration: expectedGeneration,
             code: "server_retryable_failure",
             message: reason,
-            delay: delay,
-            resetTo: nil
-        )
+            delay: delay
+        ) else {
+            MerianLog.data.debug(
+                "scheduleRetryableServerFailure: persistence generation changed scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
 
         serverIngestionPollTasks.replace(
             for: scanId,
@@ -1431,8 +1442,6 @@ extension OfflineQueueManager {
                     return
                 }
 
-                let retryActor = self.resolvedQueueDbActor(container: container)
-                await retryActor.transitionScanToStaged(id: scanId)
                 guard !Task.isCancelled,
                       self.serverIngestionPollTasks.isCurrent(
                         scanId,
@@ -1566,7 +1575,8 @@ extension OfflineQueueManager {
             await scheduleRetryableServerFailure(
                 scanId: scanId,
                 delay: delay,
-                reason: reason
+                reason: reason,
+                expectedGeneration: expectedGeneration
             )
             return action
         case .terminalFailure(let message):
@@ -1892,15 +1902,19 @@ extension OfflineQueueManager {
         }
 
         let delay = OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1)
-        let retries = updateQueuedScanForRetry(
-            scanId: scanId,
+        let retryActor = resolvedQueueDbActor(container: container)
+        guard let retries = await retryActor.scheduleInferenceRetry(
+            id: scanId,
+            expectedGeneration: generation,
             code: "inference_retry",
             message: reason,
-            delay: delay,
-            resetTo: nil
-        )
-        let retryActor = resolvedQueueDbActor(container: container)
-        await retryActor.transitionScanToStaged(id: scanId)
+            delay: delay
+        ) else {
+            MerianLog.data.debug(
+                "handleInferenceRetry: persistence generation changed scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
         guard !Task.isCancelled,
               isServerIngestionPollCurrent(
                   scanId: scanId,

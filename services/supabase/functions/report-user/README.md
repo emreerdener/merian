@@ -1,8 +1,8 @@
 # `report-user` Edge Function
 
-Authenticated Explore viewers can report a visible, non-self author profile.
-The function does not block the target, hide content, change abuse state, or
-resolve a review case automatically.
+Authenticated Explore viewers can report a visible, non-self author profile. The
+function does not block the target, hide content, change abuse state, or resolve
+a review case automatically.
 
 ## Request
 
@@ -41,19 +41,19 @@ Success returns HTTP 200:
 
 Expected failures include:
 
-| Status | Meaning |
-|---:|---|
-| 400 | Invalid UUID/reason/details or self-report |
-| 401 | Missing, invalid, or expired Naturebook authentication |
-| 404 | Target is not a reportable profile visible to this viewer |
-| 500 | Intake persistence failed |
+| Status | Meaning                                                   |
+| -----: | --------------------------------------------------------- |
+|    400 | Invalid UUID/reason/details or self-report                |
+|    401 | Missing, invalid, or expired Naturebook authentication    |
+|    404 | Target is not a reportable profile visible to this viewer |
+|    500 | Intake persistence failed                                 |
 
 ## Security and persistence
 
-`verify_jwt = false` in `config.toml` because this endpoint uses the repository's
-shared custom Edge authentication wrapper; it is not an unauthenticated
-function. `withEdgeHandler` validates the request and supplies the authenticated
-user plus server-side Supabase client.
+`verify_jwt = false` in `config.toml` because this endpoint uses the
+repository's shared custom Edge authentication wrapper; it is not an
+unauthenticated function. `withEdgeHandler` validates the request and supplies
+the authenticated user plus server-side Supabase client.
 
 Before writing, `requireReportableUser` calls the same
 `get_explore_author_profile` database projection used by the profile endpoint.
@@ -87,4 +87,3 @@ deno test \
 
 Database integration coverage is in
 `services/supabase/tests/admin_review_ai.sql`.
-

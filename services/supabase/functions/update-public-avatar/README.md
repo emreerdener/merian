@@ -1,15 +1,15 @@
 # Update Public Avatar
 
-Promotes a user-owned staged R2 image into Merian's durable public avatar
-prefix and updates the public identity projection used by Profile, Explore
-cards, comments, and author sheets.
+Promotes a user-owned staged R2 image into Merian's durable public avatar prefix
+and updates the public identity projection used by Profile, Explore cards,
+comments, and author sheets.
 
 ## Architecture
 
-- **`index.ts`**: Authenticated HTTP orchestrator wrapped in
-  `withEdgeHandler`. It parses JSON, validates the staged key and MIME type,
-  loads the current `custom_avatar_url`, promotes the image, updates
-  `public.users`, and returns the resolved avatar URL.
+- **`index.ts`**: Authenticated HTTP orchestrator wrapped in `withEdgeHandler`.
+  It parses JSON, validates the staged key and MIME type, loads the current
+  `custom_avatar_url`, promotes the image, updates `public.users`, and returns
+  the resolved avatar URL.
 - **`avatar.ts`**: Pure validation and R2 promotion helpers. It enforces
   ownership under `staging/{userId}/...`, supports `image/webp` and
   `image/jpeg`, copies the object to `avatars/{userId}/{uuid}.webp|jpg`, and
@@ -42,9 +42,9 @@ Response:
 
 ## Storage Rules
 
-Custom avatars are public and durable. They live under
-`avatars/{userId}/...`, not `public_uploads/free|pro/`, so scan purge flows and
-R2 lifecycle expiration rules must not delete them.
+Custom avatars are public and durable. They live under `avatars/{userId}/...`,
+not `public_uploads/free|pro/`, so scan purge flows and R2 lifecycle expiration
+rules must not delete them.
 
 Only this avatar-specific path may remove avatar objects, and only after a
 replacement has been promoted:

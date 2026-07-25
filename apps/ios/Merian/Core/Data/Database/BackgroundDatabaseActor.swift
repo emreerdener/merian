@@ -47,6 +47,40 @@ actor ScanFinalizationCoordinator {
     }
 }
 
+/// Serializes inference claims and retry retreats across every SwiftData actor
+/// instance. The durable generation remains the source of truth; this lock
+/// closes the fetch-then-save window between independent ModelContexts.
+actor ScanInferencePersistenceCoordinator {
+    static let shared = ScanInferencePersistenceCoordinator()
+
+    private var activeScanIds: Set<String> = []
+    private var waitersByScanId: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    private init() {}
+
+    func acquire(scanId: String) async {
+        if activeScanIds.insert(scanId).inserted {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waitersByScanId[scanId, default: []].append(continuation)
+        }
+    }
+
+    func release(scanId: String) {
+        guard var waiters = waitersByScanId[scanId], !waiters.isEmpty else {
+            activeScanIds.remove(scanId)
+            waitersByScanId[scanId] = nil
+            return
+        }
+
+        let next = waiters.removeFirst()
+        waitersByScanId[scanId] = waiters.isEmpty ? nil : waiters
+        next.resume()
+    }
+}
+
 /// Swift 6-safe actor that performs all SwiftData reads and writes off the main thread.
 ///
 /// Conforms to `@ModelActor`, which provides an isolated `modelContext` bound to this actor.
@@ -180,7 +214,27 @@ actor BackgroundDatabaseActor {
     /// This is the distributed lock that prevents two concurrent inference pipelines
     /// from running for the same scan: only one actor can win the `.staged → .inferencing`
     /// transition because `BackgroundDatabaseActor` serializes writes through its executor.
-    func tryClaimForInference(scanId: String) -> Bool {
+    func tryClaimForInference(
+        scanId: String,
+        generation: UUID? = nil
+    ) async -> Bool {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return false
+        }
+        let didClaim = tryClaimForInferenceLocked(
+            scanId: scanId,
+            generation: generation
+        )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return didClaim
+    }
+
+    private func tryClaimForInferenceLocked(
+        scanId: String,
+        generation: UUID?
+    ) -> Bool {
         let stagedRaw     = ScanQueueState.staged.rawValue
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
@@ -198,6 +252,21 @@ actor BackgroundDatabaseActor {
         scan.scanStateRaw = inferencingRaw
         scan.queueUpdatedAt = Date()
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        if let generation {
+            let job = fetchOfflineJob(id: jobId) ?? {
+                let created = OfflineJobRecord(
+                    id: jobId,
+                    kind: .scanIngestion,
+                    subjectId: scanId,
+                    status: .running
+                )
+                modelContext.insert(created)
+                return created
+            }()
+            job.metadataJSON = Self.inferenceGenerationMetadata(generation)
+            job.status = .running
+            job.updatedAt = Date()
+        }
         modelContext.insert(OfflineQueueEvent(
             jobId: jobId,
             scanId: scanId,
@@ -222,21 +291,270 @@ actor BackgroundDatabaseActor {
     /// the MainActor that already tombstoned the scan to `.failed` cannot be overwritten —
     /// the last-writer-wins nature of two separate `ModelContext`s would otherwise resurrect
     /// a tombstoned scan back into the inference replay queue.
-    func transitionScanToStaged(id scanId: String) {
+    @discardableResult
+    func transitionScanToStaged(
+        id scanId: String,
+        expectedGeneration: UUID? = nil
+    ) async -> Bool {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return false
+        }
+        let didTransition = transitionScanToStagedLocked(
+            id: scanId,
+            expectedGeneration: expectedGeneration
+        )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return didTransition
+    }
+
+    private func transitionScanToStagedLocked(
+        id scanId: String,
+        expectedGeneration: UUID?
+    ) -> Bool {
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         let stagedRaw      = ScanQueueState.staged.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else {
+            return false
+        }
         // Only retreat from .inferencing — do not overwrite a concurrent tombstone (.failed).
-        guard scan.scanStateRaw == inferencingRaw else { return }
+        guard scan.scanStateRaw == inferencingRaw else { return false }
+        if let expectedGeneration {
+            let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+            let expectedMetadata = Self.inferenceGenerationMetadata(
+                expectedGeneration
+            )
+            var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+                predicate: #Predicate {
+                    $0.id == jobId && $0.metadataJSON == expectedMetadata
+                }
+            )
+            jobDescriptor.fetchLimit = 1
+            guard (try? modelContext.fetch(jobDescriptor).first) != nil else {
+                MerianLog.data.debug(
+                    "transitionScanToStaged: generation mismatch scanId=\(scanId, privacy: .public)"
+                )
+                return false
+            }
+        }
         scan.scanStateRaw = stagedRaw
         scan.queueUpdatedAt = Date()
         do {
             try modelContext.save()
+            return true
         } catch {
             modelContext.rollback()
             MerianLog.data.error("transitionScanToStaged: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
+        }
+    }
+
+    private static func inferenceGenerationMetadata(_ generation: UUID) -> String {
+        #"{"inference_generation":""# +
+            generation.uuidString.lowercased() +
+            #""}"#
+    }
+
+    /// Must be called only while `ScanInferencePersistenceCoordinator` is held
+    /// for `scanId`. This intentionally does not acquire the coordinator itself
+    /// so the main-actor queue deletion path can validate durable ownership
+    /// while keeping the lock across URLSession cancellation and SwiftData save.
+    func inferenceGenerationIsCurrentAssumingPersistenceLock(
+        scanId: String,
+        expectedGeneration: UUID
+    ) -> Bool {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate {
+                $0.id == scanId && $0.scanStateRaw == inferencingRaw
+            }
+        )
+        scanDescriptor.fetchLimit = 1
+        guard (try? modelContext.fetch(scanDescriptor).first) != nil else {
+            return false
+        }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let expectedMetadata = Self.inferenceGenerationMetadata(
+            expectedGeneration
+        )
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate {
+                $0.id == jobId && $0.metadataJSON == expectedMetadata
+            }
+        )
+        jobDescriptor.fetchLimit = 1
+        return (try? modelContext.fetch(jobDescriptor).first) != nil
+    }
+
+    /// Future claims always persist their generation before dispatch. Adoption
+    /// exists only for an inference task already in flight during this upgrade;
+    /// once set, every stale result must match exactly.
+    private func validateOrAdoptInferenceGenerationLocked(
+        scanId: String,
+        expectedGeneration: UUID
+    ) -> Bool {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate {
+                $0.id == scanId && $0.scanStateRaw == inferencingRaw
+            }
+        )
+        scanDescriptor.fetchLimit = 1
+        guard (try? modelContext.fetch(scanDescriptor).first) != nil else {
+            return false
+        }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        guard let job = fetchOfflineJob(id: jobId) else { return false }
+        let expectedMetadata = Self.inferenceGenerationMetadata(
+            expectedGeneration
+        )
+        if job.metadataJSON == expectedMetadata {
+            return true
+        }
+        guard job.metadataJSON == nil else { return false }
+
+        job.metadataJSON = expectedMetadata
+        job.updatedAt = Date()
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "validateOrAdoptInferenceGenerationLocked: save failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+    }
+
+    /// Atomically records retry accounting and retreats only the inference
+    /// generation that still owns the durable job. Returning `nil` means a
+    /// replacement attempt won and the caller must discard its late callback.
+    func scheduleInferenceRetry(
+        id scanId: String,
+        expectedGeneration: UUID?,
+        code: String,
+        message: String?,
+        delay: TimeInterval
+    ) async -> Int? {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return nil
+        }
+        let attempt = scheduleInferenceRetryLocked(
+            id: scanId,
+            expectedGeneration: expectedGeneration,
+            code: code,
+            message: message,
+            delay: delay
+        )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return attempt
+    }
+
+    private func scheduleInferenceRetryLocked(
+        id scanId: String,
+        expectedGeneration: UUID?,
+        code: String,
+        message: String?,
+        delay: TimeInterval
+    ) -> Int? {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate {
+                $0.id == scanId && $0.scanStateRaw == inferencingRaw
+            }
+        )
+        scanDescriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(scanDescriptor).first else {
+            return nil
+        }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job: OfflineJobRecord
+        if let expectedGeneration {
+            let expectedMetadata = Self.inferenceGenerationMetadata(
+                expectedGeneration
+            )
+            var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+                predicate: #Predicate {
+                    $0.id == jobId && $0.metadataJSON == expectedMetadata
+                }
+            )
+            jobDescriptor.fetchLimit = 1
+            guard let ownedJob = try? modelContext.fetch(jobDescriptor).first else {
+                MerianLog.data.debug(
+                    "scheduleInferenceRetry: generation mismatch scanId=\(scanId, privacy: .public)"
+                )
+                return nil
+            }
+            job = ownedJob
+        } else if let existingJob = fetchOfflineJob(id: jobId) {
+            // Relaunch recovery has no in-memory generation; task and server
+            // poll snapshots still fence it, while the persisted queue state
+            // prevents a second claim inside this critical section.
+            job = existingJob
+        } else {
+            let createdJob = OfflineJobRecord(
+                id: jobId,
+                kind: .scanIngestion,
+                subjectId: scanId,
+                status: .running
+            )
+            modelContext.insert(createdJob)
+            job = createdJob
+        }
+
+        let attempt = scan.queueAttemptCount + 1
+        let now = Date()
+        let nextRetryAt = now.addingTimeInterval(max(1, delay))
+        scan.queueAttemptCount = attempt
+        scan.queueLastAttemptAt = now
+        scan.queueNextRetryAt = nextRetryAt
+        scan.queueLastErrorCode = code
+        scan.queueLastErrorMessage = message
+        scan.queueLastHTTPStatus = nil
+        scan.queueLastServerStatus = nil
+        scan.queueLastServerStage = nil
+        scan.queueLastServerRetryAfter = nil
+        scan.queueNeedsAttention = false
+        scan.scanStateRaw = ScanQueueState.staged.rawValue
+        scan.queueUpdatedAt = now
+
+        job.status = .waiting
+        job.updatedAt = now
+        job.lastAttemptAt = now
+        job.nextRunAt = nextRetryAt
+        job.attemptCount = attempt
+        job.lastErrorCode = code
+        job.lastErrorMessage = message
+        job.lastHTTPStatus = nil
+        job.serverStatus = nil
+        job.serverStage = nil
+        job.serverRetryAfter = nil
+        modelContext.insert(OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .retryScheduled,
+            message: message,
+            errorCode: code
+        ))
+
+        do {
+            try modelContext.save()
+            return attempt
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "scheduleInferenceRetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return nil
         }
     }
 
@@ -509,8 +827,38 @@ actor BackgroundDatabaseActor {
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
         videoFilePaths: [String]? = nil,
-        capturedMediaJSON: String? = nil
+        capturedMediaJSON: String? = nil,
+        expectedGeneration: UUID? = nil
     ) async -> OfflineScanProcessingResult {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return OfflineScanProcessingResult(
+                resolvedSpeciesName: nil,
+                isNewDiscovery: false,
+                finalScanId: nil,
+                speciesData: nil,
+                wasCleaned: false
+            )
+        }
+        if let expectedGeneration,
+           !validateOrAdoptInferenceGenerationLocked(
+               scanId: scanId,
+               expectedGeneration: expectedGeneration
+           ) {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            MerianLog.data.debug(
+                "processAndCleanupOfflineScan: durable generation mismatch scanId=\(scanId, privacy: .public)"
+            )
+            return OfflineScanProcessingResult(
+                resolvedSpeciesName: nil,
+                isNewDiscovery: false,
+                finalScanId: nil,
+                speciesData: nil,
+                wasCleaned: false
+            )
+        }
+
         var inferenceFailed = true
         var resolvedSpeciesName: String?
         var finalIsNewDiscovery = false
@@ -614,13 +962,15 @@ actor BackgroundDatabaseActor {
             Task { await FileIOActor.shared.deleteImages(at: originalImagePaths) }
         }
 
-        return OfflineScanProcessingResult(
+        let result = OfflineScanProcessingResult(
             resolvedSpeciesName: resolvedSpeciesName,
             isNewDiscovery: finalIsNewDiscovery,
             finalScanId: resultingScanId,
             speciesData: resultSpeciesData,
             wasCleaned: commitSuccess
         )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return result
     }
 
     // MARK: - Offline Queue Processing Helpers

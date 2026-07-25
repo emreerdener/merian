@@ -11,6 +11,7 @@ import {
   applyRevenueCatCustomerState,
   getRevenueCatWebhookEventResult,
   RevenueCatDatabaseError,
+  scheduleRevenueCatReconciliation,
 } from "./db.ts";
 import {
   MAX_REVENUECAT_WEBHOOK_BYTES,
@@ -184,6 +185,13 @@ export function createRevenueCatWebhookHandler(
         dependencies.supabaseAdmin,
       );
       if (existingResult) {
+        // The first delivery may have committed the entitlement transaction and
+        // crashed before queuing periodic reconciliation. Repair that gap on
+        // every durable duplicate before acknowledging it.
+        await scheduleRevenueCatReconciliation(
+          subjects,
+          dependencies.supabaseAdmin,
+        );
         console.info(
           `[revenuecat-webhook] duplicate event ${event.id}; ${existingResult.subjectCount} subject(s).`,
         );
@@ -226,6 +234,7 @@ export function createRevenueCatWebhookHandler(
         );
         return {
           kind: subject.kind,
+          lookupAppUserId: subject.lookupAppUserId,
           candidateUserIds: subject.candidateUserIds,
           authoritativeSnapshotAtMs: customerInfo.requestDateMs,
           targetTier: entitlement.targetTier,
@@ -242,6 +251,10 @@ export function createRevenueCatWebhookHandler(
           signatureTimestampSeconds: verifiedSignature.timestampSeconds,
           subjects: stateSubjects,
         },
+        dependencies.supabaseAdmin,
+      );
+      await scheduleRevenueCatReconciliation(
+        subjects,
         dependencies.supabaseAdmin,
       );
 

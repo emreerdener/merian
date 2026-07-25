@@ -6,6 +6,10 @@ import {
 const handlerUrl = new URL("../safe-delete/handler.ts", import.meta.url);
 const workerUrl = new URL("../safe-delete/worker.ts", import.meta.url);
 const dbUrl = new URL("../safe-delete/db.ts", import.meta.url);
+const storageWorkerUrl = new URL(
+  "../safe-delete/storageWorker.ts",
+  import.meta.url,
+);
 const reaperUrl = new URL(
   "../reconcile-account-deletions/index.ts",
   import.meta.url,
@@ -17,16 +21,23 @@ const workflowUrl = new URL(
 );
 
 Deno.test("account deletion source preserves durable cleanup-before-Auth ordering", async () => {
-  const [handler, worker, db] = await Promise.all([
+  const [handler, worker, db, storageWorker] = await Promise.all([
     Deno.readTextFile(handlerUrl),
     Deno.readTextFile(workerUrl),
     Deno.readTextFile(dbUrl),
+    Deno.readTextFile(storageWorkerUrl),
   ]);
 
   assert(
     handler.indexOf("await request(userId, supabaseAdmin)") <
       handler.indexOf("await process(supabaseAdmin"),
     "The request receipt must be durable before the fast-path worker runs.",
+  );
+  assertStringIncludes(worker, 'if (cleanupPhase === "storage_pending")');
+  assert(
+    worker.indexOf('if (cleanupPhase === "storage_pending")') <
+      worker.indexOf("await deleteAuth(claim.userId, supabaseAdmin)"),
+    "Auth deletion must be unreachable while storage cleanup is pending.",
   );
   assert(
     worker.indexOf("await cleanup(supabaseAdmin, claim)") <
@@ -41,6 +52,18 @@ Deno.test("account deletion source preserves durable cleanup-before-Auth orderin
   assertStringIncludes(db, "auth.admin.deleteUser(userId)");
   assertStringIncludes(db, 'error.code === "user_not_found"');
   assertStringIncludes(db, "status === 404");
+  for (
+    const fragment of [
+      "claimStorageDeletionJobs",
+      "listR2ObjectKeys",
+      "deleteR2Object",
+      "advanceStorageDeletionJob",
+      "failStorageDeletionJob",
+      "MAX_LIMIT = 4",
+    ]
+  ) {
+    assertStringIncludes(storageWorker, fragment);
+  }
 });
 
 Deno.test("account deletion reaper is service-only, bounded, and deployed", async () => {
@@ -56,6 +79,7 @@ Deno.test("account deletion reaper is service-only, bounded, and deployed", asyn
       'limit: "small"',
       "allowEmpty: true",
       "processAccountDeletionJobs(supabaseAdmin",
+      "processPendingStorageDeletions(",
     ]
   ) {
     assertStringIncludes(reaper, fragment);

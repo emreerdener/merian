@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "./supabase.ts";
+import { createPublicServerSupabaseClient } from "./supabasePublic.ts";
 import {
   publicWebReferenceImageAttributionIssues,
   type PublicSpeciesReferenceImage,
@@ -229,7 +229,7 @@ export function webSafeReferenceImages(value: unknown): PublicSpeciesReferenceIm
 async function invokeSpeciesDictionary(
   speciesId: string,
 ): Promise<SpeciesDictionaryInvokerResult> {
-  const client = createServerSupabaseClient();
+  const client = createPublicServerSupabaseClient();
   if (!client) {
     throw new SpeciesDictionaryUpstreamError(
       null,

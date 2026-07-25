@@ -22,9 +22,10 @@ the injected `AppSettings` boundary.
 
 `DeleteAccountSheet` calls the authenticated `safe-delete` Edge Function and
 must treat every successful `2xx` response as an accepted deletion. A `200`
-means the first worker attempt also finished; a `202` means the request is
-durably recorded and the server-side reaper will resume it. Both responses are
-safe points for local sign-out and device-data cleanup.
+means relational cleanup, delayed R2 verification, and Auth removal were already
+fully complete; a new request normally returns `202` because the durable
+server-side reaper must sweep and later verify storage before deleting Auth.
+Both responses are safe points for local sign-out and device-data cleanup.
 
 The server owns all ordering and retry semantics. The app must not send a target
 user ID, attempt to delete the Auth identity directly, or retry individual

@@ -14,7 +14,7 @@ export interface ExploreCommentReplyRow {
   viewer_can_moderate: boolean;
   viewer_can_report: boolean;
   reply_count: number;
-  reactions: any[] | null;
+  reactions: unknown[] | null;
 }
 
 interface ExploreRepliesCursor {
@@ -29,16 +29,21 @@ export async function fetchExploreCommentReplies(
   cursor: ExploreRepliesCursor,
   supabaseAdmin: SupabaseClient,
 ): Promise<ExploreCommentReplyRow[]> {
-  const { data, error } = await supabaseAdmin.rpc("get_explore_comment_replies", {
-    self_id: userId,
-    target_parent_comment_id: parentCommentId,
-    max_limit: limit,
-    after_created_at: cursor.afterCreatedAt,
-    after_comment_id: cursor.afterCommentId,
-  });
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_explore_comment_replies",
+    {
+      self_id: userId,
+      target_parent_comment_id: parentCommentId,
+      max_limit: limit,
+      after_created_at: cursor.afterCreatedAt,
+      after_comment_id: cursor.afterCommentId,
+    },
+  );
 
   if (error) {
-    throw new Error(`Failed to fetch Explore comment replies: ${error.message}`);
+    throw new Error(
+      `Failed to fetch Explore comment replies: ${error.message}`,
+    );
   }
 
   return (data ?? []) as ExploreCommentReplyRow[];

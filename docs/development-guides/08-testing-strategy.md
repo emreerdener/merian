@@ -43,6 +43,13 @@ makes an unavailable database a test failure. CI must run the complete task
 rather than substituting a hand-selected subset whose permissions happen to
 pass.
 
+`_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
+workflow. It rejects mutable third-party action tags, missing explicit
+workflow-level permissions, secret references outside individual steps, and
+unexpected `contents: write`. Keep it in both the complete Edge suite and the
+focused deployment-planner gate so supply-chain regressions fail before any
+production credential or migration is used.
+
 Explore database fixtures must represent the canonical write model. The shared
 post helper snapshots media through `refresh_explore_post_media`; disable that
 step only for deliberate partial-write/no-media cases or when the test inserts
@@ -739,6 +746,9 @@ locks deployment selection for route-local, transitive shared, config,
 dependency-policy, docs, and test-only changes.
 `deploy_function_batches_test.sh` uses a fake Supabase CLI to prove a failed
 batch retries only its own members and rejects malformed function names.
+`_tests/workflowSecurity.test.ts` independently locks immutable action SHAs,
+least-privilege workflow permissions, and step-scoped secrets across the whole
+workflow directory.
 This suite exists specifically to prevent local checks from passing against a
 parent config that the remote function bundler does not discover.
 
@@ -870,29 +880,36 @@ the transactional pgTAP file at production. Use
 `MERIAN_DATABASE_URL=... make audit-supabase-privileged-routines` for hosted,
 read-only verification instead.
 
-Durable account deletion has five complementary checks:
+Durable account deletion has seven complementary checks:
 
 - `_tests/safeDelete.test.ts` executes the actual handler/worker modules with
   injected boundaries. It proves intake precedes processing, cleanup failure
-  never calls Auth, `auth_pending` recovery repeats idempotent cleanup before
-  Auth, Auth failure is deferred after cleanup, and a lost completion response
-  remains retryable.
+  never calls Auth, `storage_pending` releases its claim without calling Auth,
+  `auth_pending` recovery repeats idempotent cleanup before Auth, Auth failure
+  is deferred after verified storage, and a lost completion response remains
+  retryable.
 - `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
   Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
   `config.toml`, and workflow wiring present.
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order,
-  cleanup verification, profile-recreation guard, terminal UUID minimization,
+  cleanup verification, required `storage_pending` phase, five-prefix keyset
+  cursor, 25-hour delayed verification, media/location/context clearing,
+  upload-signing fence, profile-recreation guard, terminal UUID minimization,
   service-only ACLs, five-minute cron, the failed-version no-op bridge,
-  ownerless-tombstone constraint/location clearing, the Auth/profile foreign
-  key, and the absence of synthetic user creation.
+  ownerless-tombstone constraint, the Auth/profile foreign key, and the absence
+  of synthetic user creation.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
-  Auth-first delete, premature Auth completion is denied, cleanup commits while
-  Auth still exists, retained scans are ownerless tombstones with personal
-  fields cleared, no all-zero profile exists, active deletion blocks profile
-  resurrection, retries preserve `auth_pending`, final completion erases the
-  direct UUID, and duplicate completion is idempotent.
+  Auth-first delete, premature Auth completion is denied, all five sweep and
+  all five delayed verification prefixes advance in order, cleanup commits
+  while Auth still exists, retained scans are ownerless tombstones with media
+  and personal fields cleared, no all-zero profile exists, active deletion
+  blocks profile resurrection, retries preserve `auth_pending`, final
+  completion erases the direct UUID, and duplicate completion is idempotent.
+- `safe-delete/storageWorker_test.ts` proves one bounded page per claim,
+  delete concurrency behavior, empty-prefix advancement, delayed verification,
+  idempotent 404 deletion, retry persistence, and claim-token propagation.
 - `tests/ghost_profile_merge_security.sql` runs in the same disposable-catalog
   gate and proves the restrictive profile/Auth identity key is skipped only for
   the source profile row while all real Ghost-owned references are reparented.
@@ -1416,16 +1433,21 @@ The surrounding export suite is intentionally split by boundary:
 - `mail_test.ts` locks the job-scoped Resend idempotency key, bounded reply
   parsing, and transient versus terminal error classification.
 - `worker_test.ts` proves duplicate deliveries do no work, the database claim is
-  canonical, attempt-scoped object keys are used, staged archives are reused,
-  and only the winning lease can finalize.
+  canonical, exactly one durable phase executes per call, row/byte overflows are
+  terminal, temporary chunk and final archive keys include the claim token,
+  staged archives are reused, and only the winning lease can advance/finalize.
 - `_tests/exportDwcaSecurityCoverage.test.ts` rejects webhook authority creep,
-  OFFSET/full-buffer regressions, JWT-secret reuse, and fallback salts.
+  public global-export access, OFFSET/full-buffer regressions, unbounded
+  invocation work, JWT-secret reuse, and fallback salts.
 - `_tests/exportDwcaMigrationContract.test.ts` locks the claim/RPC/index/grant
-  migration shape.
+  migration shape, immutable canonical budgets, durable phase/cursor/manifest,
+  100-row page and 512 KiB chunk limits, claim-token key validation, and minute
+  resume cron.
 - `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
   immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
-  legacy-error sanitization, post-deadline claim, transition, and
-  idempotent-completion contract against local Postgres.
+  legacy-error sanitization, post-deadline claim, phased cursor/manifest
+  transition, budget overflow, and idempotent-completion contract against local
+  Postgres.
   `privileged_routine_security.sql` independently runs static
   PL/pgSQL/search-path/grant validation over the new definer RPCs.
 
@@ -1440,6 +1462,7 @@ The surrounding export suite is intentionally split by boundary:
   deduplication, anonymous handling, tombstone exclusion, and the separate
   `transferred_from` / `transferred_to` subject contract.
 - **`subscriber_test.ts`**: Covers active and expired standard entitlements,
+  recurring/grace-period expiry persistence, explicit lifetime null expiry,
   exact seven-day pass expiry, pass-refund exclusion with a later purchase,
   server API authentication/URL encoding, and fail-closed CustomerInfo errors.
 - **`handler_test.ts`**: Uses mocked RevenueCat and database boundaries to prove
@@ -1454,11 +1477,17 @@ The surrounding export suite is intentionally split by boundary:
   processing order and all three GitHub/Supabase secret bindings present.
 - **`_tests/revenueCatWebhookMigrationContract.test.ts`**: Static SQL contract
   for the unique event ledger, per-event subject table, ordering watermark,
-  deterministic multi-user row locks, service-only duplicate/mutation RPCs,
-  RLS, and explicit revocations.
+  snapshot-primary ordering, deterministic multi-user row locks, durable
+  reconciliation queue/leases/backoff, 15-minute cron, service-only
+  duplicate/mutation/reconciliation RPCs, RLS, and explicit revocations.
+- **`reconcile-revenuecat-subscribers/worker_test.ts`**: Proves ten-claim and
+  three-fetch bounds, newer-snapshot application, stale handling, durable
+  failure release, and the guard that prevents a background sweep from newly
+  granting historical non-renewing pass history.
 - **`tests/revenuecat_webhook_security.sql`**: Executable pgTAP coverage for ACLs,
   direct-table isolation, duplicate delivery, a delayed expiration after
-  renewal, a delayed purchase after refund, event-ID/payload conflict, atomic
+  renewal, a delayed purchase after refund, snapshot-primary ordering,
+  reconciliation claim/application fencing, event-ID/payload conflict, atomic
   transfer of source and destination, a deleted transfer source with a live
   destination, ambiguous-alias rejection, missing-user failure, and
   entitlement-version advancement. Keep this test in the

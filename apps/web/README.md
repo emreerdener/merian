@@ -49,7 +49,7 @@ Community sightings, user media, locations, and scan-specific data.
 ```bash
 cd apps/web
 cp .env.example .env.local
-npm install
+npm ci
 npm run dev
 ```
 
@@ -58,7 +58,7 @@ inside `apps/web` first:
 
 ```bash
 cd apps/web
-npm install
+npm ci
 ```
 
 Required server-side variables:
@@ -126,6 +126,39 @@ separate staging Supabase project and Turnstile widget if preview deployments
 need live backend behavior. See the canonical destination matrix in
 [`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
+### Web Security Boundary
+
+The package pins the reviewed Next.js release exactly; do not replace it with a
+range or `latest`. Use `npm ci` so CI and production consume the committed lock
+file. Dependency update pull requests must run the full test, type-check, and
+production-build gate.
+
+`proxy.ts` generates one cryptographically random nonce per request and places
+the same nonce-based Content Security Policy on the request passed to Next.js
+and the response returned to the browser. `app/layout.tsx` reads that nonce
+through `headers()` and supplies it to the only intentional inline bootstrap
+script. The policy uses `'strict-dynamic'`, rejects plugins and framing, limits
+forms and base URLs to this origin, and upgrades mixed content in production.
+This nonce contract intentionally makes application pages dynamically rendered.
+Never add `'unsafe-inline'` to `script-src`; add a nonce-bearing Next `Script`
+only when an inline script is unavoidable.
+
+Every response also receives `Referrer-Policy`, `X-Content-Type-Options`,
+`X-Frame-Options`, `Permissions-Policy`, and cross-origin isolation headers.
+Production HTTPS responses additionally receive HSTS. Keep
+`lib/securityHeaders.test.ts` synchronized with any policy change.
+
+Supabase clients have two explicit trust levels:
+
+- `lib/supabasePublic.ts` contains only the anonymous public projection client.
+- `lib/supabaseAdmin.ts` imports `server-only` and is the sole owner of
+  `SUPABASE_SERVICE_ROLE_KEY`.
+
+Do not merge these modules or export an admin-capable default client. Server
+routes must import the admin module directly, while public projection readers
+must use the anonymous module. `lib/supabaseBoundary.test.ts` prevents
+service-role imports from crossing that boundary.
+
 ### Waitlist Security Boundary
 
 `POST /api/waitlist` accepts one uncompressed JSON object no larger than 4 KiB:
@@ -172,7 +205,7 @@ Configure the Vercel project as a monorepo app:
 - **Root Directory**: `apps/web`
 - **Framework Preset**: Next.js
 - **Build Command**: `npm run build`
-- **Install Command**: `npm install`
+- **Install Command**: `npm ci`
 - **Canonical production domain**: `naturebook.earth`
 - **Redirect aliases**: `naturebook.app`, `www.naturebook.app`,
   `www.naturebook.earth`, `merian.earth`, and `www.merian.earth`

@@ -481,24 +481,30 @@ Generating a global Darwin Core Archive (DwC-A) over the `/request-export-dwca` 
 by email.
 
 The server side is bounded independently of the UI. `export-dwca` registers a
-background task, returns `202` to the Postgres webhook, and then obtains a
-ten-minute database lease and canonical job state before reading scans. It
-advances through 200-row UUID keysets, emits lazy CSV/ZIP chunks, and coalesces
-only one 8 MiB R2 multipart part at a time. Occurrence pages do not fetch media
-arrays, multimedia pages do not fetch taxonomy/coordinates, and no full CSV or
-ZIP is retained. R2 XML and Resend responses are byte-capped, and multipart
-completion parses the body so an embedded S3 error under HTTP 200 cannot be
-mistaken for a durable archive. A one-minute heartbeat and unexpired-token
-checks prevent a late invocation from staging or completing a replacement
-attempt.
+short synchronous phase under a two-minute database lease and returns `200` to
+the Postgres wake-up. It advances one 100-row UUID keyset page, assembles a
+prepared manifest, or performs delivery per invocation. Occurrence pages do not
+fetch media arrays; multimedia pages do not fetch taxonomy/coordinates. Each
+CSV page is capped at 512 KiB and committed with its cursor and cumulative
+row/byte budgets. The minute cron resumes the next phase, so one Edge isolate
+never owns the full database scan.
 
-Storage side effects are fenced too: an unstaged object includes the claim UUID
-in its key. After a winning object/URL is staged, retries reuse it and send
-Resend's job-scoped idempotency key. This bounds duplicate work after an Edge
-restart without pretending the Edge runtime has unlimited duration. ZIP32 output
-over 4 GiB fails explicitly; exports that routinely approach the hosted Edge CPU
-or wall-clock budget must move to a durable non-Edge worker while retaining the
-same claim RPC contract.
+Assembly lazily GETs the ordered chunk manifest into the ZIP stream and
+coalesces only one 8 MiB R2 multipart part at a time. No full result history,
+CSV, or ZIP is retained. Canonical job defaults cap all CSV rows at 5,000 and
+the final archive at 8 MiB; database constraints impose 20,000-row and 16 MiB
+hard ceilings for reviewed internal jobs. R2 XML and Resend responses are
+byte-capped, and multipart completion parses the body so an embedded S3 error
+under HTTP 200 cannot be mistaken for a durable archive.
+
+Storage side effects are fenced too: every temporary CSV key includes phase,
+sequence, and claim UUID, while an unstaged final object also includes the
+claim UUID. SQL accepts only that exact expected key, so a late PUT cannot
+overwrite bytes selected by a replacement manifest. After a winning object/URL
+is staged, retries reuse it and send Resend's job-scoped idempotency key. This
+bounds duplicate work after an Edge restart without pretending the runtime has
+unlimited duration. Public callers may queue personal exports only; global
+exports remain a reviewed internal workflow.
 
 ### Main Thread Search Thrashing (`ScansManager`)
 When mapping raw SwiftData query results across thousands of user records, extracting strings synchronously inside `@MainActor` property observers can cause visible stuttering during library updates. `ScansManager` now splits this work into two paths. Full rebuilds extract `RawScanSnapshot: Sendable` values from `allScans` on `@MainActor` in 128-record chunks, yielding between chunks before shipping those plain structs into a detached utility task for string construction. Incremental inserts stay inside `SearchDatabaseActor`, which batch-fetches only the new IDs and appends their `SearchableScan` payloads once the work completes. The entire sequence is guarded by `indexingTask` cancellation and `searchCacheGeneration` checks so rapid changes coalesce cleanly and stale builds cannot overwrite newer snapshots.
@@ -799,7 +805,7 @@ Connectivity loss cancels the registries, retires active inference UUIDs,
 invalidates preparation slots, removes preparation entries belonging to the
 current upload batch, and force-resets UI tokens. Durable SwiftData states and
 URLSession enumeration remain the restart/reconnect recovery source; in-memory
-generations are process-local fencing, not persistence.
+generations are only the callback fence.
 
 Upload claims, inference claims, retries, and both orphan reconcilers use one
 long-lived `BackgroundDatabaseActor`. Before a reconciler enumerates
@@ -807,6 +813,20 @@ URLSession tasks it captures an `observedThrough` cutoff. The actor resets only
 rows whose `queueUpdatedAt` is at or before that snapshot; a replacement claim
 queued while reconciliation is suspended is therefore ordered on the same
 actor and excluded as newer work.
+
+The inference generation is also a persistence fence. The winning
+`.staged → .inferencing` save writes
+`{"inference_generation":"{uuid}"}` to the scan-ingestion
+`OfflineJobRecord.metadataJSON`. `ScanInferencePersistenceCoordinator`
+serializes per-scan claims, retries, finalization, and guarded deletion across
+independent SwiftData contexts. Retry accounting and retreat to `.staged`
+compare that exact metadata before saving. Result persistence and queue
+deletion likewise validate the durable UUID while holding the coordinator; the
+deletion path keeps ownership across URLSession cancellation and the
+main-context save. This prevents a stale process-local callback from mutating a
+replacement even at the database boundary. Legacy in-flight work can populate
+only `nil` metadata once during upgrade; a non-`nil` generation is never
+adopted or replaced by a delayed callback.
 
 ### Centralized Magic Numbers (`MerianConfig`)
 Batch sizes, fetch limits, pagination page sizes, and retention windows were previously scattered as literals across `OfflineQueueManager`, `ScanRepository`, and `BackgroundDatabaseActor`. Divergence between these call sites introduced silent bugs (e.g., a fetch limit of 50 and a batch limit of 5 in different files with no linking comment).

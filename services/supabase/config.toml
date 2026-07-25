@@ -453,6 +453,11 @@ verify_jwt = false
 [functions.revenuecat-webhook]
 verify_jwt = false
 
+[functions.reconcile-revenuecat-subscribers]
+# Internal pg_cron worker. The handler compares Authorization to the exact
+# service-role bearer token before it leases any subscriber.
+verify_jwt = false
+
 [functions.merge-ghost-profile]
 enabled = true
 # Both phases require a user JWT (anonymous for prepare, permanent for

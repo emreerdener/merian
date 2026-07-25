@@ -1298,8 +1298,11 @@ and `KeychainManager` migration logic. Do not inline
   purchase that is active for seven days from its purchase date.
 - Connects authenticated users to RevenueCat; the `revenuecat-webhook` Edge
   function remains the server-side purchase authority. It verifies signed
-  delivery, fetches authoritative CustomerInfo, and writes ordered tier/timed
-  pass state into Supabase through the service-only transaction.
+  delivery, fetches authoritative CustomerInfo, persists recurring/grace
+  expiry, and writes snapshot-primary tier/timed-pass state through the
+  service-only transaction. The durable
+  `reconcile-revenuecat-subscribers` sweep repairs missed deliveries; the iOS
+  manager is never the database entitlement authority.
 - `RevenueCatOfferingPolicy` defines the paywall's required App Store product
   identifiers: `pro_week` and `pro_annual`. `fetchOfferings()` logs an error when
   there is no current offering, no available packages, or either required

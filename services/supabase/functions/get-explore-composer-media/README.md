@@ -1,8 +1,8 @@
 # get-explore-composer-media
 
-Returns the owner-only media source list used by the Explore post composer.
-This endpoint bridges private scan media to public Explore post media without
-adding private scan media to public feed/detail payloads.
+Returns the owner-only media source list used by the Explore post composer. This
+endpoint bridges private scan media to public Explore post media without adding
+private scan media to public feed/detail payloads.
 
 ## Request
 
@@ -75,11 +75,10 @@ or:
   poster image URL. The poster is selection metadata for the video row, not a
   separate image item unless the scan also contains that image as user media.
 - The response prefers ready display/playback rows in `scan_media_assets`, then
-  falls back to `scans.captured_media`, then legacy image/video/audio URL arrays. This
-  keeps video clips and poster thumbnails paired while allowing old rows to keep
-  working.
-  `/share-scan-to-explore` resolves submitted `source_media_id` values through
-  this same source list.
+  falls back to `scans.captured_media`, then legacy image/video/audio URL
+  arrays. This keeps video clips and poster thumbnails paired while allowing old
+  rows to keep working. `/share-scan-to-explore` resolves submitted
+  `source_media_id` values through this same source list.
 - `has_audio` is true only when normalized media or `captured_media` proves that
   a video has an audio companion; legacy URL-array video sources default false.
 - The iOS composer should prefer this endpoint for cloud-backed scans before

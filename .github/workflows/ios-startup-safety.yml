@@ -53,13 +53,16 @@ concurrency:
   group: ios-startup-safety-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   startup-store-recovery:
     runs-on: macos-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 2
 
@@ -82,7 +85,7 @@ jobs:
       - name: Restore Swift package checkouts
         if: steps.startup-scope.outputs.should_run == 'true'
         id: swift-package-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: .build/xcode-source-packages
           key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
@@ -148,7 +151,7 @@ jobs:
 
       - name: Save Swift package checkouts
         if: always() && steps.startup-scope.outputs.should_run == 'true' && steps.swift-package-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: .build/xcode-source-packages
           key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
@@ -246,7 +249,7 @@ jobs:
 
       - name: Upload startup safety result bundle
         if: failure() && steps.startup-scope.outputs.should_run == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ios-startup-safety-xcresult-${{ github.run_number }}
           path: |

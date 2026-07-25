@@ -1160,6 +1160,186 @@ struct BackgroundDatabaseActorTests {
                 "transitionScanToStaged must retreat .inferencing → .staged on transient failure")
     }
 
+    @Test func testTransitionScanToStagedRejectsOlderPersistedGeneration() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("generation-race.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let firstGeneration = UUID()
+        let secondGeneration = UUID()
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: firstGeneration
+            )
+        )
+        #expect(
+            await actor.transitionScanToStaged(
+                id: scan.id,
+                expectedGeneration: firstGeneration
+            )
+        )
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: secondGeneration
+            )
+        )
+
+        let staleTransition = await actor.transitionScanToStaged(
+            id: scan.id,
+            expectedGeneration: firstGeneration
+        )
+        #expect(staleTransition == false)
+
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scan.id }
+        )
+        descriptor.fetchLimit = 1
+        #expect(
+            try verificationContext.fetch(descriptor).first?.scanStateRaw ==
+                ScanQueueState.inferencing.rawValue
+        )
+    }
+
+    @Test func testScheduleInferenceRetryRejectsOlderPersistedGeneration() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("retry-generation-race.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let firstGeneration = UUID()
+        let secondGeneration = UUID()
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: firstGeneration
+            )
+        )
+        #expect(
+            await actor.transitionScanToStaged(
+                id: scan.id,
+                expectedGeneration: firstGeneration
+            )
+        )
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: secondGeneration
+            )
+        )
+
+        let staleAttempt = await actor.scheduleInferenceRetry(
+            id: scan.id,
+            expectedGeneration: firstGeneration,
+            code: "stale_retry",
+            message: "late callback",
+            delay: 30
+        )
+        #expect(staleAttempt == nil)
+
+        let currentAttempt = await actor.scheduleInferenceRetry(
+            id: scan.id,
+            expectedGeneration: secondGeneration,
+            code: "current_retry",
+            message: "current callback",
+            delay: 30
+        )
+        #expect(currentAttempt == 1)
+
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scan.id }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try verificationContext.fetch(descriptor).first
+        #expect(persisted?.scanStateRaw == ScanQueueState.staged.rawValue)
+        #expect(persisted?.queueAttemptCount == 1)
+        #expect(persisted?.queueLastErrorCode == "current_retry")
+    }
+
+    @Test func testOfflineFinalizationRejectsOlderPersistedGeneration() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("stale-finalization.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let firstGeneration = UUID()
+        let secondGeneration = UUID()
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: firstGeneration
+            )
+        )
+        #expect(
+            await actor.transitionScanToStaged(
+                id: scan.id,
+                expectedGeneration: firstGeneration
+            )
+        )
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: secondGeneration
+            )
+        )
+
+        let staleResult = await actor.processAndCleanupOfflineScan(
+            resultData: Data("{}".utf8),
+            originalImagePaths: [],
+            scanId: scan.id,
+            originalTimestamp: Date(),
+            expectedGeneration: firstGeneration
+        )
+
+        #expect(staleResult.wasCleaned == false)
+        await ScanInferencePersistenceCoordinator.shared.acquire(
+            scanId: scan.id
+        )
+        let secondGenerationStillOwnsPersistence =
+            await actor.inferenceGenerationIsCurrentAssumingPersistenceLock(
+                scanId: scan.id,
+                expectedGeneration: secondGeneration
+            )
+        await ScanInferencePersistenceCoordinator.shared.release(
+            scanId: scan.id
+        )
+        #expect(secondGenerationStillOwnsPersistence)
+    }
+
     @Test func testTransitionScanToStagedDoesNotResurrectTombstone() async throws {
         // The critical guard: a MainActor softDeleteQueuedScan wins the race and sets .failed.
         // The background actor must not overwrite it when its transitionScanToStaged runs later.

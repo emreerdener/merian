@@ -11,17 +11,19 @@ const migrationUrl = new URL(
 Deno.test("Explore post chat migration keeps conversations private", async () => {
   const sql = (await Deno.readTextFile(migrationUrl)).replaceAll(/\s+/g, " ");
 
-  for (const fragment of [
-    "ALTER TABLE public.explore_post_chat_conversations ENABLE ROW LEVEL SECURITY",
-    "ALTER TABLE public.explore_post_chat_messages ENABLE ROW LEVEL SECURITY",
-    "ALTER TABLE public.explore_post_chat_message_feedback ENABLE ROW LEVEL SECURITY",
-    "TO authenticated USING ((SELECT auth.uid()) = user_id)",
-    "conversation.user_id = (SELECT auth.uid())",
-    "message.user_id = (SELECT auth.uid())",
-    "REVOKE ALL ON public.explore_post_chat_conversations FROM anon, authenticated",
-    "REVOKE ALL ON public.explore_post_chat_messages FROM anon, authenticated",
-    "REVOKE ALL ON public.explore_post_chat_message_feedback FROM anon, authenticated",
-  ]) {
+  for (
+    const fragment of [
+      "ALTER TABLE public.explore_post_chat_conversations ENABLE ROW LEVEL SECURITY",
+      "ALTER TABLE public.explore_post_chat_messages ENABLE ROW LEVEL SECURITY",
+      "ALTER TABLE public.explore_post_chat_message_feedback ENABLE ROW LEVEL SECURITY",
+      "TO authenticated USING ((SELECT auth.uid()) = user_id)",
+      "conversation.user_id = (SELECT auth.uid())",
+      "message.user_id = (SELECT auth.uid())",
+      "REVOKE ALL ON public.explore_post_chat_conversations FROM anon, authenticated",
+      "REVOKE ALL ON public.explore_post_chat_messages FROM anon, authenticated",
+      "REVOKE ALL ON public.explore_post_chat_message_feedback FROM anon, authenticated",
+    ]
+  ) {
     assertStringIncludes(sql, fragment);
   }
 

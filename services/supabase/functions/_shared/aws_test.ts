@@ -10,9 +10,74 @@ import {
   deleteR2Objects,
   deleteScanMediaR2Objects,
   isScanMediaR2Url,
+  listR2ObjectKeys,
   R2_MEDIA_PREFIXES,
   type R2Config,
 } from "./aws.ts";
+
+Deno.test("listR2ObjectKeys performs a bounded monotonic prefix query", async () => {
+  let requestedUrl = "";
+  const config = {
+    bucketName: "media-bucket",
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    s3Client: {
+      fetch(request: Request) {
+        requestedUrl = request.url;
+        return Promise.resolve(
+          new Response(
+            "<ListBucketResult>" +
+              "<IsTruncated>false</IsTruncated>" +
+              "<Contents><Key>staging%2Fuser%2Fa.webp</Key></Contents>" +
+              "<Contents><Key>staging%2Fuser%2Fb.webp</Key></Contents>" +
+              "</ListBucketResult>",
+            { status: 200 },
+          ),
+        );
+      },
+    },
+  } as unknown as R2Config;
+
+  const page = await listR2ObjectKeys(
+    "staging/user/",
+    null,
+    config,
+    50,
+  );
+
+  assertEquals(page, {
+    keys: ["staging/user/a.webp", "staging/user/b.webp"],
+    isTruncated: false,
+  });
+  const url = new URL(requestedUrl);
+  assertEquals(url.searchParams.get("list-type"), "2");
+  assertEquals(url.searchParams.get("max-keys"), "50");
+  assertEquals(url.searchParams.get("prefix"), "staging/user/");
+});
+
+Deno.test("listR2ObjectKeys rejects provider keys outside the leased prefix", async () => {
+  const config = {
+    bucketName: "media-bucket",
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    s3Client: {
+      fetch() {
+        return Promise.resolve(
+          new Response(
+            "<ListBucketResult><IsTruncated>false</IsTruncated>" +
+              "<Contents><Key>staging%2Fother%2Fa.webp</Key></Contents>" +
+              "</ListBucketResult>",
+            { status: 200 },
+          ),
+        );
+      },
+    },
+  } as unknown as R2Config;
+
+  await assertRejects(
+    () => listR2ObjectKeys("staging/user/", null, config, 50),
+    Error,
+    "invalid cursor ordering",
+  );
+});
 
 Deno.test("deleteR2Objects caps in-flight deletes and rewrites public media URLs", async () => {
   let inFlight = 0;

@@ -1,6 +1,7 @@
 # Get Explore Author Profile
 
-Returns a privacy-scoped public profile for an Explore author. This endpoint powers `ExploreAuthorProfileSheet` on iOS.
+Returns a privacy-scoped public profile for an Explore author. This endpoint
+powers `ExploreAuthorProfileSheet` on iOS.
 
 ## Request
 
@@ -13,7 +14,8 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
 
 - `author_user_id` is required and must be a UUID.
 - `preview_limit` is optional, defaults to `9`, and is capped at `30`.
-- Authentication is resolved by `withEdgeHandler`; the request body cannot choose `self_id`.
+- Authentication is resolved by `withEdgeHandler`; the request body cannot
+  choose `self_id`.
 
 ## Response
 
@@ -54,21 +56,28 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
 }
 ```
 
-The backing RPC is `public.get_explore_author_profile(self_id, target_author_user_id, preview_limit)`.
+The backing RPC is
+`public.get_explore_author_profile(self_id, target_author_user_id, preview_limit)`.
 
 `author_name` is the primary public display label. `author_username` is the
 stable handle stored without `@`; iOS renders it beneath the display name as
 `@river_w` and uses it for default/ghost author labels.
 
-`follower_count` and `following_count` are public aggregate counts for visible profiles only. They are not list affordances. `viewer_is_following` is specific to the requesting viewer and drives the iOS `Follow` / `Following` button.
+`follower_count` and `following_count` are public aggregate counts for visible
+profiles only. They are not list affordances. `viewer_is_following` is specific
+to the requesting viewer and drives the iOS `Follow` / `Following` button.
 
-`viewer_can_report` is true for a returned non-self profile and controls the
-iOS overflow action. It is only a capability hint: `/report-user` independently
+`viewer_can_report` is true for a returned non-self profile and controls the iOS
+overflow action. It is only a capability hint: `/report-user` independently
 re-runs this endpoint's profile visibility contract before accepting a report.
 
 ## Privacy Rules
 
-The endpoint returns `404` unless the target author has at least one Explore post currently visible to the requester or at least one visible Field trip profile surface. This prevents arbitrary user UUID lookups from surfacing profile state while allowing active or published Field trips to make an author discoverable.
+The endpoint returns `404` unless the target author has at least one Explore
+post currently visible to the requester or at least one visible Field trip
+profile surface. This prevents arbitrary user UUID lookups from surfacing
+profile state while allowing active or published Field trips to make an author
+discoverable.
 
 Profile aggregates use all non-tombstoned scans owned by the target author:
 
@@ -89,14 +98,16 @@ Preview posts use stricter Explore visibility rules:
 
 Field trip summaries use separate storage from Explore posts:
 
-- active Field trips show template title, level number, and checklist progress only
-- active summaries never return scan IDs, media URLs, field notes, or location details
+- active Field trips show template title, level number, and checklist progress
+  only
+- active summaries never return scan IDs, media URLs, field notes, or location
+  details
 - pinned published Field trips are capped at 3 and are returned before the
   general active/published modules on iOS
 - published Field trips return publication IDs and snapshot media from
   `field_trip_publication_items`
-- publishing a Field trip does not create Explore feed posts, map points,
-  normal Explore post notifications, APNs, widgets, or public web share pages
+- publishing a Field trip does not create Explore feed posts, map points, normal
+  Explore post notifications, APNs, widgets, or public web share pages
 - Field trip comments, replies, and followed-author publications may appear as
   Field trip-only rows in the in-app Explore activity sheet; they remain
   separate from Explore post notifications and never fan out to APNs
@@ -110,13 +121,18 @@ Follow state:
 - Counts are computed from `public.user_follows`.
 - Shadowbanned counterpart users are ignored in counts.
 - No follower or following identities are returned.
-- The profile remains undiscoverable unless the author has at least one visible Explore post or visible Field trip surface for the requester.
+- The profile remains undiscoverable unless the author has at least one visible
+  Explore post or visible Field trip surface for the requester.
 
-Achievement progress returns only `type`, `current_count`, and `last_interaction_at`. It must never return qualifying scan IDs or contribution details.
+Achievement progress returns only `type`, `current_count`, and
+`last_interaction_at`. It must never return qualifying scan IDs or contribution
+details.
 
 ## Timezone Behavior
 
-The RPC uses the author's latest valid persisted `scans.device_time_zone` for current-streak and heatmap day-boundary calculations. Missing or invalid values fall back to UTC.
+The RPC uses the author's latest valid persisted `scans.device_time_zone` for
+current-streak and heatmap day-boundary calculations. Missing or invalid values
+fall back to UTC.
 
 ## Local Verification
 
@@ -127,4 +143,5 @@ deno check --config services/supabase/functions/deno.json services/supabase/func
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
 ```
 
-The DB integration tests skip live assertions when the local Supabase Postgres instance is not running at `127.0.0.1:54322`.
+The DB integration tests skip live assertions when the local Supabase Postgres
+instance is not running at `127.0.0.1:54322`.

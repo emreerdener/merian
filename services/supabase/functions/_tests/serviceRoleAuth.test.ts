@@ -26,7 +26,7 @@ Deno.test("authorizeServiceRoleRequest accepts exact env service key", async () 
   const result = await authorizeServiceRoleRequest(req, {
     supabaseUrl: "",
     envServiceRoleKey: "env-key",
-    probe: async () => false,
+    probe: () => Promise.resolve(false),
   });
 
   assertEquals(result, { ok: true, token: "env-key" });
@@ -40,7 +40,7 @@ Deno.test("authorizeServiceRoleRequest accepts proven service role fallback", as
   const result = await authorizeServiceRoleRequest(req, {
     supabaseUrl: "https://project.supabase.co",
     envServiceRoleKey: "different-env-key",
-    probe: async (token) => token === "project-service-key",
+    probe: (token) => Promise.resolve(token === "project-service-key"),
   });
 
   assertEquals(result, { ok: true, token: "project-service-key" });
@@ -52,7 +52,7 @@ Deno.test("authorizeServiceRoleRequest rejects missing or unproven tokens", asyn
     {
       supabaseUrl: "https://project.supabase.co",
       envServiceRoleKey: "env-key",
-      probe: async () => true,
+      probe: () => Promise.resolve(true),
     },
   );
   assertEquals(missing, { ok: false, reason: "missing_token" });
@@ -64,7 +64,7 @@ Deno.test("authorizeServiceRoleRequest rejects missing or unproven tokens", asyn
     {
       supabaseUrl: "https://project.supabase.co",
       envServiceRoleKey: "env-key",
-      probe: async () => false,
+      probe: () => Promise.resolve(false),
     },
   );
   assertEquals(unproven, { ok: false, reason: "probe_failed" });

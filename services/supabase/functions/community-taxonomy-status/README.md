@@ -39,8 +39,10 @@ Body fields are optional:
 
 Both limits must be integers from `1` to `50`. `view = "coverage"` returns the
 lightweight import-monitoring shape and skips active taxonomy source/rank
-counts. Use it during bounded GBIF imports and deploy smoke checks. `target =
-"birds"` filters bounded import runs and coverage targets to the Birds scope.
+counts. Use it during bounded GBIF imports and deploy smoke checks.
+`target =
+"birds"` filters bounded import runs and coverage targets to the Birds
+scope.
 
 ## Response
 

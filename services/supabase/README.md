@@ -1,6 +1,7 @@
 # Merian Supabase Backend
 
-The Supabase backend for Merian. This directory contains the PostgreSQL database migrations, Deno Edge Functions, and related configuration.
+The Supabase backend for Merian. This directory contains the PostgreSQL database
+migrations, Deno Edge Functions, and related configuration.
 
 ## Structure
 
@@ -16,27 +17,29 @@ services/supabase/
 
 ## Edge Functions
 
-Edge Functions are written in TypeScript and run on Deno. They handle logic like AI inference (`identify-multimodal`), gamification telemetry, public user profile updates, and Explore feed projections.
+Edge Functions are written in TypeScript and run on Deno. They handle logic like
+AI inference (`identify-multimodal`), gamification telemetry, public user
+profile updates, and Explore feed projections.
 
-- **Configuration**: Every new Edge Function MUST have a
-  `[functions.<name>]` entry in `config.toml`. Keep `verify_jwt = true` for
-  routes called only with a Supabase user JWT (anonymous sessions also carry
-  user JWTs). Use `false` only for deliberately public routes, service-key
-  workers, webhooks, or a documented custom in-handler verification policy.
-  A `false` route must enforce that replacement boundary in code. CI compares
-  the complete configured-name set with the complete discoverable graph-name
-  set; it does not maintain a hard-coded function count.
+- **Configuration**: Every new Edge Function MUST have a `[functions.<name>]`
+  entry in `config.toml`. Keep `verify_jwt = true` for routes called only with a
+  Supabase user JWT (anonymous sessions also carry user JWTs). Use `false` only
+  for deliberately public routes, service-key workers, webhooks, or a documented
+  custom in-handler verification policy. A `false` route must enforce that
+  replacement boundary in code. CI compares the complete configured-name set
+  with the complete discoverable graph-name set; it does not maintain a
+  hard-coded function count.
 - **Dependencies**: `functions/deno.json` is the reviewed source manifest for
   exact dependency pins, and every deployable function has a generated local
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
   `@supabase/supabase-js@2.110.6` graph; `_shared/claimsAuth.ts` remains the
-  opt-in authentication policy boundary for cached-JWKS claims verification,
-  not a second SDK dependency. Generated configs explicitly retain Deno's
-  one-day minimum dependency age; reviewed versions already present in the
-  frozen lock install reproducibly, while future unlocked resolutions must age
-  before adoption.
+  opt-in authentication policy boundary for cached-JWKS claims verification, not
+  a second SDK dependency. Generated configs explicitly retain Deno's one-day
+  minimum dependency age; reviewed versions already present in the frozen lock
+  install reproducibly, while future unlocked resolutions must age before
+  adoption.
 
 ### JSON Ingress and Public Error Boundary
 
@@ -49,11 +52,11 @@ validate decimal `Content-Length`, stream through the actual byte ceiling,
 reject truncated or overlong bodies and invalid UTF-8, then parse the reviewed
 JSON shape. Routes must pick the smallest reviewed class that fits their schema:
 
-| Class | Ceiling | Typical use |
+| Class      | Ceiling | Typical use                      |
 | ---------- | ------: | -------------------------------- |
-| `small` | 16 KiB | IDs, actions, preference updates |
-| `standard` | 64 KiB | ordinary structured API payloads |
-| `bulk` | 1 MiB | reviewed bounded batches |
+| `small`    |  16 KiB | IDs, actions, preference updates |
+| `standard` |  64 KiB | ordinary structured API payloads |
+| `bulk`     |   1 MiB | reviewed bounded batches         |
 
 Media-bearing routes retain explicit larger budgets through
 `_shared/mediaBudgets.ts`, whose JSON adapter delegates to the same streaming
@@ -68,28 +71,29 @@ returns it in `X-Request-ID`. Authenticated handlers use `withEdgeHandler`;
 public, webhook, and service-authenticated entrypoints register through
 `serveEdge` so they cannot bypass the same response boundary. Expected thrown
 failures use `PublicHttpError`, and explicit safe response contracts use the
-validated `publicErrorResponse(...)` helper. Existing returned `4xx`
-application contracts remain supported only for audited validation or caller
-state; the boundary validates/adds a stable code and request ID. Arbitrary
-thrown objects cannot select an HTTP status or leak a message. Unexpected
-exceptions become `500 internal_error`; ordinary returned `5xx` responses keep
-their status but receive a generic status-derived public envelope. Keep
-operational details, provider responses, schema names, SQL text, and secrets
-out of public bodies.
+validated `publicErrorResponse(...)` helper. Existing returned `4xx` application
+contracts remain supported only for audited validation or caller state; the
+boundary validates/adds a stable code and request ID. Arbitrary thrown objects
+cannot select an HTTP status or leak a message. Unexpected exceptions become
+`500 internal_error`; ordinary returned `5xx` responses keep their status but
+receive a generic status-derived public envelope. Keep operational details,
+provider responses, schema names, SQL text, and secrets out of public bodies.
 
-Static coverage in
-`functions/_tests/jsonEndpointSecurityCoverage.test.ts` prevents unbounded
-request readers and unwrapped custom entrypoints from returning to deployable
-routes, and locks the shared raw-exception sanitization boundary.
+Static coverage in `functions/_tests/jsonEndpointSecurityCoverage.test.ts`
+prevents unbounded request readers and unwrapped custom entrypoints from
+returning to deployable routes, and locks the shared raw-exception sanitization
+boundary.
 
 ### Durable Account Deletion Boundary
 
-Migration `20260725030308_durable_account_deletion.sql` makes deletion a private
-`pending → auth_pending → completed` state machine. `/safe-delete` persists
-intent before destructive work, then a five-minute claim-fenced transaction
-writes the idempotent storage outbox, tombstones relational data, and verifies
-that the public profile and original scan ownership are gone. Auth Admin
-deletion is allowed only after that transaction commits.
+Migration `20260725030308_durable_account_deletion.sql` establishes durable
+deletion intake. Migration `20260725052337_enforce_account_storage_erasure.sql`
+completes the private `pending → storage_pending → auth_pending → completed`
+state machine. `/safe-delete` persists intent before destructive work, then a
+five-minute claim-fenced transaction writes the idempotent storage job,
+tombstones relational data, and verifies that the public profile and original
+scan ownership are gone. Auth Admin deletion is forbidden until R2 erasure is
+durably verified.
 
 Migration `20260725035737_repair_tombstone_profile_seed.sql` is an intentional
 no-op compatibility bridge for production run 1461, where the attempted
@@ -97,8 +101,8 @@ public-only tombstone profile correctly failed the existing
 `public.users.id → auth.users.id` foreign key. The immediately following
 `20260725041308_ownerless_account_deletion_tombstones.sql` removes that invalid
 sentinel design. Retained scans become ownerless tombstones, exact
-location/elevation and free-form intervention notes are cleared, and a
-validated check permits `NULL user_id` only when `is_tombstoned = true`.
+location/elevation and free-form intervention notes are cleared, and a validated
+check permits `NULL user_id` only when `is_tombstoned = true`.
 `replay-scan-ingestion` treats that state as terminal and cannot dispatch
 another AI request for a deleted account's scan.
 
@@ -109,21 +113,39 @@ and prevents the catalog-driven Ghost merge from trying to rewrite the public
 profile's own Auth foreign key. Account deletion never creates a synthetic
 `auth.users` or `public.users` principal.
 
-Every retry repeats the idempotent cleanup immediately before Auth deletion. An
-internal insert trigger rejects recreation of `public.users` while a deletion
-is active, so Auth metadata synchronization cannot restore a profile in the
-cleanup-to-Auth interval.
+The storage job owns five canonical prefixes: durable free and Pro uploads,
+staging objects, avatars, and exports. A worker claims no more than four rows
+per Edge invocation, deletes at most one 50-key keyset page from one prefix per
+claim, persists its cursor, and moves through all prefixes. The invocation
+ceiling keeps worst-case provider timeout waves inside the Edge wall-clock
+budget. It then waits at least 25 hours—longer than generated export URL
+lifetimes—and performs a second complete sweep. Only an empty delayed
+verification pass marks storage complete and transactionally wakes the account
+job. Listing and deletion have explicit deadlines and bounded response bodies;
+claims, progress, and failures are token-fenced and retryable.
+
+Every retry repeats the idempotent relational cleanup before considering Auth
+deletion. It also clears compatibility media URLs, structured captured-media
+references, exact coordinates/elevation, semantic location, device
+locale/time-zone context, free-form notes, and custom tags from retained
+tombstones. An internal insert trigger rejects recreation of `public.users`
+while a deletion is active, so Auth metadata synchronization cannot restore a
+profile before the terminal Auth step. New upload signing also fails closed with
+`409 account_deletion_in_progress`.
 
 `reconcile-account-deletions` is a scheduled service-role worker that resumes
-due jobs. Auth `404` / `user_not_found` is success, transient failures receive
-database-calculated backoff, and expired workers cannot finish a newer claim.
-Terminal jobs clear their direct user UUID. The worker accepts no target UUID
-from HTTP.
+due account and R2 work. It performs one bounded account pass, bounded storage
+pages, and—when storage verification completes—a final account pass that can
+remove Auth in the same invocation. Auth `404` / `user_not_found` is success,
+transient failures receive database-calculated backoff, and expired workers
+cannot finish a newer claim. Terminal jobs clear their direct user UUID. The
+worker accepts no target UUID from HTTP.
 
 Coverage lives in `_tests/safeDelete.test.ts`,
 `_tests/accountDeletionCoverage.test.ts`,
 `_tests/accountDeletionMigrationContract.test.ts`, and
-`tests/account_deletion_security.sql`.
+`tests/account_deletion_security.sql`, with R2 worker coverage in
+`functions/safe-delete/storageWorker_test.ts`.
 
 ### Darwin Core Export Boundary
 
@@ -138,15 +160,27 @@ user/scope/precision/key-version state, and fence renewal, staging, completion,
 and failure to the current unexpired token. All routines have empty search
 paths, explicit allowlist entries, and no public/authenticated execution.
 
-`functions/export-dwca` uses 200-row keyset pages and narrow occurrence/media
-projections. Lazy CSV generators feed a streaming ZIP32 writer and fixed 8 MiB
+Migration `20260725052339_bound_dwca_export_work.sql` makes generation resumable
+and enforces canonical per-job limits of 5,000 CSV rows and an 8 MiB archive,
+with hard schema ceilings of 20,000 rows and 16 MiB. Public callers can queue
+only personal exports; global exports require a reviewed internal administrative
+workflow.
+
+`functions/export-dwca` performs exactly one short phase per invocation:
+occurrence page, multimedia page, assembly, or delivery. The two data phases use
+100-row keyset reads and narrow projections. Each page becomes a
+claim-token-fenced R2 CSV chunk and is committed to a durable manifest with its
+cursor and cumulative budgets in one transaction. A late expired worker can
+neither overwrite the replacement worker's chunk nor add it to the manifest. The
+minute scheduler resumes due phases without relying on one long-lived Edge
+invocation.
+
+Assembly lazily reads manifest chunks into a streaming ZIP32 writer and bounded
 R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is
 buffered. R2 create/complete XML and Resend replies are byte-capped; multipart
-completion rejects an embedded S3 `<Error>` even under HTTP 200. The route
-registers this work with `EdgeRuntime.waitUntil` and returns `202` to `pg_net`
-before processing. Each unstaged archive includes the claim UUID in its object
-key. Staged archives are reused after lease recovery, and Resend delivery uses
-one job-scoped idempotency key.
+completion rejects an embedded S3 `<Error>` even under HTTP 200. Final archive
+keys also include the claim UUID. Staged archives are reused after lease
+recovery, and Resend delivery uses one job-scoped idempotency key.
 
 Global attribution requires versioned `DWCA_PSEUDONYM_HMAC_KEY_V{n}` secrets.
 Version 1 is required Base64 decoding to at least 32 random bytes, sourced from
@@ -174,11 +208,11 @@ PostgreSQL permits at most 20 challenge checks per IP/10 minutes and 100/day.
 The route validates its trusted-IP, HMAC, hostname, and Turnstile-secret
 configuration before claiming a counter. Expired counter pruning is capped,
 indexed, and uses `FOR UPDATE SKIP LOCKED` so concurrent public requests do not
-wait on the same maintenance rows.
-After Turnstile succeeds, the insertion RPC applies the tighter verified limits
-of 5 attempts per IP/10 minutes, 20 per IP/day, and 2,000 new unique rows
-globally/day. Duplicate emails consume a verified IP attempt but not global
-growth. Raw IPs and CAPTCHA tokens never reach PostgreSQL.
+wait on the same maintenance rows. After Turnstile succeeds, the insertion RPC
+applies the tighter verified limits of 5 attempts per IP/10 minutes, 20 per
+IP/day, and 2,000 new unique rows globally/day. Duplicate emails consume a
+verified IP attempt but not global growth. Raw IPs and CAPTCHA tokens never
+reach PostgreSQL.
 
 Static migration coverage lives in
 `functions/_tests/jsonEndpointSecurityMigrationContract.test.ts`; executable
@@ -196,13 +230,12 @@ output-token limits, or the one-`generateContent`-call invariant.
 The latency-sensitive path uses cached ES256 JWKS verification through
 `auth.getClaims`, injected only by the two latency-sensitive routes so unrelated
 functions retain their existing `getUser` behavior; `begin_scan_ingestion` for
-atomic pre-Gemini setup; and
-`hydrate_identification_dictionary` for post-Gemini cache hydration. External
-cache misses and optional ingestion work run as Edge background tasks except
-for required video durability. `/update-scan-context` applies or stages late
-owner weather/location fields without rerunning inference. See the function-
-local READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
-contract.
+atomic pre-Gemini setup; and `hydrate_identification_dictionary` for post-Gemini
+cache hydration. External cache misses and optional ingestion work run as Edge
+background tasks except for required video durability. `/update-scan-context`
+applies or stages late owner weather/location fields without rerunning
+inference. See the function- local READMEs and
+`docs/system-architecture/04-ai-engineering.md` for the full contract.
 
 ### Incremental Species-Count Boundary
 
@@ -219,12 +252,11 @@ Insert/delete transition tables aggregate each pair once. The update trigger
 combines complete OLD and NEW transition sets and drops zero-net pairs, so
 ordinary weather, media, moderation, and ingestion-state updates do not touch
 species-count state. Owner or species changes debit the old pair and credit the
-new pair in the same transaction. The private helper locks affected user rows
-in UUID order and changes `users.total_species_discovered` only when a ledger
-row is created or removed. A live-owner underflow fails the scan statement
-instead of silently accepting drift. Ownerless tombstones, the legacy all-zero
-owner, and null species remain excluded, preserving the previous metric
-definition.
+new pair in the same transaction. The private helper locks affected user rows in
+UUID order and changes `users.total_species_discovered` only when a ledger row
+is created or removed. A live-owner underflow fails the scan statement instead
+of silently accepting drift. Ownerless tombstones, the legacy all-zero owner,
+and null species remain excluded, preserving the previous metric definition.
 
 The ledger and all helper functions deny direct execution or table access to
 `PUBLIC`, `anon`, `authenticated`, and `service_role`; authenticated scan writes
@@ -240,8 +272,8 @@ catalog and behavior coverage lives in
 `verify_jwt = false`. Detail requests do not read viewer identity and return
 only the versioned species-level projection built by
 `functions/_shared/publicSpeciesProjection.ts`. Do not add scan, user, Explore
-post, location, field-note, comment, local-media, AI-reasoning, or preferred-name
-fields to that response.
+post, location, field-note, comment, local-media, AI-reasoning, or
+preferred-name fields to that response.
 
 The iOS Species Dictionary and the server-rendered
 `https://naturebook.earth/species/{speciesId}/{slug}` route share this contract.
@@ -254,9 +286,8 @@ rendering or choosing social metadata imagery, the web mapper runs
 rows. Similar-species thumbnails stay hidden until their payload carries
 equivalent license and attribution fields.
 
-Contract coverage lives in
-`functions/_shared/publicSpeciesProjection_test.ts` and
-`apps/web/lib/species.test.ts`. The former locks privacy, schema, content
+Contract coverage lives in `functions/_shared/publicSpeciesProjection_test.ts`
+and `apps/web/lib/species.test.ts`. The former locks privacy, schema, content
 quality, and attribution auditing; the latter locks UUID validation, public
 mapping, slug generation and compatibility redirects, 404/transient error
 semantics, metadata helpers, native URLs, and the exact AASA path list.
@@ -271,10 +302,11 @@ the explicitly granted authenticated RPCs.
 
 `functions/report-user/` is the authenticated visible-profile intake endpoint;
 `functions/_shared/aiUsage.ts` normalizes Gemini usage for durable or bounded
-best-effort ledger writes. Database authorization and behavior coverage lives
-in `tests/admin_foundation_security.sql` and `tests/admin_review_ai.sql`.
+best-effort ledger writes. Database authorization and behavior coverage lives in
+`tests/admin_foundation_security.sql` and `tests/admin_review_ai.sql`.
 
-See [`docs/backend-and-data/10-internal-admin.md`](../../docs/backend-and-data/10-internal-admin.md)
+See
+[`docs/backend-and-data/10-internal-admin.md`](../../docs/backend-and-data/10-internal-admin.md)
 and the
 [`docs/backend-and-data/11-internal-admin-operations.md`](../../docs/backend-and-data/11-internal-admin-operations.md)
 runbook before changing grants, roles, sessions, review transitions, visibility,
@@ -282,21 +314,20 @@ pricing, or auditing.
 
 ### Privileged Routine Execution Boundary
 
-Migration
-`20260723144640_harden_privileged_routine_execution.sql` makes public-schema
-`SECURITY DEFINER` functions deny-by-default even though `public` remains a
-Data API schema. It revokes PostgreSQL's default function execution from
-`PUBLIC` and the Supabase API roles for the repository migration owner, removes
-historical execution from every public definer function, fixes every definer
-to `search_path = ''`, and then reapplies only the reviewed entries in
+Migration `20260723144640_harden_privileged_routine_execution.sql` makes
+public-schema `SECURITY DEFINER` functions deny-by-default even though `public`
+remains a Data API schema. It revokes PostgreSQL's default function execution
+from `PUBLIC` and the Supabase API roles for the repository migration owner,
+removes historical execution from every public definer function, fixes every
+definer to `search_path = ''`, and then reapplies only the reviewed entries in
 `internal.privileged_routine_grants`.
 
 The resulting contract is:
 
 - `PUBLIC` and `anon` execute no public-schema definer function.
-- `authenticated` receives only caller-bound admin and ghost-upgrade RPCs.
-  Each authorized body must derive the caller from `auth.uid()`/`auth.jwt()` or
-  call `internal.require_admin(...)`.
+- `authenticated` receives only caller-bound admin and ghost-upgrade RPCs. Each
+  authorized body must derive the caller from `auth.uid()`/`auth.jwt()` or call
+  `internal.require_admin(...)`.
 - `service_role` receives only an Edge worker or documented operator RPC. Every
   such body calls `internal.require_service_role()`; SQL-language functions are
   wrapped as PL/pgSQL so this check cannot be omitted.
@@ -316,8 +347,8 @@ Catalog validation is semantic, not just migration-syntax validation.
 contains an unresolved catalog function or overload. The pgTAP catalog gate runs
 `plpgsql_check` and reports the exact routine signature, source line, SQLSTATE,
 statement, query, detail, and hint. Treat that first PostgreSQL exception as the
-root cause; pg_prove's later `Dubious`, `Bad plan`, and
-`planned 1 but ran 0` messages are consequences of the aborted test.
+root cause; pg_prove's later `Dubious`, `Bad plan`, and `planned 1 but ran 0`
+messages are consequences of the aborted test.
 
 Schema qualification does not compensate for a misspelled catalog routine or an
 incorrect argument type. Verify the exact `pg_proc` identity and explicitly cast
@@ -326,10 +357,9 @@ overloaded arguments. The quota reservation lock, for example, deliberately uses
 that signature.
 
 PostgreSQL conditional expressions are not ordinary catalog routines and must
-not be schema-qualified. In particular, do not write
-`pg_catalog.COALESCE(...)`. When an
-`INSERT ... ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted` statement
-returns no row, PL/pgSQL leaves `event_inserted` null; branch on
+not be schema-qualified. In particular, do not write `pg_catalog.COALESCE(...)`.
+When an `INSERT ... ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`
+statement returns no row, PL/pgSQL leaves `event_inserted` null; branch on
 `event_inserted IS NOT TRUE` so both null and false take the durable-duplicate
 path. The catalog gate validates this routine body after migration replay.
 
@@ -342,8 +372,8 @@ MERIAN_DATABASE_URL='postgresql://...' \
   make audit-supabase-privileged-routines
 ```
 
-Production CI runs the same catalog audit in report mode before `db push` and
-in enforcement mode immediately afterward. See the deployment runbook for the
+Production CI runs the same catalog audit in report mode before `db push` and in
+enforcement mode immediately afterward. See the deployment runbook for the
 incident and forward-repair procedure.
 
 ### Authoritative AI Entitlement and Quota Boundary
@@ -357,28 +387,27 @@ per-user/IP rate limits, and records an idempotent reservation. The row locks
 give concurrent tier/policy changes and reservations a single database order;
 future-dated profiles never extend the seven-day trial. The Edge route commits
 immediately before provider dispatch. Only a proven pre-provider no-op, such as
-a moderation cache hit or rejected empty multimodal request, may refund.
-Every attempt carries a ten-minute database lease and a fresh fencing token;
-expired pre-provider reservations are refunded automatically, and a late
-settlement from an older attempt cannot mutate a retry. A provider failure
-transitions `committed` to `failed`: counters remain charged, but the same
-request key can make a newly metered retry.
+a moderation cache hit or rejected empty multimodal request, may refund. Every
+attempt carries a ten-minute database lease and a fresh fencing token; expired
+pre-provider reservations are refunded automatically, and a late settlement from
+an older attempt cannot mutate a retry. A provider failure transitions
+`committed` to `failed`: counters remain charged, but the same request key can
+make a newly metered retry.
 
 The internal policy matrix distinguishes `free`, `pro_trial`, and `pro_paid`.
 Current UTC-day safety ceilings are:
 
-| Operation bucket | Free | Pro trial | Paid Pro |
+| Operation bucket                                   |   Free | Pro trial | Paid Pro |
 | -------------------------------------------------- | -----: | --------: | -------: |
-| Primary image/description/audio scans | 1 | 50 | 500 |
-| Cache-miss overview/lookalike/group-tag enrichment | 4 | 100 | 500 |
-| Explore/Community audio moderation | 3 | 25 | 100 |
-| Insight/Explore model chat work | denied | 60 | 120 |
+| Primary image/description/audio scans              |      1 |        50 |      500 |
+| Cache-miss overview/lookalike/group-tag enrichment |      4 |       100 |      500 |
+| Explore/Community audio moderation                 |      3 |        25 |      100 |
+| Insight/Explore model chat work                    | denied |        60 |      120 |
 
 These are abuse and cost ceilings, not client entitlements. Change them only in
 a reviewed forward migration, increment the policy version, and keep every
-operation in `AIQuotaOperation`,
-`aiQuotaMigrationContract.test.ts`, `aiQuotaCoverage.test.ts`, and
-`tests/ai_quota_security.sql` aligned.
+operation in `AIQuotaOperation`, `aiQuotaMigrationContract.test.ts`,
+`aiQuotaCoverage.test.ts`, and `tests/ai_quota_security.sql` aligned.
 
 Executable security fixtures insert test profiles directly instead of running
 the Auth signup trigger. Any such owner-only fixture must first insert the
@@ -387,15 +416,15 @@ deterministic, unique `public_username` accepted by
 `public.is_valid_public_username(...)`, a non-empty `public_author_name`, and a
 CHECK-valid `public_identity_source`; all three columns are `NOT NULL`.
 Usernames are currently 3–24 lowercase characters, must start with a letter and
-end with an alphanumeric character, cannot contain `__`, and cannot be
-reserved. Fix a stale fixture rather than weakening the Auth FK or production
-identity constraints.
+end with an alphanumeric character, cannot contain `__`, and cannot be reserved.
+Fix a stale fixture rather than weakening the Auth FK or production identity
+constraints.
 
 `users.entitlement_version` advances whenever the tier or timed expiry changes.
 `_shared/entitlement.ts` performs durable reads for non-provider checks; it
-never caches authorization in an Edge isolate. A query error or missing user
-row fails closed with `503 ai_entitlement_unavailable`. Authenticated clients
-cannot insert/delete `public.users` rows or update tier, expiry, or entitlement
+never caches authorization in an Edge isolate. A query error or missing user row
+fails closed with `503 ai_entitlement_unavailable`. Authenticated clients cannot
+insert/delete `public.users` rows or update tier, expiry, or entitlement
 version; only the two reviewed preference columns remain directly writable.
 
 IP buckets store a daily-rotating, domain-separated HMAC, never a raw address.
@@ -414,24 +443,39 @@ alone never grant or revoke access. All three credentials are required GitHub
 
 Migration `20260723201500_secure_revenuecat_webhook_delivery.sql` records
 RevenueCat event IDs under a unique constraint and keeps a per-user ordering
-watermark. `apply_revenuecat_customer_state(...)` orders by provider event time,
-then CustomerInfo snapshot time, in the same transaction that updates tier and
-expiry. The event ledger has child subject rows so `TRANSFER` can reconcile and
-commit both its source and destination under one event ID; all affected user
-rows are locked in deterministic UUID order. Duplicate or delayed events cannot
-overwrite newer access. Reuse of an event ID with a different payload digest is
-rejected. The
+watermark. Migration `20260725052338_reconcile_revenuecat_subscribers.sql` makes
+authoritative CustomerInfo snapshot time the primary monotonic version; provider
+event time and event ID break only exact snapshot ties. The event ledger has
+child subject rows so `TRANSFER` can reconcile and commit both its source and
+destination under one event ID; all affected user rows are locked in
+deterministic UUID order. Duplicate or delayed events cannot overwrite newer
+access. Reuse of an event ID with a different payload digest is rejected. The
 service-only `get_revenuecat_webhook_event_result(...)` lookup prevents durable
 duplicates from causing another provider API call. Both RPCs use an empty search
 path and caller check; the internal ledger tables have RLS enabled and no direct
 API-role grants. Billing does not create missing users and rejects an identity
 set that ambiguously maps to multiple live profiles.
 
+Recurring and grace-period entitlement expirations are persisted in
+`users.subscription_expires_at`; `NULL` is reserved for an explicitly
+non-expiring lifetime entitlement. The expiry worker can therefore remove access
+even if RevenueCat never delivers the final expiration webhook.
+
+The service-only `reconcile-revenuecat-subscribers` route is invoked every 15
+minutes. A durable queue leases at most ten customer records per call, bounds
+provider concurrency to three, and applies only newer CustomerInfo snapshots
+under the claim token. Pro users reconcile every six hours and free users every
+24 hours; webhook processing also advances the due time for affected subjects.
+This authoritative sweep repairs missed deliveries without granting a historical
+seven-day pass after a refund.
+
 Keep `revenueCatWebhookCoverage.test.ts`,
 `revenueCatWebhookMigrationContract.test.ts`, the route's focused unit tests,
 and `tests/revenuecat_webhook_security.sql` in the deploy gate. See
 [`functions/revenuecat-webhook/README.md`](./functions/revenuecat-webhook/README.md)
-for the protocol, rollout, and rotation contract.
+and
+[`functions/reconcile-revenuecat-subscribers/README.md`](./functions/reconcile-revenuecat-subscribers/README.md)
+for the protocol, repair cadence, rollout, and rotation contracts.
 
 ### Explore Author Maintenance
 
@@ -448,8 +492,8 @@ functions with `SECURITY DEFINER SET search_path = ''`, and grants execution
 only to `service_role`. The refresh returns without writing when the safe public
 projection already matches, preventing repeated row-version churn. Never grant
 either maintenance RPC to `PUBLIC`, `anon`, or `authenticated`, and never move
-them back into a read endpoint to repair data opportunistically.
-This follows Supabase's
+them back into a read endpoint to repair data opportunistically. This follows
+Supabase's
 [database-function security guidance](https://supabase.com/docs/guides/database/functions)
 for fixed search paths and explicit execute privileges.
 
@@ -466,32 +510,31 @@ The foreground endpoint deletes the obsolete anonymous Auth row after commit.
 `functions/reconcile-ghost-profile-merges/` is the five-minute,
 service-role-only recovery worker for interrupted cleanup. It has
 `verify_jwt = false` solely for `pg_net` compatibility and performs a
-timing-safe service-role bearer comparison in Deno. See the two function
-READMEs and the deployment runbook before changing this protocol.
+timing-safe service-role bearer comparison in Deno. See the two function READMEs
+and the deployment runbook before changing this protocol.
 `tests/ghost_profile_merge_security.sql` runs in the disposable catalog through
-`make test-supabase-privileged-routines` and protects the exact
-profile/Auth-FK exclusion used by generic ownership reparenting.
+`make test-supabase-privileged-routines` and protects the exact profile/Auth-FK
+exclusion used by generic ownership reparenting.
 
 ### Public Species-Stats Resource Boundary
 
 Migration `20260724170709_harden_species_observation_stats.sql` bounds the
 intentionally public `/species-observation-stats` route. The request must bind a
-dictionary UUID to its canonical name. Atomic database counters enforce
-request user/IP limits and colder user/IP/global provider-work limits. Exact
-taxon misses and provider failures receive status-aware negative cache TTLs.
-Provider failures with no useful buckets become `unavailable`, never empty
-`partial` results.
+dictionary UUID to its canonical name. Atomic database counters enforce request
+user/IP limits and colder user/IP/global provider-work limits. Exact taxon
+misses and provider failures receive status-aware negative cache TTLs. Provider
+failures with no useful buckets become `unavailable`, never empty `partial`
+results.
 
 Cold population uses a 90-second database row lease. The final cache write
 compares the lease UUID in the same transaction, so another Edge isolate cannot
-stampede the same species and a delayed generation cannot overwrite newer
-work. The four public-schema wrappers preflight IP use, authorize canonical
-species, claim work, and finalize cache state. Each is `SECURITY DEFINER`, uses
-an empty search path, calls `internal.require_service_role()`, and is executable
-only by `service_role`; their tables have no direct API-role grants. Provider
-fetches also have explicit per-call/operation deadlines and streaming response
-caps. See the function README and deployment runbook before changing these
-limits.
+stampede the same species and a delayed generation cannot overwrite newer work.
+The four public-schema wrappers preflight IP use, authorize canonical species,
+claim work, and finalize cache state. Each is `SECURITY DEFINER`, uses an empty
+search path, calls `internal.require_service_role()`, and is executable only by
+`service_role`; their tables have no direct API-role grants. Provider fetches
+also have explicit per-call/operation deadlines and streaming response caps. See
+the function README and deployment runbook before changing these limits.
 
 An unavailable refresh cannot erase positive data still inside the 37-day
 retention ceiling. Fenced finalization preserves the payload and original
@@ -526,10 +569,10 @@ deno check --frozen \
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh
-`functions/dependencies.lock`, and commit all three surfaces together. CI rejects
-stale generated configs, unlocked packages, direct runtime specifiers, and any
-missing or stale `config.toml` function entry. When the fleet changes, fix the
-reported name mismatch; never update a numeric expected-function count.
+`functions/dependencies.lock`, and commit all three surfaces together. CI
+rejects stale generated configs, unlocked packages, direct runtime specifiers,
+and any missing or stale `config.toml` function entry. When the fleet changes,
+fix the reported name mismatch; never update a numeric expected-function count.
 
 The checked-in `deno task test` is the canonical complete function source and
 unit suite. Its read allowlist includes the function tree plus the migration,
@@ -550,13 +593,13 @@ deno task test
 Media durability migrations have an additional static contract test that runs
 without a local Postgres instance. It checks the normalized scan-media lifecycle
 schema, the scan-ingestion job ledger, the drift-repair SQL that must run before
-media reconciliation indexes are created, and the source-aware uniqueness
-repair for generated versus promoted capture-upload rows.
+media reconciliation indexes are created, and the source-aware uniqueness repair
+for generated versus promoted capture-upload rows.
 
 The same migration contract suite covers the identification-latency migration:
 service-role-only RPC grants, the atomic ingestion setup function, combined
-dictionary hydration, and the RLS-protected deferred-context table/trigger.
-It also guards the APNs device-token repair so PostgreSQL format validation and
+dictionary hydration, and the RLS-protected deferred-context table/trigger. It
+also guards the APNs device-token repair so PostgreSQL format validation and
 32...512 character length validation remain separate. The executable pgTAP
 coverage in `tests/push_device_registration.sql` accepts a normal 64-character
 hex token and rejects short, oversized, and non-hex tokens.
@@ -568,14 +611,14 @@ Species-count projection has paired tests:
   ACLs/search paths, removal of deterministic user locking, or a table lock
   outside the explicit whole-cutover transaction.
 - `tests/species_count_trigger_security.sql` checks the live catalog plus bulk
-  insert, unrelated update, owner transfer, species replacement, duplicate,
-  scan deletion, and dictionary `SET NULL` behavior. It deliberately corrupts
-  one projected total before an unrelated update to prove no hidden
-  full-history recount still runs.
+  insert, unrelated update, owner transfer, species replacement, duplicate, scan
+  deletion, and dictionary `SET NULL` behavior. It deliberately corrupts one
+  projected total before an unrelated update to prove no hidden full-history
+  recount still runs.
 
-The suite also locks the Explore current-scan reference exclusion helper and
-the unchanged `get_explore_post_detail` response projection. Run the static
-contract plus the executable DB case after changing species-reference ordering,
+The suite also locks the Explore current-scan reference exclusion helper and the
+unchanged `get_explore_post_detail` response projection. Run the static contract
+plus the executable DB case after changing species-reference ordering,
 blocked-media handling, legacy fallback, or scan media fields:
 
 Public species stats have both static and executable security contracts:
@@ -652,54 +695,51 @@ suggestions. The contextual objective-guide migration supplies structured Tips,
 `20260717195751_active_outing_capture_context.sql` adds the private service-role
 capture read model.
 `20260717213641_preserve_standard_outings_in_capture_context.sql` keeps the
-underlying standard field trip visible after a Seasonal Challenge join while still
-ignoring challenge-specific progress.
+underlying standard field trip visible after a Seasonal Challenge join while
+still ignoring challenge-specific progress.
 `20260717224544_retire_forest_edges_outing.sql` deactivates the Forest Edges
 placeholder without deleting historical user data.
 `20260718043218_expose_field_trip_completion_scan_ids.sql` adds the completing
-scan ID to the private catalog/detail projections while restricting both RPCs
-to `service_role`.
-`20260718051748_expose_field_trip_publication_status.sql` adds the owner's
-active non-deleted publication ID/timestamp to private template detail only.
-`20260718150932_add_credited_field_trip_progress.sql` extends both standard and
-Seasonal Challenge scan-progress responses with the level number/title and
-completed/target counts credited by the scan. It preserves the existing RPC
-signatures, permissions, and response fields; the added fields let a level-
-completion toast show the completed level rather than the newly active level.
-`20260718162409_scope_credited_progress_to_current_attempt.sql` scopes those
-credited counts to checklist items matched by the current application attempt,
-so re-identifying an older scan cannot duplicate a destination or reuse a
-previous level's ring.
+scan ID to the private catalog/detail projections while restricting both RPCs to
+`service_role`. `20260718051748_expose_field_trip_publication_status.sql` adds
+the owner's active non-deleted publication ID/timestamp to private template
+detail only. `20260718150932_add_credited_field_trip_progress.sql` extends both
+standard and Seasonal Challenge scan-progress responses with the level
+number/title and completed/target counts credited by the scan. It preserves the
+existing RPC signatures, permissions, and response fields; the added fields let
+a level- completion toast show the completed level rather than the newly active
+level. `20260718162409_scope_credited_progress_to_current_attempt.sql` scopes
+those credited counts to checklist items matched by the current application
+attempt, so re-identifying an older scan cannot duplicate a destination or reuse
+a previous level's ring.
 `20260722025411_persistent_field_trip_scan_contributions.sql` adds the private
 selected-goal preference, deterministic one-credit ranking, correction support,
 and scan contribution projection.
 `20260722064704_harden_atomic_field_trip_progress.sql` moves standard progress,
-Event progress, preference persistence, first-outing achievement evaluation,
-and the scan-revision receipt into one transaction. Scan insertion/correction
+Event progress, preference persistence, first-outing achievement evaluation, and
+the scan-revision receipt into one transaction. Scan insertion/correction
 triggers call that boundary from the ingestion pipeline. The migration also
 repairs completed-outing publication item materialization, removes the pin RPC's
-temporary-table dependency, and revokes all Field
-trip/Event `SECURITY DEFINER` functions from `PUBLIC`, `anon`, and
-`authenticated`; only `service_role` may execute them.
-`20260722195453_exclude_ants_from_bee_wasp_goal.sql` first excludes `Formicidae`
-from Park Pollinators' Hymenoptera goal and repairs ant-backed progress.
-`20260722211636_tighten_field_trip_goal_matching.sql` adds conjunctive
-taxonomy-plus-signal matching, finalizes **Bee or wasp** as Hymenoptera plus
-`bee|wasp`, narrows active Spider/Butterfly/plant/animal goals, aligns
-unverifiable Park prompt copy with saved-scan evidence, and repairs progress
-credited by the former broader rules.
-The contract suite verifies caller identity, role grants, ordering/filtering
-clauses, private completion links/status, credited progress in both RPCs, and
-the absence of evidence from public/capture projections.
-`fieldTripCaptureContextDb.test.ts` additionally executes the
-filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
-standard/challenge credited counts, level advancement, re-identification,
-idempotent reapplication, and representative positive/negative cases for every
-narrowed active goal. `fieldTripAtomicProgressDb.test.ts` proves rollback
-when the Event half fails, `fieldTripSecurityDb.test.ts` enumerates runtime
-execute privileges, and `fieldTripPublicationDb.test.ts` executes publication
-materialization. These require the local Postgres stack; a connection skip is
-not database validation.
+temporary-table dependency, and revokes all Field trip/Event `SECURITY DEFINER`
+functions from `PUBLIC`, `anon`, and `authenticated`; only `service_role` may
+execute them. `20260722195453_exclude_ants_from_bee_wasp_goal.sql` first
+excludes `Formicidae` from Park Pollinators' Hymenoptera goal and repairs
+ant-backed progress. `20260722211636_tighten_field_trip_goal_matching.sql` adds
+conjunctive taxonomy-plus-signal matching, finalizes **Bee or wasp** as
+Hymenoptera plus `bee|wasp`, narrows active Spider/Butterfly/plant/animal goals,
+aligns unverifiable Park prompt copy with saved-scan evidence, and repairs
+progress credited by the former broader rules. The contract suite verifies
+caller identity, role grants, ordering/filtering clauses, private completion
+links/status, credited progress in both RPCs, and the absence of evidence from
+public/capture projections. `fieldTripCaptureContextDb.test.ts` additionally
+executes the filtering/order/privacy contract, while
+`fieldTripProgressDb.test.ts` exercises standard/challenge credited counts,
+level advancement, re-identification, idempotent reapplication, and
+representative positive/negative cases for every narrowed active goal.
+`fieldTripAtomicProgressDb.test.ts` proves rollback when the Event half fails,
+`fieldTripSecurityDb.test.ts` enumerates runtime execute privileges, and
+`fieldTripPublicationDb.test.ts` executes publication materialization. These
+require the local Postgres stack; a connection skip is not database validation.
 
 Explore identity integration coverage in `_tests/exploreIdentityDb.test.ts`
 executes the public projection and ownership-repair functions against Postgres.
@@ -712,14 +752,13 @@ CI and release validation.
 
 The shared Explore fixture snapshots scan media by calling
 `public.refresh_explore_post_media(...)` after inserting a post. Pass
-`refreshMedia: false` only when a test intentionally models a partial post
-write or supplies its own deterministic `explore_post_media` rows. Public
-Explore reads are post-media based: changing scan geoprivacy or clearing
+`refreshMedia: false` only when a test intentionally models a partial post write
+or supplies its own deterministic `explore_post_media` rows. Public Explore
+reads are post-media based: changing scan geoprivacy or clearing
 `scans.image_storage_urls` does not retroactively remove an existing public
-snapshot. Tests for media removal must exercise the cleanup contract by
-removing the post-owned media. Expected database errors inside the helper's
-transaction must use a savepoint and roll back to it before making subsequent
-assertions.
+snapshot. Tests for media removal must exercise the cleanup contract by removing
+the post-owned media. Expected database errors inside the helper's transaction
+must use a savepoint and roll back to it before making subsequent assertions.
 
 ```bash
 SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
@@ -799,6 +838,7 @@ secure merge migration.
 ## Deployment
 
 ### Database Migrations
+
 ```bash
 supabase --workdir services db push
 ```
@@ -809,15 +849,16 @@ catalog, capture a hosted `--report` audit before the push, and require a clean
 `make audit-supabase-privileged-routines` result after it.
 
 ### Edge Functions
+
 ```bash
 supabase --workdir services functions deploy
 ```
 
-That command is the emergency/manual full-fleet path. Production CI computes
-the affected functions from the transitive import graph, deploys bounded
-batches, and isolates retries to members of a failed batch. A manual workflow
-dispatch intentionally selects the full fleet. Database migrations still run
-before function deployment, so same-release schema changes must follow
+That command is the emergency/manual full-fleet path. Production CI computes the
+affected functions from the transitive import graph, deploys bounded batches,
+and isolates retries to members of a failed batch. A manual workflow dispatch
+intentionally selects the full fleet. Database migrations still run before
+function deployment, so same-release schema changes must follow
 expand/migrate/contract compatibility: the migration must remain safe for the
 currently live function version, and destructive cleanup ships only after the
 new readers/writers are proven live.
@@ -828,13 +869,12 @@ gates in `docs/backend-and-data/06-supabase-deployment-runbook.md`. Do not force
 an Edge region without the documented A/B evidence.
 
 For the Field trip Scan indicator, apply the contextual-guide, active-field trip
-capture-context, and standard-field trip preservation migrations before deploying
-`field-trips`, then smoke-test the authenticated `capture_context` action before
-releasing the iOS client. The RPC
-is intentionally unavailable to direct `anon` and `authenticated` database
-calls; only the verified Edge action may invoke it with `service_role`. The
-long-term client/source boundary and extension rules are recorded in
-`docs/rfcs/active-capture-goal-context.md`.
+capture-context, and standard-field trip preservation migrations before
+deploying `field-trips`, then smoke-test the authenticated `capture_context`
+action before releasing the iOS client. The RPC is intentionally unavailable to
+direct `anon` and `authenticated` database calls; only the verified Edge action
+may invoke it with `service_role`. The long-term client/source boundary and
+extension rules are recorded in `docs/rfcs/active-capture-goal-context.md`.
 
 For completed-goal thumbnails, also apply
 `20260718043218_expose_field_trip_completion_scan_ids.sql` before releasing the
@@ -845,9 +885,9 @@ evidence-free.
 
 For the Private/Published detail badge, apply
 `20260718051748_expose_field_trip_publication_status.sql` before releasing the
-iOS surface. Verify only private template detail receives the requesting
-owner's active publication ID/timestamp and that direct client roles remain
-unable to execute the RPC.
+iOS surface. Verify only private template detail receives the requesting owner's
+active publication ID/timestamp and that direct client roles remain unable to
+execute the RPC.
 
 For credited scan-progress notifications, apply
 `20260718150932_add_credited_field_trip_progress.sql` and then
@@ -856,8 +896,8 @@ the iOS toast surface. Verify partial progress, level advancement, final
 completion, multiple standard/challenge destinations, re-identification after
 level advancement, and idempotent reapplication. Those two migrations add only
 response fields; legacy clients ignore them and newer clients fall back to
-current counts until the migrations are live. The later persistent-
-contribution release adds optional `preferred_goal` to the request.
+current counts until the migrations are live. The later persistent- contribution
+release adds optional `preferred_goal` to the request.
 
 For persistent Insight contribution cards and selected-goal preference, apply
 `20260719045306_first_field_trip_achievement.sql`,
@@ -869,10 +909,9 @@ For persistent Insight contribution cards and selected-goal preference, apply
 `20260722211636_tighten_field_trip_goal_matching.sql` in order. Then deploy the
 scan-ingestion functions and `field-trips` before the iOS client. Smoke-test
 optional `preferred_goal`, one credit per outing/Event, deterministic fallback,
-correction removal/move, bee/wasp acceptance with ant and sawfly rejection,
-the representative negative-match matrix, transactional rollback, receipt
-replay, publication, and `scan_contributions`. Direct client roles must not read
-either private progress table or execute any Field trip/Event
-`SECURITY DEFINER` RPC;
+correction removal/move, bee/wasp acceptance with ant and sawfly rejection, the
+representative negative-match matrix, transactional rollback, receipt replay,
+publication, and `scan_contributions`. Direct client roles must not read either
+private progress table or execute any Field trip/Event `SECURITY DEFINER` RPC;
 contribution payloads must contain no media, coordinates, place labels, notes,
 or public evidence. Older clients omit the preference and remain compatible.

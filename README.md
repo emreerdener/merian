@@ -210,6 +210,10 @@ cleanup, and removes login access only after database cleanup is verified.
 ### Offline-First Data Pipeline
 - `OfflineQueuedScan` (SwiftData) persists captures with full telemetry when inference fails or connectivity is absent.
 - `NWPathMonitor` triggers background `URLSession` retry on reconnection, respecting Swift 6 concurrency constraints and OS Watchdog limits.
+- Every inference claim persists its UUID beside the queue transition. Claims,
+  retries, result saves, URLSession cancellation, and guarded queue deletion
+  compare that durable generation under one per-scan persistence coordinator,
+  so a delayed callback cannot clear or cancel replacement work.
 - `HistoricalDatabaseActor` reconciles paginated cloud sync into SwiftData in a single pass, with push-before-pull ordering to prevent unsynced local collections from being treated as obsolete.
 
 ### Zero-OOM Design
@@ -240,7 +244,9 @@ cleanup, and removes login access only after database cleanup is verified.
 - RevenueCat webhook verifies a timestamped raw-body HMAC, reconciles
   authoritative subscriber state, and applies idempotent, monotonically ordered
   `free` ↔ `pro` transitions. Transfers reconcile source and destination in one
-  transaction, and existing scan media remains in place.
+  transaction. Recurring/grace expiry is persisted, timed access has a local
+  expiry fail-safe, and a durable scheduled CustomerInfo sweep repairs missed
+  deliveries. Existing scan media remains in place.
 - Free receives one primary scan per UTC day. Pro removes the ordinary product
   cap and receives Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple
   Watch logging, expedition mode, and offline queue; database fair-use ceilings
@@ -257,7 +263,14 @@ cleanup, and removes login access only after database cleanup is verified.
 - Geoprivacy is enforced server-side: `obscured` rounds coordinates to ~10km; `private` strips location entirely. Endangered species coordinates are automatically offset by 50km regardless of user setting.
 - Global DwC-A exports replace user IDs with versioned, domain-separated
   HMAC-SHA256 pseudonyms under a dedicated export key, preserving longitudinal
-  attribution without exposing or reusing Supabase credentials.
+  attribution without exposing or reusing Supabase credentials. Public callers
+  can queue personal exports only; the worker persists keyset cursors and
+  claim-fenced CSV manifests across bounded phases with canonical row/archive
+  budgets.
+- Account deletion preserves login access through relational anonymization and
+  cursor-persisted R2 erasure. It waits for a delayed empty verification sweep
+  before removing Auth, and a scheduled reaper resumes every phase after a
+  crash.
 
 ---
 

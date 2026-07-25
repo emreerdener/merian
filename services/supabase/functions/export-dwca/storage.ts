@@ -9,6 +9,8 @@ const SIGNED_URL_LIFETIME_SECONDS = 86_400;
 const R2_REQUEST_TIMEOUT_MS = 60_000;
 const R2_XML_RESPONSE_LIMIT_BYTES = 64 * 1024;
 const MAXIMUM_UPLOAD_ID_CHARACTERS = 2048;
+export const MAXIMUM_WORK_CHUNK_BYTES = 512 * 1024;
+const MAXIMUM_ARCHIVE_BYTES = 16 * 1024 * 1024;
 const decoder = new TextDecoder();
 
 interface UploadedPart {
@@ -37,6 +39,16 @@ export function exportObjectKey(
   claimToken: string,
 ): string {
   return `exports/${job.userId}/${job.id}/${claimToken}.zip`;
+}
+
+export function exportWorkChunkObjectKey(
+  job: ClaimedExportJob,
+  phase: "occurrence" | "multimedia",
+  claimToken: string,
+): string {
+  return `exports/${job.userId}/${job.id}/work/${phase}/${
+    String(job.chunkSequence).padStart(8, "0")
+  }-${claimToken}.csv`;
 }
 
 function xmlEscape(value: string): string {
@@ -231,7 +243,15 @@ export async function uploadDwcaArchive(
   objectKey: string,
   onProgress: ExportProgressCallback = () => {},
   config: R2Config = getR2Config(),
+  maximumBytes = MAXIMUM_ARCHIVE_BYTES,
 ): Promise<ExportUploadResult> {
+  if (
+    !Number.isSafeInteger(maximumBytes) ||
+    maximumBytes < 1 ||
+    maximumBytes > MAXIMUM_ARCHIVE_BYTES
+  ) {
+    throw new TypeError("maximumBytes must be within the archive hard limit.");
+  }
   const { bucketName, endpoint, s3Client } = config;
   const objectUrl = `${endpoint}/${bucketName}/${objectKey}`;
   const createUrl = new URL(objectUrl);
@@ -260,6 +280,12 @@ export async function uploadDwcaArchive(
         throw new ExportWorkerError(
           "export_too_large",
           "The export exceeded the R2 multipart part limit.",
+        );
+      }
+      if (uploadedBytes + part.byteLength > maximumBytes) {
+        throw new ExportWorkerError(
+          "export_too_large",
+          "The archive exceeded its canonical byte budget.",
         );
       }
 
@@ -333,5 +359,97 @@ export async function uploadDwcaArchive(
     }
     if (error instanceof ExportWorkerError) throw error;
     throw storageFailure("The R2 multipart upload failed.", error);
+  }
+}
+
+export async function putExportWorkChunk(
+  bytes: Uint8Array,
+  objectKey: string,
+  config: R2Config = getR2Config(),
+): Promise<void> {
+  if (bytes.byteLength > MAXIMUM_WORK_CHUNK_BYTES) {
+    throw new ExportWorkerError(
+      "export_too_large",
+      "A prepared CSV batch exceeded its hard byte limit.",
+    );
+  }
+  try {
+    const response = await config.s3Client.fetch(
+      r2Request(
+        `${config.endpoint}/${config.bucketName}/${objectKey}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "text/csv; charset=utf-8",
+            "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD",
+          },
+          body: bytes as unknown as BodyInit,
+        },
+      ),
+    );
+    await checkedR2Response(response, "work chunk upload");
+    await discardResponseBody(response);
+  } catch (error) {
+    if (error instanceof ExportWorkerError) throw error;
+    throw storageFailure("The R2 work chunk upload failed.", error);
+  }
+}
+
+export async function fetchExportWorkChunk(
+  objectKey: string,
+  expectedByteCount: number,
+  config: R2Config = getR2Config(),
+): Promise<Uint8Array> {
+  if (
+    !Number.isSafeInteger(expectedByteCount) ||
+    expectedByteCount < 0 ||
+    expectedByteCount > MAXIMUM_WORK_CHUNK_BYTES
+  ) {
+    throw new ExportWorkerError(
+      "archive_generation_failed",
+      "The work chunk manifest has an invalid byte count.",
+    );
+  }
+
+  try {
+    const response = await checkedR2Response(
+      await config.s3Client.fetch(
+        r2Request(
+          `${config.endpoint}/${config.bucketName}/${objectKey}`,
+          { method: "GET" },
+        ),
+      ),
+      "work chunk download",
+    );
+    const declaredLength = Number(response.headers.get("Content-Length"));
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength !== expectedByteCount
+    ) {
+      await discardResponseBody(response);
+      throw new ExportWorkerError(
+        "archive_generation_failed",
+        "A prepared work chunk did not match its manifest.",
+      );
+    }
+    const result = await readByteStreamWithinLimit(
+      response.body,
+      Math.max(1, expectedByteCount),
+      "R2 work chunk exceeded its manifest",
+    );
+    if (
+      result.exceeded ||
+      !result.bytes ||
+      result.bytes.byteLength !== expectedByteCount
+    ) {
+      throw new ExportWorkerError(
+        "archive_generation_failed",
+        "A prepared work chunk did not match its manifest.",
+      );
+    }
+    return result.bytes;
+  } catch (error) {
+    if (error instanceof ExportWorkerError) throw error;
+    throw storageFailure("The R2 work chunk download failed.", error);
   }
 }

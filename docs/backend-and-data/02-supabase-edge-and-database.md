@@ -1251,9 +1251,12 @@ the latest RevenueCat CustomerInfo with a secret server API key beginning with
 `sk_`. A committed event with the same timestamp, type, and payload digest found
 through the service-only duplicate lookup is the sole exception; it returns
 without another provider request, limiting at-least-once/replay amplification.
-Active `pro` or `Naturalist Tier` entitlements produce standard Pro; an
-authoritative `pro_week` non-subscription transaction produces a timed
-seven-day grant. Refund/revocation events exclude the matching pass transaction.
+Active `pro` or `Naturalist Tier` entitlements produce Pro through the later of
+their recurring expiration or grace-period expiration; that timestamp is
+persisted so access can expire without another webhook. `NULL` is reserved for
+an explicitly non-expiring lifetime entitlement. An authoritative `pro_week`
+non-subscription transaction produces a timed seven-day grant.
+Refund/revocation events exclude the matching pass transaction.
 CustomerInfo timeouts, rate limits, invalid responses, missing public user rows,
 and identity groups that map to multiple live users fail closed without a tier
 write.
@@ -1265,17 +1268,27 @@ update in one transaction. `TRANSFER` events use `transferred_from` and
 before calling the RPC, and the RPC locks source/destination UUIDs in sorted
 order. `internal.revenuecat_webhook_events.event_id` is the unique idempotency
 key, while `internal.revenuecat_webhook_event_subjects` records zero to two
-per-user results. `internal.revenuecat_customer_state` compares event timestamp
-first, authoritative snapshot time second, and event ID last. Duplicate or
-older deliveries remain auditable but cannot overwrite newer access, and a
-transfer cannot partially commit. All three internal tables have RLS enabled
-and no direct grants; the
+per-user results. `internal.revenuecat_customer_state` compares authoritative
+CustomerInfo snapshot time first; webhook event time and event ID break only
+exact snapshot ties. Duplicate or older deliveries remain auditable but cannot
+overwrite newer access, and a transfer cannot partially commit. All three
+internal tables have RLS enabled and no direct grants; the
 `SECURITY DEFINER SET search_path = ''` mutation and duplicate-lookup RPCs call
 `internal.require_service_role()` and are allowlisted only to `service_role`.
 
-The scheduled `expire-subscription-passes` worker remains a repair path when a
-timed pass reaches `subscription_expires_at`. Existing scan media remains in
-place on every transition.
+Migration `20260725052338_reconcile_revenuecat_subscribers.sql` adds a durable
+authoritative repair queue. `reconcile-revenuecat-subscribers` runs every 15
+minutes, leases at most ten customers, limits provider concurrency to three,
+and applies a snapshot only when it is newer than the user's transactional
+watermark. Pro users are revisited every six hours and free users every 24
+hours. Webhook handling also advances affected subjects' due times. Historical
+seven-day purchases are not newly granted by background reconciliation, so a
+refund cannot be resurrected from CustomerInfo history.
+
+The scheduled `expire-subscription-passes` worker remains a fail-safe whenever
+any timed recurring, grace-period, or pass grant reaches
+`subscription_expires_at`. Existing scan media remains in place on every
+transition.
 
 RevenueCat customer identity is linked by the iOS client before purchase
 evaluation: `SupabaseManager.linkExternalTelemetry(user:)` logs RevenueCat in
@@ -1291,87 +1304,55 @@ signature query string parameters from the URL to prevent Cloudflare R2
 
 ## The Scientific Export Pipeline (`request-export-dwca` & `export-dwca`)
 
-Researchers export global and personal occurrence data via a two-step queueing
-architecture that removes archive work from the client request:
+The client-facing `/request-export-dwca` route requires a permanent account and
+accepts only `exportScope: "personal"`. Global exports are intentionally
+internal-only because they consume a shared repository-wide budget. Direct
+Data API insertion is revoked, and a partial unique index plus the 24-hour
+recent-job check makes concurrent duplicate submissions idempotently
+rate-limited.
 
-1. **Queue Insertion (`request-export-dwca`)**: The iOS client hits this
-   lightweight proxy, which requires a non-anonymous account and inserts a job row into the
-   `export_jobs` PostgreSQL queue. Direct `anon`/`authenticated`
-   inserts are revoked, so this route is the only public queue boundary. To prevent Resend API spam and queue
-   flooding, it enforces a strict **24-hour rate limit** per user for successful/non-terminal jobs. A failed job can be
-   retried. The insert is
-   idempotent against concurrent duplicate submissions: if a second request
-   races in before the first row is committed, the resulting PostgreSQL `23505`
-   unique-constraint violation is caught and the function returns
-   `429 Too Many Requests` instead of a `500` error, consistent with the
-   rate-limit path. Before inserting, the function validates the `exportScope`
-   parameter against the enum `["personal", "global"]` — values outside this set
-   are rejected with `HTTP 400`. It also validates that
-   `includePreciseCoordinates` is a boolean — a non-boolean value is rejected
-   with `HTTP 400`. The iOS client always sends
-   `includePreciseCoordinates: true` for personal exports — this is intentional:
-   users downloading their own data receive full-resolution GPS coordinates. For
-   `"global"` scope exports, `export-dwca` exposes exact coordinates only for the requesting user's own non-protected records when this flag is true; every
-   other row uses its public projection. It returns `200 OK` when the job is enqueued.
-2. **Postgres Webhook (`pg_net`)**: The queue insertion fires a native Postgres
-   trigger to `/export-dwca`. `job_id` is the only authoritative input. The
-   migration retains row-derived user/scope/precision hints only for jobs
-   created in a private two-hour rollout cohort so an old bundle can survive the
-   migration-before-function order. The hardened worker never reads them. After
-   the protocol deadline, new webhook bodies contain only `job_id`, and an
-   unclaimed job cannot transition to processing.
-3. **Canonical claim (`export-dwca`)**: The worker timing-safely verifies
-   `SUPABASE_SERVICE_ROLE_KEY`, parses a small bounded JSON body, registers an
-   `EdgeRuntime.waitUntil` task, and returns `202` to `pg_net`. The background
-   task calls `claim_export_job(...)`. The RPC row-locks the job, returns its
-   immutable canonical fields, and installs a private ten-minute lease plus UUID
-   fencing token. A duplicate webhook receives no claim. Lease renewal, archive
-   staging, completion, and failure require that same unexpired token.
-4. **Bounded generation and delivery**:
-   - **Keyset reads**: Occurrence and multimedia passes read 200 rows at a time
-     using `id > last_id` and matching partial indexes. Their projections do not
-     fetch each other's large fields.
-   - **Streaming archive**: Lazy CSV generators feed a ZIP32 `STORE` writer with
-     incremental CRC-32 state. Fixed 8 MiB multipart parts flow to R2; no full
-     result set, CSV, ZIP, or `arrayBuffer()` is retained. Failed multipart
-     uploads are aborted where possible. R2 XML and Resend reply bodies are
-     byte-capped; the completion XML is parsed so an S3-compatible `<Error>`
-     document returned with HTTP 200 cannot be staged as a successful object.
-   - **Attempt fence**: Pre-stage objects use
-     `exports/{user_id}/{job_id}/{claim_token}.zip`, preventing a delayed worker
-     from overwriting the current attempt. A durably staged object and signed
-     URL are reused by a later lease rather than regenerated.
-   - **RFC 4180-compliant CSV (`csvField()`)**: All occurrence and multimedia
-     CSV rows are built using the `csvField(value)` helper in
-     `export-dwca/dwca.ts`. Every field is wrapped in double quotes; internal
-     double quotes are escaped by doubling them (`"` → `""`); newlines within
-     field values are replaced with a space (DwC-A parsers treat `\n` as a row
-     terminator). Null and undefined values become empty quoted fields (`""`).
-     This ensures the archive is parseable by all standard DwC-A consumers
-     without field-boundary ambiguity.
-   - **Cryptographic Geoprivacy**: Global-export user IDs are replaced with
-     stable, versioned, domain-separated HMAC-SHA256 pseudonyms (for example,
-     `naturebook_user_v1_a785f2b...`) using the dedicated
-     `DWCA_PSEUDONYM_HMAC_KEY_V1`. There is no JWT-secret reuse or fallback
-     salt. Personal exports retain the owner's UUID. Protected taxa always use
-     coarse public coordinates.
-   - **DaaS Standardization**: Natively maps `life_stage`,
-     `reproductive_condition`, `sex`, `individual_count`,
-     and `ecological_interactions` directly into standard GBIF DwC-A headers
-     (`lifeStage`, `reproductiveCondition`, `sex`, `individualCount`, etc.).
-   - **Idempotent delivery**: Once R2 is staged, the worker resolves the
-     canonical owner's Auth email and calls Resend with
-     `Idempotency-Key: dwca-export/{job_id}`. Only
-     an accepted delivery can
-     transition the fenced job to `completed`.
-   - **Lease-aware watchdog**: `expire-stuck-export-jobs` runs every five
-     minutes. It fails old pending rows and processing rows whose private lease
-     is absent or expired, publishing only stable public-safe failure text.
-   - **Null species guard (`dwca.ts`)**: `scan.species_dictionary` is treated as
-     `DBScanRow['species_dictionary']` (typed optional). All property accesses
-     use optional chaining (`species?.scientific_name`) and `csvField()` handles
-     `undefined` as empty string (`""`). This replaces the previous `|| {}`
-     fallback which caused `deno check` type errors on every property access.
+The queue row is canonical and immutable. PostgreSQL webhooks and the
+minute-level resume cron send either an opaque `job_id` or an empty body; they
+never send trusted user, scope, precision, or cursor values. The service-only
+worker performs an exact bearer comparison, fetches at most one due ID, and
+claims one phase with a fresh UUID token and short lease.
+
+Migration `20260725052339_bound_dwca_export_work.sql` persists the phase,
+keyset cursors, cumulative row and CSV byte counts, chunk sequence, retry state,
+and ordered R2 chunk manifest. Canonical defaults allow at most 5,000 CSV rows
+and an 8 MiB final archive. Database constraints impose absolute ceilings of
+20,000 rows and 16 MiB, and callers cannot mutate either budget after insert.
+Deleted-account tombstones are excluded by matching partial indexes.
+
+Each invocation performs exactly one bounded step:
+
+1. `occurrence` or `multimedia` reads one narrow, monotonic 100-scan keyset
+   page, RFC-4180 encodes at most 512 KiB, writes one temporary R2 CSV chunk,
+   and transactionally commits its object key, cursor, and cumulative budgets.
+2. `assembling` reads the manifest in order and lazily streams the CSV chunks
+   through the ZIP32 writer into a bounded R2 multipart upload.
+3. `delivering` resolves the canonical owner's Auth email, calls Resend with
+   `Idempotency-Key: dwca-export/{job_id}`, and completes the job.
+
+Temporary CSV keys include the active claim token as well as phase and
+sequence. A lease-expired worker that resumes after its replacement can
+therefore neither overwrite the winner's chunk nor commit an unexpected key to
+the manifest. Final archive keys are claim-fenced too. A durably staged archive
+is reused after lease recovery rather than regenerated.
+
+The ZIP writer maintains incremental CRC-32 state, multipart parts are fixed at
+8 MiB, and source pages, chunk responses, and parts are released as they flow.
+No invocation retains the complete result set, CSV, or ZIP. R2 XML and Resend
+responses are byte-capped, every outbound request has a deadline, failed
+multipart uploads are aborted where possible, and S3-compatible `<Error>`
+documents returned under HTTP 200 are rejected.
+
+Personal exports retain the owner's UUID and can include the owner's precise
+coordinates. A reviewed internal global job uses a stable, versioned,
+domain-separated HMAC-SHA256 pseudonym from
+`DWCA_PSEUDONYM_HMAC_KEY_V{n}`; there is no JWT-secret reuse or literal
+fallback. Protected taxa still receive only their public coordinate
+projection.
 
 ## The Edge Moderation Node (`block-user`)
 
@@ -1702,20 +1683,26 @@ cost remain available for anonymous aggregate analysis; the ledger cannot be
 updated or deleted through ordinary service-role writes.
 
 **Operation order**: Migration `20260725030308_durable_account_deletion.sql`
-adds the private `internal.account_deletion_jobs` state machine. `/safe-delete`
-first persists an idempotent `pending` receipt, then claims it with a
-five-minute UUID lease. The claim writes the storage-cleanup outbox row, invokes
+adds durable deletion intake, and migration
+`20260725052337_enforce_account_storage_erasure.sql` completes the private
+`pending → storage_pending → auth_pending → completed` state machine.
+`/safe-delete` first persists an idempotent `pending` receipt, then claims it
+with a five-minute UUID lease. The claim writes the storage job, invokes
 `apply_user_tombstone`, verifies that no public profile or scan still references
-the user, and commits `auth_pending` in one database transaction. Only then can
-the worker call `supabaseAdmin.auth.admin.deleteUser`. This ordering guarantees
-that a cleanup failure leaves the login identity available for retry instead of
-stranding personal data behind an inaccessible account.
+the user, and commits `storage_pending` in one database transaction. The Auth
+Admin API remains forbidden until storage verification advances the account job
+to `auth_pending`. This ordering guarantees that any relational or R2 failure
+leaves the login identity available for retry instead of stranding personal
+data behind an inaccessible account.
 
-Every claimed retry repeats cleanup and verification immediately before Auth
-deletion. A private deletion-state trigger rejects attempts to recreate
+Relational cleanup also clears every compatibility media URL, captured-media
+reference, exact coordinate/elevation, semantic-location value, device
+locale/time-zone context, free-form note, and custom tag retained on ownerless
+scientific tombstones. Every claimed retry repeats cleanup and verification
+before progressing. A private deletion-state trigger rejects attempts to recreate
 `public.users` while a job is active, including Auth metadata-triggered
-upserts, closing the interval between the database transaction and the external
-Auth operation.
+upserts. The upload signer checks the same durable state and rejects new
+staging/public uploads while deletion is active.
 
 The handler passes only the user ID returned by its verified session. The
 database routines are granted only to `service_role`, call
@@ -1723,29 +1710,38 @@ database routines are granted only to `service_role`, call
 direct job-table privileges to API roles.
 
 **Retry and crash handling**: The request tries its own job immediately and
-returns `200` when fully complete. A `202` means deletion was durably accepted
-and will continue automatically. The scheduled
-`reconcile-account-deletions` route leases due `pending` or `auth_pending` jobs
-every five minutes and re-runs idempotent cleanup for both states. Cleanup
-failure never reaches Auth deletion; Auth failure leaves the already-anonymized
-job at `auth_pending` with bounded backoff. HTTP
+normally returns `202` while durable R2 work remains. A `200` means relational
+cleanup, delayed storage verification, and Auth removal are all complete. The
+scheduled `reconcile-account-deletions` route leases due account jobs and
+storage jobs every five minutes. Each storage claim processes at most one
+50-key keyset page from one of the five canonical user prefixes. Progress and
+failures are persisted under a UUID claim token with bounded backoff.
+
+After the first sweep reaches the end of all prefixes, the job waits at least
+25 hours and starts a complete verification sweep. Only an empty delayed pass
+marks storage complete and wakes the account job transactionally. A final
+bounded account pass may then remove Auth in the same invocation. Cleanup or
+storage failure never reaches Auth deletion; Auth failure leaves the
+fully-erased job at `auth_pending` with bounded backoff. HTTP
 `404` and Auth code `user_not_found` are idempotent success, so a lost
 completion response is recoverable. Expired claim tokens cannot clear or finish
 a newer attempt.
 
-The terminal transition re-verifies cleanup, records Auth deletion, clears the
-claim, and sets the private job's `user_id` to `NULL`. The idempotent
-`pending_storage_deletions` outbox continues its separate R2 lifecycle.
+The terminal transition re-verifies cleanup and storage completion, records
+Auth deletion, clears the claim, and sets the private job's `user_id` to
+`NULL`. The completed storage receipt remains available for the terminal gate
+and operations audit.
 
 **`logStructuredError` alerting requirement**:
 `logStructuredError(event, details)` from `_shared/edgeHandler.ts` emits
 `JSON.stringify({ ...details, event, ts })` to `console.error`. These structured
 logs must be connected to a log drain (Logflare or Datadog) with alerts on
-`account_deletion_attempt_deferred` and
-`account_deletion_reconciliation_deferred`. Operators must also alert on
+`account_deletion_attempt_deferred`,
+`account_deletion_reconciliation_deferred`, and
+`account_storage_erasure_deferred`. Operators must also alert on
 overdue active rows or repeatedly increasing `attempt_count`; remediation is to
-repair the failing cleanup/Auth dependency and let the reaper resume the
-claim-fenced job, not to delete Auth manually.
+repair the failing cleanup/R2/Auth dependency and let the reaper resume the
+claim-fenced job, never to delete Auth manually.
 
 On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
 sign-out for the current device, tears down the local SQLite database via

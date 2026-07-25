@@ -10,6 +10,34 @@ const jsonResponse = (value: unknown) =>
     headers: { "content-type": "application/json" },
   });
 
+function enrichmentFixture(options: {
+  match: Record<string, unknown>;
+  wiki: Record<string, Record<string, unknown>>;
+}): typeof fetch {
+  return (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/species/match")) {
+      return Promise.resolve(jsonResponse(options.match));
+    }
+    if (url.pathname.endsWith("/occurrence/search")) {
+      return Promise.resolve(jsonResponse({ results: [] }));
+    }
+    if (url.pathname.endsWith("/vernacularNames")) {
+      return Promise.resolve(jsonResponse({ results: [] }));
+    }
+    const summaryPrefix = "/api/rest_v1/page/summary/";
+    if (url.pathname.startsWith(summaryPrefix)) {
+      const title = decodeURIComponent(url.pathname.slice(summaryPrefix.length))
+        .replaceAll("_", " ");
+      const fixture = options.wiki[title];
+      return Promise.resolve(
+        fixture ? jsonResponse(fixture) : new Response(null, { status: 404 }),
+      );
+    }
+    return Promise.resolve(new Response(null, { status: 404 }));
+  };
+}
+
 Deno.test("fetchExternalEnrichment suppresses denied media and promotes the next result", async () => {
   const blocked =
     "https://inaturalist-open-data.s3.amazonaws.com/photos/605615444/medium.jpg?size=500";
@@ -56,7 +84,35 @@ Deno.test("fetchExternalEnrichment suppresses denied media and promotes the next
 });
 
 Deno.test("fetchExternalEnrichment resolves disambiguation for Rosa to standard description", async () => {
-  const result = await fetchExternalEnrichment("Rosa");
+  const result = await fetchExternalEnrichment(
+    "Rosa",
+    enrichmentFixture({
+      match: {
+        usageKey: 7462843,
+        rank: "GENUS",
+        kingdom: "Plantae",
+      },
+      wiki: {
+        Rosa: {
+          title: "Rosa",
+          type: "disambiguation",
+          extract: "Rosa may refer to several topics.",
+          content_urls: {
+            desktop: { page: "https://en.wikipedia.org/wiki/Rosa" },
+          },
+        },
+        "Rosa (plant)": {
+          title: "Rose",
+          type: "standard",
+          extract:
+            "A rose is a woody perennial flowering plant of the genus Rosa.",
+          content_urls: {
+            desktop: { page: "https://en.wikipedia.org/wiki/Rose" },
+          },
+        },
+      },
+    }),
+  );
 
   assertNotEquals(result.wikipediaUrl, null);
   assertNotEquals(result.wikiExtract, null);
@@ -74,7 +130,27 @@ Deno.test("fetchExternalEnrichment resolves disambiguation for Rosa to standard 
 });
 
 Deno.test("fetchExternalEnrichment resolves standard non-disambiguation species correctly", async () => {
-  const result = await fetchExternalEnrichment("Panthera leo");
+  const result = await fetchExternalEnrichment(
+    "Panthera leo",
+    enrichmentFixture({
+      match: {
+        usageKey: 5219404,
+        rank: "SPECIES",
+        kingdom: "Animalia",
+        class: "Mammalia",
+      },
+      wiki: {
+        "Panthera leo": {
+          title: "Lion",
+          type: "standard",
+          extract: "The lion is a large cat of the genus Panthera.",
+          content_urls: {
+            desktop: { page: "https://en.wikipedia.org/wiki/Lion" },
+          },
+        },
+      },
+    }),
+  );
 
   assertNotEquals(result.wikipediaUrl, null);
   assertNotEquals(result.wikiExtract, null);

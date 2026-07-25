@@ -25,7 +25,10 @@ Deno.test("timingSafeCompare — single character difference returns false", () 
 Deno.test("timingSafeCompare — Bearer token format used in webhooks", () => {
   const secret = "my-webhook-secret-abc123";
   assertEquals(timingSafeCompare(`Bearer ${secret}`, `Bearer ${secret}`), true);
-  assertEquals(timingSafeCompare(`Bearer ${secret}`, `Bearer wrong-secret`), false);
+  assertEquals(
+    timingSafeCompare(`Bearer ${secret}`, `Bearer wrong-secret`),
+    false,
+  );
   assertEquals(timingSafeCompare(`Bearer ${secret}`, secret), false);
 });
 

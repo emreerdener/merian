@@ -143,7 +143,11 @@ Feed rows may include sanitized dog/cat scan metadata:
     "label": "Australian Cattle Dog mix",
     "label_type": "breed_mix",
     "confidence_score": 0.82,
-    "evidence": ["blue-roan ticking", "black saddle patch", "compact herding-dog build"]
+    "evidence": [
+      "blue-roan ticking",
+      "black saddle patch",
+      "compact herding-dog build"
+    ]
   }
 }
 ```

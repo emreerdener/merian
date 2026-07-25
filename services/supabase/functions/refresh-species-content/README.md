@@ -101,13 +101,12 @@ the `species_dictionary` insert trigger and sparse-row backfill that feed
 `gbif_wikipedia_reference` jobs into this worker and model-heavy jobs into
 `refresh-species-model-content`.
 
-Migration
-`20260719023147_suppress_european_wildcat_roadkill_image.sql` removes
+Migration `20260719023147_suppress_european_wildcat_roadkill_image.sql` removes
 iNaturalist media `605615444` from normalized and legacy caches, filters it from
 the public first/all-image SQL helpers, and adds a service-write trigger that
 silently discards future normalized rows for that exact media path. This is a
-database backstop for refresh or repair code; Edge filtering remains required
-so the denied URL is never sent to the write boundary.
+database backstop for refresh or repair code; Edge filtering remains required so
+the denied URL is never sent to the write boundary.
 
 ## Boundaries
 

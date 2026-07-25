@@ -32,7 +32,7 @@ Deno.test("safe-delete persists intent before cleanup and Auth deletion", async 
       },
       cleanup: () => {
         order.push("cleanup");
-        return Promise.resolve();
+        return Promise.resolve("auth_pending");
       },
       deleteAuth: () => {
         order.push("delete_auth");
@@ -86,7 +86,7 @@ Deno.test("Auth failure is deferred only after cleanup commits", async () => {
       claim: () => Promise.resolve([pendingClaim()]),
       cleanup: () => {
         order.push("cleanup");
-        return Promise.resolve();
+        return Promise.resolve("auth_pending");
       },
       deleteAuth: () => {
         order.push("delete_auth");
@@ -121,7 +121,7 @@ Deno.test("reclaimed auth_pending jobs revalidate cleanup before Auth", async ()
       claim: () => Promise.resolve([claim]),
       cleanup: () => {
         order.push("cleanup");
-        return Promise.resolve();
+        return Promise.resolve("auth_pending");
       },
       deleteAuth: () => {
         order.push("delete_auth");
@@ -145,7 +145,7 @@ Deno.test("lost completion response leaves a retryable Auth-safe job", async () 
     {},
     {
       claim: () => Promise.resolve([pendingClaim()]),
-      cleanup: () => Promise.resolve(),
+      cleanup: () => Promise.resolve("auth_pending"),
       deleteAuth: () => Promise.resolve({ succeeded: true }),
       finish: (_client, _claim, authDeleted) => {
         finishCalls.push(authDeleted);
@@ -181,6 +181,7 @@ Deno.test("safe-delete handler records the job before its fast-path worker", asy
           claimed: 1,
           completed: 1,
           deferred: 0,
+          waitingForStorage: 0,
           failures: [],
         });
       },
@@ -207,6 +208,7 @@ Deno.test("safe-delete returns accepted after durable retry scheduling", async (
           claimed: 1,
           completed: 0,
           deferred: 1,
+          waitingForStorage: 0,
           failures: [{
             jobId: pendingClaim().jobId,
             stage: "cleanup",
@@ -253,6 +255,7 @@ Deno.test("safe-delete does no destructive work if durable intake fails", async 
               claimed: 0,
               completed: 0,
               deferred: 0,
+              waitingForStorage: 0,
               failures: [],
             });
           },
@@ -262,4 +265,31 @@ Deno.test("safe-delete does no destructive work if durable intake fails", async 
     "intake failed",
   );
   assert(!processCalled);
+});
+
+Deno.test("storage_pending cleanup never removes the Auth identity", async () => {
+  let authCalled = false;
+  let finishCalled = false;
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => Promise.resolve("storage_pending"),
+      deleteAuth: () => {
+        authCalled = true;
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: () => {
+        finishCalled = true;
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(authCalled, false);
+  assertEquals(finishCalled, false);
+  assertEquals(result.waitingForStorage, 1);
+  assertEquals(result.completed, 0);
+  assertEquals(result.failures, []);
 });

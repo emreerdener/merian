@@ -50,6 +50,43 @@ Deno.test("authoritative active entitlement grants Pro independent of event type
     event({ type: "EXPIRATION" }),
   );
 
+  assertEquals(state, {
+    targetTier: "pro",
+    expiresAt: "2026-08-23T12:00:00.000Z",
+  });
+});
+
+Deno.test("recurring entitlement persists the later billing-grace deadline", () => {
+  const state = deriveRevenueCatEntitlementState(
+    customerInfo({
+      entitlements: {
+        pro: {
+          expires_date: "2026-07-24T12:00:00.000Z",
+          grace_period_expires_date: "2026-07-27T12:00:00.000Z",
+        },
+      },
+    }),
+    event(),
+  );
+
+  assertEquals(state, {
+    targetTier: "pro",
+    expiresAt: "2026-07-27T12:00:00.000Z",
+  });
+});
+
+Deno.test("null recurring expiration is reserved for lifetime access", () => {
+  const state = deriveRevenueCatEntitlementState(
+    customerInfo({
+      entitlements: {
+        "Naturalist Tier": {
+          expires_date: null,
+        },
+      },
+    }),
+    event(),
+  );
+
   assertEquals(state, { targetTier: "pro", expiresAt: null });
 });
 
@@ -161,6 +198,24 @@ Deno.test("future-dated pass transaction fails closed", () => {
       productId: SEVEN_DAY_PASS_PRODUCT_ID,
       transactionId: "future-pass",
     }),
+  );
+
+  assertEquals(state, { targetTier: "free", expiresAt: null });
+});
+
+Deno.test("periodic repair cannot restore a pass after a free watermark", () => {
+  const state = deriveRevenueCatEntitlementState(
+    customerInfo({
+      entitlements: {},
+      non_subscriptions: {
+        [SEVEN_DAY_PASS_PRODUCT_ID]: [{
+          id: "historical-refunded-pass",
+          purchase_date: "2026-07-20T12:00:00.000Z",
+        }],
+      },
+    }),
+    undefined,
+    false,
   );
 
   assertEquals(state, { targetTier: "free", expiresAt: null });

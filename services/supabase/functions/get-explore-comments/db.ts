@@ -14,7 +14,7 @@ export interface ExploreCommentRow {
   viewer_can_moderate: boolean;
   viewer_can_report: boolean;
   reply_count?: number;
-  reactions: any[] | null;
+  reactions: unknown[] | null;
 }
 
 interface ExploreCommentsCursor {

@@ -15,24 +15,36 @@ protocol deadline receive only `job_id` and cannot enter processing without a
 claim.
 
 The worker never trusts a caller-supplied user, scope, precision flag, key
-version, status, or object key. `claim_export_job(...)` locks the queue row,
-installs a private ten-minute lease and UUID fencing token, and returns the
-canonical immutable request fields. A duplicate delivery receives no claim and
-does no work. The worker renews its lease every minute; archive staging,
-completion, and failure all require the current unexpired token.
+version, status, budget, or object key. Public callers can queue personal
+exports only; a global export requires a separately reviewed internal
+administrative insertion. Every job pins immutable defaults of 5,000 aggregate
+CSV rows and an 8 MiB final archive (schema hard maxima: 20,000 rows and 16
+MiB).
 
-After authentication and bounded parsing, the route registers processing with
-`EdgeRuntime.waitUntil` and returns `202 accepted` to `pg_net`. This avoids
-coupling the database webhook socket timeout to archive duration. Background
-work still remains subject to the Supabase Edge wall-clock and CPU budgets.
+`claim_export_job_step(...)` locks the canonical queue and work rows, installs a
+private two-minute UUID lease, and returns one current phase plus its keyset
+cursor and accumulated budgets. A duplicate delivery receives no claim and does
+no work. Every invocation performs exactly one bounded durable step and returns
+synchronously. A one-minute cron keeps advancing due work; no single `waitUntil`
+workload owns the complete export.
 
 ## Bounded archive pipeline
 
-- `db.ts` reads 200 scans at a time with an `id > last_id` keyset. Personal and
-  global scans use matching partial indexes. Occurrence pages omit media arrays;
-  multimedia pages omit taxonomy and coordinate fields.
-- `archive.ts` emits occurrence CSV, multimedia CSV, and `meta.xml` lazily. CSV
-  buffers are bounded and no complete result set or CSV is retained.
+- `db.ts` reads at most 100 scans at a time with an `id > last_id` keyset.
+  Tombstones are excluded. Personal and global scans use matching partial
+  indexes. Occurrence pages omit media arrays; multimedia pages omit taxonomy
+  and coordinate fields.
+- `archive.ts` encodes one occurrence or multimedia page into a work chunk no
+  larger than 512 KiB. `advance_export_job_step(...)` commits the strictly
+  increasing cursor, aggregate row/byte counters, and chunk manifest before
+  releasing that step's claim.
+- Temporary chunks use
+  `exports/{user}/{job}/work/{phase}/{sequence}-{claim_token}.csv`. The claim
+  token prevents a lease-expired PUT from overwriting a replacement worker's
+  manifest-selected bytes.
+- Once both keyset passes finish, one assembly step streams only the durable
+  manifest into `meta.xml`, occurrence CSV, multimedia CSV, and the final ZIP.
+  Exact R2 GET byte counts must match the manifest.
 - `zip.ts` writes a standards-compliant ZIP32 `STORE` stream with data
   descriptors and incremental CRC-32 values. It does not construct a JSZip
   object or buffer the archive.
@@ -45,11 +57,10 @@ work still remains subject to the Supabase Edge wall-clock and CPU budgets.
   deadline; Resend delivery has a 15-second deadline.
 
 The archive contains observation metadata and media URLs, not copied image
-bytes. ZIP32 rejects output beyond its 4 GiB format boundary with the stable
-`export_too_large` failure code. Streaming bounds heap use; it does not remove
-Supabase Edge wall-clock or CPU limits. A future workload that routinely
-approaches those runtime limits belongs on a durable non-Edge worker using the
-same database lease contract.
+bytes. The worker enforces the canonical budget before every work-chunk PUT and
+again while uploading the final archive. Exceeding it produces stable terminal
+`export_too_large`. Streaming bounds heap use; the small phased claims bound
+each Edge invocation's database, encoding, and provider work.
 
 ## Retry and delivery semantics
 
@@ -59,11 +70,13 @@ An upload uses an attempt-fenced key:
 exports/{user_id}/{job_id}/{claim_token}.zip
 ```
 
-A delayed worker therefore cannot overwrite a newer attempt's object. Once the
-winning worker stages its object key and signed URL transactionally, a later
-lease holder reuses them instead of regenerating the archive. Email delivery
-uses Resend's `Idempotency-Key: dwca-export/{job_id}`. The archive is marked
-complete only after Resend accepts that idempotent request.
+A delayed assembly worker therefore cannot overwrite a newer attempt's final
+object, and claim-fenced work-chunk names provide the same property during CSV
+preparation. Once the winning assembly step stages its object key and signed URL
+transactionally, a later delivery step reuses them instead of regenerating the
+archive. Email delivery uses Resend's `Idempotency-Key: dwca-export/{job_id}`.
+The archive is marked complete only after Resend accepts that idempotent
+request.
 
 Generation, storage, and permanent delivery failures become public-safe database
 failure codes and fixed messages when the worker still owns the fence, allowing
@@ -109,11 +122,12 @@ old versions until every job pinned to them is terminal and past retention.
 
 ## Tests
 
-Focused Deno tests cover keyset progression, ZIP compatibility, bounded
-multipart upload/abort/provider responses, embedded HTTP-200 completion errors,
-pseudonym key failure/rotation, Resend idempotency, canonical claims, staged
-retry reuse, and stale-worker fencing. Static contracts lock the migration and
-production-source boundaries. The executable database test also proves the
-finite rollout deadline and post-deadline claim requirement; it lives at
-`services/supabase/tests/export_dwca_security.sql` and is checked by the
-repository-wide privileged-routine catalog validator.
+Focused Deno tests cover keyset progression, row/archive budgets, phased
+progress, claim-fenced work chunks, exact manifest reads, ZIP compatibility,
+bounded multipart upload/abort/provider responses, embedded HTTP-200 completion
+errors, pseudonym key failure/rotation, Resend idempotency, canonical claims,
+staged retry reuse, and stale-worker fencing. Static contracts lock the
+migration and production-source boundaries. The executable database test also
+proves the finite rollout deadline, post-deadline claim requirement, and phased
+state contract; it lives at `services/supabase/tests/export_dwca_security.sql`
+and is checked by the repository-wide privileged-routine catalog validator.

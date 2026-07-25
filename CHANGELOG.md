@@ -33,7 +33,10 @@ TestFlight, App Store, support, and QA.
   checks authoritative subscriber state, and ignores duplicate or delayed
   events that could otherwise roll a newer renewal or refund backward.
   RevenueCat account transfers now reconcile both the source and destination
-  atomically instead of relying on a follow-up lifecycle event.
+  atomically instead of relying on a follow-up lifecycle event. Recurring and
+  grace-period expirations are now durable, and a scheduled authoritative
+  subscriber sweep repairs a missed webhook without restoring refunded pass
+  history.
 - Hardened every server JSON endpoint against oversized or malformed streamed
   bodies and replaced internal exception details with stable request-correlated
   errors. The public beta waitlist now requires a verified security challenge,
@@ -41,7 +44,10 @@ TestFlight, App Store, support, and QA.
   network addresses out of storage and logs.
 - Made scientific exports safe to retry and bounded in memory. Duplicate workers
   now compete for one database lease, stale attempts cannot publish over the
-  winner, scan rows are keyset-paged into a streaming R2 multipart archive,
+  winner, and scan rows advance through short cursor-persisted CSV, assembly,
+  and delivery phases instead of one long Edge invocation. Personal requests
+  have canonical row/archive budgets; global exports are internal-only.
+  Claim-token-fenced temporary chunks feed a streaming R2 multipart archive,
   provider replies are byte-capped, HTTP-200 multipart error documents are
   rejected, abandoned multipart sessions have an explicit seven-day lifecycle
   abort, rollout compatibility expires to a finite job cohort, raw rollout-era
@@ -51,12 +57,24 @@ TestFlight, App Store, support, and QA.
   salt.
 - Made account deletion durable and recoverable. Naturebook now records the
   deletion request before anonymizing account data, verifies that cleanup, and
-  removes sign-in access only as the final step. Interrupted attempts are
+  cursor-sweeps durable uploads, staging data, avatars, and exports. A delayed
+  empty verification sweep must finish before sign-in access is removed as the
+  final step. Interrupted attempts are
   resumed automatically instead of leaving an inaccessible account with
   personal profile data still present. Retained scientific observations now
   become ownerless tombstones with exact location and free-form notes removed,
   rather than relying on a synthetic login/profile identity. Delayed ingestion
   replay treats those tombstones as terminal and cannot invoke AI for them.
+- Fixed offline retry/result callbacks that could pass their in-memory token
+  checks and still overwrite a newer SwiftData generation. Queue claims now
+  persist their UUID atomically, and retries, cancellation, result saves, and
+  deletion compare that durable owner under one per-scan coordinator.
+- Hardened the public web boundary with the patched exact Next.js release,
+  per-request nonce CSP, explicit browser security headers, and a
+  `server-only` service-role client separated from anonymous projection reads.
+- Hardened production workflows with immutable action commit pins, explicit
+  read-only permissions, step-scoped secrets, whole-tree formatting/lint, and
+  the complete recursive Edge test suite against the disposable database.
 
 ### Species Dictionary
 

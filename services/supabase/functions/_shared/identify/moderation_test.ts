@@ -34,13 +34,15 @@ Deno.test("promoteSafeMedia rolls back already promoted staging images when a la
           r2Config: makeR2Config(),
         },
         {
-          copyObject: async (sourceKey) =>
-            new Response(null, {
-              status: sourceKey.endsWith("first.webp") ? 200 : 500,
-            }),
-          deleteObject: async (key) => {
+          copyObject: (sourceKey) =>
+            Promise.resolve(
+              new Response(null, {
+                status: sourceKey.endsWith("first.webp") ? 200 : 500,
+              }),
+            ),
+          deleteObject: (key) => {
             deletedKeys.push(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           },
         },
       ),
@@ -72,16 +74,18 @@ Deno.test("promoteSafeMedia rolls back already uploaded base64 images when a lat
           r2Config: makeR2Config(),
         },
         {
-          fetchImpl: async () => {
+          fetchImpl: () => {
             uploadCount += 1;
             if (uploadCount === 1) {
-              return new Response(null, { status: 200 });
+              return Promise.resolve(new Response(null, { status: 200 }));
             }
-            return new Response(null, { status: 500, statusText: "boom" });
+            return Promise.resolve(
+              new Response(null, { status: 500, statusText: "boom" }),
+            );
           },
-          deleteObject: async (key) => {
+          deleteObject: (key) => {
             deletedKeys.push(key);
-            return new Response(null, { status: 204 });
+            return Promise.resolve(new Response(null, { status: 204 }));
           },
         },
       ),
@@ -109,10 +113,10 @@ Deno.test("promoteSafeMedia returns public URLs for a successful staging promoti
       r2Config: makeR2Config(),
     },
     {
-      copyObject: async () => new Response(null, { status: 200 }),
-      deleteObject: async (key) => {
+      copyObject: () => Promise.resolve(new Response(null, { status: 200 })),
+      deleteObject: (key) => {
         deletedKeys.push(key);
-        return new Response(null, { status: 204 });
+        return Promise.resolve(new Response(null, { status: 204 }));
       },
     },
   );

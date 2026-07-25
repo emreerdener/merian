@@ -5,7 +5,10 @@
 //
 // All logic is inline-stubbed — no live Supabase client required.
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  assertEquals,
+  assertExists,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Inline stubs: types
@@ -35,8 +38,12 @@ interface CachedSpeciesData {
 interface EncyclopedicData {
   habitat_description: string;
   taxonomy: {
-    kingdom: string; phylum: string; class: string;
-    order: string; family: string; genus: string;
+    kingdom: string;
+    phylum: string;
+    class: string;
+    order: string;
+    family: string;
+    genus: string;
   };
   usage?: { totalTokenCount: number };
 }
@@ -51,18 +58,23 @@ function formatEnrichmentOnlyPayload(
 ) {
   return {
     scope: "enrichment" as const,
-    habitat_description:
-      enrichmentResult?.habitat_description ??
+    habitat_description: enrichmentResult?.habitat_description ??
       cachedSpecies?.habitat_description ??
       "No habitat data available.",
     gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
     taxonomy: {
-      kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ?? "Unknown",
-      phylum: enrichmentResult?.taxonomy?.phylum ?? cachedSpecies?.phylum ?? "Unknown",
-      class: enrichmentResult?.taxonomy?.class ?? cachedSpecies?.class ?? "Unknown",
-      order: enrichmentResult?.taxonomy?.order ?? cachedSpecies?.order ?? "Unknown",
-      family: enrichmentResult?.taxonomy?.family ?? cachedSpecies?.family ?? "Unknown",
-      genus: enrichmentResult?.taxonomy?.genus ?? cachedSpecies?.genus ?? "Unknown",
+      kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ??
+        "Unknown",
+      phylum: enrichmentResult?.taxonomy?.phylum ?? cachedSpecies?.phylum ??
+        "Unknown",
+      class: enrichmentResult?.taxonomy?.class ?? cachedSpecies?.class ??
+        "Unknown",
+      order: enrichmentResult?.taxonomy?.order ?? cachedSpecies?.order ??
+        "Unknown",
+      family: enrichmentResult?.taxonomy?.family ?? cachedSpecies?.family ??
+        "Unknown",
+      genus: enrichmentResult?.taxonomy?.genus ?? cachedSpecies?.genus ??
+        "Unknown",
     },
   };
 }
@@ -71,15 +83,14 @@ function formatLookalikesOnlyPayload(
   cachedSpecies: CachedSpeciesData | null,
   lookalikes: LookalikeSummary[],
 ) {
-  const resolvedLookalikes: LookalikeSummary[] =
-    lookalikes.length > 0
-      ? lookalikes
-      : (cachedSpecies?.similar_species ?? []).map((name) => ({
-          scientific_name: name,
-          common_name: null,
-          reference_image_url: null,
-          iucn_red_list_status: null,
-        }));
+  const resolvedLookalikes: LookalikeSummary[] = lookalikes.length > 0
+    ? lookalikes
+    : (cachedSpecies?.similar_species ?? []).map((name) => ({
+      scientific_name: name,
+      common_name: null,
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    }));
   return {
     scope: "lookalikes" as const,
     similar_species: resolvedLookalikes.length > 0 ? resolvedLookalikes : null,
@@ -95,19 +106,15 @@ function hasEnrichment(cachedSpecies: CachedSpeciesData | null): boolean {
     cachedSpecies?.habitat_description !== undefined;
 }
 
-function hasLookalikes(
-  lookalikes: LookalikeSummary[],
-  flashAttempted: boolean,
-): boolean {
-  return lookalikes.some((l) => l.common_name !== null) || flashAttempted;
-}
-
 // Mirrors the lookalikes_flash_attempted write guard in index.ts:
 //   if (resolveResult.persisted && lookalikes.length > 0) { ... }
 // Both conditions must be true: the join table must have been written (persisted)
 // AND lookalikes must be non-empty. A null-kingdom early-exit sets persisted=false,
 // which must NOT lock the flag even when Flash returned non-empty lookalikes.
-function shouldSetFlashAttempted(persisted: boolean, lookalikes: LookalikeSummary[]): boolean {
+function shouldSetFlashAttempted(
+  persisted: boolean,
+  lookalikes: LookalikeSummary[],
+): boolean {
   return persisted && lookalikes.length > 0;
 }
 
@@ -120,7 +127,12 @@ Deno.test("enrichment scope — payload contains scope, habitat, gbif_taxon_key,
     id: "abc",
     gbif_taxon_key: 12345,
     habitat_description: "Temperate forests",
-    kingdom: "Plantae", phylum: "T", class: "T", order: "T", family: "T", genus: "Dahlia",
+    kingdom: "Plantae",
+    phylum: "T",
+    class: "T",
+    order: "T",
+    family: "T",
+    genus: "Dahlia",
     similar_species: null,
     lookalikes_flash_attempted: false,
   };
@@ -130,18 +142,36 @@ Deno.test("enrichment scope — payload contains scope, habitat, gbif_taxon_key,
   assertExists(payload.habitat_description);
   assertExists(payload.gbif_taxon_key);
   assertExists(payload.taxonomy);
-  assertEquals((payload as Record<string, unknown>)["similar_species"], undefined);
+  assertEquals(
+    (payload as Record<string, unknown>)["similar_species"],
+    undefined,
+  );
 });
 
 Deno.test("enrichment scope — Flash result takes priority over cached habitat", () => {
   const cached: CachedSpeciesData = {
-    id: "abc", gbif_taxon_key: null, habitat_description: "Old cached habitat",
-    kingdom: null, phylum: null, class: null, order: null, family: null, genus: null,
-    similar_species: null, lookalikes_flash_attempted: false,
+    id: "abc",
+    gbif_taxon_key: null,
+    habitat_description: "Old cached habitat",
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
+    similar_species: null,
+    lookalikes_flash_attempted: false,
   };
   const enrichment: EncyclopedicData = {
     habitat_description: "Fresh Flash habitat",
-    taxonomy: { kingdom: "Plantae", phylum: "P", class: "C", order: "O", family: "F", genus: "G" },
+    taxonomy: {
+      kingdom: "Plantae",
+      phylum: "P",
+      class: "C",
+      order: "O",
+      family: "F",
+      genus: "G",
+    },
   };
   const payload = formatEnrichmentOnlyPayload(cached, enrichment);
   assertEquals(payload.habitat_description, "Fresh Flash habitat");
@@ -155,9 +185,17 @@ Deno.test("enrichment scope — fallback to 'No habitat data available.' when bo
 
 Deno.test("enrichment scope — taxonomy falls back to cached values when enrichment is null", () => {
   const cached: CachedSpeciesData = {
-    id: "abc", gbif_taxon_key: null, habitat_description: "Forest",
-    kingdom: "Plantae", phylum: "P", class: "C", order: "O", family: "F", genus: "Dahlia",
-    similar_species: null, lookalikes_flash_attempted: false,
+    id: "abc",
+    gbif_taxon_key: null,
+    habitat_description: "Forest",
+    kingdom: "Plantae",
+    phylum: "P",
+    class: "C",
+    order: "O",
+    family: "F",
+    genus: "Dahlia",
+    similar_species: null,
+    lookalikes_flash_attempted: false,
   };
   const payload = formatEnrichmentOnlyPayload(cached, null);
   assertEquals(payload.taxonomy.kingdom, "Plantae");
@@ -170,13 +208,21 @@ Deno.test("enrichment scope — taxonomy falls back to cached values when enrich
 
 Deno.test("lookalikes scope — payload contains scope and similar_species; NO habitat/taxonomy/gbif", () => {
   const lookalikes: LookalikeSummary[] = [
-    { scientific_name: "Dahlia coccinea", common_name: "Scarlet Dahlia", reference_image_url: null, iucn_red_list_status: null },
+    {
+      scientific_name: "Dahlia coccinea",
+      common_name: "Scarlet Dahlia",
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    },
   ];
   const payload = formatLookalikesOnlyPayload(null, lookalikes);
 
   assertEquals(payload.scope, "lookalikes");
   assertExists(payload.similar_species);
-  assertEquals((payload as Record<string, unknown>)["habitat_description"], undefined);
+  assertEquals(
+    (payload as Record<string, unknown>)["habitat_description"],
+    undefined,
+  );
   assertEquals((payload as Record<string, unknown>)["taxonomy"], undefined);
 });
 
@@ -187,26 +233,49 @@ Deno.test("lookalikes scope — returns null similar_species when join table is 
 
 Deno.test("lookalikes scope — falls back to TEXT[] names when join table is empty", () => {
   const cached: CachedSpeciesData = {
-    id: "abc", gbif_taxon_key: null, habitat_description: null,
-    kingdom: null, phylum: null, class: null, order: null, family: null, genus: null,
+    id: "abc",
+    gbif_taxon_key: null,
+    habitat_description: null,
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
     similar_species: ["Dahlia coccinea", "Dahlia imperialis"],
     lookalikes_flash_attempted: false,
   };
   const payload = formatLookalikesOnlyPayload(cached, []);
   assertEquals(payload.similar_species?.length, 2);
   assertEquals(payload.similar_species?.[0].scientific_name, "Dahlia coccinea");
-  assertEquals(payload.similar_species?.[0].common_name, null, "TEXT[] fallback has null common_name");
+  assertEquals(
+    payload.similar_species?.[0].common_name,
+    null,
+    "TEXT[] fallback has null common_name",
+  );
 });
 
 Deno.test("lookalikes scope — join table entries take priority over TEXT[] fallback", () => {
   const cached: CachedSpeciesData = {
-    id: "abc", gbif_taxon_key: null, habitat_description: null,
-    kingdom: null, phylum: null, class: null, order: null, family: null, genus: null,
+    id: "abc",
+    gbif_taxon_key: null,
+    habitat_description: null,
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
     similar_species: ["Old species"],
     lookalikes_flash_attempted: false,
   };
   const joinTableEntries: LookalikeSummary[] = [
-    { scientific_name: "Dahlia coccinea", common_name: "Scarlet Dahlia", reference_image_url: "https://img", iucn_red_list_status: null },
+    {
+      scientific_name: "Dahlia coccinea",
+      common_name: "Scarlet Dahlia",
+      reference_image_url: "https://img",
+      iucn_red_list_status: null,
+    },
   ];
   const payload = formatLookalikesOnlyPayload(cached, joinTableEntries);
   assertEquals(payload.similar_species?.length, 1);
@@ -220,18 +289,34 @@ Deno.test("lookalikes scope — join table entries take priority over TEXT[] fal
 
 Deno.test("enrichment cache hit — fires when habitat_description is present", () => {
   const cached: CachedSpeciesData = {
-    id: "abc", gbif_taxon_key: 1, habitat_description: "Forests",
-    kingdom: null, phylum: null, class: null, order: null, family: null, genus: null,
-    similar_species: null, lookalikes_flash_attempted: false,
+    id: "abc",
+    gbif_taxon_key: 1,
+    habitat_description: "Forests",
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
+    similar_species: null,
+    lookalikes_flash_attempted: false,
   };
   assertEquals(hasEnrichment(cached), true);
 });
 
 Deno.test("enrichment cache miss — fires when habitat_description is null", () => {
   const cached: CachedSpeciesData = {
-    id: "abc", gbif_taxon_key: null, habitat_description: null,
-    kingdom: null, phylum: null, class: null, order: null, family: null, genus: null,
-    similar_species: null, lookalikes_flash_attempted: false,
+    id: "abc",
+    gbif_taxon_key: null,
+    habitat_description: null,
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
+    similar_species: null,
+    lookalikes_flash_attempted: false,
   };
   assertEquals(hasEnrichment(cached), false);
 });
@@ -256,7 +341,12 @@ Deno.test("flash_attempted guard — NOT set when Flash returns empty array (per
 
 Deno.test("flash_attempted guard — set when join table was written and lookalikes are non-empty", () => {
   const lookalikes: LookalikeSummary[] = [
-    { scientific_name: "Dahlia coccinea", common_name: "Scarlet Dahlia", reference_image_url: null, iucn_red_list_status: null },
+    {
+      scientific_name: "Dahlia coccinea",
+      common_name: "Scarlet Dahlia",
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    },
   ];
   assertEquals(shouldSetFlashAttempted(true, lookalikes), true);
 });
@@ -265,8 +355,18 @@ Deno.test("flash_attempted guard — set when lookalikes resolved but all common
   // Flash produced entries (species exist in dictionary) but none have a known English name.
   // The flag should still be set to prevent infinite re-calls.
   const lookalikes: LookalikeSummary[] = [
-    { scientific_name: "Rare taxon A", common_name: null, reference_image_url: null, iucn_red_list_status: null },
-    { scientific_name: "Rare taxon B", common_name: null, reference_image_url: null, iucn_red_list_status: null },
+    {
+      scientific_name: "Rare taxon A",
+      common_name: null,
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    },
+    {
+      scientific_name: "Rare taxon B",
+      common_name: null,
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    },
   ];
   assertEquals(shouldSetFlashAttempted(true, lookalikes), true);
 });
@@ -276,7 +376,12 @@ Deno.test("flash_attempted guard — NOT set when persisted=false even with non-
   // the join table write is skipped entirely. The flag must NOT lock in this state
   // or the species can never be enriched once kingdom propagates via replication.
   const lookalikes: LookalikeSummary[] = [
-    { scientific_name: "Some species", common_name: "Some Name", reference_image_url: null, iucn_red_list_status: null },
+    {
+      scientific_name: "Some species",
+      common_name: "Some Name",
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    },
   ];
   assertEquals(shouldSetFlashAttempted(false, lookalikes), false);
 });
@@ -286,8 +391,14 @@ Deno.test("flash_attempted guard — NOT set when persisted=false even with non-
 // ---------------------------------------------------------------------------
 
 Deno.test("enrichment and lookalikes payloads are disjoint field sets", () => {
-  const enrichPayload = formatEnrichmentOnlyPayload(null, null) as Record<string, unknown>;
-  const lookalikesPayload = formatLookalikesOnlyPayload(null, []) as Record<string, unknown>;
+  const enrichPayload = formatEnrichmentOnlyPayload(null, null) as Record<
+    string,
+    unknown
+  >;
+  const lookalikesPayload = formatLookalikesOnlyPayload(null, []) as Record<
+    string,
+    unknown
+  >;
 
   // enrichment-only fields
   assertExists(enrichPayload["habitat_description"]);

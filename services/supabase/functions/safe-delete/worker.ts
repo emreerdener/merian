@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   type AccountDeletionClaim,
+  type AccountDeletionCleanupPhase,
   claimAccountDeletionJobs,
   completeAccountDeletionCleanup,
   deleteAuthProfile,
@@ -14,6 +15,7 @@ export type AccountDeletionWorkerResult = {
   claimed: number;
   completed: number;
   deferred: number;
+  waitingForStorage: number;
   failures: Array<{
     jobId: string;
     stage: "cleanup" | "auth" | "completion";
@@ -30,7 +32,7 @@ export type AccountDeletionWorkerDependencies = {
   cleanup?: (
     supabaseAdmin: SupabaseClient,
     claim: AccountDeletionClaim,
-  ) => Promise<void>;
+  ) => Promise<AccountDeletionCleanupPhase>;
   deleteAuth?: (
     userId: string,
     supabaseAdmin: SupabaseClient,
@@ -70,6 +72,7 @@ export async function processAccountDeletionJobs(
     claimed: claims.length,
     completed: 0,
     deferred: 0,
+    waitingForStorage: 0,
     failures: [],
   };
 
@@ -82,7 +85,11 @@ export async function processAccountDeletionJobs(
       // and removes any state written by an older rollout worker. Relational
       // completion means retained scans are ownerless tombstones; it never
       // depends on a synthetic public or Auth user.
-      await cleanup(supabaseAdmin, claim);
+      const cleanupPhase = await cleanup(supabaseAdmin, claim);
+      if (cleanupPhase === "storage_pending") {
+        result.waitingForStorage += 1;
+        continue;
+      }
 
       stage = "auth";
       const authResult = await deleteAuth(claim.userId, supabaseAdmin);

@@ -11,7 +11,10 @@ export type SafeDeleteHandlerDependencies = {
     userId: string,
     supabaseAdmin: SupabaseClient,
   ) => Promise<
-    { jobId: string; status: "pending" | "auth_pending" | "completed" }
+    {
+      jobId: string;
+      status: "pending" | "storage_pending" | "auth_pending" | "completed";
+    }
   >;
   process?: (
     supabaseAdmin: SupabaseClient,

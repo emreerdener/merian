@@ -39,7 +39,9 @@ Web runtime config:
 - `NEXT_PUBLIC_SUPPORT_EMAIL` should be `support@naturebook.earth` in
   production.
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never expose it through a
-  `NEXT_PUBLIC_` variable or client component.
+  `NEXT_PUBLIC_` variable or client component. Its only web owner is
+  `apps/web/lib/supabaseAdmin.ts`, guarded by `server-only`;
+  `supabasePublic.ts` contains the anonymous projection client.
 
 ## Public Brand and Compatibility
 
@@ -185,7 +187,8 @@ the native iOS source tree.
 | Public beta waitlist | `apps/web/app/api/waitlist/route.ts`, `apps/web/components/WaitlistForm.tsx`, `apps/web/lib/boundedJson.ts`, `apps/web/lib/waitlistSecurity.ts` | 4 KiB streamed JSON boundary, conservative email normalization, explicit Turnstile widget/Siteverify flow, trusted-proxy daily IP HMAC, distributed pre-provider rate claim, stable request IDs, and service-only atomic database insertion. |
 | Policy/support pages       | `apps/web/app/privacy/`, `apps/web/app/privacy-choices/`, `apps/web/app/terms/`, `apps/web/app/guidelines/`, `apps/web/app/support/`, `apps/web/app/legal/`                                 | App Store-friendly public policy, data-choice, community, support, and legal hub pages.                                |
 | Legal/public components    | `apps/web/components/PublicPageShell.tsx`, `apps/web/components/LegalPage.tsx`, `apps/web/components/ThemePreferenceBridge.tsx`, `apps/web/lib/site.ts`, `apps/web/lib/theme-preference.ts` | Shared public page chrome, legal document layout, iOS-to-Mantine theme preference sync, support email/site URL config. |
-| Supabase access            | `apps/web/lib/supabase.ts`, `apps/web/lib/explore.ts`, `apps/web/lib/species.ts`                                                                                                            | Server-only Supabase creation plus strict public Explore RPC and Species Dictionary Edge projection mapping.           |
+| Supabase access            | `apps/web/lib/supabaseAdmin.ts`, `apps/web/lib/supabasePublic.ts`, `apps/web/lib/explore.ts`, `apps/web/lib/species.ts`                                                                      | Explicit `server-only` service-role client separated from the anonymous public projection client, plus strict Explore RPC and Species Dictionary mapping. |
+| Web response security     | `apps/web/proxy.ts`, `apps/web/app/layout.tsx`, `apps/web/lib/securityHeaders.ts`                                                                                                           | Per-request nonce CSP, nonce-bound bootstrap script, production HSTS, and explicit browser defense headers. |
 | Universal Links           | `apps/web/app/apple-app-site-association/route.ts`, `apps/web/lib/appleAppSiteAssociation.ts`, `apps/web/lib/canonicalHost.ts`, `apps/web/proxy.ts`                                         | Exact Explore/species AASA paths, direct legacy-host AASA exception, and canonical alias redirects.                    |
 | Formatting helpers         | `apps/web/lib/formatting.ts`                                                                                                                                                                | Shared Naturebook web copy and URL formatting.                                                                         |
 | Local setup and CI         | `apps/web/README.md`, `apps/web/.env.example`, `apps/web/package.json`, `.github/workflows/web-quality.yml`                                                                                | Web setup, waitlist secret/ingress contract, npm scripts, dependency manifest, tests, typecheck, and production build. |
@@ -347,27 +350,35 @@ Data lifecycle, identity, and exports:
 - `reconcile-ghost-profile-merges` — scheduled service-role worker that leases
   committed merge receipts and retries obsolete anonymous Auth deletion.
 - `safe-delete` — authenticated intake plus immediate processing for the
-  durable `pending → auth_pending → completed` account-erasure state machine;
-  retained scans become personal-data-cleared ownerless tombstones, and cleanup
-  is committed and verified before Auth deletion.
+  durable `pending → storage_pending → auth_pending → completed`
+  account-erasure state machine; retained scans become
+  personal-data-cleared ownerless tombstones, all canonical R2 prefixes receive
+  a cursor-persisted sweep and delayed empty verification pass, and only then
+  may Auth be deleted.
 - `reconcile-account-deletions` — scheduled service-role worker that leases and
-  resumes incomplete account deletion jobs without accepting caller-selected
-  user IDs.
+  resumes incomplete relational, storage, and Auth deletion work without
+  accepting caller-selected user IDs.
 - `delete-scan`
 - `flag-issue` — disputed-identification review only; writes `flagged_reviews`
   and marks the scan for review
 - `submit-feedback-survey`
-- `request-export-dwca`
-- `export-dwca` — service-authenticated leased worker; `db.ts` owns canonical
-  claim/keyset access, `archive.ts` and `zip.ts` own bounded streaming,
-  `storage.ts` owns R2 multipart upload, `pseudonym.ts` owns versioned export
-  HMACs, and `worker.ts` owns retry/idempotent delivery orchestration.
+- `request-export-dwca` — permanent-account boundary for personal exports;
+  global exports are internal-only.
+- `export-dwca` — service-authenticated resumable worker; `db.ts` owns
+  canonical phase claims, 100-row keyset access, durable cursors/manifests, and
+  row/byte budgets; `archive.ts` and `zip.ts` own bounded streaming;
+  `storage.ts` owns claim-fenced CSV chunks and R2 multipart upload;
+  `pseudonym.ts` owns versioned export HMACs; and `worker.ts` performs one
+  preparation, assembly, or delivery phase per invocation.
 - `revenuecat-webhook` — verifies the configured bearer credential and
   RevenueCat raw-body HMAC, parses bounded event identities, fetches
   authoritative CustomerInfo, and commits idempotent per-user state through
   service-only database RPCs. Route-local `handler.ts`, `protocol.ts`,
   `signature.ts`, `subscriber.ts`, and `db.ts` keep those boundaries
   independently testable.
+- `reconcile-revenuecat-subscribers` — scheduled service-role repair worker
+  that leases a durable queue and applies newer authoritative CustomerInfo
+  snapshots when webhook delivery is missed.
 - `get-filtered-discovery-feed`
 
 Scheduled/background workers:

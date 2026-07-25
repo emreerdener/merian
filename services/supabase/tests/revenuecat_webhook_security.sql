@@ -21,6 +21,8 @@ DECLARE
     stored_tier public.subscription_tier_enum;
     stored_expiry TIMESTAMPTZ;
     stored_version BIGINT;
+    reconciliation_claim RECORD;
+    reconciliation_applied BOOLEAN;
 BEGIN
     IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
@@ -68,6 +70,38 @@ BEGIN
         'INSERT'
     ) THEN
         RAISE EXCEPTION 'RevenueCat internals are directly exposed';
+    END IF;
+
+    IF pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.revenuecat_reconciliation_queue',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.revenuecat_reconciliation_queue',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.revenuecat_reconciliation_queue',
+        'SELECT'
+    ) THEN
+        RAISE EXCEPTION 'RevenueCat reconciliation queue is directly exposed';
+    END IF;
+
+    IF NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.claim_revenuecat_reconciliations(integer)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.claim_revenuecat_reconciliations(integer)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.apply_revenuecat_reconciliation(uuid,uuid,bigint,text,timestamp with time zone)',
+        'EXECUTE'
+    ) THEN
+        RAISE EXCEPTION 'RevenueCat reconciliation RPC has an unsafe ACL';
     END IF;
 
     INSERT INTO auth.users (
@@ -236,9 +270,10 @@ BEGIN
         )
     );
 
-    IF stale_transition.outcome <> 'stale'
-       OR stale_transition.stale_count <> 1 THEN
-        RAISE EXCEPTION 'older event advanced despite a newer event watermark';
+    IF stale_transition.outcome <> 'applied'
+       OR stale_transition.applied_count <> 1 THEN
+        RAISE EXCEPTION
+            'newer authoritative snapshot was discarded by older event time';
     END IF;
 
     SELECT
@@ -249,10 +284,10 @@ BEGIN
     FROM public.users AS users
     WHERE users.id = destination_user_id;
 
-    IF stored_tier <> 'pro'::public.subscription_tier_enum
+    IF stored_tier <> 'free'::public.subscription_tier_enum
        OR stored_expiry IS NOT NULL
-       OR stored_version <> initial_entitlement_version + 1 THEN
-        RAISE EXCEPTION 'stale expiration overwrote the newer renewal';
+       OR stored_version <> initial_entitlement_version + 2 THEN
+        RAISE EXCEPTION 'authoritative delayed snapshot did not replace renewal';
     END IF;
 
     SELECT *
@@ -275,9 +310,9 @@ BEGIN
         )
     );
 
-    IF refund_transition.outcome <> 'applied'
-       OR refund_transition.applied_count <> 1 THEN
-        RAISE EXCEPTION 'newer authoritative refund was not applied';
+    IF refund_transition.outcome <> 'stale'
+       OR refund_transition.stale_count <> 1 THEN
+        RAISE EXCEPTION 'older authoritative refund snapshot was not stale';
     END IF;
 
     SELECT *
@@ -331,7 +366,7 @@ BEGIN
                 'subject_kind', 'transfer_source',
                 'candidate_user_ids',
                     pg_catalog.JSONB_BUILD_ARRAY(source_user_id),
-                'authoritative_snapshot_at_ms', 7000,
+                'authoritative_snapshot_at_ms', 11000,
                 'target_tier', 'free',
                 'target_expires_at', NULL
             ),
@@ -339,7 +374,7 @@ BEGIN
                 'subject_kind', 'transfer_destination',
                 'candidate_user_ids',
                     pg_catalog.JSONB_BUILD_ARRAY(destination_user_id),
-                'authoritative_snapshot_at_ms', 7000,
+                'authoritative_snapshot_at_ms', 11000,
                 'target_tier', 'pro',
                 'target_expires_at', NULL
             )
@@ -381,7 +416,7 @@ BEGIN
                 'subject_kind', 'transfer_source',
                 'candidate_user_ids',
                     pg_catalog.JSONB_BUILD_ARRAY(missing_user_id),
-                'authoritative_snapshot_at_ms', 8000,
+                'authoritative_snapshot_at_ms', 12000,
                 'target_tier', 'free',
                 'target_expires_at', NULL
             ),
@@ -389,7 +424,7 @@ BEGIN
                 'subject_kind', 'transfer_destination',
                 'candidate_user_ids',
                     pg_catalog.JSONB_BUILD_ARRAY(destination_user_id),
-                'authoritative_snapshot_at_ms', 8000,
+                'authoritative_snapshot_at_ms', 12000,
                 'target_tier', 'pro',
                 'target_expires_at', NULL
             )
@@ -505,8 +540,79 @@ BEGIN
         WHEN invalid_parameter_value THEN
             IF SQLERRM <> 'revenuecat_invalid_customer_state' THEN
                 RAISE;
-            END IF;
+        END IF;
     END;
+
+    PERFORM public.schedule_revenuecat_reconciliation(
+        pg_catalog.JSONB_BUILD_ARRAY(
+            pg_catalog.JSONB_BUILD_OBJECT(
+                'subject_kind', 'customer',
+                'lookup_app_user_id', destination_user_id::TEXT,
+                'candidate_user_ids',
+                    pg_catalog.JSONB_BUILD_ARRAY(destination_user_id)
+            )
+        )
+    );
+
+    UPDATE internal.revenuecat_reconciliation_queue AS queue
+    SET next_reconcile_at = pg_catalog.NOW()
+    WHERE queue.merian_user_id = destination_user_id;
+
+    SELECT *
+    INTO STRICT reconciliation_claim
+    FROM public.claim_revenuecat_reconciliations(1);
+
+    reconciliation_applied := public.apply_revenuecat_reconciliation(
+        reconciliation_claim.user_id,
+        reconciliation_claim.claim_token,
+        13000,
+        'free',
+        NULL
+    );
+
+    IF reconciliation_applied IS NOT TRUE OR NOT EXISTS (
+        SELECT 1
+        FROM public.users AS users
+        JOIN internal.revenuecat_customer_state AS state
+          ON state.merian_user_id = users.id
+        JOIN internal.revenuecat_reconciliation_queue AS queue
+          ON queue.merian_user_id = users.id
+        WHERE users.id = destination_user_id
+          AND users.subscription_tier =
+                'free'::public.subscription_tier_enum
+          AND state.last_authoritative_snapshot_at_ms = 13000
+          AND queue.claim_token IS NULL
+          AND queue.last_snapshot_at_ms = 13000
+          AND queue.next_reconcile_at > pg_catalog.NOW()
+    ) THEN
+        RAISE EXCEPTION
+            'periodic reconciliation did not atomically apply and release';
+    END IF;
+
+    UPDATE internal.revenuecat_reconciliation_queue AS queue
+    SET next_reconcile_at = pg_catalog.NOW()
+    WHERE queue.merian_user_id = destination_user_id;
+
+    SELECT *
+    INTO STRICT reconciliation_claim
+    FROM public.claim_revenuecat_reconciliations(1);
+
+    reconciliation_applied := public.apply_revenuecat_reconciliation(
+        reconciliation_claim.user_id,
+        reconciliation_claim.claim_token,
+        12500,
+        'pro',
+        NULL
+    );
+
+    IF reconciliation_applied IS NOT FALSE OR (
+        SELECT users.subscription_tier
+        FROM public.users AS users
+        WHERE users.id = destination_user_id
+    ) <> 'free'::public.subscription_tier_enum THEN
+        RAISE EXCEPTION
+            'stale periodic snapshot restored an older entitlement';
+    END IF;
 
     IF (
         SELECT pg_catalog.COUNT(*)

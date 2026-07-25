@@ -7,6 +7,10 @@ const migrationUrl = new URL(
   "../../migrations/20260723201500_secure_revenuecat_webhook_delivery.sql",
   import.meta.url,
 );
+const reconciliationMigrationUrl = new URL(
+  "../../migrations/20260725052338_reconcile_revenuecat_subscribers.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -81,5 +85,40 @@ Deno.test("RevenueCat internals are not directly available to API roles", async 
   assertStringIncludes(
     sql,
     "REVOKE ALL ON TABLE internal.revenuecat_customer_state FROM PUBLIC, anon, authenticated, service_role",
+  );
+});
+
+Deno.test("RevenueCat snapshots outrank event time and reconcile periodically", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(reconciliationMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "CustomerInfo is the entitlement authority",
+      "OR snapshot_time > watermark.last_authoritative_snapshot_at_ms",
+      "snapshot_time = watermark.last_authoritative_snapshot_at_ms AND p_event_timestamp_ms > watermark.last_event_timestamp_ms",
+      "revenuecat_ordering_source_drift",
+      "CREATE TABLE internal.revenuecat_reconciliation_queue",
+      "CREATE OR REPLACE FUNCTION public.schedule_revenuecat_reconciliation",
+      "CREATE OR REPLACE FUNCTION public.claim_revenuecat_reconciliations",
+      "FOR UPDATE SKIP LOCKED",
+      "CREATE OR REPLACE FUNCTION public.apply_revenuecat_reconciliation",
+      "p_authoritative_snapshot_at_ms > watermark.last_authoritative_snapshot_at_ms",
+      "CREATE OR REPLACE FUNCTION public.fail_revenuecat_reconciliation",
+      "attempt_count = LEAST(queue.attempt_count + 1, 100)",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+      "reconcile_revenuecat_subscribers_every_fifteen_minutes",
+      "/functions/v1/reconcile-revenuecat-subscribers",
+      "REVOKE ALL ON TABLE internal.revenuecat_reconciliation_queue FROM PUBLIC, anon, authenticated, service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
+    "PostgreSQL conditional expressions cannot be schema-qualified.",
   );
 });

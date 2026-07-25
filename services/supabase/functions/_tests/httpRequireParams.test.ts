@@ -2,16 +2,20 @@ import { requireParams } from "../_shared/http.ts";
 
 function assertEquals<T>(actual: T, expected: T): void {
   if (actual !== expected) {
-    throw new Error(`Assertion failed. Expected ${String(expected)}, received ${String(actual)}.`);
+    throw new Error(
+      `Assertion failed. Expected ${String(expected)}, received ${
+        String(actual)
+      }.`,
+    );
   }
 }
 
-Deno.test("requireParams treats boolean false as present", async () => {
+Deno.test("requireParams treats boolean false as present", () => {
   const result = requireParams({ liked: false }, ["liked"]);
   assertEquals(result, null);
 });
 
-Deno.test("requireParams treats numeric zero as present", async () => {
+Deno.test("requireParams treats numeric zero as present", () => {
   const result = requireParams({ offset: 0 }, ["offset"]);
   assertEquals(result, null);
 });

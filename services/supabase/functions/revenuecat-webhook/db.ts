@@ -2,6 +2,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 
 export interface RevenueCatStateSubject {
   kind: "customer" | "transfer_source" | "transfer_destination";
+  lookupAppUserId: string;
   candidateUserIds: string[];
   authoritativeSnapshotAtMs: number;
   targetTier: "free" | "pro";
@@ -15,6 +16,12 @@ export interface RevenueCatStateTransition {
   payloadSha256: string;
   signatureTimestampSeconds: number;
   subjects: RevenueCatStateSubject[];
+}
+
+export interface RevenueCatReconciliationSubject {
+  kind: RevenueCatStateSubject["kind"];
+  lookupAppUserId: string;
+  candidateUserIds: string[];
 }
 
 export interface RevenueCatStateResult {
@@ -125,6 +132,7 @@ export async function applyRevenueCatCustomerState(
         p_signature_timestamp_s: transition.signatureTimestampSeconds,
         p_subjects: transition.subjects.map((subject) => ({
           subject_kind: subject.kind,
+          lookup_app_user_id: subject.lookupAppUserId,
           candidate_user_ids: subject.candidateUserIds,
           authoritative_snapshot_at_ms: subject.authoritativeSnapshotAtMs,
           target_tier: subject.targetTier,
@@ -152,4 +160,49 @@ export async function applyRevenueCatCustomerState(
     ? data[0] as RevenueCatRpcRow | undefined
     : null;
   return parseRevenueCatRpcRow(row ?? undefined);
+}
+
+export async function scheduleRevenueCatReconciliation(
+  subjects: RevenueCatReconciliationSubject[],
+  supabaseAdmin: SupabaseClient,
+): Promise<number> {
+  let response;
+  try {
+    response = await supabaseAdmin.rpc(
+      "schedule_revenuecat_reconciliation",
+      {
+        p_subjects: subjects.map((subject) => ({
+          subject_kind: subject.kind,
+          lookup_app_user_id: subject.lookupAppUserId,
+          candidate_user_ids: subject.candidateUserIds,
+        })),
+      },
+    );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "network failure";
+    throw new RevenueCatDatabaseError(
+      `RevenueCat reconciliation scheduling failed: ${detail}`,
+      null,
+    );
+  }
+
+  const { data, error } = response;
+  if (error) {
+    throw new RevenueCatDatabaseError(
+      `RevenueCat reconciliation scheduling failed: ${error.message}`,
+      typeof error.code === "string" ? error.code : null,
+    );
+  }
+  if (
+    typeof data !== "number" ||
+    !Number.isSafeInteger(data) ||
+    data < 0 ||
+    data > subjects.length
+  ) {
+    throw new RevenueCatDatabaseError(
+      "RevenueCat reconciliation scheduling returned an invalid response.",
+      null,
+    );
+  }
+  return data;
 }

@@ -15,6 +15,10 @@ const ownerlessTombstoneMigrationUrl = new URL(
   "../../migrations/20260725041308_ownerless_account_deletion_tombstones.sql",
   import.meta.url,
 );
+const storageErasureMigrationUrl = new URL(
+  "../../migrations/20260725052337_enforce_account_storage_erasure.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -114,6 +118,78 @@ Deno.test("account deletion RPCs remain service-only", async () => {
     !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
     "PostgreSQL conditional expressions are not schema-qualified functions and fail plpgsql_check.",
   );
+});
+
+Deno.test("account deletion requires verified object erasure before Auth", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(storageErasureMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "ADD COLUMN IF NOT EXISTS storage_completed_at TIMESTAMPTZ",
+      "'storage_pending'",
+      "CREATE OR REPLACE FUNCTION public.claim_pending_storage_deletions",
+      "FOR UPDATE OF deletion SKIP LOCKED",
+      "CREATE OR REPLACE FUNCTION public.advance_pending_storage_deletion",
+      "phase = 'verification'",
+      "verification_not_before",
+      "status = 'completed'",
+      "CREATE OR REPLACE FUNCTION public.fail_pending_storage_deletion",
+      "PERFORM internal.require_service_role()",
+      "image_storage_urls = ARRAY[]::TEXT[]",
+      "video_storage_urls = ARRAY[]::TEXT[]",
+      "audio_storage_urls = ARRAY[]::TEXT[]",
+      "captured_media = NULL",
+      "semantic_location = NULL",
+      "device_locale = NULL",
+      "device_time_zone = NULL",
+      "user_observation_context = NULL",
+      "custom_tags = ARRAY[]::TEXT[]",
+      "UPDATE public.pending_storage_deletions AS deletion SET status = 'pending'",
+      "WHERE scans.user_id IS NULL",
+      "p_last_key <= deletion.start_after_key",
+      "RETURN 'storage_pending'",
+      "RETURN 'auth_pending'",
+      "storage.status = 'completed'",
+      "account_deletion_storage_required",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const cleanupStart = sql.indexOf(
+    "CREATE FUNCTION public.complete_account_deletion_cleanup",
+  );
+  const cleanupEnd = sql.indexOf(
+    "COMMENT ON FUNCTION public.complete_account_deletion_cleanup",
+    cleanupStart,
+  );
+  const cleanup = sql.slice(cleanupStart, cleanupEnd);
+  assert(
+    cleanup.indexOf("INSERT INTO public.pending_storage_deletions") <
+      cleanup.indexOf("PERFORM public.apply_user_tombstone"),
+  );
+  assert(
+    cleanup.indexOf("storage_status = 'completed'") <
+      cleanup.indexOf("RETURN 'auth_pending'"),
+  );
+  assert(
+    cleanup.indexOf("RETURN 'storage_pending'") >
+      cleanup.indexOf("claim_token = NULL"),
+    "The account claim must be released while the durable storage worker runs.",
+  );
+
+  for (
+    const signature of [
+      "public.account_deletion_is_active(UUID)",
+      "public.claim_pending_storage_deletions(INTEGER)",
+      "public.advance_pending_storage_deletion( UUID, UUID, TEXT, BOOLEAN )",
+      "public.fail_pending_storage_deletion(UUID, UUID, TEXT)",
+    ]
+  ) {
+    assertStringIncludes(sql, `REVOKE ALL ON FUNCTION ${signature}`);
+  }
 });
 
 Deno.test("failed tombstone-owner rollout is an executable no-op bridge", async () => {

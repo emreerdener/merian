@@ -14,38 +14,52 @@ async function source(name: string): Promise<string> {
   return await Deno.readTextFile(new URL(name, exportRoot));
 }
 
-Deno.test("export webhook treats its payload as a job-id wake-up only", async () => {
+Deno.test("export webhook performs one synchronous durable step", async () => {
   const index = await source("index.ts");
   const worker = await source("worker.ts");
   const db = await source("db.ts");
 
-  assertStringIncludes(index, "const jobId = payload.job_id");
-  assertStringIncludes(index, "runBackground(worker)");
-  assertStringIncludes(index, 'disposition: "accepted"');
+  assertStringIncludes(index, "const requestedJobId = payload.job_id");
+  assertStringIncludes(index, "await processExportJobStep");
+  assertEquals(index.includes("runBackground"), false);
+  assertStringIncludes(
+    index,
+    'disposition: jobIds.length > 0 ? "processed" : "idle"',
+  );
   assertEquals(index.includes("payload.user_id"), false);
   assertEquals(index.includes("payload.export_scope"), false);
   assertEquals(index.includes("payload.include_precise_coordinates"), false);
   assertStringIncludes(worker, "const job = await services.claim");
-  assertStringIncludes(db, 'supabaseAdmin.rpc("claim_export_job"');
+  assertStringIncludes(db, 'supabaseAdmin.rpc("claim_export_job_step"');
 });
 
-Deno.test("export pages and archives remain bounded end to end", async () => {
+Deno.test("export pages, durable chunks, and archives are bounded end to end", async () => {
   const db = await source("db.ts");
   const archive = await source("archive.ts");
   const mail = await source("mail.ts");
   const storage = await source("storage.ts");
   const zip = await source("zip.ts");
 
-  assertStringIncludes(db, "export const EXPORT_PAGE_SIZE = 200");
+  const worker = await source("worker.ts");
+  assertStringIncludes(db, "export const EXPORT_PAGE_SIZE = 100");
   assertStringIncludes(db, '.gt("id", afterId)');
   assertEquals(db.includes(".range("), false);
   assertEquals(db.includes("offset"), false);
-  assertStringIncludes(archive, "AsyncGenerator<Uint8Array>");
+  assertStringIncludes(archive, "encodeExportBatch");
+  assertStringIncludes(archive, "createPreparedDwcaArchiveStream");
+  assertStringIncludes(archive, "fetchExportWorkChunk");
   assertStringIncludes(zip, "createStoredZipStream");
   assertStringIncludes(storage, "fixedSizeParts");
   assertStringIncludes(storage, "MULTIPART_PART_SIZE");
   assertStringIncludes(storage, "readByteStreamWithinLimit");
   assertStringIncludes(storage, "assertMultipartCompletionSucceeded");
+  assertStringIncludes(storage, "MAXIMUM_WORK_CHUNK_BYTES");
+  assertStringIncludes(
+    storage,
+    "uploadedBytes + part.byteLength > maximumBytes",
+  );
+  assertStringIncludes(worker, "manifestBytes !== job.csvBytes");
+  assertStringIncludes(worker, "job.maxArchiveBytes");
   assertEquals(storage.includes("JSZip"), false);
   assertEquals(storage.includes("arrayBuffer()"), false);
   assertEquals(storage.includes("response.text()"), false);
@@ -112,4 +126,6 @@ Deno.test("failed exports do not consume the next request window", async () => {
   assertStringIncludes(requestDb, '.neq("status", "failed")');
   assertStringIncludes(requestIndex, "user.is_anonymous === true");
   assertStringIncludes(requestIndex, '"account_required"');
+  assertStringIncludes(requestIndex, 'exportScope !== "personal"');
+  assertStringIncludes(requestIndex, '"global_export_forbidden"');
 });

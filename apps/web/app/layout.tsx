@@ -3,12 +3,19 @@ import "@mantine/carousel/styles.css";
 import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { MantineProvider } from "@mantine/core";
 import { MerianAppShell } from "@/components/MerianAppShell";
 import { siteConfig } from "@/lib/site";
 import { theme } from "./theme";
 import Script from "next/script";
+import { NONCE_REQUEST_HEADER } from "@/lib/securityHeaders";
+
+// A fresh request nonce is required for every HTML response. This deliberately
+// opts the application out of static/ISR rendering so cached HTML can never
+// reuse a nonce from an older response.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.siteUrl),
@@ -25,13 +32,18 @@ export const viewport: Viewport = {
   themeColor: "#0b0f14"
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout(
+  { children }: { children: ReactNode },
+) {
+  const nonce = (await headers()).get(NONCE_REQUEST_HEADER) ?? undefined;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <Script
           id="mantine-color-scheme-script"
           strategy="beforeInteractive"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               try {

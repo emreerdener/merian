@@ -184,11 +184,12 @@ single-responsibility functions under `/services/supabase/functions/`.
     leases incomplete receipts and deletes obsolete anonymous Auth shells.
 - **Export & Storage Orchestration**
   - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour
-    rate limits for data exports.
-  - `/export-dwca`: Heavy background worker (triggered via Service-Role Webhook)
-    that atomically claims canonical jobs, streams keyset-paginated Darwin Core
-    ZIP output through R2 multipart upload, and dispatches an idempotent Resend
-    request.
+    rate limits for personal data exports; global scope is internal-only.
+  - `/export-dwca`: Resumable service-role worker that performs one bounded
+    keyset page, archive assembly, or delivery phase per invocation. Durable
+    cursors and claim-fenced CSV manifests enforce canonical row/archive
+    budgets before streaming the Darwin Core ZIP to R2 and dispatching an
+    idempotent Resend request.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge
     proxy memory.
@@ -198,9 +199,11 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/delete-scan`: Owner-bound scan and Cloudflare R2 media erasure.
   - `/safe-delete`: Persists a private deletion job, atomically tombstones and
     clears ownership/personal fields from retained observations, verifies
-    relational data, then removes Auth only after cleanup commits.
+    relational data, then cursor-sweeps every canonical R2 prefix and performs
+    a delayed empty verification pass before removing Auth.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
-    claim-token fencing, backoff, and idempotent Auth-not-found recovery.
+    claim-token fencing, persisted storage cursors, backoff, and idempotent
+    Auth-not-found recovery.
   - `/auto-purge-nonbio`: Automated webhook/cron job trimming non-biological
     captures while preserving biological sighting evidence.
 - **Public Species Content**
@@ -259,9 +262,14 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription
     transitions, verifies RevenueCat's timestamped raw-body HMAC, fetches
     authoritative CustomerInfo, and commits each unique event through a
-    per-user monotonic database watermark. User tiers and entitlement versions
-    therefore cannot be rolled back by duplicate or delayed delivery; transfer
-    source and destination projections share one atomic transaction.
+    snapshot-primary per-user database watermark. Recurring/grace expiration is
+    persisted, so timed access can fail closed without a final webhook. User
+    tiers and entitlement versions therefore cannot be rolled back by duplicate
+    or delayed delivery; transfer source and destination projections share one
+    atomic transaction.
+  - `/reconcile-revenuecat-subscribers`: Fifteen-minute service-role repair
+    worker that leases a durable queue, bounds CustomerInfo concurrency, and
+    applies only a newer authoritative snapshot after a missed delivery.
 
 ### 5. Continuous Gamification Ecosystem (`GamificationManager`)
 

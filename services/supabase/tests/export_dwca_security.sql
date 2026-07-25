@@ -54,6 +54,34 @@ BEGIN
     END IF;
 
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.export_job_work',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.export_job_work',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.export_job_work',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.export_job_chunks',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.export_job_chunks',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.export_job_chunks',
+        'SELECT'
+    ) THEN
+        RAISE EXCEPTION 'an API role can bypass private export batch state';
+    END IF;
+
+    IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
         'public.export_jobs',
         'INSERT'
@@ -70,7 +98,14 @@ BEGIN
         'public.renew_export_job_claim(uuid,uuid)',
         'public.stage_export_job_archive(uuid,uuid,text,text)',
         'public.complete_export_job(uuid,uuid)',
-        'public.fail_export_job(uuid,uuid,text)'
+        'public.fail_export_job(uuid,uuid,text)',
+        'public.get_due_export_job_ids(integer)',
+        'public.claim_export_job_step(uuid,uuid)',
+        'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,boolean)',
+        'public.get_export_job_chunks(uuid,uuid)',
+        'public.stage_prepared_export_archive(uuid,uuid,text,text)',
+        'public.complete_prepared_export_job(uuid,uuid)',
+        'public.release_export_job_step(uuid,uuid,text,boolean)'
     ]
     LOOP
         IF NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -103,7 +138,14 @@ BEGIN
               'renew_export_job_claim',
               'stage_export_job_archive',
               'complete_export_job',
-              'fail_export_job'
+              'fail_export_job',
+              'get_due_export_job_ids',
+              'claim_export_job_step',
+              'advance_export_job_step',
+              'get_export_job_chunks',
+              'stage_prepared_export_archive',
+              'complete_prepared_export_job',
+              'release_export_job_step'
           )
           AND (
               NOT function_row.prosecdef
@@ -176,6 +218,22 @@ BEGIN
           AND column_row.column_name = 'pseudonym_key_version'
     ) IS DISTINCT FROM '1' THEN
         RAISE EXCEPTION 'export pseudonym key version default is not pinned';
+    END IF;
+
+    IF (
+        SELECT column_row.column_default
+        FROM information_schema.columns AS column_row
+        WHERE column_row.table_schema = 'public'
+          AND column_row.table_name = 'export_jobs'
+          AND column_row.column_name = 'max_export_rows'
+    ) IS DISTINCT FROM '5000' OR (
+        SELECT column_row.column_default
+        FROM information_schema.columns AS column_row
+        WHERE column_row.table_schema = 'public'
+          AND column_row.table_name = 'export_jobs'
+          AND column_row.column_name = 'max_archive_bytes'
+    ) IS DISTINCT FROM '8388608' THEN
+        RAISE EXCEPTION 'canonical DwC-A budgets are not pinned';
     END IF;
 
     IF NOT EXISTS (

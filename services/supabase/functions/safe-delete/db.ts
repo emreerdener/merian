@@ -1,6 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type AccountDeletionStatus = "pending" | "auth_pending" | "completed";
+export type AccountDeletionStatus =
+  | "pending"
+  | "storage_pending"
+  | "auth_pending"
+  | "completed";
+
+export type AccountDeletionCleanupPhase =
+  | "storage_pending"
+  | "auth_pending";
 
 export type AccountDeletionRequest = {
   jobId: string;
@@ -79,7 +87,9 @@ export async function claimAccountDeletionJobs(
       !row.user_id ||
       !row.claim_token ||
       !row.claim_expires_at ||
-      (row.job_status !== "pending" && row.job_status !== "auth_pending")
+      (row.job_status !== "pending" &&
+        row.job_status !== "storage_pending" &&
+        row.job_status !== "auth_pending")
     ) {
       throw new Error("Account deletion claim returned invalid state.");
     }
@@ -97,8 +107,8 @@ export async function claimAccountDeletionJobs(
 export async function completeAccountDeletionCleanup(
   supabaseAdmin: SupabaseClient,
   claim: AccountDeletionClaim,
-): Promise<void> {
-  const { error } = await supabaseAdmin.rpc(
+): Promise<AccountDeletionCleanupPhase> {
+  const { data, error } = await supabaseAdmin.rpc(
     "complete_account_deletion_cleanup",
     {
       p_job_id: claim.jobId,
@@ -111,6 +121,10 @@ export async function completeAccountDeletionCleanup(
       `Could not complete account deletion cleanup: ${error.message}`,
     );
   }
+  if (data !== "storage_pending" && data !== "auth_pending") {
+    throw new Error("Account deletion cleanup returned invalid state.");
+  }
+  return data;
 }
 
 export async function finishAccountDeletionAttempt(
@@ -157,8 +171,8 @@ export async function deleteAuthProfile(
 function isAccountDeletionStatus(
   value: unknown,
 ): value is AccountDeletionStatus {
-  return value === "pending" || value === "auth_pending" ||
-    value === "completed";
+  return value === "pending" || value === "storage_pending" ||
+    value === "auth_pending" || value === "completed";
 }
 
 function safeAuthErrorCode(

@@ -23,8 +23,8 @@ runs.
    `subscription_expires_at <= now()`.
 4. Each candidate receives a conditional update that repeats the tier,
    non-null-expiry, and boundary predicates. A concurrent authoritative renewal
-   that clears or extends the expiry therefore wins instead of being
-   overwritten by a stale worker page.
+   that clears or extends the expiry therefore wins instead of being overwritten
+   by a stale worker page.
 5. A successful downgrade sets `subscription_tier = 'free'` and
    `subscription_expires_at = null`; the existing database trigger advances
    `users.entitlement_version`. The worker does not synthesize a RevenueCat

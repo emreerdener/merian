@@ -49,11 +49,13 @@ After ingress verification, the handler:
    transfer are fetched concurrently, and either lookup failing prevents both
    database changes.
 5. Derives standard Pro from the active `pro` or `Naturalist Tier` entitlement.
-   The detached `pro_week` purchase remains a seven-day timed grant derived from
-   authoritative non-subscription transactions; a matching refund/revocation
-   removes the affected transaction and fails closed if identifiers cannot be
-   matched. Future-dated pass purchases and future-dated CustomerInfo snapshots
-   also fail closed.
+   Recurring access persists the later of its authoritative expiration and
+   grace-period expiration; `NULL` is reserved for genuinely non-expiring
+   lifetime access. The detached `pro_week` purchase remains a seven-day timed
+   grant derived from authoritative non-subscription transactions; a matching
+   refund/revocation removes the affected transaction and fails closed if
+   identifiers cannot be matched. Future-dated pass purchases and future-dated
+   CustomerInfo snapshots also fail closed.
 6. Calls `public.apply_revenuecat_customer_state(...)` once with zero, one, or
    two authoritative subjects.
 
@@ -89,10 +91,12 @@ event ID, and commits all subjects together. A missing normal or
 transfer-destination user fails retryably. A missing transfer source has no
 remaining Merian entitlement to revoke and is omitted.
 
-Each resolved subject compares this tuple independently:
+Migration `20260725052338_reconcile_revenuecat_subscribers.sql` corrects the
+ordering boundary so authoritative CustomerInfo version is primary. Each
+resolved subject compares this tuple independently:
 
-1. `event_timestamp_ms`
-2. authoritative CustomerInfo `request_date_ms`
+1. authoritative CustomerInfo `request_date_ms`
+2. `event_timestamp_ms`
 3. event ID as a deterministic final tie-breaker
 
 Only a newer tuple can update `subscription_tier` and `subscription_expires_at`.
@@ -103,6 +107,26 @@ subjects have different ordering outcomes returns `mixed`. None can overwrite a
 newer per-user state. Source/destination transfer changes commit together.
 
 Auth owns public-user creation. The webhook never inserts or upserts a user.
+
+## Periodic authoritative reconciliation
+
+Webhook delivery is at least once but not guaranteed to continue retrying
+forever. Every identified account therefore has a private durable row in
+`internal.revenuecat_reconciliation_queue`. A webhook also schedules each
+resolved CustomerInfo identity after its event transaction commits.
+
+`reconcile-revenuecat-subscribers` runs every 15 minutes, claims at most ten
+customers under two-minute UUID leases, and performs at most three CustomerInfo
+requests concurrently. A strictly newer `request_date_ms` may update tier and
+expiry; an older snapshot is audited as stale. Successful Pro customers are
+rechecked after six hours and free customers after 24 hours. Provider/database
+failures release the claim with bounded durable backoff.
+
+CustomerInfo retains historical non-renewing purchases after refund. To avoid
+restoring a revoked `pro_week`, a periodic claim may grant a detached pass only
+when the current database state or absence of any customer watermark proves that
+it is not overwriting a prior free/refunded state. Webhook refund context
+remains authoritative for that product.
 
 ## Secrets and RevenueCat dashboard setup
 
@@ -140,7 +164,8 @@ deno test --frozen \
   services/supabase/functions/revenuecat-webhook/handler_test.ts \
   services/supabase/functions/revenuecat-webhook/index_test.ts \
   services/supabase/functions/revenuecat-webhook/signature_test.ts \
-  services/supabase/functions/revenuecat-webhook/subscriber_test.ts
+  services/supabase/functions/revenuecat-webhook/subscriber_test.ts \
+  services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
@@ -153,7 +178,8 @@ make test-supabase-privileged-routines
 The database suite proves duplicate delivery, delayed expiration, refund then
 old-purchase replay, atomic source/destination transfer (including a deleted
 source), missing and ambiguous-user failure, event-ID/payload conflict
-detection, ACLs, and private-table isolation.
+detection, reconciliation ordering/claim fencing, ACLs, and private-table
+isolation.
 
 The event insert uses
 `ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`. A duplicate returns

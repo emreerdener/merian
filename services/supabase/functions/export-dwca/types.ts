@@ -1,4 +1,10 @@
 export type ExportScope = "personal" | "global";
+export type ExportWorkPhase =
+  | "occurrence"
+  | "multimedia"
+  | "assembling"
+  | "delivering"
+  | "completed";
 
 export interface ClaimedExportJob {
   id: string;
@@ -6,11 +12,27 @@ export interface ClaimedExportJob {
   exportScope: ExportScope;
   includePreciseCoordinates: boolean;
   pseudonymKeyVersion: number;
+  maxExportRows: number;
+  maxArchiveBytes: number;
   archiveObjectKey: string | null;
   fileUrl: string | null;
   archiveReadyAt: string | null;
   attemptCount: number;
   leaseExpiresAt: string;
+  workPhase: ExportWorkPhase;
+  occurrenceAfterId: string | null;
+  multimediaAfterId: string | null;
+  occurrenceRows: number;
+  multimediaRows: number;
+  csvBytes: number;
+  chunkSequence: number;
+}
+
+export interface ExportChunkManifestEntry {
+  phase: "occurrence" | "multimedia";
+  sequence: number;
+  objectKey: string;
+  byteCount: number;
 }
 
 export interface DBScanRow {

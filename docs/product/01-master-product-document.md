@@ -394,26 +394,32 @@ For endangered or sensitive species, an additional safety offset can extend to a
 ## 10.2 Exports - Implemented
 
 Darwin Core Archive export uses an asynchronous request-and-worker flow. The
-database atomically leases canonical jobs, the worker keyset-pages records into
-a streaming multipart archive, and Resend receives a job-idempotent delivery
-request for a time-limited link. Successful/non-terminal requests are
+database atomically leases one durable phase at a time. The worker persists
+100-row keyset cursors and claim-fenced CSV manifests, assembles them into a
+streaming multipart archive, and gives Resend a job-idempotent request for a
+time-limited link. Canonical defaults limit one job to 5,000 CSV rows and an
+8 MiB archive. Successful/non-terminal requests are
 rate-limited to approximately one per 24 hours; failed jobs remain retryable.
 
 Personal exports can include the owner's exact location where allowed.
-Global/public exports include only open public records and apply privacy rules.
-Global attribution uses a versioned, dedicated HMAC-SHA256 key rather than a
-plain hash, JWT secret, or fallback salt. Export policy should be tested against
-current schema and ecology rules rather than relying on older blanket claims
-about domesticated observations.
+Ordinary authenticated callers can request only personal exports.
+Repository-wide exports require a reviewed internal workflow, include only open
+public records, and apply privacy rules. Global attribution uses a versioned,
+dedicated HMAC-SHA256 key rather than a plain hash, JWT secret, or fallback salt.
+Export policy should be tested against current schema and ecology rules rather
+than relying on older blanket claims about domesticated observations.
 
 ## 10.3 Deletion - Implemented
 
 Account deletion uses `/safe-delete` to persist deletion intent before any
 destructive action. A claim-fenced database transaction queues object-store
 cleanup, makes retained observations ownerless tombstones, clears exact
-location and free-form account-linked notes, anonymizes cost/linkage records,
-and verifies cleanup before Auth is deleted. A scheduled reaper resumes
-transient failures. After immediate completion or durable acceptance, the
+location, all stored media references, device/location context, custom tags,
+and free-form account-linked notes, and anonymizes cost/linkage records. A
+scheduled reaper cursor-sweeps durable uploads, staging data, avatars, and
+exports, then performs a delayed empty verification sweep. Auth is deleted only
+after both relational and storage verification succeed. Transient failures are
+resumed automatically. After immediate completion or durable acceptance, the
 client signs out locally and removes its local store.
 
 Deleting an individual scan uses an owner-bound `/delete-scan` path that removes owned media and then the database record. Deletion user experience should clearly separate local removal, server completion, and any legally required residual anonymized records.

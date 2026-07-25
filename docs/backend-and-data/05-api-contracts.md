@@ -5565,18 +5565,23 @@ prevent IDOR vulnerabilities.
 3. Attempts a target-bound lease through
    `claim_account_deletion_jobs(1, user.id)`. Another live claim produces a
    durable `202` response rather than duplicate work.
-4. For every `pending` or `auth_pending` claim,
-   `complete_account_deletion_cleanup` atomically writes the idempotent
-   storage-deletion outbox, invokes `apply_user_tombstone`, verifies no public
-   user or scan still references the UUID, and advances or preserves
-   `auth_pending`. Repeating cleanup immediately before Auth removal protects
-   delayed retries. Retained scans become ownerless tombstones and clear exact
-   location/elevation plus free-form intervention notes. No synthetic
-   `auth.users` or `public.users` identity is created.
-5. Only `auth_pending` may call
+4. For every `pending`, `storage_pending`, or `auth_pending` claim,
+   `complete_account_deletion_cleanup` atomically writes the idempotent storage
+   job, invokes `apply_user_tombstone`, and verifies no public user or scan still
+   references the UUID. Retained scans become ownerless tombstones and clear
+   compatibility media URLs, structured captured-media references, exact
+   location/elevation, semantic location, device locale/time-zone context,
+   free-form notes, and custom tags. No synthetic `auth.users` or
+   `public.users` identity is created.
+5. Relational completion returns `storage_pending` and releases the account
+   claim. The storage worker keyset-sweeps the user's free uploads, Pro uploads,
+   staging, avatars, and exports prefixes in 50-key pages. After at least 25
+   hours it repeats all five prefixes from the beginning. Only an empty delayed
+   verification pass transactionally advances the account to `auth_pending`.
+6. Only `auth_pending` may call
    `supabaseAdmin.auth.admin.deleteUser(user.id)`. HTTP `404` and exact Auth
    code `user_not_found` are treated as idempotent success.
-6. `finish_account_deletion_attempt` records terminal completion or releases
+7. `finish_account_deletion_attempt` records terminal completion or releases
    the claim with bounded retry backoff. Completion clears the private job's
    direct `user_id`.
 
@@ -5587,13 +5592,15 @@ caller cannot supply a user ID in the body.
 While the job is active, a private database trigger rejects recreation of the
 original `public.users` row. Auth metadata synchronization and trusted backend
 upserts therefore cannot restore a profile after cleanup but before the
-external Auth call.
+external Auth call. `/generate-upload-urls` also returns
+`409 account_deletion_in_progress`, preventing new signed writes during
+erasure.
 
 ### Responses
 
 - `200 OK`, `{ "success": true, "status": "completed", ... }`: relational
-  cleanup was verified, Auth deletion is confirmed, and the terminal job no
-  longer retains the user UUID.
+  cleanup, delayed empty R2 verification, and Auth deletion are confirmed; the
+  terminal account job no longer retains the user UUID.
 - `202 Accepted`, `{ "success": true, "status": "pending", ... }`: the request
   is durably recorded. A five-minute scheduled reaper resumes it. This is a
   successful deletion request, not a prompt to submit another target.
@@ -5609,11 +5616,14 @@ drops all local SQLite `ModelContext` state through
 
 `/reconcile-account-deletions` accepts a bounded optional `{ "limit": n }`
 object and authenticates the complete service-role bearer value with a
-timing-safe comparison. It never accepts a target UUID. The worker leases at
-most 100 due jobs and returns only aggregate `claimed`, `completed`, and
-`deferred` counts. Claim expiry, cleanup verification, idempotent Auth
-not-found handling, and database-calculated backoff make crashes and lost
-responses resumable.
+timing-safe comparison. It never accepts a target UUID. Each invocation
+performs a bounded account pass, bounded storage pages, and, when storage
+verification completes, one final account pass. It returns only aggregate
+`account_claimed`, `account_completed`, `account_deferred`,
+`waiting_for_storage`, `storage_claimed`, `storage_completed`, and
+`storage_deferred` counts. Claim expiry, persisted prefix cursors, delayed
+verification, idempotent Auth-not-found handling, and database-calculated
+backoff make crashes and lost responses resumable.
 
 ---
 
@@ -5725,7 +5735,7 @@ table, returning a `200 OK` instantly so the iOS client can release its thread.
 ```json
 {
   "includePreciseCoordinates": true,
-  "exportScope": "personal" // or "global"
+  "exportScope": "personal"
 }
 ```
 
@@ -5735,9 +5745,11 @@ table, returning a `200 OK` instantly so the iOS client can release its thread.
   `supabaseAdmin.auth.getUser(jwt)`.
 - Rejects anonymous/ghost sessions with `403 account_required`; export email and
   per-account rate limits require a permanent authenticated identity.
-- **`exportScope` enum validation**: `exportScope` must be `"personal"` or
-  `"global"`. Any other value (including the former default `"user"`) is
-  rejected with `HTTP 400`. The default when omitted is `"personal"`.
+- **`exportScope` authorization**: the public route accepts only
+  `"personal"`. The default when omitted is `"personal"`. A `"global"` request
+  receives `403 global_export_forbidden`; repository-wide exports require a
+  reviewed internal administrative workflow. A non-string scope receives
+  `HTTP 400`.
 - **`includePreciseCoordinates` type validation**: `includePreciseCoordinates`
   must be a boolean. A non-boolean value (e.g. a string `"true"`) is rejected
   with `HTTP 400`.
@@ -5780,6 +5792,10 @@ canonical row-derived `user_id`, `export_scope`, and
 authority, they stop appearing automatically after the protocol deadline, and
 post-deadline jobs cannot enter processing without a private claim.
 
+The minute-level resume cron sends `{}`. In that form the route asks
+`get_due_export_job_ids(1)` for at most one canonical due phase. This empty-body
+contract is also bounded by the shared small JSON reader.
+
 ### Security & Enforcement
 
 - Authenticates the Postgres origin by verifying that
@@ -5788,13 +5804,14 @@ post-deadline jobs cannot enter processing without a private claim.
 - Treats `job_id` only as an opaque wake-up identifier and never reads the
   deprecated user/scope/precision rollout hints. Status, pseudonym version, and
   object-key fields are absent from the webhook contract.
-- Calls service-only `claim_export_job(job_id, claim_token)`. The RPC locks the
-  queue row, returns its immutable canonical state, and creates a private
-  ten-minute lease. An already active or terminal job returns no claim and the
-  duplicate delivery performs no archive/provider work.
-- Renews the lease every minute. Staging, completion, and failure RPCs require
-  the same unexpired UUID token; a delayed worker cannot mutate a replacement
-  attempt. These definer routines use an empty `search_path`, call
+- Calls service-only `claim_export_job_step(job_id, claim_token)`. The RPC
+  locks the queue and private work rows, returns immutable canonical state plus
+  the current durable phase/cursors/budgets, and creates a private two-minute
+  lease. An active, not-due, or terminal job returns no claim and performs no
+  source/provider work.
+- Advance, manifest lookup, staging, completion, release, and heartbeat RPCs
+  require the same unexpired UUID token; a delayed worker cannot mutate a
+  replacement attempt. These definer routines use an empty `search_path`, call
   `internal.require_service_role()`, and are not executable by `PUBLIC`, `anon`,
   or `authenticated`.
 - Resolves the
@@ -5814,45 +5831,63 @@ post-deadline jobs cannot enter processing without a private claim.
   HMAC-SHA256 truncated to 128 bits and prefixed with the pinned key version.
   The required Base64 `DWCA_PSEUDONYM_HMAC_KEY_V{n}` is independent of Supabase
   JWT/service keys and has no fallback.
-- **Bounded generation**: Runs separate occurrence and multimedia keyset passes
-  (`id > last_id`) in 200-row pages with narrow projections and matching partial
-  indexes. Lazy CSV chunks feed a streaming ZIP32 `STORE` writer and fixed 8 MiB
-  R2 multipart upload. No complete page history, CSV, ZIP, `arrayBuffer()`, or
-  media binary collection is retained in memory. R2 create/complete XML and
-  Resend replies are streamed through explicit byte limits. Completion rejects
-  an S3-compatible `<Error>` body even when R2 returns HTTP 200. Each R2 request
-  has a 60-second deadline, and Resend delivery has a 15-second deadline.
-- **Attempt-fenced storage**: Before staging, each lease writes
-  `exports/{user_id}/{job_id}/{claim_token}.zip`. A stale worker therefore
-  cannot overwrite the winning archive. After staging, a replacement lease
-  reuses the stored object key and signed URL.
+- **Canonical budgets**: Jobs default to at most 5,000 CSV rows and an 8 MiB
+  final archive; immutable database constraints cap custom internal jobs at
+  20,000 rows and 16 MiB. Budget overflow terminates with
+  `export_too_large`.
+- **Resumable generation**: An invocation performs exactly one occurrence
+  page, multimedia page, assembly, or delivery phase. Data phases use 100-row
+  `id > last_id` pages with narrow projections and matching partial indexes.
+  Each page is encoded to at most 512 KiB, stored as a temporary R2 CSV chunk,
+  and committed to the ordered private manifest together with the next cursor
+  and cumulative budgets. The cron resumes the next phase instead of depending
+  on one long-lived Edge invocation.
+- **Bounded assembly**: Manifest chunks lazily feed a streaming ZIP32 `STORE`
+  writer and fixed 8 MiB R2 multipart upload. No complete page history, CSV,
+  ZIP, `arrayBuffer()`, or media binary collection is retained in memory. R2
+  create/complete XML and Resend replies are streamed through explicit byte
+  limits. Completion rejects an S3-compatible `<Error>` body even when R2
+  returns HTTP 200. Outbound operations have explicit deadlines.
+- **Attempt-fenced storage**: Temporary chunk keys contain
+  `phase/sequence-claim_token.csv`, and final archives use
+  `exports/{user_id}/{job_id}/{claim_token}.zip`. A stale writer can therefore
+  neither overwrite the winning chunk/archive nor commit an unexpected key to
+  the manifest. After staging, a replacement lease reuses the stored archive
+  key and signed URL.
 - **Idempotent delivery**: Calls Resend directly with
   `Idempotency-Key: dwca-export/{job_id}` and marks the job complete only after
   Resend accepts the request. Re-entry with a staged archive does not regenerate
   it.
-- **Stuck-job watchdog**: The five-minute cron fails pending rows older than 30
-  minutes and processing rows whose private lease is missing or expired. Public
-  rows store stable failure codes/messages; provider responses and internal
-  errors remain only in structured Edge logs. Failed jobs do not consume the
-  next 24-hour request window.
+- **Stuck-job watchdog**: The watchdog fails pending rows with no phase progress
+  for 30 minutes and processing rows with no live claim or durable progress for
+  two hours. Public rows store stable failure codes/messages; provider responses
+  and internal errors remain only in structured Edge logs. Failed jobs do not
+  consume the next 24-hour request window.
 
 ### Response
 
-After authentication and bounded parsing, the route registers its worker with
-`EdgeRuntime.waitUntil` and immediately returns `HTTP 202`:
+After authentication and bounded parsing, the route synchronously performs one
+bounded phase and returns `HTTP 200`:
 
 ```json
 {
   "success": true,
   "request_id": "UUID",
-  "disposition": "accepted"
+  "disposition": "processed",
+  "results": [
+    {
+      "job_id": "UUID_A",
+      "disposition": "advanced",
+      "phase": "multimedia"
+    }
+  ]
 }
 ```
 
-The completion/no-claim outcome is written to structured logs and canonical
-database state, not held on the `pg_net` socket. Invalid auth/body values and a
-synchronous dispatch failure receive stable request-correlated errors.
-Background implementation/provider details remain in structured logs only.
+With no due job it returns `"disposition":"idle"` and an empty result list. A
+duplicate wake-up can return a result with `"disposition":"not_claimed"`.
+Invalid auth/body values and phase failures receive stable request-correlated
+errors; implementation/provider details remain in structured logs only.
 
 ---
 
@@ -6531,7 +6566,9 @@ is capped at 256 KiB.
   mutation. For `TRANSFER`, source and destination lookups run concurrently and
   both must succeed before the database call.
 - An active standard entitlement whose identifier is `pro` or
-  `Naturalist Tier` projects `subscription_tier = pro` and a null expiry.
+  `Naturalist Tier` projects `subscription_tier = pro` and persists the later
+  of recurring expiration and grace-period expiration. `NULL` is reserved for
+  an entitlement whose provider expiration is explicitly null (lifetime).
 - An unexpired authoritative `pro_week` transaction projects a timed Pro expiry
   at `purchase_date + 7 days`. A matching pass refund/revocation is excluded;
   an unmatchable revocation fails closed for transactions at or before the event
@@ -6539,11 +6576,12 @@ is capped at 256 KiB.
 - No active paid state projects `subscription_tier = free` and a null expiry.
 - `public.apply_revenuecat_customer_state(...)` records `event.id` under a
   primary key, records zero to two per-user subject rows, and locks all selected
-  users in sorted UUID order. Its per-user monotonic tuple is
-  `(event_timestamp_ms, request_date_ms, event_id)`. Duplicate IDs and older
-  tuples cannot update a user; a conflicting reuse of the same ID with a
-  different event timestamp, type, or payload digest is rejected. Transfer
-  source/destination transitions commit or roll back together.
+  users in sorted UUID order. Authoritative `request_date_ms` is the primary
+  monotonic version; provider event timestamp and event ID break only exact
+  snapshot ties. Duplicate IDs and older snapshots cannot update a user; a
+  conflicting reuse of the same ID with a different event timestamp, type, or
+  payload digest is rejected. Transfer source/destination transitions commit or
+  roll back together.
 - The RPCs and private ledger tables are not client APIs. Only `service_role`
   may execute the duplicate lookup and mutation definer routines; both perform
   their own caller check and use an empty search path.
@@ -6575,3 +6613,33 @@ is capped at 256 KiB.
 - `502`/`503`: authoritative subscriber lookup, configuration, public-profile,
   or database availability failed. RevenueCat should retry these non-2xx
   responses.
+
+### Service-only authoritative reconciliation
+
+`/reconcile-revenuecat-subscribers` is not a client API. The 15-minute
+`pg_cron` call sends `POST {}` with the complete service-role bearer. The route
+also requires a configured `sk_` RevenueCat server key and accepts no user ID,
+lookup ID, tier, or limit from HTTP.
+
+The private queue leases at most ten due linked customers for two minutes.
+CustomerInfo lookups run with concurrency three and reuse the same 10-second,
+2 MiB provider boundary as webhook processing. A claim-token-fenced
+`apply_revenuecat_reconciliation(...)` updates access only when
+`request_date_ms` is newer than the transactional customer watermark. Pro users
+are next due in six hours and free users in 24 hours; transient failures use
+durable database backoff.
+
+Background reconciliation does not newly grant a historical `pro_week`
+transaction after a free/revoked watermark, preventing refunded pass history
+from restoring access. Its response is aggregate only:
+
+```json
+{
+  "success": true,
+  "claimed": 3,
+  "reconciled": 3,
+  "applied": 1,
+  "stale": 2,
+  "failed": 0
+}
+```

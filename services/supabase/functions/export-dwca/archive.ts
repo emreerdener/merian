@@ -1,5 +1,3 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import { fetchExportScanPages } from "./db.ts";
 import {
   DWCA_META_XML,
   generateMultimediaRows,
@@ -8,76 +6,78 @@ import {
   OCCURRENCE_HEADERS,
 } from "./dwca.ts";
 import { UserPseudonymizer } from "./pseudonym.ts";
-import { ClaimedExportJob } from "./types.ts";
+import { fetchExportWorkChunk } from "./storage.ts";
+import {
+  ClaimedExportJob,
+  DBScanRow,
+  ExportChunkManifestEntry,
+} from "./types.ts";
 import { createStoredZipStream, StreamingZipFile } from "./zip.ts";
 
 const encoder = new TextEncoder();
-const MAXIMUM_CSV_CHUNK_CHARACTERS = 64 * 1024;
 
 export type ExportProgressCallback = () => void | Promise<void>;
 
-async function* occurrenceCsvChunks(
-  job: ClaimedExportJob,
-  supabaseAdmin: SupabaseClient,
-  pseudonymizer: UserPseudonymizer | null,
-  onProgress: ExportProgressCallback,
-): AsyncGenerator<Uint8Array> {
-  yield encoder.encode(`${OCCURRENCE_HEADERS}\n`);
-
-  for await (
-    const page of fetchExportScanPages(job, "occurrence", supabaseAdmin)
-  ) {
-    const rows = await Promise.all(
-      page.map((scan) =>
-        generateOccurrenceRow(
-          scan,
-          job.exportScope,
-          job.includePreciseCoordinates,
-          job.userId,
-          pseudonymizer,
-        )
-      ),
-    );
-    if (rows.length > 0) {
-      yield encoder.encode(`${rows.join("\n")}\n`);
-    }
-    await onProgress();
-  }
+export interface EncodedExportBatch {
+  bytes: Uint8Array;
+  rowCount: number;
 }
 
-async function* multimediaCsvChunks(
+export async function encodeExportBatch(
   job: ClaimedExportJob,
-  supabaseAdmin: SupabaseClient,
+  phase: "occurrence" | "multimedia",
+  scans: DBScanRow[],
+  pseudonymizer: UserPseudonymizer | null,
+): Promise<EncodedExportBatch> {
+  const lines: string[] = [];
+  const firstBatch = phase === "occurrence"
+    ? job.occurrenceAfterId === null
+    : job.multimediaAfterId === null;
+  if (firstBatch) {
+    lines.push(
+      phase === "occurrence" ? OCCURRENCE_HEADERS : MULTIMEDIA_HEADERS,
+    );
+  }
+
+  if (phase === "occurrence") {
+    lines.push(
+      ...await Promise.all(
+        scans.map((scan) =>
+          generateOccurrenceRow(
+            scan,
+            job.exportScope,
+            job.includePreciseCoordinates,
+            job.userId,
+            pseudonymizer,
+          )
+        ),
+      ),
+    );
+  } else {
+    for (const scan of scans) {
+      lines.push(...generateMultimediaRows(scan));
+    }
+  }
+
+  return {
+    bytes: lines.length > 0
+      ? encoder.encode(`${lines.join("\n")}\n`)
+      : new Uint8Array(),
+    rowCount: phase === "occurrence" ? scans.length : lines.length -
+      (firstBatch ? 1 : 0),
+  };
+}
+
+async function* preparedFileChunks(
+  chunks: ExportChunkManifestEntry[],
   onProgress: ExportProgressCallback,
 ): AsyncGenerator<Uint8Array> {
-  yield encoder.encode(`${MULTIMEDIA_HEADERS}\n`);
-
-  let bufferedLines: string[] = [];
-  let bufferedCharacters = 0;
-  for await (
-    const page of fetchExportScanPages(job, "multimedia", supabaseAdmin)
-  ) {
-    for (const scan of page) {
-      for (const row of generateMultimediaRows(scan)) {
-        if (
-          bufferedLines.length > 0 &&
-          bufferedCharacters + row.length + 1 >
-            MAXIMUM_CSV_CHUNK_CHARACTERS
-        ) {
-          yield encoder.encode(`${bufferedLines.join("\n")}\n`);
-          bufferedLines = [];
-          bufferedCharacters = 0;
-        }
-        bufferedLines.push(row);
-        bufferedCharacters += row.length + 1;
-      }
-    }
-
-    if (bufferedLines.length > 0) {
-      yield encoder.encode(`${bufferedLines.join("\n")}\n`);
-      bufferedLines = [];
-      bufferedCharacters = 0;
-    }
+  for (const chunk of chunks) {
+    const bytes = await fetchExportWorkChunk(
+      chunk.objectKey,
+      chunk.byteCount,
+    );
+    if (bytes.byteLength > 0) yield bytes;
     await onProgress();
   }
 }
@@ -86,26 +86,20 @@ async function* metaXmlChunks(): AsyncGenerator<Uint8Array> {
   yield encoder.encode(`${DWCA_META_XML}\n`);
 }
 
-export function createDwcaArchiveStream(
-  job: ClaimedExportJob,
-  supabaseAdmin: SupabaseClient,
-  pseudonymizer: UserPseudonymizer | null,
+export function createPreparedDwcaArchiveStream(
+  manifest: ExportChunkManifestEntry[],
   onProgress: ExportProgressCallback = () => {},
 ): ReadableStream<Uint8Array> {
+  const occurrence = manifest.filter((chunk) => chunk.phase === "occurrence");
+  const multimedia = manifest.filter((chunk) => chunk.phase === "multimedia");
   const files: StreamingZipFile[] = [
     {
       name: "occurrence.csv",
-      open: () =>
-        occurrenceCsvChunks(
-          job,
-          supabaseAdmin,
-          pseudonymizer,
-          onProgress,
-        ),
+      open: () => preparedFileChunks(occurrence, onProgress),
     },
     {
       name: "multimedia.csv",
-      open: () => multimediaCsvChunks(job, supabaseAdmin, onProgress),
+      open: () => preparedFileChunks(multimedia, onProgress),
     },
     {
       name: "meta.xml",

@@ -220,7 +220,8 @@ function buildComposerMediaSourcesFromManifest(
         order_index: rows.length,
         has_audio: true,
         is_selected: selectedSourceMediaIds.has(sourceMediaId),
-        selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
+        selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ??
+          null,
       });
       audioIndex += 1;
       continue;

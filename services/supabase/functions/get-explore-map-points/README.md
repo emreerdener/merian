@@ -130,10 +130,10 @@ filter matching.
 
 Media filtering matches any selected attached kind. Species and media filter
 groups intersect, and each group’s counts reflect the active filters in the
-other group. A legacy row without `media_items` is treated as an image only
-when it still has a non-empty hero image. Facet values with no matching rows are
-omitted from the response; the iOS client supplies zero-count rows for its
-fixed Images, Videos, and Audio controls.
+other group. A legacy row without `media_items` is treated as an image only when
+it still has a non-empty hero image. Facet values with no matching rows are
+omitted from the response; the iOS client supplies zero-count rows for its fixed
+Images, Videos, and Audio controls.
 
 ## Local Verification
 

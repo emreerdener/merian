@@ -42,7 +42,9 @@ export async function fetchExplorePostLikeCount(
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to fetch Explore like count: ${error?.message ?? "No data"}`);
+    throw new Error(
+      `Failed to fetch Explore like count: ${error?.message ?? "No data"}`,
+    );
   }
 
   return Number(data.like_count ?? 0);

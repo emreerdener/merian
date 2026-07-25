@@ -179,8 +179,8 @@ same `scan_id`; it never changes this request or creates another model call.
 - `/check-scan-status` is the owner-safe polling endpoint. It reports completed
   scan rows and, when requested, server-side ingestion job state.
 - `/replay-scan-ingestion` claims due resumable staged or text-only intents and
-  dispatches them back through this endpoint with the same `client_scan_id`.
-  Its service-authenticated durable claim count derives a separate deterministic
+  dispatches them back through this endpoint with the same `client_scan_id`. Its
+  service-authenticated durable claim count derives a separate deterministic
   quota UUID for each replay attempt, so a committed foreground reservation
   cannot block recovery and a dispatch retry cannot double-reserve. Replay
   claims are capped at 10 per sanitized intent; exhausted jobs become

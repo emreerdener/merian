@@ -49,36 +49,38 @@ Deno.test("GBIF community taxa - fetch dedupes and drops unsupported entries", a
   const taxa = await fetchGbifCommunityTaxa(
     "rosa",
     10,
-    async () =>
-      new Response(
-        JSON.stringify([
-          {
-            key: 1,
-            rank: "SPECIES",
-            canonicalName: "Rosa externa",
-            kingdom: "Plantae",
-            genus: "Rosa",
-          },
-          {
-            key: 1,
-            rank: "SPECIES",
-            canonicalName: "Rosa externa",
-            kingdom: "Plantae",
-            genus: "Rosa",
-          },
-          {
-            key: 2,
-            rank: "STRAIN",
-            canonicalName: "Unsupported strain",
-          },
-          {
-            key: 3,
-            rank: "GENUS",
-            canonicalName: "Rosa",
-            kingdom: "Plantae",
-          },
-        ]),
-        { status: 200 },
+    () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify([
+            {
+              key: 1,
+              rank: "SPECIES",
+              canonicalName: "Rosa externa",
+              kingdom: "Plantae",
+              genus: "Rosa",
+            },
+            {
+              key: 1,
+              rank: "SPECIES",
+              canonicalName: "Rosa externa",
+              kingdom: "Plantae",
+              genus: "Rosa",
+            },
+            {
+              key: 2,
+              rank: "STRAIN",
+              canonicalName: "Unsupported strain",
+            },
+            {
+              key: 3,
+              rank: "GENUS",
+              canonicalName: "Rosa",
+              kingdom: "Plantae",
+            },
+          ]),
+          { status: 200 },
+        ),
       ),
   );
 
