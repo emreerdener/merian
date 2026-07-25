@@ -267,7 +267,7 @@ BEGIN
 
     INSERT INTO internal.export_job_work (job_id)
     VALUES (p_job_id)
-    ON CONFLICT (job_id) DO NOTHING;
+    ON CONFLICT ON CONSTRAINT export_job_work_pkey DO NOTHING;
 
     SELECT work.*
     INTO STRICT work_row

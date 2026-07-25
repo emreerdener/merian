@@ -19,6 +19,10 @@ const workflowUrl = new URL(
   "../../../../.github/workflows/deploy.yml",
   import.meta.url,
 );
+const catalogTestUrl = new URL(
+  "../../tests/account_deletion_security.sql",
+  import.meta.url,
+);
 
 Deno.test("account deletion source preserves durable cleanup-before-Auth ordering", async () => {
   const [handler, worker, db, storageWorker] = await Promise.all([
@@ -102,5 +106,29 @@ Deno.test("account deletion reaper is service-only, bounded, and deployed", asyn
   assertStringIncludes(
     workflow,
     "supabase/tests/account_deletion_security.sql",
+  );
+});
+
+Deno.test("account deletion catalog fixture follows the durable phase order", async () => {
+  const catalogTest = await Deno.readTextFile(catalogTestUrl);
+  const prematureFinish = catalogTest.indexOf(
+    "PERFORM public.finish_account_deletion_attempt(",
+  );
+  const relationalCleanup = catalogTest.indexOf(
+    "SELECT public.complete_account_deletion_cleanup(",
+  );
+  const verificationDeadlineOverride = catalogTest.indexOf(
+    "SET verification_not_before = pg_catalog.NOW()",
+  );
+  const storageClaim = catalogTest.indexOf(
+    "FROM public.claim_pending_storage_deletions(1)",
+  );
+
+  assert(
+    prematureFinish >= 0 &&
+      relationalCleanup > prematureFinish &&
+      verificationDeadlineOverride > relationalCleanup &&
+      storageClaim > verificationDeadlineOverride,
+    "The executable fixture must reject premature completion, create the outbox through relational cleanup, shorten its deadline, then claim storage work.",
   );
 });

@@ -36,12 +36,12 @@ deno task test
 
 Its narrow read allowlist includes the full function tree and the repository
 surfaces inspected by security contracts: migrations, Supabase config, the
-deployment workflow, and the web waitlist route. Deployment CI runs this task
-after the disposable database is migrated, so database-backed cases execute
-rather than reporting connection skips; its explicit `SUPABASE_DB_TEST_URL`
-makes an unavailable database a test failure. CI must run the complete task
-rather than substituting a hand-selected subset whose permissions happen to
-pass.
+account-deletion catalog fixture, the deployment workflow, and the web waitlist
+route. Deployment CI runs this task after the disposable database is migrated,
+so database-backed cases execute rather than reporting connection skips; its
+explicit `SUPABASE_DB_TEST_URL` makes an unavailable database a test failure.
+CI must run the complete task rather than substituting a hand-selected subset
+whose permissions happen to pass.
 
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
@@ -890,7 +890,8 @@ Durable account deletion has seven complementary checks:
   retryable.
 - `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
   Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
-  `config.toml`, and workflow wiring present.
+  `config.toml`, workflow wiring, and the executable fixture's
+  cleanup-before-storage phase order present.
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order,
   cleanup verification, required `storage_pending` phase, five-prefix keyset

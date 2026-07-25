@@ -309,101 +309,6 @@ BEGIN
 END;
 $$;
 
--- Complete all five sweep prefixes and all five delayed verification prefixes.
--- The fixture shortens only the real-world signature-expiry delay.
-UPDATE public.pending_storage_deletions AS deletion
-SET verification_not_before = pg_catalog.NOW(),
-    next_attempt_at = pg_catalog.NOW()
-WHERE deletion.target_user_id =
-    '00000000-0000-0000-0000-00000000d201'::UUID;
-
-SET LOCAL ROLE service_role;
-
-DO $$
-DECLARE
-    storage_claim RECORD;
-    advancement TEXT;
-    step_number INTEGER;
-BEGIN
-    FOR step_number IN 1..10 LOOP
-        SELECT *
-        INTO STRICT storage_claim
-        FROM public.claim_pending_storage_deletions(1);
-
-        advancement := public.advance_pending_storage_deletion(
-            storage_claim.deletion_id,
-            storage_claim.claim_token,
-            NULL,
-            TRUE
-        );
-
-        IF step_number < 5 AND advancement <> 'pending' THEN
-            RAISE EXCEPTION 'storage sweep advanced to an invalid phase';
-        ELSIF step_number = 5 AND advancement <> 'verifying' THEN
-            RAISE EXCEPTION 'storage sweep skipped delayed verification';
-        ELSIF step_number BETWEEN 6 AND 9
-              AND advancement <> 'pending' THEN
-            RAISE EXCEPTION 'storage verification advanced incorrectly';
-        ELSIF step_number = 10 AND advancement <> 'completed' THEN
-            RAISE EXCEPTION 'storage verification did not become terminal';
-        END IF;
-    END LOOP;
-END;
-$$;
-
-DELETE FROM account_deletion_test_claim;
-
-INSERT INTO account_deletion_test_claim
-SELECT *
-FROM public.claim_account_deletion_jobs(
-    1,
-    '00000000-0000-0000-0000-00000000d201'::UUID
-);
-
--- Auth is still present. Revalidate idempotent relational cleanup under the
--- new claim; only the terminal storage outbox permits auth_pending.
-SELECT public.complete_account_deletion_cleanup(
-    (SELECT job_id FROM account_deletion_test_claim),
-    (SELECT claim_token FROM account_deletion_test_claim)
-);
-SELECT public.complete_account_deletion_cleanup(
-    (SELECT job_id FROM account_deletion_test_claim),
-    (SELECT claim_token FROM account_deletion_test_claim)
-);
-
-RESET ROLE;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM public.pending_storage_deletions AS deletion
-        WHERE deletion.target_user_id =
-            '00000000-0000-0000-0000-00000000d201'::UUID
-          AND deletion.status = 'completed'
-          AND deletion.phase = 'verification'
-          AND deletion.completed_at IS NOT NULL
-          AND deletion.claim_token IS NULL
-    ) OR NOT EXISTS (
-        SELECT 1
-        FROM internal.account_deletion_jobs AS deletion_job
-        WHERE deletion_job.id = (
-            SELECT job_id FROM account_deletion_test_job
-        )
-          AND deletion_job.status = 'auth_pending'
-          AND deletion_job.storage_completed_at IS NOT NULL
-    ) OR NOT EXISTS (
-        SELECT 1
-        FROM auth.users AS auth_user
-        WHERE auth_user.id =
-            '00000000-0000-0000-0000-00000000d201'::UUID
-    ) THEN
-        RAISE EXCEPTION
-            'Verified storage completion did not gate auth_pending correctly';
-    END IF;
-END;
-$$;
-
 DO $$
 DECLARE
     auth_first_delete_rejected BOOLEAN := FALSE;
@@ -549,6 +454,102 @@ BEGIN
     IF NOT recreation_rejected THEN
         RAISE EXCEPTION
             'Active deletion allowed the public profile to be recreated';
+    END IF;
+END;
+$$;
+
+-- Complete all five sweep prefixes and all five delayed verification prefixes.
+-- The fixture shortens only the real-world signature-expiry delay after
+-- relational cleanup has durably created the storage outbox.
+UPDATE public.pending_storage_deletions AS deletion
+SET verification_not_before = pg_catalog.NOW(),
+    next_attempt_at = pg_catalog.NOW()
+WHERE deletion.target_user_id =
+    '00000000-0000-0000-0000-00000000d201'::UUID;
+
+SET LOCAL ROLE service_role;
+
+DO $$
+DECLARE
+    storage_claim RECORD;
+    advancement TEXT;
+    step_number INTEGER;
+BEGIN
+    FOR step_number IN 1..10 LOOP
+        SELECT *
+        INTO STRICT storage_claim
+        FROM public.claim_pending_storage_deletions(1);
+
+        advancement := public.advance_pending_storage_deletion(
+            storage_claim.deletion_id,
+            storage_claim.claim_token,
+            NULL,
+            TRUE
+        );
+
+        IF step_number < 5 AND advancement <> 'pending' THEN
+            RAISE EXCEPTION 'storage sweep advanced to an invalid phase';
+        ELSIF step_number = 5 AND advancement <> 'verifying' THEN
+            RAISE EXCEPTION 'storage sweep skipped delayed verification';
+        ELSIF step_number BETWEEN 6 AND 9
+              AND advancement <> 'pending' THEN
+            RAISE EXCEPTION 'storage verification advanced incorrectly';
+        ELSIF step_number = 10 AND advancement <> 'completed' THEN
+            RAISE EXCEPTION 'storage verification did not become terminal';
+        END IF;
+    END LOOP;
+END;
+$$;
+
+DELETE FROM account_deletion_test_claim;
+
+INSERT INTO account_deletion_test_claim
+SELECT *
+FROM public.claim_account_deletion_jobs(
+    1,
+    '00000000-0000-0000-0000-00000000d201'::UUID
+);
+
+-- Auth is still present. Revalidate idempotent relational cleanup under the
+-- new claim; only the terminal storage outbox permits auth_pending.
+SELECT public.complete_account_deletion_cleanup(
+    (SELECT job_id FROM account_deletion_test_claim),
+    (SELECT claim_token FROM account_deletion_test_claim)
+);
+SELECT public.complete_account_deletion_cleanup(
+    (SELECT job_id FROM account_deletion_test_claim),
+    (SELECT claim_token FROM account_deletion_test_claim)
+);
+
+RESET ROLE;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.pending_storage_deletions AS deletion
+        WHERE deletion.target_user_id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+          AND deletion.status = 'completed'
+          AND deletion.phase = 'verification'
+          AND deletion.completed_at IS NOT NULL
+          AND deletion.claim_token IS NULL
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS deletion_job
+        WHERE deletion_job.id = (
+            SELECT job_id FROM account_deletion_test_job
+        )
+          AND deletion_job.status = 'auth_pending'
+          AND deletion_job.storage_completed_at IS NOT NULL
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM auth.users AS auth_user
+        WHERE auth_user.id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+    ) THEN
+        RAISE EXCEPTION
+            'Verified storage completion did not gate auth_pending correctly';
     END IF;
 END;
 $$;

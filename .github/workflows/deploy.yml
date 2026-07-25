@@ -267,7 +267,7 @@ jobs:
       - name: Test durable account deletion boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/config.toml,../.github/workflows/deploy.yml \
+            --allow-read=supabase/functions,supabase/migrations,supabase/tests/account_deletion_security.sql,supabase/config.toml,../.github/workflows/deploy.yml \
             supabase/functions/_tests/safeDelete.test.ts \
             supabase/functions/_tests/accountDeletionCoverage.test.ts \
             supabase/functions/_tests/accountDeletionMigrationContract.test.ts

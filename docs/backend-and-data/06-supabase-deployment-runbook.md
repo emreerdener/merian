@@ -855,7 +855,7 @@ deno task test
 cd ../../..
 
 deno test --frozen --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/config.toml,.github/workflows/deploy.yml \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/tests/account_deletion_security.sql,services/supabase/config.toml,.github/workflows/deploy.yml \
   services/supabase/functions/_tests/safeDelete.test.ts \
   services/supabase/functions/_tests/accountDeletionCoverage.test.ts \
   services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \

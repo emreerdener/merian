@@ -148,6 +148,7 @@ Deno.test("DwC-A work is canonical, bounded, and resumable across invocations", 
       "csv_bytes BIGINT NOT NULL DEFAULT 0",
       "CREATE OR REPLACE FUNCTION public.get_due_export_job_ids",
       "CREATE OR REPLACE FUNCTION public.claim_export_job_step",
+      "ON CONFLICT ON CONSTRAINT export_job_work_pkey DO NOTHING",
       "CREATE OR REPLACE FUNCTION public.advance_export_job_step",
       "p_next_after_id <= current_after_id",
       "|| '-' || p_claim_token::TEXT || '.csv'",
@@ -167,6 +168,24 @@ Deno.test("DwC-A work is canonical, bounded, and resumable across invocations", 
   ) {
     assertStringIncludes(boundedMigration, expected);
   }
+
+  const stepClaim = boundedMigration.slice(
+    boundedMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.claim_export_job_step",
+    ),
+    boundedMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.advance_export_job_step",
+    ),
+  );
+  assertStringIncludes(
+    stepClaim,
+    "ON CONFLICT ON CONSTRAINT export_job_work_pkey DO NOTHING",
+  );
+  assertEquals(
+    stepClaim.includes("ON CONFLICT (job_id)"),
+    false,
+    "RETURNS TABLE exposes job_id as a PL/pgSQL variable, so the conflict arbiter must be unambiguous.",
+  );
 
   assertEquals(
     boundedMigration.includes("pg_catalog.COALESCE"),
