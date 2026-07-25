@@ -91,6 +91,12 @@ writes the idempotent storage outbox, tombstones relational data, and verifies
 that the public profile and original scan ownership are gone. Auth Admin
 deletion is allowed only after that transaction commits.
 
+Migration `20260725035737_repair_tombstone_profile_seed.sql` seeds the permanent
+all-zero UUID owner with every required public identity field. The tombstone
+routine now verifies that seed instead of lazily inserting an incomplete
+`public.users` row, so later identity constraints cannot make first-time
+anonymization fail after deletion intent is accepted.
+
 Every retry repeats the idempotent cleanup immediately before Auth deletion. An
 internal insert trigger rejects recreation of `public.users` while a deletion
 is active, so Auth metadata synchronization cannot restore a profile in the

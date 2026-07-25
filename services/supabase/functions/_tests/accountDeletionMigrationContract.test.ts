@@ -7,6 +7,10 @@ const migrationUrl = new URL(
   "../../migrations/20260725030308_durable_account_deletion.sql",
   import.meta.url,
 );
+const tombstoneRepairMigrationUrl = new URL(
+  "../../migrations/20260725035737_repair_tombstone_profile_seed.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -107,3 +111,40 @@ Deno.test("account deletion RPCs remain service-only", async () => {
     "PostgreSQL conditional expressions are not schema-qualified functions and fail plpgsql_check.",
   );
 });
+
+Deno.test(
+  "account deletion has a complete migration-seeded tombstone owner",
+  async () => {
+    const sql = normalized(
+      await Deno.readTextFile(tombstoneRepairMigrationUrl),
+    );
+
+    for (
+      const fragment of [
+        "INSERT INTO public.users AS tombstone_user",
+        "id, public_username, public_author_name, public_identity_source",
+        "public.build_unique_public_username( 'deleted_account', '00000000-0000-0000-0000-000000000000'::UUID )",
+        "ON CONFLICT (id) DO NOTHING",
+        "CREATE OR REPLACE FUNCTION public.apply_user_tombstone",
+        "PERFORM internal.require_service_role()",
+        "SET search_path = ''",
+        "account_deletion_tombstone_missing",
+        "UPDATE public.scans SET user_id = tombstone_user_id, is_tombstoned = TRUE",
+        "DELETE FROM public.users WHERE id = target_user_id",
+        "REVOKE ALL ON FUNCTION public.apply_user_tombstone(UUID) FROM PUBLIC, anon, authenticated, service_role",
+        "GRANT EXECUTE ON FUNCTION public.apply_user_tombstone(UUID) TO service_role",
+      ]
+    ) {
+      assertStringIncludes(sql, fragment);
+    }
+
+    const routineStart = sql.indexOf(
+      "CREATE OR REPLACE FUNCTION public.apply_user_tombstone",
+    );
+    const routineSql = sql.slice(routineStart);
+    assert(
+      !routineSql.includes("INSERT INTO public.users"),
+      "Routine execution must not lazily construct a schema-coupled user row.",
+    );
+  },
+);

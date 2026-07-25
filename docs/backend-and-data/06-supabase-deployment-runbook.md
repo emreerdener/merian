@@ -540,6 +540,12 @@ supabase --workdir services test db --local \
   services/supabase/tests/species_count_trigger_security.sql
 ```
 
+The dictionary-delete case forces the deferred ledger foreign key after the
+scan's `ON DELETE SET NULL` transition. Its constraint name must remain
+schema-qualified as
+`internal.user_species_scan_counts_species_id_fkey`; an unqualified name is not
+visible when the fixture's search path excludes `internal`.
+
 Workflow run 1458 failed during disposable `supabase db start` with
 `SQLSTATE 25P01: LOCK TABLE can only be used in transaction blocks`. Treat that
 signature as an explicit-boundary regression: restore `BEGIN` before the scan
@@ -782,15 +788,19 @@ positive data, preserve negative caching, and fix forward.
 
 ### Durable Account Deletion Release Gate
 
-Migration `20260725030308_durable_account_deletion.sql`,
+Migrations `20260725030308_durable_account_deletion.sql` and
+`20260725035737_repair_tombstone_profile_seed.sql`,
 `safe-delete`, and `reconcile-account-deletions` form one release unit. No new
 secret is required: the reaper uses the existing Supabase service-role value
-from Vault. The migration:
+from Vault. The migrations:
 
 - creates private `internal.account_deletion_jobs`;
 - blocks public-profile recreation while an account-deletion job is active;
 - deduplicates `pending_storage_deletions` and adds one-row-per-user
   idempotency;
+- seeds the permanent all-zero UUID tombstone owner with every required public
+  identity field and removes lazy profile construction from
+  `apply_user_tombstone`;
 - installs service-only intake, claim, cleanup, and finish RPCs; and
 - schedules `reconcile_account_deletions_every_five_minutes`.
 
@@ -823,6 +833,14 @@ FROM cron.job
 WHERE jobname = 'reconcile_account_deletions_every_five_minutes';
 
 SELECT
+    id,
+    public_username,
+    public_author_name,
+    public_identity_source
+FROM public.users
+WHERE id = '00000000-0000-0000-0000-000000000000'::UUID;
+
+SELECT
     status,
     COUNT(*) AS jobs,
     MAX(attempt_count) AS max_attempt_count,
@@ -831,6 +849,11 @@ FROM internal.account_deletion_jobs
 GROUP BY status
 ORDER BY status;
 ```
+
+Expected: one tombstone row with a valid non-empty username/author name and
+`public_identity_source = 'alias'`, plus the active cron. Do not delete or
+repurpose the tombstone row. `account_deletion_tombstone_missing` is an
+infrastructure incident that intentionally stops cleanup before any scans move.
 
 Smoke-test with a staging-only account that owns at least one scan. Confirm:
 
@@ -853,6 +876,16 @@ owner session.
 Do not roll back by dropping the private table, unique outbox index, or cron;
 that would discard deletion intent. Fix forward while keeping the reaper
 available.
+
+Workflow run 1460 caught two disposable-catalog regressions before production
+push. A `public.users.public_author_name` `NOT NULL` error from
+`apply_user_tombstone` means an obsolete routine is still lazily constructing
+the sentinel; restore the forward seed/routine migration. A “constraint does
+not exist” error for the species ledger after dictionary deletion means the
+test named the internal foreign key without its schema; restore the
+`internal.user_species_scan_counts_species_id_fkey` qualification. These
+failures occur before hosted migration history is changed; fix forward and
+rerun the complete disposable database gate.
 
 ### Darwin Core Export Release Gate
 

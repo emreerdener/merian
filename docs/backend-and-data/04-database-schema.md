@@ -76,6 +76,12 @@ ledger intentionally follows raw non-null `scans.species_id`; it does not
 change public Explore's separate biological/confirmed-species counting
 contract.
 
+The dictionary foreign key lives in the `internal` namespace. Any diagnostic or
+test that forces its deferred check must use
+`SET CONSTRAINTS internal.user_species_scan_counts_species_id_fkey IMMEDIATE`;
+an unqualified name is not visible when `internal` is absent from
+`search_path`.
+
 ### `users`
 
 Tracks the global state of the anonymous/authenticated user.
@@ -165,6 +171,14 @@ supply a valid unique `public_username`, a non-empty `public_author_name`, and a
 CHECK-valid `public_identity_source`. These columns have no direct-insert
 fallback defaults; do not weaken their `NOT NULL`, validation, or uniqueness
 constraints for fixture convenience.
+
+The permanent all-zero UUID tombstone owner is a schema-infrastructure row, not
+an Auth-backed account. Migration
+`20260725035737_repair_tombstone_profile_seed.sql` seeds it with all three
+required public-identity fields using a collision-safe username.
+`apply_user_tombstone` verifies that row before moving scans and never constructs
+a partial `public.users` row during deletion. A missing tombstone aborts before
+scan ownership changes with `account_deletion_tombstone_missing`.
 
 **Public identity refresh helpers**:
 `refresh_public_author_identity(target_user_id)` and `handle_new_user()`

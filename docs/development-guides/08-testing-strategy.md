@@ -857,12 +857,14 @@ Durable account deletion has five complementary checks:
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order,
   cleanup verification, profile-recreation guard, terminal UUID minimization,
-  service-only ACLs, and five-minute cron.
+  service-only ACLs, five-minute cron, complete migration-seeded tombstone
+  identity, and the absence of schema-coupled lazy user creation.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, premature Auth completion is denied,
-  cleanup commits while Auth still exists, active deletion blocks profile
-  resurrection, retries preserve `auth_pending`, final completion erases the
-  direct UUID, and duplicate completion is idempotent.
+  cleanup commits while Auth still exists, the permanent tombstone retains a
+  complete valid public identity, active deletion blocks profile resurrection,
+  retries preserve `auth_pending`, final completion erases the direct UUID, and
+  duplicate completion is idempotent.
 - `MerianNetworkClientTests.testSafeDeleteAccountEndpoint` returns
   `202 Accepted` from the mock route and proves the shared authenticated request
   boundary recognizes durable acceptance as a successful 2xx response.
@@ -883,7 +885,8 @@ Incremental species-count maintenance has two complementary checks:
   ACLs, and exact ledger/projection behavior across bulk insert, no-op
   unrelated update, simultaneous OLD/NEW changes, last-duplicate removal, and
   bulk delete. It rejects a live-owner ledger underflow and forces the deferred
-  dictionary constraint after an `ON DELETE SET NULL` transition. The
+  dictionary constraint by its schema-qualified `internal` name after an
+  `ON DELETE SET NULL` transition. The
   intentionally corrupted projection before the unrelated update is a
   regression sentinel: the value must remain untouched, proving that routine
   updates do not hide a full-history recount.

@@ -261,6 +261,17 @@ BEGIN
           AND scan.is_tombstoned
     ) OR NOT EXISTS (
         SELECT 1
+        FROM public.users AS tombstone_user
+        WHERE tombstone_user.id =
+            '00000000-0000-0000-0000-000000000000'::UUID
+          AND public.is_valid_public_username(
+              tombstone_user.public_username
+          )
+          AND tombstone_user.public_author_name =
+              tombstone_user.public_username
+          AND tombstone_user.public_identity_source = 'alias'
+    ) OR NOT EXISTS (
+        SELECT 1
         FROM public.pending_storage_deletions AS deletion
         WHERE deletion.target_user_id =
             '00000000-0000-0000-0000-00000000d201'::UUID

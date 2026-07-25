@@ -447,5 +447,7 @@ never be deleted as part of incident cleanup. Full incident procedures are in
   user-reported flag reaches a review threshold. Managed via
   `00005_flagged_reviews.sql`.
 - `is_tombstoned` (BOOLEAN) — GDPR-compliant account deletion marker. Anonymizes
-  scan metadata while preserving the row for offline cache continuity. Managed
-  via `00006_apply_user_tombstone.sql`.
+  scan metadata while preserving the row for offline cache continuity.
+  Initially introduced by `00006_apply_user_tombstone.sql`; the durable
+  state-machine and complete tombstone-owner seed are installed by the
+  `20260725030308` and `20260725035737` forward migrations.

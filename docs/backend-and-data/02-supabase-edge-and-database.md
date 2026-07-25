@@ -1677,12 +1677,19 @@ deployment and incident response.
 ## Account Deletion & Data Preservation (`safe-delete`)
 
 Account deletions use the `apply_user_tombstone` PL/pgSQL function
-(`00006_apply_user_tombstone.sql`). Instead of cascade-deleting scan rows, it
-reassigns the user's scans to a permanent anonymous tombstone user
+(introduced by `00006_apply_user_tombstone.sql` and hardened by later forward
+migrations). Instead of cascade-deleting scan rows, it reassigns the user's
+scans to a permanent anonymous tombstone user
 (`00000000-0000-0000-0000-000000000000`) and sets `is_tombstoned = true`. The
 original user record and telemetry are then deleted without losing the
-biological observation data. The tombstone user targets the
-`current_streak_count` column, not any legacy field.
+biological observation data.
+
+Migration `20260725035737_repair_tombstone_profile_seed.sql` creates that
+all-zero UUID owner as schema infrastructure with a collision-safe
+`public_username`, matching `public_author_name`, and `alias`
+`public_identity_source`. The routine verifies the seed before any scan update;
+it does not lazily insert a partial profile. Missing infrastructure fails with
+`account_deletion_tombstone_missing` before relational anonymization begins.
 
 The internal-admin foundation extends this deletion boundary to the append-only
 AI ledger. When the `public.users` row is deleted, a protected trigger clears

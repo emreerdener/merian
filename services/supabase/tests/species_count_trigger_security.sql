@@ -444,7 +444,7 @@ BEGIN
     DELETE FROM public.species_dictionary AS species
     WHERE species.id = third_species_id;
 
-    SET CONSTRAINTS user_species_scan_counts_species_id_fkey IMMEDIATE;
+    SET CONSTRAINTS internal.user_species_scan_counts_species_id_fkey IMMEDIATE;
 
     IF (
         SELECT scans.species_id

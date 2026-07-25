@@ -9,6 +9,14 @@ Migration `20260725030308_durable_account_deletion.sql` replaces the former
 Auth-first sequence with a private `internal.account_deletion_jobs` state
 machine:
 
+Migration `20260725035737_repair_tombstone_profile_seed.sql` seeds the permanent
+all-zero UUID tombstone owner with the complete required public identity
+(`public_username`, `public_author_name`, and `public_identity_source`).
+`apply_user_tombstone` no longer attempts to construct that profile lazily from
+an obsolete subset of `public.users`; it verifies the infrastructure row before
+mutating scans and fails with `account_deletion_tombstone_missing` if the
+invariant is broken.
+
 1. `request_account_deletion(user_id)` inserts or returns the active `pending`
    job. This durable receipt is always the first mutation.
 2. `claim_account_deletion_jobs(...)` assigns a five-minute UUID lease using
@@ -71,6 +79,8 @@ underlying cleanup failure and invoke the service reaper. For a legacy
 Auth-first incident that predates this migration, an operator may create a
 durable job for the recorded UUID through the service-only intake RPC, then run
 the reaper. Review the target and current relational state before doing so.
+Treat the all-zero tombstone profile as schema infrastructure: do not delete it
+or repurpose its identity.
 
 ## Source layout
 
