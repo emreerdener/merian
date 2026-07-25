@@ -1474,7 +1474,8 @@ The surrounding export suite is intentionally split by boundary:
   the provider but receive a durable ignored receipt; and both sides of a
   transfer are reconciled before one mutation call.
 - **`_tests/revenueCatWebhookCoverage.test.ts`**: Source contract that keeps the
-  processing order and all three GitHub/Supabase secret bindings present.
+  processing order, bounded reconciliation route/configuration, and all three
+  GitHub/Supabase secret bindings present.
 - **`_tests/revenueCatWebhookMigrationContract.test.ts`**: Static SQL contract
   for the unique event ledger, per-event subject table, ordering watermark,
   snapshot-primary ordering, deterministic multi-user row locks, durable

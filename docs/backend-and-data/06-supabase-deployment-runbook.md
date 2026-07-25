@@ -1268,7 +1268,7 @@ Run the complete preflight:
 ```bash
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions/revenuecat-webhook,.github/workflows/deploy.yml \
+  --allow-read=services/supabase/functions,services/supabase/config.toml,.github/workflows/deploy.yml \
   services/supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
   services/supabase/functions/_shared/subscriptionPass_test.ts \
   services/supabase/functions/revenuecat-webhook/handler_test.ts \

@@ -293,7 +293,7 @@ jobs:
       - name: Test RevenueCat webhook boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions/revenuecat-webhook,../.github/workflows/deploy.yml \
+            --allow-read=supabase/functions,supabase/config.toml,../.github/workflows/deploy.yml \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/revenuecat-webhook/handler_test.ts \
