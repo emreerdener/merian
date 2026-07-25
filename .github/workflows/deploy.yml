@@ -63,16 +63,32 @@ jobs:
       - name: Validate deployment secrets
         env:
           AI_QUOTA_IP_HASH_SECRET: ${{ secrets.AI_QUOTA_IP_HASH_SECRET }}
+          DWCA_PSEUDONYM_HMAC_KEY_V1: ${{ secrets.DWCA_PSEUDONYM_HMAC_KEY_V1 }}
           REVENUECAT_SECRET_API_KEY: ${{ secrets.REVENUECAT_SECRET_API_KEY }}
           REVENUECAT_WEBHOOK_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SECRET }}
           REVENUECAT_WEBHOOK_SIGNING_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SIGNING_SECRET }}
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
+          : "${DWCA_PSEUDONYM_HMAC_KEY_V1:?Missing DWCA_PSEUDONYM_HMAC_KEY_V1 GitHub secret}"
           : "${REVENUECAT_SECRET_API_KEY:?Missing REVENUECAT_SECRET_API_KEY GitHub secret}"
           : "${REVENUECAT_WEBHOOK_SECRET:?Missing REVENUECAT_WEBHOOK_SECRET GitHub secret}"
           : "${REVENUECAT_WEBHOOK_SIGNING_SECRET:?Missing REVENUECAT_WEBHOOK_SIGNING_SECRET GitHub secret}"
           if [ -n "$AI_QUOTA_IP_HASH_SECRET" ] && [ "${#AI_QUOTA_IP_HASH_SECRET}" -lt 32 ]; then
             echo "AI_QUOTA_IP_HASH_SECRET must contain at least 32 characters." >&2
+            exit 1
+          fi
+          if ! printf '%s' "$DWCA_PSEUDONYM_HMAC_KEY_V1" | base64 --decode >/dev/null 2>&1; then
+            echo "DWCA_PSEUDONYM_HMAC_KEY_V1 must be valid Base64." >&2
+            exit 1
+          fi
+          dwca_key_bytes="$(
+            printf '%s' "$DWCA_PSEUDONYM_HMAC_KEY_V1" |
+              base64 --decode |
+              wc -c |
+              tr -d '[:space:]'
+          )"
+          if [ "$dwca_key_bytes" -lt 32 ]; then
+            echo "DWCA_PSEUDONYM_HMAC_KEY_V1 must decode to at least 32 bytes." >&2
             exit 1
           fi
           if [ "${#REVENUECAT_WEBHOOK_SECRET}" -lt 32 ]; then
@@ -100,6 +116,8 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/http_test.ts \
             supabase/functions/_shared/mediaBudgets.ts \
@@ -169,6 +187,8 @@ jobs:
             supabase/functions/insight-chat \
             supabase/functions/replay-scan-ingestion \
             supabase/functions/revenuecat-webhook \
+            supabase/functions/request-export-dwca \
+            supabase/functions/export-dwca \
             supabase/functions/species-observation-stats \
             supabase/functions/sync-collections/db.ts \
             supabase/functions/sync-collections/db_test.ts \
@@ -181,6 +201,8 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/http_test.ts \
             supabase/functions/_shared/mediaBudgets.ts \
@@ -250,6 +272,8 @@ jobs:
             supabase/functions/insight-chat \
             supabase/functions/replay-scan-ingestion \
             supabase/functions/revenuecat-webhook \
+            supabase/functions/request-export-dwca \
+            supabase/functions/export-dwca \
             supabase/functions/species-observation-stats \
             supabase/functions/sync-collections/db.ts \
             supabase/functions/sync-collections/db_test.ts \
@@ -262,6 +286,8 @@ jobs:
             supabase/functions/_shared/claimsAuth.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/http_test.ts \
             supabase/functions/_shared/mediaBudgets.ts \
@@ -332,6 +358,13 @@ jobs:
             supabase/functions/revenuecat-webhook/index_test.ts \
             supabase/functions/revenuecat-webhook/signature_test.ts \
             supabase/functions/revenuecat-webhook/subscriber_test.ts \
+            supabase/functions/export-dwca/index_test.ts \
+            supabase/functions/export-dwca/db_test.ts \
+            supabase/functions/export-dwca/mail_test.ts \
+            supabase/functions/export-dwca/pseudonym_test.ts \
+            supabase/functions/export-dwca/storage_test.ts \
+            supabase/functions/export-dwca/worker_test.ts \
+            supabase/functions/export-dwca/zip_test.ts \
             supabase/functions/scan-media-health/index.ts
 
       - name: Validate isolated Edge Function dependency graphs
@@ -413,6 +446,19 @@ jobs:
             supabase/functions/revenuecat-webhook/signature_test.ts \
             supabase/functions/revenuecat-webhook/subscriber_test.ts
 
+      - name: Test Darwin Core export boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,../.github/workflows/deploy.yml \
+            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+            supabase/functions/export-dwca/db_test.ts \
+            supabase/functions/export-dwca/index_test.ts \
+            supabase/functions/export-dwca/mail_test.ts \
+            supabase/functions/export-dwca/pseudonym_test.ts \
+            supabase/functions/export-dwca/storage_test.ts \
+            supabase/functions/export-dwca/worker_test.ts \
+            supabase/functions/export-dwca/zip_test.ts
+
       - name: Test Edge Function deployment planner
         run: |
           deno test --frozen --config supabase/functions/deno.json \
@@ -428,6 +474,7 @@ jobs:
           deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/migrations \
             supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
+            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
             supabase/functions/_tests/explorePostChatMigration.test.ts \
             supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
             supabase/functions/_tests/migrationExecutionContract.test.ts \
@@ -452,6 +499,7 @@ jobs:
           supabase test db --local \
             supabase/tests/privileged_routine_security.sql \
             supabase/tests/ai_quota_security.sql \
+            supabase/tests/export_dwca_security.sql \
             supabase/tests/revenuecat_webhook_security.sql \
             supabase/tests/species_count_trigger_security.sql \
             supabase/tests/species_observation_stats_security.sql \
@@ -589,6 +637,15 @@ jobs:
             "REVENUECAT_SECRET_API_KEY=$REVENUECAT_SECRET_API_KEY" \
             "REVENUECAT_WEBHOOK_SECRET=$REVENUECAT_WEBHOOK_SECRET" \
             "REVENUECAT_WEBHOOK_SIGNING_SECRET=$REVENUECAT_WEBHOOK_SIGNING_SECRET" \
+            --project-ref "$PROJECT_ID"
+
+      - name: Synchronize Darwin Core pseudonym key
+        env:
+          DWCA_PSEUDONYM_HMAC_KEY_V1: ${{ secrets.DWCA_PSEUDONYM_HMAC_KEY_V1 }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          supabase secrets set \
+            "DWCA_PSEUDONYM_HMAC_KEY_V1=$DWCA_PSEUDONYM_HMAC_KEY_V1" \
             --project-ref "$PROJECT_ID"
 
       - name: Deploy affected Edge Functions

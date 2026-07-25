@@ -150,7 +150,11 @@ Deno.test("R2 prefix helpers classify scan media separately from avatars", () =>
 
 Deno.test("R2 lifecycle contract does not expire durable avatar objects", () => {
   const rules = (r2Lifecycle as {
-    Rules: Array<{ Status: string; Filter?: { Prefix?: string } }>;
+    Rules: Array<{
+      Status: string;
+      Filter?: { Prefix?: string };
+      AbortIncompleteMultipartUpload?: { DaysAfterInitiation?: number };
+    }>;
   }).Rules;
   const expiringPrefixes = rules
     .filter((rule) => rule.Status === "Enabled")
@@ -158,4 +162,11 @@ Deno.test("R2 lifecycle contract does not expire durable avatar objects", () => 
     .filter(Boolean);
 
   assertEquals(expiringPrefixes.includes(R2_MEDIA_PREFIXES.avatars), false);
+
+  const multipartAbortRules = rules.filter((rule) =>
+    rule.Status === "Enabled" &&
+    rule.AbortIncompleteMultipartUpload?.DaysAfterInitiation === 7
+  );
+  assertEquals(multipartAbortRules.length, 1);
+  assertEquals(multipartAbortRules[0].Filter?.Prefix, undefined);
 });

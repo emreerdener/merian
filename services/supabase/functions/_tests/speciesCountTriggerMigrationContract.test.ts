@@ -13,6 +13,43 @@ function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
 }
 
+function withoutSqlComments(sql: string): string {
+  return sql
+    .replaceAll(/\/\*[\s\S]*?\*\//g, " ")
+    .replaceAll(/--[^\r\n]*/g, " ");
+}
+
+Deno.test(
+  "species-count cutover lock spans one explicit migration transaction",
+  async () => {
+    const sql = normalized(
+      withoutSqlComments(await Deno.readTextFile(migrationUrl)),
+    );
+    const transactionStart = sql.indexOf("BEGIN;");
+    const tableLock = sql.indexOf(
+      "LOCK TABLE public.scans IN SHARE ROW EXCLUSIVE MODE;",
+    );
+    const finalTrigger = sql.lastIndexOf(
+      "CREATE TRIGGER sync_user_species_counts_after_truncate",
+    );
+    const transactionCommit = sql.lastIndexOf("COMMIT;");
+
+    assert(
+      transactionStart >= 0 && transactionStart < tableLock,
+      "LOCK TABLE must follow the migration's explicit BEGIN",
+    );
+    assert(
+      tableLock < finalTrigger && finalTrigger < transactionCommit,
+      "the scan lock must remain held through the final trigger cutover",
+    );
+    assertEquals(
+      sql.slice(transactionCommit + "COMMIT;".length),
+      "",
+      "COMMIT must be the migration's final executable token",
+    );
+  },
+);
+
 Deno.test("species-count migration builds a private incremental ledger", async () => {
   const sql = normalized(await Deno.readTextFile(migrationUrl));
 

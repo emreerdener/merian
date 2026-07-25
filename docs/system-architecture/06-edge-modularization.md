@@ -128,14 +128,17 @@ both places.
 
 ## 5. Auxiliary Streams (`storage.ts`, `mail.ts`, `media.ts`, `moderation.ts`)
 
-For exceptionally heavy or bespoke routing streams that violate the 10-second
-Deno isolate timeout window, operations must be cordoned off into
-domain-specific streams explicitly executed via `runBackground`.
+For exceptionally heavy or bespoke routing streams that approach the hosted Edge
+CPU, wall-clock, or memory budget, operations must be cordoned off into
+domain-specific streaming boundaries or moved to a durable worker.
 
 - **`storage.ts`**: Handles heavy `AWS` bindings via native `aws4fetch`. When
-  streaming multimegabyte binaries directly into Cloudflare R2, implementations
-  like `JSZip` must pipe their outputs efficiently into a `ReadableStream`
-  natively chunked into S3 without overloading memory buffers.
+  streaming multimegabyte binaries directly into Cloudflare R2, producers must
+  remain lazy and feed fixed-size multipart parts without collecting the full
+  body. The DwC-A worker uses an incremental ZIP `STORE` writer and 8 MiB R2
+  parts; R2 completion XML is bounded and parsed for HTTP-200 embedded errors.
+  Reintroducing `generateAsync()`, `arrayBuffer()`, `response.text()`, or one
+  complete CSV violates that memory boundary.
 - **`_shared/aws.ts`**: Shared Cloudflare R2 helpers. Pre-signed PUT generation
   accepts an explicit `Content-Type`; callers must sign image and audio uploads
   with the same header the client will send. The scan-media reconciliation

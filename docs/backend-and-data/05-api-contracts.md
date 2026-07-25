@@ -27,7 +27,7 @@ ordinary object reader:
 Routes use the smallest endpoint class that can contain a valid request:
 
 | Class | Maximum body | Intended payload |
-| --- | ---: | --- |
+| ---------- | -----------: | ------------------------------------ |
 | `small` | 16 KiB | scalar IDs, actions, and preferences |
 | `standard` | 64 KiB | ordinary structured API requests |
 | `bulk` | 1 MiB | explicitly bounded batches |
@@ -41,7 +41,7 @@ array counts, UUIDs, and ownership.
 Parser failures use stable public codes:
 
 | HTTP | Code |
-| ---: | --- |
+| ---: | ------------------------------------------------------------------ |
 | 400 | `invalid_content_length`, `invalid_json`, or `invalid_json_object` |
 | 413 | `payload_too_large` |
 | 415 | `unsupported_media_type` |
@@ -1579,7 +1579,7 @@ it does not promise to replay a prior HTTP response body.
 Shared authorization errors are:
 
 | Status | Code | Meaning |
-|---|---|---|
+| ------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `400` | `ai_request_id_invalid` | Supplied body/header request key is not a UUID |
 | `402` | `pro_required` | Operation is disabled for the effective plan |
 | `409` | `ai_request_in_progress` / `ai_request_already_completed` | Duplicate paid-provider attempt; an in-progress response retries after the remaining lease |
@@ -1916,9 +1916,9 @@ constraint in the Deno schema.
 > `confidence_score >= diagnosticTrigger` (`0.99` for both Flash and Pro),
 > preserving candidates for Possible, Weak, and Strong biological scans below
 > that near-certain threshold. Non-biological and processed-material results are
-> stripped to `null` regardless of confidence. Candidates are scan-specific and persist to
-> `public.scans.candidates` plus `LocalScanRecord.candidatesData`, while client
-> display is separately gated by `CandidateReviewVisibilityPolicy`.
+> stripped to `null` regardless of confidence. Candidates are scan-specific and
+> persist to `public.scans.candidates` plus `LocalScanRecord.candidatesData`,
+> while client display is separately gated by `CandidateReviewVisibilityPolicy`.
 
 ### Background Ingestion & Media Moderation
 
@@ -2557,7 +2557,7 @@ Privacy:
 Error responses:
 
 | Status | Code | Meaning |
-| ------ | ---- | ------- |
+| ------ | ----------------------------------------------------- | -------------------------------------------------- |
 | `400` | `species_stats_invalid_request` or validation message | Missing/invalid UUID or bounded name |
 | `401` | `invalid_session_token` | Invalid supplied user credential |
 | `404` | `species_stats_species_not_found` | Unknown dictionary UUID or canonical-name mismatch |
@@ -4906,7 +4906,7 @@ pre-provider cache/no-op path may refund.
 ### Error Responses
 
 | Status | Body | Meaning |
-|---|---|---|
+| ----------- | ------------------------------------------------------------------- | --------------------------------------------- |
 | `400` | `{ "error": "Missing required parameters..." }` | Required enrichment input absent |
 | `400` | `{ "code": "ai_request_id_invalid", ... }` | Supplied request key is not a UUID |
 | `400`/`500` | `{ "error": "AI processing error during enrichment..." }` | Provider or enrichment persistence failure |
@@ -5131,7 +5131,7 @@ illegal collection, pesticide/poison instructions, and human-subject
 identification requests.
 
 | Status | Body                                     | Meaning                                            |
-| ------ | ---------------------------------------- | -------------------------------------------------- |
+| ------ | ------------------------------------------------ | -------------------------------------------------- |
 | `400`  | `{ "code": "unsupported_scan", ... }`    | Scan is non-biological or request shape is invalid |
 | `402`  | `{ "code": "pro_required", ... }`        | Effective tier is not Pro/trial                    |
 | `404`  | `{ "code": "scan_not_ready", ... }`      | No owned completed scan row exists yet             |
@@ -5516,7 +5516,7 @@ Successful response: HTTP 200.
 Error bodies use `{ "code": "...", "error": "..." }`.
 
 | HTTP | Code | Meaning | Client action |
-| --- | --- | --- | --- |
+| ---- | ------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------- |
 | 400 | `invalid_request` | Invalid JSON, unsupported fields, provider/subject, UUID, or secret | Do not switch away during prepare; fix the request |
 | 413 | `invalid_request` | JSON body exceeds 4 KiB | Do not retry unchanged |
 | 401 | shared auth error | Missing, invalid, expired, or non-live user JWT | Refresh/re-authenticate |
@@ -5701,6 +5701,8 @@ table, returning a `200 OK` instantly so the iOS client can release its thread.
 
 - Extracts user identity from the GoTrue header via
   `supabaseAdmin.auth.getUser(jwt)`.
+- Rejects anonymous/ghost sessions with `403 account_required`; export email and
+  per-account rate limits require a permanent authenticated identity.
 - **`exportScope` enum validation**: `exportScope` must be `"personal"` or
   `"global"`. Any other value (including the former default `"user"`) is
   rejected with `HTTP 400`. The default when omitted is `"personal"`.
@@ -5708,7 +5710,9 @@ table, returning a `200 OK` instantly so the iOS client can release its thread.
   must be a boolean. A non-boolean value (e.g. a string `"true"`) is rejected
   with `HTTP 400`.
 - **Database Rate Limit**: Queries `export_jobs` to verify the user has not
-  queued an export in the last 24 hours. If they have, returns
+  queued a successful or non-terminal export in the last 24 hours. Failed jobs
+  are excluded so a worker/configuration failure can be retried. If the limit
+  applies, returns
   `429 Too Many Requests`.
 - Inserts a row into `export_jobs` with status `pending`, triggering the
   `pg_net` webhook. The insert is idempotent against concurrent duplicate
@@ -5716,6 +5720,9 @@ table, returning a `200 OK` instantly so the iOS client can release its thread.
   before either commits) is caught and also returns `429 Too Many Requests`,
   consistent with the explicit rate-limit path and preventing a `500` error from
   surfacing to the client.
+- `anon` and `authenticated` have no direct `INSERT` privilege on `export_jobs`;
+  callers cannot bypass this validation/rate-limit boundary through the Data
+  API.
 
 ---
 
@@ -5730,19 +5737,37 @@ connections.
 
 ```json
 {
-  "job_id": "UUID_A",
-  "user_id": "UUID_B",
-  "export_scope": "user",
-  "include_precise_coordinates": true
+  "job_id": "UUID_A"
 }
 ```
+
+Only `job_id` is consumed by the hardened worker. For jobs created inside the
+private two-hour migration rollout cohort, PostgreSQL may additionally send
+canonical row-derived `user_id`, `export_scope`, and
+`include_precise_coordinates` hints for the prior deployed bundle. They are not
+authority, they stop appearing automatically after the protocol deadline, and
+post-deadline jobs cannot enter processing without a private claim.
 
 ### Security & Enforcement
 
 - Authenticates the Postgres origin by verifying that
-  `Authorization: Bearer <token>` exactly matches `SUPABASE_SERVICE_ROLE_KEY`.
-- Uses `supabaseAdmin.auth.admin.getUserById(user_id)` to resolve the user's
-  email address for the Resend API delivery.
+  `Authorization: Bearer <token>` timing-safely matches `SUPABASE_SERVICE_ROLE_KEY`. The route accepts only `POST`, uses the shared
+  small bounded JSON reader, and returns stable request-correlated errors.
+- Treats `job_id` only as an opaque wake-up identifier and never reads the
+  deprecated user/scope/precision rollout hints. Status, pseudonym version, and
+  object-key fields are absent from the webhook contract.
+- Calls service-only `claim_export_job(job_id, claim_token)`. The RPC locks the
+  queue row, returns its immutable canonical state, and creates a private
+  ten-minute lease. An already active or terminal job returns no claim and the
+  duplicate delivery performs no archive/provider work.
+- Renews the lease every minute. Staging, completion, and failure RPCs require
+  the same unexpired UUID token; a delayed worker cannot mutate a replacement
+  attempt. These definer routines use an empty `search_path`, call
+  `internal.require_service_role()`, and are not executable by `PUBLIC`, `anon`,
+  or `authenticated`.
+- Resolves the
+  email from the claimed canonical `user_id` through
+  `supabaseAdmin.auth.admin.getUserById(...)`.
 - **DwC-A Global Geoprivacy Leak Prevention**: Enforces strict IUCN Red List and
   ownership gating during ZIP compilation. Evaluates
   `canAccessPrecise = include_precise_coordinates && (scan.user_id === user_id)`.
@@ -5753,15 +5778,49 @@ connections.
   captures), and public coordinates are aggressively decimate-rounded down to
   ~11km tiles to prevent poachers from extracting precise habitats via standard
   scientific downloads.
-- **Async Delivery**: Instead of holding the HTTP response open while zipping
-  gigabytes of images, it uploads the final output to Cloudflare R2 and
-  dispatches the signed expiring download URL to the user's inbox via the
-  **Resend Node SDK**. Updates `export_jobs.status` to `completed`.
-- **Stuck-job watchdog**: If the Edge function is killed mid-run (OOM,
-  cold-start restart, edge timeout), the job remains in `'processing'` until the
-  `pg_cron` watchdog (`expire-stuck-export-jobs`) expires it after 30 minutes.
-  The watchdog sets `status = 'failed'` with a descriptive message so users can
-  retry via the iOS client instead of waiting forever.
+- **Versioned pseudonyms**: Global `recordedBy` values use a domain-separated
+  HMAC-SHA256 truncated to 128 bits and prefixed with the pinned key version.
+  The required Base64 `DWCA_PSEUDONYM_HMAC_KEY_V{n}` is independent of Supabase
+  JWT/service keys and has no fallback.
+- **Bounded generation**: Runs separate occurrence and multimedia keyset passes
+  (`id > last_id`) in 200-row pages with narrow projections and matching partial
+  indexes. Lazy CSV chunks feed a streaming ZIP32 `STORE` writer and fixed 8 MiB
+  R2 multipart upload. No complete page history, CSV, ZIP, `arrayBuffer()`, or
+  media binary collection is retained in memory. R2 create/complete XML and
+  Resend replies are streamed through explicit byte limits. Completion rejects
+  an S3-compatible `<Error>` body even when R2 returns HTTP 200. Each R2 request
+  has a 60-second deadline, and Resend delivery has a 15-second deadline.
+- **Attempt-fenced storage**: Before staging, each lease writes
+  `exports/{user_id}/{job_id}/{claim_token}.zip`. A stale worker therefore
+  cannot overwrite the winning archive. After staging, a replacement lease
+  reuses the stored object key and signed URL.
+- **Idempotent delivery**: Calls Resend directly with
+  `Idempotency-Key: dwca-export/{job_id}` and marks the job complete only after
+  Resend accepts the request. Re-entry with a staged archive does not regenerate
+  it.
+- **Stuck-job watchdog**: The five-minute cron fails pending rows older than 30
+  minutes and processing rows whose private lease is missing or expired. Public
+  rows store stable failure codes/messages; provider responses and internal
+  errors remain only in structured Edge logs. Failed jobs do not consume the
+  next 24-hour request window.
+
+### Response
+
+After authentication and bounded parsing, the route registers its worker with
+`EdgeRuntime.waitUntil` and immediately returns `HTTP 202`:
+
+```json
+{
+  "success": true,
+  "request_id": "UUID",
+  "disposition": "accepted"
+}
+```
+
+The completion/no-claim outcome is written to structured logs and canonical
+database state, not held on the `pg_net` socket. Invalid auth/body values and a
+synchronous dispatch failure receive stable request-correlated errors.
+Background implementation/provider details remain in structured logs only.
 
 ---
 
@@ -6230,7 +6289,7 @@ Edge authentication wrapper; it is not an anonymous endpoint.
 ```
 
 | Field | Required | Contract |
-|---|---:|---|
+| ------------------ | -------: | -------------------------------------------------------------------------- |
 | `reported_user_id` | Yes | UUID; must differ from authenticated user |
 | `reason` | Yes | `Spam`, `Harassment`, `Impersonation`, `Inappropriate profile`, or `Other` |
 | `details` | No | Trimmed text, maximum 1,000 characters; blank becomes `null` |
@@ -6297,7 +6356,7 @@ Every remaining RPC calls `internal.require_admin`, which verifies:
 ### Aggregate RPCs
 
 | RPC | Parameters | Minimum role | Response |
-|---|---|---|---|
+| ------------------------ | ----------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
 | `admin_get_overview` | `p_days`, `p_timezone`, `p_refresh` | Analyst | Range, account/plan counts, open reviews, new feedback, AI totals, prior period, daily rows |
 | `admin_ai_usage_summary` | `p_days`, optional operation/model/plan/modality, `p_scan_scope`, `p_refresh` | Analyst | Token categories, cache rate, scan avg/p50/p95, modality totals, daily rows, coverage cutover |
 
@@ -6309,7 +6368,7 @@ for five minutes by the full filter key; `p_refresh = true` bypasses the cache.
 ### Review RPCs
 
 | RPC | Important parameters | Minimum role |
-|---|---|---:|
+| ------------------------------ | -------------------------------------------------------------------------- | -----------: |
 | `admin_list_review_cases` | Optional status/type/priority/assignee/reason/from/to, tuple cursor, limit | Moderator |
 | `admin_get_review_case` | `p_case_id` | Moderator |
 | `admin_update_review_case` | Case ID, optional status/priority/assignee change/resolution/note | Moderator |
@@ -6340,7 +6399,7 @@ status.
 ### Feedback and user RPCs
 
 | RPC | Parameters | Minimum role |
-|---|---|---:|
+| ----------------------- | -------------------------------------------------------------- | -----------: |
 | `admin_list_feedback` | Optional source/status/rating/app-version, tuple cursor, limit | Moderator |
 | `admin_update_feedback` | Source type/ID, state, assignee, tags, optional note | Moderator |
 | `admin_list_users` | Search, `(created_at,id)` cursor, limit | Moderator |
@@ -6354,7 +6413,7 @@ query. Both search and detail access are audited.
 ### Owner RPCs
 
 | RPC | Parameters | Purpose |
-|---|---|---|
+| ---------------------- | ------------------------------------------ | ----------------------------------------------- |
 | `admin_list_members` | None | Membership inventory |
 | `admin_upsert_member` | Exact email, role, active state | Add/update an existing verified Google user |
 | `admin_list_sessions` | None | Supabase/internal admin sessions |

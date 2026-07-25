@@ -39,6 +39,16 @@ TestFlight, App Store, support, and QA.
   errors. The public beta waitlist now requires a verified security challenge,
   applies transactional per-network and global growth limits, and keeps raw
   network addresses out of storage and logs.
+- Made scientific exports safe to retry and bounded in memory. Duplicate workers
+  now compete for one database lease, stale attempts cannot publish over the
+  winner, scan rows are keyset-paged into a streaming R2 multipart archive,
+  provider replies are byte-capped, HTTP-200 multipart error documents are
+  rejected, abandoned multipart sessions have an explicit seven-day lifecycle
+  abort, rollout compatibility expires to a finite job cohort, raw rollout-era
+  failures are sanitized, claimed/terminal results reject old-worker
+  overwrites, and email delivery is idempotent. Global attribution now uses a
+  dedicated versioned HMAC key instead of a Supabase credential or fallback
+  salt.
 
 ### Species Dictionary
 

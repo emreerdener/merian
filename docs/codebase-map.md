@@ -265,11 +265,13 @@ lives in
 Server species-count projection:
 
 - `services/supabase/migrations/20260724222838_optimize_species_count_trigger.sql`
-  owns the private `(user_id, species_id)` scan-count ledger, one-time drift
-  repair, deterministic per-user serialization, and the insert/delete/update/
-  truncate transition-table triggers.
+  owns the explicit lock/backfill/cutover transaction, private
+  `(user_id, species_id)` scan-count ledger, one-time drift repair,
+  deterministic per-user serialization, and the insert/delete/update/truncate
+  transition-table triggers.
 - `services/supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts`
-  locks the statement-level, no-full-recount schema contract.
+  locks the `BEGIN → LOCK TABLE → final trigger → COMMIT` ordering plus the
+  statement-level, no-full-recount schema contract.
 - `services/supabase/tests/species_count_trigger_security.sql` exercises bulk
   inserts, unrelated updates, OLD/NEW owner and species transfers, deletion,
   dictionary `SET NULL`, catalog shape, fixed search paths, and API-role denial.
@@ -350,7 +352,10 @@ Data lifecycle, identity, and exports:
   and marks the scan for review
 - `submit-feedback-survey`
 - `request-export-dwca`
-- `export-dwca`
+- `export-dwca` — service-authenticated leased worker; `db.ts` owns canonical
+  claim/keyset access, `archive.ts` and `zip.ts` own bounded streaming,
+  `storage.ts` owns R2 multipart upload, `pseudonym.ts` owns versioned export
+  HMACs, and `worker.ts` owns retry/idempotent delivery orchestration.
 - `revenuecat-webhook` — verifies the configured bearer credential and
   RevenueCat raw-body HMAC, parses bounded event identities, fetches
   authoritative CustomerInfo, and commits idempotent per-user state through

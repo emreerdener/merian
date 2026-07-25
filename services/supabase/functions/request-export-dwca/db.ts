@@ -9,6 +9,7 @@ export async function hasRecentExportJob(
     .from("export_jobs")
     .select("created_at")
     .eq("user_id", userId)
+    .neq("status", "failed")
     .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     .limit(1);
 

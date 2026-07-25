@@ -48,8 +48,9 @@ The workflow performs the following steps:
    test.
 2. Installs the exact reviewed Deno `2.9.2` runtime.
 3. Installs the reviewed Supabase CLI `2.109.1`.
-4. Fails fast if required deployment or RevenueCat credentials are missing, if
-   either webhook credential is shorter than 32 characters, or if an explicitly
+4. Fails fast if required deployment, RevenueCat, or DwC-A pseudonym credentials are missing; if
+   either webhook credential is shorter than 32 characters; if
+   the DwC-A key is invalid Base64 or decodes below 32 bytes; or if an explicitly
    configured AI quota HMAC override is shorter than 32 characters.
 5. Validates Edge Function formatting, lint, and shared runtime type checks.
 6. Confirms exact set parity between function entrypoints and
@@ -59,13 +60,15 @@ The workflow performs the following steps:
    type-checks all entrypoints with the exact local config Supabase will
    discover.
 7. Runs focused shared-helper, deployment-planner, AI quota, RevenueCat webhook,
+   DwC-A claim/stream/idempotency,
    and static migration-contract tests. The migration execution contract
    enumerates every SQL migration and rejects pipeline-incompatible concurrent
-   index DDL.
+   index DDL. The species-count contract separately requires its explicit
+   `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover ordering.
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the privileged-routine, AI quota, RevenueCat, species-count,
+   and runs the privileged-routine, AI quota, RevenueCat, DwC-A, species-count,
    public-species-stats, and waitlist pgTAP catalog gates.
 9. Builds an affected-function deployment plan from the pushed Git diff. Manual
    dispatch and an unresolvable Git diff safely select the full fleet.
@@ -83,10 +86,12 @@ The workflow performs the following steps:
     otherwise the functions use a built-in server-only Supabase key.
 15. Synchronizes all three required RevenueCat credentials from the GitHub
     `Production` environment to Supabase Edge secrets.
-16. Deploys the planned functions in bounded batches. A failed batch is retried
+16. Synchronizes the required version-1 DwC-A pseudonym HMAC key from the GitHub
+    `Production` environment to Supabase Edge secrets.
+17. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-17. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
+18. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
     endpoint, and a dry-run bounded GBIF import with the production service-role
     credential.
 
@@ -503,8 +508,11 @@ The migration deliberately takes `SHARE ROW EXCLUSIVE` on `public.scans`.
 Existing writes finish first; new scan inserts, updates, deletes, and cascading
 owner/species changes wait while one grouped backfill runs, projected totals
 are repaired, and the trigger set is swapped. The lock is held until the
-migration transaction commits. Before production deployment, inspect the
-planner estimate and physical size:
+migration transaction commits. The migration file must retain its explicit
+`BEGIN` before `LOCK TABLE` and final `COMMIT`; PostgreSQL rejects a table lock
+outside a transaction block, and removing either boundary also destroys the
+atomic cutover guarantee. Before production deployment, inspect the planner
+estimate and physical size:
 
 ```sql
 SELECT
@@ -531,6 +539,15 @@ supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/species_count_trigger_security.sql
 ```
+
+Workflow run 1458 failed during disposable `supabase db start` with
+`SQLSTATE 25P01: LOCK TABLE can only be used in transaction blocks`. Treat that
+signature as an explicit-boundary regression: restore `BEGIN` before the scan
+lock and keep `COMMIT` after the final trigger. Do not remove the lock, split
+the backfill from the trigger swap, or run `supabase migration repair`.
+Disposable database validation runs before the production `db push`, so this
+failure does not create a hosted migration-history entry; fix the unapplied
+migration file and rerun the workflow.
 
 After production migration history confirms the file, use a direct read-only
 database session—not PostgREST—to verify the trigger catalog:
@@ -762,6 +779,192 @@ Do not recover an incident by restoring `taxon_name`, raising/removing the
 global cold-population ceiling, granting internal tables to API roles, writing
 the cache directly, or making finalization ignore the lease token. Serve stale
 positive data, preserve negative caching, and fix forward.
+
+### Darwin Core Export Release Gate
+
+Migration `20260724230849_harden_dwca_export_jobs.sql` must land with the
+hardened `export-dwca` bundle. Before the first deployment, generate a dedicated
+version-1 pseudonym key:
+
+```bash
+openssl rand -base64 32
+```
+
+Store the output as `DWCA_PSEUDONYM_HMAC_KEY_V1` in the GitHub `Production`
+environment. Do not reuse a JWT secret, service-role key, R2 credential, Resend
+key, or an example value. CI requires valid Base64 decoding to at least 32 bytes
+and synchronizes the exact value to Supabase before function deployment.
+
+Because production migrations precede function bundles, applying the migration
+creates a private two-hour legacy payload deadline. Only jobs created in that
+finite cohort receive canonical row hints understood by the previous bundle.
+Pre-existing nonterminal jobs remain eligible to finish under the same bounded
+compatibility path but do not receive a new webhook merely because the migration
+landed.
+After the deadline, new webhook bodies contain `job_id` only and the database
+rejects direct processing without a claim. The hardened bundle ignores the hints
+at all times. If function deployment has not converged by the deadline, export
+intake fails closed: finish or roll forward the function deployment and let
+affected jobs reach the watchdog/retry path. Do not extend the private deadline
+or weaken the claim trigger out of band. Once a new worker has claimed a cohort
+job, the transition trigger rejects an old bundle's redundant `processing`
+write, raw failure, and staged-result overwrite; terminal result fields are
+immutable. The previous bundle did not inspect update errors reliably, so do
+not manually redeliver a cohort job while an old invocation may still be
+running. The new worker never claims an unclaimed cohort row already marked
+`processing`; let the 30-minute watchdog fail it and then issue a new request.
+
+The checked-in migration uses ordinary idempotent index DDL because fresh-schema
+pipeline replay cannot run `CREATE INDEX CONCURRENTLY`. Before the production
+push, inspect `pg_stat_user_tables.n_live_tup` for `public.scans`. If an
+ordinary build would hold the scan-write lock for an unacceptable interval, use
+an owner connection in a supervised pre-deploy window:
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scans_dwca_personal_keyset
+    ON public.scans (user_id, id)
+    WHERE is_live_capture = TRUE
+      AND ecology_type <> 'domesticated';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scans_dwca_global_keyset
+    ON public.scans (id)
+    WHERE is_live_capture = TRUE
+      AND ecology_type <> 'domesticated'
+      AND geoprivacy = 'open';
+
+SELECT
+    index_class.relname,
+    index_row.indisvalid,
+    index_row.indisready
+FROM pg_catalog.pg_index AS index_row
+JOIN pg_catalog.pg_class AS index_class
+  ON index_class.oid = index_row.indexrelid
+WHERE index_class.relname IN (
+    'idx_scans_dwca_personal_keyset',
+    'idx_scans_dwca_global_keyset'
+);
+```
+
+Both flags must be true before the normal deployment. The migration's
+`IF NOT EXISTS` statements then converge without rebuilding those indexes. Do
+not run concurrent index DDL inside `supabase db push`.
+
+Preflight:
+
+```bash
+deno fmt --check \
+  services/supabase/functions/export-dwca \
+  services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+  services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts
+
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions,services/supabase/migrations,.github/workflows/deploy.yml \
+  services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+  services/supabase/functions/export-dwca/db_test.ts \
+  services/supabase/functions/export-dwca/index_test.ts \
+  services/supabase/functions/export-dwca/mail_test.ts \
+  services/supabase/functions/export-dwca/pseudonym_test.ts \
+  services/supabase/functions/export-dwca/storage_test.ts \
+  services/supabase/functions/export-dwca/worker_test.ts \
+  services/supabase/functions/export-dwca/zip_test.ts
+
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/migrations \
+  services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts
+
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/privileged_routine_security.sql \
+  services/supabase/tests/export_dwca_security.sql
+```
+
+Post-deploy, queue one personal test export and deliberately redeliver the same
+job UUID while its first worker owns the lease. Both webhook deliveries return
+`202 accepted`; the duplicate must log `not_claimed` and must not create another
+claim attempt. The storage test suite also proves that an S3-compatible HTTP-200
+`<Error>` completion body is rejected and that R2/Resend response bodies stop at
+their byte ceilings. After completion, verify with an owner connection:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+SELECT
+    jobs.id,
+    jobs.user_id,
+    jobs.export_scope,
+    jobs.pseudonym_key_version,
+    jobs.status,
+    jobs.archive_object_key,
+    jobs.archive_ready_at,
+    jobs.failure_code,
+    claims.attempt_count,
+    claims.lease_expires_at
+FROM public.export_jobs AS jobs
+LEFT JOIN internal.export_job_claims AS claims
+  ON claims.job_id = jobs.id
+WHERE jobs.id = '<test-job-uuid>'::UUID;
+
+SELECT
+    protocol.legacy_payload_until,
+    protocol.legacy_payload_until > NOW() AS rollout_cohort_open
+FROM internal.export_worker_protocol AS protocol
+WHERE protocol.singleton;
+
+SELECT
+    checks.routine_signature,
+    HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS anon_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS authenticated_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        checks.routine_signature,
+        'EXECUTE'
+    ) AS service_role_can_execute
+FROM (
+    VALUES
+        ('public.claim_export_job(uuid,uuid)'),
+        ('public.renew_export_job_claim(uuid,uuid)'),
+        ('public.stage_export_job_archive(uuid,uuid,text,text)'),
+        ('public.complete_export_job(uuid,uuid)'),
+        ('public.fail_export_job(uuid,uuid,text)')
+) AS checks(routine_signature)
+ORDER BY checks.routine_signature;
+
+ROLLBACK;
+```
+
+The completed row must use key version `1`, an attempt-scoped
+`exports/{user}/{job}/{claim}.zip` key, and no failure code. ACL results must be
+`false`, `false`, `true` for each routine. Verify the received message contains
+one 24-hour signed URL and that duplicate processing did not send a second
+email. The protocol query is operational visibility only; all API roles,
+including `service_role`, must lack direct `SELECT` on that private table.
+
+For key rotation, first add `DWCA_PSEUDONYM_HMAC_KEY_V2` to GitHub, extend the
+workflow to validate/synchronize it, and deploy code capable of reading both
+versions. Only then migrate the `export_jobs.pseudonym_key_version` default to
+`2`. Keep V1 configured until all V1 jobs are terminal and past operational
+retention. Never overwrite V1 with new bytes: doing so silently changes stable
+pseudonyms for jobs already pinned to version 1.
+
+If storage or Resend is transiently unavailable, do not bypass the claim RPC,
+edit a job to completed, reuse a stale claim token, or restore caller-supplied
+scope/user fields. Let the lease/watchdog expose the normal failed/retry path.
+Cloudflare's lifecycle policy must remove orphan attempt objects and completed
+export objects after their documented retention window. Before release, compare
+the live rules with `docs/r2-lifecycle.json`: the bucket must retain the global
+seven-day incomplete-multipart abort rule as well as the one-day `exports/`
+expiration rule.
 
 ### RevenueCat Webhook Release Gate
 
@@ -1453,7 +1656,7 @@ route cannot work before `claim_beta_waitlist_challenge_attempt(...)` and
 3. Configure these Vercel Production environment values:
 
    | Variable | Production value/contract |
-   | --- | --- |
+   | -------------------------------- | -------------------------------------------------------------- |
    | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public key for the production widget |
    | `TURNSTILE_SECRET_KEY` | Server secret for that same widget |
    | `TURNSTILE_ALLOWED_HOSTNAMES` | `naturebook.earth` |
@@ -1601,6 +1804,10 @@ Set these in the repository's GitHub Actions secrets:
   blocks deployment and runtime provider work. Rotation resets only the current
   network-rate bucket identity and must be a reviewed incident or privacy
   operation.
+- `DWCA_PSEUDONYM_HMAC_KEY_V1` — required Base64 value decoding to at least 32
+  random bytes. GitHub `Production` is authoritative and the deploy workflow
+  synchronizes it to Supabase. It is a versioned global-export HMAC key, not a
+  generic application salt.
 - `REVENUECAT_WEBHOOK_SECRET` — required, at least 32 random characters, and
   used as the secret portion of RevenueCat's configured
   `Authorization: Bearer <value>` credential.
@@ -1656,7 +1863,8 @@ still depend on Supabase's hosted APIs and can fail during an active platform
 incident.
 
 The workflow also inherits normal Supabase project Edge secrets at runtime.
-Most live only in Supabase. The three RevenueCat credentials and the optional
+Most live only in Supabase. The three RevenueCat credentials, required DwC-A
+versioned pseudonym key, and optional
 AI quota override are reviewed exceptions: GitHub `Production` is their deploy
 source and the workflow synchronizes them to Supabase. The complete Edge-secret
 inventory is documented in
@@ -2182,8 +2390,9 @@ After deployment:
   `_shared/mediaBudgets.ts` or media-staging contract change.
 - Confirm `update-public-avatar` was deployed after
   `20260528120000_add_custom_public_avatars.sql`.
-- Inspect Cloudflare R2 lifecycle rules against `docs/r2-lifecycle.json` and
-  confirm there is no enabled expiration rule for `avatars/`.
+- Inspect Cloudflare R2 lifecycle rules against `docs/r2-lifecycle.json`,
+  confirm the seven-day incomplete-multipart abort rule is enabled, and confirm
+  there is no enabled expiration rule for `avatars/`.
 - Run one staging purge or safe delete and inspect Edge logs for bounded R2
   fanout, delete failures, duration spikes, and memory pressure.
 - Upload a custom avatar, then run/inspect scan purge flows and confirm the

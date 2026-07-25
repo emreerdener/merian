@@ -1,5 +1,5 @@
-import { encodeHex } from "../_shared/encoding.ts";
-import { DBScanRow } from "./types.ts";
+import { UserPseudonymizer } from "./pseudonym.ts";
+import { DBScanRow, ExportScope, ExportWorkerError } from "./types.ts";
 
 export const DWCA_META_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <archive xmlns="http://rs.tdwg.org/dwc/text/">
@@ -74,23 +74,44 @@ function csvField(value: string | number | null | undefined): string {
 
 export async function generateDwcARow(
   scan: DBScanRow,
-  export_scope: string,
-  include_precise_coordinates: boolean,
+  exportScope: ExportScope,
+  includePreciseCoordinates: boolean,
   requestingUserId: string,
-  secretHashSalt: string,
+  pseudonymizer: UserPseudonymizer | null,
 ): Promise<{ occurrenceRow: string; mRows: string[] }> {
+  return {
+    occurrenceRow: await generateOccurrenceRow(
+      scan,
+      exportScope,
+      includePreciseCoordinates,
+      requestingUserId,
+      pseudonymizer,
+    ),
+    mRows: generateMultimediaRows(scan),
+  };
+}
+
+export async function generateOccurrenceRow(
+  scan: DBScanRow,
+  exportScope: ExportScope,
+  includePreciseCoordinates: boolean,
+  requestingUserId: string,
+  pseudonymizer: UserPseudonymizer | null,
+): Promise<string> {
   const species = scan.species_dictionary;
   const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
   const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
   let recordedBy = "Naturebook Citizen Scientist";
 
   if (!isTombstoned) {
-    if (export_scope === "global") {
-      const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
-      const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
-      recordedBy = `naturebook_user_${
-        encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)
-      }`;
+    if (exportScope === "global") {
+      if (!pseudonymizer) {
+        throw new ExportWorkerError(
+          "pseudonym_key_unavailable",
+          "Global exports require a dedicated pseudonymizer.",
+        );
+      }
+      recordedBy = await pseudonymizer.pseudonymize(scan.user_id);
     } else {
       recordedBy = scan.user_id;
     }
@@ -102,7 +123,7 @@ export async function generateDwcARow(
     "critically_endangered",
     "near_threatened",
   ].includes(species?.iucn_red_list_status || "");
-  const canAccessPrecise = include_precise_coordinates &&
+  const canAccessPrecise = includePreciseCoordinates &&
     (scan.user_id === requestingUserId);
 
   let lat: number | string | undefined | null = canAccessPrecise && !isProtected
@@ -142,7 +163,7 @@ export async function generateDwcARow(
     : "";
 
   // All fields wrapped with csvField() — RFC 4180 quoting handles commas, quotes, newlines.
-  const occurrenceRow = [
+  return [
     csvField(scan.id),
     csvField("HumanObservation"),
     csvField(recordedBy),
@@ -164,11 +185,11 @@ export async function generateDwcARow(
     csvField(associatedTaxa),
     csvField(verificationStatus),
   ].join(",");
+}
 
+export function generateMultimediaRows(scan: DBScanRow): string[] {
   const urls = scan.image_storage_urls || [];
-  const mRows = urls.map((url: string) =>
+  return urls.map((url: string) =>
     [csvField(scan.id), csvField(url), csvField("image/webp")].join(",")
   );
-
-  return { occurrenceRow, mRows };
 }

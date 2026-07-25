@@ -31,7 +31,9 @@ are identified by a persistent Keychain-backed
   and truncate changes. The total changes only when a ledger row crosses zero;
   owner transfers include both `OLD.user_id` and `NEW.user_id`, while unrelated
   scan updates net to no work. The migration replaces the historical
-  `unified_species_count_sync` full-history row trigger.
+  `unified_species_count_sync` full-history row trigger. Its one-time backfill
+  and trigger swap run inside one explicit transaction: `BEGIN` precedes the
+  `SHARE ROW EXCLUSIVE` scan lock, and `COMMIT` follows the final trigger.
 
 ## Shared Edge Utilities (`_shared/`)
 
@@ -1290,12 +1292,14 @@ signature query string parameters from the URL to prevent Cloudflare R2
 ## The Scientific Export Pipeline (`request-export-dwca` & `export-dwca`)
 
 Researchers export global and personal occurrence data via a two-step queueing
-architecture that completely bypasses Edge HTTP timeout constraints:
+architecture that removes archive work from the client request:
 
 1. **Queue Insertion (`request-export-dwca`)**: The iOS client hits this
-   lightweight proxy, which verifies the user and inserts a job row into the
-   `export_jobs` PostgreSQL queue. To prevent Resend API spam and queue
-   flooding, it enforces a strict **24-hour rate limit** per user. The insert is
+   lightweight proxy, which requires a non-anonymous account and inserts a job row into the
+   `export_jobs` PostgreSQL queue. Direct `anon`/`authenticated`
+   inserts are revoked, so this route is the only public queue boundary. To prevent Resend API spam and queue
+   flooding, it enforces a strict **24-hour rate limit** per user for successful/non-terminal jobs. A failed job can be
+   retried. The insert is
    idempotent against concurrent duplicate submissions: if a second request
    races in before the first row is committed, the resulting PostgreSQL `23505`
    unique-constraint violation is caught and the function returns
@@ -1307,16 +1311,36 @@ architecture that completely bypasses Edge HTTP timeout constraints:
    with `HTTP 400`. The iOS client always sends
    `includePreciseCoordinates: true` for personal exports — this is intentional:
    users downloading their own data receive full-resolution GPS coordinates. For
-   `"global"` scope exports, `export-dwca` scrubs GPS coordinates for all rows
-   except the requesting user's own records server-side, regardless of this
-   flag. It returns `200 OK` instantly when the job is successfully enqueued.
+   `"global"` scope exports, `export-dwca` exposes exact coordinates only for the requesting user's own non-protected records when this flag is true; every
+   other row uses its public projection. It returns `200 OK` when the job is enqueued.
 2. **Postgres Webhook (`pg_net`)**: The queue insertion fires a native Postgres
-   trigger that posts to `/export-dwca`.
-3. **Webhook Worker (`export-dwca`)**: This node receives the job,
-   authenticating via `SUPABASE_SERVICE_ROLE_KEY`. It manages heavy execution:
-   - **OOM Streaming**: Uses a `ReadableStream` with AWS `UNSIGNED-PAYLOAD`
-     signatures to stream binary data directly to R2 in chunks, rather than
-     holding a full `JSZip.generateAsync()` blob in the V8 heap.
+   trigger to `/export-dwca`. `job_id` is the only authoritative input. The
+   migration retains row-derived user/scope/precision hints only for jobs
+   created in a private two-hour rollout cohort so an old bundle can survive the
+   migration-before-function order. The hardened worker never reads them. After
+   the protocol deadline, new webhook bodies contain only `job_id`, and an
+   unclaimed job cannot transition to processing.
+3. **Canonical claim (`export-dwca`)**: The worker timing-safely verifies
+   `SUPABASE_SERVICE_ROLE_KEY`, parses a small bounded JSON body, registers an
+   `EdgeRuntime.waitUntil` task, and returns `202` to `pg_net`. The background
+   task calls `claim_export_job(...)`. The RPC row-locks the job, returns its
+   immutable canonical fields, and installs a private ten-minute lease plus UUID
+   fencing token. A duplicate webhook receives no claim. Lease renewal, archive
+   staging, completion, and failure require that same unexpired token.
+4. **Bounded generation and delivery**:
+   - **Keyset reads**: Occurrence and multimedia passes read 200 rows at a time
+     using `id > last_id` and matching partial indexes. Their projections do not
+     fetch each other's large fields.
+   - **Streaming archive**: Lazy CSV generators feed a ZIP32 `STORE` writer with
+     incremental CRC-32 state. Fixed 8 MiB multipart parts flow to R2; no full
+     result set, CSV, ZIP, or `arrayBuffer()` is retained. Failed multipart
+     uploads are aborted where possible. R2 XML and Resend reply bodies are
+     byte-capped; the completion XML is parsed so an S3-compatible `<Error>`
+     document returned with HTTP 200 cannot be staged as a successful object.
+   - **Attempt fence**: Pre-stage objects use
+     `exports/{user_id}/{job_id}/{claim_token}.zip`, preventing a delayed worker
+     from overwriting the current attempt. A durably staged object and signed
+     URL are reused by a later lease rather than regenerated.
    - **RFC 4180-compliant CSV (`csvField()`)**: All occurrence and multimedia
      CSV rows are built using the `csvField(value)` helper in
      `export-dwca/dwca.ts`. Every field is wrapped in double quotes; internal
@@ -1325,24 +1349,24 @@ architecture that completely bypasses Edge HTTP timeout constraints:
      terminator). Null and undefined values become empty quoted fields (`""`).
      This ensures the archive is parseable by all standard DwC-A consumers
      without field-boundary ambiguity.
-   - **Cryptographic Geoprivacy**: User IDs are replaced with stable pseudonyms
-     generated via `crypto.subtle.digest` SHA-256 (e.g.
-     `merian_user_a785f2b...`). Scientists can verify user-level streaks without
-     accessing the underlying Supabase token. Exact GPS coordinates are scrubbed
-     for any user data apart from the requesting user.
+   - **Cryptographic Geoprivacy**: Global-export user IDs are replaced with
+     stable, versioned, domain-separated HMAC-SHA256 pseudonyms (for example,
+     `naturebook_user_v1_a785f2b...`) using the dedicated
+     `DWCA_PSEUDONYM_HMAC_KEY_V1`. There is no JWT-secret reuse or fallback
+     salt. Personal exports retain the owner's UUID. Protected taxa always use
+     coarse public coordinates.
    - **DaaS Standardization**: Natively maps `life_stage`,
-     `reproductive_condition`, `sex`, `individual_count`, `estimated_size_cm`,
+     `reproductive_condition`, `sex`, `individual_count`,
      and `ecological_interactions` directly into standard GBIF DwC-A headers
      (`lifeStage`, `reproductiveCondition`, `sex`, `individualCount`, etc.).
-   - **Asynchronous Delivery**: Once the ZIP reaches R2, it fetches the user's
-     `auth.users` database email and dispatches a secure Resend email containing
-     an expiring `X-Amz-Expires=86400` download link.
-   - **Stuck-job watchdog (`20260405000004`)**: A `pg_cron` job
-     (`expire-stuck-export-jobs`) runs every 5 minutes and tombstones any job
-     stuck in `'processing'` for more than 30 minutes (`status = 'failed'`,
-     descriptive `error_message`). Without this, a killed Edge function leaves
-     the job in `'processing'` permanently and the iOS client shows an infinite
-     loading state with no recovery path other than waiting.
+   - **Idempotent delivery**: Once R2 is staged, the worker resolves the
+     canonical owner's Auth email and calls Resend with
+     `Idempotency-Key: dwca-export/{job_id}`. Only
+     an accepted delivery can
+     transition the fenced job to `completed`.
+   - **Lease-aware watchdog**: `expire-stuck-export-jobs` runs every five
+     minutes. It fails old pending rows and processing rows whose private lease
+     is absent or expired, publishing only stable public-safe failure text.
    - **Null species guard (`dwca.ts`)**: `scan.species_dictionary` is treated as
      `DBScanRow['species_dictionary']` (typed optional). All property accesses
      use optional chaining (`species?.scientific_name`) and `csvField()` handles
@@ -1988,8 +2012,10 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
   `Naturebook Data Exports <exports@naturebook.earth>`. If absent, it falls back to Resend's testing domain
   `onboarding@resend.dev` which will FAIL unless sending to the developer's
   registered account.
-- **`DWC_A_SECRET_SALT`**: A high-entropy salt used to generate stable but
-  anonymized IDs for global exports.
+- **`DWCA_PSEUDONYM_HMAC_KEY_V1`**: Required Base64-encoded key that decodes to
+  at least 32 random bytes. It is used only for version-1 global-export
+  pseudonyms, is validated/synchronized from the GitHub `Production`
+  environment, and must never reuse a JWT, service-role, or provider secret.
 
 ## 2026-04 Hardening Updates
 

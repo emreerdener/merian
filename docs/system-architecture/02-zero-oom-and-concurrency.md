@@ -437,8 +437,10 @@ deltas, including OLD and NEW owner/species values. The helper locks affected
 user rows in UUID order, changes the public total only when a ledger row crosses
 zero, and keeps the ledger, scan mutation, and projection in the same
 transaction. Unrelated updates produce an empty net set. The deployment
-backfill and trigger swap hold a scan write lock so there is no untracked
-cutover interval.
+backfill and trigger swap open one explicit transaction before taking the scan
+write lock and commit only after the final trigger exists, so there is no
+untracked cutover interval. PostgreSQL requires this explicit boundary for
+`LOCK TABLE`; the static migration contract rejects a missing or early commit.
 
 ### Inference Payload Racing (`identify` vs `enrich-scan`)
 Historically, the `identify` Deno Edge function attempted to pre-warm the database by invoking Gemini text-generation (`fetchStaticEncyclopedicData` and `fetchSimilarSpecies`) concurrently with the primary vision inference inside a background worker. Because the iOS client natively expects to fetch heavy supplementary text metadata explicitly via its own `/enrich-scan` API call during Insight Sheet hydration, the system previously fired dual payloads, duplicating Gemini AI costs globally across all user scans.
@@ -475,7 +477,28 @@ When rendering large arrays of incomplete offline biological achievements (`Awar
 ### UI Thread Blocking (`ProfileView` Exports)
 Generating a global Darwin Core Archive (DwC-A) over the `/request-export-dwca` Edge node instantly kicks off a massive SQL/R2-copying workload on the background `/export-dwca` worker. While the request itself completes in sub-100ms with a `200 OK` queue confirmation, awaiting this POST payload blindly would still block the UI thread unnecessarily.
 
-`ExportScans` now launches the export request from a structured `Task` owned by the view lifecycle, keeping `isExporting` on `@MainActor` while the actual network request runs asynchronously off-thread. Only when the API returns the `200 OK` queue confirmation does execution update the main-thread toast state, notifying the user that the archive link has been securely dispatched to their email address.
+`ExportScans` now launches the export request from a structured `Task` owned by the view lifecycle, keeping `isExporting` on `@MainActor` while the actual network request runs asynchronously off-thread. Only when the API returns the `200 OK` queue confirmation does execution update the main-thread toast state, notifying the user that the request is queued and the archive link will arrive
+by email.
+
+The server side is bounded independently of the UI. `export-dwca` registers a
+background task, returns `202` to the Postgres webhook, and then obtains a
+ten-minute database lease and canonical job state before reading scans. It
+advances through 200-row UUID keysets, emits lazy CSV/ZIP chunks, and coalesces
+only one 8 MiB R2 multipart part at a time. Occurrence pages do not fetch media
+arrays, multimedia pages do not fetch taxonomy/coordinates, and no full CSV or
+ZIP is retained. R2 XML and Resend responses are byte-capped, and multipart
+completion parses the body so an embedded S3 error under HTTP 200 cannot be
+mistaken for a durable archive. A one-minute heartbeat and unexpired-token
+checks prevent a late invocation from staging or completing a replacement
+attempt.
+
+Storage side effects are fenced too: an unstaged object includes the claim UUID
+in its key. After a winning object/URL is staged, retries reuse it and send
+Resend's job-scoped idempotency key. This bounds duplicate work after an Edge
+restart without pretending the Edge runtime has unlimited duration. ZIP32 output
+over 4 GiB fails explicitly; exports that routinely approach the hosted Edge CPU
+or wall-clock budget must move to a durable non-Edge worker while retaining the
+same claim RPC contract.
 
 ### Main Thread Search Thrashing (`ScansManager`)
 When mapping raw SwiftData query results across thousands of user records, extracting strings synchronously inside `@MainActor` property observers can cause visible stuttering during library updates. `ScansManager` now splits this work into two paths. Full rebuilds extract `RawScanSnapshot: Sendable` values from `allScans` on `@MainActor` in 128-record chunks, yielding between chunks before shipping those plain structs into a detached utility task for string construction. Incremental inserts stay inside `SearchDatabaseActor`, which batch-fetches only the new IDs and appends their `SearchableScan` payloads once the work completes. The entire sequence is guarded by `indexingTask` cancellation and `searchCacheGeneration` checks so rapid changes coalesce cleanly and stale builds cannot overwrite newer snapshots.
@@ -533,15 +556,16 @@ All N records are fetched in one SQL `SELECT ... WHERE id IN (...)` call. A dict
 Updating or deleting a single record previously triggered the `allScans` observer to wipe the entire multi-index tracking string and pass the full array into `SearchDatabaseActor` for re-evaluation of 5,000+ elements sequentially, pegging the CPU.
 
 **The Refactor**: The global array re-indexing loop was removed. `ScansManager.updateSearchableData` uses a `Set`-based delta update. Deleted records invoke `.removeAll { ... }` directly against the discrete array without touching the background processing thread. Newly captured records jump the background worker queue, incrementally appending only the new entries onto `@MainActor`.
-* **Hot-Swap Updates (Custom Tags)**: Because `Set`-based ID diffing inherently ignores internal property mutations on existing scans, updates to fields like `customTags` are handled via an explicit `NSNotification.Name("ScanRequiresSearchIndexUpdate")`. The `ScansManager` catches this trigger, isolates the singular scan ID, and natively hot-swaps only that scan's indexed search payload via the background `SearchDatabaseActor` thread in under 10ms.
-* **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in `updateSearchableData` previously performed two sequential SwiftData fetches — one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to materialise the same records a second time for index construction. Because `LocalScanRecord` is a SwiftData `@Model` (non-`Sendable`), it cannot cross actor boundaries directly. The fix introduces `RawScanSnapshot: Sendable` — a plain struct mirroring all 21 `LocalScanRecord` fields — extracted on `@MainActor` from the in-memory `allScans` array in yielding chunks, then passed into a `Task.detached` that calls `SearchDatabaseActor.buildSearchablePayloads(from: [RawScanSnapshot])` (a `static` method requiring no `ModelContext` fetch). This eliminates the redundant SQL `SELECT` entirely without monopolizing the main actor during very large initial libraries.
-* **`forceReindex` Task Coalescing**: `forceReindex` stores its task in
+
+- **Hot-Swap Updates (Custom Tags)**: Because `Set`-based ID diffing inherently ignores internal property mutations on existing scans, updates to fields like `customTags` are handled via an explicit `NSNotification.Name("ScanRequiresSearchIndexUpdate")`. The `ScansManager` catches this trigger, isolates the singular scan ID, and natively hot-swaps only that scan's indexed search payload via the background `SearchDatabaseActor` thread in under 10ms.
+- **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in `updateSearchableData` previously performed two sequential SwiftData fetches — one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to materialise the same records a second time for index construction. Because `LocalScanRecord` is a SwiftData `@Model` (non-`Sendable`), it cannot cross actor boundaries directly. The fix introduces `RawScanSnapshot: Sendable` — a plain struct mirroring all 21 `LocalScanRecord` fields — extracted on `@MainActor` from the in-memory `allScans` array in yielding chunks, then passed into a `Task.detached` that calls `SearchDatabaseActor.buildSearchablePayloads(from: [RawScanSnapshot])` (a `static` method requiring no `ModelContext` fetch). This eliminates the redundant SQL `SELECT` entirely without monopolizing the main actor during very large initial libraries.
+- **`forceReindex` Task Coalescing**: `forceReindex` stores its task in
   `indexingTask`, but cancellation alone is insufficient because the cancelled
   worker may already own an ID. `pendingReindexIDs` is unioned into every
   replacement extraction and cleared only after a generation-checked upsert.
   Rapid successive updates therefore cannot duplicate documents or strand a
   superseded document outside the index.
-* **Search-time cache reuse**: Query execution now reuses `[String: Int]`, `[String: LocalScanRecord]`, and `[String: ScanSortPrimitive]` caches built from the already-resident `allScans` array when it changes. This removes the old per-keystroke `[id: LocalScanRecord]` rebuild and the old `allScans.first(where:)` fallback without issuing any additional SwiftData fetch.
+- **Search-time cache reuse**: Query execution now reuses `[String: Int]`, `[String: LocalScanRecord]`, and `[String: ScanSortPrimitive]` caches built from the already-resident `allScans` array when it changes. This removes the old per-keystroke `[id: LocalScanRecord]` rebuild and the old `allScans.first(where:)` fallback without issuing any additional SwiftData fetch.
 
 ### UI Body Array Calculations (`UserStats` & Contribution Heatmap)
 Executing heavy O(N) array manipulations (such as `Set(allRecords.map { ... }).count` or `Calendar` date-normalization for a 52-week heatmap) directly inside a SwiftUI `var body: some View` forces the Main Thread to re-evaluate the math on every `@Query` binding update. For Pro users with 5,000+ captures, this causes stuttering during Profile scrolls. Merian moves this work off-thread:
@@ -1047,7 +1071,7 @@ For a page of 200 incoming scans, this reduces SQLite column reads from every st
 
 A `habitatDescription != nil, similarSpecies != nil` gate was briefly added at the start of `fetchAndApplyEnrichment` as a persistent cross-session deduplication guard. It was subsequently **removed** because it introduced a similar-species regression:
 
-**Root cause of the regression:** `load(from:)` (the historical scan hydration path) decodes legacy `LocalScanRecord.similarSpecies TEXT[]` into `speciesData.similarSpecies` — producing `LookalikeSummary` entries with null `common_name` and null `reference_image_url` — *before* `fetchAndApplyEnrichment` runs. The gate saw `habitatDescription != nil` (already enriched) and `similarSpecies != nil` (populated from TEXT[], not from the join table) and returned early, permanently blocking the upgrade from legacy TEXT[] stubs to rich join-table lookalike entries for those scans.
+**Root cause of the regression:** `load(from:)` (the historical scan hydration path) decodes legacy `LocalScanRecord.similarSpecies TEXT[]` into `speciesData.similarSpecies` — producing `LookalikeSummary` entries with null `common_name` and null `reference_image_url` — _before_ `fetchAndApplyEnrichment` runs. The gate saw `habitatDescription != nil` (already enriched) and `similarSpecies != nil` (populated from TEXT[], not from the join table) and returned early, permanently blocking the upgrade from legacy TEXT[] stubs to rich join-table lookalike entries for those scans.
 
 **Why the gate was redundant:**
 - **Live scans**: `SpeciesData.init(fromEdgeResponse:)` always initializes `similarSpecies = nil`, so the gate would never fire for a newly-captured scan anyway.

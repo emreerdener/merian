@@ -19,6 +19,7 @@ Merian.
 | `POSTHOG_API_KEY`                   | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
 | `GEMINI_API_KEY`                    | Supabase Edge secret only                            | Never in iOS bundle                                                                    |
 | `AI_QUOTA_IP_HASH_SECRET`           | Optional GitHub Production override synchronized to Supabase Edge | Dedicated HMAC key for rotating network quota buckets; never in clients or logs |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`       | GitHub `Production` secret synchronized to Supabase Edge | Base64 32-byte-or-longer HMAC key for versioned global-export user pseudonyms |
 | `REVENUECAT_WEBHOOK_SECRET`         | GitHub `Production` secret synchronized to Supabase Edge | Random webhook Authorization credential; never use the public iOS key |
 | `REVENUECAT_WEBHOOK_SIGNING_SECRET` | GitHub `Production` secret synchronized to Supabase Edge | RevenueCat raw-body HMAC key; never log, commit, or expose to clients |
 | `REVENUECAT_SECRET_API_KEY`         | GitHub `Production` secret synchronized to Supabase Edge | `sk_` server API credential for authoritative CustomerInfo reads; distinct from `REVENUECAT_API_KEY` |
@@ -65,6 +66,12 @@ environment variable.**
   address with a quota-specific domain and UTC-day prefix; neither the raw
   address nor key enters the database, client, analytics, or logs. A weak
   explicitly configured override fails paid-model work closed.
+- `DWCA_PSEUDONYM_HMAC_KEY_V1` — required dedicated key for global Darwin Core
+  export attribution pseudonyms. It is Base64 encoded and must decode to at
+  least 32 random bytes. Each job pins a numeric version; rotation adds a new
+  secret and advances the database default only after code can read both.
+  Never replace bytes under an existing version or derive this value from
+  `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, or a provider key.
 - `REVENUECAT_WEBHOOK_SECRET` — at least 32 random characters configured as the
   secret portion of RevenueCat's `Authorization: Bearer <value>` header and as a
   GitHub `Production` environment secret. The deployment workflow synchronizes

@@ -1,17 +1,22 @@
-# Request DwC-A Export Queue
+# Request DwC-A Export
 
-The fast, synchronous client endpoint for initiating data exports.
-**Client → HTTP Edge**
-Because zipping thousands of images takes longer than HTTP socket timeout limits allow, this function merely:
-1. Validates the user's JWT.
-2. Checks the exact rate limit (1 export maximum per 24 hours).
-3. Inserts a `pending` row into `export_jobs`.
-4. Returns a fast `200 OK`.
-This ensures the iOS app UI never blocks, while the `export-dwca` webhook secretly handles the heavy-lifting chronologically.
+`request-export-dwca` is the authenticated, synchronous queue boundary for
+Darwin Core Archive exports. It:
 
-## Architecture
+1. requires a permanent authenticated account and validates the bounded JSON
+   request;
+2. accepts only `personal` or `global` scope and a Boolean precision flag;
+3. rejects a successful/non-terminal export created in the preceding 24 hours;
+4. inserts one canonical `pending` `export_jobs` row with the service client;
+5. returns immediately while PostgreSQL wakes `export-dwca`; the hardened worker
+   consumes only the job UUID and reloads canonical state.
 
-To keep the synchronous router perfectly readable, the logic is extracted:
+Authenticated and anonymous database roles cannot insert `export_jobs` directly.
+The partial unique index on non-terminal jobs closes the check-then-insert race;
+a concurrent duplicate becomes the same public `429` contract. Failed jobs do
+not consume the 24-hour success limit, so a user can retry after a
+worker/configuration failure.
 
-- **`index.ts`**: The strict HTTP orchestrator. It receives the JSON payload, checks the rate limit helper, fires the queue insertion helper, and ensures the `.swift` client UI gets a 200 OK immediately.
-- **`db.ts`**: Encapsulates the explicit PostgreSQL queries (such as comparing `export_jobs.created_at` against the `gte` 24-hour bounding constraint).
+The queue row—not the webhook body—is authoritative for user ownership, scope,
+coordinate policy, and pseudonym key version. See `../export-dwca/README.md` for
+claim leases, streaming, delivery idempotency, and key rotation.

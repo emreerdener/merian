@@ -1,3 +1,18 @@
+export type ExportScope = "personal" | "global";
+
+export interface ClaimedExportJob {
+  id: string;
+  userId: string;
+  exportScope: ExportScope;
+  includePreciseCoordinates: boolean;
+  pseudonymKeyVersion: number;
+  archiveObjectKey: string | null;
+  fileUrl: string | null;
+  archiveReadyAt: string | null;
+  attemptCount: number;
+  leaseExpiresAt: string;
+}
+
 export interface DBScanRow {
   id: string;
   user_id: string;
@@ -23,5 +38,29 @@ export interface DBScanRow {
     family?: string;
     genus?: string;
     iucn_red_list_status?: string;
-  };
+  } | null;
+}
+
+export class ExportWorkerError extends Error {
+  readonly code:
+    | "archive_generation_failed"
+    | "archive_stage_failed"
+    | "database_unavailable"
+    | "delivery_failed"
+    | "export_too_large"
+    | "pseudonym_key_unavailable"
+    | "storage_unavailable";
+  readonly safeToFailJob: boolean;
+
+  constructor(
+    code: ExportWorkerError["code"],
+    message: string,
+    safeToFailJob = true,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "ExportWorkerError";
+    this.code = code;
+    this.safeToFailJob = safeToFailJob;
+  }
 }

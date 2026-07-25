@@ -223,7 +223,13 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 ### Privacy & Science
 - **Geoprivacy Control (`GeoprivacyPickerView`)**: Lives inside `Features/Profile/Settings/Components/Preferences.swift` and is pushed from the settings list. It explains `Open`, `Obscured`, and `Private` coordinate options, binds through `ProfileViewModel.defaultGeoprivacy`, and cascades changes to Supabase in the background.
 - **Community and Legal Links (`Community.swift`)**: The Profile settings Resources section opens `https://naturebook.earth/guidelines` and `https://naturebook.earth/legal` through the in-app Safari sheet, appending `?theme=light|dark|system` from `AppSettings.themeMode` so Mantine can match the iOS theme. Support/bug reports route to `support@naturebook.earth`, Feedback survey opens the native beta survey, and Changelog routes to the bundled in-app notes screen.
-- **Export Scans (DwC-A)**: *(Auth Required)* Queues a background zip generation via the `/request-export-dwca` Deno task. Because the export runs as an asynchronous PostgreSQL webhook (`pg_net`), the UI immediately flashes a "queued" alert and releases the main thread. When the Cloudflare R2 archive completes, the system emails a signed `ShareLink` payload directly to the user's inbox via the Resend Node SDK. A "Sign in with Apple" prompt prevents anonymous users from generating payloads before creating an account.
+- **Export Scans (DwC-A)**: *(Auth Required)* Queues a background ZIP
+  generation via `/request-export-dwca`. Because PostgreSQL wakes a leased
+  service worker asynchronously, the UI immediately displays a queued alert and
+  releases the main thread. The worker keyset-pages metadata into a multipart R2
+  archive and sends one idempotent Resend request containing the signed
+  download link. A "Sign in with Apple" prompt prevents anonymous users from
+  generating exports before creating an account.
 
 ### Danger Zone & Data Lifecycle
 - **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background `OfflineQueueManager` URLSession transfers mid-sync from being cleared during manual cache management.

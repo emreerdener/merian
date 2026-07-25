@@ -1,124 +1,141 @@
 import { createClient } from "@supabase/supabase-js";
-import { serveEdge } from "../_shared/edgeHandler.ts";
-
+import { runBackground, serveEdge } from "../_shared/edgeHandler.ts";
 import {
   corsHeaders,
+  jsonResponse,
   parseJsonBody,
   publicErrorResponse,
+  requestIdFor,
+  timingSafeCompare,
 } from "../_shared/http.ts";
-import {
-  fetchAndFormatScans,
-  fetchUserEmail,
-  updateExportJobStatus,
-} from "./db.ts";
-import { zipAndUploadToR2 } from "./storage.ts";
-import { sendExportEmail } from "./mail.ts";
+import { ExportWorkerError } from "./types.ts";
+import { processExportJob } from "./worker.ts";
 
-function jsonResponse(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
-  // 1. Authenticate the Webhook via Service Role Key
-  const authHeader = req.headers.get("Authorization");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-  if (!serviceKey || authHeader !== `Bearer ${serviceKey}`) {
-    return jsonResponse({ error: "Unauthorized webhook caller" }, 401);
+  if (req.method !== "POST") {
+    return publicErrorResponse(
+      req,
+      405,
+      "method_not_allowed",
+      "Method not allowed.",
+    );
   }
 
-  let currentJobId: string | undefined = undefined;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const providedAuthorization = req.headers.get("Authorization") ?? "";
+  if (
+    !serviceKey ||
+    !timingSafeCompare(
+      providedAuthorization,
+      `Bearer ${serviceKey}`,
+    )
+  ) {
+    return publicErrorResponse(
+      req,
+      401,
+      "unauthorized",
+      "Unauthorized.",
+    );
+  }
 
+  const payload = await parseJsonBody(req, { limit: "small" });
+  if (payload instanceof Response) return payload;
+  const jobId = payload.job_id;
+  if (typeof jobId !== "string" || !UUID_PATTERN.test(jobId)) {
+    return publicErrorResponse(
+      req,
+      400,
+      "invalid_job_id",
+      "A valid job_id is required.",
+    );
+  }
+
+  const requestId = requestIdFor(req);
   try {
-    const payload = await parseJsonBody(req, { limit: "small" });
-    if (payload instanceof Response) return payload;
-    const { job_id, user_id, export_scope, include_precise_coordinates } =
-      payload;
-
-    if (
-      typeof job_id !== "string" ||
-      typeof user_id !== "string" ||
-      typeof export_scope !== "string" ||
-      typeof include_precise_coordinates !== "boolean"
-    ) {
-      return jsonResponse({ error: "Invalid job payload" }, 400);
-    }
-    currentJobId = job_id;
-
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       serviceKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      },
     );
+    const worker = processExportJob(jobId, supabaseAdmin)
+      .then((result) => {
+        console.log(JSON.stringify({
+          event: "dwca_export_worker_complete",
+          request_id: requestId,
+          job_id: jobId,
+          ...result,
+          ts: new Date().toISOString(),
+        }));
+      })
+      .catch((error) => {
+        const failure = error instanceof ExportWorkerError
+          ? error
+          : new ExportWorkerError(
+            "archive_generation_failed",
+            "The export worker failed unexpectedly.",
+            true,
+            { cause: error },
+          );
+        console.error(JSON.stringify({
+          event: "dwca_export_worker_failed",
+          request_id: requestId,
+          job_id: jobId,
+          failure_code: failure.code,
+          error: failure.message,
+          cause: failure.cause instanceof Error
+            ? failure.cause.message
+            : failure.cause,
+          ts: new Date().toISOString(),
+        }));
+      });
+    runBackground(worker);
 
-    // 2. Fetch User Email for Delivery
-    const userEmail = await fetchUserEmail(user_id, supabaseAdmin);
-
-    // 3. Mark job as processing
-    await updateExportJobStatus(job_id, "processing", supabaseAdmin);
-
-    // 4. Query verified academic captures & Format DwC-A strings
-    const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
-    const { occurrenceCsv, multimediaCsv, metaXml } = await fetchAndFormatScans(
-      user_id,
-      export_scope,
-      include_precise_coordinates,
-      supabaseAdmin,
-      secretHashSalt,
+    return jsonResponse(
+      {
+        success: true,
+        request_id: requestId,
+        disposition: "accepted",
+      },
+      202,
+      { "Cache-Control": "private, no-store" },
     );
-
-    // 5. Zip streams and Upload to R2
-    const signedUrl = await zipAndUploadToR2(
-      occurrenceCsv,
-      multimediaCsv,
-      metaXml,
-      user_id,
-    );
-
-    // 6. Send Email via Resend
-    await sendExportEmail(userEmail, signedUrl);
-
-    // 7. Update DB Completed Status
-    await updateExportJobStatus(
-      job_id,
-      "completed",
-      supabaseAdmin,
-      undefined,
-      signedUrl,
-    );
-
-    return jsonResponse({ success: true }, 200);
-  } catch (error: unknown) {
-    const err = error as Error;
-    console.error("Export Webhook Error:", err);
-    try {
-      if (currentJobId) {
-        const supabaseAdmin = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          serviceKey ?? "",
-        );
-        await updateExportJobStatus(
-          currentJobId,
-          "failed",
-          supabaseAdmin,
-          err.message,
-        );
-      }
-    } catch (_) {
-      // no-op to avoid crashing during error fallback execution
-    }
-
+  } catch (error) {
+    const failure = error instanceof ExportWorkerError
+      ? error
+      : new ExportWorkerError(
+        "archive_generation_failed",
+        "The export worker failed unexpectedly.",
+        true,
+        { cause: error },
+      );
+    console.error(JSON.stringify({
+      event: "dwca_export_dispatch_failed",
+      request_id: requestId,
+      job_id: jobId,
+      failure_code: failure.code,
+      error: failure.message,
+      cause: failure.cause instanceof Error
+        ? failure.cause.message
+        : failure.cause,
+      ts: new Date().toISOString(),
+    }));
     return publicErrorResponse(
       req,
       500,
-      "internal_error",
-      "The request could not be completed.",
+      "export_processing_failed",
+      "The export could not be processed.",
     );
   }
 });

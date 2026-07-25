@@ -253,7 +253,9 @@ steps are tracked in the
 
 ### Privacy
 - Geoprivacy is enforced server-side: `obscured` rounds coordinates to ~10km; `private` strips location entirely. Endangered species coordinates are automatically offset by 50km regardless of user setting.
-- DwC-A exports replace user IDs with SHA-256 pseudonyms via `crypto.subtle.digest`, preserving streak analytics without exposing Supabase tokens.
+- Global DwC-A exports replace user IDs with versioned, domain-separated
+  HMAC-SHA256 pseudonyms under a dedicated export key, preserving longitudinal
+  attribution without exposing or reusing Supabase credentials.
 
 ---
 

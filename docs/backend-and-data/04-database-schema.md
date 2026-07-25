@@ -65,12 +65,16 @@ deterministic lock order. A negative delta that exceeds a still-live owner's
 ledger state aborts with `user_species_scan_count_underflow` instead of hiding
 corruption. A truncate trigger clears the ledger and projections.
 
-The migration takes a `SHARE ROW EXCLUSIVE` lock on `public.scans`, backfills
-the ledger once, repairs historical `users.total_species_discovered` drift, and
-atomically swaps the triggers. The all-zero tombstone owner remains excluded,
-matching the former trigger's semantics. The ledger intentionally follows raw
-non-null `scans.species_id`; it does not change public Explore's separate
-biological/confirmed-species counting contract.
+The migration opens an explicit transaction, takes a `SHARE ROW EXCLUSIVE`
+lock on `public.scans`, backfills the ledger once, repairs historical
+`users.total_species_discovered` drift, atomically swaps the triggers, and
+commits only after the final trigger exists. PostgreSQL rejects `LOCK TABLE`
+outside a transaction block; the explicit boundary is therefore part of the
+migration contract rather than optional deployment syntax. The all-zero
+tombstone owner remains excluded, matching the former trigger's semantics. The
+ledger intentionally follows raw non-null `scans.species_id`; it does not
+change public Explore's separate biological/confirmed-species counting
+contract.
 
 ### `users`
 
@@ -1211,22 +1215,58 @@ Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
   with `HTTP 400`. Defines whether to export only the requesting user's captures
   (`'personal'`) or all globally open data (`'global'`).
 - `include_precise_coordinates` (Boolean): Access control flag.
-- `file_url` (Text): The Cloudflare R2 signed URL holding the completed zip.
-  Exists when `status == 'completed'`.
-- `error_message` (Text): Present if `status == 'failed'`.
+- `pseudonym_key_version` (Smallint): Immutable key version pinned when the job
+  is inserted. Version `n` selects `DWCA_PSEUDONYM_HMAC_KEY_V{n}`.
+- `archive_object_key` (Text): Attempt-fenced R2 object key staged by the
+  current worker before delivery.
+- `archive_ready_at` (TIMESTAMPTZ): Time the archive and reusable signed URL
+  were durably staged.
+- `file_url` (Text): The 24-hour Cloudflare R2 signed URL. A new transition to
+  `completed` requires this and both archive fields.
+- `failure_code` (Text): Stable machine-readable failure classification.
+- `error_message` (Text): Public-safe failure copy, capped at 500 characters.
 - `created_at`, `completed_at` (TIMESTAMPTZ): Lifecycle tracking metrics.
 
-_Note: A `pg_net` Postgres Trigger listens to `INSERT` on this table to invoke
-the background `export-dwca` Server-to-Server edge function webhook._
+The request fields and creation time are immutable after insert. Direct
+`anon`/`authenticated` insertion is revoked; `request-export-dwca` validates and
+queues with its service client. A partial unique index permits at most one
+pending/processing job per user, while the recent-job lookup excludes failures.
 
-**Export jobs watchdog cron** (`20260405000004`): A `pg_cron` job
+`internal.export_job_claims` stores the private claim UUID, ten-minute lease,
+heartbeat, and bounded attempt count. It has RLS, no API-role table grants, and
+is accessible only through service-authorized, empty-search-path definer RPCs.
+Every worker state mutation checks
+the current unexpired token. The webhook
+therefore treats only the opaque job UUID as authoritative; canonical user,
+scope, precision, and key version are loaded transactionally by
+`claim_export_job(...)`.
+
+`internal.export_worker_protocol` is a private singleton with the finite
+`legacy_payload_until` deadline. Pre-existing nonterminal jobs and jobs created
+in the first two hours after the migration are the finite compatibility cohort;
+newly queued cohort jobs may carry canonical row-derived
+user/scope/precision hints for the previous bundle and may finish without the
+new archive columns. Jobs created after that deadline receive `job_id` only and
+the transition trigger requires a private claim before `processing`. The
+hardened bundle ignores rollout hints in all cases. Failure transitions
+always replace caller-supplied text with a stable owner-safe message, including
+failures written by the previous bundle.
+Once a hardened claim exists, a rollout-era worker cannot fail that attempt or
+replace its staged archive; its redundant `processing` write is rejected too.
+The new worker does not recover an unclaimed cohort row that is already
+`processing`; the watchdog owns that 30-minute failure path. Result fields
+become immutable at a terminal status. The pre-existing atomic ghost-profile
+merge marker is normalized to `owner_changed` so an identity merge can still
+terminate colliding active jobs. The protocol table has RLS and no API-role
+table grants.
+
+**Export jobs watchdog cron** (lease-aware definition in
+`20260724230849_harden_dwca_export_jobs.sql`): A `pg_cron` job
 (`expire-stuck-export-jobs`) runs every 5 minutes and tombstones any job stuck
-in `'processing'` for more than 30 minutes by setting `status = 'failed'` with a
-descriptive `error_message`. Without this watchdog, a killed Edge function (OOM,
-cold-start restart, or edge timeout) leaves the job in `'processing'`
-permanently and the iOS client shows an infinite loading state. The watchdog is
-a plain SQL function (`public.expire_stuck_export_jobs()`) run by the cron
-schedule — no additional Edge Function is required.
+pending beyond 30 minutes or processing without a live claim. It writes a stable
+failure code/message so the user can request a new job. The watchdog is
+a plain SQL function (`public.expire_stuck_export_jobs()`) run by the existing cron
+schedule; no additional Edge Function is required.
 
 ### `failed_scan_ingestions`
 

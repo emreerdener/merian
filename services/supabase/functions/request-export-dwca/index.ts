@@ -1,9 +1,18 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { parseJsonBody } from "../_shared/http.ts";
+import { parseJsonBody, publicErrorResponse } from "../_shared/http.ts";
 import { hasRecentExportJob, queueExportJob } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    if (user.is_anonymous === true) {
+      return publicErrorResponse(
+        req,
+        403,
+        "account_required",
+        "A permanent account is required to request an export.",
+      );
+    }
+
     const requestBody = await parseJsonBody(req, { limit: "small" });
     if (requestBody instanceof Response) return requestBody;
 

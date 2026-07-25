@@ -1,6 +1,13 @@
 {
   "Rules": [
     {
+      "ID": "Abort incomplete multipart uploads after 7 days",
+      "Status": "Enabled",
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    },
+    {
       "ID": "Purge quarantine objects after 1 day",
       "Status": "Enabled",
       "Filter": {

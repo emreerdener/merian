@@ -1,157 +1,320 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
-  DWCA_META_XML,
-  generateDwcARow,
-  MULTIMEDIA_HEADERS,
-  OCCURRENCE_HEADERS,
-} from "./dwca.ts";
-import { DBScanRow } from "./types.ts";
+  ClaimedExportJob,
+  DBScanRow,
+  ExportScope,
+  ExportWorkerError,
+} from "./types.ts";
+
+export const EXPORT_PAGE_SIZE = 200;
+
+type ExportProjection = "multimedia" | "occurrence";
+type PageFetcher<T extends { id: string }> = (
+  afterId: string | null,
+  limit: number,
+) => Promise<T[]>;
+
+interface ClaimRpcRow {
+  job_id: unknown;
+  user_id: unknown;
+  export_scope: unknown;
+  include_precise_coordinates: unknown;
+  pseudonym_key_version: unknown;
+  archive_object_key: unknown;
+  file_url: unknown;
+  archive_ready_at: unknown;
+  attempt_count: unknown;
+  lease_expires_at: unknown;
+}
+
+function databaseFailure(message: string, cause: unknown): ExportWorkerError {
+  return new ExportWorkerError(
+    "database_unavailable",
+    message,
+    true,
+    { cause },
+  );
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function parseClaimedJob(value: unknown): ClaimedExportJob {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw databaseFailure("The claim RPC returned an invalid row.", value);
+  }
+  const row = value as ClaimRpcRow;
+  const exportScope = row.export_scope;
+  if (
+    typeof row.job_id !== "string" ||
+    typeof row.user_id !== "string" ||
+    (exportScope !== "personal" && exportScope !== "global") ||
+    typeof row.include_precise_coordinates !== "boolean" ||
+    typeof row.pseudonym_key_version !== "number" ||
+    !Number.isSafeInteger(row.pseudonym_key_version) ||
+    typeof row.attempt_count !== "number" ||
+    !Number.isSafeInteger(row.attempt_count) ||
+    typeof row.lease_expires_at !== "string"
+  ) {
+    throw databaseFailure("The claim RPC returned malformed state.", row);
+  }
+
+  return {
+    id: row.job_id,
+    userId: row.user_id,
+    exportScope,
+    includePreciseCoordinates: row.include_precise_coordinates,
+    pseudonymKeyVersion: row.pseudonym_key_version,
+    archiveObjectKey: nullableString(row.archive_object_key),
+    fileUrl: nullableString(row.file_url),
+    archiveReadyAt: nullableString(row.archive_ready_at),
+    attemptCount: row.attempt_count,
+    leaseExpiresAt: row.lease_expires_at,
+  };
+}
+
+export async function claimExportJob(
+  jobId: string,
+  claimToken: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<ClaimedExportJob | null> {
+  const { data, error } = await supabaseAdmin.rpc("claim_export_job", {
+    p_job_id: jobId,
+    p_claim_token: claimToken,
+  });
+  if (error) {
+    throw databaseFailure("Failed to claim the export job.", error);
+  }
+
+  if (!Array.isArray(data) || data.length === 0) return null;
+  if (data.length !== 1) {
+    throw databaseFailure("The claim RPC returned multiple rows.", data);
+  }
+  return parseClaimedJob(data[0]);
+}
+
+export async function renewExportJobClaim(
+  jobId: string,
+  claimToken: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc("renew_export_job_claim", {
+    p_job_id: jobId,
+    p_claim_token: claimToken,
+  });
+  if (error) {
+    throw databaseFailure("Failed to renew the export job lease.", error);
+  }
+  if (data !== true) {
+    throw new ExportWorkerError(
+      "database_unavailable",
+      "The export job lease is no longer owned by this worker.",
+      false,
+    );
+  }
+}
+
+export async function stageExportJobArchive(
+  jobId: string,
+  claimToken: string,
+  archiveObjectKey: string,
+  fileUrl: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc("stage_export_job_archive", {
+    p_job_id: jobId,
+    p_claim_token: claimToken,
+    p_archive_object_key: archiveObjectKey,
+    p_file_url: fileUrl,
+  });
+  if (error) {
+    throw databaseFailure("Failed to stage the export archive.", error);
+  }
+  if (data !== true) {
+    throw new ExportWorkerError(
+      "archive_stage_failed",
+      "The export archive could not be staged under the active lease.",
+      false,
+    );
+  }
+}
+
+export async function completeExportJob(
+  jobId: string,
+  claimToken: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc("complete_export_job", {
+    p_job_id: jobId,
+    p_claim_token: claimToken,
+  });
+  if (error) {
+    throw databaseFailure("Failed to complete the export job.", error);
+  }
+  if (data !== true) {
+    throw new ExportWorkerError(
+      "database_unavailable",
+      "The export job completion fence was rejected.",
+      false,
+    );
+  }
+}
+
+export async function failExportJob(
+  jobId: string,
+  claimToken: string,
+  failureCode: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc("fail_export_job", {
+    p_job_id: jobId,
+    p_claim_token: claimToken,
+    p_failure_code: failureCode,
+  });
+  if (error) {
+    throw databaseFailure("Failed to record the export job failure.", error);
+  }
+  return data === true;
+}
 
 export async function fetchUserEmail(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<string> {
-  const { data: { user }, error: userError } = await supabaseAdmin.auth.admin
+  const { data: { user }, error } = await supabaseAdmin.auth.admin
     .getUserById(userId);
-  if (userError || !user?.email) {
-    throw new Error(
-      `Could not find email to deliver export: ${userError?.message}`,
+  if (error || !user?.email) {
+    throw databaseFailure(
+      "Could not resolve the export delivery email.",
+      error,
     );
   }
   return user.email;
 }
 
-type ExportJobUpdatePayload = {
-  status: "processing" | "completed" | "failed";
-  error_message?: string;
-  completed_at?: string;
-  file_url?: string;
-};
-
-export async function updateExportJobStatus(
-  jobId: string,
-  status: "processing" | "completed" | "failed",
-  supabaseAdmin: SupabaseClient,
-  errorMessage?: string,
-  fileUrl?: string,
-) {
-  const payload: ExportJobUpdatePayload = { status };
-
-  if (status === "failed") {
-    payload.error_message = errorMessage;
-    payload.completed_at = new Date().toISOString();
-  }
-  if (status === "completed") {
-    payload.file_url = fileUrl;
-    payload.completed_at = new Date().toISOString();
+/**
+ * Reusable strict keyset iterator. Each page begins after the last id from the
+ * prior page; malformed or non-monotonic provider results fail closed.
+ */
+export async function* keysetPages<T extends { id: string }>(
+  fetchPage: PageFetcher<T>,
+  pageSize = EXPORT_PAGE_SIZE,
+): AsyncGenerator<T[]> {
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) {
+    throw new TypeError("pageSize must be an integer between 1 and 1000.");
   }
 
-  await supabaseAdmin.from("export_jobs").update(payload).eq("id", jobId);
+  let afterId: string | null = null;
+  while (true) {
+    const page = await fetchPage(afterId, pageSize);
+    if (!Array.isArray(page) || page.length > pageSize) {
+      throw databaseFailure("The export query returned an invalid page.", page);
+    }
+    if (page.length === 0) return;
+
+    let previousId = afterId;
+    for (const row of page) {
+      if (
+        typeof row.id !== "string" ||
+        row.id.length === 0 ||
+        (previousId !== null && row.id <= previousId)
+      ) {
+        throw databaseFailure(
+          "The export query returned a non-monotonic keyset page.",
+          page,
+        );
+      }
+      previousId = row.id;
+    }
+
+    yield page;
+    afterId = page[page.length - 1].id;
+    if (page.length < pageSize) return;
+  }
 }
 
-export async function fetchAndFormatScans(
-  userId: string,
-  exportScope: string,
-  includePrecise: boolean,
-  supabaseAdmin: SupabaseClient,
-  secretHashSalt: string,
-): Promise<{ occurrenceCsv: string; multimediaCsv: string; metaXml: string }> {
-  if (exportScope !== "global" && exportScope !== "personal") {
-    throw new Error(`Invalid exportScope: "${exportScope}"`);
-  }
-
-  // Query verified academic captures
-  let query = supabaseAdmin
-    .from("scans")
-    .select(`
+function scanSelection(projection: ExportProjection): string {
+  if (projection === "multimedia") {
+    return `
       id,
       user_id,
-      timestamp,
-      gps_lat_exact,
-      gps_long_exact,
-      gps_lat_public,
-      gps_long_public,
-      coordinate_uncertainty_in_meters,
-      image_storage_urls,
-      life_stage,
-      reproductive_condition,
-      sex,
-      individual_count,
-      ecological_interactions,
-      ai_confidence_score,
-      species_dictionary!species_id (
-        scientific_name,
-        kingdom,
-        phylum,
-        class,
-        "order",
-        family,
-        genus,
-        iucn_red_list_status
-      )
-    `)
+      image_storage_urls
+    `;
+  }
+  return `
+    id,
+    user_id,
+    timestamp,
+    gps_lat_exact,
+    gps_long_exact,
+    gps_lat_public,
+    gps_long_public,
+    coordinate_uncertainty_in_meters,
+    life_stage,
+    reproductive_condition,
+    sex,
+    individual_count,
+    ecological_interactions,
+    ai_confidence_score,
+    species_dictionary!species_id (
+      scientific_name,
+      kingdom,
+      phylum,
+      class,
+      "order",
+      family,
+      genus,
+      iucn_red_list_status
+    )
+  `;
+}
+
+async function fetchExportScanPage(
+  userId: string,
+  exportScope: ExportScope,
+  projection: ExportProjection,
+  afterId: string | null,
+  limit: number,
+  supabaseAdmin: SupabaseClient,
+): Promise<DBScanRow[]> {
+  let query = supabaseAdmin
+    .from("scans")
+    .select(scanSelection(projection))
     .eq("is_live_capture", true)
     .neq("ecology_type", "domesticated")
-    .order("id", { ascending: true });
+    .order("id", { ascending: true })
+    .limit(limit);
 
   if (exportScope === "global") {
     query = query.eq("geoprivacy", "open");
   } else {
     query = query.eq("user_id", userId);
   }
-
-  const occurrenceRows = [OCCURRENCE_HEADERS];
-  const multimediaRows = [MULTIMEDIA_HEADERS];
-
-  let hasMore = true;
-  let start = 0;
-  const PAGE_SIZE = 1000;
-
-  while (hasMore) {
-    const { data, error } = await query.range(start, start + PAGE_SIZE - 1);
-    if (error) throw new Error(`Failed to fetch records: ${error.message}`);
-    if (!data || data.length === 0) {
-      hasMore = false;
-      break;
-    }
-
-    const batchResults = [];
-    const SUB_BATCH_SIZE = 50;
-
-    for (let i = 0; i < data.length; i += SUB_BATCH_SIZE) {
-      const subBatch = data.slice(i, i + SUB_BATCH_SIZE);
-      const subBatchResults = await Promise.all(
-        subBatch.map(async (row) => {
-          const scan = row as unknown as DBScanRow;
-          return await generateDwcARow(
-            scan,
-            exportScope,
-            includePrecise,
-            userId,
-            secretHashSalt,
-          );
-        }),
-      );
-      batchResults.push(...subBatchResults);
-    }
-
-    for (const res of batchResults) {
-      occurrenceRows.push(res.occurrenceRow);
-      if (res.mRows.length > 0) multimediaRows.push(res.mRows.join("\n"));
-    }
-
-    (globalThis as unknown as { gc?: () => void }).gc?.();
-
-    if (data.length < PAGE_SIZE || occurrenceRows.length >= 10000) {
-      hasMore = false;
-    } else {
-      start += PAGE_SIZE;
-    }
+  if (afterId !== null) {
+    query = query.gt("id", afterId);
   }
 
-  return {
-    occurrenceCsv: occurrenceRows.join("\n") + "\n",
-    multimediaCsv: multimediaRows.join("\n") + "\n",
-    metaXml: DWCA_META_XML,
-  };
+  const { data, error } = await query;
+  if (error) {
+    throw databaseFailure("Failed to fetch an export scan page.", error);
+  }
+  return (data ?? []) as unknown as DBScanRow[];
+}
+
+export function fetchExportScanPages(
+  job: ClaimedExportJob,
+  projection: ExportProjection,
+  supabaseAdmin: SupabaseClient,
+): AsyncGenerator<DBScanRow[]> {
+  return keysetPages((afterId, limit) =>
+    fetchExportScanPage(
+      job.userId,
+      job.exportScope,
+      projection,
+      afterId,
+      limit,
+      supabaseAdmin,
+    )
+  );
 }

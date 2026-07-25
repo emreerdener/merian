@@ -847,10 +847,11 @@ read-only verification instead.
 Incremental species-count maintenance has two complementary checks:
 
 - `_tests/speciesCountTriggerMigrationContract.test.ts` statically requires the
-  private composite ledger, its reverse foreign-key index, RLS/revocations,
-  empty-search-path definer routines, ordered user locks, and four
-  statement-level transition-table triggers. It rejects any new
-  `COUNT(DISTINCT ...)` or `FOR EACH ROW` path in the replacement migration.
+  explicit whole-cutover transaction around `LOCK TABLE`, private composite
+  ledger, its reverse foreign-key index, RLS/revocations, empty-search-path
+  definer routines, ordered user locks, and four statement-level
+  transition-table triggers. It rejects any new `COUNT(DISTINCT ...)`,
+  `FOR EACH ROW`, or early-commit path in the replacement migration.
 - `tests/species_count_trigger_security.sql` runs on the migrated catalog. It
   checks trigger shape and transition aliases, legacy-routine removal, private
   ACLs, and exact ledger/projection behavior across bulk insert, no-op
@@ -1320,11 +1321,10 @@ and detail seeking still behaves as documented.
 
 ### `export-dwca/index_test.ts`
 
-- **Global Anonymization**: Evaluates `generateDwcARow` mathematically, ensuring
-  `export_scope: global` safely casts unauthenticated user IDs down to random
-  SHA-256 strings (e.g., `merian_user_...`).
-- **Precision Preservation**: Validates that standard queries correctly map
-  highly precise exact string values.
+- **Global Anonymization**: Proves global rows use deterministic, versioned HMAC
+  pseudonyms while personal rows retain the owner's UUID.
+- **Precision Preservation**: Validates that personal, non-protected rows honor
+  the canonical precision flag.
 - **Protected Species Truncation**: Validates that matching protected statuses
   (`endangered`, `vulnerable`) explicitly drops exact map coordinates down to
   single-digit resolution metrics (`Math.round(lat * 10) / 10`) regardless of
@@ -1337,6 +1337,35 @@ and detail seeking still behaves as documented.
   null. Verifies the optional-chaining fix (`species?.scientific_name`) produces
   a valid CSV row (not a JS runtime error string) for scans ingested before the
   species enrichment pipeline ran.
+
+The surrounding export suite is intentionally split by boundary:
+
+- `db_test.ts` proves cursor advancement and rejects non-monotonic keyset pages.
+- `pseudonym_test.ts` proves HMAC determinism, domain/key-version rotation, and
+  fail-closed missing/short Base64 keys.
+- `zip_test.ts` opens the lazy ZIP with an independent reader and checks
+  deterministic output.
+- `storage_test.ts` proves fixed-size multipart buffering, bounded provider XML,
+  completion/signing, rejection of an embedded HTTP-200 `<Error>`, and
+  best-effort abort after a failed part or completion.
+- `_shared/aws_test.ts` loads `docs/r2-lifecycle.json` and requires the global
+  seven-day incomplete-multipart abort rule while continuing to reject any
+  expiration rule for durable avatars.
+- `mail_test.ts` locks the job-scoped Resend idempotency key, bounded reply
+  parsing, and transient versus terminal error classification.
+- `worker_test.ts` proves duplicate deliveries do no work, the database claim is
+  canonical, attempt-scoped object keys are used, staged archives are reused,
+  and only the winning lease can finalize.
+- `_tests/exportDwcaSecurityCoverage.test.ts` rejects webhook authority creep,
+  OFFSET/full-buffer regressions, JWT-secret reuse, and fallback salts.
+- `_tests/exportDwcaMigrationContract.test.ts` locks the claim/RPC/index/grant
+  migration shape.
+- `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
+  immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
+  legacy-error sanitization, post-deadline claim, transition, and
+  idempotent-completion contract against local Postgres.
+  `privileged_routine_security.sql` independently runs static
+  PL/pgSQL/search-path/grant validation over the new definer RPCs.
 
 ### `revenuecat-webhook/*_test.ts`
 

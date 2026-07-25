@@ -393,9 +393,18 @@ For endangered or sensitive species, an additional safety offset can extend to a
 
 ## 10.2 Exports - Implemented
 
-Darwin Core Archive export uses an asynchronous request-and-worker flow. It streams generated archives to object storage, delivers a time-limited link through Resend, and rate-limits user requests to approximately one per 24 hours.
+Darwin Core Archive export uses an asynchronous request-and-worker flow. The
+database atomically leases canonical jobs, the worker keyset-pages records into
+a streaming multipart archive, and Resend receives a job-idempotent delivery
+request for a time-limited link. Successful/non-terminal requests are
+rate-limited to approximately one per 24 hours; failed jobs remain retryable.
 
-Personal exports can include the owner's exact location where allowed. Global/public exports include only open public records and apply privacy rules. Export pseudonyms use SHA-256-derived identifiers. Export policy should be tested against current schema and ecology rules rather than relying on older blanket claims about domesticated observations.
+Personal exports can include the owner's exact location where allowed.
+Global/public exports include only open public records and apply privacy rules.
+Global attribution uses a versioned, dedicated HMAC-SHA256 key rather than a
+plain hash, JWT secret, or fallback salt. Export policy should be tested against
+current schema and ecology rules rather than relying on older blanket claims
+about domesticated observations.
 
 ## 10.3 Deletion - Implemented
 
@@ -528,7 +537,12 @@ New tables and Data API objects should use explicit grants and RLS rather than a
 
 The iOS project directly depends on RevenueCat, PostHog, Supabase Swift, and Google Sign-In. The reviewed lockfile includes PostHog 3.48.2, RevenueCat 5.66.0, Supabase Swift 2.43.0, and Google Sign-In 9.1.0, plus transitive packages.
 
-Key Edge Function dependencies include Supabase JS 2.110.6, JOSE 5.9.6, aws4fetch 1.0.20, Google Gen AI 1.0.0, JSZip 3.10.1, Resend 4.1.2, and Deno standard library 0.224 imports. Versions are a snapshot, not a promise; upgrades require tests and security review.
+Key Edge Function dependencies include Supabase JS 2.110.6, JOSE 5.9.6,
+aws4fetch 1.0.20, Google Gen AI 1.0.0, and Deno standard library 0.224 imports.
+DwC-A production delivery uses the local streaming ZIP implementation and
+Resend's HTTP API; JSZip remains only an independent ZIP-reader test dependency.
+Versions are a snapshot, not a promise; upgrades require tests and security
+review.
 
 Rive and TelemetryDeck are not direct dependencies in the current implementation.
 

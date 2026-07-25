@@ -1,6 +1,10 @@
 -- Replace the per-row, full-history species recount with a statement-level
 -- incremental ledger. The scan lock makes the one-time backfill and trigger
 -- cutover atomic with respect to scan inserts, updates, deletes, and cascades.
+-- PostgreSQL requires LOCK TABLE to run inside an explicit transaction block;
+-- keeping that block open through the final trigger preserves the cutover.
+BEGIN;
+
 LOCK TABLE public.scans IN SHARE ROW EXCLUSIVE MODE;
 
 CREATE TABLE internal.user_species_scan_counts (
@@ -533,3 +537,5 @@ CREATE TRIGGER sync_user_species_counts_after_truncate
 AFTER TRUNCATE ON public.scans
 FOR EACH STATEMENT
 EXECUTE FUNCTION internal.sync_user_species_counts_after_scan_truncate();
+
+COMMIT;

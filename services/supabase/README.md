@@ -50,7 +50,7 @@ reject truncated or overlong bodies and invalid UTF-8, then parse the reviewed
 JSON shape. Routes must pick the smallest reviewed class that fits their schema:
 
 | Class | Ceiling | Typical use |
-| --- | ---: | --- |
+| ---------- | ------: | -------------------------------- |
 | `small` | 16 KiB | IDs, actions, preference updates |
 | `standard` | 64 KiB | ordinary structured API payloads |
 | `bulk` | 1 MiB | reviewed bounded batches |
@@ -81,6 +81,40 @@ Static coverage in
 `functions/_tests/jsonEndpointSecurityCoverage.test.ts` prevents unbounded
 request readers and unwrapped custom entrypoints from returning to deployable
 routes, and locks the shared raw-exception sanitization boundary.
+
+### Darwin Core Export Boundary
+
+Migration `20260724230849_harden_dwca_export_jobs.sql` makes the database queue
+authoritative. API roles cannot insert jobs directly, and the hardened worker
+consumes only the webhook `job_id`. Deprecated canonical row hints exist only
+for jobs created inside a private two-hour migration-before-bundle cohort; after
+that deadline new webhook bodies contain `job_id` only and direct unclaimed
+processing is rejected. Service-only definer RPCs atomically claim the row under
+a private ten-minute UUID lease, return immutable
+user/scope/precision/key-version state, and fence renewal, staging, completion,
+and failure to the current unexpired token. All routines have empty search
+paths, explicit allowlist entries, and no public/authenticated execution.
+
+`functions/export-dwca` uses 200-row keyset pages and narrow occurrence/media
+projections. Lazy CSV generators feed a streaming ZIP32 writer and fixed 8 MiB
+R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is
+buffered. R2 create/complete XML and Resend replies are byte-capped; multipart
+completion rejects an embedded S3 `<Error>` even under HTTP 200. The route
+registers this work with `EdgeRuntime.waitUntil` and returns `202` to `pg_net`
+before processing. Each unstaged archive includes the claim UUID in its object
+key. Staged archives are reused after lease recovery, and Resend delivery uses
+one job-scoped idempotency key.
+
+Global attribution requires versioned `DWCA_PSEUDONYM_HMAC_KEY_V{n}` secrets.
+Version 1 is required Base64 decoding to at least 32 random bytes, sourced from
+GitHub `Production`, and has no fallback to a JWT/service credential or literal
+salt. See the function README and deployment runbook before provisioning or
+rotating a key.
+
+Regression coverage lives in
+`functions/_tests/exportDwcaSecurityCoverage.test.ts`,
+`functions/_tests/exportDwcaMigrationContract.test.ts`, the route-local export
+tests, and `tests/export_dwca_security.sql`.
 
 ### Public Web Waitlist Boundary
 
@@ -134,7 +168,9 @@ historical per-row full-history recount on `public.scans`. It creates the
 private `internal.user_species_scan_counts` ledger keyed by
 `(user_id, species_id)`, backfills it once while scan writes are locked, repairs
 the public projection, and installs separate statement-level insert, delete,
-update, and truncate triggers.
+update, and truncate triggers. The file opens an explicit transaction before
+`LOCK TABLE` and commits only after the final trigger is installed, as required
+by PostgreSQL for a table lock that spans the complete cutover.
 
 Insert/delete transition tables aggregate each pair once. The update trigger
 combines complete OLD and NEW transition sets and drops zero-net pairs, so
@@ -288,7 +324,7 @@ The internal policy matrix distinguishes `free`, `pro_trial`, and `pro_paid`.
 Current UTC-day safety ceilings are:
 
 | Operation bucket | Free | Pro trial | Paid Pro |
-|---|---:|---:|---:|
+| -------------------------------------------------- | -----: | --------: | -------: |
 | Primary image/description/audio scans | 1 | 50 | 500 |
 | Cache-miss overview/lookalike/group-tag enrichment | 4 | 100 | 500 |
 | Explore/Community audio moderation | 3 | 25 | 100 |
@@ -471,7 +507,8 @@ Species-count projection has paired tests:
 
 - `_tests/speciesCountTriggerMigrationContract.test.ts` rejects restoration of
   `COUNT(DISTINCT ...)`, row-level triggers, missing transition tables, unsafe
-  ACLs/search paths, or removal of deterministic user locking.
+  ACLs/search paths, removal of deterministic user locking, or a table lock
+  outside the explicit whole-cutover transaction.
 - `tests/species_count_trigger_security.sql` checks the live catalog plus bulk
   insert, unrelated update, owner transfer, species replacement, duplicate,
   scan deletion, and dictionary `SET NULL` behavior. It deliberately corrupts

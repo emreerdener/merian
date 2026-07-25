@@ -186,8 +186,9 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour
     rate limits for data exports.
   - `/export-dwca`: Heavy background worker (triggered via Service-Role Webhook)
-    that compiles paginated Darwin Core Zip archives and dispatches emails via
-    the Resend Node SDK.
+    that atomically claims canonical jobs, streams keyset-paginated Darwin Core
+    ZIP output through R2 multipart upload, and dispatches an idempotent Resend
+    request.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge
     proxy memory.
