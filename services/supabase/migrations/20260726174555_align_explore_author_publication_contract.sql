@@ -12,32 +12,19 @@ DO $migration$
 DECLARE
     function_sql TEXT;
     patched_sql TEXT;
-    original_count_fragment TEXT :=
-        E'    SELECT COUNT(*)::INTEGER\n'
-        || E'    INTO visible_post_count\n'
-        || E'    FROM public.explore_posts ep\n'
-        || E'    JOIN public.scans s\n'
-        || E'        ON s.id = ep.scan_id\n'
-        || E'    WHERE ep.user_id = target_author_user_id\n'
-        || E'      AND ep.unshared_at IS NULL\n'
-        || E'      AND s.is_tombstoned = FALSE\n'
-        || E'      AND COALESCE(ARRAY_LENGTH(s.image_storage_urls, 1), 0) > 0\n'
-        || E'      AND s.geoprivacy <> ''private''\n'
-        || E'      AND NOT EXISTS (\n'
-        || E'          SELECT 1\n'
-        || E'          FROM public.user_blocks ub\n'
-        || E'          WHERE (ub.blocker_id = self_id AND ub.blocked_id = ep.user_id)\n'
-        || E'             OR (ub.blocker_id = ep.user_id AND ub.blocked_id = self_id)\n'
-        || E'      );';
+    count_statement_pattern TEXT :=
+        E'[[:blank:]]*SELECT[[:space:]]+[^;]*'
+        || E'INTO[[:space:]]+visible_post_count[[:space:]]+[^;]*;'
+        || E'[[:space:]]*';
     canonical_count_fragment TEXT :=
         E'    SELECT pg_catalog.COUNT(*)::INTEGER\n'
         || E'    INTO visible_post_count\n'
         || E'    FROM public.explore_projected_post_cards(self_id) AS visible_post\n'
-        || E'    WHERE visible_post.author_user_id = target_author_user_id;';
-    original_eligibility_fragment TEXT :=
-        E'    IF visible_post_count = 0 AND NOT public.user_has_visible_field_trip_profile(self_id, target_author_user_id) THEN\n'
-        || E'        RETURN;\n'
-        || E'    END IF;';
+        || E'    WHERE visible_post.author_user_id = target_author_user_id;\n\n';
+    eligibility_pattern TEXT :=
+        E'IF[[:space:]]+visible_post_count[[:space:]]*=[[:space:]]*0'
+        || E'[^;]*THEN[[:space:]]+RETURN;'
+        || E'[[:space:]]+END[[:space:]]+IF;';
     owner_aware_eligibility_fragment TEXT :=
         E'    IF visible_post_count = 0\n'
         || E'       AND self_id IS DISTINCT FROM target_author_user_id\n'
@@ -50,25 +37,31 @@ BEGIN
     )
     INTO STRICT function_sql;
 
-    patched_sql := pg_catalog.REPLACE(
+    -- Historical migrations have evolved this function, and
+    -- pg_get_functiondef() text is not a stable byte-level contract across
+    -- schema histories or PostgreSQL versions. Match the single PL/pgSQL
+    -- statement by its semantic INTO target and semicolon boundary instead.
+    patched_sql := pg_catalog.REGEXP_REPLACE(
         function_sql,
-        original_count_fragment,
-        canonical_count_fragment
+        count_statement_pattern,
+        canonical_count_fragment,
+        'i'
     );
     IF patched_sql = function_sql THEN
         RAISE EXCEPTION
-            'get_explore_author_profile does not match the expected legacy count projection';
+            'get_explore_author_profile has no visible_post_count SELECT statement';
     END IF;
     function_sql := patched_sql;
 
-    patched_sql := pg_catalog.REPLACE(
+    patched_sql := pg_catalog.REGEXP_REPLACE(
         function_sql,
-        original_eligibility_fragment,
-        owner_aware_eligibility_fragment
+        eligibility_pattern,
+        owner_aware_eligibility_fragment,
+        'i'
     );
     IF patched_sql = function_sql THEN
         RAISE EXCEPTION
-            'get_explore_author_profile does not match the expected Field Trip eligibility projection';
+            'get_explore_author_profile has no visible_post_count eligibility guard';
     END IF;
 
     EXECUTE patched_sql;

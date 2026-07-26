@@ -165,6 +165,18 @@ Deno.test("Explore author publication totals share one public projection and kee
   );
   assertStringIncludes(
     sql,
+    "INTO[[:space:]]+visible_post_count[[:space:]]+[^;]*;",
+  );
+  assertStringIncludes(
+    sql,
+    "REGEXP_REPLACE( function_sql, count_statement_pattern, canonical_count_fragment, 'i' )",
+  );
+  assert(
+    !sql.includes("original_count_fragment"),
+    "The migration must not depend on byte-identical pg_get_functiondef output.",
+  );
+  assertStringIncludes(
+    sql,
     "CREATE OR REPLACE FUNCTION public.get_owned_explore_publication_summary",
   );
   assertStringIncludes(
