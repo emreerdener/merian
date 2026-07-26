@@ -62,6 +62,10 @@ Deno.test("Explore media lifecycle is reversible and independent from publicatio
 Deno.test("Explore media quarantine requires spaced direct-origin confirmation", async () => {
   const sql = normalized(await Deno.readTextFile(lifecycleMigrationUrl));
 
+  assert(
+    !/pg_catalog\.(?:GREATEST|LEAST)\s*\(/i.test(sql),
+    "GREATEST and LEAST are SQL expressions and cannot be schema-qualified.",
+  );
   assertStringIncludes(
     sql,
     "media_row.missing_first_observed_at <= v_now - INTERVAL '5 minutes'",

@@ -239,7 +239,7 @@ BEGIN
                  pg_catalog.BTRIM(COALESCE(NEW.thumbnail_url, '')),
                  ''
              ) IS NOT NULL
-                THEN pg_catalog.LEAST(
+                THEN LEAST(
                     prior_health.next_health_check_at,
                     pg_catalog.NOW()
                 )
@@ -930,12 +930,12 @@ DECLARE
 BEGIN
     PERFORM internal.require_service_role();
 
-    v_limit := pg_catalog.LEAST(
-        pg_catalog.GREATEST(COALESCE(p_limit, 200), 1),
+    v_limit := LEAST(
+        GREATEST(COALESCE(p_limit, 200), 1),
         500
     );
-    v_lease_seconds := pg_catalog.LEAST(
-        pg_catalog.GREATEST(COALESCE(p_lease_seconds, 120), 30),
+    v_lease_seconds := LEAST(
+        GREATEST(COALESCE(p_lease_seconds, 120), 30),
         600
     );
 
@@ -1127,7 +1127,7 @@ BEGIN
             media_row.missing_first_observed_at,
             v_now
         );
-        v_next_check := pg_catalog.GREATEST(
+        v_next_check := GREATEST(
             v_now + INTERVAL '5 minutes',
             v_first_observed + INTERVAL '5 minutes'
         );
@@ -1511,7 +1511,7 @@ BEGIN
     END LOOP;
 
     UPDATE public.explore_post_media AS media
-    SET next_health_check_at = pg_catalog.LEAST(
+    SET next_health_check_at = LEAST(
             media.next_health_check_at,
             pg_catalog.NOW()
         ),

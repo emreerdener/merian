@@ -41,7 +41,7 @@ INSERT INTO public.users (
 VALUES (
     '00000000-0000-4000-8000-00000000e701',
     'explore-media-health@naturebook.invalid',
-    'explore_media_health_e701',
+    'media_health_e701',
     'Explore Media Health',
     'alias'
 )

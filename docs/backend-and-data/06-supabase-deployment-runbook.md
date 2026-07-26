@@ -1153,7 +1153,7 @@ supabase --workdir services test db --local \
 ```
 
 Use a disposable database for the integration tests. The tracked local
-configuration uses the current `[inbucket]` section expected by the pinned
+configuration uses the current `[local_smtp]` section expected by the pinned
 Supabase CLI.
 
 Post-deploy structural checks:
@@ -2861,7 +2861,7 @@ a migration failure. The GitHub workflow intentionally avoids that status lookup
 by requiring an explicit database connection and using `db push --db-url`
 instead. Direct Supabase database hosts can resolve to IPv6-only addresses; use
 the pooler connection string in CI when a runner cannot reach IPv6. The local
-configuration uses the current `[inbucket]` section. It also keeps Apple Auth
+configuration uses the current `[local_smtp]` section. It also keeps Apple Auth
 enabled for integration testing, so local CLI commands need
 `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` in the environment. Schema-only CI scopes
 an explicit non-secret placeholder to the individual CLI steps; it never

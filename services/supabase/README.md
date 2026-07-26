@@ -934,8 +934,8 @@ make validate-supabase-migrations
 
 Use Supabase CLI `2.109.0` or newer; CI pins `2.109.1`. The repository keeps
 every migration compatible with fresh-schema statement-pipeline replay rather
-than depending on CLI-specific handling for concurrent index DDL. The minimum
-also recognizes the current `[inbucket]` configuration used by this project. Confirm
+than depending on CLI-specific handling for concurrent index DDL. The local
+email catcher uses the current `[local_smtp]` configuration section. Confirm
 the local version before database verification:
 
 ```bash
