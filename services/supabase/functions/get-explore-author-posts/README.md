@@ -75,7 +75,11 @@ The response is the same card-shaped Explore post projection used by the feed:
         }
       ]
     }
-  ]
+  ],
+  "next_cursor": {
+    "before_shared_at": "2026-05-03T12:00:00.000Z",
+    "before_post_id": "uuid"
+  }
 }
 ```
 
@@ -101,13 +105,16 @@ Rows are ordered by:
 shared_at DESC, post_id DESC
 ```
 
-The iOS cursor stores the last row's `shared_at` and `post_id` as:
+The Edge function fetches `limit + 1` rows. When another page exists,
+`next_cursor` contains the last returned row's:
 
 - `before_shared_at`
 - `before_post_id`
 
-This keeps pagination stable when newer posts are inserted above the current
-window.
+At the end, `next_cursor` is `null`. Clients must use this metadata rather than
+guessing from a short page or a separately fetched profile count. This keeps
+pagination stable when newer posts are inserted above the current window and
+prevents count/projection drift from truncating the grid.
 
 ## Visibility Rules
 
@@ -118,6 +125,8 @@ The endpoint returns only posts currently visible to the requester:
 - tombstoned scans excluded
 - scans without public post-owned media excluded
 - scans without a species key excluded
+- confirmed-missing media items excluded
+- all-missing, system-quarantined posts excluded
 - shadowbanned authors excluded
 - both directions of user blocking excluded
 

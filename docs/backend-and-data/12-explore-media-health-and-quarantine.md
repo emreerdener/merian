@@ -72,6 +72,10 @@ boundary used by Feed, Map, search, author profile, post detail, hashtag, and
 public share consumers. Specialized projections must derive from it or enforce
 the same quarantine and item-health predicates.
 
+Author profile count, preview, and full grid must all use that canonical
+projection. Preserved publication intent is a different owner-only concept and
+must never be displayed as the number of currently visible posts.
+
 ## Verification pipeline
 
 `reconcile-explore-media-health` runs every five minutes:
@@ -116,6 +120,12 @@ On the first transition from healthy into an active incident:
 - send one push only to devices whose Explore notification preference allows
   it; and
 - show a persistent **Needs attention** banner in Scan Library.
+
+The owner's Profile `Published scans` preview and full grid also show a
+persistent explanatory summary while recovery is pending. It reports preserved
+publication intent, currently visible posts, and recovery-needed posts, then
+directs the owner to Scan Library. It does not put a broken post back into a
+public grid.
 
 The banner explains whether the post is degraded or hidden and explicitly says
 that the post, likes, and comments are safe. **Review** opens the linked local
@@ -205,6 +215,15 @@ Alert on:
 - aggregate post state inconsistent with item counts; and
 - any durable-prefix lifecycle rule with age-based expiration.
 
+Every production backend deploy calls the service-only
+`get_explore_publication_health_summary()` RPC and prints only aggregate totals:
+active, healthy, degraded, quarantined, affected authors, and confirmed-missing
+items. This is the authoritative first answer to “one account or several?”
+without exposing owner identifiers or object keys. Affected totals above the
+known incident cohort require immediate scoped investigation; zero does not
+prove missing bytes were recovered because unreconciled references may still
+await origin checks.
+
 For a spike:
 
 1. pause destructive storage workers, credential rotations, and lifecycle
@@ -222,9 +241,13 @@ Never bulk-update health to `healthy` without proving object existence.
 
 - Migrations:
   `20260726144647_add_explore_media_quarantine_lifecycle.sql` and
-  `20260726144754_implement_explore_media_quarantine_state_machine.sql`
+  `20260726144754_implement_explore_media_quarantine_state_machine.sql`, plus
+  `20260726174555_align_explore_author_publication_contract.sql` for canonical
+  profile/grid counts and aggregate scope
 - Scheduled worker: `reconcile-explore-media-health`
 - Owner API: `get-explore-media-incidents`
+- Owner publication totals: `get_owned_explore_publication_summary`
+- Service aggregate scope: `get_explore_publication_health_summary`
 - R2 event hint API: `ingest-r2-media-events`
 - Device repair: `repair-scan-image`
 - Database integration tests:

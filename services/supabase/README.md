@@ -198,8 +198,9 @@ and the
 
 ### Explore Media Health and Reversible Quarantine
 
-Migrations `20260726144647` and `20260726144754` preserve published posts when
-primary media is unexpectedly absent:
+Migrations `20260726144647`, `20260726144754`, and `20260726174555` preserve
+published posts when primary media is unexpectedly absent and keep author
+profile count/preview/grid visibility aligned:
 
 - `reconcile-explore-media-health` leases bounded active rows and performs
   signed direct R2-origin `HEAD` with required, bucket-scoped read-only
@@ -216,6 +217,12 @@ primary media is unexpectedly absent:
   and
 - one incident push/in-app row is replaced by an in-app-only restore row after
   full recovery.
+
+`get_owned_explore_publication_summary(self_id)` gives only the authenticated
+owner separate preserved-publication, canonical-visible, and recovery totals.
+`get_explore_publication_health_summary()` is service-only and reports aggregate
+affected-author/post/item scope without identities or object keys. The deploy
+workflow calls the latter after function smoke tests.
 
 The private continuity ledger preserves health across the existing
 DELETE+INSERT snapshot refresh. The worker never deletes R2 objects, posts,

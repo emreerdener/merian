@@ -15,7 +15,6 @@ struct ProfilePublicScansPreview: View {
     @State private var isLoading = false
     @State private var hasLoaded = false
     @State private var didFail = false
-    @State private var shareStateRevision: UInt64 = 0
     @State private var isLibraryPresented = false
 
     private let previewLimit = 9
@@ -44,20 +43,24 @@ struct ProfilePublicScansPreview: View {
 
     @ViewBuilder
     private var content: some View {
-        let items = previewItems
+        let posts = previewPosts
 
-        if currentUserId != nil, isLoading || !items.isEmpty || hasLoaded || didFail {
+        if currentUserId != nil, isLoading || !posts.isEmpty || hasLoaded || didFail {
             VStack(alignment: .leading, spacing: 14) {
                 sectionHeader
 
-                if isLoading && items.isEmpty {
+                if let recoverySummary {
+                    ProfilePublicationRecoverySummaryView(summary: recoverySummary)
+                }
+
+                if isLoading && posts.isEmpty {
                     loadingGrid
-                } else if didFail && items.isEmpty {
+                } else if didFail && posts.isEmpty {
                     unavailableState
-                } else if items.isEmpty {
+                } else if posts.isEmpty {
                     emptyState
                 } else {
-                    scanGrid(items: items)
+                    scanGrid(posts: posts)
                 }
 
                 if shouldShowViewMoreButton {
@@ -71,13 +74,25 @@ struct ProfilePublicScansPreview: View {
         supabase.currentUser?.id.uuidString
     }
 
-    private var publishedPostCount: Int? {
-        profileViewModel.socialStats?.publishedPostCount
+    private var visiblePublishedPostCount: Int? {
+        profileViewModel.socialStats?.visiblePublishedPostCount
+    }
+
+    private var recoverySummary: ProfilePublicationRecoverySummary? {
+        guard let stats = profileViewModel.socialStats,
+              stats.recoveryNeededPostCount > 0 else { return nil }
+
+        return ProfilePublicationRecoverySummary(
+            publicationIntentCount: stats.publicationIntentCount,
+            visibleCount: stats.visiblePublishedPostCount,
+            recoveryNeededCount: stats.recoveryNeededPostCount,
+            quarantinedCount: stats.quarantinedPostCount
+        )
     }
 
     private var shouldShowViewMoreButton: Bool {
-        if let publishedPostCount {
-            return publishedPostCount > previewLimit
+        if let visiblePublishedPostCount {
+            return visiblePublishedPostCount > previewLimit
         }
 
         return hasLoaded && remotePosts.count == previewLimit
@@ -90,8 +105,8 @@ struct ProfilePublicScansPreview: View {
 
             Spacer()
 
-            if let publishedPostCount {
-                Text(publishedPostCount.formatted(.number.notation(.compactName)))
+            if let visiblePublishedPostCount {
+                Text("\(visiblePublishedPostCount.formatted(.number.notation(.compactName))) visible")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
             } else if profileViewModel.isLoadingSocialStats {
@@ -104,77 +119,34 @@ struct ProfilePublicScansPreview: View {
         }
     }
 
-    private var previewItems: [ProfilePublicScanPreviewItem] {
-        _ = shareStateRevision
-
-        var items: [ProfilePublicScanPreviewItem] = []
-        var seenPostIds = Set<String>()
-        var seenScanIds = Set<String>()
-
-        for post in remotePosts {
-            guard items.count < previewLimit else { break }
-            let localScan = localScans.first { $0.id == post.scanId }
-            seenPostIds.insert(post.id)
-            seenScanIds.insert(post.scanId)
-            items.append(
-                ProfilePublicScanPreviewItem(
-                    id: post.id,
-                    scanId: post.scanId,
-                    postId: post.id,
-                    imagePath: nil,
-                    fallbackUrl: post.gridThumbnailUrl(
-                        localReferenceUrl: localScan?.referenceImageUrl
-                    ),
-                    localHasAudioMedia: false,
-                    post: post
-                )
-            )
-        }
-
-        for scan in localScans {
-            guard items.count < previewLimit else { break }
-            guard let postId = ExploreShareStateStore.sharedPostId(for: scan.id) else { continue }
-            guard !seenPostIds.contains(postId), !seenScanIds.contains(scan.id) else { continue }
-
-            seenPostIds.insert(postId)
-            seenScanIds.insert(scan.id)
-            items.append(
-                ProfilePublicScanPreviewItem(
-                    id: postId,
-                    scanId: scan.id,
-                    postId: postId,
-                    imagePath: localImagePath(for: scan),
-                    fallbackUrl: scan.referenceImageUrl?.trimmedProfilePreviewValue,
-                    localHasAudioMedia: scan.capturedMediaSnapshot.summary.hasAudio,
-                    post: nil
-                )
-            )
-        }
-
-        return items
+    private var previewPosts: [ExplorePost] {
+        Array(remotePosts.prefix(previewLimit))
     }
 
-    private func scanGrid(items: [ProfilePublicScanPreviewItem]) -> some View {
+    private func scanGrid(posts: [ExplorePost]) -> some View {
         LazyVGrid(columns: columns, spacing: 2) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
+                let localReferenceUrl = localScans.first { $0.id == post.scanId }?.referenceImageUrl
                 Button {
-                    Task { await openPreviewItem(item) }
+                    onOpenPost(post)
                 } label: {
                     ProfilePublicScanImageView(
-                        imagePath: item.imagePath,
-                        fallbackUrl: item.fallbackUrl,
+                        imagePath: nil,
+                        fallbackUrl: post.gridThumbnailUrl(
+                            localReferenceUrl: localReferenceUrl
+                        ),
                         reloadGeneration: viewModel.mediaReloadGeneration
                     )
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
                     .overlay(alignment: .bottomTrailing) {
-                        if item.hasVideoMedia || item.hasAudioMedia {
-                            ExploreMediaTypeIndicator(kind: item.hasVideoMedia ? .video : .audio)
+                        if post.hasVideoMedia || post.hasAudioMedia {
+                            ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
                                 .padding(8)
                         }
                     }
                     .clipped()
-                    .profilePublishedScanTileCorners(index: index, itemCount: items.count)
+                    .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Published scan")
@@ -196,7 +168,11 @@ struct ProfilePublicScansPreview: View {
     }
 
     private var emptyState: some View {
-        Text("No published scans yet.")
+        Text(
+            recoverySummary == nil
+                ? "No published scans yet."
+                : "No published scans are visible while media recovery is pending."
+        )
             .profileExploreStateStyle()
     }
 
@@ -249,36 +225,17 @@ struct ProfilePublicScansPreview: View {
         }
 
         do {
-            let loadedPosts = try await MerianNetworkClient.shared.getExploreAuthorPosts(
+            let page = try await MerianNetworkClient.shared.getExploreAuthorPosts(
                 authorUserId: authorUserId,
                 limit: previewLimit
             )
             guard !Task.isCancelled else { return }
 
-            registerPosts(loadedPosts)
-            remotePosts = loadedPosts
+            registerPosts(page.data)
+            remotePosts = page.data
         } catch {
             guard !Task.isCancelled else { return }
             remotePosts = []
-            didFail = true
-        }
-    }
-
-    @MainActor
-    private func openPreviewItem(_ item: ProfilePublicScanPreviewItem) async {
-        if let post = item.post {
-            onOpenPost(post)
-            return
-        }
-
-        guard let postId = item.postId else { return }
-
-        do {
-            let post = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
-            registerPosts([post])
-            upsertRemotePost(post)
-            onOpenPost(post)
-        } catch {
             didFail = true
         }
     }
@@ -307,7 +264,6 @@ struct ProfilePublicScansPreview: View {
     private func handleAppEvent(_ event: AppEvent) {
         switch event {
         case .exploreShareStateChanged(let scanId, let postId):
-            shareStateRevision &+= 1
             if postId == nil {
                 remotePosts.removeAll { $0.scanId == scanId }
             }
@@ -331,11 +287,6 @@ struct ProfilePublicScansPreview: View {
         default:
             break
         }
-    }
-
-    private func localImagePath(for scan: LocalScanRecord) -> String? {
-        scan.coverImagePath?.trimmedProfilePreviewValue
-            ?? scan.capturedMediaSnapshot.primaryImagePath?.trimmedProfilePreviewValue
     }
 }
 
@@ -365,6 +316,11 @@ private struct ProfilePublishedScansLibraryView: View {
                 header
                     .padding(.horizontal, 16)
 
+                if let recoverySummary {
+                    ProfilePublicationRecoverySummaryView(summary: recoverySummary)
+                        .padding(.horizontal, 16)
+                }
+
                 if posts.isEmpty && isLoading {
                     loadingGrid(count: 12)
                 } else if didFail && posts.isEmpty {
@@ -372,7 +328,11 @@ private struct ProfilePublishedScansLibraryView: View {
                         .profileExploreStateStyle()
                         .padding(.horizontal, 16)
                 } else if posts.isEmpty {
-                    Text("No published scans yet.")
+                    Text(
+                        recoverySummary == nil
+                            ? "No published scans yet."
+                            : "No published scans are visible while media recovery is pending."
+                    )
                         .profileExploreStateStyle()
                         .padding(.horizontal, 16)
                 } else {
@@ -444,8 +404,20 @@ private struct ProfilePublishedScansLibraryView: View {
         "Your published scans"
     }
 
-    private var publishedPostCount: Int? {
-        profileViewModel.socialStats?.publishedPostCount
+    private var visiblePublishedPostCount: Int? {
+        profileViewModel.socialStats?.visiblePublishedPostCount
+    }
+
+    private var recoverySummary: ProfilePublicationRecoverySummary? {
+        guard let stats = profileViewModel.socialStats,
+              stats.recoveryNeededPostCount > 0 else { return nil }
+
+        return ProfilePublicationRecoverySummary(
+            publicationIntentCount: stats.publicationIntentCount,
+            visibleCount: stats.visiblePublishedPostCount,
+            recoveryNeededCount: stats.recoveryNeededPostCount,
+            quarantinedCount: stats.quarantinedPostCount
+        )
     }
 
     private func authorIdentityChangeAffects(
@@ -458,9 +430,9 @@ private struct ProfilePublishedScansLibraryView: View {
     }
 
     private var publishedCountSummary: String? {
-        guard let publishedPostCount else { return nil }
-        let noun = publishedPostCount == 1 ? "scan" : "scans"
-        return "\(publishedPostCount.formatted(.number)) published \(noun)"
+        guard let visiblePublishedPostCount else { return nil }
+        let noun = visiblePublishedPostCount == 1 ? "scan" : "scans"
+        return "\(visiblePublishedPostCount.formatted(.number)) visible published \(noun)"
     }
 
     private var header: some View {
@@ -593,10 +565,10 @@ private struct ProfilePublishedScansLibraryView: View {
             )
             guard !Task.isCancelled else { return }
 
-            mergePosts(page)
-            registerPosts(page)
-            updateCursor()
-            hasReachedEnd = page.count < pageSize || hasLoadedPublishedPostCount
+            mergePosts(page.data)
+            registerPosts(page.data)
+            cursor = page.nextCursor ?? .empty
+            hasReachedEnd = page.nextCursor == nil
             didFail = false
         } catch {
             guard !Task.isCancelled else { return }
@@ -604,31 +576,10 @@ private struct ProfilePublishedScansLibraryView: View {
         }
     }
 
-    private var hasLoadedPublishedPostCount: Bool {
-        if let publishedPostCount {
-            return posts.count >= publishedPostCount
-        }
-
-        return false
-    }
-
     @MainActor
     private func mergePosts(_ nextPage: [ExplorePost]) {
         var seenIds = Set(posts.map(\.id))
         posts.append(contentsOf: nextPage.filter { seenIds.insert($0.id).inserted })
-    }
-
-    @MainActor
-    private func updateCursor() {
-        guard let lastPost = posts.last else {
-            cursor = .empty
-            return
-        }
-
-        cursor = ExploreAuthorPostCursor(
-            beforeSharedAt: lastPost.sharedAt,
-            beforePostId: lastPost.id
-        )
     }
 
     @MainActor
@@ -671,21 +622,56 @@ private struct ProfilePublishedScansLibraryView: View {
     }
 }
 
-private struct ProfilePublicScanPreviewItem: Identifiable, Equatable {
-    let id: String
-    let scanId: String
-    let postId: String?
-    let imagePath: String?
-    let fallbackUrl: String?
-    let localHasAudioMedia: Bool
-    let post: ExplorePost?
+struct ProfilePublicationRecoverySummary: Equatable {
+    let publicationIntentCount: Int
+    let visibleCount: Int
+    let recoveryNeededCount: Int
+    let quarantinedCount: Int
 
-    var hasVideoMedia: Bool {
-        post?.hasVideoMedia == true
+    var message: String {
+        let intentPhrase = publicationIntentCount == 1
+            ? "1 publication record is preserved"
+            : "\(publicationIntentCount.formatted()) publication records are preserved"
+        let visibleVerb = visibleCount == 1 ? "is" : "are"
+        let recoveryNoun = recoveryNeededCount == 1 ? "post needs" : "posts need"
+        let hiddenSentence: String
+        if quarantinedCount == 1 {
+            hiddenSentence = " One is hidden from Explore until its media is restored."
+        } else if quarantinedCount > 1 {
+            hiddenSentence = " \(quarantinedCount.formatted()) are hidden from Explore until their media is restored."
+        } else {
+            hiddenSentence = ""
+        }
+
+        return intentPhrase + "; "
+            + "\(visibleCount.formatted()) \(visibleVerb) visible. "
+            + "\(recoveryNeededCount.formatted()) \(recoveryNoun) media recovery."
+            + hiddenSentence
+            + " Review recovery status in Scan Library."
     }
+}
 
-    var hasAudioMedia: Bool {
-        localHasAudioMedia || post?.hasAudioMedia == true
+private struct ProfilePublicationRecoverySummaryView: View {
+    let summary: ProfilePublicationRecoverySummary
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.icloud.fill")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+
+            Text(summary.message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(
+            Color.orange.opacity(0.1),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
     }
 }
 
@@ -794,13 +780,6 @@ enum ProfilePublishedScanGridStyle {
             bottomTrailing: isBottomRight ? cornerRadius : 0,
             topTrailing: isTopRight ? cornerRadius : 0
         )
-    }
-}
-
-private extension String {
-    var trimmedProfilePreviewValue: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

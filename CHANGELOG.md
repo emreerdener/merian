@@ -14,6 +14,12 @@ TestFlight, App Store, support, and QA.
 - Added a persistent Scan Library recovery banner plus one incident
   notification. A repaired cloud image automatically restores the affected
   Explore media; successful restoration is reported quietly in app.
+- Published-scan counts, the Profile preview, and the full grid now use the
+  same server visibility rules. Locally cached share state no longer creates
+  tiles that are absent from the full grid.
+- Owners with affected publications see separate preserved, visible, and
+  recovery-needed totals on Profile, while deployment monitoring reports only
+  aggregate affected-account scope.
 - Scan deletion confirmations now state that deleting a published scan also
   permanently removes its linked Explore post, likes, and comments.
 

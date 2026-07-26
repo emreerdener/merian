@@ -14,6 +14,7 @@ import {
   withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 import { fetchExploreAuthorPosts } from "./db.ts";
+import { prepareExploreAuthorPostsPage } from "./response.ts";
 
 function makeHttpError(
   status: number,
@@ -47,18 +48,21 @@ Deno.serve((req: Request) =>
       );
     }
 
+    const rows = await fetchExploreAuthorPosts(
+      user.id,
+      authorUserId,
+      limit + 1,
+      beforeSharedAt,
+      beforePostId,
+      supabaseAdmin,
+    );
+    const page = prepareExploreAuthorPostsPage(rows, limit);
+
     const data = await withExplorePostHashtags(
       await withExplorePostMediaItems(
         await withExploreAuthorUsernames(
           await withExploreAuthorProBadges(
-            await fetchExploreAuthorPosts(
-              user.id,
-              authorUserId,
-              limit,
-              beforeSharedAt,
-              beforePostId,
-              supabaseAdmin,
-            ),
+            page.data,
             supabaseAdmin,
           ),
           supabaseAdmin,
@@ -68,6 +72,6 @@ Deno.serve((req: Request) =>
       supabaseAdmin,
     );
 
-    return jsonResponse({ data }, 200);
+    return jsonResponse({ data, next_cursor: page.nextCursor }, 200);
   })
 );

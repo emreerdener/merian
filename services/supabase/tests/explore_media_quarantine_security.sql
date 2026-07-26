@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(16);
+SELECT extensions.plan(20);
 
 INSERT INTO auth.users (
     instance_id,
@@ -312,6 +312,69 @@ SELECT extensions.is(
     'a quarantined post is also absent from the independently fetched detail projection'
 );
 
+SELECT extensions.is(
+    (
+        SELECT publication_intent_count || ':' || visible_post_count || ':'
+            || recovery_needed_post_count || ':' || degraded_post_count || ':'
+            || quarantined_post_count
+        FROM public.get_owned_explore_publication_summary(
+            '00000000-0000-4000-8000-00000000e701'
+        )
+    ),
+    '2:0:2:0:2',
+    'owner publication totals separate preserved intent, public visibility, and recovery'
+);
+
+SELECT extensions.is(
+    (
+        SELECT affected_author_count || ':' || degraded_post_count || ':'
+            || quarantined_post_count || ':' || missing_media_item_count
+        FROM public.get_explore_publication_health_summary()
+    ),
+    '1:0:2:3',
+    'service health summary reports aggregate affected scope without owner identifiers'
+);
+
+SELECT extensions.is(
+    (
+        SELECT published_post_count || ':'
+            || pg_catalog.JSONB_ARRAY_LENGTH(preview_posts)
+        FROM public.get_explore_author_profile(
+            '00000000-0000-4000-8000-00000000e701',
+            '00000000-0000-4000-8000-00000000e701',
+            9
+        )
+    ),
+    '0:0',
+    'owner profile public count and preview both use the canonical projection'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.SET_CONFIG(
+    'request.jwt.claims',
+    pg_catalog.JSONB_BUILD_OBJECT(
+        'sub',
+        '00000000-0000-4000-8000-00000000e799',
+        'role',
+        'authenticated'
+    )::TEXT,
+    TRUE
+);
+
+SELECT extensions.throws_ok(
+    $statement$
+        SELECT *
+        FROM public.get_owned_explore_publication_summary(
+            '00000000-0000-4000-8000-00000000e701'
+        )
+    $statement$,
+    '42501',
+    'Authenticated caller does not match self_id.',
+    'owner publication summary rejects a different authenticated caller'
+);
+RESET ROLE;
+SELECT pg_catalog.SET_CONFIG('request.jwt.claims', '{}', TRUE);
+
 SELECT extensions.ok(
     EXISTS (
         SELECT 1
@@ -429,6 +492,21 @@ SELECT extensions.ok(
     AND pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'authenticated',
         'public.get_owned_explore_media_incidents(uuid)',
+        'EXECUTE'
+    )
+    AND pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_owned_explore_publication_summary(uuid)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_explore_publication_health_summary()',
+        'EXECUTE'
+    )
+    AND pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_explore_publication_health_summary()',
         'EXECUTE'
     ),
     'worker internals stay private while owner and service boundaries remain explicit'

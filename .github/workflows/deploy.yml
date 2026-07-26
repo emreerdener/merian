@@ -597,7 +597,7 @@ jobs:
           echo "::add-mask::$service_role_key"
           echo "key=$service_role_key" >> "$GITHUB_OUTPUT"
 
-      - name: Smoke test Community Taxonomy endpoints
+      - name: Smoke test production backend endpoints
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ steps.service-role.outputs.key }}
         run: |
@@ -647,3 +647,23 @@ jobs:
             and (.claimed | type) == "number"
             and (.errors | type) == "array"
           '
+
+          publication_health_response="$(
+            curl -fsS \
+              -X POST "${supabase_url}/rest/v1/rpc/get_explore_publication_health_summary" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/json" \
+              --data '{}'
+          )"
+          echo "$publication_health_response" | jq -e '
+            type == "array"
+            and length == 1
+            and (.[0].active_publication_count | type) == "number"
+            and (.[0].healthy_post_count | type) == "number"
+            and (.[0].degraded_post_count | type) == "number"
+            and (.[0].affected_author_count | type) == "number"
+            and (.[0].quarantined_post_count | type) == "number"
+            and (.[0].missing_media_item_count | type) == "number"
+          '
+          echo "$publication_health_response" | jq '.[0]'

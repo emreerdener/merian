@@ -35,8 +35,32 @@ verified.
   surfaces ultimately referenced the same owner-scoped R2 media.
 - Likes, comments, taxonomy labels, scan rows, and post rows remaining in
   Postgres do not imply that the underlying image bytes remain in R2.
+- A separate presentation inconsistency made the incident look even less
+  coherent: the owner profile count used a legacy publication query, the
+  nine-tile preview mixed five canonical server posts with four local cached
+  share rows, and the full grid returned only the five canonical server posts.
+  This mismatch was a global code defect triggered by this account's unusual
+  media state; it is not evidence that four additional R2 objects existed.
 
 No evidence currently indicates a bucket-wide loss.
+
+### Profile projection mismatch
+
+The observed `38` count, `9` preview tiles, and `5` full-grid tiles came from
+three different inputs:
+
+- `38`: a legacy profile count that did not apply the complete media-health
+  quarantine projection;
+- `9`: five canonical remote posts plus four locally cached share-state tiles;
+  and
+- `5`: the canonical remote author-post endpoint.
+
+Migration `20260726174555_align_explore_author_publication_contract.sql` moves
+the visible profile count onto `explore_projected_post_cards(self_id)`. The iOS
+preview no longer promotes local share cache into a public grid, and the
+author-post endpoint now returns explicit continuation metadata. Preserved
+publication intent and media-recovery totals remain available separately to the
+owner.
 
 ## Evidence Classification
 
@@ -94,6 +118,7 @@ leave other owners' media untouched.
 | 2026-07-10 04:16:39Z | App 1.0.1 (209) encountered `SwiftDataError 1`. The old local store was preserved under `store-rescue/2026-07-10T04-16-39Z-BE7C8548-CD59-4E95-A420-4602CE91D89B/default.store` with reason `legacy_migration_rescue`, and a fresh store was built. |
 | 2026-07-25 | The repository introduced the storage-erasure migration that upgrades every historical unconsumed marker and schedules five-minute reconciliation. Missing owner media was reported in Scan Library and Explore; production migration/worker evidence remains pending. |
 | 2026-07-26 | Repository safeguards, the owner-scoped repair API, and local recovery matching were implemented. A reversible Explore media-health quarantine, scheduled direct-origin reconciliation, owner recovery queue, and automatic repair restoration were added. Production deployment remains unverified. |
+| 2026-07-26 | The `38` count / `9` preview / `5` full-grid mismatch was traced to legacy count projection plus local preview backfill. A canonical count/grid contract, owner recovery totals, explicit pagination cursor, and deploy-wide aggregate scope smoke were implemented in the repository. |
 
 ## Containment and Remediation
 
@@ -295,13 +320,18 @@ Do not mark this incident resolved until all of the following are complete:
 8. Verify both Explore media-health migrations and all three new Edge bundles
    are deployed, the `*/5` reconciliation cron is active, and recent
    reconciliation-run audit rows succeed.
-9. On staging, complete the healthy -> degraded -> quarantined -> degraded ->
+9. Verify migration `20260726174555`, redeployed author-profile/post functions,
+   and the service aggregate smoke. Record `affected_author_count` without
+   owner identifiers; any value above the known incident cohort expands scope.
+10. Verify profile visible count, preview posts, and every full-grid page agree,
+    while preserved/recovery-needed totals remain owner-only.
+11. On staging, complete the healthy -> degraded -> quarantined -> degraded ->
    healthy projection matrix, including two spaced origin checks, owner
    notification/banner behavior, unchanged author/engagement state, continuity
    through snapshot refresh, and automatic repair restoration.
-10. Confirm lifecycle rules match `docs/r2-lifecycle.json` and contain no
+12. Confirm lifecycle rules match `docs/r2-lifecycle.json` and contain no
    durable-prefix expiration.
-11. Retain aggregate query output and request-correlated logs as incident
+13. Retain aggregate query output and request-correlated logs as incident
    evidence without publishing owner identifiers or object keys.
 
 ## Permanent Invariants
@@ -334,6 +364,7 @@ Do not mark this incident resolved until all of the following are complete:
 - `services/supabase/migrations/20260726041338_repair_owned_scan_image_references.sql`
 - `services/supabase/migrations/20260726144647_add_explore_media_quarantine_lifecycle.sql`
 - `services/supabase/migrations/20260726144754_implement_explore_media_quarantine_state_machine.sql`
+- `services/supabase/migrations/20260726174555_align_explore_author_publication_contract.sql`
 - `services/supabase/functions/repair-scan-image/`
 - `services/supabase/functions/reconcile-explore-media-health/`
 - `services/supabase/functions/get-explore-media-incidents/`

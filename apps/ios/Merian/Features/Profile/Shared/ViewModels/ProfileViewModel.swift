@@ -4,7 +4,11 @@ import SwiftUI
 struct ProfileSocialStats: Equatable {
     let followerCount: Int
     let followingCount: Int
-    let publishedPostCount: Int
+    let visiblePublishedPostCount: Int
+    let publicationIntentCount: Int
+    let recoveryNeededPostCount: Int
+    let degradedPostCount: Int
+    let quarantinedPostCount: Int
 }
 
 struct PublicProfileIdentity: Decodable, Equatable {
@@ -311,10 +315,15 @@ final class ProfileViewModel {
                 previewLimit: 0
             )
             guard !Task.isCancelled, currentUserId == userId else { return }
+            let ownerSummary = profile.ownerPublicationSummary
             socialStats = ProfileSocialStats(
                 followerCount: profile.followerCount,
                 followingCount: profile.followingCount,
-                publishedPostCount: profile.publishedPostCount
+                visiblePublishedPostCount: ownerSummary?.visiblePostCount ?? profile.publishedPostCount,
+                publicationIntentCount: ownerSummary?.publicationIntentCount ?? profile.publishedPostCount,
+                recoveryNeededPostCount: ownerSummary?.recoveryNeededPostCount ?? 0,
+                degradedPostCount: ownerSummary?.degradedPostCount ?? 0,
+                quarantinedPostCount: ownerSummary?.quarantinedPostCount ?? 0
             )
         } catch {
             guard !Task.isCancelled else { return }

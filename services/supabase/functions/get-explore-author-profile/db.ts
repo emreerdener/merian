@@ -18,6 +18,14 @@ export interface ExploreAuthorProfileRow {
   field_trips?: unknown;
 }
 
+export interface ExploreOwnerPublicationSummaryRow {
+  publication_intent_count: number;
+  visible_post_count: number;
+  recovery_needed_post_count: number;
+  degraded_post_count: number;
+  quarantined_post_count: number;
+}
+
 export async function fetchExploreAuthorProfile(
   userId: string,
   authorUserId: string,
@@ -39,4 +47,29 @@ export async function fetchExploreAuthorProfile(
 
   const rows = (data ?? []) as ExploreAuthorProfileRow[];
   return rows[0] ?? null;
+}
+
+export async function fetchOwnedExplorePublicationSummary(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<ExploreOwnerPublicationSummaryRow> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_owned_explore_publication_summary",
+    { self_id: userId },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch owned Explore publication summary: ${error.message}`,
+    );
+  }
+
+  const rows = (data ?? []) as ExploreOwnerPublicationSummaryRow[];
+  return rows[0] ?? {
+    publication_intent_count: 0,
+    visible_post_count: 0,
+    recovery_needed_post_count: 0,
+    degraded_post_count: 0,
+    quarantined_post_count: 0,
+  };
 }

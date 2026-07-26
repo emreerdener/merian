@@ -32,6 +32,14 @@ type ExploreAuthorPostRow = {
   post_id: string;
 };
 
+type ExploreOwnerPublicationSummaryRow = {
+  publication_intent_count: number;
+  visible_post_count: number;
+  recovery_needed_post_count: number;
+  degraded_post_count: number;
+  quarantined_post_count: number;
+};
+
 Deno.test("Explore author profile DB - private scans contribute to aggregates but not published preview", async () => {
   await withExploreDbTest(
     "exploreAuthorProfileDb.test",
@@ -42,9 +50,11 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       const privateSpeciesId = crypto.randomUUID();
       const dogSpeciesId = crypto.randomUUID();
       const publicScanId = crypto.randomUUID();
+      const quarantinedScanId = crypto.randomUUID();
       const privateScanId = crypto.randomUUID();
       const dogScanId = crypto.randomUUID();
       const publicPostId = crypto.randomUUID();
+      const quarantinedPostId = crypto.randomUUID();
       const otherFollowerId = crypto.randomUUID();
       const authorFolloweeId = crypto.randomUUID();
 
@@ -86,6 +96,41 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
         scanId: publicScanId,
         sharedAt: "2026-05-10T12:00:00.000Z",
       });
+
+      await insertScan(client, {
+        id: quarantinedScanId,
+        userId: authorId,
+        speciesId: publicSpeciesId,
+        latitude: 30.2673,
+        longitude: -97.7432,
+        geoprivacy: "open",
+      });
+      await insertExplorePost(client, {
+        id: quarantinedPostId,
+        userId: authorId,
+        scanId: quarantinedScanId,
+        sharedAt: "2026-05-11T12:00:00.000Z",
+      });
+      await client.queryArray(
+        `
+        UPDATE public.explore_post_media
+        SET health_status = 'missing',
+            missing_confirmed_at = NOW(),
+            consecutive_missing_checks = 2
+        WHERE post_id = $1
+      `,
+        [quarantinedPostId],
+      );
+      await client.queryArray(
+        `
+        UPDATE public.explore_posts
+        SET media_health_status = 'quarantined',
+            missing_media_count = total_media_count,
+            media_quarantined_at = NOW()
+        WHERE id = $1
+      `,
+        [quarantinedPostId],
+      );
 
       await insertScan(client, {
         id: privateScanId,
@@ -134,7 +179,7 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       assertEquals(row.author_user_id, authorId);
       assertEquals(row.species_count, 3);
       assertEquals(row.current_streak, 3);
-      assertEquals(row.heatmap.total_captures, 3);
+      assertEquals(row.heatmap.total_captures, 4);
       assertEquals(row.published_post_count, 1);
       assertEquals(row.follower_count, 2);
       assertEquals(row.following_count, 1);
@@ -142,6 +187,22 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       assertEquals(row.preview_posts.map((post) => post.post_id), [
         publicPostId,
       ]);
+
+      const ownerSummary = await client
+        .queryObject<ExploreOwnerPublicationSummaryRow>(
+          `
+          SELECT *
+          FROM public.get_owned_explore_publication_summary($1)
+        `,
+          [authorId],
+        );
+      assertEquals(ownerSummary.rows, [{
+        publication_intent_count: 2,
+        visible_post_count: 1,
+        recovery_needed_post_count: 1,
+        degraded_post_count: 0,
+        quarantined_post_count: 1,
+      }]);
       assertEquals(
         row.awards.find((award) => award.type === "explorer")?.current_count,
         3,
@@ -156,6 +217,77 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
           ?.current_count,
         0,
       );
+    },
+  );
+});
+
+Deno.test("Explore author profile DB - owner can inspect a fully quarantined publication set without making it public", async () => {
+  await withExploreDbTest(
+    "exploreAuthorProfileDb.test",
+    async (client: Client) => {
+      const viewerId = crypto.randomUUID();
+      const authorId = crypto.randomUUID();
+      const speciesId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+      const postId = crypto.randomUUID();
+
+      await insertUser(client, viewerId, "Quarantine Viewer");
+      await insertUser(client, authorId, "Quarantine Author");
+      await insertSpecies(client, speciesId, "Rosa quarantina");
+      await insertScan(client, {
+        id: scanId,
+        userId: authorId,
+        speciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+      });
+      await insertExplorePost(client, {
+        id: postId,
+        userId: authorId,
+        scanId,
+        sharedAt: "2026-07-26T12:00:00.000Z",
+      });
+      await client.queryArray(
+        `
+        UPDATE public.explore_post_media
+        SET health_status = 'missing',
+            missing_confirmed_at = NOW(),
+            consecutive_missing_checks = 2
+        WHERE post_id = $1
+      `,
+        [postId],
+      );
+      await client.queryArray(
+        `
+        UPDATE public.explore_posts
+        SET media_health_status = 'quarantined',
+            missing_media_count = total_media_count,
+            media_quarantined_at = NOW()
+        WHERE id = $1
+      `,
+        [postId],
+      );
+
+      const ownerProfile = await client.queryObject<ExploreAuthorProfileRow>(
+        `
+        SELECT *
+        FROM public.get_explore_author_profile($1, $1, 9)
+      `,
+        [authorId],
+      );
+      assertEquals(ownerProfile.rows.length, 1);
+      assertEquals(ownerProfile.rows[0].published_post_count, 0);
+      assertEquals(ownerProfile.rows[0].preview_posts, []);
+
+      const publicProfile = await client.queryObject<ExploreAuthorProfileRow>(
+        `
+        SELECT *
+        FROM public.get_explore_author_profile($1, $2, 9)
+      `,
+        [viewerId, authorId],
+      );
+      assertEquals(publicProfile.rows, []);
     },
   );
 });

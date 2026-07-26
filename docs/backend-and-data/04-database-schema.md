@@ -1902,6 +1902,18 @@ service roles, but its definer body requires `auth.uid() = self_id` for ordinary
 callers. It returns only the owner's active degraded/quarantined posts. The Edge
 boundary derives `self_id` from the verified JWT.
 
+Migration `20260726174555_align_explore_author_publication_contract.sql` adds:
+
+- `get_owned_explore_publication_summary(self_id)`: owner-only preserved
+  publication intent, canonical visible count, and active degraded/quarantined
+  recovery totals; and
+- `get_explore_publication_health_summary()`: service-only aggregate active,
+  healthy, degraded, quarantined, affected-author, and missing-item totals
+  without owner identifiers or object keys.
+
+The same migration moves the author-profile visible count onto
+`explore_projected_post_cards(self_id)`, matching preview and grid visibility.
+
 `internal.refresh_explore_post_media_health` maintains aggregate post state.
 Its triggers create one `media_missing` notification when an incident begins,
 replace it with `media_restored` after full recovery, and preserve author,
@@ -2258,15 +2270,17 @@ coordinates to the client contract.
   `following_count`, and requester-specific `viewer_is_following`. Counts ignore
   shadowbanned counterpart users and do not expose identities.
 - `public.get_explore_author_profile(self_id UUID, target_author_user_id UUID, preview_limit INTEGER)`:
-  Returns a public author profile row only when the target author has at least
+  Returns another author's public profile row only when the target has at least
   one currently visible Explore post or visible Field trip profile surface for
-  the requester. It emits public author identity, species count, current streak,
-  52-week heatmap JSON, achievement-progress JSON, total visible published post
-  count, follower/following counts, requester follow state, up to
-  `preview_limit` preview posts, and Field trip summaries. Aggregate scan stats
-  are computed from all non-tombstoned scans; follow counts are computed from
-  `user_follows`; preview posts use the stricter Explore visibility filters and
-  never include unshared, tombstoned, media-less, or non-species-backed posts.
+  the requester. The owner may retrieve their own row with zero visible posts
+  so recovery status can be presented. It emits public author identity, species
+  count, current streak, 52-week heatmap JSON, achievement-progress JSON,
+  canonical visible published post count, follower/following counts, requester
+  follow state, up to `preview_limit` preview posts, and Field trip summaries.
+  Aggregate scan stats are computed from all non-tombstoned scans; follow counts
+  are computed from `user_follows`; count and preview both use
+  `explore_projected_post_cards(self_id)` and never include unshared,
+  tombstoned, media-less, system-quarantined, or non-species-backed posts.
   Backing-scan geoprivacy does not hide an explicitly shared post; the
   post-owned location setting controls public location output. Active Field
   trip summaries include checklist status only and never return scan IDs, media
@@ -2279,6 +2293,14 @@ coordinates to the client contract.
   stably on `(shared_at DESC, post_id DESC)`. Each row additionally includes
   nullable `reference_thumbnail_url`, resolved through
   `public_species_first_reference_image_url`, for nonvisual-media thumbnails.
+- `public.get_owned_explore_publication_summary(self_id UUID)`:
+  Owner-only totals separating active publication intent from canonical visible
+  posts and active media recovery. Ordinary callers must have
+  `auth.uid() = self_id`; the Edge function derives this ID from the verified
+  session.
+- `public.get_explore_publication_health_summary()`:
+  Service-only aggregate publication/media-health scope used by deploy smoke
+  tests and monitoring. It returns no owner identity or object key.
 - `public.field_trip_templates`:
   Curated Field trip definitions with slug, title, region/season/habitat tags,
   difficulty, Pro/rotating-free access flags, active state, optional cover

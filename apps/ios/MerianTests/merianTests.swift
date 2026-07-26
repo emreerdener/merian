@@ -2070,6 +2070,40 @@ final class ExploreAuthorProfileNavigationPolicyTests: XCTestCase {
     }
 }
 
+final class ProfilePublicationRecoverySummaryTests: XCTestCase {
+    func testRecoveryMessageSeparatesPublicationIntentVisibilityAndQuarantine() {
+        let summary = ProfilePublicationRecoverySummary(
+            publicationIntentCount: 38,
+            visibleCount: 5,
+            recoveryNeededCount: 33,
+            quarantinedCount: 33
+        )
+
+        XCTAssertEqual(
+            summary.message,
+            "38 publication records are preserved; 5 are visible. "
+                + "33 posts need media recovery. 33 are hidden from Explore until their media is restored. "
+                + "Review recovery status in Scan Library."
+        )
+    }
+
+    func testRecoveryMessageUsesSingularLanguage() {
+        let summary = ProfilePublicationRecoverySummary(
+            publicationIntentCount: 1,
+            visibleCount: 0,
+            recoveryNeededCount: 1,
+            quarantinedCount: 1
+        )
+
+        XCTAssertEqual(
+            summary.message,
+            "1 publication record is preserved; 0 are visible. "
+                + "1 post needs media recovery. One is hidden from Explore until its media is restored. "
+                + "Review recovery status in Scan Library."
+        )
+    }
+}
+
 @MainActor
 final class ExploreMediaLayoutTests: XCTestCase {
     private func makeStripedImage(

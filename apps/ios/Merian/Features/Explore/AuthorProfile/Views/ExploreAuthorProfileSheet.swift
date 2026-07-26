@@ -801,7 +801,7 @@ struct ExploreAuthorProfileContent: View {
         } else {
             libraryCursor = .empty
         }
-        hasReachedEndOfLibrary = libraryPosts.count >= profile.publishedPostCount
+        hasReachedEndOfLibrary = false
     }
 
     @MainActor
@@ -819,7 +819,7 @@ struct ExploreAuthorProfileContent: View {
     @MainActor
     private func loadMoreLibraryPostsIfNeeded() async {
         guard !isLoadingLibrary, !hasReachedEndOfLibrary else { return }
-        guard let profile else { return }
+        guard profile != nil else { return }
 
         isLoadingLibrary = true
         defer { isLoadingLibrary = false }
@@ -832,17 +832,10 @@ struct ExploreAuthorProfileContent: View {
             )
             guard !Task.isCancelled else { return }
 
-            mergeLibraryPosts(page)
-            registerPosts(page)
-
-            if let lastPost = libraryPosts.last {
-                libraryCursor = ExploreAuthorPostCursor(
-                    beforeSharedAt: lastPost.sharedAt,
-                    beforePostId: lastPost.id
-                )
-            }
-
-            hasReachedEndOfLibrary = page.count < libraryPageSize || libraryPosts.count >= profile.publishedPostCount
+            mergeLibraryPosts(page.data)
+            registerPosts(page.data)
+            libraryCursor = page.nextCursor ?? .empty
+            hasReachedEndOfLibrary = page.nextCursor == nil
         } catch {
             guard !Task.isCancelled else { return }
             HapticManager.shared.triggerErrorThump()

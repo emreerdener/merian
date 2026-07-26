@@ -379,11 +379,18 @@ Implications:
   comments, reports, or audit history.
 - Verified repair restores normal projection automatically if the author has
   not unpublished and moderation has not removed the post.
+- Feed, profile visible count, profile preview, and the full author grid use the
+  same canonical projection. Local share cache never creates an extra public
+  profile tile.
+- Preserved publication intent and active recovery totals are owner-only and
+  displayed separately from the visible post count.
 
 The owner receives one incident notification plus a persistent Scan Library
-recovery banner. Reference artwork must not replace missing observation
-evidence. The authoritative state machine, recovery limits, security controls,
-and rollout gate are in
+recovery banner. The owner's Profile published-scan surfaces also explain
+visible versus preserved/recovery-needed totals and direct recovery to Scan
+Library. Reference artwork must not replace missing observation evidence. The
+authoritative state machine, recovery limits, security controls, and rollout
+gate are in
 [`docs/backend-and-data/12-explore-media-health-and-quarantine.md`](../backend-and-data/12-explore-media-health-and-quarantine.md).
 
 ## Data Model Recommendation

@@ -12,7 +12,12 @@ achievement evidence.
 
 - Tapping an author row in the Explore feed, comments, mentions, or `ExplorePostDetailView` pushes `ExploreAuthorProfileSheet` as an author-profile route inside the active Explore stack.
 - Tapping the post media still opens `ExplorePostDetailView`; author-profile navigation is intentionally scoped to the header.
-- The user's own Profile tab shows an `Explore scans` preview for their currently visible Explore publications. It seeds from locally cached share state when available, then reconciles with the author-post endpoint.
+- The user's own Profile tab shows a server-authoritative `Published scans`
+  preview for currently visible Explore publications. Local files may supply a
+  thumbnail fallback for an already-visible server post, but local share cache
+  never creates an extra public tile.
+- When preserved publications need media recovery, the owner sees visible,
+  preserved, and recovery-needed totals plus a direction to Scan Library.
 - The user's own Profile tab also shows active and published Field trip modules
   when the Field trips endpoint returns visible summaries, plus lightweight
   Field trip challenge badges when awarded.
@@ -59,24 +64,27 @@ The feature has two separate data scopes:
 | Surface | Data scope |
 |---|---|
 | Profile stats, streak, heatmap, achievements | All of the author's non-tombstoned scans |
-| Preview grid and full library | Only the author's currently visible Explore posts |
+| Preview grid, full library, and visible published count | Only the author's currently visible Explore posts from the canonical projection |
+| Owner publication/recovery summary | Owner-only preserved publication intent and media-health totals |
 | Active Field trips | Status-only checklist progress from `user_field_trips` |
 | Published Field trips | Snapshot items from `field_trip_publications` and `field_trip_publication_items` |
 | Field trip Challenge Badges | Badge cards from `field_trip_challenge_badges`, without scan evidence |
 
 Profile aggregates intentionally include private scans because they mirror the
 user's own profile stats at a high level. Published grids exclude unshared
-posts, tombstoned scans, posts without saved public media, and scans that no
+posts, tombstoned scans, confirmed-missing media items, all-missing
+system-quarantined posts, posts without saved public media, and scans that no
 longer resolve to a species-backed row. A private backing scan may support an
 explicitly shared post; the post-owned location setting determines whether
 public location is withheld. Audio-only posts remain eligible through their
 media snapshot plus reference-thumbnail projection.
 
-The backend returns a profile only when the target author has at least one
-Explore post currently visible to the requesting viewer or at least one visible
-Field trip profile surface. This prevents the endpoint from becoming a user
-lookup API while allowing active or published Field trips to make a profile
-discoverable.
+The backend returns another author's profile only when the target author has at
+least one Explore post currently visible to the requesting viewer or at least
+one visible Field trip profile surface. This prevents the endpoint from
+becoming a user lookup API while allowing active or published Field trips to
+make a profile discoverable. The authenticated owner can retrieve their own
+profile with zero visible posts so recovery status remains explainable.
 
 The response also includes viewer-scoped `viewer_can_report`. It is false for
 self profiles and absent/non-actionable profiles. `/report-user` independently
@@ -91,6 +99,8 @@ The same Explore visibility rules apply to both profile and library reads:
 - tombstoned scans are excluded
 - scans without image media are excluded from published post grids
 - non-species-backed scans are excluded from published post grids
+- confirmed-missing media items are excluded
+- all-missing system-quarantined posts are excluded
 - shadowbanned authors are hidden
 - both directions of user blocking hide the author and posts
 
@@ -128,6 +138,9 @@ Added database state:
 
 Follow extension migration: `services/supabase/migrations/20260511161000_add_explore_following.sql`
 
+Publication consistency migration:
+`services/supabase/migrations/20260726174555_align_explore_author_publication_contract.sql`
+
 Added follow state:
 
 - `public.user_follows(follower_user_id, followee_user_id, created_at)`
@@ -138,6 +151,8 @@ New RPCs:
 
 - `public.get_explore_author_profile(self_id, target_author_user_id, preview_limit)`
 - `public.get_explore_author_posts(self_id, target_author_user_id, max_limit, before_shared_at, before_post_id)`
+- `public.get_owned_explore_publication_summary(self_id)`
+- `public.get_explore_publication_health_summary()`
 
 New Edge Functions:
 
@@ -164,7 +179,16 @@ The author profile RPC computes species count from distinct biological species-b
 
 The follow state RPC computes counts from `user_follows` while ignoring shadowbanned counterpart users. The viewer follow flag is computed for the requesting user only. The follow write endpoint requires the target profile to remain visible before inserting, but unfollow deletes the relationship even if visibility later changes.
 
-The author posts RPC returns the same card-shaped `ExplorePost` projection used by the feed, with stable cursor pagination on `(shared_at DESC, post_id DESC)`.
+The profile count, preview, and author-post grid all derive from
+`explore_projected_post_cards(self_id)`. The owner-only publication summary
+separates author intent from visible posts and active media-recovery totals. The
+service-only health summary exposes aggregate affected-author and post counts
+without owner identifiers or object keys.
+
+The author posts RPC returns the same card-shaped `ExplorePost` projection used
+by the feed, with stable cursor pagination on
+`(shared_at DESC, post_id DESC)`. The Edge response fetches `limit + 1` and
+returns explicit `next_cursor` metadata.
 
 Public username extension:
 
@@ -281,7 +305,15 @@ Conversion rules:
   the root Explore router, post detail, comments sheet, and inline detail
   comments so blocked taps never create another profile surface.
 - Preferred species names are refreshed for preview/library posts after profile and page loads.
-- The local Profile tab preview reads the current Supabase user from the view environment, displays any locally cached published scans immediately, calls `getExploreAuthorPosts(authorUserId:limit:)`, shows a lightweight loading grid while fetching, and renders an empty state when no visible Explore publications are returned.
+- The local Profile tab preview reads the current Supabase user from the view
+  environment, calls `getExploreAuthorPosts(authorUserId:limit:)`, and renders
+  only server-visible rows. It may use a matching local scan's reference image
+  as a thumbnail fallback for that row, but never promotes local share cache
+  into the public grid.
+- Owner profile stats decode `owner_publication_summary`. A persistent recovery
+  explanation appears above both the preview and full grid when
+  `recovery_needed_post_count > 0`; Scan Library remains the actionable repair
+  surface.
 - Share and unshare flows publish `exploreShareStateChanged` so an already-open Profile tab can refresh its local preview state.
 
 Library pagination behavior:
@@ -289,8 +321,9 @@ Library pagination behavior:
 - The profile response seeds the library with preview posts.
 - Additional pages call `getExploreAuthorPosts(authorUserId:limit:cursor:)`.
 - Duplicate post IDs are removed after every merge.
-- The next cursor is derived from the current last library post's `sharedAt` and `id`.
-- Pagination stops when a page is short or the library count reaches `publishedPostCount`.
+- The next cursor is taken directly from the Edge response's `next_cursor`.
+- Pagination stops only when `next_cursor` is `null`; it does not infer
+  completion from a separate count or short page.
 
 ## API Contract
 

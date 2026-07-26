@@ -336,16 +336,22 @@ owners' media loads:
 After the Explore media-health release, use its origin-verified state instead of
 manual moderation:
 
-1. review recent `explore_media_health_reconciliation_runs` counters and worker
+1. call the service-only `get_explore_publication_health_summary()` and record
+   only aggregate scope; `affected_author_count = 1` supports an account-scoped
+   incident, while a larger value requires review of additional owner cohorts;
+2. review recent `explore_media_health_reconciliation_runs` counters and worker
    logs without copying raw owner keys into tickets;
-2. confirm two spaced direct-origin observations before accepting `missing`;
-3. verify degraded posts expose remaining media and quarantined posts disappear
+3. confirm two spaced direct-origin observations before accepting `missing`;
+4. verify degraded posts expose remaining media and quarantined posts disappear
    from every canonical public projection;
-4. verify the owner incident queue remains available and post/engagement rows
+5. verify profile visible count, preview, and paginated grid agree on the
+   canonical projection;
+6. verify the owner incident queue and publication/recovery summary remain
+   available and post/engagement rows
    remain intact;
-5. restore only from a strongly matched owner file or reviewed recovery source;
+7. restore only from a strongly matched owner file or reviewed recovery source;
    and
-6. let a healthy result clear system quarantine automatically, while preserving
+8. let a healthy result clear system quarantine automatically, while preserving
    any author unpublish or moderation hide.
 
 Do not bulk-set health to healthy, fabricate observation evidence with species

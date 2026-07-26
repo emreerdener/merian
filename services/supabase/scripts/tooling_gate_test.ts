@@ -16,6 +16,10 @@ const iosProjectGuardrailPath = new URL(
   "../../../.github/workflows/ios-project-guardrails.yml",
   scriptsDirectory,
 );
+const deployWorkflowPath = new URL(
+  "../../../.github/workflows/deploy.yml",
+  scriptsDirectory,
+);
 
 Deno.test("Supabase tooling gate discovers every standard TypeScript test", async () => {
   const gate = await Deno.readTextFile(toolingGatePath);
@@ -86,5 +90,22 @@ Deno.test("iOS project guardrail runs the DTO contract gate for all app sources"
   assertMatch(
     workflow,
     /run: bash services\/supabase\/scripts\/validate_edge_dto_contract\.sh/,
+  );
+});
+
+Deno.test("production deploy reports aggregate Explore publication health", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+
+  assertMatch(
+    workflow,
+    /\/rest\/v1\/rpc\/get_explore_publication_health_summary/,
+  );
+  assertMatch(
+    workflow,
+    /publication_health_response[\s\S]*Authorization: Bearer \$\{SUPABASE_SERVICE_ROLE_KEY\}/,
+  );
+  assertMatch(
+    workflow,
+    /publication_health_response[\s\S]*affected_author_count[\s\S]*missing_media_item_count/,
   );
 });

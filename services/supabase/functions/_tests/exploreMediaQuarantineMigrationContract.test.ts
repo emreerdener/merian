@@ -11,6 +11,10 @@ const lifecycleMigrationUrl = new URL(
   "../../migrations/20260726144754_implement_explore_media_quarantine_state_machine.sql",
   import.meta.url,
 );
+const publicationContractMigrationUrl = new URL(
+  "../../migrations/20260726174555_align_explore_author_publication_contract.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -139,5 +143,52 @@ Deno.test("media notifications preserve engagement and restored events stay in-a
   assertStringIncludes(
     sql,
     "WHEN post_media.thumbnail_url = p_source_url THEN 200",
+  );
+});
+
+Deno.test("Explore author publication totals share one public projection and keep owner recovery separate", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(publicationContractMigrationUrl),
+  );
+
+  assertStringIncludes(
+    sql,
+    "FROM public.explore_projected_post_cards(self_id) AS visible_post",
+  );
+  assertStringIncludes(
+    sql,
+    "visible_post.author_user_id = target_author_user_id",
+  );
+  assertStringIncludes(
+    sql,
+    "self_id IS DISTINCT FROM target_author_user_id",
+  );
+  assertStringIncludes(
+    sql,
+    "CREATE OR REPLACE FUNCTION public.get_owned_explore_publication_summary",
+  );
+  assertStringIncludes(
+    sql,
+    "IF auth.uid() IS NULL THEN PERFORM internal.require_service_role()",
+  );
+  assertStringIncludes(
+    sql,
+    "ELSIF auth.uid() IS DISTINCT FROM self_id",
+  );
+  assertStringIncludes(
+    sql,
+    "GRANT EXECUTE ON FUNCTION public.get_owned_explore_publication_summary(UUID) TO authenticated, service_role",
+  );
+  assertStringIncludes(
+    sql,
+    "CREATE OR REPLACE FUNCTION public.get_explore_publication_health_summary()",
+  );
+  assertStringIncludes(
+    sql,
+    "COUNT(DISTINCT user_id) FILTER ( WHERE media_health_status <> 'healthy' )",
+  );
+  assertStringIncludes(
+    sql,
+    "GRANT EXECUTE ON FUNCTION public.get_explore_publication_health_summary() TO service_role",
   );
 });

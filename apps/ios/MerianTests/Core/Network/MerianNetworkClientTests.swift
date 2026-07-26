@@ -1583,11 +1583,18 @@ struct MerianNetworkClientTests {
                 "author_avatar_url": "https://example.com/avatar.jpg",
                 "species_count": 12,
                 "current_streak": 4,
-                "published_post_count": 9,
+                "published_post_count": 5,
                 "follower_count": 7,
                 "following_count": 3,
-                "viewer_is_following": true,
-                "viewer_can_report": true,
+                "viewer_is_following": false,
+                "viewer_can_report": false,
+                "owner_publication_summary": {
+                    "publication_intent_count": 38,
+                    "visible_post_count": 5,
+                    "recovery_needed_post_count": 33,
+                    "degraded_post_count": 0,
+                    "quarantined_post_count": 33
+                },
                 "heatmap": {
                     "total_captures": 17,
                     "current_month_captures": 3,
@@ -1633,7 +1640,7 @@ struct MerianNetworkClientTests {
                         "like_count": 8,
                         "comment_count": 1,
                         "viewer_has_liked": false,
-                        "is_owned_by_viewer": false,
+                        "is_owned_by_viewer": true,
                         "ranking_value": null
                     }
                 ]
@@ -1659,8 +1666,12 @@ struct MerianNetworkClientTests {
         #expect(profile.currentStreak == 4)
         #expect(profile.followerCount == 7)
         #expect(profile.followingCount == 3)
-        #expect(profile.viewerIsFollowing == true)
-        #expect(profile.viewerCanReport == true)
+        #expect(profile.viewerIsFollowing == false)
+        #expect(profile.viewerCanReport == false)
+        #expect(profile.ownerPublicationSummary?.publicationIntentCount == 38)
+        #expect(profile.ownerPublicationSummary?.visiblePostCount == 5)
+        #expect(profile.ownerPublicationSummary?.recoveryNeededPostCount == 33)
+        #expect(profile.ownerPublicationSummary?.quarantinedPostCount == 33)
         #expect(profile.profileHeatmapData.totalCaptures == 17)
         #expect(profile.profileHeatmapData.weeks.count == 1)
         #expect(profile.awardPayloads.count == AchievementType.allCases.count)
@@ -1697,7 +1708,11 @@ struct MerianNetworkClientTests {
                     "is_owned_by_viewer": false,
                     "ranking_value": null
                 }
-            ]
+            ],
+            "next_cursor": {
+                "before_shared_at": "2026-05-04T12:00:00.000Z",
+                "before_post_id": "post-author-page-123"
+            }
         }
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
@@ -1712,7 +1727,7 @@ struct MerianNetworkClientTests {
             return (mockResponse, testData)
         }
 
-        let posts = try await MerianNetworkClient.shared.getExploreAuthorPosts(
+        let page = try await MerianNetworkClient.shared.getExploreAuthorPosts(
             authorUserId: "author-page-123",
             cursor: ExploreAuthorPostCursor(
                 beforeSharedAt: "2026-05-04T12:00:00.000Z",
@@ -1720,8 +1735,10 @@ struct MerianNetworkClientTests {
             )
         )
 
-        #expect(posts.count == 1)
-        #expect(posts[0].id == "post-author-page-123")
+        #expect(page.data.count == 1)
+        #expect(page.data[0].id == "post-author-page-123")
+        #expect(page.nextCursor?.beforeSharedAt == "2026-05-04T12:00:00.000Z")
+        #expect(page.nextCursor?.beforePostId == "post-author-page-123")
     }
 
     @Test func testGetExploreSpeciesPostsConstructsQualityCursorAndDecodesNextCursor() async throws {

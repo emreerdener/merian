@@ -7,7 +7,10 @@ import {
   withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
 import { fetchFieldTripProfileSummaries } from "../field-trips/db.ts";
-import { fetchExploreAuthorProfile } from "./db.ts";
+import {
+  fetchExploreAuthorProfile,
+  fetchOwnedExplorePublicationSummary,
+} from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -37,6 +40,7 @@ Deno.serve((req: Request) =>
       [authorWithUsername],
       previewPosts,
       fieldTrips,
+      ownerPublicationSummary,
     ] = await Promise.all([
       withExploreAuthorProfileProBadge(profile, supabaseAdmin),
       withExploreAuthorUsernames(
@@ -55,6 +59,9 @@ Deno.serve((req: Request) =>
         6,
         supabaseAdmin,
       ),
+      profile.author_user_id === user.id
+        ? fetchOwnedExplorePublicationSummary(user.id, supabaseAdmin)
+        : Promise.resolve(null),
     ]);
     const data = {
       ...profileWithProBadge,
@@ -62,6 +69,7 @@ Deno.serve((req: Request) =>
       preview_posts: previewPosts,
       field_trips: fieldTrips,
       viewer_can_report: profile.author_user_id !== user.id,
+      owner_publication_summary: ownerPublicationSummary,
     };
 
     return jsonResponse({ data }, 200);

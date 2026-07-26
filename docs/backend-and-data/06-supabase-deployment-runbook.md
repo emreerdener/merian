@@ -1120,17 +1120,20 @@ Ship the Explore response to unexpected object loss as one compatibility unit:
    item/post health, private leases and continuity, projection gates,
    notifications, owner/service RPCs, audit rows, repair reset, and the
    five-minute cron;
-3. deploy `reconcile-explore-media-health`,
+3. `20260726174555_align_explore_author_publication_contract.sql` aligns author
+   count/preview/grid visibility and adds owner and service aggregate summaries;
+4. deploy `reconcile-explore-media-health`,
    `get-explore-media-incidents`, and `ingest-r2-media-events`;
-4. redeploy `send-push-notification`;
-5. verify Vault has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then
+5. redeploy `get-explore-author-profile`, `get-explore-author-posts`, and
+   `send-push-notification`;
+6. verify Vault has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then
    configure bucket-scoped Object Read credentials in
    `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` at the GitHub and
    Supabase boundaries;
-6. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
+7. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
    GitHub/Supabase and the trusted Cloudflare Queue consumer; and
-7. release the iOS owner banner, notification routes, repair refresh, and scan
-   deletion warning only after the backend owner endpoint is available.
+8. release the iOS owner banners, notification routes, repair refresh, and scan
+   deletion warning only after the backend owner endpoints are available.
 
 Do not combine the enum migration into the state-machine transaction:
 PostgreSQL cannot safely use a newly added enum value in the same transaction.
@@ -1161,7 +1164,11 @@ Post-deploy structural checks:
 ```sql
 SELECT version
 FROM supabase_migrations.schema_migrations
-WHERE version IN ('20260726144647', '20260726144754')
+WHERE version IN (
+  '20260726144647',
+  '20260726144754',
+  '20260726174555'
+)
 ORDER BY version;
 
 SELECT
@@ -1179,15 +1186,35 @@ SELECT
     'authenticated',
     'public.get_owned_explore_media_incidents(uuid)',
     'EXECUTE'
-  ) AS owner_can_list_incidents;
+  ) AS owner_can_list_incidents,
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'authenticated',
+    'public.get_owned_explore_publication_summary(uuid)',
+    'EXECUTE'
+  ) AS owner_can_read_publication_summary,
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'authenticated',
+    'public.get_explore_publication_health_summary()',
+    'EXECUTE'
+  ) AS client_can_read_global_summary,
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'service_role',
+    'public.get_explore_publication_health_summary()',
+    'EXECUTE'
+  ) AS service_can_read_global_summary;
 
 SELECT jobname, schedule, active
 FROM cron.job
 WHERE jobname = 'reconcile_explore_media_health_every_five_minutes';
 ```
 
-Require two versions, `service_can_claim = true`, `client_can_claim = false`,
-`owner_can_list_incidents = true`, and one active `*/5 * * * *` cron row.
+Require all three migration versions,
+`service_can_claim = true`, `client_can_claim = false`,
+`owner_can_list_incidents = true`,
+`owner_can_read_publication_summary = true`,
+`client_can_read_global_summary = false`,
+`service_can_read_global_summary = true`, and one active `*/5 * * * *` cron
+row.
 
 Staging smoke matrix:
 
@@ -1200,7 +1227,8 @@ Staging smoke matrix:
    `missing`, the item is omitted, and the post remains public as `degraded`;
 5. delete the second fixture object and repeat confirmation; verify
    `quarantined`, every public surface omits the post, and the owner endpoint,
-   in-app notification, push, and Scan Library banner expose recovery;
+   in-app notification, push, Profile explanation, and Scan Library banner
+   expose recovery;
 6. verify the post row, `unshared_at`, likes, and comments are unchanged;
 7. restore one object and run reconciliation; verify the post automatically
    returns as degraded;
@@ -1208,7 +1236,11 @@ Staging smoke matrix:
    `media_restored`, no restore push, and no owner banner;
 9. mark the fixture author-unpublished and prove a later healthy check does not
    republish it; and
-10. run `refresh_explore_post_media` while the fixture is quarantined and prove
+10. verify author-profile `published_post_count`, `preview_posts`, and all
+    `get-explore-author-posts` pages contain the same canonical visible set;
+11. verify the author-post response supplies `next_cursor` until the final page
+    and `null` at the end; and
+12. run `refresh_explore_post_media` while the fixture is quarantined and prove
     the private continuity ledger preserves both missing statuses.
 
 Review recent run health without printing media URLs:
@@ -1232,6 +1264,13 @@ Alert when no successful run exists in 15 minutes, oldest due active media is
 over 15 minutes, leases expire repeatedly, result recording fails, or confirmed
 loss rises suddenly. A Cloudflare event may make a row due but is never proof;
 scheduled direct-origin reconciliation is the correctness path.
+
+The deploy workflow also invokes
+`get_explore_publication_health_summary()` with the service-role key and prints
+only aggregate totals. Treat `affected_author_count` as the production scope
+signal: `1` confirms an account-scoped cohort at that moment; any larger value
+requires investigation of additional owners. This smoke must never print owner
+IDs or media keys.
 
 Rollback is fix-forward. Do not clear `missing`, set posts healthy in bulk,
 delete notifications, or rewrite `unshared_at`. If the worker bundle is faulty,

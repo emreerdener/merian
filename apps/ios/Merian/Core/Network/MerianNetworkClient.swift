@@ -2345,7 +2345,7 @@ final class MerianNetworkClient {
         authorUserId: String,
         limit: Int = 30,
         cursor: ExploreAuthorPostCursor? = nil
-    ) async throws -> [ExplorePost] {
+    ) async throws -> ExploreAuthorPostsResponse {
         let functionUrl = try endpointURL("get-explore-author-posts")
         var payload: [String: Any] = [
             "author_user_id": authorUserId,
@@ -2361,7 +2361,7 @@ final class MerianNetworkClient {
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try makeExploreDecoder().decode(ExploreAuthorPostsResponse.self, from: data).data
+        return try makeExploreDecoder().decode(ExploreAuthorPostsResponse.self, from: data)
     }
 
     func getFieldTrips(userRegion: String? = nil, limit: Int = 40) async throws -> [FieldTripTemplate] {

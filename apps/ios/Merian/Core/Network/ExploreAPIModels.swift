@@ -120,6 +120,7 @@ struct ExploreAuthorProfileResponse: Decodable {
 
 struct ExploreAuthorPostsResponse: Decodable {
     let data: [ExplorePost]
+    let nextCursor: ExploreAuthorPostCursor?
 }
 
 struct ExploreHashtagPostsResponse: Decodable {
@@ -536,7 +537,7 @@ struct ExploreFeedCursor: Equatable {
     }
 }
 
-struct ExploreAuthorPostCursor: Equatable {
+struct ExploreAuthorPostCursor: Decodable, Equatable {
     let beforeSharedAt: String?
     let beforePostId: String?
 
@@ -1000,6 +1001,7 @@ struct ExploreAuthorProfile: Decodable, Equatable {
     let viewerCanReport: Bool?
     let previewPosts: [ExplorePost]
     let fieldTrips: FieldTripProfileSummaries?
+    let ownerPublicationSummary: ExploreOwnerPublicationSummary?
 
     var authorAvatarURL: URL? {
         guard let authorAvatarUrl else { return nil }
@@ -1028,6 +1030,14 @@ struct ExploreAuthorProfile: Decodable, Equatable {
             payloadsByType[type] ?? AwardPayload(type: type, currentCount: 0, lastInteractionDate: nil)
         }
     }
+}
+
+struct ExploreOwnerPublicationSummary: Decodable, Equatable {
+    let publicationIntentCount: Int
+    let visiblePostCount: Int
+    let recoveryNeededPostCount: Int
+    let degradedPostCount: Int
+    let quarantinedPostCount: Int
 }
 
 enum ExploreUserReportReason: String, CaseIterable, Identifiable {

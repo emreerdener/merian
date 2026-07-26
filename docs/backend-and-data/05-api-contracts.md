@@ -3036,9 +3036,10 @@ Validation and availability rules:
 
 - `author_user_id` is required and must be a UUID.
 - `preview_limit` is optional, defaults to `9`, and is capped at `30`.
-- The endpoint returns `404` if the target author has neither a currently
-  visible Explore post nor a visible Field trip profile surface for the
-  requesting viewer.
+- For another viewer, the endpoint returns `404` if the target author has
+  neither a currently visible Explore post nor a visible Field trip profile
+  surface. The authenticated owner may load their own zero-visible-post profile
+  so media recovery remains explainable.
 - Shadowbanned authors and either direction of user blocking return no profile.
 - Profile aggregates are computed from all non-tombstoned scans owned by the
   author.
@@ -3047,7 +3048,8 @@ Validation and availability rules:
 - Public achievement progress includes the full current app achievement catalog,
   including domestic cat and dog scan achievements.
 - Preview posts use the same Explore visibility rules as feed/library posts and
-  never include unshared, tombstoned, media-less, or non-species-backed posts.
+  never include unshared, tombstoned, media-less, system-quarantined, or
+  non-species-backed posts. Confirmed-missing items are omitted.
   Private post location sharing withholds location but does not hide the post.
   Administratively hidden posts (`moderated_at IS NOT NULL`) are also excluded
   from both profile discoverability and previews.
@@ -3071,11 +3073,18 @@ Current response shape:
     "author_avatar_url": "https://...",
     "species_count": 42,
     "current_streak": 5,
-    "published_post_count": 19,
+    "published_post_count": 5,
     "follower_count": 124,
     "following_count": 17,
-    "viewer_is_following": true,
-    "viewer_can_report": true,
+    "viewer_is_following": false,
+    "viewer_can_report": false,
+    "owner_publication_summary": {
+      "publication_intent_count": 38,
+      "visible_post_count": 5,
+      "recovery_needed_post_count": 33,
+      "degraded_post_count": 0,
+      "quarantined_post_count": 33
+    },
     "heatmap": {
       "total_captures": 124,
       "current_month_captures": 8,
@@ -3119,7 +3128,7 @@ Current response shape:
         "like_count": 8,
         "comment_count": 1,
         "viewer_has_liked": false,
-        "is_owned_by_viewer": false,
+        "is_owned_by_viewer": true,
         "ranking_value": null
       }
     ],
@@ -3142,6 +3151,13 @@ profiles only. They do not imply browsable lists. `viewer_is_following` is
 specific to the requesting user and should replace any optimistic client follow
 state after a write. `viewer_can_report` is an authorization-aware UI hint, not
 authority to bypass the report endpoint's self-report and visibility checks.
+`published_post_count` and `preview_posts` use the same canonical
+`explore_projected_post_cards(self_id)` projection.
+
+`owner_publication_summary` is non-null only for the authenticated owner. It
+separates preserved, active publication intent from current canonical
+visibility and reports active degraded/quarantined recovery totals. Other
+viewers receive `null`; the object is not a public author statistic.
 `field_trips` is hydrated separately after the core profile RPC and contains
 only privacy-scoped active progress and published snapshots; it never exposes
 scan IDs, field notes, exact coordinates, or private evidence.
@@ -3180,10 +3196,34 @@ Validation and pagination rules:
   together.
 - Pagination is stable on `(shared_at DESC, post_id DESC)`.
 - The endpoint filters unshared posts, tombstoned scans, scans with no image
-  media, scans without a species key, shadowbanned authors, and both directions
-  of user blocking. Post `location_sharing` controls public location fields, not
-  feed visibility.
+  media, scans without a species key, system-quarantined posts, shadowbanned
+  authors, and both directions of user blocking. Confirmed-missing items are
+  omitted. Post `location_sharing` controls public location fields, not feed
+  visibility.
 - The card projection includes batched `hashtags` arrays just like the feed.
+- The Edge function fetches `limit + 1`; `next_cursor` is non-null only when
+  another page exists. Clients stop only when it is `null`.
+
+Response envelope:
+
+```json
+{
+  "data": [
+    {
+      "post_id": "uuid",
+      "scan_id": "uuid",
+      "shared_at": "2026-05-03T12:00:00.000Z"
+    }
+  ],
+  "next_cursor": {
+    "before_shared_at": "2026-05-03T12:00:00.000Z",
+    "before_post_id": "uuid"
+  }
+}
+```
+
+At the end of the collection, `next_cursor` is `null`. Clients must not infer
+completion from a short page or a separately fetched profile count.
 
 ### `/get-explore-hashtag-posts`
 

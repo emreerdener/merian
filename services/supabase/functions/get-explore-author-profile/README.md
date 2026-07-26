@@ -28,11 +28,18 @@ powers `ExploreAuthorProfileSheet` on iOS.
     "author_avatar_url": "https://...",
     "species_count": 42,
     "current_streak": 5,
-    "published_post_count": 19,
+    "published_post_count": 5,
     "follower_count": 124,
     "following_count": 17,
-    "viewer_is_following": true,
-    "viewer_can_report": true,
+    "viewer_is_following": false,
+    "viewer_can_report": false,
+    "owner_publication_summary": {
+      "publication_intent_count": 38,
+      "visible_post_count": 5,
+      "recovery_needed_post_count": 33,
+      "degraded_post_count": 0,
+      "quarantined_post_count": 33
+    },
     "heatmap": {
       "total_captures": 124,
       "current_month_captures": 8,
@@ -58,6 +65,13 @@ powers `ExploreAuthorProfileSheet` on iOS.
 
 The backing RPC is
 `public.get_explore_author_profile(self_id, target_author_user_id, preview_limit)`.
+`published_post_count` and `preview_posts` both come from the canonical
+`explore_projected_post_cards(self_id)` visibility projection.
+
+`owner_publication_summary` is present only when the authenticated viewer is
+the target author. It separates preserved publication intent from currently
+visible posts and reports active media-recovery totals. Other viewers receive
+`null`; this summary is never a public profile aggregate.
 
 `author_name` is the primary public display label. `author_username` is the
 stable handle stored without `@`; iOS renders it beneath the display name as
@@ -73,11 +87,13 @@ re-runs this endpoint's profile visibility contract before accepting a report.
 
 ## Privacy Rules
 
-The endpoint returns `404` unless the target author has at least one Explore
-post currently visible to the requester or at least one visible Field trip
-profile surface. This prevents arbitrary user UUID lookups from surfacing
-profile state while allowing active or published Field trips to make an author
-discoverable.
+For another viewer, the endpoint returns `404` unless the target author has at
+least one Explore post currently visible to the requester or at least one
+visible Field trip profile surface. This prevents arbitrary user UUID lookups
+from surfacing profile state while allowing active or published Field trips to
+make an author discoverable. The authenticated owner may retrieve their own
+profile with zero visible posts so the app can explain a pending media-recovery
+state.
 
 Profile aggregates use all non-tombstoned scans owned by the target author:
 
@@ -93,6 +109,8 @@ Preview posts use stricter Explore visibility rules:
 - tombstoned scans excluded
 - scans without image media excluded
 - scans without a species key excluded
+- confirmed-missing media items excluded
+- all-missing, system-quarantined posts excluded
 - shadowbanned authors excluded
 - both directions of user blocking excluded
 
