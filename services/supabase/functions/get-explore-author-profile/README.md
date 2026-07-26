@@ -68,10 +68,10 @@ The backing RPC is
 `published_post_count` and `preview_posts` both come from the canonical
 `explore_projected_post_cards(self_id)` visibility projection.
 
-`owner_publication_summary` is present only when the authenticated viewer is
-the target author. It separates preserved publication intent from currently
-visible posts and reports active media-recovery totals. Other viewers receive
-`null`; this summary is never a public profile aggregate.
+`owner_publication_summary` is present only when the authenticated viewer is the
+target author. It separates preserved publication intent from currently visible
+posts and reports active media-recovery totals. Other viewers receive `null`;
+this summary is never a public profile aggregate.
 
 `author_name` is the primary public display label. `author_username` is the
 stable handle stored without `@`; iOS renders it beneath the display name as
