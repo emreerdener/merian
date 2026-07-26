@@ -90,6 +90,10 @@ Deno.test("Explore media quarantine requires spaced direct-origin confirmation",
     sql,
     "FOR UPDATE OF media SKIP LOCKED",
   );
+  assertStringIncludes(
+    sql,
+    "ON CONFLICT ON CONSTRAINT explore_media_health_check_claims_pkey DO UPDATE",
+  );
 });
 
 Deno.test("Explore media workers and owner recovery queue are explicitly authorized", async () => {

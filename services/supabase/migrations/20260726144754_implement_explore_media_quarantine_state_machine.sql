@@ -88,11 +88,13 @@ CREATE INDEX IF NOT EXISTS idx_explore_posts_owner_media_health
     WHERE media_health_status <> 'healthy';
 
 CREATE TABLE IF NOT EXISTS internal.explore_media_health_check_claims (
-    media_id UUID PRIMARY KEY
+    media_id UUID NOT NULL
         REFERENCES public.explore_post_media(id) ON DELETE CASCADE,
     claim_token UUID NOT NULL UNIQUE,
     claimed_at TIMESTAMPTZ NOT NULL,
     claimed_until TIMESTAMPTZ NOT NULL,
+    CONSTRAINT explore_media_health_check_claims_pkey
+        PRIMARY KEY (media_id),
     CONSTRAINT explore_media_health_claim_window_check
         CHECK (claimed_until > claimed_at)
 );
@@ -967,7 +969,7 @@ BEGIN
         LIMIT v_limit
     ),
     claimed AS (
-        INSERT INTO internal.explore_media_health_check_claims (
+        INSERT INTO internal.explore_media_health_check_claims AS health_claim (
             media_id,
             claim_token,
             claimed_at,
@@ -980,16 +982,18 @@ BEGIN
             pg_catalog.NOW()
                 + pg_catalog.MAKE_INTERVAL(secs => v_lease_seconds)
         FROM candidates AS candidate
-        ON CONFLICT (media_id) DO UPDATE
+        -- RETURNS TABLE declares media_id as a PL/pgSQL output variable. A
+        -- named arbiter constraint keeps the conflict target unambiguous.
+        ON CONFLICT ON CONSTRAINT explore_media_health_check_claims_pkey
+        DO UPDATE
         SET claim_token = pg_catalog.GEN_RANDOM_UUID(),
             claimed_at = pg_catalog.NOW(),
             claimed_until = pg_catalog.NOW()
                 + pg_catalog.MAKE_INTERVAL(secs => v_lease_seconds)
-        WHERE internal.explore_media_health_check_claims.claimed_until
-            <= pg_catalog.NOW()
+        WHERE health_claim.claimed_until <= pg_catalog.NOW()
         RETURNING
-            internal.explore_media_health_check_claims.media_id,
-            internal.explore_media_health_check_claims.claim_token
+            health_claim.media_id,
+            health_claim.claim_token
     )
     SELECT
         media.id,
