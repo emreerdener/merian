@@ -3,6 +3,11 @@ import type { MerianIdentification } from "./types.ts";
 type LifeStage = MerianIdentification["life_stage"];
 type ReproductiveCondition = MerianIdentification["reproductive_condition"];
 type Sex = MerianIdentification["sex"];
+type SanitizedLifeStage = NonNullable<LifeStage> | undefined;
+type SanitizedReproductiveCondition =
+  | NonNullable<ReproductiveCondition>
+  | undefined;
+type SanitizedSex = NonNullable<Sex> | undefined;
 
 export const VALID_LIFE_STAGES = new Set([
   "egg",
@@ -132,7 +137,9 @@ export function buildObservationPrompt(
   return `${contextBlock}Observation Description:\n${description}`;
 }
 
-export function sanitizeLifeStage(value: string | null | undefined): LifeStage {
+export function sanitizeLifeStage(
+  value: string | null | undefined,
+): SanitizedLifeStage {
   if (value == null) return undefined;
   if (VALID_LIFE_STAGES.has(value as NonNullable<LifeStage>)) {
     return value as NonNullable<LifeStage>;
@@ -142,7 +149,7 @@ export function sanitizeLifeStage(value: string | null | undefined): LifeStage {
 
 export function sanitizeReproductiveCondition(
   value: string | null | undefined,
-): ReproductiveCondition {
+): SanitizedReproductiveCondition {
   if (value == null) return undefined;
   if (
     VALID_REPRODUCTIVE_CONDITIONS.has(
@@ -154,7 +161,9 @@ export function sanitizeReproductiveCondition(
   return "not_applicable";
 }
 
-export function sanitizeSex(value: string | null | undefined): Sex {
+export function sanitizeSex(
+  value: string | null | undefined,
+): SanitizedSex {
   if (value == null) return undefined;
   if (VALID_SEX_VALUES.has(value as NonNullable<Sex>)) {
     return value as NonNullable<Sex>;
