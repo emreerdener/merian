@@ -30,12 +30,24 @@ workload owns the complete export.
 
 ## Bounded archive pipeline
 
-- `db.ts` reads at most 100 scans at a time with an `id > last_id` keyset.
-  Tombstones are excluded. Personal and global scans use matching partial
-  indexes. Occurrence pages omit media arrays; multimedia pages omit taxonomy
-  and coordinate fields.
-- `archive.ts` encodes one occurrence or multimedia page into a work chunk no
-  larger than 512 KiB. `advance_export_job_step(...)` commits the strictly
+- Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
+  `20260725180321_validate_dwca_export_source_bounds.sql` bound source rows
+  before the Data API can materialize them: at most 24 media URLs of 4 KiB each,
+  at most 10 ecological interactions of 2 KiB each, and finite selected taxonomy
+  lengths. The first transaction enforces new writes and releases its
+  `ALTER TABLE` lock; the second validates legacy rows before activating the
+  source-page RPC.
+- `db.ts` calls `get_dwca_export_scan_batch(...)` under the active claim. The
+  database derives the immutable job scope and durable `id > last_id` cursor,
+  reads at most 100 scans, and stops once serialized source payloads reach 256
+  KiB. A sentinel distinguishes a finished keyset from a first source row that
+  is unexpectedly too large. Tombstones are excluded, and personal and global
+  scans use matching partial indexes. Occurrence pages omit media arrays;
+  multimedia pages omit taxonomy and coordinate fields.
+- `archive.ts` uses a fixed-capacity incremental UTF-8 encoder. It appends one
+  header or CSV row at a time—without a page-wide string array, `Promise.all`,
+  multimedia expansion array, or final `join()`—and can never allocate an output
+  chunk larger than 512 KiB. `advance_export_job_step(...)` commits the strictly
   increasing cursor, aggregate row/byte counters, and chunk manifest before
   releasing that step's claim.
 - Temporary chunks use
@@ -122,12 +134,14 @@ old versions until every job pinned to them is terminal and past retention.
 
 ## Tests
 
-Focused Deno tests cover keyset progression, row/archive budgets, phased
-progress, claim-fenced work chunks, exact manifest reads, ZIP compatibility,
-bounded multipart upload/abort/provider responses, embedded HTTP-200 completion
-errors, pseudonym key failure/rotation, Resend idempotency, canonical claims,
-staged retry reuse, and stale-worker fencing. Static contracts lock the
-migration and production-source boundaries. The executable database test also
-proves the finite rollout deadline, post-deadline claim requirement, and phased
-state contract; it lives at `services/supabase/tests/export_dwca_security.sql`
-and is checked by the repository-wide privileged-routine catalog validator.
+Focused Deno tests cover claim-bound byte-aware source pages, completion and
+oversize sentinels, incremental fixed-buffer CSV encoding, row/archive budgets,
+phased progress, claim-fenced work chunks, exact manifest reads, ZIP
+compatibility, bounded multipart upload/abort/provider responses, embedded
+HTTP-200 completion errors, pseudonym key failure/rotation, Resend idempotency,
+canonical claims, staged retry reuse, and stale-worker fencing. Static contracts
+lock the migrations and production-source boundaries. The executable database
+test also proves source constraints, aggregate page byte limits, the finite
+rollout deadline, post-deadline claim requirement, and phased state contract; it
+lives at `services/supabase/tests/export_dwca_security.sql` and is checked by
+the repository-wide privileged-routine catalog validator.

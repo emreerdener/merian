@@ -91,6 +91,143 @@ struct BackgroundDatabaseActorTests {
         #expect(payloads.first?.id == queuedScan.id, "Sendable Payload struct MUST explicitly carry the offline scan UUID")
     }
 
+    @Test func staleLiveGenerationCannotPersistOverReplacementAttempt() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let manager = OfflineQueueManager.shared
+        let scanId = "live_generation_fence_\(UUID().uuidString.lowercased())"
+        let staleGeneration = UUID()
+        let replacementGeneration = UUID()
+        defer {
+            manager.foregroundInferenceRetirementTasks.cancel(scanId)
+            manager.startedForegroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+            manager.foregroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+        }
+
+        context.insert(OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .pending
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(
+                    for: replacementGeneration
+                )
+        ))
+        try context.save()
+        manager.foregroundInferenceGenerations[scanId] =
+            staleGeneration
+        manager.startedForegroundInferenceGenerations[scanId] =
+            staleGeneration
+
+        let staleSpecies = SpeciesData(
+            scanId: scanId,
+            commonName: "Stale Attempt",
+            scientificName: "Attemptus stale",
+            insightData: InsightData(
+                aiReasoning: "Late provider response.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.92,
+            isBiological: true,
+            isLiveCapture: false,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        let replacementSpecies = SpeciesData(
+            scanId: scanId,
+            commonName: "Replacement Attempt",
+            scientificName: "Attemptus current",
+            insightData: InsightData(
+                aiReasoning: "Current provider response.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.96,
+            isBiological: true,
+            isLiveCapture: false,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let staleResult = await actor.saveNonVisualRecord(
+            mappedData: staleSpecies,
+            persistenceFence: LiveInferencePersistenceFence(
+                scanId: scanId,
+                generation: staleGeneration
+            )
+        )
+        manager.foregroundInferenceGenerations[scanId] =
+            replacementGeneration
+        manager.startedForegroundInferenceGenerations[scanId] =
+            replacementGeneration
+        let mismatchedSpecies = SpeciesData(
+            scanId: "\(scanId)-mismatched",
+            commonName: "Mismatched Attempt",
+            scientificName: "Attemptus mismatched",
+            insightData: InsightData(
+                aiReasoning: "Wrong scan identity.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.96,
+            isBiological: true,
+            isLiveCapture: false,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        let mismatchedResult = await actor.saveNonVisualRecord(
+            mappedData: mismatchedSpecies,
+            persistenceFence: LiveInferencePersistenceFence(
+                scanId: scanId,
+                generation: replacementGeneration
+            )
+        )
+        manager.foregroundInferenceRetirementTasks.replace(
+            for: scanId,
+            ownerGeneration: replacementGeneration
+        ) { _ in Task {} }
+        let retiringResult = await actor.saveNonVisualRecord(
+            mappedData: replacementSpecies,
+            persistenceFence: LiveInferencePersistenceFence(
+                scanId: scanId,
+                generation: replacementGeneration
+            )
+        )
+        manager.foregroundInferenceRetirementTasks.cancel(scanId)
+        let replacementResult = await actor.saveNonVisualRecord(
+            mappedData: replacementSpecies,
+            persistenceFence: LiveInferencePersistenceFence(
+                scanId: scanId,
+                generation: replacementGeneration
+            )
+        )
+
+        let verificationContext = ModelContext(container)
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let record = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(!staleResult.wasSaved)
+        #expect(!mismatchedResult.wasSaved)
+        #expect(
+            !retiringResult.wasSaved,
+            "Retirement must fence persistence before durable handoff clears the raw generation"
+        )
+        #expect(replacementResult.wasSaved)
+        #expect(record.commonName == "Replacement Attempt")
+    }
+
     @Test func testCollectionSyncPayloadsReadDirectRelationshipsAndExcludeUnrelatedScans() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
@@ -313,6 +450,61 @@ struct BackgroundDatabaseActorTests {
         #expect(record.coverImagePath == "live_race.webp")
     }
 
+    @Test func generatedBackgroundResultRejectsWrongScanId() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let scanId =
+            "background-result-owner-\(UUID().uuidString.lowercased())"
+        let generation = UUID()
+
+        context.insert(OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .inferencing
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(for: generation)
+        ))
+        try context.save()
+
+        let resultData = Data(
+            """
+            {
+              "success": true,
+              "data": {
+                "scan_id": "stale-background-result",
+                "is_biological_subject": true,
+                "scientific_name": "Resultus stale",
+                "common_name": "Stale Result",
+                "confidence_score": 0.95
+              }
+            }
+            """.utf8
+        )
+
+        let result = await actor.processAndCleanupOfflineScan(
+            resultData: resultData,
+            originalImagePaths: [],
+            scanId: scanId,
+            originalTimestamp: Date(),
+            expectedGeneration: generation
+        )
+
+        #expect(!result.wasCleaned)
+        let recordDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate {
+                $0.id == "stale-background-result"
+            }
+        )
+        #expect(try context.fetch(recordDescriptor).isEmpty)
+    }
+
     @Test func testSaveLiveScanRecordReplacesCollisionPreservingFieldNotesAndSpeciesId() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
@@ -350,7 +542,7 @@ struct BackgroundDatabaseActorTests {
             ecologyType: "wild"
         )
 
-        let isNewDiscovery = await actor.saveLiveScanRecord(
+        let persistenceResult = await actor.saveLiveScanRecord(
             mappedData: mappedData,
             localImagePaths: ["new_capture.webp"]
         )
@@ -360,7 +552,11 @@ struct BackgroundDatabaseActorTests {
         let records = try verificationContext.fetch(descriptor)
         let record = try #require(records.first)
 
-        #expect(isNewDiscovery == false, "Replacing a same-species collision must not count as a new discovery")
+        #expect(persistenceResult.wasSaved)
+        #expect(
+            persistenceResult.isNewDiscovery == false,
+            "Replacing a same-species collision must not count as a new discovery"
+        )
         #expect(records.count == 1, "Collision replacement must leave exactly one LocalScanRecord for the scan ID")
         #expect(record.speciesId == "stable-species-id", "Shared species lookup must preserve the existing species UUID")
         #expect(record.commonName == "Northern Cardinal")
@@ -1204,8 +1400,9 @@ struct BackgroundDatabaseActorTests {
         #expect(staleTransition == false)
 
         let verificationContext = ModelContext(container)
+        let expectedScanId = scan.id
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.id == scan.id }
+            predicate: #Predicate { $0.id == expectedScanId }
         )
         descriptor.fetchLimit = 1
         #expect(
@@ -1270,8 +1467,9 @@ struct BackgroundDatabaseActorTests {
         #expect(currentAttempt == 1)
 
         let verificationContext = ModelContext(container)
+        let expectedScanId = scan.id
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.id == scan.id }
+            predicate: #Predicate { $0.id == expectedScanId }
         )
         descriptor.fetchLimit = 1
         let persisted = try verificationContext.fetch(descriptor).first

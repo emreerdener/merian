@@ -14,7 +14,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `Shell/Modifiers/EmbeddedInsightNavigationModifiers.swift` | Hosts the feature-local back-swipe, navigation swipe enabler, and species-dictionary destination modifier used by embedded Insight navigation stacks. |
 | `Shell/Models/InsightPresentation.swift` | Defines `InsightPresentationStyle` and `ScanInsightRoute`, the value-only presentation/navigation surface used across Insight, Explore, and Species Dictionary links. |
 | `Toolbars/Models/InsightToolbarRecordSnapshot.swift` | Captures the toolbar's value snapshot of a `LocalScanRecord` before modal/share/delete boundaries so UI work does not retain a deleted SwiftData model. |
-| `InsightContentView` | Four-way content router. Switches on `viewModel.contentMode` (`.analyzing` / `.queued` / `.nonBiological` / `.biological`) — routing logic lives entirely in the viewModel rather than being duplicated in the view. Shows `AnalyzingContentView` when `contentMode == .analyzing`, `QueuedContentView` when `contentMode == .queued`. Routes to `BiologicalView` or `NonBiologicalView` for the other two cases. The switch is animated with `.easeInOut(duration: 0.35)` keyed on `viewModel.contentMode`. **First-open `@State` timing guard**: `InsightContentView` holds `queuedScan` as a plain `var` stored property (not `@State`), passed directly from `InsightSheetView`. Because `@State` is initialized once at first SwiftUI evaluation — which happens during `.sheet(isPresented:)` pre-evaluation with `scanToManage = nil` — the view model's `queuedContext` may still be nil on the first render even though a queued scan is being opened. The plain `var` always reflects the current struct value. In the `.analyzing` case, if `queuedScan` is non-nil, the router renders `QueuedContentView(viewModel: viewModel, queuedContext: queuedScan)` immediately instead of `AnalyzingContentView`, closing the race and preventing the analyzing skeleton from flashing on first open of a queued scan. The `.queued` case also falls back to `queuedScan` if `viewModel.queuedContext` is not yet set: `if let ctx = viewModel.queuedContext ?? queuedScan`. | **Routing guarantee:** `CaptureWorkspaceViewModel.submitActiveScan()` calls `InferenceEngine.prepareForNewScan()` synchronously before opening the sheet — this sets `isProcessing = true` and `speciesData = nil` atomically, ensuring the router never briefly shows a previous scan's result view during the async telemetry-resolution gap. **`defer` state-reset guard:** The `defer` block inside `analyze()`'s `inferenceTask` captures `ownedScanId = scanId` before the task body. The reset (`isProcessing = false`, `activeScanId = nil`) only fires when `self.activeScanId == ownedScanId`, preventing a cancelled task's `defer` from overwriting a new scan's state that was set by a subsequent `prepareForNewScan()` + `analyze()` call racing before the cancellation propagated. **Background-completion path:** If the user backgrounds the app immediately after capture, the background URLSession pipeline can complete and commit the scan to the database while the live `InferenceEngine.analyze()` task is suspended. When the app returns to the foreground in this state, `processInferenceDownloadResult` detects the race (`engine.isProcessing == true && engine.activeScanId == scanId`) and hydrates `engine.speciesData` directly from the already-decoded `SpeciesData`, then cancels the live task and sets `isProcessing = false`. `InsightContentView` observes the change and exits "Analyzing..." mode immediately, preventing the live task from resuming and showing "Network timeout" for a scan already committed. |
+| `InsightContentView` | Four-way content router. Switches on `viewModel.contentMode` (`.analyzing` / `.queued` / `.nonBiological` / `.biological`) so routing logic is not duplicated in views. The first-open timing guard keeps `queuedScan` as a plain input value and falls back to it when `viewModel.queuedContext` has not yet updated, preventing an analyzing-state flash. Live state replacement follows the exact-generation protocol below. |
 | `AnalyzingContentView` | Shown inside `InsightSheetView` exclusively while `viewModel.contentMode == .analyzing` — i.e. a live camera capture is actively under edge resolution. Has no awareness of `OfflineQueueManager` or `QueuedScanContext`. `ConfidenceBadge` displays `inferenceEngine.scanningPhaseText` (rotating phase phrases). Renders three layers: (1) `ConfidenceBadge` in analyzing mode; (2) `DidYouKnowCard` — a rotating biology fact card giving users something interesting to read while processing. Backed by a `FactManager` singleton using `AppStorage` to maintain a shuffled deck of 70+ facts to prevent repeats. Automatically advances every 8.5 seconds relying on a strict SwiftUI `.task(id:)` reactive binding; (3) `ScanInformationCard` populated from live engine context (`activeLocationName`, `activeTemperatureF`, `activeWeatherCondition`, `activeElevation`, `activeLatitude`, `activeLongitude`). Transitions out via `.easeInOut(duration: 0.35)` keyed on `viewModel.contentMode`. |
 | `QueuedContentView` | Shown inside `InsightSheetView` when `viewModel.contentMode == .queued` — i.e. the user is viewing an `OfflineQueuedScan` resting in the background-upload batch queue. Intentionally isolated from `AnalyzingContentView` so the UI clearly distinguishes a scan purposefully waiting in queue from one actively under edge resolution. Receives a `QueuedScanContext` value type (never a live `@Model` reference) plus `InsightSheetViewModel` for editable field notes. The `ConfidenceBadge` phrase (`badgePhrase`) and the large serif title (`displayTitle`) are always **semantically distinct** across all three states — the badge is a system-status phrase, the title is a noun phrase: when offline `badgePhrase = "No connection"` / `displayTitle = "Queued for upload"`; when `isSyncing`, `badgePhrase = "Uploading..."` / `displayTitle = "Syncing"`; otherwise `badgePhrase = "In queue"` / `displayTitle = "Queued for upload"`. This guarantees the badge and title never show identical copy simultaneously. Title transitions animate via `.contentTransition(.numericText())`. A helper text paragraph explains the background-upload sync pipeline to the user. The same `FieldNotesCard` used by completed biological insights appears while queued scans wait, and edits write through `FieldNotesRepository` to `OfflineQueuedScan.fieldNotes` so notes survive upload handoff. `ScanInformationCard` is populated from `QueuedScanContext` value fields (`timestamp`, `locationName`, `weatherTemperatureF`, `weatherCondition`, `gpsElevation`, `gpsLatitude`, `gpsLongitude`). Note: `isSyncing` is a manager-level flag, not per-scan — if another scan is uploading concurrently, the badge reflects that global state. |
 | `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, habitat/distribution, observation patterns, and lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier`. |
@@ -286,6 +286,35 @@ Historical completed scans follow the same value-boundary rule. `InferenceEngine
 
 ---
 
+## Live Result Ownership and Background Handoff
+
+Capture prepares `InferenceEngine` only after durable queue acceptance and
+immediately before opening the Insight sheet. A live task owns three identities:
+the stable scan ID, a process-local presentation UUID, and the foreground
+inference UUID persisted on the scan-ingestion job. Task defer clears
+`isProcessing` and the active fields only when its presentation UUID still owns
+the slot. Provider dispatch and every result or failure publication additionally
+require the durable foreground UUID to remain current.
+
+If background URLSession recovery completes first,
+`commitRecoveredBackgroundResult` compares the exact scan, presentation UUID,
+released foreground UUID, and absence of a replacement foreground owner. It
+atomically invalidates that presentation before committing recovered
+`speciesData`, then cooperatively cancels only the displaced live task. A stale
+completion for attempt A cannot hydrate, cancel, or publish over replacement B.
+Likewise, A's delayed failure handler cannot emit telemetry, update the circuit
+breaker, trigger an error haptic, or replace B with a timeout placeholder.
+
+`InsightContentView` observes the recovered state and leaves analyzing mode
+immediately. Correctness comes from the ownership transfer, not from assuming
+task cancellation is immediate.
+
+The queued-scan trash action is intentionally different: its
+`deleteQueuedScan(scanId:)` call represents an explicit user request to cancel
+all work for that scan, so it deliberately omits a generation expectation.
+
+---
+
 ## Queued Scan Completion Transition
 
 When an offline scan completes while `InsightSheetView` is open, the sheet must **transition to results without dismissing**. The key mechanism:
@@ -293,7 +322,9 @@ When an offline scan completes while `InsightSheetView` is open, the sheet must 
 `LibraryView` uses `.sheet(isPresented: $isQueuedSheetPresented)` with a separate `scanToManage: QueuedScanContext?` state. This decouples sheet presentation from the context — clearing `scanToManage` does not close the sheet.
 
 ```
-OfflineQueueManager.deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)
+OfflineQueueManager.deleteQueuedScan(
+    scanId:explicitlyAdoptedMediaPaths:inferenceExpectation:
+)
     → ScanLibraryEvents.libraryDidUpdatePublisher() emits
     → InsightSheetView.attemptQueuedCompletionHandoff(...)
     → Retry up to 8 × 350 ms for LocalScanRecord with matching ID

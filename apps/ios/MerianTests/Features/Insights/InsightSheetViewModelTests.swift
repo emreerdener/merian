@@ -480,7 +480,10 @@ struct InsightSheetViewModelTests {
         let engine = InferenceEngine()
         let viewModel = InsightSheetViewModel(inferenceEngine: engine)
         let scanId = "router-result-commit"
+        let attemptGeneration = UUID()
         engine.activeScanId = scanId
+        engine.activeLiveInferenceAttemptGeneration =
+            attemptGeneration
         engine.isProcessing = true
         engine.activeMedia = ActiveScanMedia(items: [.liveImage(Data([0x01]))])
 
@@ -501,6 +504,8 @@ struct InsightSheetViewModelTests {
 
         let didCommit = engine.commitSuccessfulResult(
             for: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: nil,
             speciesData: species,
             persistedMediaItems: [.image("documents/router-result.webp")]
         )

@@ -651,33 +651,41 @@ struct OfflineQueueManagerTests {
     @Test func testForegroundInferenceOwnershipOutlivesBodyUploadHandoff() {
         let manager = OfflineQueueManager.shared
         let scanId = UUID().uuidString
+        let staleGeneration = UUID()
+        let currentGeneration = UUID()
         let originalIsOnline = manager.isOnline
         manager.isOnline = false
-        defer { manager.isOnline = originalIsOnline }
+        defer {
+            manager.isOnline = originalIsOnline
+            manager.foregroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+        }
         manager.deferredLiveUploadScanIds = [scanId]
-        manager.foregroundInferenceScanIds.removeAll()
+        manager.foregroundInferenceGenerations.removeValue(forKey: scanId)
 
-        manager.beginForegroundInference(scanId: scanId)
-        manager.releaseDeferredLiveUpload(scanId: scanId, reason: "unit_test_body_sent")
+        manager.foregroundInferenceGenerations[scanId] =
+            currentGeneration
+        manager.releaseDeferredLiveUpload(
+            scanId: scanId,
+            foregroundInferenceGeneration: staleGeneration,
+            reason: "unit_test_stale_body_sent"
+        )
+        #expect(
+            manager.deferredLiveUploadScanIds.contains(scanId),
+            "A delayed callback must not release the replacement attempt's upload hold"
+        )
+        manager.releaseDeferredLiveUpload(
+            scanId: scanId,
+            foregroundInferenceGeneration: currentGeneration,
+            reason: "unit_test_body_sent"
+        )
 
         #expect(!manager.deferredLiveUploadScanIds.contains(scanId))
         #expect(
             manager.foregroundInferenceScanIds.contains(scanId),
             "Recovery media may upload, but foreground inference must retain sole model-call ownership"
         )
-
-        manager.endForegroundInference(
-            scanId: scanId,
-            resumeBackground: false,
-            reason: "unit_test_success"
-        )
-        #expect(!manager.foregroundInferenceScanIds.contains(scanId))
-        manager.endForegroundInference(
-            scanId: scanId,
-            resumeBackground: false,
-            reason: "unit_test_duplicate_release"
-        )
-        #expect(!manager.foregroundInferenceScanIds.contains(scanId))
     }
 
     @Test func testEnqueueDescribe_InsertsStagedScan() async throws {
@@ -1002,6 +1010,112 @@ struct OfflineQueueManagerTests {
         let fetched = try ctx.fetch(descriptor).first
 
         #expect(fetched == nil, "Scan record must be deleted from the context")
+    }
+
+    @Test func staleForegroundGenerationCannotClearReplacementQueueWork() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let context = try createIsolatedContext()
+        let scanId = UUID().uuidString.lowercased()
+        let staleGeneration = UUID()
+        let replacementGeneration = UUID()
+        let originalIsOnline = manager.isOnline
+        manager.isOnline = false
+        manager.modelContext = context
+        defer {
+            manager.isOnline = originalIsOnline
+            manager.foregroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+            manager.inferenceRetryTasks.cancel(scanId)
+            manager.modelContext = originalContext
+        }
+
+        context.insert(OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .pending
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(
+                    for: replacementGeneration
+                )
+        ))
+        try context.save()
+        manager.foregroundInferenceGenerations[scanId] =
+            replacementGeneration
+        let replacementRetryToken = manager.inferenceRetryTasks.replace(
+            for: scanId,
+            ownerGeneration: replacementGeneration
+        ) { _ in
+            Task {
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
+
+        let staleDidRelease = await manager.endForegroundInference(
+            scanId: scanId,
+            generation: staleGeneration,
+            resumeBackground: false,
+            reason: "unit_test_stale_release"
+        )
+
+        // Force the stale process-local view that motivated the durable fence:
+        // A appears current in memory while the job has already advanced to B.
+        manager.foregroundInferenceGenerations[scanId] =
+            staleGeneration
+        let staleCacheDidRelease = await manager.endForegroundInference(
+            scanId: scanId,
+            generation: staleGeneration,
+            resumeBackground: false,
+            reason: "unit_test_stale_cache_release"
+        )
+        let staleDidDelete = await manager.deleteQueuedScan(
+            scanId: scanId,
+            foregroundInferenceExpectation:
+                ForegroundInferenceGenerationExpectation(
+                    generation: staleGeneration
+                )
+        )
+        manager.foregroundInferenceGenerations[scanId] =
+            replacementGeneration
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        #expect(!staleDidRelease)
+        #expect(!staleCacheDidRelease)
+        #expect(!staleDidDelete)
+        #expect(try context.fetch(descriptor).first != nil)
+        #expect(
+            try context.fetch(jobDescriptor).first?.metadataJSON
+                == InferenceGenerationMetadataContract.json(
+                    for: replacementGeneration
+                )
+        )
+        #expect(
+            manager.foregroundInferenceGenerations[scanId]
+                == replacementGeneration
+        )
+        #expect(
+            manager.inferenceRetryTasks.isCurrent(
+                scanId,
+                token: replacementRetryToken,
+                ownerGeneration: replacementGeneration
+            ),
+            "Stale foreground cleanup must not cancel replacement retry work"
+        )
+
+        _ = await manager.deleteQueuedScan(scanId: scanId)
     }
 
     @Test func testPurgeSoftDeletedRecords_RemovesFailedScans() async throws {

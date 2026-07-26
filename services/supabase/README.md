@@ -166,14 +166,26 @@ with hard schema ceilings of 20,000 rows and 16 MiB. Public callers can queue
 only personal exports; global exports require a reviewed internal administrative
 workflow.
 
+Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
+`20260725180321_validate_dwca_export_source_bounds.sql` bound the source before
+it reaches an Edge isolate. The first transaction installs new-write checks and
+releases its `ALTER TABLE` lock; the second validates legacy rows before
+activating reads. Scan rows may contain at most 24 exportable image URLs of
+4,096 UTF-8 bytes each and 10 ecological interactions of 2,048 bytes each;
+selected taxonomy fields are finite too. The service-only
+`get_dwca_export_scan_batch(...)` RPC validates the active claim and canonical
+cursor, then caps each keyset response at 100 scans and 256 KiB of serialized
+source payload.
+
 `functions/export-dwca` performs exactly one short phase per invocation:
 occurrence page, multimedia page, assembly, or delivery. The two data phases use
-100-row keyset reads and narrow projections. Each page becomes a
-claim-token-fenced R2 CSV chunk and is committed to a durable manifest with its
-cursor and cumulative budgets in one transaction. A late expired worker can
-neither overwrite the replacement worker's chunk nor add it to the manifest. The
-minute scheduler resumes due phases without relying on one long-lived Edge
-invocation.
+row-and-byte-aware keyset reads and narrow projections. A fixed 512 KiB encoder
+appends one CSV row at a time, so page strings and media rows are never expanded
+into an unbounded intermediate array. Each page becomes a claim-token-fenced R2
+CSV chunk and is committed to a durable manifest with its cursor and cumulative
+budgets in one transaction. A late expired worker can neither overwrite the
+replacement worker's chunk nor add it to the manifest. The minute scheduler
+resumes due phases without relying on one long-lived Edge invocation.
 
 Assembly lazily reads manifest chunks into a streaming ZIP32 writer and bounded
 R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is

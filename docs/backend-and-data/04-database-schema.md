@@ -980,8 +980,13 @@ The transaction log for every successful identification.
 - `sex_evidence` (Text): Short phrase naming the visible, described, or acoustic
   cue supporting the sex annotation.
 - `individual_count` (Int): Primary subject population density within the frame.
+- `image_storage_urls` (Text Array): Canonical image/media URLs. The validated
+  DwC-A source constraint permits at most 24 non-null elements of 4,096 UTF-8
+  bytes each and rejects control characters.
 - `ecological_interactions` (Text Array): Biotic interactions between subjects
-  (e.g., predation, pollination, parasitism) derived by the AI.
+  (e.g., predation, pollination, parasitism) derived by the AI. The validated
+  DwC-A source constraint permits at most 10 non-null elements of 2,048 UTF-8
+  bytes each and rejects control characters.
 - `extracted_visual_traits` (Text[]): Array of 3 specific physical/structural
   bullet points extracted by the Gemini vision model (Micro-CoT) _before_
   evaluating identity or scientific name (forced by schema key-ordering) to
@@ -1325,6 +1330,17 @@ token, preventing a lease-expired writer from overwriting a replacement's
 chunk. A minute-level cron calls the worker with an empty body to resume one due
 phase. The updated watchdog fails only work with no live claim and no phase
 progress for two hours.
+
+Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
+`20260725180321_validate_dwca_export_source_bounds.sql` install and validate
+three source-shape constraints, then add private
+`internal.dwca_export_occurrence_source` and
+`internal.dwca_export_multimedia_source` projections plus
+`public.get_dwca_export_scan_batch(...)`. The definer RPC is allowlisted only
+for `service_role`, verifies the active job claim and exact phase cursor, and
+applies both a 100-row ceiling and a 256 KiB cumulative serialized-source
+ceiling before returning payloads to Edge. API roles have no direct read grant
+on either source projection.
 
 ### `failed_scan_ingestions`
 

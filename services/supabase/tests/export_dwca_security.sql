@@ -13,13 +13,24 @@ DECLARE
     post_rollout_job_id UUID := '00000000-0000-4000-8000-00000000e114';
     legacy_failure_job_id UUID :=
         '00000000-0000-4000-8000-00000000e115';
+    bounded_job_id UUID := '00000000-0000-4000-8000-00000000e116';
     first_token UUID := '00000000-0000-4000-8000-00000000e121';
     second_token UUID := '00000000-0000-4000-8000-00000000e122';
     post_rollout_token UUID := '00000000-0000-4000-8000-00000000e123';
+    bounded_token UUID := '00000000-0000-4000-8000-00000000e124';
+    test_species_id UUID := '00000000-0000-4000-8000-00000000e130';
+    first_scan_id UUID := '00000000-0000-4000-8000-00000000e131';
+    second_scan_id UUID := '00000000-0000-4000-8000-00000000e132';
+    third_scan_id UUID := '00000000-0000-4000-8000-00000000e133';
     claim_row RECORD;
     returned_rows INTEGER;
     routine_signature TEXT;
     boolean_result BOOLEAN;
+    first_source_bytes INTEGER;
+    second_source_bytes INTEGER;
+    returned_source_bytes INTEGER;
+    batch_complete BOOLEAN;
+    batch_oversize BOOLEAN;
 BEGIN
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
@@ -101,6 +112,7 @@ BEGIN
         'public.fail_export_job(uuid,uuid,text)',
         'public.get_due_export_job_ids(integer)',
         'public.claim_export_job_step(uuid,uuid)',
+        'public.get_dwca_export_scan_batch(uuid,uuid,text,uuid,integer,integer)',
         'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,boolean)',
         'public.get_export_job_chunks(uuid,uuid)',
         'public.stage_prepared_export_archive(uuid,uuid,text,text)',
@@ -141,6 +153,7 @@ BEGIN
               'fail_export_job',
               'get_due_export_job_ids',
               'claim_export_job_step',
+              'get_dwca_export_scan_batch',
               'advance_export_job_step',
               'get_export_job_chunks',
               'stage_prepared_export_archive',
@@ -208,6 +221,66 @@ BEGIN
           AND index_row.indexdef LIKE '%(id)%'
     ) THEN
         RAISE EXCEPTION 'DwC-A keyset indexes are missing';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid IN (
+            'public.scans'::REGCLASS,
+            'public.species_dictionary'::REGCLASS
+        )
+          AND constraint_row.conname IN (
+              'scans_dwca_image_urls_bounded_check',
+              'scans_dwca_interactions_bounded_check',
+              'species_dictionary_dwca_taxonomy_bounded_check'
+          )
+          AND NOT constraint_row.convalidated
+    ) OR (
+        SELECT pg_catalog.COUNT(*)
+        FROM pg_catalog.pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid IN (
+            'public.scans'::REGCLASS,
+            'public.species_dictionary'::REGCLASS
+        )
+          AND constraint_row.conname IN (
+              'scans_dwca_image_urls_bounded_check',
+              'scans_dwca_interactions_bounded_check',
+              'species_dictionary_dwca_taxonomy_bounded_check'
+          )
+    ) <> 3 THEN
+        RAISE EXCEPTION 'DwC-A source constraints are absent or unvalidated';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid = 'public.scans'::REGCLASS
+          AND constraint_row.conname = 'scans_sex_value_check'
+          AND constraint_row.convalidated
+    ) THEN
+        RAISE EXCEPTION
+            'the existing finite DwC-A sex source invariant is missing';
+    END IF;
+
+    IF pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.dwca_export_occurrence_source',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.dwca_export_multimedia_source',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.dwca_export_occurrence_source',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.dwca_export_multimedia_source',
+        'SELECT'
+    ) THEN
+        RAISE EXCEPTION 'an API role can bypass the bounded export page RPC';
     END IF;
 
     IF (
@@ -283,6 +356,219 @@ BEGIN
     -- Avoid an irrelevant pg_net call from this transactional fixture.
     ALTER TABLE public.export_jobs
         DISABLE TRIGGER on_export_job_created;
+
+    INSERT INTO public.species_dictionary (
+        id,
+        scientific_name,
+        common_names,
+        kingdom,
+        phylum,
+        class,
+        "order",
+        family,
+        genus,
+        native_region
+    )
+    VALUES (
+        test_species_id,
+        'Exporta boundedensis',
+        '{"en":"Bounded export species"}'::JSONB,
+        'Animalia',
+        'Chordata',
+        'Aves',
+        'Passeriformes',
+        'Exportidae',
+        'Exporta',
+        'Test region'
+    );
+
+    INSERT INTO public.scans (
+        id,
+        user_id,
+        species_id,
+        image_storage_urls,
+        ecological_interactions,
+        ai_confidence_score
+    )
+    VALUES
+        (
+            first_scan_id,
+            test_user_id,
+            test_species_id,
+            ARRAY[
+                'https://media.example.invalid/first-one.webp',
+                'https://media.example.invalid/first-two.webp'
+            ],
+            ARRAY[pg_catalog.REPEAT('first interaction ', 20)],
+            0.9
+        ),
+        (
+            second_scan_id,
+            test_user_id,
+            test_species_id,
+            ARRAY['https://media.example.invalid/second.webp'],
+            ARRAY[pg_catalog.REPEAT('second interaction ', 20)],
+            0.8
+        ),
+        (
+            third_scan_id,
+            test_user_id,
+            test_species_id,
+            ARRAY['https://media.example.invalid/third.webp'],
+            ARRAY[pg_catalog.REPEAT('third interaction ', 20)],
+            0.7
+        );
+
+    BEGIN
+        UPDATE public.scans AS scans
+        SET image_storage_urls = ARRAY(
+            SELECT
+                'https://media.example.invalid/' || value::TEXT || '.webp'
+            FROM pg_catalog.GENERATE_SERIES(1, 25) AS value
+        )
+        WHERE scans.id = first_scan_id;
+        RAISE EXCEPTION 'an oversized media array passed its DB constraint';
+    EXCEPTION
+        WHEN CHECK_VIOLATION THEN NULL;
+    END;
+
+    BEGIN
+        UPDATE public.scans AS scans
+        SET image_storage_urls = ARRAY[pg_catalog.REPEAT('x', 4097)]
+        WHERE scans.id = first_scan_id;
+        RAISE EXCEPTION 'an oversized media element passed its DB constraint';
+    EXCEPTION
+        WHEN CHECK_VIOLATION THEN NULL;
+    END;
+
+    BEGIN
+        UPDATE public.scans AS scans
+        SET ecological_interactions = ARRAY(
+            SELECT value::TEXT
+            FROM pg_catalog.GENERATE_SERIES(1, 11) AS value
+        )
+        WHERE scans.id = first_scan_id;
+        RAISE EXCEPTION
+            'an oversized interaction array passed its DB constraint';
+    EXCEPTION
+        WHEN CHECK_VIOLATION THEN NULL;
+    END;
+
+    BEGIN
+        UPDATE public.scans AS scans
+        SET ecological_interactions = ARRAY[pg_catalog.REPEAT('x', 2049)]
+        WHERE scans.id = first_scan_id;
+        RAISE EXCEPTION
+            'an oversized interaction element passed its DB constraint';
+    EXCEPTION
+        WHEN CHECK_VIOLATION THEN NULL;
+    END;
+
+    BEGIN
+        UPDATE public.species_dictionary AS species
+        SET scientific_name = pg_catalog.REPEAT('x', 1025)
+        WHERE species.id = test_species_id;
+        RAISE EXCEPTION
+            'an oversized taxonomy value passed its DB constraint';
+    EXCEPTION
+        WHEN CHECK_VIOLATION THEN NULL;
+    END;
+
+    INSERT INTO public.export_jobs (
+        id,
+        user_id,
+        export_scope,
+        include_precise_coordinates
+    )
+    VALUES (
+        bounded_job_id,
+        test_user_id,
+        'personal',
+        FALSE
+    );
+
+    SELECT *
+    INTO STRICT claim_row
+    FROM public.claim_export_job_step(bounded_job_id, bounded_token);
+
+    SELECT bounded_page.source_byte_count
+    INTO STRICT first_source_bytes
+    FROM public.get_dwca_export_scan_batch(
+        bounded_job_id,
+        bounded_token,
+        'occurrence',
+        NULL,
+        100,
+        262144
+    ) AS bounded_page
+    WHERE bounded_page.scan_id = first_scan_id;
+
+    SELECT bounded_page.source_byte_count
+    INTO STRICT second_source_bytes
+    FROM public.get_dwca_export_scan_batch(
+        bounded_job_id,
+        bounded_token,
+        'occurrence',
+        NULL,
+        100,
+        262144
+    ) AS bounded_page
+    WHERE bounded_page.scan_id = second_scan_id;
+
+    SELECT
+        pg_catalog.COUNT(*)::INTEGER,
+        pg_catalog.SUM(bounded_page.source_byte_count)::INTEGER,
+        pg_catalog.BOOL_AND(bounded_page.page_complete),
+        pg_catalog.BOOL_OR(bounded_page.source_row_oversize)
+    INTO
+        returned_rows,
+        returned_source_bytes,
+        batch_complete,
+        batch_oversize
+    FROM public.get_dwca_export_scan_batch(
+        bounded_job_id,
+        bounded_token,
+        'occurrence',
+        NULL,
+        100,
+        first_source_bytes + second_source_bytes - 1
+    ) AS bounded_page
+    WHERE bounded_page.scan_payload IS NOT NULL;
+
+    IF returned_rows <> 1
+       OR returned_source_bytes > first_source_bytes + second_source_bytes - 1
+       OR batch_complete
+       OR batch_oversize THEN
+        RAISE EXCEPTION
+            'the occurrence source page ignored its aggregate byte ceiling';
+    END IF;
+
+    UPDATE internal.export_job_work AS work
+    SET phase = 'multimedia'
+    WHERE work.job_id = bounded_job_id;
+
+    SELECT
+        pg_catalog.COUNT(*)::INTEGER,
+        pg_catalog.BOOL_AND(bounded_page.page_complete),
+        pg_catalog.BOOL_OR(bounded_page.source_row_oversize)
+    INTO
+        returned_rows,
+        batch_complete,
+        batch_oversize
+    FROM public.get_dwca_export_scan_batch(
+        bounded_job_id,
+        bounded_token,
+        'multimedia',
+        NULL,
+        2,
+        262144
+    ) AS bounded_page
+    WHERE bounded_page.scan_payload IS NOT NULL;
+
+    IF returned_rows <> 2 OR batch_complete OR batch_oversize THEN
+        RAISE EXCEPTION
+            'the multimedia source page ignored its row or completion bound';
+    END IF;
 
     INSERT INTO public.export_jobs (
         id,

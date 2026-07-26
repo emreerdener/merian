@@ -54,7 +54,10 @@ TestFlight, App Store, support, and QA.
   failures are sanitized, claimed/terminal results reject old-worker
   overwrites, and email delivery is idempotent. Global attribution now uses a
   dedicated versioned HMAC key instead of a Supabase credential or fallback
-  salt.
+  salt. Export source arrays and selected taxonomy values now have validated
+  cardinality/UTF-8 byte bounds, each claimed keyset page stops by serialized
+  bytes as well as rows, and CSV is encoded one row at a time into a fixed-size
+  buffer.
 - Made account deletion durable and recoverable. Naturebook now records the
   deletion request before anonymizing account data, verifies that cleanup, and
   cursor-sweeps durable uploads, staging data, avatars, and exports. A delayed
@@ -69,6 +72,21 @@ TestFlight, App Store, support, and QA.
   checks and still overwrite a newer SwiftData generation. Queue claims now
   persist their UUID atomically, and retries, cancellation, result saves, and
   deletion compare that durable owner under one per-scan coordinator.
+  Foreground inference now carries the same durable generation through
+  provider calls, persistence, UI publication, and queue cleanup, so a delayed
+  live result cannot clear or cancel a newer retry. The queue manager now
+  atomically consumes each generation and owns tokenized retirement across
+  cancellation and pre-provider exits. Durable-owner lookup/save errors fail
+  closed and retry with bounded backoff, and loading a historical scan now
+  relinquishes the exact live owner without deleting its queued recovery work.
+  Online text-only Describe now queues a zero-byte staged job before provider
+  dispatch, removing its weaker process-local persistence exception. Valid
+  confidence-zero responses remain terminal without a redundant provider call,
+  while missing or mismatched response scan IDs now fail closed and preserve
+  queued recovery work. Provider preflight and terminal failure effects now
+  require the full exact owner, so a retired attempt cannot invoke nonvisual
+  inference, trip the circuit breaker, or overwrite its replacement with an
+  error.
 - Hardened the public web boundary with the patched exact Next.js release,
   per-request nonce CSP, explicit browser security headers, and a
   `server-only` service-role client separated from anonymous projection reads.

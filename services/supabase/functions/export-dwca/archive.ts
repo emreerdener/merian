@@ -1,20 +1,23 @@
 import {
   DWCA_META_XML,
-  generateMultimediaRows,
   generateOccurrenceRow,
+  iterateMultimediaRows,
   MULTIMEDIA_HEADERS,
   OCCURRENCE_HEADERS,
 } from "./dwca.ts";
+import { MAXIMUM_WORK_CHUNK_BYTES } from "./limits.ts";
 import { UserPseudonymizer } from "./pseudonym.ts";
 import { fetchExportWorkChunk } from "./storage.ts";
 import {
   ClaimedExportJob,
   DBScanRow,
   ExportChunkManifestEntry,
+  ExportWorkerError,
 } from "./types.ts";
 import { createStoredZipStream, StreamingZipFile } from "./zip.ts";
 
 const encoder = new TextEncoder();
+const LINE_FEED = 0x0a;
 
 export type ExportProgressCallback = () => void | Promise<void>;
 
@@ -23,48 +26,91 @@ export interface EncodedExportBatch {
   rowCount: number;
 }
 
+class BoundedCsvEncoder {
+  readonly #buffer: Uint8Array;
+  #byteLength = 0;
+
+  constructor(maximumBytes: number) {
+    if (
+      !Number.isSafeInteger(maximumBytes) ||
+      maximumBytes < 1 ||
+      maximumBytes > MAXIMUM_WORK_CHUNK_BYTES
+    ) {
+      throw new TypeError(
+        `maximumBytes must be an integer between 1 and ${MAXIMUM_WORK_CHUNK_BYTES}.`,
+      );
+    }
+    this.#buffer = new Uint8Array(maximumBytes);
+  }
+
+  appendLine(line: string): void {
+    const writable = this.#buffer.subarray(
+      this.#byteLength,
+      this.#buffer.byteLength - 1,
+    );
+    const { read, written } = encoder.encodeInto(line, writable);
+    if (
+      read !== line.length ||
+      this.#byteLength + written >= this.#buffer.byteLength
+    ) {
+      throw new ExportWorkerError(
+        "export_too_large",
+        "A prepared CSV batch exceeded its hard byte limit.",
+      );
+    }
+    this.#byteLength += written;
+    this.#buffer[this.#byteLength] = LINE_FEED;
+    this.#byteLength += 1;
+  }
+
+  finish(): Uint8Array {
+    return this.#buffer.subarray(0, this.#byteLength);
+  }
+}
+
 export async function encodeExportBatch(
   job: ClaimedExportJob,
   phase: "occurrence" | "multimedia",
   scans: DBScanRow[],
   pseudonymizer: UserPseudonymizer | null,
+  maximumBytes = MAXIMUM_WORK_CHUNK_BYTES,
 ): Promise<EncodedExportBatch> {
-  const lines: string[] = [];
+  const csv = new BoundedCsvEncoder(maximumBytes);
+  let rowCount = 0;
   const firstBatch = phase === "occurrence"
     ? job.occurrenceAfterId === null
     : job.multimediaAfterId === null;
   if (firstBatch) {
-    lines.push(
+    csv.appendLine(
       phase === "occurrence" ? OCCURRENCE_HEADERS : MULTIMEDIA_HEADERS,
     );
   }
 
   if (phase === "occurrence") {
-    lines.push(
-      ...await Promise.all(
-        scans.map((scan) =>
-          generateOccurrenceRow(
-            scan,
-            job.exportScope,
-            job.includePreciseCoordinates,
-            job.userId,
-            pseudonymizer,
-          )
+    for (const scan of scans) {
+      csv.appendLine(
+        await generateOccurrenceRow(
+          scan,
+          job.exportScope,
+          job.includePreciseCoordinates,
+          job.userId,
+          pseudonymizer,
         ),
-      ),
-    );
+      );
+      rowCount += 1;
+    }
   } else {
     for (const scan of scans) {
-      lines.push(...generateMultimediaRows(scan));
+      for (const line of iterateMultimediaRows(scan)) {
+        csv.appendLine(line);
+        rowCount += 1;
+      }
     }
   }
 
   return {
-    bytes: lines.length > 0
-      ? encoder.encode(`${lines.join("\n")}\n`)
-      : new Uint8Array(),
-    rowCount: phase === "occurrence" ? scans.length : lines.length -
-      (firstBatch ? 1 : 0),
+    bytes: csv.finish(),
+    rowCount,
   };
 }
 

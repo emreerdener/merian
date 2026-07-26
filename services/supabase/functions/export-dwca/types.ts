@@ -63,6 +63,12 @@ export interface DBScanRow {
   } | null;
 }
 
+export interface ExportScanBatch {
+  scans: DBScanRow[];
+  sourceByteCount: number;
+  pageComplete: boolean;
+}
+
 export class ExportWorkerError extends Error {
   readonly code:
     | "archive_generation_failed"

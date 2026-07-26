@@ -129,6 +129,8 @@ final class SyncStateManagerTests: XCTestCase {
             registry.clearIfCurrent("scan-a", token: firstToken)
         )
         registry.cancel("scan-a", ifOwnedBy: firstOwner)
+        XCTAssertFalse(registry.isOwned("scan-a", by: firstOwner))
+        XCTAssertTrue(registry.isOwned("scan-a", by: secondOwner))
         XCTAssertTrue(
             registry.isCurrent(
                 "scan-a",

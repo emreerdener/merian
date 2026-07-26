@@ -64,6 +64,69 @@ media identity, never a species name, result index, or provider host. A denied
 first URL must promote the next permitted URL rather than removing the species
 or producing a synthetic censored carousel item.
 
+## Live Attempt Ownership
+
+`scanId` identifies durable work; it does not identify the current attempt.
+Every queue-backed live submission also creates a UUID inference generation and
+writes it to the scan-ingestion `OfflineJobRecord.metadataJSON` in the same
+transaction as the queued scan. `InferenceEngine` captures that UUID in the
+provider task and revalidates it at task entry, after external suspension
+points, immediately before provider dispatch, and again at each persistence,
+result-publication, failure-publication, notification, hydration, and
+queue-cleanup boundary.
+
+All user-facing inference modes are queue-backed before provider dispatch.
+Online text-only Describe submissions use a zero-byte `.staged` row, so they
+receive the same durable persistence fence and exact cleanup as media-bearing
+captures rather than relying only on a process-local presentation token.
+
+A queue-backed generation is single-use. `OfflineQueueManager` atomically
+consumes it before any engine instance starts a provider pipeline, so a
+duplicate submission is an idempotent no-op across the process. Cancellation or
+a pre-provider capture exit registers its UUID in the manager's generation task
+registry synchronously, before the asynchronous durable handoff acquires the
+per-scan coordinator, so a repeated call cannot restart that UUID in the handoff
+window. A registered retirement is excluded from the definition of a current
+attempt immediately, fencing delayed persistence, UI publication, and cleanup
+while the durable release is still pending. Transient durable-owner fetch or
+save failures retain the retiring marker and retry with bounded backoff; they
+neither reopen the UUID nor abandon a claim that would suppress recovery
+indefinitely. Any intentional new attempt must first claim a newly generated
+durable UUID.
+
+Terminal failure handling follows the same ownership protocol. The handler
+captures whether the full scan, presentation-attempt, and durable foreground
+generation still match before registering synchronous retirement. Only that
+proven owner may emit failure telemetry, record a circuit-breaker failure,
+trigger an error haptic, or publish an error placeholder, and it does so without
+another suspension between the ownership snapshot and terminal commit. A
+cooperatively cancelled or replaced task therefore exits silently instead of
+overwriting the replacement attempt.
+
+Live persistence and background retry/finalization share
+`ScanInferencePersistenceCoordinator`. The live save validates both the
+in-memory foreground generation, durable job generation, and provider result
+scan ID while holding that coordinator. A valid confidence-zero response remains
+a terminal no-record result, but queue-backed work accepts it only when the
+provider echoed the exact scan ID; a mismatched response remains queued for
+recovery rather than causing another attempt's work to be finalized. Successful
+live cleanup passes an exact `ForegroundInferenceGenerationExpectation` to
+`deleteQueuedScan`; the expectation is compared again after URLSession task
+enumeration. A stale generation must return without cancelling tasks, clearing
+task registries, or deleting the queued row. An unfenced deletion is reserved
+for an explicit user/system request whose intended outcome is to cancel every
+generation. If background recovery wins, it invalidates the exact live
+presentation UUID before cooperatively cancelling that task, fencing any delayed
+error or result commit as well as queue mutation. A SwiftData error while
+loading the durable owner also fails closed; it is not treated as proof that the
+job was deleted.
+
+Loading a persisted library record is also a presentation replacement.
+`load(from:)` invalidates the exact live UUID, releases its deferred-upload
+hold, cancels live provider/hydration work, and schedules durable handoff before
+assigning the historical `activeScanId`. The queued capture remains intact for
+background recovery.
+
 ## Verification
 
 Focused tests live under `apps/ios/MerianTests/Core/AI/`. Network timing and

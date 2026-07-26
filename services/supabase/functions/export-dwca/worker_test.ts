@@ -55,9 +55,16 @@ function successfulServices(
     },
     fetchBatch() {
       events.push("fetch_batch");
-      return Promise.resolve([
-        { id: "00000000-0000-4000-8000-000000000301", user_id: job.userId },
-      ]);
+      return Promise.resolve({
+        scans: [
+          {
+            id: "00000000-0000-4000-8000-000000000301",
+            user_id: job.userId,
+          },
+        ],
+        sourceByteCount: 256,
+        pageComplete: true,
+      });
     },
     loadPseudonymizer() {
       events.push("pseudonym_key");
@@ -268,6 +275,26 @@ Deno.test("canonical CSV byte failures are rejected before R2 upload", async () 
   assertEquals(events.some((event) => event.startsWith("put:")), false);
   assertEquals(events.includes("advance"), false);
   assertEquals(events.at(-1), "release:export_too_large:true");
+});
+
+Deno.test("invalid source byte pages are rejected before encoding", async () => {
+  const events: string[] = [];
+  const services = successfulServices(events);
+  services.fetchBatch = () =>
+    Promise.resolve({
+      scans: [],
+      sourceByteCount: 1,
+      pageComplete: false,
+    });
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "database_unavailable");
+  assertEquals(events.includes("encode_batch"), false);
+  assertEquals(events.some((event) => event.startsWith("put:")), false);
+  assertEquals(events.at(-1), "release:database_unavailable:false");
 });
 
 Deno.test("transient provider or storage failures release for durable retry", async () => {

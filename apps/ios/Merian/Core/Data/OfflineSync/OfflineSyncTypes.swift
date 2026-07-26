@@ -99,6 +99,44 @@ struct InferenceGenerationExpectation: Sendable, Equatable {
     let generation: UUID?
 }
 
+/// Guard used when queue cleanup originates from a foreground inference attempt.
+///
+/// Foreground inference begins before recovery media necessarily reaches R2, so it
+/// cannot use the background-only `.inferencing` state as its ownership fence. Its
+/// generation is instead persisted on the scan-ingestion job in the same transaction
+/// that creates the queued scan and compared again before persistence or deletion.
+struct ForegroundInferenceGenerationExpectation: Sendable, Equatable {
+    let generation: UUID
+}
+
+/// Durable ownership supplied to live-result persistence.
+struct LiveInferencePersistenceFence: Sendable, Equatable {
+    let scanId: String
+    let generation: UUID
+}
+
+/// Separates a successful save from the valid "not a new discovery" result.
+///
+/// The previous Boolean return value conflated those states, allowing queue cleanup
+/// to continue after persistence was rejected or failed.
+struct LiveInferencePersistenceResult: Sendable, Equatable {
+    let wasSaved: Bool
+    let isNewDiscovery: Bool
+
+    static let notSaved = LiveInferencePersistenceResult(
+        wasSaved: false,
+        isNewDiscovery: false
+    )
+}
+
+enum InferenceGenerationMetadataContract {
+    static func json(for generation: UUID) -> String {
+        #"{"inference_generation":""# +
+            generation.uuidString.lowercased() +
+            #""}"#
+    }
+}
+
 enum InferenceURLSessionTaskContract {
     private static let currentPrefix = "inference_v2"
     private static let legacyPrefix = "inference_"
@@ -185,6 +223,10 @@ final class GenerationTaskRegistry<Key: Hashable> {
     ) -> Bool {
         guard let entry = entries[key], entry.token == token else { return false }
         return ownerGeneration == nil || entry.ownerGeneration == ownerGeneration
+    }
+
+    func isOwned(_ key: Key, by ownerGeneration: UUID) -> Bool {
+        entries[key]?.ownerGeneration == ownerGeneration
     }
 
     @discardableResult

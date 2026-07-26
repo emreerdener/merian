@@ -5809,6 +5809,14 @@ contract is also bounded by the shared small JSON reader.
   the current durable phase/cursors/budgets, and creates a private two-minute
   lease. An active, not-due, or terminal job returns no claim and performs no
   source/provider work.
+- Calls service-only
+  `get_dwca_export_scan_batch(job_id, claim_token, phase, cursor, 100, 262144)`
+  for data phases. The database revalidates the claim and canonical cursor,
+  derives personal/global scope from immutable job state, and stops the keyset
+  response at either 100 scans or 256 KiB of serialized source. Validated row
+  checks separately cap media-array cardinality/URL size, interaction-array
+  cardinality/element size, and selected taxonomy text in UTF-8 bytes. The
+  worker rechecks those bounds before encoding.
 - Advance, manifest lookup, staging, completion, release, and heartbeat RPCs
   require the same unexpired UUID token; a delayed worker cannot mutate a
   replacement attempt. These definer routines use an empty `search_path`, call
@@ -5836,12 +5844,13 @@ contract is also bounded by the shared small JSON reader.
   20,000 rows and 16 MiB. Budget overflow terminates with
   `export_too_large`.
 - **Resumable generation**: An invocation performs exactly one occurrence
-  page, multimedia page, assembly, or delivery phase. Data phases use 100-row
-  `id > last_id` pages with narrow projections and matching partial indexes.
-  Each page is encoded to at most 512 KiB, stored as a temporary R2 CSV chunk,
-  and committed to the ordered private manifest together with the next cursor
-  and cumulative budgets. The cron resumes the next phase instead of depending
-  on one long-lived Edge invocation.
+  page, multimedia page, assembly, or delivery phase. Data phases use
+  row-and-byte-aware `id > last_id` pages with narrow projections and matching
+  partial indexes. A fixed-capacity encoder appends one header/row at a time and
+  fails before exceeding 512 KiB; it does not retain a page-wide line array or
+  expanded multimedia-row array. Each chunk is committed to the ordered private
+  manifest together with the next cursor and cumulative budgets. The cron
+  resumes the next phase instead of depending on one long-lived Edge invocation.
 - **Bounded assembly**: Manifest chunks lazily feed a streaming ZIP32 `STORE`
   writer and fixed 8 MiB R2 multipart upload. No complete page history, CSV,
   ZIP, `arrayBuffer()`, or media binary collection is retained in memory. R2

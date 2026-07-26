@@ -36,16 +36,32 @@ Deno.test("export webhook performs one synchronous durable step", async () => {
 Deno.test("export pages, durable chunks, and archives are bounded end to end", async () => {
   const db = await source("db.ts");
   const archive = await source("archive.ts");
+  const limits = await source("limits.ts");
   const mail = await source("mail.ts");
   const storage = await source("storage.ts");
   const zip = await source("zip.ts");
 
   const worker = await source("worker.ts");
-  assertStringIncludes(db, "export const EXPORT_PAGE_SIZE = 100");
-  assertStringIncludes(db, '.gt("id", afterId)');
+  assertStringIncludes(db, '"get_dwca_export_scan_batch"');
+  assertStringIncludes(db, "p_claim_token: claimToken");
+  assertStringIncludes(
+    db,
+    "p_max_source_bytes: MAXIMUM_EXPORT_SOURCE_PAGE_BYTES",
+  );
+  assertStringIncludes(limits, "export const EXPORT_PAGE_SIZE = 100");
+  assertStringIncludes(
+    limits,
+    "export const MAXIMUM_EXPORT_SOURCE_PAGE_BYTES = 256 * 1024",
+  );
   assertEquals(db.includes(".range("), false);
-  assertEquals(db.includes("offset"), false);
+  assertEquals(db.includes('.from("scans")'), false);
   assertStringIncludes(archive, "encodeExportBatch");
+  assertStringIncludes(archive, "class BoundedCsvEncoder");
+  assertStringIncludes(archive, "encoder.encodeInto");
+  assertStringIncludes(archive, "iterateMultimediaRows");
+  assertEquals(archive.includes("const lines: string[]"), false);
+  assertEquals(archive.includes("Promise.all"), false);
+  assertEquals(archive.includes("lines.join"), false);
   assertStringIncludes(archive, "createPreparedDwcaArchiveStream");
   assertStringIncludes(archive, "fetchExportWorkChunk");
   assertStringIncludes(zip, "createStoredZipStream");
@@ -76,6 +92,7 @@ Deno.test("export identity and delivery use dedicated idempotent secrets", async
       "db.ts",
       "dwca.ts",
       "index.ts",
+      "limits.ts",
       "mail.ts",
       "pseudonym.ts",
       "storage.ts",

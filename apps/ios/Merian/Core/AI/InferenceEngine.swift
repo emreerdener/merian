@@ -57,6 +57,12 @@ private struct GBIFMedia: Decodable {
     /// same capture. Used by the background offline path to detect when it completes the same
     /// scan and should hydrate the engine instead of leaving `isProcessing = true` forever.
     @ObservationIgnored var activeScanId: String?
+    /// Unique owner of the current foreground pipeline. This is distinct from
+    /// `activeScanId` because the same queued scan can be retried or replaced.
+    @ObservationIgnored var activeLiveInferenceAttemptGeneration: UUID?
+    /// Durable generation written on the queued scan-ingestion job. `nil` only
+    /// for direct queue-less API uses.
+    @ObservationIgnored var activeForegroundInferenceGeneration: UUID?
     @ObservationIgnored private var pendingFirstRenderMetric: (scanId: String, startedAt: CFAbsoluteTime)?
     var isProcessing: Bool = false
     var scanningPhaseText: String = "Analyzing subject..."
@@ -262,6 +268,10 @@ private struct GBIFMedia: Decodable {
     /// Contrast with `cancelActiveRequest()`, which resets to idle with no upcoming scan.
     func prepareForNewScan() {
         // Cancel all in-flight async work before the new scan claims the engine.
+        invalidateActiveLiveInferenceAttempt(
+            resumeBackground: true,
+            reason: "live_scan_replaced"
+        )
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
@@ -435,32 +445,226 @@ private struct GBIFMedia: Decodable {
     @discardableResult
     func commitSuccessfulResult(
         for ownedScanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?,
         speciesData: SpeciesData,
         persistedMediaItems: [MediaItem]? = nil
     ) -> Bool {
-        guard activeScanId == ownedScanId else { return false }
+        guard isLiveInferenceAttemptCurrent(
+            scanId: ownedScanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration
+        ) else {
+            return false
+        }
 
+        publishSuccessfulResult(
+            speciesData,
+            persistedMediaItems: persistedMediaItems
+        )
+        return true
+    }
+
+    /// Publishes a terminal background result only when it replaces the exact
+    /// live presentation attempt that relinquished durable ownership.
+    ///
+    /// Background recovery owns a different inference generation, so it cannot
+    /// satisfy the foreground job-generation check above. Instead, the caller
+    /// must prove the old presentation UUID still owns the engine and that no
+    /// foreground generation currently owns this scan.
+    @discardableResult
+    func commitRecoveredBackgroundResult(
+        for scanId: String,
+        replacingAttemptGeneration: UUID,
+        expectedForegroundGeneration: UUID?,
+        speciesData: SpeciesData
+    ) -> Bool {
+        guard isLocalLiveInferenceAttemptCurrent(
+            scanId: scanId,
+            attemptGeneration: replacingAttemptGeneration
+        ),
+              activeForegroundInferenceGeneration
+                == expectedForegroundGeneration,
+              OfflineQueueManager.shared
+                .foregroundInferenceGenerations[scanId] == nil else {
+            return false
+        }
+
+        // Transfer the presentation slot before the caller cooperatively cancels
+        // the old task. Otherwise that task can resume an error handler, still
+        // pass its local UUID check, and overwrite this recovered result.
+        activeScanId = nil
+        activeLiveInferenceAttemptGeneration = nil
+        activeForegroundInferenceGeneration = nil
+        phaseRotationTask?.cancel()
+        publishSuccessfulResult(speciesData)
+        return true
+    }
+
+    private func publishSuccessfulResult(
+        _ speciesData: SpeciesData,
+        persistedMediaItems: [MediaItem]? = nil
+    ) {
         if let persistedMediaItems {
             activeMedia.items = persistedMediaItems
         }
         self.speciesData = speciesData
         applyReferenceStateIfAvailable(from: speciesData)
         isProcessing = false
-        return true
     }
 
-    private func completeQueuedLiveInferenceIfNeeded(scanId: String?, mediaPathsToKeep: [String]) {
-        guard let scanId else { return }
+    private func isLocalLiveInferenceAttemptCurrent(
+        scanId: String?,
+        attemptGeneration: UUID
+    ) -> Bool {
+        activeScanId == scanId &&
+            activeLiveInferenceAttemptGeneration == attemptGeneration
+    }
 
-        // deleteQueuedScan owns both the row removal and disk cleanup so it can still inspect
-        // queue-only inference media before the SwiftData object disappears.
-        executeTrackedBackgroundTask { [mediaPathsToKeep] in
-            await OfflineQueueManager.shared.deleteQueuedScan(
-                scanId: scanId,
-                explicitlyAdoptedMediaPaths: mediaPathsToKeep,
-                preservePreferredGoalHint: true
-            )
+    private func isLiveInferenceAttemptCurrent(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?
+    ) -> Bool {
+        guard isLocalLiveInferenceAttemptCurrent(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration
+        ) else {
+            return false
         }
+        guard activeForegroundInferenceGeneration
+                == foregroundInferenceGeneration else {
+            return false
+        }
+        guard let scanId, let foregroundInferenceGeneration else {
+            return foregroundInferenceGeneration == nil
+        }
+        return OfflineQueueManager.shared
+            .isForegroundInferenceAttemptCurrent(
+                scanId: scanId,
+                generation: foregroundInferenceGeneration
+            )
+    }
+
+    private func checkLiveInferenceAttempt(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?
+    ) throws {
+        try Task.checkCancellation()
+        guard isLiveInferenceAttemptCurrent(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration
+        ) else {
+            throw CancellationError()
+        }
+    }
+
+    private func invalidateActiveLiveInferenceAttempt(
+        resumeBackground: Bool,
+        reason: String
+    ) {
+        let scanId = activeScanId
+        let foregroundGeneration = activeForegroundInferenceGeneration
+        activeScanId = nil
+        activeLiveInferenceAttemptGeneration = nil
+        activeForegroundInferenceGeneration = nil
+
+        guard let scanId, let foregroundGeneration else { return }
+        OfflineQueueManager.shared.releaseDeferredLiveUpload(
+            scanId: scanId,
+            foregroundInferenceGeneration: foregroundGeneration,
+            reason: reason
+        )
+        OfflineQueueManager.shared.retireForegroundInference(
+            scanId: scanId,
+            generation: foregroundGeneration,
+            resumeBackground: resumeBackground,
+            reason: reason
+        )
+    }
+
+    private func isDuplicateActiveForegroundAttempt(
+        scanId: String,
+        generation: UUID
+    ) -> Bool {
+        activeScanId == scanId &&
+            activeForegroundInferenceGeneration == generation &&
+            activeLiveInferenceAttemptGeneration != nil
+    }
+
+    private func retireForegroundInferenceIfCurrent(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?,
+        resumeBackground: Bool,
+        reason: String
+    ) {
+        guard let scanId, let foregroundInferenceGeneration,
+              isLocalLiveInferenceAttemptCurrent(
+                  scanId: scanId,
+                  attemptGeneration: attemptGeneration
+              ),
+              activeForegroundInferenceGeneration
+                == foregroundInferenceGeneration else {
+            return
+        }
+
+        OfflineQueueManager.shared.retireForegroundInference(
+            scanId: scanId,
+            generation: foregroundInferenceGeneration,
+            resumeBackground: resumeBackground,
+            reason: reason
+        )
+        if isLocalLiveInferenceAttemptCurrent(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration
+        ) {
+            activeForegroundInferenceGeneration = nil
+        }
+    }
+
+    @discardableResult
+    private func completeQueuedLiveInferenceIfNeeded(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?,
+        mediaPathsToKeep: [String]
+    ) async -> Bool {
+        guard let scanId, let foregroundInferenceGeneration else {
+            return true
+        }
+
+        // Queue removal, URLSession cancellation, and disk cleanup all compare
+        // the durable foreground generation under the per-scan persistence lock.
+        let didDelete = await OfflineQueueManager.shared.deleteQueuedScan(
+            scanId: scanId,
+            explicitlyAdoptedMediaPaths: mediaPathsToKeep,
+            preservePreferredGoalHint: true,
+            foregroundInferenceExpectation:
+                ForegroundInferenceGenerationExpectation(
+                    generation: foregroundInferenceGeneration
+                )
+        )
+        if didDelete {
+            if isLocalLiveInferenceAttemptCurrent(
+                scanId: scanId,
+                attemptGeneration: attemptGeneration
+            ) {
+                activeForegroundInferenceGeneration = nil
+            }
+            return true
+        }
+
+        retireForegroundInferenceIfCurrent(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            resumeBackground: true,
+            reason: "live_cleanup_failed_or_replaced"
+        )
+        return false
     }
 
     private func sendInferenceCompleteNotificationIfEnabled(for mappedData: SpeciesData) {
@@ -580,6 +784,7 @@ private struct GBIFMedia: Decodable {
     ///   - observationContexts: Structured descriptions staged alongside the capture.
     func analyze(
         scanId: String? = nil,
+        foregroundInferenceGeneration: UUID? = nil,
         imageDatas: [Data],
         displayDatas: [Data] = [],
         audioFilePaths: [String]? = nil,
@@ -594,7 +799,58 @@ private struct GBIFMedia: Decodable {
         targetEradicationScanId: String? = nil,
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
-        guard !imageDatas.isEmpty else { return }
+        guard !imageDatas.isEmpty else {
+            if let scanId, let foregroundInferenceGeneration {
+                OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                    scanId: scanId,
+                    foregroundInferenceGeneration:
+                        foregroundInferenceGeneration,
+                    reason: "live_visual_payload_empty"
+                )
+                OfflineQueueManager.shared.retireForegroundInference(
+                    scanId: scanId,
+                    generation: foregroundInferenceGeneration,
+                    resumeBackground: true,
+                    reason: "live_visual_payload_empty"
+                )
+            }
+            return
+        }
+        if let scanId {
+            guard let foregroundInferenceGeneration else {
+                MerianLog.general.debug(
+                    "analyze: rejected missing foreground owner scanId=\(scanId, privacy: .public)"
+                )
+                return
+            }
+            guard !isDuplicateActiveForegroundAttempt(
+                scanId: scanId,
+                generation: foregroundInferenceGeneration
+            ) else {
+                MerianLog.general.debug(
+                    "analyze: ignored duplicate foreground generation scanId=\(scanId, privacy: .public)"
+                )
+                return
+            }
+            guard OfflineQueueManager.shared.claimForegroundInferenceStart(
+                        scanId: scanId,
+                        generation: foregroundInferenceGeneration
+                  ) else {
+                MerianLog.general.debug(
+                    "analyze: rejected missing, stale, used, or retiring foreground owner scanId=\(scanId, privacy: .public)"
+                )
+                return
+            }
+        } else if foregroundInferenceGeneration != nil {
+            MerianLog.general.debug(
+                "analyze: rejected foreground owner without scanId"
+            )
+            return
+        }
+        invalidateActiveLiveInferenceAttempt(
+            resumeBackground: true,
+            reason: "live_scan_replaced_by_analyze"
+        )
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
@@ -630,7 +886,14 @@ private struct GBIFMedia: Decodable {
         
         self.speciesData = nil
 
+        // Queue-backed attempts use the same UUID persisted on the durable job;
+        // queue-less online descriptions receive a process-local owner.
+        let attemptGeneration =
+            foregroundInferenceGeneration ?? UUID()
         self.activeScanId = scanId
+        self.activeLiveInferenceAttemptGeneration = attemptGeneration
+        self.activeForegroundInferenceGeneration =
+            foregroundInferenceGeneration
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation
@@ -647,6 +910,8 @@ private struct GBIFMedia: Decodable {
 
         // Capture before the Task so the defer can compare against the ID this Task owns.
         let ownedScanId = scanId
+        let ownedForegroundInferenceGeneration =
+            foregroundInferenceGeneration
         let resolvedClientScanId = scanId ?? UUID().uuidString.lowercased()
         if let userPerceivedStart {
             self.pendingFirstRenderMetric = (
@@ -665,11 +930,16 @@ private struct GBIFMedia: Decodable {
             // (leaving the insight sheet stuck in a done-but-empty state). Only reset when this Task
             // still owns the active slot.
             defer {
-                if self.activeScanId == ownedScanId {
+                if self.isLocalLiveInferenceAttemptCurrent(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration
+                ) {
                     self.isProcessing = false
                     self.activeScanId = nil
+                    self.activeLiveInferenceAttemptGeneration = nil
+                    self.activeForegroundInferenceGeneration = nil
+                    self.phaseRotationTask?.cancel()
                 }
-                self.phaseRotationTask?.cancel()
             }
 
             let pipelineStart = CFAbsoluteTimeGetCurrent()
@@ -677,7 +947,13 @@ private struct GBIFMedia: Decodable {
 
             do {
                 // --- Step 1: Pre-flight Checks & Data Preparation ---
-                
+
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
                 if CircuitBreakerManager.shared.isCircuitTripped {
                     throw URLError(.notConnectedToInternet)
                 }
@@ -685,10 +961,30 @@ private struct GBIFMedia: Decodable {
                 let client = MerianNetworkClient.shared
 
                 let base64Strings = await InferenceProcessingActor.shared.encodeBase64(compressedDatas: compressedDatas)
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
                 let validBase64Strings = base64Strings.filter { !$0.isEmpty }
                 guard !validBase64Strings.isEmpty else {
                     MerianLog.general.error("All base64 payloads are empty — corrupted capture data. Refunding scan.")
                     UsageManager.shared.refundScan()
+                    OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                        scanId: resolvedClientScanId,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
+                        reason: "live_visual_encoding_empty"
+                    )
+                    self.retireForegroundInferenceIfCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
+                        resumeBackground: true,
+                        reason: "live_visual_encoding_empty"
+                    )
                     return
                 }
 
@@ -701,7 +997,19 @@ private struct GBIFMedia: Decodable {
                 }()
 
                 let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
                 let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
                 let resolvedUserId = (authUserId ?? deviceId).lowercased()
                 let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString.lowercased()).webp"
 
@@ -729,6 +1037,12 @@ private struct GBIFMedia: Decodable {
                         videoFilePaths: videoFilePaths,
                         scanId: resolvedClientScanId
                     )
+                    try self.checkLiveInferenceAttempt(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration
+                    )
                 } else {
                     videoR2ObjectKeys = []
                 }
@@ -737,6 +1051,8 @@ private struct GBIFMedia: Decodable {
                     guard !Task.isCancelled else { return }
                     OfflineQueueManager.shared.releaseDeferredLiveUpload(
                         scanId: resolvedClientScanId,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
                         reason: "inline_upload_two_second_failsafe"
                     )
                 }
@@ -758,10 +1074,18 @@ private struct GBIFMedia: Decodable {
                         Task { @MainActor in
                             OfflineQueueManager.shared.releaseDeferredLiveUpload(
                                 scanId: resolvedClientScanId,
+                                foregroundInferenceGeneration:
+                                    ownedForegroundInferenceGeneration,
                                 reason: "inline_request_body_sent"
                             )
                         }
                     }
+                )
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
                 )
                 let responseReceivedAt = CFAbsoluteTimeGetCurrent()
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
@@ -778,8 +1102,33 @@ private struct GBIFMedia: Decodable {
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: audioFilePaths,
                     videoFilePaths: videoFilePaths,
-                    mediaTimeline: resolvedMediaTimeline
+                    mediaTimeline: resolvedMediaTimeline,
+                    persistenceFence: ownedScanId.flatMap { scanId in
+                        ownedForegroundInferenceGeneration.map { generation in
+                            LiveInferencePersistenceFence(
+                                scanId: scanId,
+                                generation: generation
+                            )
+                        }
+                    }
                 )
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
+                guard parseResult.didCompletePersistence else {
+                    self.retireForegroundInferenceIfCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
+                        resumeBackground: true,
+                        reason: "live_result_persistence_rejected"
+                    )
+                    return
+                }
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
                 let savedImagePaths = parseResult.savedPaths
@@ -802,6 +1151,9 @@ private struct GBIFMedia: Decodable {
                     )
                     let didCommitResult = self.commitSuccessfulResult(
                         for: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
                         speciesData: mappedData,
                         persistedMediaItems: self.mediaItems(
                             from: resolvedMediaTimeline,
@@ -813,17 +1165,39 @@ private struct GBIFMedia: Decodable {
                     MerianLog.general.debug(
                         "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
                     )
-                    completeQueuedLiveInferenceIfNeeded(
-                        scanId: scanId,
-                        mediaPathsToKeep: (mappedData.audioFilePaths ?? []) + (mappedData.videoFilePaths ?? [])
-                    )
-                    sendInferenceCompleteNotificationIfEnabled(for: mappedData)
+                    var didFinalizeQueue = true
+                    if didCommitResult {
+                        didFinalizeQueue =
+                            await completeQueuedLiveInferenceIfNeeded(
+                                scanId: scanId,
+                                attemptGeneration: attemptGeneration,
+                                foregroundInferenceGeneration:
+                                    ownedForegroundInferenceGeneration,
+                                mediaPathsToKeep:
+                                    (mappedData.audioFilePaths ?? []) +
+                                    (mappedData.videoFilePaths ?? [])
+                            )
+                    }
+                    let stillOwnsPresentation =
+                        self.isLocalLiveInferenceAttemptCurrent(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration
+                        )
+                    if didCommitResult,
+                       didFinalizeQueue,
+                       stillOwnsPresentation {
+                        sendInferenceCompleteNotificationIfEnabled(
+                            for: mappedData
+                        )
+                    }
 
                     MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
                     MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
                     // --- Step 5: Post-Inference Background Hydration ---
-                    if didCommitResult {
+                    if didCommitResult,
+                       didFinalizeQueue,
+                       stillOwnsPresentation {
                         schedulePostInferenceHydrationIfNeeded(
                             for: mappedData,
                             modelContext: modelContext,
@@ -841,20 +1215,38 @@ private struct GBIFMedia: Decodable {
                 }
             } catch {
                 // --- Step 6: Failure Handling & Error State ---
-                OfflineQueueManager.shared.releaseDeferredLiveUpload(
-                    scanId: resolvedClientScanId,
-                    reason: "live_request_failed_or_cancelled"
-                )
-                OfflineQueueManager.shared.endForegroundInference(
-                    scanId: resolvedClientScanId,
-                    resumeBackground: true,
-                    reason: "live_request_failed_or_cancelled"
-                )
+                let stillOwnsAttempt =
+                    self.isLiveInferenceAttemptCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration
+                    )
+                if stillOwnsAttempt {
+                    OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                        scanId: resolvedClientScanId,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
+                        reason: "live_request_failed_or_cancelled"
+                    )
+                    self.retireForegroundInferenceIfCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
+                        resumeBackground: true,
+                        reason: "live_request_failed_or_cancelled"
+                    )
+                }
                 
                 // Cancellation: the task was cancelled (e.g., user started a new scan via
                 // prepareForNewScan). The scan is already durably in the offline queue, so
                 // the background upload path will complete it — no credit refund needed.
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    return
+                }
+                guard !Task.isCancelled,
+                      stillOwnsAttempt else {
                     return
                 }
 
@@ -863,7 +1255,7 @@ private struct GBIFMedia: Decodable {
                     // No refund: the scan is already durably in the offline queue and will be
                     // retried by the background upload path. Refunding here would give the user
                     // a free extra scan against a quota that was already consumed.
-                    if self.activeScanId == ownedScanId {
+                    if stillOwnsAttempt {
                         HapticManager.shared.triggerErrorThump()
                         self.speciesData = makeErrorSpeciesData(
                             title: "Analysis Failed",
@@ -880,7 +1272,7 @@ private struct GBIFMedia: Decodable {
                 AppTelemetry.trackError("InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
-                if self.activeScanId == ownedScanId {
+                if stillOwnsAttempt {
                     HapticManager.shared.triggerErrorThump()
                     self.speciesData = makeErrorSpeciesData(
                         title: "Network timeout",
@@ -897,6 +1289,7 @@ private struct GBIFMedia: Decodable {
 
     func analyzeNonVisual(
         scanId: String?,
+        foregroundInferenceGeneration: UUID? = nil,
         audioFilePaths: [String]? = nil,
         videoFilePaths: [String]? = nil,
         observationContexts: [ObservationContext] = [],
@@ -907,15 +1300,57 @@ private struct GBIFMedia: Decodable {
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
         let filteredAudioFilePaths = (audioFilePaths ?? []).filter { !$0.isEmpty }
+        let filteredVideoFilePaths = (videoFilePaths ?? []).filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
         let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
             imageCount: 0,
             observationContexts: filteredObservationContexts,
             audioFilePaths: filteredAudioFilePaths,
-            videoFilePaths: videoFilePaths ?? []
+            videoFilePaths: filteredVideoFilePaths
         )
 
-        guard !resolvedMediaTimeline.isEmpty else { return }
+        guard !resolvedMediaTimeline.isEmpty else {
+            if let scanId, let foregroundInferenceGeneration {
+                OfflineQueueManager.shared.retireForegroundInference(
+                    scanId: scanId,
+                    generation: foregroundInferenceGeneration,
+                    resumeBackground: true,
+                    reason: "live_nonvisual_payload_empty"
+                )
+            }
+            return
+        }
+        if let scanId {
+            guard let foregroundInferenceGeneration else {
+                MerianLog.general.debug(
+                    "analyzeNonVisual: rejected missing foreground owner scanId=\(scanId, privacy: .public)"
+                )
+                return
+            }
+            guard !isDuplicateActiveForegroundAttempt(
+                scanId: scanId,
+                generation: foregroundInferenceGeneration
+            ) else {
+                MerianLog.general.debug(
+                    "analyzeNonVisual: ignored duplicate foreground generation scanId=\(scanId, privacy: .public)"
+                )
+                return
+            }
+            guard OfflineQueueManager.shared.claimForegroundInferenceStart(
+                        scanId: scanId,
+                        generation: foregroundInferenceGeneration
+                  ) else {
+                MerianLog.general.debug(
+                    "analyzeNonVisual: rejected stale, used, or retiring foreground owner scanId=\(scanId, privacy: .public)"
+                )
+                return
+            }
+        } else if foregroundInferenceGeneration != nil {
+            MerianLog.general.debug(
+                "analyzeNonVisual: rejected foreground owner without scanId"
+            )
+            return
+        }
 
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -931,7 +1366,12 @@ private struct GBIFMedia: Decodable {
         self.prepareForNewScan()
         self.scanningPhaseText = filteredAudioFilePaths.isEmpty ? "Identifying describe..." : "Listening..."
 
+        let attemptGeneration =
+            foregroundInferenceGeneration ?? UUID()
         self.activeScanId = scanId
+        self.activeLiveInferenceAttemptGeneration = attemptGeneration
+        self.activeForegroundInferenceGeneration =
+            foregroundInferenceGeneration
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation
@@ -941,8 +1381,11 @@ private struct GBIFMedia: Decodable {
         self.activeMedia = ActiveScanMedia(items: mediaItems(from: resolvedMediaTimeline, liveImageDatas: nil, persistedImagePaths: nil))
 
         let ownedScanId = scanId
+        let ownedForegroundInferenceGeneration =
+            foregroundInferenceGeneration
         let resolvedClientScanId = scanId ?? UUID().uuidString.lowercased()
-        let shouldFlushQueuedScan = !filteredAudioFilePaths.isEmpty
+        let shouldFlushQueuedScan =
+            ownedForegroundInferenceGeneration != nil
         if let userPerceivedStart {
             self.pendingFirstRenderMetric = (
                 scanId: resolvedClientScanId,
@@ -955,26 +1398,47 @@ private struct GBIFMedia: Decodable {
             let pipelineStart = CFAbsoluteTimeGetCurrent()
 
             defer {
-                if self.activeScanId == ownedScanId {
+                if self.isLocalLiveInferenceAttemptCurrent(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration
+                ) {
                     self.isProcessing = false
                     self.activeScanId = nil
+                    self.activeLiveInferenceAttemptGeneration = nil
+                    self.activeForegroundInferenceGeneration = nil
+                    self.phaseRotationTask?.cancel()
                 }
-                self.phaseRotationTask?.cancel()
             }
 
             do {
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
                 if CircuitBreakerManager.shared.isCircuitTripped {
                     throw URLError(.notConnectedToInternet)
                 }
 
-                try Task.checkCancellation()
-
                 let observationContextsJSON = observationContextJSONStrings(from: filteredObservationContexts)
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
                 let resultData = try await MerianNetworkClient.shared.identifyMultiModal(
                     audioFilePaths: filteredAudioFilePaths,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: scanId
+                )
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
                 )
                 let responseReceivedAt = CFAbsoluteTimeGetCurrent()
                 let postFlightStart = CFAbsoluteTimeGetCurrent()
@@ -988,9 +1452,34 @@ private struct GBIFMedia: Decodable {
                     skipImageRequirement: true,
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: filteredAudioFilePaths.isEmpty ? nil : filteredAudioFilePaths,
-                    videoFilePaths: videoFilePaths,
-                    mediaTimeline: resolvedMediaTimeline
+                    videoFilePaths: filteredVideoFilePaths.isEmpty ? nil : filteredVideoFilePaths,
+                    mediaTimeline: resolvedMediaTimeline,
+                    persistenceFence: ownedScanId.flatMap { scanId in
+                        ownedForegroundInferenceGeneration.map { generation in
+                            LiveInferencePersistenceFence(
+                                scanId: scanId,
+                                generation: generation
+                            )
+                        }
+                    }
                 )
+                try self.checkLiveInferenceAttempt(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                )
+                guard parseResult.didCompletePersistence else {
+                    self.retireForegroundInferenceIfCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
+                        resumeBackground: true,
+                        reason: "live_nonvisual_persistence_rejected"
+                    )
+                    return
+                }
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
 
@@ -1011,6 +1500,9 @@ private struct GBIFMedia: Decodable {
 
                     let didCommitResult = self.commitSuccessfulResult(
                         for: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
                         speciesData: mappedData
                     )
                     let stateCommittedAt = CFAbsoluteTimeGetCurrent()
@@ -1023,7 +1515,27 @@ private struct GBIFMedia: Decodable {
                     MerianLog.general.debug(
                         "[⏱ BENCH] Total pipeline: \(String(format: "%.3f", stateCommittedAt - pipelineStart), privacy: .public)s"
                     )
-                    if didCommitResult {
+                    var didFinalizeQueue = true
+                    if didCommitResult, shouldFlushQueuedScan {
+                        didFinalizeQueue =
+                            await self.completeQueuedLiveInferenceIfNeeded(
+                                scanId: ownedScanId,
+                                attemptGeneration: attemptGeneration,
+                                foregroundInferenceGeneration:
+                                    ownedForegroundInferenceGeneration,
+                                mediaPathsToKeep:
+                                    (mappedData.audioFilePaths ?? []) +
+                                    (mappedData.videoFilePaths ?? [])
+                            )
+                    }
+                    let stillOwnsPresentation =
+                        self.isLocalLiveInferenceAttemptCurrent(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration
+                        )
+                    if didCommitResult,
+                       didFinalizeQueue,
+                       stillOwnsPresentation {
                         Task { [mappedData] in
                             guard let scanId = mappedData.scanId else { return }
                             await ScanMilestoneCoordinator.shared.processCompletedScan(
@@ -1032,16 +1544,9 @@ private struct GBIFMedia: Decodable {
                                 modelContainer: modelContext?.container
                             )
                         }
-                    }
-
-                    if shouldFlushQueuedScan {
-                        completeQueuedLiveInferenceIfNeeded(
-                            scanId: ownedScanId,
-                            mediaPathsToKeep: (mappedData.audioFilePaths ?? []) + (mappedData.videoFilePaths ?? [])
+                        self.sendInferenceCompleteNotificationIfEnabled(
+                            for: mappedData
                         )
-                    }
-                    sendInferenceCompleteNotificationIfEnabled(for: mappedData)
-                    if didCommitResult {
                         schedulePostInferenceHydrationIfNeeded(
                             for: mappedData,
                             modelContext: modelContext,
@@ -1050,12 +1555,36 @@ private struct GBIFMedia: Decodable {
                     }
                 }
             } catch {
-                if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
+                let stillOwnsAttempt =
+                    self.isLiveInferenceAttemptCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration
+                    )
+                if stillOwnsAttempt {
+                    self.retireForegroundInferenceIfCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration,
+                        resumeBackground: true,
+                        reason: "live_nonvisual_failed"
+                    )
+                }
+                if error is CancellationError ||
+                    (error as? URLError)?.code == .cancelled {
+                    return
+                }
+                guard !Task.isCancelled,
+                      stillOwnsAttempt else {
+                    return
+                }
 
                 AppTelemetry.trackError(filteredAudioFilePaths.isEmpty ? "DescribeInferenceFailure" : "InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
-                if self.activeScanId == ownedScanId {
+                if stillOwnsAttempt {
                     HapticManager.shared.triggerErrorThump()
                     self.speciesData = makeErrorSpeciesData(
                         title: "Network timeout",
@@ -1864,12 +2393,17 @@ private struct GBIFMedia: Decodable {
     /// resets to `isProcessing = false, speciesData = nil` — appropriate when the user
     /// dismisses the insight sheet with no new scan queued.
     func cancelActiveRequest(isUserInitiated: Bool = false) {
-        // NOTE: activeScanId is intentionally NOT cleared here.
-        // processInferenceDownloadResult reads activeScanId to detect the background-wins race
-        // (background URLSession completing while the live task is suspended). Clearing it here
-        // would break that detection. activeScanId is owned exclusively by:
-        //   - The inferenceTask's defer block (clears after task exits)
-        //   - prepareForNewScan() (clears synchronously before the next scan starts)
+        invalidateActiveLiveInferenceAttempt(
+            resumeBackground: true,
+            reason: isUserInitiated
+                ? "live_scan_cancelled_by_user"
+                : "live_scan_cancelled"
+        )
+        // The helper invalidates the UUID and paired scan identity atomically,
+        // so the cancelled task's defer no longer owns this slot.
+        // Background-wins hydration still works for a suspended live task;
+        // an explicitly cancelled presentation is intentionally no longer a
+        // hydration target.
         self.isProcessing = false
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -1973,9 +2507,25 @@ private struct GBIFMedia: Decodable {
     /// tracked `historicHydrationTask` so that navigating to a different scan immediately
     /// cancels the previous scan's outstanding work.
     func load(from record: LocalScanRecord) {
+        // Loading a persisted record replaces the live presentation just as
+        // starting another capture does. Relinquish the exact foreground owner
+        // before changing activeScanId, otherwise the old task can no longer
+        // identify itself to release durable recovery suppression.
+        invalidateActiveLiveInferenceAttempt(
+            resumeBackground: true,
+            reason: "persisted_scan_loaded"
+        )
+        inferenceTask?.cancel()
+        liveHydrationTask?.cancel()
         self.isProcessing = true
         historicHydrationTask?.cancel()
         gbifHydrationTask?.cancel()
+        enrichmentWriteTask?.cancel()
+        enrichmentWriteTask = nil
+        localClassificationTask?.cancel()
+        phaseRotationTask?.cancel()
+        resetTrackedBackgroundWrites()
+        pendingFirstRenderMetric = nil
 
         self.activeScanId = record.id
         self.activeMedia = ActiveScanMedia()
@@ -2197,8 +2747,21 @@ private struct GBIFMedia: Decodable {
         HapticManager.shared.triggerLightImpact(intensity: 0.3)
 
         let ownedScanId = activeScanId
+        guard let ownedAttemptGeneration =
+            activeLiveInferenceAttemptGeneration else {
+            return
+        }
+        let ownedForegroundInferenceGeneration =
+            activeForegroundInferenceGeneration
+        let ownership = (
+            scanId: ownedScanId,
+            attemptGeneration: ownedAttemptGeneration,
+            foregroundGeneration: ownedForegroundInferenceGeneration
+        )
         localClassificationTask?.cancel()
-        localClassificationTask = Task(priority: .userInitiated) { [weak self, ownedScanId] in
+        localClassificationTask = Task(
+            priority: .userInitiated
+        ) { [weak self, ownership] in
             guard let self else { return }
 
             let specificPhrases = await Task.detached(priority: .userInitiated) {
@@ -2213,7 +2776,14 @@ private struct GBIFMedia: Decodable {
             }.value
 
             guard !Task.isCancelled else { return }
-            guard self.activeScanId == ownedScanId else { return }
+            guard self.isLiveInferenceAttemptCurrent(
+                scanId: ownership.scanId,
+                attemptGeneration: ownership.attemptGeneration,
+                foregroundInferenceGeneration:
+                    ownership.foregroundGeneration
+            ) else {
+                return
+            }
 
             self.startPhaseRotation(phrases: specificPhrases, startIndex: 0)
         }
@@ -2221,7 +2791,17 @@ private struct GBIFMedia: Decodable {
 
     private func startPhaseRotation(phrases: [String], startIndex: Int = 0) {
         phaseRotationTask?.cancel()
-        phaseRotationTask = Task { @MainActor [weak self] in
+        let ownedScanId = activeScanId
+        let ownedAttemptGeneration =
+            activeLiveInferenceAttemptGeneration
+        let ownedForegroundInferenceGeneration =
+            activeForegroundInferenceGeneration
+        let ownership = (
+            scanId: ownedScanId,
+            attemptGeneration: ownedAttemptGeneration,
+            foregroundGeneration: ownedForegroundInferenceGeneration
+        )
+        phaseRotationTask = Task { @MainActor [weak self, ownership] in
             guard !phrases.isEmpty else { return }
             var index = startIndex % phrases.count
             
@@ -2232,6 +2812,16 @@ private struct GBIFMedia: Decodable {
                 try? await Task.sleep(nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs)
                 guard !Task.isCancelled else { break }
                 guard let self else { return }
+                if let ownedAttemptGeneration =
+                    ownership.attemptGeneration,
+                   !self.isLiveInferenceAttemptCurrent(
+                       scanId: ownership.scanId,
+                       attemptGeneration: ownedAttemptGeneration,
+                       foregroundInferenceGeneration:
+                           ownership.foregroundGeneration
+                   ) {
+                    break
+                }
                 self.scanningPhaseText = phrases[index]
                 index = (index + 1) % phrases.count
             }

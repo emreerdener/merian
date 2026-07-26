@@ -118,10 +118,27 @@ import SwiftData
     /// two copies of the same media competing for the device uplink.
     @ObservationIgnored var deferredLiveUploadScanIds: Set<String> = []
 
-    /// Eligible live-camera scans whose foreground identification request is
-    /// active. Their recovery media may upload after the inline body is sent,
-    /// but background inference must wait so Gemini is not called twice.
-    @ObservationIgnored var foregroundInferenceScanIds: Set<String> = []
+    /// Foreground identification generation currently owning each queued scan.
+    ///
+    /// Recovery media may upload after the inline body is sent, but background
+    /// inference must wait for this exact owner to finish. A dictionary rather
+    /// than a set prevents a delayed completion from releasing a replacement
+    /// foreground attempt for the same scan.
+    @ObservationIgnored var foregroundInferenceGenerations: [String: UUID] = [:]
+
+    var foregroundInferenceScanIds: Set<String> {
+        Set(foregroundInferenceGenerations.keys)
+    }
+
+    /// Foreground generations that have atomically entered a provider pipeline.
+    /// A generation is single-use even if a second engine instance attempts to
+    /// submit the same queued work.
+    @ObservationIgnored var startedForegroundInferenceGenerations: [String: UUID] = [:]
+
+    /// Retrying durable handoffs for terminal foreground generations. Registry
+    /// tokens ensure a delayed task cannot clear or act on a replacement.
+    @ObservationIgnored let foregroundInferenceRetirementTasks =
+        GenerationTaskRegistry<String>()
 
     /// Delayed status probes for inference tasks. Registry tokens prevent a
     /// cooperatively-cancelled probe from clearing or acting on its replacement.

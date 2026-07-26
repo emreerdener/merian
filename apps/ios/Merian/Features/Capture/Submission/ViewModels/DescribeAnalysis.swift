@@ -95,11 +95,12 @@ extension CaptureWorkspaceViewModel {
     /// Routes a solo description through the shared non-visual pipeline.
     ///
     /// Call order (online):
-    /// 1. Reset `InferenceEngine` display state and open the insight sheet.
-    /// 2. Snapshot the `ObservationContext` (value type — no race risk).
-    /// 3. Generate a stable `scanId`.
-    /// 4. Resolve full telemetry from the environment context manager.
-    /// 5. Fire `InferenceEngine.analyzeNonVisual`.
+    /// 1. Snapshot the `ObservationContext` (value type — no race risk).
+    /// 2. Generate a stable `scanId` and durable foreground generation.
+    /// 3. Resolve full telemetry from the environment context manager.
+    /// 4. Queue the zero-byte staged job before opening the insight sheet.
+    /// 5. Atomically claim the generation and fire
+    ///    `InferenceEngine.analyzeNonVisual`.
     ///
     /// Call order (offline):
     /// 1. Reset `InferenceEngine` state (ensures a clean slate for the next online attempt).

@@ -348,8 +348,10 @@ triggering excessive SwiftUI view rebuilds.
   `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, `locationName`)
   into the parsed `SpeciesData` model, abstracting this detail from the Edge
   runtime and making it consistent across live and offline inference paths.
-- On network failure, routes the payload to `OfflineQueueManager` and triggers
-  the Graceful Degradation UI state.
+- The payload is already durable in `OfflineQueueManager` before provider
+  dispatch. On network failure, the engine retires only its exact foreground
+  generation so background recovery can resume; it publishes Graceful
+  Degradation UI only if that full generation is still current.
 - **First-result critical path**: visual analysis receives the original
   Analyze-tap timestamp, commits persisted media and parsed `speciesData`
   immediately, and measures the response-to-state boundary. A one-shot UIKit
@@ -366,8 +368,10 @@ triggering excessive SwiftUI view rebuilds.
 - **Inline/background upload handoff**: `analyze()` installs a two-second
   fail-safe, then asks `MerianNetworkClient` to release the live scan's deferred
   queue row when request-body upload completes. Network failure releases the row
-  immediately. The callback is idempotent, so progress, response fallback,
-  failure, and timer races cannot dispatch duplicate queue ownership.
+  immediately. Every callback carries the expected foreground generation, so a
+  delayed callback is an idempotent no-op after replacement. Progress, response
+  fallback, failure, and timer races cannot release another attempt's queue
+  ownership.
   A separate foreground-inference claim lets recovery media stage without
   allowing staged replay to dispatch a duplicate primary identification.
 - **Post-inference carousel handoff**: On a successful result, the saved user
@@ -379,8 +383,8 @@ triggering excessive SwiftUI view rebuilds.
 - **Shared live-success finalization**: `analyze()` and `analyzeNonVisual()`
   share private finalization helpers for new-discovery marking, achievement
   notification refresh, reanalysis metadata transfer (`customTags`, collections,
-  field notes), queued-scan flush/delete handoff, completion notification
-  delivery, and reference URL normalization. The helpers stay inside
+  field notes), exact-generation queued-scan flush/delete handoff, completion
+  notification delivery, and reference URL normalization. The helpers stay inside
   `InferenceEngine` so they preserve `@MainActor` state ordering and the
   `AppDIContainer` singleton boundaries while removing duplicated success-path
   logic.
@@ -411,14 +415,15 @@ triggering excessive SwiftUI view rebuilds.
   `AppSettings.suppressInferenceBanners`. This ensures notifications fire when
   the user is in the library grid, but are silently delivered when the user is
   already on the insight sheet viewing results.
-- **`activeScanId` lifecycle**: `activeScanId` is set at `analyze()` start to
-  the caller-supplied scan ID, and is cleared in the inference task's `defer`
-  block alongside `isProcessing = false`. Clearing it on pipeline exit (success,
-  failure, or cancellation) ensures the background offline path cannot hydrate a
-  stale engine after the live pipeline has exited. For the success path this is
-  a no-op (the background path skips when `speciesData.scanId != nil`). For the
-  failure path it bounds the hydration window to the interval when
-  `isProcessing == true`.
+- **Live presentation lifecycle**: `activeScanId` identifies the durable scan,
+  while `activeLiveInferenceAttemptGeneration` identifies the current
+  presentation and `activeForegroundInferenceGeneration` identifies its durable
+  queue owner. Task defer, provider dispatch, persistence, result/error
+  publication, and background hydration compare the appropriate full tuple.
+  Defer clears `isProcessing` and the active fields only when its presentation
+  UUID still owns the slot. Background recovery may replace only the exact
+  released presentation/foreground pair and invalidates that slot before
+  cooperatively cancelling the live task.
 - **Dedicated external API session (`externalAPISession`)**: Wikipedia and GBIF
   hydration calls use a `private static let externalAPISession` with its own
   `URLSessionConfiguration` (`timeoutIntervalForRequest = 5`,
@@ -456,11 +461,12 @@ triggering excessive SwiftUI view rebuilds.
 - **Durable live-scan suppression**: `enqueueCapture(...,
   startSyncImmediately: false)` persists eligible online live-camera still scans without immediately
   consuming the uplink twice. `syncPendingScans()` filters the process-local
-  deferred-ID set until `releaseDeferredLiveUpload(scanId:)` is called by inline
-  request progress, its two-second fail-safe, request failure, connectivity
-  loss, or app backgrounding. Relaunch starts with an empty set, so durable rows
-  are never stranded after termination; live success still cancels tasks and
-  removes the queue row through the existing cleanup path.
+  deferred-ID set until `releaseDeferredLiveUpload` is called with the matching
+  foreground inference generation by inline request progress, its two-second
+  fail-safe, request failure, connectivity loss, or app backgrounding. A stale
+  release cannot affect a replacement generation. Relaunch starts with an empty
+  set, so durable rows are never stranded after termination; live success still
+  cancels tasks and removes the queue row through exact-generation cleanup.
   Gallery, audio-bearing, and video submissions continue using immediate
   background sync.
 - **Deferred environment context**: `updateDeferredContext` merges late
@@ -519,6 +525,14 @@ triggering excessive SwiftUI view rebuilds.
   descriptions are `upload|scanId|uploadIndex|generation` and
   `inference_v2|generation|scanId`; parsers retain legacy compatibility for
   tasks created by older app builds.
+  Queue-backed foreground inference additionally persists its UUID on the
+  scan-ingestion job and atomically consumes it before provider dispatch.
+  `InferenceEngine` checks the scan, presentation UUID, and foreground UUID at
+  task entry, after suspension, immediately before provider dispatch, and
+  before each result or failure effect. A current failure handler snapshots
+  that proof before synchronous retirement; a stale handler cannot emit
+  telemetry, update the circuit breaker, trigger a haptic, or replace the UI
+  with an error.
 - **Orphaned `.uploading` Reconciliation**: `markScansAsUploading` runs before
   `generateUploadURLs`, returns the scan IDs whose `.pending → .uploading`
   transition actually committed, and `syncPendingScans` signs/dispatches only

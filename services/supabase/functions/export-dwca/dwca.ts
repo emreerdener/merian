@@ -155,10 +155,12 @@ export async function generateOccurrenceRow(
 
   // Join ecological interactions with " | " separator; commas within each entry become
   // semicolons so the joined string doesn't need further escaping beyond csvField's quoting.
-  const associatedTaxa = scan.ecological_interactions?.length
-    ? scan.ecological_interactions.map((s: string) => s.replace(/,/g, ";"))
-      .join(" | ")
-    : "";
+  let associatedTaxa = "";
+  for (const interaction of scan.ecological_interactions ?? []) {
+    associatedTaxa += `${associatedTaxa.length > 0 ? " | " : ""}${
+      interaction.replace(/,/g, ";")
+    }`;
+  }
 
   const verificationStatus = scan.ai_confidence_score != null
     ? scan.ai_confidence_score.toFixed(2)
@@ -190,8 +192,13 @@ export async function generateOccurrenceRow(
 }
 
 export function generateMultimediaRows(scan: DBScanRow): string[] {
-  const urls = scan.image_storage_urls || [];
-  return urls.map((url: string) =>
-    [csvField(scan.id), csvField(url), csvField("image/webp")].join(",")
-  );
+  return Array.from(iterateMultimediaRows(scan));
+}
+
+export function* iterateMultimediaRows(
+  scan: DBScanRow,
+): Generator<string, void, void> {
+  for (const url of scan.image_storage_urls ?? []) {
+    yield [csvField(scan.id), csvField(url), csvField("image/webp")].join(",");
+  }
 }

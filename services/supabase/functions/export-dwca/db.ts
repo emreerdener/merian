@@ -1,20 +1,27 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
+  EXPORT_PAGE_SIZE,
+  MAXIMUM_DWCA_IMAGE_URL_BYTES,
+  MAXIMUM_DWCA_IMAGE_URLS,
+  MAXIMUM_DWCA_INTERACTION_BYTES,
+  MAXIMUM_DWCA_INTERACTIONS,
+  MAXIMUM_DWCA_IUCN_STATUS_BYTES,
+  MAXIMUM_DWCA_SCIENTIFIC_NAME_BYTES,
+  MAXIMUM_DWCA_TAXON_RANK_BYTES,
+  MAXIMUM_EXPORT_SOURCE_PAGE_BYTES,
+} from "./limits.ts";
+import {
   ClaimedExportJob,
   DBScanRow,
   ExportChunkManifestEntry,
-  ExportScope,
+  ExportScanBatch,
   ExportWorkerError,
   ExportWorkPhase,
 } from "./types.ts";
 
-export const EXPORT_PAGE_SIZE = 100;
+export { EXPORT_PAGE_SIZE } from "./limits.ts";
 
 type ExportProjection = "multimedia" | "occurrence";
-type PageFetcher<T extends { id: string }> = (
-  afterId: string | null,
-  limit: number,
-) => Promise<T[]>;
 
 interface ClaimRpcRow {
   job_id: unknown;
@@ -36,6 +43,14 @@ interface ClaimRpcRow {
   multimedia_rows: unknown;
   csv_bytes: unknown;
   chunk_sequence: unknown;
+}
+
+interface ExportScanRpcRow {
+  scan_id: unknown;
+  scan_payload: unknown;
+  source_byte_count: unknown;
+  page_complete: unknown;
+  source_row_oversize: unknown;
 }
 
 function databaseFailure(message: string, cause: unknown): ExportWorkerError {
@@ -426,145 +441,281 @@ export async function fetchUserEmail(
   return user.email;
 }
 
-/**
- * Reusable strict keyset iterator. Each page begins after the last id from the
- * prior page; malformed or non-monotonic provider results fail closed.
- */
-export async function* keysetPages<T extends { id: string }>(
-  fetchPage: PageFetcher<T>,
-  pageSize = EXPORT_PAGE_SIZE,
-): AsyncGenerator<T[]> {
-  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) {
-    throw new TypeError("pageSize must be an integer between 1 and 1000.");
+function containsControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if (codePoint <= 0x1f || codePoint === 0x7f) return true;
   }
-
-  let afterId: string | null = null;
-  while (true) {
-    const page = await fetchPage(afterId, pageSize);
-    if (!Array.isArray(page) || page.length > pageSize) {
-      throw databaseFailure("The export query returned an invalid page.", page);
-    }
-    if (page.length === 0) return;
-
-    let previousId = afterId;
-    for (const row of page) {
-      if (
-        typeof row.id !== "string" ||
-        row.id.length === 0 ||
-        (previousId !== null && row.id <= previousId)
-      ) {
-        throw databaseFailure(
-          "The export query returned a non-monotonic keyset page.",
-          page,
-        );
-      }
-      previousId = row.id;
-    }
-
-    yield page;
-    afterId = page[page.length - 1].id;
-    if (page.length < pageSize) return;
-  }
+  return false;
 }
 
-function scanSelection(projection: ExportProjection): string {
+function utf8LengthExceeds(value: string, maximumBytes: number): boolean {
+  let byteLength = 0;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    byteLength += codePoint <= 0x7f
+      ? 1
+      : codePoint <= 0x7ff
+      ? 2
+      : codePoint <= 0xffff
+      ? 3
+      : 4;
+    if (byteLength > maximumBytes) return true;
+  }
+  return false;
+}
+
+function assertBoundedString(
+  value: unknown,
+  maximumBytes: number,
+  context: string,
+  nullable = false,
+): void {
+  if (
+    (nullable && value === null) ||
+    (
+      typeof value === "string" &&
+      !utf8LengthExceeds(value, maximumBytes)
+    )
+  ) {
+    return;
+  }
+  throw databaseFailure(`${context} exceeded its byte bound.`, value);
+}
+
+function parseBoundedStringArray(
+  value: unknown,
+  maximumElements: number,
+  maximumElementBytes: number,
+  context: string,
+): string[] {
+  if (!Array.isArray(value) || value.length > maximumElements) {
+    throw databaseFailure(`${context} exceeded its cardinality bound.`, value);
+  }
+  for (const element of value) {
+    if (
+      typeof element !== "string" ||
+      utf8LengthExceeds(element, maximumElementBytes) ||
+      containsControlCharacter(element)
+    ) {
+      throw databaseFailure(`${context} contained an invalid element.`, value);
+    }
+  }
+  return value;
+}
+
+function parseExportScanPayload(
+  value: unknown,
+  expectedId: string,
+  projection: ExportProjection,
+): DBScanRow {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw databaseFailure("The export scan payload was not an object.", value);
+  }
+  const payload = value as Record<string, unknown>;
+  if (
+    payload.id !== expectedId ||
+    (payload.user_id !== null && typeof payload.user_id !== "string")
+  ) {
+    throw databaseFailure(
+      "The export scan payload had invalid identity.",
+      value,
+    );
+  }
+
   if (projection === "multimedia") {
-    return `
-      id,
-      user_id,
-      image_storage_urls
-    `;
-  }
-  return `
-    id,
-    user_id,
-    timestamp,
-    gps_lat_exact,
-    gps_long_exact,
-    gps_lat_public,
-    gps_long_public,
-    coordinate_uncertainty_in_meters,
-    life_stage,
-    reproductive_condition,
-    sex,
-    individual_count,
-    ecological_interactions,
-    ai_confidence_score,
-    species_dictionary!species_id (
-      scientific_name,
-      kingdom,
-      phylum,
-      class,
-      "order",
-      family,
-      genus,
-      iucn_red_list_status
-    )
-  `;
-}
-
-async function fetchExportScanPage(
-  userId: string,
-  exportScope: ExportScope,
-  projection: ExportProjection,
-  afterId: string | null,
-  limit: number,
-  supabaseAdmin: SupabaseClient,
-): Promise<DBScanRow[]> {
-  let query = supabaseAdmin
-    .from("scans")
-    .select(scanSelection(projection))
-    .eq("is_live_capture", true)
-    .eq("is_tombstoned", false)
-    .neq("ecology_type", "domesticated")
-    .order("id", { ascending: true })
-    .limit(limit);
-
-  if (exportScope === "global") {
-    query = query.eq("geoprivacy", "open");
+    payload.image_storage_urls = parseBoundedStringArray(
+      payload.image_storage_urls,
+      MAXIMUM_DWCA_IMAGE_URLS,
+      MAXIMUM_DWCA_IMAGE_URL_BYTES,
+      "The export media array",
+    );
   } else {
-    query = query.eq("user_id", userId);
-  }
-  if (afterId !== null) {
-    query = query.gt("id", afterId);
+    payload.ecological_interactions = parseBoundedStringArray(
+      payload.ecological_interactions,
+      MAXIMUM_DWCA_INTERACTIONS,
+      MAXIMUM_DWCA_INTERACTION_BYTES,
+      "The export interaction array",
+    );
+    if (payload.species_dictionary === null) {
+      return payload as unknown as DBScanRow;
+    }
+    if (
+      !payload.species_dictionary ||
+      typeof payload.species_dictionary !== "object" ||
+      Array.isArray(payload.species_dictionary)
+    ) {
+      throw databaseFailure(
+        "The export taxonomy payload was invalid.",
+        payload.species_dictionary,
+      );
+    }
+    const taxonomy = payload.species_dictionary as Record<string, unknown>;
+    assertBoundedString(
+      taxonomy.scientific_name,
+      MAXIMUM_DWCA_SCIENTIFIC_NAME_BYTES,
+      "The export scientific name",
+    );
+    for (
+      const rank of [
+        "kingdom",
+        "phylum",
+        "class",
+        "order",
+        "family",
+        "genus",
+      ]
+    ) {
+      assertBoundedString(
+        taxonomy[rank],
+        MAXIMUM_DWCA_TAXON_RANK_BYTES,
+        `The export ${rank} field`,
+      );
+    }
+    assertBoundedString(
+      taxonomy.iucn_red_list_status,
+      MAXIMUM_DWCA_IUCN_STATUS_BYTES,
+      "The export IUCN status",
+      true,
+    );
   }
 
-  const { data, error } = await query;
-  if (error) {
-    throw databaseFailure("Failed to fetch an export scan page.", error);
-  }
-  return (data ?? []) as unknown as DBScanRow[];
+  return payload as unknown as DBScanRow;
 }
 
-export function fetchExportScanBatch(
+function parseExportScanBatch(
+  value: unknown,
+  projection: ExportProjection,
+): ExportScanBatch {
+  if (!Array.isArray(value) || value.length < 1) {
+    throw databaseFailure("The export scan RPC returned invalid state.", value);
+  }
+  if (
+    value.some((row) => !row || typeof row !== "object" || Array.isArray(row))
+  ) {
+    throw databaseFailure(
+      "The export scan RPC returned a non-object row.",
+      value,
+    );
+  }
+  const rpcRows = value as ExportScanRpcRow[];
+  const sentinel = rpcRows.find((row) => row.scan_payload === null);
+  if (sentinel) {
+    if (
+      rpcRows.length !== 1 ||
+      sentinel.scan_id !== null ||
+      typeof sentinel.page_complete !== "boolean" ||
+      typeof sentinel.source_row_oversize !== "boolean" ||
+      typeof sentinel.source_byte_count !== "number" ||
+      !Number.isSafeInteger(sentinel.source_byte_count) ||
+      sentinel.source_byte_count < 0
+    ) {
+      throw databaseFailure(
+        "The export scan RPC returned an invalid sentinel.",
+        value,
+      );
+    }
+    if (
+      sentinel.source_row_oversize &&
+      !sentinel.page_complete &&
+      sentinel.source_byte_count > MAXIMUM_EXPORT_SOURCE_PAGE_BYTES
+    ) {
+      throw new ExportWorkerError(
+        "export_too_large",
+        "An export source row exceeded its canonical byte bound.",
+      );
+    }
+    if (
+      !sentinel.source_row_oversize &&
+      sentinel.page_complete &&
+      sentinel.source_byte_count === 0
+    ) {
+      return { scans: [], sourceByteCount: 0, pageComplete: true };
+    }
+    throw databaseFailure(
+      "The export scan RPC returned an inconsistent sentinel.",
+      value,
+    );
+  }
+
+  if (rpcRows.length > EXPORT_PAGE_SIZE) {
+    throw databaseFailure("The export scan RPC exceeded its row bound.", value);
+  }
+
+  const scans: DBScanRow[] = [];
+  let sourceByteCount = 0;
+  let pageComplete: boolean | null = null;
+  for (const rpcRow of rpcRows) {
+    if (
+      typeof rpcRow.scan_id !== "string" ||
+      typeof rpcRow.source_byte_count !== "number" ||
+      !Number.isSafeInteger(rpcRow.source_byte_count) ||
+      rpcRow.source_byte_count < 1 ||
+      rpcRow.source_byte_count > MAXIMUM_EXPORT_SOURCE_PAGE_BYTES ||
+      typeof rpcRow.page_complete !== "boolean" ||
+      rpcRow.source_row_oversize !== false
+    ) {
+      throw databaseFailure(
+        "The export scan RPC returned a malformed row.",
+        rpcRow,
+      );
+    }
+    if (pageComplete !== null && rpcRow.page_complete !== pageComplete) {
+      throw databaseFailure(
+        "The export scan RPC returned inconsistent completion state.",
+        value,
+      );
+    }
+    pageComplete = rpcRow.page_complete;
+    sourceByteCount += rpcRow.source_byte_count;
+    if (sourceByteCount > MAXIMUM_EXPORT_SOURCE_PAGE_BYTES) {
+      throw databaseFailure(
+        "The export scan RPC exceeded its byte bound.",
+        value,
+      );
+    }
+    scans.push(
+      parseExportScanPayload(
+        rpcRow.scan_payload,
+        rpcRow.scan_id,
+        projection,
+      ),
+    );
+  }
+
+  return {
+    scans,
+    sourceByteCount,
+    pageComplete: pageComplete ?? false,
+  };
+}
+
+export async function fetchExportScanBatch(
   job: ClaimedExportJob,
+  claimToken: string,
   projection: ExportProjection,
   afterId: string | null,
   supabaseAdmin: SupabaseClient,
-): Promise<DBScanRow[]> {
-  return fetchExportScanPage(
-    job.userId,
-    job.exportScope,
-    projection,
-    afterId,
-    EXPORT_PAGE_SIZE,
-    supabaseAdmin,
+): Promise<ExportScanBatch> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_dwca_export_scan_batch",
+    {
+      p_job_id: job.id,
+      p_claim_token: claimToken,
+      p_expected_phase: projection,
+      p_after_id: afterId,
+      p_max_rows: EXPORT_PAGE_SIZE,
+      p_max_source_bytes: MAXIMUM_EXPORT_SOURCE_PAGE_BYTES,
+    },
   );
-}
-
-export function fetchExportScanPages(
-  job: ClaimedExportJob,
-  projection: ExportProjection,
-  supabaseAdmin: SupabaseClient,
-): AsyncGenerator<DBScanRow[]> {
-  return keysetPages((afterId, limit) =>
-    fetchExportScanPage(
-      job.userId,
-      job.exportScope,
-      projection,
-      afterId,
-      limit,
-      supabaseAdmin,
-    )
-  );
+  if (error) {
+    if (error.code === "54000") {
+      throw new ExportWorkerError(
+        "export_too_large",
+        "An export source row exceeded its canonical byte bound.",
+      );
+    }
+    throw databaseFailure("Failed to fetch a bounded export scan page.", error);
+  }
+  return parseExportScanBatch(data, projection);
 }

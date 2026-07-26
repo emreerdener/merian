@@ -365,9 +365,11 @@ Data lifecycle, identity, and exports:
 - `request-export-dwca` — permanent-account boundary for personal exports;
   global exports are internal-only.
 - `export-dwca` — service-authenticated resumable worker; `db.ts` owns
-  canonical phase claims, 100-row keyset access, durable cursors/manifests, and
-  row/byte budgets; `archive.ts` and `zip.ts` own bounded streaming;
-  `storage.ts` owns claim-fenced CSV chunks and R2 multipart upload;
+  canonical phase claims, source-shape validation, claim-bound 100-row/256 KiB
+  keyset access, durable cursors/manifests, and row/byte budgets; `archive.ts`
+  owns fixed-capacity incremental CSV encoding while `zip.ts` owns bounded
+  archive streaming; `storage.ts` owns claim-fenced CSV chunks and R2 multipart
+  upload;
   `pseudonym.ts` owns versioned export HMACs; and `worker.ts` performs one
   preparation, assembly, or delivery phase per invocation.
 - `revenuecat-webhook` — verifies the configured bearer credential and

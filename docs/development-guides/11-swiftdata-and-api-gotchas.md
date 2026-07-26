@@ -335,16 +335,28 @@ The previous architecture attempted to rescue in-flight live inference captures 
 
 ### ✅ The Pattern: Enqueue Immediately at Submission
 
-Call `enqueueCapture()` synchronously **before any async work begins** in `submitActiveScan`. Use the already-cached GPS (`EnvironmentContextManager.cachedLocation` — live location tracking runs while the camera is active). Pass a caller-generated `scanId` to tie the queued record to the concurrent live inference.
+Call `enqueueCapture()` synchronously **before any async work begins** in
+`submitActiveScan`. Use the already-cached GPS
+(`EnvironmentContextManager.lastKnownLocation` — live location tracking runs
+while the camera is active). Generate both a stable `scanId` and, when a live
+request is eligible, a foreground inference UUID. The queue transaction must
+persist that UUID on the scan-ingestion job, and the concurrent live inference
+must receive the same value.
 
 ```swift
 // In submitActiveScan — BEFORE the Task {} block:
 let scanId = UUID().uuidString.lowercased()
+let foregroundGeneration =
+    offlineQueueManager.isOnline ? UUID() : nil
 diContainer.offlineQueueManager.enqueueCapture(
     imageDatas: datasToAnalyze,
-    telemetry: immediateTelemetry,   // GPS from cachedLocation, weather nil (backfilled by runInferencePipeline)
+    telemetry: immediateTelemetry,
     blurScore: nil,
-    scanId: scanId
+    scanId: scanId,
+    foregroundInferenceGeneration: foregroundGeneration,
+    onQueued: { didQueue in
+        // Start live inference only after didQueue == true, passing both values.
+    }
 )
 ```
 
@@ -384,8 +396,9 @@ Offline queued-only visual and non-visual submissions must not call `InferenceEn
 
 ### ✅ The Pattern: Prepare Only After Online Confirmation
 
-1. Snapshot and enqueue durable media.
-2. Check `OfflineQueueManager.isOnline`.
+1. Snapshot media, create any eligible foreground generation, and enqueue both
+   durable work and that owner.
+2. Wait for queue acceptance and recheck `OfflineQueueManager.isOnline`.
 3. If offline, clear `pendingAnalyzeScanId`, show a toast, and return.
 4. If online, call `prepareForNewScan()`, open the insight sheet, and start live inference.
 
@@ -393,7 +406,11 @@ Offline queued-only visual and non-visual submissions must not call `InferenceEn
 // In the Task — fire live inference concurrently:
 await MainActor.run {
     guard self.diContainer.inferenceEngine.isProcessing else { return }
-    self.diContainer.inferenceEngine.analyze(scanId: scanId, ...)
+    self.diContainer.inferenceEngine.analyze(
+        scanId: scanId,
+        foregroundInferenceGeneration: foregroundGeneration,
+        ...
+    )
 }
 ```
 
@@ -434,13 +451,22 @@ Raw `Task.detached` calls scattered through feature code make it hard to audit w
 - If a true detached bridge is still required, route it through `DetachedWork` and keep inputs `Sendable`.
 - Add lint rules around feature-layer files so new raw `Task.detached` call sites do not creep back in unnoticed.
 
-**On live inference success**: `analyze()` calls `OfflineQueueManager.shared.deleteQueuedScan(scanId:)`, which cancels any in-flight URLSession tasks and removes the SwiftData record. If the upload already completed and `processUploadCompletion` claimed the scan first, `deleteQueuedScan` is a no-op (record not found). The idempotency guard in `processAndCleanupOfflineScan` prevents a duplicate `LocalScanRecord`.
+**On live inference success**: `analyze()` calls `deleteQueuedScan` with a
+`ForegroundInferenceGenerationExpectation` for its exact durable owner. The
+queue manager validates that expectation before and after URLSession task
+enumeration, then cancels only matching work and removes the SwiftData record.
+If upload/recovery already won or a replacement owns the scan, deletion is an
+idempotent no-op. `ScanFinalizationCoordinator` and the durable generation
+check prevent a duplicate `LocalScanRecord`.
 
 **On dual-path finalization**: live inference and the background URLSession inference result can complete the same `scanId` in separate SwiftData contexts. All three local record finalizers (`processAndCleanupOfflineScan`, `saveLiveScanRecord`, and `saveNonVisualRecord`) must acquire `ScanFinalizationCoordinator` before fetching/inserting/replacing the final `LocalScanRecord`. This per-scan async lock is intentionally above SwiftData: it prevents Core Data's unique-constraint merge policy from ever having to reconcile two concurrent `LocalScanRecord.id` writers.
 
 This is especially important for mixed-media records. `LocalScanRecord.capturedMediaEntries` is a to-many relationship with no inverse. If two contexts race on the same unique scan id, Core Data may try to merge the losing object's to-many relationship into the winning object and abort with `NSMergePolicy _cannotResolveConflictOnEntity:relationshipWithNoInverse:`. Do not "fix" that crash by changing merge policies or dropping the scalar JSON mirror. Serialize finalization per scan id, then re-check whether the local record already exists after waiting.
 
-**On live inference cancellation or network failure**: the background upload path continues uninterrupted and delivers the result via push notification.
+**On live inference cancellation or network failure**: the exact foreground
+generation is synchronously retired and the background path resumes. A
+cooperatively cancelled stale handler has no telemetry, circuit-breaker, haptic,
+error-UI, retry, or deletion authority.
 
 All rescue handlers (`dismissAnalysisToBackground`, `handleBackgroundPhase` inference block, `InsightSheetView.onDisappear` rescue) are deleted. `activeLiveCaptureDatas` and `isBackgroundRescued` are removed from `InferenceEngine` entirely — they had no purpose outside the now-deleted rescue pattern.
 
@@ -477,6 +503,11 @@ await cleanupActor.processAndCleanupOfflineScan(...)  // save() fails → cleanu
 Additionally, `processAndCleanupOfflineScan` itself should be **idempotent**: check whether a `LocalScanRecord` with the target `id` already exists before inserting, to prevent unique-constraint failures when a previous attempt partially committed. This check must happen inside the `ScanFinalizationCoordinator` critical section so an offline finalizer that waited behind a live save sees the just-committed live row and skips insertion:
 
 The same rule applies on the MainActor, queue manager, migration plan, and historical sync actors. UI mutation paths must not show success, enqueue offline sync, push cloud updates, or post search-index notifications until `modelContext.save()` succeeds. Queue paths must not delete staged files, fire push notifications, dispatch URLSession uploads, or consume a free-tier scan slot unless the local queue mutation committed (or the slot is refunded on failure). Visual submission must wait for `enqueueCapture`'s queued callback before presenting queued success or starting live analysis; failed durable writes own cleanup of orphaned source video/audio paths and must not leave the UI in a false queued state. Video-aware queue finalization must use `OfflineQueueManager.deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)` so inference-only frames can be deleted while adopted playback video, audio, and display media are preserved. Custom migration stages must not clear scratchpad backfill data or complete the migration after a failed save, and migration fetch failures must propagate instead of being logged and ignored. Historical reconciliation must not continue with failed pending updates or inserts still attached to its context. On failure, call `modelContext.rollback()`, log an `.error`, and keep external side effects untouched. `InsightSheetViewModel.toggleScanInCollection(...)`, `InsightSheetViewModel.markRecordViewedIfAppropriate(...)`, `UserTagsMutationController`, `OfflineQueueManager.flushOfflineQueuedScan(...)`, `OfflineQueueManager.softDeleteQueuedScan(...)`, `OfflineQueueManager.deleteQueuedScan(...)`, `OfflineQueueManager.enqueueCapture(...)`, `OfflineQueueManager.enqueueNonVisualCapture(...)`, `BackgroundDatabaseActor.markScansAsUploading(...)`, `MerianMigrationPlan` custom saves, `ScanRepository.eradicateScan(...)`, `ScanRepository.purgeAllData(...)`, and historical `updateExistingScans` / `ingestScans` / `syncCollections` follow this containment pattern.
+
+That video-aware signature is shorthand for media adoption. Any
+inference-owned finalization must additionally supply its exact foreground or
+background generation expectation; only an explicit user/system deletion may
+intentionally cancel every generation without one.
 
 ```swift
 var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
@@ -562,29 +593,64 @@ Guarding on `hadOrphans` is essential. An unconditional `syncPendingScans()` cal
 
 ## 19. `activeScanId` Stale Hydration Window
 
-`InferenceEngine.activeScanId` is set at the start of `analyze()` to the caller's scan ID. The background offline path (`OfflineQueueManager+URLSession`) uses this to detect when a background inference result for the same scan should hydrate the live engine instead of discarding:
+`InferenceEngine.activeScanId` is set at the start of `analyze()` with a unique
+`activeLiveInferenceAttemptGeneration`. The background offline path
+(`OfflineQueueManager+URLSession`) may hydrate the live engine only when it
+still owns both values:
 
 ```swift
-if engine.activeScanId == scanId,
-   engine.isProcessing || engine.speciesData?.scanId == nil {
-    engine.isProcessing = false
-    engine.speciesData = speciesData
+if engine.commitRecoveredBackgroundResult(
+    for: scanId,
+    replacingAttemptGeneration: presentationGeneration,
+    expectedForegroundGeneration: releasedForegroundGeneration,
+    speciesData: speciesData
+) {
+    engine.inferenceTask?.cancel()
 }
 ```
 
-**The bug (fixed)**: `activeScanId` was never cleared when the pipeline exited. If live inference failed (producing an error `SpeciesData` with `scanId: nil`), the engine remained with `activeScanId != nil` and `isProcessing = false`. A background inference arriving minutes later would see `engine.speciesData?.scanId == nil` (true for error placeholders) and overwrite the stale error state — even though the user had long since dismissed the insight sheet.
+**The bug (fixed)**: scan ID alone left an ABA window. A delayed background
+completion could target a replacement attempt for the same scan; conversely,
+the cooperatively cancelled live task could resume its error handler after
+background recovery published a result.
 
-**The fix**: `activeScanId` is cleared in the inference task's `defer` block alongside `isProcessing`:
+**The fix**: every live task captures its presentation UUID and durable
+foreground generation. It checks the full owner at task entry, after suspension,
+immediately before provider dispatch, and before result or failure side effects.
+Background recovery compares the exact UUID and absence of a new foreground
+owner, then atomically invalidates the live presentation slot before publishing
+and cancelling the old task. Explicit cancellation also clears `activeScanId`
+synchronously because its invalidated task defer no longer owns the slot:
 
 ```swift
 defer {
-    self.isProcessing = false
-    self.activeScanId = nil  // bounds hydration window to isProcessing == true
-    self.phaseRotationTask?.cancel()
+    if isLocalLiveInferenceAttemptCurrent(
+        scanId: ownedScanId,
+        attemptGeneration: attemptGeneration
+    ) {
+        isProcessing = false
+        activeScanId = nil
+        activeLiveInferenceAttemptGeneration = nil
+    }
 }
 ```
 
-For the success path this is a no-op: background correctly skips because `speciesData.scanId != nil`. For the failure path it ensures the background path only hydrates the engine while the live pipeline is actually running.
+The hydration window is therefore bounded by ownership, not timing or
+cooperative cancellation.
+
+Failure handlers must snapshot the full current-owner result before registering
+synchronous retirement. Only a proven current owner may then emit telemetry,
+record a circuit-breaker failure, trigger an error haptic, or assign an error
+placeholder, with no intervening `await`. Rechecking only the process-local scan
+ID or presentation UUID is insufficient: a durable foreground owner may already
+have been retired or replaced while those local values still match.
+
+`load(from:)` must follow the same replacement protocol before assigning a
+historical record ID. Merely overwriting `activeScanId` makes the old live task
+fail its local checks without giving it a way to relinquish the durable
+foreground generation, which can suppress recovery indefinitely. The method
+therefore invalidates and retires the live UUID first, cancels its provider and
+hydration tasks, and leaves the queued row for background replay.
 
 ---
 

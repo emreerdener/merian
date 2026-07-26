@@ -324,10 +324,10 @@ extension OfflineQueueManager {
             return
         }
 
-        // The foreground request still owns identification for an eligible
-        // live-camera still. Keep the durable row staged, but do not dispatch a
-        // second Gemini call. Foreground failure/backgrounding releases this
-        // claim and replay picks the staged row up immediately.
+        // The foreground request still owns identification for this
+        // queue-backed live submission. Keep the durable row staged, but do not
+        // dispatch a second Gemini call. Foreground failure/backgrounding
+        // releases this claim and replay picks the staged row up immediately.
         if foregroundInferenceScanIds.contains(scanId) {
             MerianLog.data.debug(
                 "processUploadCompletion: staged recovery media while foreground inference owns scanId=\(scanId, privacy: .public)"
@@ -1063,7 +1063,7 @@ extension OfflineQueueManager {
            let speciesName = processingResult.resolvedSpeciesName,
            let dbScanId = processingResult.finalScanId {
             MerianLog.data.debug(
-            "processInferenceDownloadResult: finalized scanId=\(scanId, privacy: .private) dbScanId=\(dbScanId, privacy: .private) species=\(speciesName, privacy: .private)"
+                "processInferenceDownloadResult: finalized scanId=\(scanId, privacy: .private) dbScanId=\(dbScanId, privacy: .private) species=\(speciesName, privacy: .private)"
             )
             let capturedContainer = extracted.container
             await MainActor.run {
@@ -1097,10 +1097,10 @@ extension OfflineQueueManager {
                 // sheet in "Analyzing..." until the live task eventually times out and shows
                 // "Network timeout" even though the scan completed successfully.
                 //
-                // Cancelling inferenceTask causes its defer { isProcessing = false } to run
-                // cooperatively (URLError.cancelled → catch → return). The shared result commit
-                // publishes species data before clearing the processing flag on the main actor;
-                // the deferred clear is a later no-op and the cancel path never writes result data.
+                // The recovered-result commit first invalidates the exact live
+                // presentation slot and publishes species data. Cooperative
+                // cancellation happens afterward, so the old task's defer and
+                // error handlers fail their generation check and become no-ops.
                 if let speciesData = processingResult.speciesData {
                     let engine = AppDIContainer.shared.inferenceEngine
                     // Hydrate when the engine is still waiting for a result for this exact scan.
@@ -1109,12 +1109,23 @@ extension OfflineQueueManager {
                     // already failed (timeout/network error) — those placeholders have scanId = nil.
                     // We must NOT overwrite a successful live result (speciesData.scanId != nil).
                     if engine.activeScanId == scanId,
-                       engine.isProcessing || engine.speciesData?.scanId == nil {
-                        engine.inferenceTask?.cancel()
-                        engine.commitSuccessfulResult(
-                            for: scanId,
-                            speciesData: speciesData
-                        )
+                       engine.isProcessing || engine.speciesData?.scanId == nil,
+                       let presentationGeneration =
+                           engine.activeLiveInferenceAttemptGeneration {
+                        let releasedForegroundGeneration =
+                            engine.activeForegroundInferenceGeneration
+                        let didHydrate =
+                            engine.commitRecoveredBackgroundResult(
+                                for: scanId,
+                                replacingAttemptGeneration:
+                                    presentationGeneration,
+                                expectedForegroundGeneration:
+                                    releasedForegroundGeneration,
+                                speciesData: speciesData
+                            )
+                        if didHydrate {
+                            engine.inferenceTask?.cancel()
+                        }
                     }
                 }
             }

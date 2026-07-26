@@ -25,9 +25,14 @@ import {
   uploadDwcaArchive,
 } from "./storage.ts";
 import {
+  EXPORT_PAGE_SIZE,
+  MAXIMUM_EXPORT_SOURCE_PAGE_BYTES,
+} from "./limits.ts";
+import {
   ClaimedExportJob,
   DBScanRow,
   ExportChunkManifestEntry,
+  ExportScanBatch,
   ExportWorkerError,
   ExportWorkPhase,
 } from "./types.ts";
@@ -51,9 +56,10 @@ export interface ExportWorkerServices {
   renew(jobId: string, claimToken: string): Promise<void>;
   fetchBatch(
     job: ClaimedExportJob,
+    claimToken: string,
     phase: "occurrence" | "multimedia",
     afterId: string | null,
-  ): Promise<DBScanRow[]>;
+  ): Promise<ExportScanBatch>;
   loadPseudonymizer(keyVersion: number): Promise<UserPseudonymizer>;
   encodeBatch(
     job: ClaimedExportJob,
@@ -112,8 +118,14 @@ function defaultServices(
       claimExportJob(jobId, claimToken, supabaseAdmin),
     renew: (jobId, claimToken) =>
       renewExportJobClaim(jobId, claimToken, supabaseAdmin),
-    fetchBatch: (job, phase, afterId) =>
-      fetchExportScanBatch(job, phase, afterId, supabaseAdmin),
+    fetchBatch: (job, claimToken, phase, afterId) =>
+      fetchExportScanBatch(
+        job,
+        claimToken,
+        phase,
+        afterId,
+        supabaseAdmin,
+      ),
     loadPseudonymizer: loadUserPseudonymizer,
     encodeBatch: encodeExportBatch,
     putChunk: putExportWorkChunk,
@@ -190,18 +202,28 @@ function failureFrom(error: unknown): ExportWorkerError {
 }
 
 function validateBatch(
-  scans: DBScanRow[],
+  batch: ExportScanBatch,
   afterId: string | null,
 ): void {
-  if (!Array.isArray(scans) || scans.length > 100) {
+  if (
+    !batch ||
+    typeof batch !== "object" ||
+    !Array.isArray(batch.scans) ||
+    batch.scans.length > EXPORT_PAGE_SIZE ||
+    !Number.isSafeInteger(batch.sourceByteCount) ||
+    batch.sourceByteCount < 0 ||
+    batch.sourceByteCount > MAXIMUM_EXPORT_SOURCE_PAGE_BYTES ||
+    typeof batch.pageComplete !== "boolean" ||
+    (batch.scans.length === 0 && !batch.pageComplete)
+  ) {
     throw new ExportWorkerError(
       "database_unavailable",
-      "The export batch exceeded its fixed page size.",
+      "The export batch exceeded its fixed source bounds.",
       false,
     );
   }
   let previousId = afterId;
-  for (const scan of scans) {
+  for (const scan of batch.scans) {
     if (
       typeof scan.id !== "string" ||
       scan.id.length === 0 ||
@@ -246,8 +268,14 @@ async function processPreparationStep(
   const afterId = phase === "occurrence"
     ? job.occurrenceAfterId
     : job.multimediaAfterId;
-  const scans = await services.fetchBatch(job, phase, afterId);
-  validateBatch(scans, afterId);
+  const sourceBatch = await services.fetchBatch(
+    job,
+    claimToken,
+    phase,
+    afterId,
+  );
+  validateBatch(sourceBatch, afterId);
+  const scans = sourceBatch.scans;
   const pseudonymizer = phase === "occurrence" && job.exportScope === "global"
     ? await services.loadPseudonymizer(job.pseudonymKeyVersion)
     : null;
@@ -282,7 +310,7 @@ async function processPreparationStep(
     batch.rowCount,
     objectKey,
     batch.bytes.byteLength,
-    scans.length < 100,
+    sourceBatch.pageComplete,
   );
   return {
     disposition: "advanced",

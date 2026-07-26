@@ -1,7 +1,10 @@
 import { getR2Config, R2Config } from "../_shared/aws.ts";
 import { readByteStreamWithinLimit } from "../_shared/http.ts";
-import { ExportProgressCallback } from "./archive.ts";
+import type { ExportProgressCallback } from "./archive.ts";
+import { MAXIMUM_WORK_CHUNK_BYTES } from "./limits.ts";
 import { ClaimedExportJob, ExportWorkerError } from "./types.ts";
+
+export { MAXIMUM_WORK_CHUNK_BYTES } from "./limits.ts";
 
 export const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const MAXIMUM_MULTIPART_PARTS = 10_000;
@@ -9,7 +12,6 @@ const SIGNED_URL_LIFETIME_SECONDS = 86_400;
 const R2_REQUEST_TIMEOUT_MS = 60_000;
 const R2_XML_RESPONSE_LIMIT_BYTES = 64 * 1024;
 const MAXIMUM_UPLOAD_ID_CHARACTERS = 2048;
-export const MAXIMUM_WORK_CHUNK_BYTES = 512 * 1024;
 const MAXIMUM_ARCHIVE_BYTES = 16 * 1024 * 1024;
 const decoder = new TextDecoder();
 

@@ -482,12 +482,15 @@ by email.
 
 The server side is bounded independently of the UI. `export-dwca` registers a
 short synchronous phase under a two-minute database lease and returns `200` to
-the Postgres wake-up. It advances one 100-row UUID keyset page, assembles a
-prepared manifest, or performs delivery per invocation. Occurrence pages do not
-fetch media arrays; multimedia pages do not fetch taxonomy/coordinates. Each
-CSV page is capped at 512 KiB and committed with its cursor and cumulative
-row/byte budgets. The minute cron resumes the next phase, so one Edge isolate
-never owns the full database scan.
+the Postgres wake-up. It advances one UUID keyset page, assembles a prepared
+manifest, or performs delivery per invocation. Validated row constraints bound
+media URL and interaction arrays plus selected taxonomy fields before the read;
+the claimed page stops at 100 rows or 256 KiB of serialized source. Occurrence
+pages do not fetch media
+arrays; multimedia pages do not fetch taxonomy/coordinates. CSV encoding
+appends one row at a time into a fixed buffer capped at 512 KiB and commits it
+with its cursor and cumulative row/byte budgets. The minute cron resumes the
+next phase, so one Edge isolate never owns the full database scan.
 
 Assembly lazily GETs the ordered chunk manifest into the ZIP stream and
 coalesces only one 8 MiB R2 multipart part at a time. No full result history,
@@ -806,6 +809,43 @@ invalidates preparation slots, removes preparation entries belonging to the
 current upload batch, and force-resets UI tokens. Durable SwiftData states and
 URLSession enumeration remain the restart/reconnect recovery source; in-memory
 generations are only the callback fence.
+
+Queue-backed foreground inference follows the same rule with a
+`ForegroundInferenceGenerationExpectation`. Submission creates the generation
+before enqueue and stores it in `OfflineJobRecord.metadataJSON` in the same save
+as `OfflineQueuedScan`; the in-memory dictionary is registered before sync or
+replay can start. `InferenceEngine` captures that generation rather than using
+only `activeScanId`, checks it at task entry, after external suspension points,
+immediately before provider dispatch, and at every side-effect boundary, and
+supplies a `LiveInferencePersistenceFence` to the database actor.
+`OfflineQueueManager` atomically consumes the generation before provider
+dispatch, making duplicate starts no-ops across engine instances.
+Cancellation and pre-provider exits register a tokenized retirement task
+synchronously before durable handoff begins. Registration immediately makes
+the attempt non-current for persistence, UI publication, and queue cleanup,
+even while its raw durable UUID remains present.
+Retirement retries transient durable-owner fetch/save failures with bounded
+backoff while retaining the marker, so the system neither admits a callback-
+equivalent replacement nor strands the queue behind an abandoned claim.
+
+Error presentation is a generation-owned commit, not harmless cleanup. A
+failure handler snapshots the full scan, presentation-attempt, and foreground
+generation match before synchronously registering retirement. Only that owner
+may emit failure telemetry, update the circuit breaker, trigger a haptic, or
+publish an error placeholder, with no suspension between the snapshot and
+terminal commit. A stale or cooperatively cancelled task performs none of those
+effects.
+
+Live persistence acquires `ScanInferencePersistenceCoordinator`, validates both
+the durable job generation, MainActor owner, and echoed result scan ID, and
+retains the coordinator through `ScanFinalizationCoordinator` and the SwiftData
+save. Queue cleanup
+retains the same per-scan coordinator across URLSession enumeration,
+cancellation, and deletion, then compares the foreground generation again
+before clearing ownership. If attempt A resumes after replacement B, A cannot
+save, publish UI, cancel B's retry/URLSession work, or delete B's queued row.
+An ownership fetch error fails closed instead of masquerading as a deleted job.
+Only explicit user/system deletion intentionally omits a generation fence.
 
 Upload claims, inference claims, retries, and both orphan reconcilers use one
 long-lived `BackgroundDatabaseActor`. Before a reconciler enumerates

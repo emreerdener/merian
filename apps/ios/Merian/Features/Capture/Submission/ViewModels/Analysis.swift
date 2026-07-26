@@ -165,6 +165,8 @@ extension CaptureWorkspaceViewModel {
 
         // 4. Generate a stable scanId shared by the queue record and live inference.
         let scanId = UUID().uuidString.lowercased()
+        let foregroundInferenceGeneration =
+            diContainer.offlineQueueManager.isOnline ? UUID() : nil
         pendingAnalyzeScanId = scanId
         if let capturedPreferredGoal {
             ScanMilestoneCoordinator.shared.registerPreferredGoal(
@@ -199,6 +201,8 @@ extension CaptureWorkspaceViewModel {
             visualMediaItems: capturedVisualMediaItems,
             preferredGoal: capturedPreferredGoal,
             captureDate: primaryHistoricalContext?.captureDate ?? Date(),
+            foregroundInferenceGeneration:
+                foregroundInferenceGeneration,
             startSyncImmediately: !shouldOptimizeLiveImageAnalysis,
             onQueued: { [weak self] didQueue in
                 guard let self else { return }
@@ -210,8 +214,21 @@ extension CaptureWorkspaceViewModel {
                     if didQueue {
                         self.diContainer.offlineQueueManager.releaseDeferredLiveUpload(
                             scanId: scanId,
+                            foregroundInferenceGeneration:
+                                foregroundInferenceGeneration,
                             reason: "live_scan_superseded_before_start"
                         )
+                        if let foregroundInferenceGeneration {
+                            self.diContainer.offlineQueueManager
+                                .retireForegroundInference(
+                                    scanId: scanId,
+                                    generation:
+                                        foregroundInferenceGeneration,
+                                    resumeBackground: true,
+                                    reason:
+                                        "live_scan_superseded_before_start"
+                                )
+                        }
                     } else {
                         self.discardLocalMediaFiles(at: capturedMediaFilePaths)
                     }
@@ -229,17 +246,42 @@ extension CaptureWorkspaceViewModel {
                 guard self.diContainer.offlineQueueManager.isOnline else {
                     self.diContainer.offlineQueueManager.releaseDeferredLiveUpload(
                         scanId: scanId,
+                        foregroundInferenceGeneration:
+                            foregroundInferenceGeneration,
                         reason: "offline_before_live_request"
                     )
+                    if let foregroundInferenceGeneration {
+                        self.diContainer.offlineQueueManager
+                            .retireForegroundInference(
+                                scanId: scanId,
+                                generation:
+                                    foregroundInferenceGeneration,
+                                resumeBackground: true,
+                                reason: "offline_before_live_request"
+                            )
+                    }
                     self.pendingAnalyzeScanId = nil
                     self.offlineToastMessage = "No network connection. Queued for upload."
                     return
                 }
 
-                if shouldOptimizeLiveImageAnalysis {
-                    self.diContainer.offlineQueueManager.beginForegroundInference(
-                        scanId: scanId
-                    )
+                guard let foregroundInferenceGeneration,
+                      self.diContainer.offlineQueueManager
+                        .canStartForegroundInference(
+                            scanId: scanId,
+                            generation: foregroundInferenceGeneration
+                        ) else {
+                    self.diContainer.offlineQueueManager
+                        .releaseDeferredLiveUpload(
+                            scanId: scanId,
+                            foregroundInferenceGeneration:
+                                foregroundInferenceGeneration,
+                            reason: "foreground_owner_unavailable"
+                        )
+                    self.pendingAnalyzeScanId = nil
+                    self.offlineToastMessage =
+                        "Capture queued for upload."
+                    return
                 }
 
                 self.diContainer.inferenceEngine.prepareForNewScan()
@@ -287,19 +329,32 @@ extension CaptureWorkspaceViewModel {
 
                     await MainActor.run {
                         guard self.pendingAnalyzeScanId == scanId else {
-                            self.diContainer.offlineQueueManager.endForegroundInference(
-                                scanId: scanId,
-                                resumeBackground: true,
-                                reason: "live_scan_superseded_during_context_wait"
-                            )
+                            self.diContainer.offlineQueueManager
+                                .retireForegroundInference(
+                                    scanId: scanId,
+                                    generation:
+                                        foregroundInferenceGeneration,
+                                    resumeBackground: true,
+                                    reason:
+                                        "live_scan_superseded_during_context_wait"
+                                )
                             return
                         }
-                        guard !shouldOptimizeLiveImageAnalysis ||
-                                self.diContainer.offlineQueueManager.foregroundInferenceScanIds.contains(scanId) else {
+                        guard self.diContainer.offlineQueueManager
+                                .canStartForegroundInference(
+                                    scanId: scanId,
+                                    generation:
+                                        foregroundInferenceGeneration
+                                ) else {
+                            self.pendingAnalyzeScanId = nil
+                            self.offlineToastMessage =
+                                "Capture queued for upload."
                             return
                         }
                         self.diContainer.inferenceEngine.analyze(
                             scanId: scanId,
+                            foregroundInferenceGeneration:
+                                foregroundInferenceGeneration,
                             imageDatas: capturedInferenceImages.map(\.compressedData),
                             displayDatas: capturedDisplayImages.map(\.displayData),
                             audioFilePaths: capturedAudioFilePaths.isEmpty ? nil : capturedAudioFilePaths,

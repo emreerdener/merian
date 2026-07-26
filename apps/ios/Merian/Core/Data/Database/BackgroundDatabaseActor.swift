@@ -263,7 +263,8 @@ actor BackgroundDatabaseActor {
                 modelContext.insert(created)
                 return created
             }()
-            job.metadataJSON = Self.inferenceGenerationMetadata(generation)
+            job.metadataJSON =
+                InferenceGenerationMetadataContract.json(for: generation)
             job.status = .running
             job.updatedAt = Date()
         }
@@ -324,9 +325,10 @@ actor BackgroundDatabaseActor {
         guard scan.scanStateRaw == inferencingRaw else { return false }
         if let expectedGeneration {
             let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
-            let expectedMetadata = Self.inferenceGenerationMetadata(
-                expectedGeneration
-            )
+            let expectedMetadata =
+                InferenceGenerationMetadataContract.json(
+                    for: expectedGeneration
+                )
             var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
                 predicate: #Predicate {
                     $0.id == jobId && $0.metadataJSON == expectedMetadata
@@ -352,12 +354,6 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    private static func inferenceGenerationMetadata(_ generation: UUID) -> String {
-        #"{"inference_generation":""# +
-            generation.uuidString.lowercased() +
-            #""}"#
-    }
-
     /// Must be called only while `ScanInferencePersistenceCoordinator` is held
     /// for `scanId`. This intentionally does not acquire the coordinator itself
     /// so the main-actor queue deletion path can validate durable ownership
@@ -378,9 +374,10 @@ actor BackgroundDatabaseActor {
         }
 
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
-        let expectedMetadata = Self.inferenceGenerationMetadata(
-            expectedGeneration
-        )
+        let expectedMetadata =
+            InferenceGenerationMetadataContract.json(
+                for: expectedGeneration
+            )
         var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
             predicate: #Predicate {
                 $0.id == jobId && $0.metadataJSON == expectedMetadata
@@ -388,6 +385,75 @@ actor BackgroundDatabaseActor {
         )
         jobDescriptor.fetchLimit = 1
         return (try? modelContext.fetch(jobDescriptor).first) != nil
+    }
+
+    /// Validates a foreground owner while
+    /// `ScanInferencePersistenceCoordinator` is already held for `scanId`.
+    ///
+    /// Unlike background inference, a live request may own a queued scan while
+    /// recovery media is pending, uploading, or staged. The durable job
+    /// generation is therefore the cross-actor source of truth.
+    func liveInferenceGenerationIsCurrentAssumingPersistenceLock(
+        scanId: String,
+        expectedGeneration: UUID
+    ) -> Bool {
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(scanDescriptor).first,
+              scan.queueState != .failed,
+              scan.queueState != .externalImport else {
+            return false
+        }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let expectedMetadata =
+            InferenceGenerationMetadataContract.json(
+                for: expectedGeneration
+            )
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate {
+                $0.id == jobId && $0.metadataJSON == expectedMetadata
+            }
+        )
+        jobDescriptor.fetchLimit = 1
+        return (try? modelContext.fetch(jobDescriptor).first) != nil
+    }
+
+    private func livePersistenceFenceIsCurrentAssumingPersistenceLock(
+        _ fence: LiveInferencePersistenceFence
+    ) async -> Bool {
+        guard !Task.isCancelled,
+              liveInferenceGenerationIsCurrentAssumingPersistenceLock(
+                  scanId: fence.scanId,
+                  expectedGeneration: fence.generation
+              ) else {
+            return false
+        }
+        let isCurrentInMemory = await MainActor.run {
+            OfflineQueueManager.shared
+                .isForegroundInferenceAttemptCurrent(
+                    scanId: fence.scanId,
+                    generation: fence.generation
+                )
+        }
+        return !Task.isCancelled &&
+            isCurrentInMemory &&
+            liveInferenceGenerationIsCurrentAssumingPersistenceLock(
+                scanId: fence.scanId,
+                expectedGeneration: fence.generation
+            )
+    }
+
+    private func livePersistenceFenceMatchesResult(
+        _ fence: LiveInferencePersistenceFence?,
+        mappedScanId: String?
+    ) -> Bool {
+        guard let fence else { return true }
+        guard let mappedScanId else { return false }
+        return mappedScanId.caseInsensitiveCompare(fence.scanId)
+            == .orderedSame
     }
 
     /// Future claims always persist their generation before dispatch. Adoption
@@ -410,9 +476,10 @@ actor BackgroundDatabaseActor {
 
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
         guard let job = fetchOfflineJob(id: jobId) else { return false }
-        let expectedMetadata = Self.inferenceGenerationMetadata(
-            expectedGeneration
-        )
+        let expectedMetadata =
+            InferenceGenerationMetadataContract.json(
+                for: expectedGeneration
+            )
         if job.metadataJSON == expectedMetadata {
             return true
         }
@@ -479,9 +546,10 @@ actor BackgroundDatabaseActor {
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
         let job: OfflineJobRecord
         if let expectedGeneration {
-            let expectedMetadata = Self.inferenceGenerationMetadata(
-                expectedGeneration
-            )
+            let expectedMetadata =
+                InferenceGenerationMetadataContract.json(
+                    for: expectedGeneration
+                )
             var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
                 predicate: #Predicate {
                     $0.id == jobId && $0.metadataJSON == expectedMetadata
@@ -892,6 +960,24 @@ actor BackgroundDatabaseActor {
             mappedData.audioFilePaths = audioFilePaths
             mappedData.videoFilePaths = videoFilePaths
 
+            if expectedGeneration != nil,
+               mappedData.scanId?.caseInsensitiveCompare(scanId)
+                    != .orderedSame {
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: scanId
+                )
+                MerianLog.data.debug(
+                    "processAndCleanupOfflineScan: response scan ID mismatch scanId=\(scanId, privacy: .public)"
+                )
+                return OfflineScanProcessingResult(
+                    resolvedSpeciesName: nil,
+                    isNewDiscovery: false,
+                    finalScanId: nil,
+                    speciesData: nil,
+                    wasCleaned: false
+                )
+            }
+
             if mappedData.confidenceScore > 0.0 {
                 inferenceFailed = false
                 resolvedSpeciesName = mappedData.commonName
@@ -1253,14 +1339,51 @@ actor BackgroundDatabaseActor {
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
         videoFilePaths: [String]? = nil,
-        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
-    ) async -> Bool {
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
+        persistenceFence: LiveInferencePersistenceFence? = nil
+    ) async -> LiveInferencePersistenceResult {
         guard mappedData.confidenceScore > 0.0, !localImagePaths.isEmpty else {
-            return false
+            return .notSaved
+        }
+        guard livePersistenceFenceMatchesResult(
+            persistenceFence,
+            mappedScanId: mappedData.scanId
+        ) else {
+            return .notSaved
         }
 
         let recordId = mappedData.scanId ?? UUID().uuidString
+        let persistenceScanId = persistenceFence?.scanId ?? recordId
+        if let persistenceFence {
+            await ScanInferencePersistenceCoordinator.shared.acquire(
+                scanId: persistenceScanId
+            )
+            guard await livePersistenceFenceIsCurrentAssumingPersistenceLock(
+                persistenceFence
+            ) else {
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+                return .notSaved
+            }
+        }
+
         await acquireFinalizationLock(scanId: recordId, operation: "live_visual")
+        if let persistenceFence {
+            let isCurrent =
+                await livePersistenceFenceIsCurrentAssumingPersistenceLock(
+                    persistenceFence
+                )
+            if !isCurrent {
+                await ScanFinalizationCoordinator.shared.release(
+                    scanId: recordId
+                )
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+                return .notSaved
+            }
+        }
         let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
@@ -1270,6 +1393,21 @@ actor BackgroundDatabaseActor {
             videoFilePaths: videoFilePaths,
             mediaTimeline: mediaTimeline
         )
+        if let persistenceFence {
+            let isCurrent =
+                await livePersistenceFenceIsCurrentAssumingPersistenceLock(
+                    persistenceFence
+                )
+            if !isCurrent {
+                await ScanFinalizationCoordinator.shared.release(
+                    scanId: recordId
+                )
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+                return .notSaved
+            }
+        }
 
         let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
 
@@ -1287,6 +1425,14 @@ actor BackgroundDatabaseActor {
             isLiveCapture: mappedData.isLiveCapture,
             fieldNotes: preservedFieldNotes
         )
+        if persistenceFence != nil, Task.isCancelled {
+            modelContext.rollback()
+            await ScanFinalizationCoordinator.shared.release(scanId: recordId)
+            await ScanInferencePersistenceCoordinator.shared.release(
+                scanId: persistenceScanId
+            )
+            return .notSaved
+        }
         do {
             try modelContext.save()
             await ScanFinalizationCoordinator.shared.release(scanId: recordId)
@@ -1294,9 +1440,22 @@ actor BackgroundDatabaseActor {
             modelContext.rollback()
             MerianLog.data.error("saveLiveScanRecord: save failed: \(error, privacy: .private)")
             await ScanFinalizationCoordinator.shared.release(scanId: recordId)
-            return false
+            if persistenceFence != nil {
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+            }
+            return .notSaved
         }
-        return isNewDiscovery
+        if persistenceFence != nil {
+            await ScanInferencePersistenceCoordinator.shared.release(
+                scanId: persistenceScanId
+            )
+        }
+        return LiveInferencePersistenceResult(
+            wasSaved: true,
+            isNewDiscovery: isNewDiscovery
+        )
     }
 
     // MARK: - Non-Visual Recording
@@ -1311,12 +1470,49 @@ actor BackgroundDatabaseActor {
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
         videoFilePaths: [String]? = nil,
-        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
-    ) async -> Bool {
-        guard mappedData.confidenceScore > 0.0 else { return false }
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
+        persistenceFence: LiveInferencePersistenceFence? = nil
+    ) async -> LiveInferencePersistenceResult {
+        guard mappedData.confidenceScore > 0.0 else { return .notSaved }
+        guard livePersistenceFenceMatchesResult(
+            persistenceFence,
+            mappedScanId: mappedData.scanId
+        ) else {
+            return .notSaved
+        }
 
         let recordId = mappedData.scanId ?? UUID().uuidString
+        let persistenceScanId = persistenceFence?.scanId ?? recordId
+        if let persistenceFence {
+            await ScanInferencePersistenceCoordinator.shared.acquire(
+                scanId: persistenceScanId
+            )
+            guard await livePersistenceFenceIsCurrentAssumingPersistenceLock(
+                persistenceFence
+            ) else {
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+                return .notSaved
+            }
+        }
+
         await acquireFinalizationLock(scanId: recordId, operation: "live_nonvisual")
+        if let persistenceFence {
+            let isCurrent =
+                await livePersistenceFenceIsCurrentAssumingPersistenceLock(
+                    persistenceFence
+                )
+            if !isCurrent {
+                await ScanFinalizationCoordinator.shared.release(
+                    scanId: recordId
+                )
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+                return .notSaved
+            }
+        }
         let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
@@ -1325,6 +1521,21 @@ actor BackgroundDatabaseActor {
             videoFilePaths: videoFilePaths,
             mediaTimeline: mediaTimeline
         )
+        if let persistenceFence {
+            let isCurrent =
+                await livePersistenceFenceIsCurrentAssumingPersistenceLock(
+                    persistenceFence
+                )
+            if !isCurrent {
+                await ScanFinalizationCoordinator.shared.release(
+                    scanId: recordId
+                )
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+                return .notSaved
+            }
+        }
 
         let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
         insertReplacingLocalScanRecord(
@@ -1338,6 +1549,14 @@ actor BackgroundDatabaseActor {
             isLiveCapture: false,
             fieldNotes: preservedFieldNotes
         )
+        if persistenceFence != nil, Task.isCancelled {
+            modelContext.rollback()
+            await ScanFinalizationCoordinator.shared.release(scanId: recordId)
+            await ScanInferencePersistenceCoordinator.shared.release(
+                scanId: persistenceScanId
+            )
+            return .notSaved
+        }
         do {
             try modelContext.save()
             await ScanFinalizationCoordinator.shared.release(scanId: recordId)
@@ -1345,9 +1564,22 @@ actor BackgroundDatabaseActor {
             modelContext.rollback()
             MerianLog.data.error("saveNonVisualRecord: save failed: \(error, privacy: .private)")
             await ScanFinalizationCoordinator.shared.release(scanId: recordId)
-            return false
+            if persistenceFence != nil {
+                await ScanInferencePersistenceCoordinator.shared.release(
+                    scanId: persistenceScanId
+                )
+            }
+            return .notSaved
         }
-        return isNewDiscovery
+        if persistenceFence != nil {
+            await ScanInferencePersistenceCoordinator.shared.release(
+                scanId: persistenceScanId
+            )
+        }
+        return LiveInferencePersistenceResult(
+            wasSaved: true,
+            isNewDiscovery: isNewDiscovery
+        )
     }
 
     // MARK: - Wikipedia Enrichment

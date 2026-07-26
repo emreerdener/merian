@@ -41,9 +41,8 @@ extension CaptureWorkspaceViewModel {
 
     /// Submits audio-only, description-only, or mixed non-visual captures.
     ///
-    /// - Audio-bearing captures always enqueue first for durability.
-    /// - Description-only captures keep the current behavior: online runs live immediately,
-    ///   offline falls back to the durable queued path.
+    /// Every capture is durably queued before live inference. Description-only
+    /// jobs contain no media bytes and enter `.staged` directly.
     func submitNonVisualCapture(
         audioFileNames: [String],
         observationContexts: [ObservationContext],
@@ -61,7 +60,7 @@ extension CaptureWorkspaceViewModel {
         let filteredVideoFileNames = videoFileNames.filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
         let isOnline = diContainer.offlineQueueManager.isOnline
-        let shouldEnqueueDurably = !filteredAudioFileNames.isEmpty || !filteredVideoFileNames.isEmpty || !isOnline
+        let foregroundInferenceGeneration = isOnline ? UUID() : nil
 
         let capturedPreFetchTask = preFetchTask
         preFetchTask = nil
@@ -108,37 +107,79 @@ extension CaptureWorkspaceViewModel {
             )
 
             await MainActor.run {
-                if shouldEnqueueDurably {
-                    let enqueued = self.diContainer.offlineQueueManager.enqueueNonVisualCapture(
+                let enqueued = self.diContainer.offlineQueueManager
+                    .enqueueNonVisualCapture(
                         audioFileNames: filteredAudioFileNames,
                         observationContexts: filteredObservationContexts,
                         videoFilePaths: filteredVideoFileNames,
                         mediaTimeline: mediaTimeline,
                         telemetry: telemetry,
-                        scanId: scanId
+                        scanId: scanId,
+                        foregroundInferenceGeneration:
+                            foregroundInferenceGeneration
                     )
-                    guard enqueued else {
-                        self.offlineToastMessage = "Unable to save capture. Please try again."
-                        return
-                    }
-                    if let userPerceivedStart {
-                        MerianLog.general.debug(
-                            "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - userPerceivedStart), privacy: .public)s"
-                        )
-                    }
+                guard enqueued else {
+                    self.pendingAnalyzeScanId = nil
+                    self.offlineToastMessage =
+                        "Unable to save capture. Please try again."
+                    return
+                }
+                if let userPerceivedStart {
+                    MerianLog.general.debug(
+                        "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - userPerceivedStart), privacy: .public)s"
+                    )
                 }
 
-                guard isOnline else {
+                guard let foregroundInferenceGeneration else {
                     self.pendingAnalyzeScanId = nil
                     self.offlineToastMessage = "No network connection. Queued for analysis."
                     return
                 }
+                guard self.diContainer.offlineQueueManager.isOnline else {
+                    self.pendingAnalyzeScanId = nil
+                    self.diContainer.offlineQueueManager
+                        .retireForegroundInference(
+                            scanId: scanId,
+                            generation:
+                                foregroundInferenceGeneration,
+                            resumeBackground: true,
+                            reason:
+                                "live_nonvisual_offline_before_start"
+                        )
+                    self.offlineToastMessage =
+                        "No network connection. Queued for analysis."
+                    return
+                }
 
-                guard self.pendingAnalyzeScanId == scanId else { return }
+                guard self.pendingAnalyzeScanId == scanId else {
+                    self.diContainer.offlineQueueManager
+                        .retireForegroundInference(
+                            scanId: scanId,
+                            generation:
+                                foregroundInferenceGeneration,
+                            resumeBackground: true,
+                            reason:
+                                "live_nonvisual_superseded_before_start"
+                        )
+                    return
+                }
+                guard self.diContainer.offlineQueueManager
+                        .canStartForegroundInference(
+                            scanId: scanId,
+                            generation:
+                                foregroundInferenceGeneration
+                        ) else {
+                    self.pendingAnalyzeScanId = nil
+                    self.offlineToastMessage =
+                        "Capture queued for analysis."
+                    return
+                }
                 self.diContainer.inferenceEngine.prepareForNewScan()
                 self.activeSheet = .insight
                 self.diContainer.inferenceEngine.analyzeNonVisual(
                     scanId: scanId,
+                    foregroundInferenceGeneration:
+                        foregroundInferenceGeneration,
                     audioFilePaths: filteredAudioFileNames.isEmpty ? nil : filteredAudioFileNames,
                     videoFilePaths: filteredVideoFileNames.isEmpty ? nil : filteredVideoFileNames,
                     observationContexts: filteredObservationContexts,

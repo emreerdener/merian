@@ -1324,11 +1324,23 @@ and an 8 MiB final archive. Database constraints impose absolute ceilings of
 20,000 rows and 16 MiB, and callers cannot mutate either budget after insert.
 Deleted-account tombstones are excluded by matching partial indexes.
 
+Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
+`20260725180321_validate_dwca_export_source_bounds.sql` close the remaining
+pre-encoding allocation gap. The first transaction installs new-write checks
+without scanning legacy rows; the second validates those rows before activating
+the read RPC. Validated checks bound image URL arrays to 24 elements of 4,096
+UTF-8 bytes, ecological interaction arrays to 10 elements of 2,048 bytes,
+and selected taxonomy text to finite lengths.
+`get_dwca_export_scan_batch(...)` is executable only by `service_role`, verifies
+the active claim token and exact durable cursor, derives canonical scope from
+the job, and returns no more than 100 rows or 256 KiB of serialized source.
+
 Each invocation performs exactly one bounded step:
 
-1. `occurrence` or `multimedia` reads one narrow, monotonic 100-scan keyset
-   page, RFC-4180 encodes at most 512 KiB, writes one temporary R2 CSV chunk,
-   and transactionally commits its object key, cursor, and cumulative budgets.
+1. `occurrence` or `multimedia` reads one narrow, monotonic row-and-byte-aware
+   keyset page, incrementally RFC-4180 encodes into a fixed buffer of at most
+   512 KiB, writes one temporary R2 CSV chunk, and transactionally commits its
+   object key, cursor, and cumulative budgets.
 2. `assembling` reads the manifest in order and lazily streams the CSV chunks
    through the ZIP32 writer into a bounded R2 multipart upload.
 3. `delivering` resolves the canonical owner's Auth email, calls Resend with
@@ -1340,12 +1352,14 @@ therefore neither overwrite the winner's chunk nor commit an unexpected key to
 the manifest. Final archive keys are claim-fenced too. A durably staged archive
 is reused after lease recovery rather than regenerated.
 
-The ZIP writer maintains incremental CRC-32 state, multipart parts are fixed at
-8 MiB, and source pages, chunk responses, and parts are released as they flow.
-No invocation retains the complete result set, CSV, or ZIP. R2 XML and Resend
-responses are byte-capped, every outbound request has a deadline, failed
-multipart uploads are aborted where possible, and S3-compatible `<Error>`
-documents returned under HTTP 200 are rejected.
+The CSV encoder appends one row at a time without page-wide line arrays,
+concurrent row expansion, or a final string join. The ZIP writer maintains
+incremental CRC-32 state, multipart parts are fixed at 8 MiB, and source pages,
+chunk responses, and parts are released as they flow. No invocation retains the
+complete result set, CSV, or ZIP. R2 XML and Resend responses are byte-capped,
+every outbound request has a deadline, failed multipart uploads are aborted
+where possible, and S3-compatible `<Error>` documents returned under HTTP 200
+are rejected.
 
 Personal exports retain the owner's UUID and can include the owner's precise
 coordinates. A reviewed internal global job uses a stable, versioned,

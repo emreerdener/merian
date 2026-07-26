@@ -113,6 +113,111 @@ struct InferenceEngineTests {
         #expect(edgeResponse.insight_data == nil)
     }
 
+    @Test func confidenceZeroResponseIsTerminalWithoutPersistence() async throws {
+        let resultData = Data(
+            """
+            {
+                "success": true,
+                "data": {
+                    "scan_id": "confidence-zero-terminal",
+                    "is_biological_subject": false,
+                    "common_name": "No identification",
+                    "confidence_score": 0
+                }
+            }
+            """.utf8
+        )
+
+        let result = try await InferenceProcessingActor.shared.parseAndSave(
+            resultData: resultData,
+            telemetry: makeTelemetry(),
+            modelContext: nil,
+            compressedDatas: [],
+            persistenceFence: LiveInferencePersistenceFence(
+                scanId: "confidence-zero-terminal",
+                generation: UUID()
+            )
+        )
+
+        #expect(result.didCompletePersistence)
+        #expect(result.mappedData?.confidenceScore == 0)
+        #expect(result.savedPaths.isEmpty)
+    }
+
+    @Test func confidenceZeroResponseWithWrongScanIdRemainsRecoverable() async throws {
+        let resultData = Data(
+            """
+            {
+                "success": true,
+                "data": {
+                    "scan_id": "stale-confidence-zero",
+                    "is_biological_subject": false,
+                    "confidence_score": 0
+                }
+            }
+            """.utf8
+        )
+
+        let result = try await InferenceProcessingActor.shared.parseAndSave(
+            resultData: resultData,
+            telemetry: makeTelemetry(),
+            modelContext: nil,
+            compressedDatas: [],
+            persistenceFence: LiveInferencePersistenceFence(
+                scanId: "replacement-confidence-zero",
+                generation: UUID()
+            )
+        )
+
+        #expect(!result.didCompletePersistence)
+    }
+
+    @Test func positiveConfidenceResponseWithoutPersistenceRemainsRecoverable() async throws {
+        let resultData = Data(
+            """
+            {
+                "success": true,
+                "data": {
+                    "scan_id": "positive-confidence-recovery",
+                    "is_biological_subject": true,
+                    "scientific_name": "Danaus plexippus",
+                    "common_name": "Monarch Butterfly",
+                    "confidence_score": 0.95
+                }
+            }
+            """.utf8
+        )
+
+        let result = try await InferenceProcessingActor.shared.parseAndSave(
+            resultData: resultData,
+            telemetry: makeTelemetry(),
+            modelContext: nil,
+            compressedDatas: [Data([0x01])]
+        )
+
+        #expect(!result.didCompletePersistence)
+        #expect(result.savedPaths.isEmpty)
+    }
+
+    @Test func queueBackedNonVisualAttemptRequiresForegroundGeneration() {
+        let engine = InferenceEngine()
+        let scanId =
+            "nonvisual-missing-generation-\(UUID().uuidString.lowercased())"
+
+        engine.analyzeNonVisual(
+            scanId: scanId,
+            observationContexts: [
+                ObservationContext(freeText: "Small orange butterfly")
+            ],
+            telemetry: makeTelemetry(),
+            modelContext: nil
+        )
+
+        #expect(engine.inferenceTask == nil)
+        #expect(engine.activeScanId == nil)
+        #expect(!engine.isProcessing)
+    }
+
     @Test func testLoadFromLocalScanRecord() throws {
         // Arrange: Create an ephemeral LocalScanRecord model offline
         let record = LocalScanRecord(
@@ -335,7 +440,7 @@ struct InferenceEngineTests {
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
         
-        let testData = """
+        let testData = Data("""
         {
             "success": true,
             "data": {
@@ -351,7 +456,7 @@ struct InferenceEngineTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
         MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
@@ -692,7 +797,7 @@ struct InferenceEngineTests {
             forKey: UserDefaultsKeys.enrichedSpeciesTimestamps
         )
 
-        let responseData = """
+        let responseData = Data("""
         {
             "success": true,
             "data": {
@@ -706,7 +811,7 @@ struct InferenceEngineTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let response = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -1127,29 +1232,61 @@ struct InferenceEngineTests {
         let context = try createInMemoryContext()
 
         let originalContext = OfflineQueueManager.shared.modelContext
-        defer { OfflineQueueManager.shared.modelContext = originalContext }
+        let originalIsOnline = OfflineQueueManager.shared.isOnline
+        defer {
+            OfflineQueueManager.shared.modelContext = originalContext
+            OfflineQueueManager.shared.isOnline = originalIsOnline
+        }
         OfflineQueueManager.shared.modelContext = context
+        OfflineQueueManager.shared.isOnline = false
 
         let scanId = UUID().uuidString.lowercased()
+        let generation = UUID()
         context.insert(OfflineQueuedScan(id: scanId, scanState: .pending))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(
+                    for: generation
+                )
+        ))
         try context.save()
+        OfflineQueueManager.shared.foregroundInferenceGenerations[scanId] =
+            generation
+        OfflineQueueManager.shared.deferredLiveUploadScanIds.insert(scanId)
+        defer {
+            OfflineQueueManager.shared.foregroundInferenceRetirementTasks
+                .cancel(scanId)
+            OfflineQueueManager.shared.startedForegroundInferenceGenerations
+                .removeValue(forKey: scanId)
+            OfflineQueueManager.shared.foregroundInferenceGenerations
+                .removeValue(forKey: scanId)
+            OfflineQueueManager.shared.deferredLiveUploadScanIds.remove(scanId)
+        }
 
         let engine = InferenceEngine()
         engine.analyze(
             scanId: scanId,
+            foregroundInferenceGeneration: generation,
             imageDatas: [Data(repeating: 0xAB, count: 16)],
             displayDatas: [],
             telemetry: makeTelemetry(),
             modelContext: context
         )
         // Cancel immediately — fires before any network call succeeds.
-        // prepareForNewScan cancels inferenceTask; the catch block handles
+        // cancelActiveRequest cancels inferenceTask; the catch block handles
         // CancellationError with a plain return — no deleteQueuedScan call.
-        engine.prepareForNewScan()
+        engine.cancelActiveRequest()
 
-        // Wait for the cancelled task's defer to set isProcessing = false.
+        // Give the cooperatively cancelled task and exact durable ownership
+        // handoff time to exit.
         let deadline = Date().addingTimeInterval(2)
-        while engine.isProcessing, Date() < deadline {
+        while OfflineQueueManager.shared
+                .foregroundInferenceGenerations[scanId] != nil,
+              Date() < deadline {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
 
@@ -1158,6 +1295,17 @@ struct InferenceEngineTests {
         )
         let remaining = try context.fetchCount(descriptor)
         #expect(remaining == 1, "Inference cancellation must not delete the queue record — background upload path owns delivery")
+        #expect(
+            !OfflineQueueManager.shared.deferredLiveUploadScanIds.contains(
+                scanId
+            ),
+            "Cancellation must release the exact attempt's recovery-upload hold"
+        )
+        #expect(
+            OfflineQueueManager.shared
+                .foregroundInferenceGenerations[scanId] == nil,
+            "Cancellation must relinquish the exact foreground generation"
+        )
     }
 
     // MARK: - activeScanId lifecycle
@@ -1198,7 +1346,10 @@ struct InferenceEngineTests {
             ecologyType: "wild"
         )
 
+        let attemptGeneration = UUID()
         engine.activeScanId = scanId
+        engine.activeLiveInferenceAttemptGeneration =
+            attemptGeneration
         engine.isProcessing = true
         engine.activeMedia = ActiveScanMedia(
             items: [.liveImage(Data([0x01]))],
@@ -1207,6 +1358,8 @@ struct InferenceEngineTests {
 
         let didCommit = engine.commitSuccessfulResult(
             for: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: nil,
             speciesData: species,
             persistedMediaItems: [.image("documents/synchronized-result.webp")]
         )
@@ -1225,7 +1378,10 @@ struct InferenceEngineTests {
 
     @Test func staleResultCommitCannotOverwriteCurrentScan() {
         let engine = InferenceEngine()
+        let currentAttemptGeneration = UUID()
         engine.activeScanId = "current-scan"
+        engine.activeLiveInferenceAttemptGeneration =
+            currentAttemptGeneration
         engine.isProcessing = true
         engine.activeMedia = ActiveScanMedia(items: [.liveImage(Data([0x02]))])
 
@@ -1244,6 +1400,8 @@ struct InferenceEngineTests {
 
         let didCommit = engine.commitSuccessfulResult(
             for: "stale-scan",
+            attemptGeneration: UUID(),
+            foregroundInferenceGeneration: nil,
             speciesData: staleSpecies,
             persistedMediaItems: [.image("documents/stale.webp")]
         )
@@ -1255,26 +1413,400 @@ struct InferenceEngineTests {
         #expect(engine.isProcessing)
     }
 
-    /// Tests the defer block pattern at `InferenceEngine.swift:235-238`.
-    /// When the inference task exits — for any reason (success, error, or cancellation) —
-    /// both `isProcessing` and `activeScanId` must be cleared synchronously via defer.
-    ///
-    /// The test creates a minimal `Task<Void, Error>` that mirrors the exact defer in
-    /// `analyze()`.  If the defer is removed from the production code, this test must be
-    /// updated and the corresponding `activeScanId` docs in error-handling.md must be
-    /// corrected — do not simply delete this test.
-    @Test func testActiveScanIdClearedByInferenceTaskDefer() async {
+    @Test func staleAttemptForSameScanCannotOverwriteReplacementGeneration() {
         let engine = InferenceEngine()
-        // Simulate mid-inference state
-        engine.activeScanId = "live-scan-being-processed"
+        let manager = OfflineQueueManager.shared
+        let scanId = "same-scan-retry-\(UUID().uuidString.lowercased())"
+        let staleGeneration = UUID()
+        let replacementGeneration = UUID()
+        defer {
+            manager.startedForegroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+            manager.foregroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+        }
+
+        manager.foregroundInferenceGenerations[scanId] =
+            replacementGeneration
+        manager.startedForegroundInferenceGenerations[scanId] =
+            replacementGeneration
+        engine.activeScanId = scanId
+        engine.activeLiveInferenceAttemptGeneration =
+            replacementGeneration
+        engine.activeForegroundInferenceGeneration =
+            replacementGeneration
         engine.isProcessing = true
 
-        // Create a task that mirrors the defer block at InferenceEngine.swift:235-238.
-        // Using Task<Void, Error> because inferenceTask is typed `Task<Void, Error>?`.
+        let staleSpecies = SpeciesData(
+            scanId: scanId,
+            commonName: "Stale Result",
+            scientificName: "Resultus stale",
+            insightData: InsightData(
+                aiReasoning: "Should not publish.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.9,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        let replacementSpecies = SpeciesData(
+            scanId: scanId,
+            commonName: "Replacement Result",
+            scientificName: "Resultus current",
+            insightData: InsightData(
+                aiReasoning: "Current generation.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.95,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let staleDidCommit = engine.commitSuccessfulResult(
+            for: scanId,
+            attemptGeneration: staleGeneration,
+            foregroundInferenceGeneration: staleGeneration,
+            speciesData: staleSpecies
+        )
+        let staleBackgroundDidCommit =
+            engine.commitRecoveredBackgroundResult(
+                for: scanId,
+                replacingAttemptGeneration: staleGeneration,
+                expectedForegroundGeneration: staleGeneration,
+                speciesData: staleSpecies
+            )
+        let replacementDidCommit = engine.commitSuccessfulResult(
+            for: scanId,
+            attemptGeneration: replacementGeneration,
+            foregroundInferenceGeneration: replacementGeneration,
+            speciesData: replacementSpecies
+        )
+
+        #expect(!staleDidCommit)
+        #expect(!staleBackgroundDidCommit)
+        #expect(replacementDidCommit)
+        #expect(engine.speciesData?.commonName == "Replacement Result")
+    }
+
+    @Test func foregroundGenerationCannotBeStartedTwiceOrDuringRetirement() async throws {
+        let context = try createInMemoryContext()
+        let engine = InferenceEngine()
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let scanId =
+            "single-use-foreground-\(UUID().uuidString.lowercased())"
+        let generation = UUID()
+        defer {
+            engine.inferenceTask?.cancel()
+            manager.foregroundInferenceRetirementTasks.cancel(scanId)
+            manager.startedForegroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+            manager.foregroundInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+            manager.deferredLiveUploadScanIds.remove(scanId)
+            manager.modelContext = originalContext
+            manager.isOnline = originalIsOnline
+        }
+
+        manager.modelContext = context
+        manager.isOnline = false
+        context.insert(OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .pending
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(for: generation)
+        ))
+        try context.save()
+        manager.foregroundInferenceGenerations[scanId] = generation
+        manager.deferredLiveUploadScanIds.insert(scanId)
+        #expect(
+            manager.claimForegroundInferenceStart(
+                scanId: scanId,
+                generation: generation
+            )
+        )
+        #expect(
+            !manager.claimForegroundInferenceStart(
+                scanId: scanId,
+                generation: generation
+            ),
+            "A foreground UUID must be single-use across all engine callers"
+        )
+
+        let currentSpecies = SpeciesData(
+            scanId: scanId,
+            commonName: "Current Attempt",
+            scientificName: "Attemptus current",
+            insightData: InsightData(
+                aiReasoning: "Must remain published.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.95,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        engine.activeScanId = scanId
+        engine.activeLiveInferenceAttemptGeneration = generation
+        engine.activeForegroundInferenceGeneration = generation
+        engine.speciesData = currentSpecies
+        engine.isProcessing = true
+
+        // An exact duplicate must be an idempotent no-op. Restarting it would
+        // give old and new callbacks the same UUID.
+        engine.analyze(
+            scanId: scanId,
+            foregroundInferenceGeneration: generation,
+            imageDatas: [Data([0x01])],
+            telemetry: makeTelemetry(),
+            modelContext: context
+        )
+        #expect(engine.speciesData?.commonName == "Current Attempt")
+        #expect(engine.activeLiveInferenceAttemptGeneration == generation)
+        #expect(
+            manager.deferredLiveUploadScanIds.contains(scanId),
+            "A duplicate start must not release the current upload hold"
+        )
+
+        // Retirement fences the still-running presentation synchronously,
+        // before durable handoff can acquire its actor coordinator. Temporarily
+        // remove the context to force the first durable handoff to fail.
+        manager.modelContext = nil
+        manager.retireForegroundInference(
+            scanId: scanId,
+            generation: generation,
+            resumeBackground: true,
+            reason: "unit_test_external_retirement"
+        )
+        let retiringAttemptDidCommit = engine.commitSuccessfulResult(
+            for: scanId,
+            attemptGeneration: generation,
+            foregroundInferenceGeneration: generation,
+            speciesData: currentSpecies
+        )
+        #expect(
+            !retiringAttemptDidCommit,
+            "A tokenized retirement must fence delayed result publication before durable release"
+        )
+
+        // Presentation cancellation must preserve that manager-owned retirement
+        // and the same UUID must remain unusable rather than being abandoned as
+        // a permanent recovery-suppression claim.
+        engine.prepareForNewScan()
+        engine.analyze(
+            scanId: scanId,
+            foregroundInferenceGeneration: generation,
+            imageDatas: [Data([0x02])],
+            telemetry: makeTelemetry(),
+            modelContext: context
+        )
+        #expect(engine.activeScanId == nil)
+        #expect(engine.activeLiveInferenceAttemptGeneration == nil)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(
+            manager.foregroundInferenceGenerations[scanId] == generation,
+            "A failed durable handoff must retain the exact process owner until retry succeeds"
+        )
+
+        manager.modelContext = context
+        let deadline = Date().addingTimeInterval(2)
+        while manager.foregroundInferenceGenerations[scanId] != nil,
+              Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(manager.foregroundInferenceGenerations[scanId] == nil)
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        #expect(try context.fetch(jobDescriptor).first?.metadataJSON == nil)
+    }
+
+    @Test func loadingPersistedScanRelinquishesExactLiveOwner() async throws {
+        let context = try createInMemoryContext()
+        let engine = InferenceEngine()
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let liveScanId =
+            "live-before-history-\(UUID().uuidString.lowercased())"
+        let liveGeneration = UUID()
+        let historicScanId =
+            "historic-replacement-\(UUID().uuidString.lowercased())"
+        defer {
+            engine.inferenceTask?.cancel()
+            engine.historicHydrationTask?.cancel()
+            manager.foregroundInferenceRetirementTasks.cancel(liveScanId)
+            manager.startedForegroundInferenceGenerations.removeValue(
+                forKey: liveScanId
+            )
+            manager.foregroundInferenceGenerations.removeValue(
+                forKey: liveScanId
+            )
+            manager.deferredLiveUploadScanIds.remove(liveScanId)
+            manager.modelContext = originalContext
+            manager.isOnline = originalIsOnline
+        }
+
+        manager.modelContext = context
+        manager.isOnline = false
+        context.insert(OfflineQueuedScan(
+            id: liveScanId,
+            timestamp: Date(),
+            scanState: .pending
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(
+                scanId: liveScanId
+            ),
+            kind: .scanIngestion,
+            subjectId: liveScanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(
+                    for: liveGeneration
+                )
+        ))
+        let historicRecord = LocalScanRecord(
+            id: historicScanId,
+            speciesId: UUID().uuidString,
+            scientificName: "Objectum historicum",
+            commonName: "Historic Object",
+            isBiological: false,
+            isLiveCapture: false,
+            ecologyType: "inanimate",
+            confidenceScore: 0.9
+        )
+        context.insert(historicRecord)
+        try context.save()
+
+        manager.foregroundInferenceGenerations[liveScanId] =
+            liveGeneration
+        manager.deferredLiveUploadScanIds.insert(liveScanId)
+        engine.activeScanId = liveScanId
+        engine.activeLiveInferenceAttemptGeneration = liveGeneration
+        engine.activeForegroundInferenceGeneration = liveGeneration
+        engine.isProcessing = true
+        let oldInferenceTask = Task<Void, Error> {
+            try await Task.sleep(for: .seconds(30))
+        }
+        engine.inferenceTask = oldInferenceTask
+
+        engine.load(from: historicRecord)
+
+        #expect(oldInferenceTask.isCancelled)
+        #expect(engine.activeScanId == historicScanId)
+        #expect(engine.activeLiveInferenceAttemptGeneration == nil)
+        #expect(engine.activeForegroundInferenceGeneration == nil)
+        #expect(engine.speciesData?.scanId == historicScanId)
+        #expect(
+            !manager.deferredLiveUploadScanIds.contains(liveScanId),
+            "Replacing the presentation must release the exact recovery-upload hold"
+        )
+
+        let deadline = Date().addingTimeInterval(2)
+        while manager.foregroundInferenceGenerations[liveScanId] != nil,
+              Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(manager.foregroundInferenceGenerations[liveScanId] == nil)
+
+        let queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == liveScanId }
+        )
+        #expect(
+            try context.fetch(queuedDescriptor).first != nil,
+            "Historical presentation replacement hands the queued scan to recovery; it does not delete it"
+        )
+    }
+
+    @Test func recoveredBackgroundResultCanReplaceExactReleasedAttempt() {
+        let engine = InferenceEngine()
+        let manager = OfflineQueueManager.shared
+        let scanId =
+            "released-background-presentation-\(UUID().uuidString.lowercased())"
+        let releasedGeneration = UUID()
+        manager.foregroundInferenceGenerations.removeValue(forKey: scanId)
+        engine.activeScanId = scanId
+        engine.activeLiveInferenceAttemptGeneration =
+            releasedGeneration
+        engine.activeForegroundInferenceGeneration =
+            releasedGeneration
+        engine.isProcessing = true
+
+        let recoveredSpecies = SpeciesData(
+            scanId: scanId,
+            commonName: "Recovered Result",
+            scientificName: "Resultus recovered",
+            insightData: InsightData(
+                aiReasoning: "Background recovery completed.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.94,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let didCommit = engine.commitRecoveredBackgroundResult(
+            for: scanId,
+            replacingAttemptGeneration: releasedGeneration,
+            expectedForegroundGeneration: releasedGeneration,
+            speciesData: recoveredSpecies
+        )
+        let releasedAttemptDidCommitAgain = engine.commitSuccessfulResult(
+            for: scanId,
+            attemptGeneration: releasedGeneration,
+            foregroundInferenceGeneration: releasedGeneration,
+            speciesData: recoveredSpecies
+        )
+
+        #expect(didCommit)
+        #expect(!releasedAttemptDidCommitAgain)
+        #expect(engine.speciesData?.commonName == "Recovered Result")
+        #expect(!engine.isProcessing)
+        #expect(engine.activeScanId == nil)
+        #expect(engine.activeLiveInferenceAttemptGeneration == nil)
+        #expect(engine.activeForegroundInferenceGeneration == nil)
+    }
+
+    /// Tests the generation-fenced defer block used by both live pipelines.
+    /// When the inference task exits — for any reason (success, error, or cancellation) —
+    /// it may clear state only while its UUID still owns the presentation slot.
+    @Test func testActiveScanIdClearedByInferenceTaskDefer() async {
+        let engine = InferenceEngine()
+        let generation = UUID()
+        engine.activeScanId = "live-scan-being-processed"
+        engine.activeLiveInferenceAttemptGeneration = generation
+        engine.isProcessing = true
+
         let task = Task<Void, Error> { @MainActor in
             defer {
-                engine.isProcessing = false
-                engine.activeScanId = nil
+                if engine.activeScanId == "live-scan-being-processed",
+                   engine.activeLiveInferenceAttemptGeneration == generation {
+                    engine.isProcessing = false
+                    engine.activeScanId = nil
+                    engine.activeLiveInferenceAttemptGeneration = nil
+                }
             }
             await Task.yield()
         }
@@ -1285,22 +1817,22 @@ struct InferenceEngineTests {
         #expect(engine.isProcessing == false, "isProcessing must be false after the inference task exits")
     }
 
-    /// Verifies that `cancelActiveRequest()` sets `isProcessing = false` but does NOT
-    /// clear `activeScanId` — that cleanup is owned exclusively by the inference task's defer.
-    /// This asymmetry is intentional: the background URLSession path uses `activeScanId` to
-    /// detect a live inference and hydrate the engine instead of leaving `isProcessing` locked.
-    @Test func testCancelActiveRequestDoesNotClearActiveScanId() {
+    /// Explicit cancellation invalidates the presentation UUID, so it must also
+    /// clear the paired scan identity instead of leaving an unowned hydration slot.
+    @Test func testCancelActiveRequestClearsActiveScanId() {
         let engine = InferenceEngine()
         engine.activeScanId = "background-scan-in-flight"
+        engine.activeLiveInferenceAttemptGeneration = UUID()
         engine.isProcessing = true
 
         engine.cancelActiveRequest()
 
         #expect(engine.isProcessing == false, "cancelActiveRequest must clear isProcessing")
-        // activeScanId intentionally NOT cleared by cancelActiveRequest — the inference
-        // task's defer (or prepareForNewScan at the start of the next scan) owns this.
-        #expect(engine.activeScanId == "background-scan-in-flight",
-                "cancelActiveRequest must NOT clear activeScanId — that is owned by the inference task defer")
+        #expect(
+            engine.activeScanId == nil,
+            "An invalidated presentation UUID must not leave an unowned activeScanId"
+        )
+        #expect(engine.activeLiveInferenceAttemptGeneration == nil)
     }
 
     // MARK: - Identification Candidates: full four-field decoding

@@ -187,7 +187,10 @@ extension OfflineQueueManager {
         match.queueLastHTTPStatus = httpStatus
         match.queueNeedsAttention = needsAttention
         match.queueUpdatedAt = Date()
-        if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId), context: context) {
+        if let job = try? fetchOfflineJob(
+            id: Self.scanIngestionJobId(scanId: scanId),
+            context: context
+        ) {
             job.status = needsAttention ? .needsAttention : .cancelled
             job.updatedAt = Date()
             job.nextRunAt = nil
@@ -231,6 +234,7 @@ extension OfflineQueueManager {
         explicitlyAdoptedMediaPaths: [String] = [],
         preservePreferredGoalHint: Bool = false,
         inferenceExpectation: InferenceGenerationExpectation? = nil,
+        foregroundInferenceExpectation: ForegroundInferenceGenerationExpectation? = nil,
         serverPollTokenToPreserve: UUID? = nil
     ) async -> Bool {
         await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
@@ -243,6 +247,7 @@ extension OfflineQueueManager {
             explicitlyAdoptedMediaPaths: explicitlyAdoptedMediaPaths,
             preservePreferredGoalHint: preservePreferredGoalHint,
             inferenceExpectation: inferenceExpectation,
+            foregroundInferenceExpectation: foregroundInferenceExpectation,
             serverPollTokenToPreserve: serverPollTokenToPreserve
         )
         await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
@@ -254,8 +259,40 @@ extension OfflineQueueManager {
         explicitlyAdoptedMediaPaths: [String],
         preservePreferredGoalHint: Bool,
         inferenceExpectation: InferenceGenerationExpectation?,
+        foregroundInferenceExpectation: ForegroundInferenceGenerationExpectation?,
         serverPollTokenToPreserve: UUID?
     ) async -> Bool {
+        if let foregroundInferenceExpectation {
+            guard foregroundInferenceGenerations[scanId]
+                    == foregroundInferenceExpectation.generation,
+                  activeInferenceGenerations[scanId] == nil else {
+                MerianLog.data.debug(
+                    "deleteQueuedScan: ignored stale foreground inference owner scanId=\(scanId, privacy: .public)"
+                )
+                return false
+            }
+            guard let container = modelContext?.container else { return false }
+            let validationActor = BackgroundDatabaseActor(
+                modelContainer: container
+            )
+            guard await validationActor
+                .liveInferenceGenerationIsCurrentAssumingPersistenceLock(
+                    scanId: scanId,
+                    expectedGeneration: foregroundInferenceExpectation.generation
+                ) else {
+                MerianLog.data.debug(
+                    "deleteQueuedScan: durable foreground inference owner changed scanId=\(scanId, privacy: .public)"
+                )
+                return false
+            }
+        } else if inferenceExpectation != nil {
+            // A background result must never tear down a foreground owner. The
+            // normal handoff prevents these states from overlapping; this guard
+            // makes that invariant fail closed if a caller regresses.
+            guard foregroundInferenceGenerations[scanId] == nil else {
+                return false
+            }
+        }
         if let inferenceExpectation {
             guard activeInferenceGenerations[scanId]
                     == inferenceExpectation.generation else {
@@ -295,6 +332,36 @@ extension OfflineQueueManager {
 
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
         let allTasks = await backgroundSession.allTasks
+        if let foregroundInferenceExpectation {
+            guard !Task.isCancelled,
+                  foregroundInferenceGenerations[scanId]
+                    == foregroundInferenceExpectation.generation,
+                  activeInferenceGenerations[scanId] == nil else {
+                MerianLog.data.debug(
+                    "deleteQueuedScan: foreground owner changed while enumerating tasks scanId=\(scanId, privacy: .public)"
+                )
+                return false
+            }
+            guard let container = modelContext?.container else { return false }
+            let validationActor = BackgroundDatabaseActor(
+                modelContainer: container
+            )
+            guard await validationActor
+                .liveInferenceGenerationIsCurrentAssumingPersistenceLock(
+                    scanId: scanId,
+                    expectedGeneration:
+                        foregroundInferenceExpectation.generation
+                ),
+                foregroundInferenceGenerations[scanId]
+                    == foregroundInferenceExpectation.generation,
+                activeInferenceGenerations[scanId] == nil,
+                !Task.isCancelled else {
+                MerianLog.data.debug(
+                    "deleteQueuedScan: durable foreground owner changed while enumerating tasks scanId=\(scanId, privacy: .public)"
+                )
+                return false
+            }
+        }
         if let inferenceExpectation {
             guard activeInferenceGenerations[scanId]
                     == inferenceExpectation.generation else {
@@ -320,7 +387,12 @@ extension OfflineQueueManager {
         // Clear in-process ownership only after the suspension point above has
         // revalidated the caller. A stale delete must not cancel replacement work.
         deferredLiveUploadScanIds.remove(scanId)
-        foregroundInferenceScanIds.remove(scanId)
+        if let foregroundInferenceExpectation {
+            guard foregroundInferenceGenerations[scanId]
+                    == foregroundInferenceExpectation.generation else {
+                return false
+            }
+        }
         latestUploadGenerations[scanId] = nil
         if inferenceExpectation == nil {
             inferenceStatusProbeTasks.cancel(scanId)
@@ -349,10 +421,24 @@ extension OfflineQueueManager {
             return false
         }
         guard let scan else {
-            guard !preservePreferredGoalHint else { return true }
+            if preservePreferredGoalHint {
+                clearForegroundInferenceOwnershipAfterDeletion(
+                    scanId: scanId,
+                    inferenceExpectation: inferenceExpectation,
+                    foregroundInferenceExpectation:
+                        foregroundInferenceExpectation
+                )
+                return true
+            }
             deletePreferredGoalHint(scanId: scanId, in: context)
             do {
                 try context.save()
+                clearForegroundInferenceOwnershipAfterDeletion(
+                    scanId: scanId,
+                    inferenceExpectation: inferenceExpectation,
+                    foregroundInferenceExpectation:
+                        foregroundInferenceExpectation
+                )
                 return true
             } catch {
                 context.rollback()
@@ -421,7 +507,10 @@ extension OfflineQueueManager {
             appendDeletionCandidate(.documents(inferenceImagePath))
         }
 
-        if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId), context: context) {
+        if let job = try? fetchOfflineJob(
+            id: Self.scanIngestionJobId(scanId: scanId),
+            context: context
+        ) {
             job.status = .cancelled
             job.updatedAt = Date()
             job.nextRunAt = nil
@@ -438,6 +527,12 @@ extension OfflineQueueManager {
         context.delete(scan)
         do {
             try context.save()
+            clearForegroundInferenceOwnershipAfterDeletion(
+                scanId: scanId,
+                inferenceExpectation: inferenceExpectation,
+                foregroundInferenceExpectation:
+                    foregroundInferenceExpectation
+            )
             await FileIOActor.shared.deleteFiles(at: Array(Set(pathsToDelete)))
             updateUnsyncedItemCount()
             ScanLibraryEvents.postLibraryDidUpdate()
@@ -447,6 +542,33 @@ extension OfflineQueueManager {
             MerianLog.data.error("deleteQueuedScan: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
             updateUnsyncedItemCount()
             return false
+        }
+    }
+
+    private func clearForegroundInferenceOwnershipAfterDeletion(
+        scanId: String,
+        inferenceExpectation: InferenceGenerationExpectation?,
+        foregroundInferenceExpectation:
+            ForegroundInferenceGenerationExpectation?
+    ) {
+        if let foregroundInferenceExpectation {
+            if foregroundInferenceGenerations[scanId]
+                == foregroundInferenceExpectation.generation {
+                foregroundInferenceGenerations[scanId] = nil
+                if startedForegroundInferenceGenerations[scanId]
+                    == foregroundInferenceExpectation.generation {
+                    startedForegroundInferenceGenerations[scanId] = nil
+                }
+                foregroundInferenceRetirementTasks.cancel(
+                    scanId,
+                    ifOwnedBy: foregroundInferenceExpectation.generation
+                )
+            }
+        } else if inferenceExpectation == nil {
+            // No expectation denotes an explicit user/system deletion.
+            foregroundInferenceGenerations[scanId] = nil
+            startedForegroundInferenceGenerations[scanId] = nil
+            foregroundInferenceRetirementTasks.cancel(scanId)
         }
     }
 
@@ -488,7 +610,10 @@ extension OfflineQueueManager {
                 }
                 deletePreferredGoalHint(scanId: scanId, in: context)
                 context.delete(scan)
-                if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId), context: context) {
+                if let job = try? fetchOfflineJob(
+                    id: Self.scanIngestionJobId(scanId: scanId),
+                    context: context
+                ) {
                     job.status = .cancelled
                     job.updatedAt = Date()
                 }
@@ -794,6 +919,7 @@ extension OfflineQueueManager {
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         preferredGoal: FieldTripPreferredGoal? = nil,
         captureDate: Date = Date(),
+        foregroundInferenceGeneration: UUID? = nil,
         startSyncImmediately: Bool = true,
         onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
@@ -896,6 +1022,7 @@ extension OfflineQueueManager {
                     telemetry: telemetry,
                     blurScore: blurScore,
                     timestamp: captureDate,
+                    foregroundInferenceGeneration: foregroundInferenceGeneration,
                     startSyncImmediately: startSyncImmediately
                 )
                 if let onQueued {
@@ -977,12 +1104,15 @@ extension OfflineQueueManager {
         }
     }
 
-    private func fetchOfflineJob(id: String, context: ModelContext) -> OfflineJobRecord? {
+    private func fetchOfflineJob(
+        id: String,
+        context: ModelContext
+    ) throws -> OfflineJobRecord? {
         var descriptor = FetchDescriptor<OfflineJobRecord>(
             predicate: #Predicate { $0.id == id }
         )
         descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
+        return try context.fetch(descriptor).first
     }
 
     @MainActor
@@ -993,7 +1123,8 @@ extension OfflineQueueManager {
         videoFilePaths: [String] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         telemetry: CaptureTelemetry,
-        scanId: String? = nil
+        scanId: String? = nil,
+        foregroundInferenceGeneration: UUID? = nil
     ) -> Bool {
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
         let filteredVideoFilePaths = videoFilePaths.filter { !$0.isEmpty }
@@ -1113,7 +1244,10 @@ extension OfflineQueueManager {
                     URL.documentsDirectory.appendingPathComponent($0)
                 }),
                 requiresUnconstrainedNetwork: !persistedVideoNamesBySourcePath.isEmpty,
-                allowsCellular: persistedVideoNamesBySourcePath.isEmpty
+                allowsCellular: persistedVideoNamesBySourcePath.isEmpty,
+                metadataJSON: foregroundInferenceGeneration.map {
+                    InferenceGenerationMetadataContract.json(for: $0)
+                }
             )
             modelContext.insert(OfflineQueueEvent(
                 jobId: job.id,
@@ -1123,11 +1257,34 @@ extension OfflineQueueManager {
             ))
         } catch {
             modelContext.rollback()
+            if didConsumeQuota {
+                UsageManager.shared.refundScan()
+            }
             MerianLog.data.error("enqueueNonVisualCapture: failed to create offline job: \(error, privacy: .private)")
+            for persistedAudioName in persistedAudioNamesBySourcePath.values {
+                try? FileManager.default.removeItem(
+                    at: URL.documentsDirectory.appendingPathComponent(
+                        persistedAudioName
+                    )
+                )
+            }
+            for persistedVideoName in persistedVideoNamesBySourcePath.values {
+                try? FileManager.default.removeItem(
+                    at: URL.documentsDirectory.appendingPathComponent(
+                        persistedVideoName
+                    )
+                )
+            }
             return false
         }
         do {
             try modelContext.save()
+            if let foregroundInferenceGeneration {
+                foregroundInferenceRetirementTasks.cancel(resolvedScanId)
+                startedForegroundInferenceGenerations[resolvedScanId] = nil
+                foregroundInferenceGenerations[resolvedScanId] =
+                    foregroundInferenceGeneration
+            }
             updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
             if hasUploadableMedia {
@@ -1294,6 +1451,7 @@ extension OfflineQueueManager {
         telemetry: CaptureTelemetry,
         blurScore: Double?,
         timestamp: Date,
+        foregroundInferenceGeneration: UUID?,
         startSyncImmediately: Bool
     ) async -> Bool {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
@@ -1361,7 +1519,10 @@ extension OfflineQueueManager {
                 priority: 100,
                 approximateBytes: approximateBytes(for: fileURLs),
                 requiresUnconstrainedNetwork: scan.capturedMediaSnapshot.videoPaths.isEmpty == false,
-                allowsCellular: scan.capturedMediaSnapshot.videoPaths.isEmpty
+                allowsCellular: scan.capturedMediaSnapshot.videoPaths.isEmpty,
+                metadataJSON: foregroundInferenceGeneration.map {
+                    InferenceGenerationMetadataContract.json(for: $0)
+                }
             )
             modelContext.insert(OfflineQueueEvent(
                 jobId: job.id,
@@ -1381,6 +1542,12 @@ extension OfflineQueueManager {
 
         do {
             try modelContext.save()
+            if let foregroundInferenceGeneration {
+                foregroundInferenceRetirementTasks.cancel(scanId)
+                startedForegroundInferenceGenerations[scanId] = nil
+                foregroundInferenceGenerations[scanId] =
+                    foregroundInferenceGeneration
+            }
             updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
             MerianLog.data.debug(
@@ -1406,9 +1573,20 @@ extension OfflineQueueManager {
         }
     }
 
-    /// Releases a single live scan's upload hold. Idempotent so the body-sent
-    /// callback, two-second fail-safe, lifecycle events, and error path can race safely.
-    func releaseDeferredLiveUpload(scanId: String, reason: String) {
+    /// Releases a single live scan's upload hold. An inference generation makes
+    /// delayed body-sent and fail-safe callbacks compare before releasing a hold
+    /// that may now belong to a replacement attempt.
+    func releaseDeferredLiveUpload(
+        scanId: String,
+        foregroundInferenceGeneration: UUID? = nil,
+        reason: String
+    ) {
+        if let foregroundInferenceGeneration {
+            guard foregroundInferenceGenerations[scanId]
+                    == foregroundInferenceGeneration else {
+                return
+            }
+        }
         guard deferredLiveUploadScanIds.remove(scanId) != nil else { return }
         MerianLog.data.debug(
             "releaseDeferredLiveUpload: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public)"
@@ -1426,38 +1604,212 @@ extension OfflineQueueManager {
         syncPendingScans()
     }
 
-    /// Marks the live request as the sole inference owner while allowing the
-    /// durable queue to upload recovery media after the body-sent handoff.
-    func beginForegroundInference(scanId: String) {
-        foregroundInferenceScanIds.insert(scanId)
+    func isForegroundInferenceGenerationCurrent(
+        scanId: String,
+        generation: UUID
+    ) -> Bool {
+        foregroundInferenceGenerations[scanId] == generation
     }
 
-    /// Releases foreground ownership. On failure/cancellation, uploaded scans
-    /// are replayed and pending scans continue normal sync. Idempotent so scene,
-    /// transport, and task-cancellation paths can safely race.
-    func endForegroundInference(
+    /// Atomically consumes a queue-backed foreground generation for one provider
+    /// pipeline. This ownership lives with the queue rather than an engine
+    /// instance, so duplicate submissions cannot reuse a callback-equivalent
+    /// UUID.
+    func canStartForegroundInference(
         scanId: String,
+        generation: UUID
+    ) -> Bool {
+        foregroundInferenceGenerations[scanId] == generation &&
+            startedForegroundInferenceGenerations[scanId] == nil &&
+            !foregroundInferenceRetirementTasks.isOwned(
+                scanId,
+                by: generation
+            )
+    }
+
+    func isForegroundInferenceAttemptCurrent(
+        scanId: String,
+        generation: UUID
+    ) -> Bool {
+        foregroundInferenceGenerations[scanId] == generation &&
+            startedForegroundInferenceGenerations[scanId] == generation &&
+            !foregroundInferenceRetirementTasks.isOwned(
+                scanId,
+                by: generation
+            )
+    }
+
+    func claimForegroundInferenceStart(
+        scanId: String,
+        generation: UUID
+    ) -> Bool {
+        guard canStartForegroundInference(
+            scanId: scanId,
+            generation: generation
+        ) else {
+            return false
+        }
+        startedForegroundInferenceGenerations[scanId] = generation
+        return true
+    }
+
+    /// Synchronously retires a foreground UUID, then retries its durable handoff
+    /// with capped backoff. Registering the task before yielding closes the
+    /// cancellation-to-handoff window for every caller, including pre-provider
+    /// capture exits that have no active `InferenceEngine` task.
+    func retireForegroundInference(
+        scanId: String,
+        generation: UUID,
         resumeBackground: Bool,
         reason: String
     ) {
-        guard foregroundInferenceScanIds.remove(scanId) != nil else { return }
+        guard foregroundInferenceGenerations[scanId] == generation,
+              !foregroundInferenceRetirementTasks.isOwned(
+                  scanId,
+                  by: generation
+              ) else {
+            return
+        }
+
+        foregroundInferenceRetirementTasks.replace(
+            for: scanId,
+            ownerGeneration: generation
+        ) { [weak self] token in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                var retryDelay = Duration.milliseconds(250)
+                defer {
+                    self.foregroundInferenceRetirementTasks.clearIfCurrent(
+                        scanId,
+                        token: token
+                    )
+                }
+
+                while !Task.isCancelled,
+                      self.foregroundInferenceRetirementTasks.isCurrent(
+                          scanId,
+                          token: token,
+                          ownerGeneration: generation
+                      ),
+                      self.foregroundInferenceGenerations[scanId]
+                        == generation {
+                    let didEnd = await self.endForegroundInference(
+                        scanId: scanId,
+                        generation: generation,
+                        resumeBackground: resumeBackground,
+                        reason: reason
+                    )
+                    guard !didEnd,
+                          self.foregroundInferenceRetirementTasks.isCurrent(
+                              scanId,
+                              token: token,
+                              ownerGeneration: generation
+                          ),
+                          self.foregroundInferenceGenerations[scanId]
+                            == generation else {
+                        break
+                    }
+
+                    // Keep the UUID retired while a transient SwiftData
+                    // fetch/save failure is retried. Reusing it would admit
+                    // delayed callbacks, while abandoning it would suppress
+                    // recovery indefinitely.
+                    try? await Task.sleep(for: retryDelay)
+                    retryDelay = min(retryDelay * 2, .seconds(5))
+                }
+            }
+        }
+    }
+
+    /// Releases only the expected foreground owner. The durable generation is
+    /// cleared under the same per-scan coordinator used by background claims and
+    /// live-result persistence, establishing one linear handoff point.
+    @discardableResult
+    func endForegroundInference(
+        scanId: String,
+        generation: UUID,
+        resumeBackground: Bool,
+        reason: String
+    ) async -> Bool {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard foregroundInferenceGenerations[scanId] == generation else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return false
+        }
+
+        var didClearDurableOwner = true
+        if let context = modelContext {
+            let jobId = Self.scanIngestionJobId(scanId: scanId)
+            do {
+                if let job = try fetchOfflineJob(
+                    id: jobId,
+                    context: context
+                ) {
+                    let expectedMetadata =
+                        InferenceGenerationMetadataContract.json(
+                            for: generation
+                        )
+                    if job.metadataJSON == expectedMetadata {
+                        job.metadataJSON = nil
+                        job.updatedAt = Date()
+                        do {
+                            try context.save()
+                        } catch {
+                            context.rollback()
+                            didClearDurableOwner = false
+                            MerianLog.data.error(
+                                "endForegroundInference: durable handoff failed scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
+                            )
+                        }
+                    } else if job.metadataJSON != nil {
+                        didClearDurableOwner = false
+                    }
+                    // A different durable generation has already replaced this
+                    // owner. Never clear its metadata.
+                }
+            } catch {
+                didClearDurableOwner = false
+                MerianLog.data.error(
+                    "endForegroundInference: ownership fetch failed scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
+                )
+            }
+        } else {
+            didClearDurableOwner = false
+        }
+
+        if didClearDurableOwner {
+            foregroundInferenceGenerations[scanId] = nil
+            if startedForegroundInferenceGenerations[scanId] == generation {
+                startedForegroundInferenceGenerations[scanId] = nil
+            }
+        }
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+
+        guard didClearDurableOwner else { return false }
         MerianLog.data.debug(
             "endForegroundInference: scanId=\(scanId, privacy: .public) resume=\(resumeBackground, privacy: .public) reason=\(reason, privacy: .public)"
         )
-        guard resumeBackground else { return }
-        syncPendingScans()
-        replayInferenceForUploadedScans()
+        if resumeBackground {
+            syncPendingScans()
+            replayInferenceForUploadedScans()
+        }
+        return true
     }
 
     func releaseAllForegroundInferenceClaims(reason: String) {
-        guard !foregroundInferenceScanIds.isEmpty else { return }
-        let scanIds = foregroundInferenceScanIds
-        foregroundInferenceScanIds.removeAll()
+        let claims = foregroundInferenceGenerations
+        guard !claims.isEmpty else { return }
         MerianLog.data.debug(
-            "releaseAllForegroundInferenceClaims: count=\(scanIds.count, privacy: .public) reason=\(reason, privacy: .public)"
+            "releaseAllForegroundInferenceClaims: count=\(claims.count, privacy: .public) reason=\(reason, privacy: .public)"
         )
-        syncPendingScans()
-        replayInferenceForUploadedScans()
+        for (scanId, generation) in claims {
+            retireForegroundInference(
+                scanId: scanId,
+                generation: generation,
+                resumeBackground: true,
+                reason: reason
+            )
+        }
     }
 
     /// Merges late WeatherKit/geocoder values into the durable queue record so

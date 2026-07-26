@@ -1008,10 +1008,13 @@ the complete disposable database gate.
 
 ### Darwin Core Export Release Gate
 
-Migrations `20260724230849_harden_dwca_export_jobs.sql` and
-`20260725052339_bound_dwca_export_work.sql` must land with `request-export-dwca`
-and the resumable `export-dwca` bundle. Before the first deployment, generate a
-dedicated version-1 pseudonym key:
+Migrations `20260724230849_harden_dwca_export_jobs.sql`,
+`20260725052339_bound_dwca_export_work.sql`, and
+the ordered source-bound pair
+`20260725175312_bound_dwca_export_source_bytes.sql` /
+`20260725180321_validate_dwca_export_source_bounds.sql` must land with
+`request-export-dwca` and the resumable `export-dwca` bundle. Before the first
+deployment, generate a dedicated version-1 pseudonym key:
 
 ```bash
 openssl rand -base64 32
@@ -1029,11 +1032,80 @@ CSV rows and an 8 MiB archive by default, with hard database ceilings of 20,000
 rows and 16 MiB.
 
 The current worker does not finish a complete export in `waitUntil`. A
-minute-level cron resumes one due job, and each invocation performs one 100-scan
-occurrence page, one 100-scan multimedia page, assembly, or delivery. CSV pages
-are stored as claim-token-fenced R2 chunks and committed to a durable
-cursor/manifest with cumulative budgets. This phase boundary is the production
+minute-level cron resumes one due job, and each invocation performs one
+occurrence page, one multimedia page, assembly, or delivery. The database caps
+data pages at 100 scans and 256 KiB of serialized source under the active claim;
+validated row checks bound media, interactions, and selected taxonomy before
+the read. A fixed-capacity incremental encoder caps
+CSV output at 512 KiB. CSV pages are stored as
+claim-token-fenced R2 chunks and committed to a durable cursor/manifest with
+cumulative budgets. These phase and byte boundaries are the production
 memory/time contract.
+
+Before the database push, run this owner-only, read-only legacy-row preflight.
+It must return zero rows. Repair invalid source values through the canonical
+data path; do not skip validation or weaken the limits:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+WITH violations AS (
+    SELECT
+        'public.scans'::TEXT AS source_table,
+        scans.id::TEXT AS record_id
+    FROM public.scans AS scans
+    WHERE CARDINALITY(scans.image_storage_urls) > 24
+       OR EXISTS (
+           SELECT 1
+           FROM UNNEST(scans.image_storage_urls) AS media(url)
+           WHERE media.url IS NULL
+              OR OCTET_LENGTH(media.url) > 4096
+              OR media.url ~ '[[:cntrl:]]'
+       )
+       OR (
+           scans.ecological_interactions IS NOT NULL
+           AND (
+               CARDINALITY(scans.ecological_interactions) > 10
+               OR EXISTS (
+                   SELECT 1
+                   FROM UNNEST(scans.ecological_interactions)
+                       AS interactions(value)
+                   WHERE interactions.value IS NULL
+                      OR OCTET_LENGTH(interactions.value) > 2048
+                      OR interactions.value ~ '[[:cntrl:]]'
+               )
+           )
+       )
+    UNION ALL
+
+    SELECT
+        'public.species_dictionary',
+        species.id::TEXT
+    FROM public.species_dictionary AS species
+    WHERE OCTET_LENGTH(species.scientific_name) > 1024
+       OR OCTET_LENGTH(species.kingdom) > 512
+       OR OCTET_LENGTH(species.phylum) > 512
+       OR OCTET_LENGTH(species.class) > 512
+       OR OCTET_LENGTH(species."order") > 512
+       OR OCTET_LENGTH(species.family) > 512
+       OR OCTET_LENGTH(species.genus) > 512
+       OR (
+           species.iucn_red_list_status IS NOT NULL
+           AND OCTET_LENGTH(species.iucn_red_list_status) > 128
+       )
+)
+SELECT
+    violations.source_table,
+    COUNT(*) AS violation_count,
+    (ARRAY_AGG(violations.record_id ORDER BY violations.record_id))[1:10]
+        AS sample_ids
+FROM violations
+GROUP BY violations.source_table
+ORDER BY violations.source_table;
+
+ROLLBACK;
+```
 
 Because production migrations precede function bundles, applying the migration
 creates a private two-hour legacy payload deadline. Only jobs created in that
@@ -1101,6 +1173,7 @@ deno test --frozen \
   --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/migrations,.github/workflows/deploy.yml \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+  services/supabase/functions/export-dwca/archive_test.ts \
   services/supabase/functions/export-dwca/db_test.ts \
   services/supabase/functions/export-dwca/index_test.ts \
   services/supabase/functions/export-dwca/mail_test.ts \
@@ -1119,6 +1192,11 @@ supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/export_dwca_security.sql
 ```
+
+The database test must prove all three source constraints are validated, API
+roles cannot read the internal projections, only `service_role` can execute the
+source-page RPC, a byte ceiling can stop a page before its row ceiling, and the
+returned completion flag remains false when more keyset work exists.
 
 Post-deploy, queue one personal test export and deliberately redeliver the same
 job UUID while its first phase owns the lease. Both wake-ups return `200`; one

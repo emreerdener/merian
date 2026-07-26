@@ -286,11 +286,14 @@ MerianTests/
   and `EnrichScanResponse` payloads via `JSONDecoder`. Also covers
   `activeScanId` lifecycle: `testPrepareForNewScanClearsActiveScanId` verifies
   the pre-scan reset clears the stale ID;
-  `testActiveScanIdClearedByInferenceTaskDefer` documents the
-  `defer { self.activeScanId = nil }` contract at `InferenceEngine.swift:237`;
-  `testCancelActiveRequestDoesNotClearActiveScanId` asserts the asymmetry —
-  `cancelActiveRequest()` does NOT clear `activeScanId` (the background
-  URLSession path uses it to detect a live inference).
+  `testActiveScanIdClearedByInferenceTaskDefer` documents the generation-fenced
+  defer contract;
+  `testCancelActiveRequestClearsActiveScanId` verifies explicit cancellation
+  clears both the presentation UUID and paired scan ID, because the invalidated
+  task defer no longer owns that slot.
+  `staleAttemptForSameScanCannotOverwriteReplacementGeneration` fixes the ABA
+  contract independently of scan ID: attempt A is rejected while replacement B
+  owns the same queued scan and only B may publish result state.
   - **`/identify` response**: Validates `EdgeResponse` fields (`scan_id`,
     `common_name`, `confidence_score`, `taxonomy`, `insight_data`,
     `species_insights.habitat_description`). Asserts that `species_insights` is
@@ -1050,6 +1053,45 @@ duplicate live/background completion, and the two-second upload fail-safe.
 Verify specifically that releasing the body-upload hold does not release
 foreground inference ownership: staged recovery media must wait until live
 success, failure, cancellation, or app backgrounding resolves that ownership.
+After replacement B is registered, a delayed body-sent callback carrying A
+must also leave B's recovery-upload hold intact. Cancelling the current owner
+must release its hold synchronously before its now-invalidated task exits.
+Run the same-scan overlap case with foreground generation A replaced by B:
+`BackgroundDatabaseActorTests` must reject A's fenced save, and
+`OfflineQueueManagerTests` must prove A can neither release B's durable claim
+nor cancel B's retry slot or delete B's queued row.
+`InferenceEngineTests` must also prove that background recovery invalidates A's
+presentation UUID before cancellation, so A cannot resume an error/result
+commit over the recovered UI state.
+Exercise visual and nonvisual replacement at task entry, after an awaited
+preflight operation, and immediately before provider dispatch. Once A has been
+retired or B has replaced it, A must not issue a provider request, emit failure
+telemetry, record a circuit-breaker failure, trigger an error haptic, or publish
+an error placeholder. The terminal-error case must also prove that the valid
+current owner can snapshot its full ownership, register synchronous retirement,
+and publish its own error without reopening the stale-task window.
+`foregroundGenerationCannotBeStartedTwiceOrDuringRetirement` covers both
+single-use boundaries: a duplicate active UUID is an idempotent no-op, and the
+same UUID cannot restart between synchronous cancellation and the asynchronous
+durable handoff. It also forces the first handoff to run without a model
+context, proving a transient local-database failure retains the exact owner and
+retries successfully after the context returns. The duplicate claim assertion
+targets the manager-owned registry, so the guarantee is process-wide rather
+than scoped to one `InferenceEngine` instance. The same test verifies that
+registry retirement alone rejects a delayed UI result before raw durable
+ownership is cleared; `staleLiveGenerationCannotPersistOverReplacementAttempt`
+locks the equivalent database-persistence fence.
+`confidenceZeroResponseIsTerminalWithoutPersistence` preserves the valid
+no-record terminal contract without issuing a redundant provider retry, while
+`confidenceZeroResponseWithWrongScanIdRemainsRecoverable` and
+`generatedBackgroundResultRejectsWrongScanId` prove that no-record and
+background paths still fail closed on callback identity.
+`loadingPersistedScanRelinquishesExactLiveOwner` verifies navigation to a
+historical record cancels the live provider task, releases only its exact
+foreground owner and upload hold, and preserves the queued capture for recovery.
+Queue scenarios must keep a description-only zero-byte job in `.staged`; the
+user-facing submission path must create that row before online Describe
+provider dispatch so its persistence is covered by the same durable fence.
 When recovery takes ownership, verify its pre-dispatch status check polls a
 processing/finalizing server job and accepts fractional PostgreSQL
 `retry_after` timestamps.
@@ -1420,7 +1462,13 @@ and detail seeking still behaves as documented.
 
 The surrounding export suite is intentionally split by boundary:
 
-- `db_test.ts` proves cursor advancement and rejects non-monotonic keyset pages.
+- `archive_test.ts` proves occurrence and multimedia rows are appended
+  incrementally and that encoding fails while appending beyond the fixed output
+  buffer.
+- `db_test.ts` proves the worker uses the claim-bound source-page RPC, accepts
+  only consistent row/byte metadata, recognizes the empty completion sentinel,
+  and rejects oversized source rows, arrays, or multibyte elements measured in
+  UTF-8 bytes.
 - `pseudonym_test.ts` proves HMAC determinism, domain/key-version rotation, and
   fail-closed missing/short Base64 keys.
 - `zip_test.ts` opens the lazy ZIP with an independent reader and checks
@@ -1442,13 +1490,14 @@ The surrounding export suite is intentionally split by boundary:
   invocation work, JWT-secret reuse, and fallback salts.
 - `_tests/exportDwcaMigrationContract.test.ts` locks the claim/RPC/index/grant
   migration shape, immutable canonical budgets, durable phase/cursor/manifest,
-  100-row page and 512 KiB chunk limits, claim-token key validation, and minute
-  resume cron.
+  lock-safe install/validation ordering, validated source
+  cardinality/element-byte constraints, claim-bound 100-row/256 KiB source
+  pages, 512 KiB chunks, claim-token key validation, and minute resume cron.
 - `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
   immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
-  legacy-error sanitization, post-deadline claim, phased cursor/manifest
-  transition, budget overflow, and idempotent-completion contract against local
-  Postgres.
+  legacy-error sanitization, post-deadline claim, validated source constraints,
+  aggregate page-byte cutoff, phased cursor/manifest transition, budget
+  overflow, and idempotent-completion contract against local Postgres.
   `privileged_routine_security.sql` independently runs static
   PL/pgSQL/search-path/grant validation over the new definer RPCs.
 

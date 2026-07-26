@@ -109,9 +109,10 @@ _Offline scan processing:_
   deletion when it saves (the only reliable `@Query` re-evaluation trigger in a
   presented sheet — SwiftData platform limitation: background-context saves do
   not reliably propagate to `@Query` in open sheets). Video-aware completion
-  uses `deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)`, allowing queued
-  inference frames to be purged while video/audio/display media adopted by the
-  final `LocalScanRecord` survives:
+  uses `deleteQueuedScan` with adopted media paths and the exact background or
+  foreground generation expectation. This allows queued inference frames to be
+  purged while video/audio/display media adopted by the final
+  `LocalScanRecord` survives, without granting stale work deletion authority:
   1. `resolveSpeciesIdAndDiscoveryStatus()`: Decouples local species ID
      resolution and checks the global `LocalScanRecord` table to determine if
      the scan qualifies as a brand-new discovery for gamification hooks.
@@ -129,12 +130,15 @@ _Offline scan processing:_
      acquiring `ScanFinalizationCoordinator`, so if a live path committed the
      same `scanId` while the background finalizer waited, offline finalization
      skips the insert instead of relying on unique-constraint merge recovery.
-- `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)`
+- `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`
   — persists a real-time scan result after live inference. Accepts the current
-  media timeline plus legacy-derived arrays, then writes the mixed-media payload
-  into both `capturedMediaJSON` and `capturedMediaEntries`. The JSON mirror is
-  the preferred hot read path for `CapturedMediaSnapshot`; the relationship
-  mirror remains populated for migration/debugging/fallback durability. Persists
+  media timeline and legacy-derived arrays. Queue-backed live callers also
+  provide `LiveInferencePersistenceFence(scanId:generation:)`; a stale durable
+  owner or mismatched provider scan ID is rejected before writing. The method
+  writes the mixed-media payload into both `capturedMediaJSON` and
+  `capturedMediaEntries`. The JSON mirror is the preferred hot read path for
+  `CapturedMediaSnapshot`; the relationship mirror remains populated for
+  migration/debugging/fallback durability. Persists
   `imageQualityScore` (Gemini's photographic quality score, 0–100) from
   `SpeciesData`. Unlike `blurScore` (ephemeral, live-only, never written to
   disk), `imageQualityScore` is stored permanently for future community
@@ -142,17 +146,19 @@ _Offline scan processing:_
   `mappedData.scanId`, then reuses `resolveSpeciesIdAndDiscoveryStatus(...)` and
   `insertReplacingLocalScanRecord(...)`; this preserves an existing species UUID
   and staged field notes while replacing any queued/offline collision row with
-  the richer foreground result. Save failure rolls back and returns `false`,
+  the richer foreground result. The durable generation is revalidated while
+  holding the per-scan persistence coordinator before finalization and save.
+  Save failure rolls back and returns `.notSaved`,
   suppressing downstream new-discovery side effects for an uncommitted record.
-- `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:)`
+- `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`
   — persists description-only, audio-only, or mixed non-visual results after
   `/identify-multimodal` inference when there are no local image files. Uses the
-  same ordered media timeline as the visual path and the same private
-  replacement helper as live saves, but keeps its modality-specific
+  same ordered media timeline, live persistence fence, and private replacement
+  helper as visual saves, but keeps its modality-specific
   `coverImagePath == nil` / `isLiveCapture == false` behavior. It also acquires
   `ScanFinalizationCoordinator` before species resolution and replacement so
   audio/description live completion cannot race the background completion for
-  the same queued scan. Save failure rolls back and returns `false`.
+  the same queued scan. Save failure rolls back and returns `.notSaved`.
 
 _Enrichment and metadata:_
 
@@ -208,12 +214,17 @@ the offline queue state machine:
 // Ad-hoc: for live scan saving, enrichment, Wikipedia, collections
 let container = modelContext.container
 let dbActor = BackgroundDatabaseActor(modelContainer: container)
+let fence = LiveInferencePersistenceFence(
+    scanId: scanId,
+    generation: foregroundGeneration
+)
 await dbActor.saveLiveScanRecord(
     mappedData: data,
     localImagePaths: paths,
     observationContextsJSON: obsJSONs,
     audioFilePaths: audioPaths,
-    mediaTimeline: mediaTimeline
+    mediaTimeline: mediaTimeline,
+    persistenceFence: fence
 )
 
 // Long-lived: for offline upload/inference claims, retries, and orphan recovery.
@@ -549,8 +560,8 @@ future explicit conversion feature creates normal collections.
 
 | Task                                                     | Actor to use                                                                                                                                  |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Save a live scan result                                  | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)` |
-| Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:)`                |
+| Save a live scan result                                  | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)` |
+| Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`                |
 | Transition scan state for upload pipeline                | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                             |
 | Claim a scan for inference (`tryClaimForInference`)      | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                             |
 | Reset scan to `.staged` on transient failure             | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                             |

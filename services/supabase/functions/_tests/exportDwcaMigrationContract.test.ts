@@ -14,6 +14,24 @@ const boundedMigrationUrl = new URL(
   import.meta.url,
 );
 const boundedMigration = await Deno.readTextFile(boundedMigrationUrl);
+const sourceBoundsMigrationUrl = new URL(
+  "../../migrations/20260725175312_bound_dwca_export_source_bytes.sql",
+  import.meta.url,
+);
+const sourceBoundsInstallMigration = await Deno.readTextFile(
+  sourceBoundsMigrationUrl,
+);
+const sourceBoundsValidationMigrationUrl = new URL(
+  "../../migrations/20260725180321_validate_dwca_export_source_bounds.sql",
+  import.meta.url,
+);
+const sourceBoundsValidationMigration = await Deno.readTextFile(
+  sourceBoundsValidationMigrationUrl,
+);
+const sourceBoundsMigrations = [
+  sourceBoundsInstallMigration,
+  sourceBoundsValidationMigration,
+].join("\n");
 
 Deno.test("DwC-A migration installs a private atomic claim lease", () => {
   for (
@@ -199,4 +217,88 @@ Deno.test("DwC-A work is canonical, bounded, and resumable across invocations", 
     boundedMigration.includes("pg_catalog.LEAST"),
     false,
   );
+});
+
+Deno.test("DwC-A source rows and pages are byte-bounded before Edge reads", () => {
+  for (
+    const expected of [
+      "CREATE OR REPLACE FUNCTION internal.text_array_elements_are_bounded",
+      "pg_catalog.CARDINALITY(p_values) <= p_max_cardinality",
+      "pg_catalog.OCTET_LENGTH(elements.element_value)",
+      "scans_dwca_image_urls_bounded_check",
+      "image_storage_urls,\n                24,\n                4096",
+      "scans_dwca_interactions_bounded_check",
+      "ecological_interactions,\n                10,\n                2048",
+      "species_dictionary_dwca_taxonomy_bounded_check",
+      "pg_catalog.OCTET_LENGTH(scientific_name) <= 1024",
+      "pg_catalog.OCTET_LENGTH(kingdom) <= 512",
+      'pg_catalog.OCTET_LENGTH("order") <= 512',
+      "pg_catalog.OCTET_LENGTH(iucn_red_list_status) <= 128",
+      "VALIDATE CONSTRAINT scans_dwca_image_urls_bounded_check",
+      "CREATE OR REPLACE VIEW internal.dwca_export_occurrence_source",
+      "CREATE OR REPLACE VIEW internal.dwca_export_multimedia_source",
+      "CREATE OR REPLACE FUNCTION public.get_dwca_export_scan_batch",
+      "p_expected_phase IS NULL",
+      "p_max_rows NOT BETWEEN 1 AND 100",
+      "p_max_source_bytes NOT BETWEEN 1 AND 262144",
+      "claims.claim_token = p_claim_token",
+      "claims.lease_expires_at > pg_catalog.NOW()",
+      "p_after_id IS DISTINCT FROM canonical_after_id",
+      "LIMIT p_max_rows + 1",
+      "candidates.scan_payload::TEXT",
+      "running.running_byte_count <= p_max_source_bytes",
+      "stats.candidate_count > 0",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+      "TO service_role",
+      "internal.privileged_routine_grants",
+    ]
+  ) {
+    assertStringIncludes(sourceBoundsMigrations, expected);
+  }
+
+  assertEquals(sourceBoundsMigrations.includes(" OFFSET "), false);
+
+  const occurrenceProjection = sourceBoundsValidationMigration.slice(
+    sourceBoundsValidationMigration.indexOf(
+      "CREATE OR REPLACE VIEW internal.dwca_export_occurrence_source",
+    ),
+    sourceBoundsValidationMigration.indexOf(
+      "CREATE OR REPLACE VIEW internal.dwca_export_multimedia_source",
+    ),
+  );
+  const multimediaProjection = sourceBoundsValidationMigration.slice(
+    sourceBoundsValidationMigration.indexOf(
+      "CREATE OR REPLACE VIEW internal.dwca_export_multimedia_source",
+    ),
+    sourceBoundsValidationMigration.indexOf("REVOKE ALL ON TABLE"),
+  );
+  assertEquals(occurrenceProjection.includes("image_storage_urls"), false);
+  assertEquals(multimediaProjection.includes("species_dictionary"), false);
+  assertEquals(
+    multimediaProjection.includes("ecological_interactions"),
+    false,
+  );
+});
+
+Deno.test("DwC-A source constraints release the ALTER lock before validation", () => {
+  assertStringIncludes(sourceBoundsInstallMigration, ") NOT VALID");
+  assertEquals(
+    sourceBoundsInstallMigration.includes("VALIDATE CONSTRAINT"),
+    false,
+  );
+  assertEquals(
+    sourceBoundsInstallMigration.includes(
+      "CREATE OR REPLACE FUNCTION public.get_dwca_export_scan_batch",
+    ),
+    false,
+  );
+
+  const validation = sourceBoundsValidationMigration.indexOf(
+    "VALIDATE CONSTRAINT species_dictionary_dwca_taxonomy_bounded_check",
+  );
+  const rpc = sourceBoundsValidationMigration.indexOf(
+    "CREATE OR REPLACE FUNCTION public.get_dwca_export_scan_batch",
+  );
+  assert(validation >= 0 && rpc > validation);
 });

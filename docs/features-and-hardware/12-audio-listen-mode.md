@@ -301,12 +301,13 @@ submitNonVisualCapture(
 **Live + offline dual-path**: audio-bearing captures always enqueue durably
 first (moving the WAV into `Documents/` and creating a `.pending` queue record
 for R2 staging). When offline the flow shows a toast and stops without calling
-`InferenceEngine.prepareForNewScan()`. When online it prepares the live engine,
-opens the insight sheet, and fires `InferenceEngine.analyzeNonVisual(...)`. On
-live success, `deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)` cleans up
-the queue record while preserving audio adopted by the final local scan —
-preventing the background replay cycle from making a redundant Gemini call on
-the same file.
+`InferenceEngine.prepareForNewScan()`. When online the queue transaction also
+persists a foreground inference UUID, then the app prepares the live engine,
+opens the insight sheet, and passes that UUID to
+`InferenceEngine.analyzeNonVisual(...)`. On live success, `deleteQueuedScan`
+preserves audio adopted by the final local scan and requires a matching
+`ForegroundInferenceGenerationExpectation`, preventing stale cleanup or a
+redundant background Gemini call on the same file.
 
 ---
 

@@ -10,12 +10,13 @@ first-class citizen using native Apple offline architecture.
 When a user scans a subject with an active network connection, the Gemini
 response cascades back from the Edge node. To persist this inference against iOS
 RAM loss,
-`BackgroundDatabaseActor.saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)`
+`BackgroundDatabaseActor.saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`
 is invoked on its isolated `@ModelActor` thread. It accepts the current ordered
-mixed-media timeline plus the image/audio/context arrays derived from that same
-source, writes both the scalar `capturedMediaJSON` read mirror and the V41
-`capturedMediaEntries` relationship mirror, then inserts a `LocalScanRecord` and
-calls `modelContext.save()`.
+mixed-media timeline, the image/audio/context arrays derived from that same
+source, and the exact queue-backed foreground owner. It validates that fence
+under the per-scan persistence coordinator, writes both the scalar
+`capturedMediaJSON` read mirror and the V41 `capturedMediaEntries` relationship
+mirror, then inserts a `LocalScanRecord` and calls `modelContext.save()`.
 
 The live mapper intentionally uses the actor's replacement helper rather than
 the offline idempotent-insert helper. If the background queue already inserted a
@@ -47,9 +48,10 @@ can persist a different media order than the user staged.
 
 When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
-1. A stable `scanId` UUID is generated. This UUID is shared by both the offline
-   queue record and the concurrent live inference request.
-2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:startSyncImmediately:onQueued:)`
+1. A stable `scanId` UUID and, when online, a foreground inference-generation
+   UUID are generated. The scan ID identifies the durable capture; the
+   generation identifies only the live attempt that currently owns it.
+2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:captureDate:foregroundInferenceGeneration:startSyncImmediately:onQueued:)`
    is called **synchronously on the main actor**, before any `async` boundary is
    crossed. It wraps its work in a `.userInitiated` priority
    `BackgroundTaskWrapper`, dispatching disk writes to `FileIOActor` to prevent
@@ -81,7 +83,8 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    with no audio or video), a `Task {}` gives the pre-fetched
    `EnvironmentContext` (GPS + WeatherKit/geocoding, started at shutter press)
    at most **150 ms** to finish. If that grace period expires, it fires
-   `InferenceEngine.analyze(scanId:imageDatas:...)` with shutter-time
+   `InferenceEngine.analyze(scanId:foregroundInferenceGeneration:imageDatas:...)`
+   with shutter-time
    coordinates, date/time, distance, and cached telemetry. The late context is
    merged through the authenticated deferred-context endpoint and never causes
    a second identification request. This is the **live inference path** — it delivers results faster
@@ -118,8 +121,9 @@ is handed off as soon as the inline request body has finished sending:
   request-body progress and releases the row when all bytes are sent. A
   two-second fail-safe handles transports that do not provide progress callbacks.
 - **Single inference owner**: recovery media may stage after that handoff, but
-  `foregroundInferenceScanIds` prevents staged replay from dispatching a second
-  identification while the foreground request still owns the scan.
+  `foregroundInferenceGenerations[scanId]` prevents staged replay from
+  dispatching a second identification while the exact foreground generation
+  still owns the scan.
 - **Immediate recovery start**: request failure, connectivity loss, or app
   backgrounding releases both the upload hold and foreground inference claim.
   The suppression is process-local, so app termination/relaunch also leaves the
@@ -127,13 +131,23 @@ is handed off as soon as the inline request body has finished sending:
   background inference, it checks `/check-scan-status`; a processing/finalizing
   foreground ingestion remains server-owned and is polled instead of issuing a
   duplicate model call.
+
+Every online live submission, including gallery, audio-bearing, video, and
+text-only Describe paths, is queued before provider dispatch and registers the
+same exact foreground-generation owner. Describe uses a zero-byte `.staged`
+row. Only the eligible camera-still optimization defers the recovery upload;
+other paths may stage recovery media immediately, but staged inference still
+waits until the foreground generation succeeds or relinquishes ownership.
+
 After handoff, either path can finish first:
 
-- **Live wins**: `analyze()` calls
-  `OfflineQueueManager.shared.deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)`
-  on success, which cancels any in-flight URLSession tasks, removes the
-  SwiftData record and its goal-hint companion, deletes queue-only inference
-  frames, and preserves media adopted by the final `LocalScanRecord`.
+- **Live wins**: `analyze()` first persists through a
+  `LiveInferencePersistenceFence`, then calls `deleteQueuedScan` with the exact
+  `ForegroundInferenceGenerationExpectation`. The generation is validated
+  before and after URLSession task enumeration; only its current owner may
+  cancel tasks, clear retry slots, remove the SwiftData row and goal hint,
+  delete queue-only inference frames, or preserve media adopted by the final
+  `LocalScanRecord`.
 - **Background wins** (user backgrounded or dismissed): the upload completes via
   the OS-managed background URLSession, `dispatchInferenceDownloadTask` issues a
   background URLSession download task for inference, and the OS delivers the
@@ -471,6 +485,36 @@ additional callback fence, but they are not the persistence authority:
   preparation, delayed status probes, retry scheduling, delegate callbacks,
   result processing, task cancellation, and queue deletion all compare that
   UUID before mutating state.
+- An online queue-backed submission receives a foreground inference UUID before
+  enqueue. The queue transaction stores it in the scan-ingestion job and
+  registers the same in-memory owner before upload/replay can start. Provider
+  preflight, provider dispatch and completion, live local persistence,
+  main-actor result or failure commit, and queue cleanup all carry that UUID.
+  `scanId` alone is never sufficient ownership.
+  The UUID is single-use: `OfflineQueueManager` atomically consumes an exact
+  generation before any engine instance dispatches its provider pipeline.
+  Cancellation and pre-provider exits register a tokenized retirement task
+  synchronously so the UUID cannot restart before asynchronous durable handoff
+  completes. Transient handoff fetch/save failures retain that registry slot and
+  retry with bounded backoff rather than reopening the UUID or permanently
+  abandoning recovery suppression. Merely registering retirement immediately
+  makes the attempt non-current, so delayed saves and UI/cleanup callbacks
+  cannot act during the durable handoff window.
+  Failure handlers also compare the full scan, presentation-attempt, and
+  foreground generation before emitting telemetry, recording a circuit-breaker
+  failure, triggering a haptic, or publishing an error placeholder. A current
+  owner snapshots that proof immediately before synchronous retirement and
+  performs its terminal commit without another suspension; a stale handler is
+  an idempotent no-op.
+  Confidence-zero responses preserve their terminal no-record behavior, but
+  queue-backed foreground and generated background paths require the response
+  to echo the exact scan ID before cleanup is allowed. A mismatched or missing
+  ID leaves the durable row intact for recovery.
+  App backgrounding, connectivity loss, failure, or cancellation clears only
+  the expected generation and then hands the durable row to recovery.
+  Replacing the insight presentation with a persisted library record performs
+  the same exact-generation handoff before changing `activeScanId`; it never
+  abandons the old foreground claim or deletes its queued capture.
 - Retry accounting plus `.inferencing → .staged` is one persistence operation
   and succeeds only when the `OfflineJobRecord` still contains the expected
   generation. A stale callback therefore cannot consume retry budget or make a
@@ -491,14 +535,15 @@ additional callback fence, but they are not the persistence authority:
   reconciliation. The scan's latest upload generation is revalidated after
   every suspension before either callback may mutate queue state or dispatch
   inference.
-- Inference-driven queue deletion carries an
-  `InferenceGenerationExpectation` and revalidates it after awaiting
+- Inference-driven queue deletion carries either a background
+  `InferenceGenerationExpectation` or foreground
+  `ForegroundInferenceGenerationExpectation` and revalidates it after awaiting
   `URLSession.allTasks`. A recovery initiated by a server-poll slot carries that
   slot token through the same check. It then acquires the per-scan persistence
-  coordinator, validates both `.inferencing` and durable generation, and keeps
-  that ownership across URLSession cancellation and the main-context queue
-  deletion save. Explicit user deletion remains intentionally unguarded and
-  cancels all work for that scan.
+  coordinator, validates the appropriate durable generation, and keeps that
+  ownership across URLSession cancellation and the main-context queue-deletion
+  save. Explicit user deletion remains intentionally unguarded and cancels all
+  work for that scan.
 - Connectivity loss invalidates the current upload and inference generations,
   cancels registered delayed tasks, clears preparation ownership, and calls
   `SyncStateManager.forceIdle()`. Late callbacks carry retired UUIDs and become
@@ -752,14 +797,19 @@ the latch without waiting for a URLSession delegate callback.
   **InferenceEngine hydration (background-wins race)**: After the shared scan
   milestone coordinator task is started, if `processingResult.speciesData` is non-nil,
   `processInferenceDownloadResult` checks whether `InferenceEngine` is still
-  mid-flight for the same scan
-  (`engine.isProcessing == true && engine.activeScanId == scanId`). When this is
-  true, the background URLSession path has raced ahead of the suspended live
+  presenting the exact released live-attempt generation for the same scan.
+  `commitRecoveredBackgroundResult` compares `activeScanId`, the live
+  presentation UUID, its released foreground UUID, and the absence of a new
+  foreground owner before publishing. When these checks succeed, the background
+  URLSession path has raced ahead of the suspended live
   `InferenceEngine.analyze()` task — which happens when the user backgrounds the
-  app immediately after capture. In that case the live task is cancelled
-  (`engine.inferenceTask?.cancel()`), `engine.isProcessing` is set to `false`,
-  and `engine.speciesData` is set to the already-decoded `SpeciesData` from the
-  database actor. This prevents the live task from resuming after foregrounding,
+  app immediately after capture. In that case the recovered result is committed
+  first, atomically invalidating the old presentation UUID, and only then is the
+  exact live task cancelled. That ownership transfer prevents a cooperatively
+  cancelled live error handler from overwriting the recovered result. A stale
+  background completion that finds replacement generation B returns without
+  cancelling B.
+  This prevents the old live task from resuming after foregrounding,
   finding a cold network, and showing "Network timeout" on a scan whose result
   is already committed to the database. The insight sheet's `InsightContentView`
   observer (`isProcessing == false && speciesData != nil`) transitions out of
