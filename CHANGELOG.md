@@ -59,6 +59,13 @@ TestFlight, App Store, support, and QA.
   errors. The public beta waitlist now requires a verified security challenge,
   applies transactional per-network and global growth limits, and keeps raw
   network addresses out of storage and logs.
+- Closed an internal-worker authorization bypass where an RLS-filtered,
+  successful empty table read was mistaken for service-role authority. The six
+  shared boundaries now accept only an exact platform-managed service key,
+  reject mixed credentials, keep caller credentials out of downstream database
+  clients, and deny real anon/publishable keys in the production smoke suite.
+  Operational callers now prefer current secret keys with API-key-only transport
+  and fall back only to the exact legacy service-role key.
 - Made scientific exports safe to retry and bounded in memory. Duplicate workers
   now compete for one database lease, stale attempts cannot publish over the
   winner, and scan rows advance through short cursor-persisted CSV, assembly,

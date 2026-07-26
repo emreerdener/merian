@@ -1491,9 +1491,16 @@ that operate on anonymous IDFV boundaries:
     this endpoint.
   - **Internal service-role workers**: Keep `verify_jwt = false` so `pg_net`,
     GitHub Actions, or another trusted server caller can reach the Deno runtime,
-    then enforce the service-role bearer header inside Deno with
-    `timingSafeCompare`. This includes species refresh, reference-image refresh,
-    taxonomy import/status/refresh, consensus processing, non-biological purge,
+    then enforce an exact platform-managed service credential inside Deno with
+    `timingSafeCompare`. Boundaries using `_shared/serviceRoleAuth.ts` compare
+    against `SUPABASE_SERVICE_ROLE_KEY` and the named `sb_secret_...` values in
+    `SUPABASE_SECRET_KEYS`; they do not use table reachability or an RLS result
+    as proof. A legacy JWT key may be sent as Bearer (normally with the same
+    `apikey`); a current non-JWT secret key must be sent only as `apikey`.
+    Conflicting credentials fail closed, and accepted request values are never
+    reused as downstream database credentials. This internal category includes
+    species refresh, reference-image refresh, taxonomy import/status/refresh,
+    consensus processing, non-biological purge,
     `backfill-explore-audio-spectrograms`, and `reconcile-ghost-profile-merges`
     workers.
 - **Rule for new Edge Functions**: Every new function directory under
@@ -2094,6 +2101,12 @@ For a production deployment, the following required secrets and documented
 optional controls are set in the Supabase Edge secret store via the CLI
 (`supabase secrets set KEY=VALUE`):
 
+- Supabase automatically provides **`SUPABASE_URL`**, **`SUPABASE_ANON_KEY`**,
+  and the legacy server-only **`SUPABASE_SERVICE_ROLE_KEY`**. It also provides
+  **`SUPABASE_SECRET_KEYS`** as a JSON object containing the project's named
+  current `sb_secret_...` keys. Do not manually duplicate these built-ins.
+  `_shared/serviceRoleAuth.ts` uses the latter two only for exact local
+  authorization matching; public/publishable keys are never accepted.
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
 - **`AI_QUOTA_IP_HASH_SECRET`** (optional override): At least 32 high-entropy

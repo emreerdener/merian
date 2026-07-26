@@ -620,6 +620,29 @@ Supabase's
 [database-function security guidance](https://supabase.com/docs/guides/database/functions)
 for fixed search paths and explicit execute privileges.
 
+### Internal Service Credential Boundary
+
+`functions/_shared/serviceRoleAuth.ts` protects the six internal routes that
+share a common request policy: `community-taxonomy-status`,
+`sync-community-taxonomy-index`, `scan-media-health`, `replay-scan-ingestion`,
+the internal replay branch of `identify-multimodal`, and
+`reconcile-explore-media-health`. Authorization is a local exact comparison
+against `SUPABASE_SERVICE_ROLE_KEY` or a named `sb_secret_...` value supplied by
+the platform in `SUPABASE_SECRET_KEYS`. Successful empty reads, RLS behavior,
+JWT shape, and other capability probes are never evidence of authority.
+
+Legacy service-role JWTs may use Bearer transport; named non-JWT secret keys
+must use `apikey` only. Mixed Authorization/apikey values are rejected. After
+authorization, the route creates its database client and internal calls with the
+server-managed environment key rather than reflecting the caller's credential.
+The deploy smoke, Community Taxonomy import, and scan-media health workflows
+prefer a current secret key, fall back only to the exact legacy `service_role`
+key, and use the same shared transport rule.
+Migration `20260726212549_harden_service_role_request_authentication.sql`
+separately revokes all `taxonomy_import_runs` table access from `PUBLIC`,
+`anon`, and `authenticated`, then grants `service_role` only `SELECT`, `INSERT`,
+and `UPDATE`.
+
 ### Ghost Account Upgrade Boundary
 
 Direct Apple/Google identity linking remains the primary anonymous upgrade path.

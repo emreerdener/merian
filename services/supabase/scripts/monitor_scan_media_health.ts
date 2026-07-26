@@ -3,7 +3,7 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SERVER_API_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
  *
  * Example:
  *   deno run --allow-net --allow-env --allow-write \
@@ -11,6 +11,8 @@
  *     --summary-json /tmp/scan-media-health.json \
  *     --summary-md /tmp/scan-media-health.md
  */
+
+import { serviceRoleRequestHeaders } from "../functions/_shared/serviceRoleAuth.ts";
 
 export type MonitorFailurePolicy = "critical" | "warning" | "never";
 export type ScanMediaHealthStatus = "ok" | "warning" | "critical";
@@ -88,7 +90,16 @@ if (import.meta.main) {
 export async function runMonitor(rawArgs: string[]): Promise<number> {
   const args = parseMonitorArgs(rawArgs);
   const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const serverApiKey = (
+    Deno.env.get("SUPABASE_SERVER_API_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+      ""
+  ).trim();
+  if (!serverApiKey) {
+    throw new Error(
+      "Missing required environment variable: SUPABASE_SERVER_API_KEY",
+    );
+  }
   const health = await postJson(
     `${supabaseUrl}/functions/v1/scan-media-health`,
     {
@@ -97,7 +108,7 @@ export async function runMonitor(rawArgs: string[]): Promise<number> {
       stuck_after_minutes: args.stuckAfterMinutes,
       stale_asset_after_minutes: args.staleAssetAfterMinutes,
     },
-    serviceRoleKey,
+    serverApiKey,
   );
   const summary = buildMonitorSummary(health, args, new Date());
 
@@ -117,13 +128,12 @@ export async function runMonitor(rawArgs: string[]): Promise<number> {
 async function postJson(
   url: string,
   body: Record<string, unknown>,
-  serviceRoleKey: string,
+  serverApiKey: string,
 ): Promise<ScanMediaHealthResponse> {
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${serviceRoleKey}`,
-      "apikey": serviceRoleKey,
+      ...serviceRoleRequestHeaders(serverApiKey),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),

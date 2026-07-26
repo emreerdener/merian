@@ -139,6 +139,9 @@ jobs:
           deno check --frozen --config supabase/functions/deno.json \
             supabase/functions/_shared/auth.ts \
             supabase/functions/_shared/claimsAuth.ts \
+            supabase/functions/_shared/serviceRoleAuth.ts \
+            supabase/functions/_shared/serviceRoleClient.ts \
+            supabase/functions/_shared/serviceRoleClient_test.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
@@ -185,6 +188,9 @@ jobs:
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+            supabase/functions/_tests/serviceRoleAuth.test.ts \
+            supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
+            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
             supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
@@ -279,6 +285,15 @@ jobs:
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
 
+      - name: Test internal service credential boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,../.github/workflows \
+            supabase/functions/_shared/serviceRoleClient_test.ts \
+            supabase/functions/_tests/serviceRoleAuth.test.ts \
+            supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
+            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts
+
       - name: Test durable account deletion boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
@@ -351,6 +366,7 @@ jobs:
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
             supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
 
@@ -574,41 +590,120 @@ jobs:
         if: steps.function-plan.outputs.count == '0'
         run: echo "No Edge Function runtime or dependency changes were detected."
 
-      - name: Load Supabase service-role key
+      - name: Load Supabase API keys for authorization smoke tests
         id: service-role
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           api_keys_json="$(supabase projects api-keys --project-ref "$PROJECT_ID" --output json)"
-          service_role_key="$(
+          server_api_key="$(
             echo "$api_keys_json" | jq -r '
-              (if type == "array" then . else (.api_keys // .keys // []) end)[]
-              | select((((.name // .key_name // .type // .id // "") | ascii_downcase) == "service_role")
-                or (((.name // .key_name // .type // .id // "") | ascii_downcase) | contains("service")))
-              | (.api_key // .apiKey // .apikey // .key // .value // empty)
-            ' | head -n 1
+              [
+                (if type == "array" then . else (.api_keys // .keys // []) end)[]
+                | (.api_key // .apiKey // .apikey // .key // .value // empty) as $value
+                | ((.name // .key_name // "") | ascii_downcase) as $name
+                | ((.type // "") | ascii_downcase) as $type
+                | select(
+                    ($value | type) == "string"
+                    and ($value | length) > 0
+                    and (
+                      ($value | startswith("sb_secret_"))
+                      or ($type == "legacy" and $name == "service_role")
+                    )
+                  )
+                | {
+                    value: $value,
+                    priority: (if ($value | startswith("sb_secret_")) then 0 else 1 end),
+                    name: $name
+                  }
+              ]
+              | sort_by(.priority, .name)
+              | .[0].value // empty
+            '
           )"
 
-          if [ -z "$service_role_key" ] || [ "$service_role_key" = "null" ]; then
-            echo "Unable to resolve Supabase service-role key from project API keys."
+          if [ -z "$server_api_key" ] || [ "$server_api_key" = "null" ]; then
+            echo "Unable to resolve a Supabase secret or legacy service-role API key."
             exit 1
           fi
 
-          echo "::add-mask::$service_role_key"
-          echo "key=$service_role_key" >> "$GITHUB_OUTPUT"
+          public_api_keys_json="$(
+            echo "$api_keys_json" | jq -c '
+              [
+                (if type == "array" then . else (.api_keys // .keys // []) end)[]
+                | . as $entry
+                | (.api_key // .apiKey // .apikey // .key // .value // empty) as $value
+                | ((.name // .key_name // .type // .id // "") | ascii_downcase) as $label
+                | ((.type // "") | ascii_downcase) as $type
+                | select(
+                    ($value | type) == "string"
+                    and ($value | length) > 0
+                    and (
+                      ($value | startswith("sb_publishable_"))
+                      or ($type == "legacy" and $label == "anon")
+                    )
+                  )
+                | $value
+              ]
+              | unique
+            '
+          )"
+          if [ "$(echo "$public_api_keys_json" | jq 'length')" -lt 1 ]; then
+            echo "Unable to resolve an anon or publishable key for the negative authorization smoke test."
+            exit 1
+          fi
+          echo "$public_api_keys_json" > "$RUNNER_TEMP/supabase-public-api-keys.json"
+
+          echo "::add-mask::$server_api_key"
+          echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test production backend endpoints
         env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ steps.service-role.outputs.key }}
+          SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
         run: |
           supabase_url="https://${PROJECT_ID}.supabase.co"
+          server_headers=(
+            -H "apikey: ${SUPABASE_SERVER_API_KEY}"
+            -H "Content-Type: application/json"
+          )
+          if [[ "$SUPABASE_SERVER_API_KEY" != sb_secret_* ]]; then
+            server_headers+=(
+              -H "Authorization: Bearer ${SUPABASE_SERVER_API_KEY}"
+            )
+          fi
+
+          public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"
+          for ((index = 0; index < public_key_count; index++)); do
+            public_key="$(
+              jq -r ".[$index]" "$RUNNER_TEMP/supabase-public-api-keys.json"
+            )"
+            public_headers=(
+              -H "apikey: ${public_key}"
+              -H "Content-Type: application/json"
+            )
+            if [[ "$public_key" != sb_publishable_* ]]; then
+              public_headers+=(-H "Authorization: Bearer ${public_key}")
+            fi
+
+            denied_response="$RUNNER_TEMP/service-role-auth-denied-${index}.json"
+            denied_status="$(
+              curl -sS \
+                -o "$denied_response" \
+                -w "%{http_code}" \
+                -X POST "${supabase_url}/functions/v1/community-taxonomy-status" \
+                "${public_headers[@]}" \
+                --data '{"view":"coverage","target":"birds","import_run_limit":1,"job_limit":1}'
+            )"
+            if [ "$denied_status" != "401" ]; then
+              echo "A public Supabase API credential unexpectedly passed the internal-route authorization boundary (HTTP ${denied_status})."
+              exit 1
+            fi
+          done
 
           status_response="$(
             curl -fsS \
               -X POST "${supabase_url}/functions/v1/community-taxonomy-status" \
-              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "Content-Type: application/json" \
+              "${server_headers[@]}" \
               --data '{"view":"coverage","target":"birds","import_run_limit":3,"job_limit":1}'
           )"
           echo "$status_response" | jq -e '.success == true and .view == "coverage" and (.coverage_targets | length) >= 1'
@@ -616,9 +711,7 @@ jobs:
           dry_run_response="$(
             curl -fsS \
               -X POST "${supabase_url}/functions/v1/sync-community-taxonomy-index" \
-              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "Content-Type: application/json" \
+              "${server_headers[@]}" \
               --data '{"target":"birds","limit":5,"page_count":1,"dry_run":true}'
           )"
           echo "$dry_run_response" | jq -e '.success == true and .dry_run == true and .normalized_count > 0'
@@ -626,9 +719,7 @@ jobs:
           media_health_response="$(
             curl -fsS \
               -X POST "${supabase_url}/functions/v1/scan-media-health" \
-              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "Content-Type: application/json" \
+              "${server_headers[@]}" \
               --data '{"limit":10,"recent_scan_limit":100}'
           )"
           echo "$media_health_response" | jq -e '.success == true and (.status == "ok" or .status == "warning" or .status == "critical")'
@@ -637,9 +728,7 @@ jobs:
           explore_media_response="$(
             curl -fsS \
               -X POST "${supabase_url}/functions/v1/reconcile-explore-media-health" \
-              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "Content-Type: application/json" \
+              "${server_headers[@]}" \
               --data '{"limit":1,"leaseSeconds":300}'
           )"
           echo "$explore_media_response" | jq -e '
@@ -651,9 +740,7 @@ jobs:
           publication_health_response="$(
             curl -fsS \
               -X POST "${supabase_url}/rest/v1/rpc/get_explore_publication_health_summary" \
-              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-              -H "Content-Type: application/json" \
+              "${server_headers[@]}" \
               --data '{}'
           )"
           echo "$publication_health_response" | jq -e '

@@ -71,32 +71,49 @@ jobs:
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
 
-      - name: Load Supabase service-role key
+      - name: Load Supabase server API key
         id: service-role
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           api_keys_json="$(supabase projects api-keys --project-ref "$PROJECT_ID" --output json)"
-          service_role_key="$(
+          server_api_key="$(
             echo "$api_keys_json" | jq -r '
-              (if type == "array" then . else (.api_keys // .keys // []) end)[]
-              | select((((.name // .key_name // .type // .id // "") | ascii_downcase) == "service_role")
-                or (((.name // .key_name // .type // .id // "") | ascii_downcase) | contains("service")))
-              | (.api_key // .apiKey // .apikey // .key // .value // empty)
-            ' | head -n 1
+              [
+                (if type == "array" then . else (.api_keys // .keys // []) end)[]
+                | (.api_key // .apiKey // .apikey // .key // .value // empty) as $value
+                | ((.name // .key_name // "") | ascii_downcase) as $name
+                | ((.type // "") | ascii_downcase) as $type
+                | select(
+                    ($value | type) == "string"
+                    and ($value | length) > 0
+                    and (
+                      ($value | startswith("sb_secret_"))
+                      or ($type == "legacy" and $name == "service_role")
+                    )
+                  )
+                | {
+                    value: $value,
+                    priority: (if ($value | startswith("sb_secret_")) then 0 else 1 end),
+                    name: $name
+                  }
+              ]
+              | sort_by(.priority, .name)
+              | .[0].value // empty
+            '
           )"
 
-          if [ -z "$service_role_key" ] || [ "$service_role_key" = "null" ]; then
-            echo "Unable to resolve Supabase service-role key from project API keys."
+          if [ -z "$server_api_key" ] || [ "$server_api_key" = "null" ]; then
+            echo "Unable to resolve a Supabase secret or legacy service-role API key."
             exit 1
           fi
 
-          echo "::add-mask::$service_role_key"
-          echo "key=$service_role_key" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::$server_api_key"
+          echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
 
       - name: Run scan media health monitor
         env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ steps.service-role.outputs.key }}
+          SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
           SUPABASE_URL: https://${{ env.PROJECT_ID }}.supabase.co
           INPUT_LIMIT: ${{ inputs.limit || '25' }}
           INPUT_RECENT_SCAN_LIMIT: ${{ inputs.recent_scan_limit || '250' }}

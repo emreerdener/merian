@@ -40,7 +40,11 @@ repair a missing normalized row.
 
 `verify_jwt = false` is configured so service-role automation can reach Deno,
 then the function requires `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
-or an equivalent service-role `apikey`.
+with the same `apikey`, or an exact named `sb_secret_...` project secret in
+`apikey` only. Values are compared against the platform environment; no
+database/RLS capability probe is allowed, and mixed credentials fail closed.
+Database access uses the server-managed environment key rather than the caller
+value.
 
 Optional POST body:
 

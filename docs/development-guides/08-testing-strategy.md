@@ -902,6 +902,50 @@ the transactional pgTAP file at production. Use
 `MERIAN_DATABASE_URL=... make audit-supabase-privileged-routines` for hosted,
 read-only verification instead.
 
+Internal service-key authorization has six complementary checks:
+
+- `_tests/serviceRoleAuth.test.ts` exercises exact legacy and named-secret
+  matching, strict Bearer syntax, non-JWT `apikey` transport, conflicting-header
+  rejection, malformed `SUPABASE_SECRET_KEYS`, missing configuration, and
+  representative anon/publishable/authenticated mismatches.
+- `_shared/serviceRoleClient_test.ts` executes PostgREST, Storage, and Functions
+  requests through an intercepted transport and proves `sb_secret_...` keys are
+  sent only as `apikey`, while legacy service-role JWTs retain their required
+  Bearer header.
+- `_tests/serviceRoleAuthCoverage.test.ts` inventories all six production
+  authorization boundaries, rejects any database/network probe in the shared
+  helper, and prevents a caller-supplied credential from being reused for
+  database or internal-function work. It also locks exact server-key discovery
+  and shared current/legacy key transport in the taxonomy-import and scan-media
+  monitoring callers.
+- `_tests/serviceRoleAuthMigrationContract.test.ts` locks the
+  `taxonomy_import_runs` blanket revocation and least-privilege service-role
+  grant.
+- `tests/privileged_routine_security.sql` verifies the same effective ACL
+  against a fully migrated disposable catalog under real `anon`,
+  `authenticated`, and `service_role` database roles.
+- The production deployment smoke retrieves the project's real legacy anon
+  and/or current publishable keys and requires `401` from
+  `community-taxonomy-status`, then prefers a real current secret key (falling
+  back to the legacy service-role key) as the positive control. Current secret
+  keys are sent only in `apikey`; only legacy JWT keys receive Bearer transport.
+  Do not create a production user merely to obtain an authenticated JWT for this
+  smoke: exact-value matching is covered deterministically and the disposable
+  catalog exercises the authenticated role. Use a dedicated staging user for
+  end-to-end authenticated-JWT testing when a credential-transport change is
+  under review.
+
+Run the focused Deno tests from `services`:
+
+```bash
+deno test --frozen --config supabase/functions/deno.json \
+  --allow-read \
+  supabase/functions/_shared/serviceRoleClient_test.ts \
+  supabase/functions/_tests/serviceRoleAuth.test.ts \
+  supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
+  supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts
+```
+
 Durable account deletion has seven complementary checks:
 
 - `_tests/safeDelete.test.ts` executes the actual handler/worker modules with

@@ -165,7 +165,7 @@ Deno.test("reconcileExploreMediaHealth audits a batch-claim failure", async () =
   assertEquals(runs[0].errors, [{ reason: "claim_failed" }]);
 });
 
-Deno.test("handler accepts a project secret after proving service-role access", async () => {
+Deno.test("handler accepts an exact configured project secret", async () => {
   let acceptedToken = "";
   let receivedOptions: unknown;
   const result = {
@@ -180,8 +180,10 @@ Deno.test("handler accepts a project secret after proving service-role access", 
   const handler = createReconcileExploreMediaHealthHandler({
     supabaseUrl: "https://project.supabase.co",
     envServiceRoleKey: "legacy-service-role-key",
-    serviceRoleProbe: (token) =>
-      Promise.resolve(token === "sb_secret_workflow"),
+    envSecretKeys: JSON.stringify({
+      default: "sb_secret_default",
+      workflow: "sb_secret_workflow",
+    }),
     createAdminClient: (_supabaseUrl, token) => {
       acceptedToken = token;
       return {} as never;
@@ -198,7 +200,6 @@ Deno.test("handler accepts a project secret after proving service-role access", 
       {
         method: "POST",
         headers: {
-          Authorization: "Bearer sb_secret_workflow",
           apikey: "sb_secret_workflow",
           "Content-Type": "application/json",
         },
@@ -208,17 +209,19 @@ Deno.test("handler accepts a project secret after proving service-role access", 
   );
 
   assertEquals(response.status, 200);
-  assertEquals(acceptedToken, "sb_secret_workflow");
+  assertEquals(acceptedToken, "sb_secret_default");
   assertEquals(receivedOptions, { limit: 1, leaseSeconds: 300 });
   assertEquals(await response.json(), { success: true, ...result });
 });
 
-Deno.test("handler rejects a project key without service-role access", async () => {
+Deno.test("handler rejects an unconfigured public project key", async () => {
   let createdAdminClient = false;
   const handler = createReconcileExploreMediaHealthHandler({
     supabaseUrl: "https://project.supabase.co",
     envServiceRoleKey: "legacy-service-role-key",
-    serviceRoleProbe: () => Promise.resolve(false),
+    envSecretKeys: JSON.stringify({
+      workflow: "sb_secret_workflow",
+    }),
     createAdminClient: () => {
       createdAdminClient = true;
       return {} as never;

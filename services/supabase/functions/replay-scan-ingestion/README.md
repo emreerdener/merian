@@ -37,7 +37,13 @@ The worker is scheduled every five minutes by
 `pg_net`.
 
 It uses `verify_jwt = false` at the gateway, then requires service-role
-authorization inside the function.
+authorization inside the function. The request credential must exactly match the
+platform-managed legacy `SUPABASE_SERVICE_ROLE_KEY` or a named `sb_secret_...`
+value in `SUPABASE_SECRET_KEYS`; no database capability probe is used. Send a
+named non-JWT secret only in `apikey`. Legacy callers normally send the same
+service-role JWT in Authorization and `apikey`; mismatched headers are rejected.
+The replay worker uses the server environment key—not the accepted request
+value—for database access and its internal multimodal invocation.
 
 Optional POST body:
 

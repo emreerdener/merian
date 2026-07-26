@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   corsHeaders,
@@ -6,10 +6,8 @@ import {
   parseJsonBody,
   publicErrorResponse,
 } from "../_shared/http.ts";
-import {
-  authorizeServiceRoleRequest,
-  type ServiceRoleProbe,
-} from "../_shared/serviceRoleAuth.ts";
+import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleDataClient } from "../_shared/serviceRoleClient.ts";
 import {
   reconcileExploreMediaHealth,
   type ReconcileExploreMediaHealthOptions,
@@ -29,7 +27,7 @@ type CreateAdminClient = (
 export interface ReconcileExploreMediaHealthHandlerOptions {
   supabaseUrl: string;
   envServiceRoleKey: string;
-  serviceRoleProbe?: ServiceRoleProbe;
+  envSecretKeys: string;
   createAdminClient?: CreateAdminClient;
   reconcile?: Reconcile;
 }
@@ -47,14 +45,7 @@ function defaultCreateAdminClient(
   supabaseUrl: string,
   token: string,
 ): SupabaseClient {
-  return createClient(supabaseUrl, token, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: token,
-      },
-    },
-  });
+  return createServiceRoleDataClient(supabaseUrl, token);
 }
 
 export function createReconcileExploreMediaHealthHandler(
@@ -72,12 +63,11 @@ export function createReconcileExploreMediaHealthHandler(
       return jsonResponse({ error: "Method Not Allowed" }, 405);
     }
 
-    const auth = await authorizeServiceRoleRequest(req, {
-      supabaseUrl: options.supabaseUrl,
+    const auth = authorizeServiceRoleRequest(req, {
       envServiceRoleKey: options.envServiceRoleKey,
-      probe: options.serviceRoleProbe,
+      envSecretKeys: options.envSecretKeys,
     });
-    if (!auth.ok || !auth.token) {
+    if (!auth.ok) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -93,7 +83,7 @@ export function createReconcileExploreMediaHealthHandler(
     try {
       const supabaseAdmin = createAdminClient(
         options.supabaseUrl,
-        auth.token,
+        auth.serverApiKey,
       );
       const result = await reconcile(supabaseAdmin, {
         limit: boundedInteger(payload.limit, 1, 500),

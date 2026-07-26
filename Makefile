@@ -70,6 +70,7 @@ validate-supabase-migrations:
 		services/supabase/functions/_tests/migrationMediaContract.test.ts \
 		services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
 		services/supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+		services/supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
 		services/supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
 		services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
 

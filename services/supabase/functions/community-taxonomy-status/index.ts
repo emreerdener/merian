@@ -1,7 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleDataClient } from "../_shared/serviceRoleClient.ts";
 import {
   fetchCommunityTaxonomyStatus,
   parseCommunityTaxonomyStatusRequest,
@@ -17,11 +17,11 @@ serveEdge(async (req: Request) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const auth = await authorizeServiceRoleRequest(req, {
-    supabaseUrl,
+  const auth = authorizeServiceRoleRequest(req, {
     envServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    envSecretKeys: Deno.env.get("SUPABASE_SECRET_KEYS") ?? "",
   });
-  if (!auth.ok || !auth.token) {
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -43,17 +43,9 @@ serveEdge(async (req: Request) => {
       );
     }
 
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleDataClient(
       supabaseUrl,
-      auth.token,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-            apikey: auth.token,
-          },
-        },
-      },
+      auth.serverApiKey,
     );
     const status = await fetchCommunityTaxonomyStatus(
       parsedRequest.request,

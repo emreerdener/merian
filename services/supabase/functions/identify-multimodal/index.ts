@@ -1,10 +1,6 @@
 import { Part, SafetyRating } from "@google/genai";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
-import {
-  createClient,
-  type SupabaseClient,
-  type User,
-} from "@supabase/supabase-js";
+import { type SupabaseClient, type User } from "@supabase/supabase-js";
 
 import {
   jsonResponse,
@@ -15,6 +11,7 @@ import {
 import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
 import { corsHeaders } from "../_shared/http.ts";
 import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleDataClient } from "../_shared/serviceRoleClient.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
 import {
@@ -2225,11 +2222,11 @@ async function tryHandleInternalReplayRequest(
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const auth = await authorizeServiceRoleRequest(req, {
-    supabaseUrl,
+  const auth = authorizeServiceRoleRequest(req, {
     envServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    envSecretKeys: Deno.env.get("SUPABASE_SECRET_KEYS") ?? "",
   });
-  if (!auth.ok || !auth.token) {
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -2247,14 +2244,10 @@ async function tryHandleInternalReplayRequest(
     return jsonResponse({ error: "Invalid replay attempt." }, 400);
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, auth.token, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        apikey: auth.token,
-      },
-    },
-  });
+  const supabaseAdmin = createServiceRoleDataClient(
+    supabaseUrl,
+    auth.serverApiKey,
+  );
 
   return await handleIdentifyMultimodalRequest(
     req,

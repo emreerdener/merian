@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 import { logStructuredError, runBackground } from "../_shared/edgeHandler.ts";
+import { serviceRoleRequestHeaders } from "../_shared/serviceRoleAuth.ts";
 import {
   claimReplayableScanIngestionJobs,
   fetchReplayScans,
@@ -224,8 +225,7 @@ export async function invokeIdentifyMultimodalReplay(input: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${input.serviceRoleKey}`,
-      "apikey": input.serviceRoleKey,
+      ...serviceRoleRequestHeaders(input.serviceRoleKey),
       "X-Merian-Internal-Replay": "scan-ingestion",
       "X-Merian-Replay-User-Id": input.userId,
       "X-Merian-Replay-Attempt": String(input.replayAttemptCount),

@@ -3,13 +3,15 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SERVER_API_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
  *
  * Example:
  *   deno run --allow-net --allow-env --allow-read --allow-write \
  *     services/supabase/scripts/import_community_taxonomy.ts \
  *     --target birds --limit 100 --page-count 20 --update-checklist
  */
+
+import { serviceRoleRequestHeaders } from "../functions/_shared/serviceRoleAuth.ts";
 
 interface ImportArgs {
   target: "birds";
@@ -71,7 +73,16 @@ interface StatusResponse {
 
 const args = parseArgs(Deno.args);
 const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+const serverApiKey = (
+  Deno.env.get("SUPABASE_SERVER_API_KEY") ??
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+    ""
+).trim();
+if (!serverApiKey) {
+  throw new Error(
+    "Missing required environment variable: SUPABASE_SERVER_API_KEY",
+  );
+}
 
 const importResponse = await postJson<ImportResponse>(
   `${supabaseUrl}/functions/v1/sync-community-taxonomy-index`,
@@ -109,8 +120,7 @@ async function postJson<T>(
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${serviceRoleKey}`,
-      "apikey": serviceRoleKey,
+      ...serviceRoleRequestHeaders(serverApiKey),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),

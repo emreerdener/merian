@@ -2607,10 +2607,11 @@ resolve to IPv6 only and fail before Postgres authentication.
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
 the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus the
-configured database connection. Post-deploy smoke checks and manual taxonomy
-imports resolve the service-role key at runtime through
+configured database connection. Post-deploy smoke checks, manual taxonomy
+imports, and scan-media monitoring resolve a server API key at runtime through
 `supabase projects api-keys --project-ref qlarqavoqhkuwzmevrmf`, then mask it in
-GitHub Actions logs.
+GitHub Actions logs. They prefer a current `sb_secret_...` key and fall back only
+to the exact legacy key named `service_role`; partial name matching is forbidden.
 
 If the Supabase dashboard or Management API is unavailable, do not guess the
 pooler host in production secrets. Wait for the dashboard to recover, or get the
@@ -2628,6 +2629,69 @@ versioned pseudonym key, and optional AI quota override are reviewed exceptions:
 GitHub `Production` is their deploy source and the workflow synchronizes them to
 Supabase. The complete Edge-secret inventory is documented in
 `docs/backend-and-data/02-supabase-edge-and-database.md`.
+
+Internal routes using `_shared/serviceRoleAuth.ts` authorize locally against the
+platform-provided `SUPABASE_SERVICE_ROLE_KEY` and named values in
+`SUPABASE_SECRET_KEYS`; they must never probe a table to infer authority. Legacy
+service-role JWT callers send the same value in Bearer Authorization and
+`apikey`. Named `sb_secret_...` keys are non-JWT and are sent only in `apikey`.
+The deployment smoke step retrieves every available real anon/publishable
+project key and requires `community-taxonomy-status` to return `401` for each
+before the real current secret key (or exact legacy service-role fallback) is
+used as the positive control. Current secret keys are sent only in `apikey`;
+legacy JWT keys are sent in both headers. Do not weaken that denial check when
+rotating API keys.
+
+After migration `20260726212549_harden_service_role_request_authentication.sql`,
+verify effective production table privileges through the reviewed read-only
+database connection:
+
+```sql
+SELECT
+    role_name,
+    has_table_privilege(
+        role_name,
+        'public.taxonomy_import_runs',
+        'SELECT'
+    ) AS can_select,
+    has_table_privilege(
+        role_name,
+        'public.taxonomy_import_runs',
+        'INSERT'
+    ) AS can_insert,
+    has_table_privilege(
+        role_name,
+        'public.taxonomy_import_runs',
+        'UPDATE'
+    ) AS can_update,
+    has_table_privilege(
+        role_name,
+        'public.taxonomy_import_runs',
+        'DELETE'
+    ) AS can_delete,
+    has_table_privilege(
+        role_name,
+        'public.taxonomy_import_runs',
+        'TRUNCATE'
+    ) AS can_truncate,
+    has_table_privilege(
+        role_name,
+        'public.taxonomy_import_runs',
+        'REFERENCES'
+    ) AS can_reference,
+    has_table_privilege(
+        role_name,
+        'public.taxonomy_import_runs',
+        'TRIGGER'
+    ) AS can_trigger
+FROM (
+    VALUES ('anon'), ('authenticated'), ('service_role')
+) AS roles(role_name);
+```
+
+`anon` and `authenticated` must be false in all seven columns. `service_role`
+must be true only for select/insert/update and false for delete. Do not infer
+this matrix from an empty REST response.
 
 ## Manual Production Deploy
 
@@ -2825,9 +2889,10 @@ Recommended first production run after a deploy:
 - `update_checklist`: `true`
 
 If that passes, run the same workflow again with `dry_run = false`. The workflow
-uses `SUPABASE_ACCESS_TOKEN` to resolve the project service-role key at runtime
+uses `SUPABASE_ACCESS_TOKEN` to resolve a current project secret key (or the
+exact legacy service-role fallback) at runtime
 and constructs `https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref,
-so operators do not need to paste service-role credentials locally.
+so operators do not need to paste server credentials locally.
 
 For routine runs after the first clean production import, `dry_run = false` is
 acceptable. The workflow uploads a JSON/Markdown summary artifact for every run
@@ -3128,6 +3193,10 @@ After deployment:
   `https://media.merian.app/avatars/{userId}/...` URL remains available.
 - Confirm cron-triggered purge endpoints still receive service-role
   authorization from Supabase Vault/pg_net.
+- Confirm the production smoke summary reports that every retrieved real
+  anon/publishable project key received `401` from `community-taxonomy-status`.
+  A `200` with an empty data set is an authorization failure, not a harmless RLS
+  result.
 - Confirm `community-taxonomy-status` accepts a service-role request with
   `view = coverage` and returns the Birds coverage target quickly.
 - Confirm `scan-media-health` accepts a service-role request and returns

@@ -338,6 +338,56 @@ BEGIN
             'an API role can read the private routine allowlist table';
     END IF;
 
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            VALUES ('anon'), ('authenticated')
+        ) AS api_role(role_name)
+        CROSS JOIN (
+            VALUES
+                ('SELECT'),
+                ('INSERT'),
+                ('UPDATE'),
+                ('DELETE'),
+                ('TRUNCATE'),
+                ('REFERENCES'),
+                ('TRIGGER')
+        ) AS table_privilege(privilege_name)
+        WHERE pg_catalog.HAS_TABLE_PRIVILEGE(
+            api_role.role_name,
+            'public.taxonomy_import_runs',
+            table_privilege.privilege_name
+        )
+    ) THEN
+        RAISE EXCEPTION
+            'a low-privilege API role can access taxonomy import history';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            VALUES ('SELECT'), ('INSERT'), ('UPDATE')
+        ) AS required_privilege(privilege_name)
+        WHERE NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+            'service_role',
+            'public.taxonomy_import_runs',
+            required_privilege.privilege_name
+        )
+    ) OR EXISTS (
+        SELECT 1
+        FROM (
+            VALUES ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')
+        ) AS forbidden_privilege(privilege_name)
+        WHERE pg_catalog.HAS_TABLE_PRIVILEGE(
+            'service_role',
+            'public.taxonomy_import_runs',
+            forbidden_privilege.privilege_name
+        )
+    ) THEN
+        RAISE EXCEPTION
+            'taxonomy import history does not have its least-privilege service-role ACL';
+    END IF;
+
     IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
         'public.privileged_routine_default_acl_probe()',
@@ -374,10 +424,37 @@ BEGIN
 END;
 $$;
 
+SET LOCAL ROLE anon;
+
+DO $$
+BEGIN
+    BEGIN
+        PERFORM 1
+        FROM public.taxonomy_import_runs
+        LIMIT 1;
+        RAISE EXCEPTION
+            'anon unexpectedly selected taxonomy import history';
+    EXCEPTION
+        WHEN SQLSTATE '42501' THEN NULL;
+    END;
+END;
+$$;
+
+RESET ROLE;
 SET LOCAL ROLE authenticated;
 
 DO $$
 BEGIN
+    BEGIN
+        PERFORM 1
+        FROM public.taxonomy_import_runs
+        LIMIT 1;
+        RAISE EXCEPTION
+            'authenticated unexpectedly selected taxonomy import history';
+    EXCEPTION
+        WHEN SQLSTATE '42501' THEN NULL;
+    END;
+
     BEGIN
         PERFORM public.merge_common_name_en_batch(
             '[{"id":"00000000-0000-4000-8000-000000000001","en_name":"Denied"}]'::JSONB
@@ -397,6 +474,10 @@ DO $$
 DECLARE
     oversized_batch JSONB;
 BEGIN
+    PERFORM 1
+    FROM public.taxonomy_import_runs
+    LIMIT 1;
+
     SELECT pg_catalog.JSONB_AGG(
         pg_catalog.JSONB_BUILD_OBJECT(
             'id',

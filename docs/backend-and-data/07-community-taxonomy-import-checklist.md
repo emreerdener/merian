@@ -15,9 +15,10 @@ Last updated: 2026-07-20
   owner-published Community ID consensus, scan confirmation, Dictionary
   navigation, or curation.
 - Prefer the **Import Community Taxonomy** GitHub Actions workflow for
-  production imports. It resolves the service-role key at runtime from Supabase
-  using the existing `SUPABASE_ACCESS_TOKEN` secret and constructs the Supabase
-  URL from the project ref, so no local key or URL export is required.
+  production imports. It resolves a current secret key (or the exact legacy
+  service-role fallback) at runtime from Supabase using the existing
+  `SUPABASE_ACCESS_TOKEN` secret and constructs the Supabase URL from the project
+  ref, so no local key or URL export is required.
 - Use the local operator script only when GitHub Actions is unavailable or when
   intentionally updating this checklist from a trusted local environment.
 - Keep batches bounded. `limit = 100`, `page_count = 1...20` is the supported
@@ -190,10 +191,11 @@ After importing:
 ## Known Follow-Ups
 
 - [x] Fix and remotely verify `sync-community-taxonomy-index` and
-      `community-taxonomy-status` Edge Function auth. Both functions now accept
-      an exact env-key match or prove service-role access through a
-      service-role-only taxonomy import read. Production smoke checks returned
-      `HTTP 200` for status and dry-run import on 2026-06-22.
+      `community-taxonomy-status` Edge Function auth. Both functions now require
+      an exact platform-managed legacy or named secret-key match; a table/RLS
+      read is never authorization evidence. Production deploys first prove real
+      anon/publishable keys receive `HTTP 401`, then use the real service-role
+      key as the positive status and dry-run control.
 - [x] Optimize `community-taxonomy-status` before using it as the main import
       monitor for larger batches. The broad status call hung during the
       2026-06-23 offset `100` follow-up, while targeted coverage and latest-run

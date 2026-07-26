@@ -43,6 +43,20 @@ multiple functions need the same behavior and the ownership boundary is clear.
   SDK, but keeping this policy out of `edgeHandler.ts` prevents an implicit
   fleet-wide authentication change. Internal replay keeps its separate
   timing-safe service credential path.
+- **`serviceRoleAuth.ts`**: Fail-closed request authentication for the six
+  internal worker/status boundaries that share this policy. It compares one
+  unambiguous request credential against the platform-managed legacy
+  `SUPABASE_SERVICE_ROLE_KEY` and every named `sb_secret_...` value in
+  `SUPABASE_SECRET_KEYS`; it never infers authority from a database query, RLS
+  result, JWT claim, or network capability probe. Legacy JWT keys may use Bearer
+  transport; non-JWT secret keys belong only in `apikey`. Callers must use the
+  server-managed environment key—not the accepted request value—for privileged
+  database clients and internal function calls. The shared request-header helper
+  applies the same current/legacy key transport to operational scripts.
+- **`serviceRoleClient.ts`**: Creates privileged data-plane Supabase clients
+  (not Auth clients) from that authenticated environment key. It disables
+  supabase-js's API-key-as-Bearer fallback for `sb_secret_...` credentials while
+  preserving the legacy service-role JWT transport required by older projects.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
   and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
   internally so lifecycle workers do not run unbounded delete fanout. Prefix

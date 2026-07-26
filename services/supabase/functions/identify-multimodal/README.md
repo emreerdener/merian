@@ -170,8 +170,10 @@ all routes share one exact Supabase SDK graph. `auth.getClaims(token)` verifies
 the project's ES256 signature through cached JWKS, after which Merian validates
 issuer, audience, expiration/not-before, role, and `sub`. Anonymous and
 authenticated users are valid; public `service_role` use is rejected. Internal
-replay is recognized first and retains its timing-safe service-role plus
-explicit replay-user checks.
+replay is recognized first and retains its exact platform-managed service
+credential (`SUPABASE_SERVICE_ROLE_KEY` or a named `SUPABASE_SECRET_KEYS` value)
+plus explicit replay-user checks. Named non-JWT secrets use `apikey` only;
+database access uses the server environment key rather than the request value.
 
 The Gemini timer stops immediately after `generateContent` returns, before
 finish-reason processing, JSON parsing, dictionary work, or persistence. After

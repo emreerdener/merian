@@ -437,9 +437,13 @@ GBIF-backed Community Taxonomy Index in
 - `taxon_names`: Search names for scientific names, common names, and synonyms.
   The active version is seeded from `species_dictionary.common_names`,
   `alternative_common_names`, and cached GBIF suggestions.
-- `taxonomy_import_runs`: Service-role audit rows for bounded GBIF imports and
-  on-demand search cache misses. Tracks source, scope, status, requested query,
-  target taxonomy version, row counts, errors, and metadata.
+- `taxonomy_import_runs`: Private service-role audit rows for bounded GBIF
+  imports and on-demand search cache misses. Tracks source, scope, status,
+  requested query, target taxonomy version, row counts, errors, and metadata.
+  `PUBLIC`, `anon`, and `authenticated` have no table privileges. The
+  `service_role` grant is limited to `SELECT`, `INSERT`, and `UPDATE`; this
+  table must never be used as an authorization capability probe because an
+  RLS-filtered empty read is still a successful read.
 - `taxon_node_replacements`: Optional future mapping from retired nodes to newer
   nodes without mutating old identifications.
 

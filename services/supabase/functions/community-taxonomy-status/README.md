@@ -20,11 +20,14 @@ operators need before enabling broader taxonomy imports or coverage UX:
 
 Headers:
 
-- `Authorization: Bearer <service-role credential>`
+- Legacy key: `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>` and
+  `apikey: <SUPABASE_SERVICE_ROLE_KEY>`
+- Named non-JWT project secret: `apikey: <sb_secret_...>` only
 
-The endpoint accepts an exact `SUPABASE_SERVICE_ROLE_KEY` environment match or a
-project service-role token that can prove access to service-role-only taxonomy
-import state.
+The endpoint accepts only an exact platform-managed environment match:
+`SUPABASE_SERVICE_ROLE_KEY` or one of the values in `SUPABASE_SECRET_KEYS`. It
+does not infer authority from taxonomy table reachability or an RLS-filtered
+result. Conflicting Authorization/apikey credentials fail closed.
 
 Body fields are optional:
 

@@ -1141,7 +1141,10 @@ row.
 This endpoint is not called by iOS. It is invoked every five minutes by pg_cron
 with `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`. Supabase gateway JWT
 verification is disabled so pg_net can reach the function, and the function
-performs service-role validation internally.
+performs local exact service-key validation internally. Manual callers may
+instead send an exact named `sb_secret_...` value in `apikey` only. The route
+never uses a database/RLS result as proof, rejects mixed credentials, and uses
+its server environment key for database and downstream multimodal calls.
 
 Optional request payload:
 
@@ -1207,8 +1210,10 @@ inference against an already-created scan row.
 
 Read-only service-role endpoint for media durability observability. Supabase
 gateway JWT verification is disabled for automation reachability, and the
-function validates `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` or an
-equivalent service-role `apikey` before querying.
+function validates the exact platform-managed `SUPABASE_SERVICE_ROLE_KEY`
+(legacy Bearer plus matching `apikey`) or a named `sb_secret_...` value in
+`apikey` only before querying. It never treats a successful database/RLS
+response as proof and does not reuse the request credential for database access.
 
 Optional request payload:
 
@@ -4637,7 +4642,10 @@ expiration, not-before, role, and `sub`. Both anonymous and authenticated user
 JWTs are accepted. Service-role tokens are rejected on this public endpoint. The
 request body's `user_id` is never an authority source. The existing
 `X-Merian-Internal-Replay` path is checked before public claims auth and retains
-its timing-safe service-role verification plus explicit replay-user header.
+its exact platform-managed service-key verification plus explicit replay-user
+header. Legacy service-role JWTs use Bearer transport; named non-JWT
+`sb_secret_...` values use `apikey` only. The accepted request value is not
+reused by the privileged database client.
 
 Before Gemini, one service-role-only `begin_scan_ingestion` RPC performs upload
 session lookup, ingestion claim, sanitized intent recording, and the
@@ -5873,9 +5881,11 @@ Request:
 
 - Gateway JWT verification is disabled so the endpoint can receive both legacy
   service-role JWTs and current non-JWT project secret keys. The handler accepts
-  the exact provisioned legacy service-role value, or a candidate key only after
-  a database probe proves service-role access. Missing and unproven keys receive
-  `401`; ordinary user tokens are not accepted.
+  only the exact provisioned legacy service-role value or an exact named
+  `sb_secret_...` value in the platform's `SUPABASE_SECRET_KEYS` environment. It
+  never uses a database/RLS result as proof. Missing, conflicting, and
+  mismatched keys receive `401`; ordinary user tokens are not accepted. Worker
+  RPCs use the server environment key rather than the accepted request value.
 - `limit` is clamped to `1...500`.
 - `leaseSeconds` is clamped to `30...600`.
 - Primary and distinct-poster `HEAD` requests run in parallel per row within a
@@ -6351,10 +6361,12 @@ imports or Community ID publish flows.
 ### Authentication Enforcement
 
 - `verify_jwt = false` is configured for service-role calls.
-- The function still requires a service-role credential. It first accepts an
-  exact `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` match, then falls
-  back to proving that the provided bearer token can read service-role-only
-  taxonomy import state.
+- The function still requires an exact platform-managed service credential:
+  `SUPABASE_SERVICE_ROLE_KEY` via legacy Bearer transport (normally with the
+  same `apikey`), or a named `sb_secret_...` value from `SUPABASE_SECRET_KEYS`
+  in `apikey` only. Conflicting headers fail closed. Taxonomy table reachability
+  and RLS-filtered results are never authorization evidence. Database reads use
+  the server environment key, not the accepted request value.
 - Non-POST requests return `405`.
 
 ### Request Payload
@@ -6442,10 +6454,12 @@ in v1.
 ### Authentication Enforcement
 
 - `verify_jwt = false` is configured for service-role calls.
-- The function still requires a service-role credential. It first accepts an
-  exact `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` match, then falls
-  back to proving that the provided bearer token can read service-role-only
-  taxonomy import state.
+- The function still requires an exact platform-managed service credential:
+  `SUPABASE_SERVICE_ROLE_KEY` via legacy Bearer transport (normally with the
+  same `apikey`), or a named `sb_secret_...` value from `SUPABASE_SECRET_KEYS`
+  in `apikey` only. Conflicting headers fail closed. Taxonomy table reachability
+  and RLS-filtered results are never authorization evidence. Privileged database
+  work uses the server environment key, not the accepted request value.
 - Non-POST requests return `405`.
 
 ### Request Payload

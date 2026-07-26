@@ -4,9 +4,12 @@ Service-role-only worker for published Explore media.
 
 Gateway JWT verification is disabled because current Supabase project secret
 keys are not JWTs. The handler still fails closed: it accepts the exact
-automatically provisioned legacy service-role value, or a supplied project key
-only after a database probe proves service-role access. The accepted token is
-then used for all worker RPCs; missing and unproven keys receive `401`.
+automatically provisioned legacy service-role value, or an exact named
+`sb_secret_...` value from the platform's `SUPABASE_SECRET_KEYS` environment. It
+never uses a database/RLS result as proof. Legacy keys may use Bearer transport;
+named non-JWT secret keys must use `apikey` only, and mixed credentials fail
+closed. Worker RPCs use the server-managed environment key, not the accepted
+request value. Missing and mismatched keys receive `401`.
 
 The worker leases due media rows, derives canonical object keys from
 `media.merian.app` URLs, and sends signed `HEAD` requests directly to the R2 S3
