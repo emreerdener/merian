@@ -41,6 +41,7 @@ const COMPLETION_RETRY_DELAYS_MS = [0, 100, 500] as const;
 const TERMINAL_FAILURE_CODES = new Set([
   "export_too_large",
   "pseudonym_key_unavailable",
+  "source_snapshot_changed",
 ]);
 
 export interface ExportWorkerResult {

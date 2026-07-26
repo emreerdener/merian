@@ -1566,9 +1566,9 @@ final class MerianNetworkClient {
 
     // MARK: - Darwin Core Export
 
-    /// Queues a DwC-A export job. This endpoint inserts a job into the Postgres
-    /// export_jobs queue, which triggers a background webhook to process the zip
-    /// and email the user the final download link via Resend.
+    /// Queues a DwC-A export job. The insertion transaction snapshots bounded
+    /// source membership and revision fingerprints, then a background webhook
+    /// generates the ZIP and emails the final download link via Resend.
     func requestDwcAExport(scope: String = "personal") async throws {
         let functionUrl = try endpointURL("request-export-dwca")
         // includePreciseCoordinates: true — intentional for personal exports. The requesting
@@ -1577,9 +1577,15 @@ final class MerianNetworkClient {
         // requesting user's own records, regardless of this flag.
         let payload: [String: Any] = ["exportScope": scope, "includePreciseCoordinates": true]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        
-        // This is a fast API call that just inserts a row and returns 200 OK.
-        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 15.0)
+
+        // Archive generation remains asynchronous; this timeout covers only the
+        // bounded queue-and-snapshot transaction.
+        _ = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: 15.0
+        )
     }
 
     // MARK: - Explore

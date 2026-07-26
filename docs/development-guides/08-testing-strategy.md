@@ -1467,8 +1467,8 @@ The surrounding export suite is intentionally split by boundary:
   buffer.
 - `db_test.ts` proves the worker uses the claim-bound source-page RPC, accepts
   only consistent row/byte metadata, recognizes the empty completion sentinel,
-  and rejects oversized source rows, arrays, or multibyte elements measured in
-  UTF-8 bytes.
+  recognizes a changed-revision sentinel, and rejects oversized source rows,
+  arrays, or multibyte elements measured in UTF-8 bytes.
 - `pseudonym_test.ts` proves HMAC determinism, domain/key-version rotation, and
   fail-closed missing/short Base64 keys.
 - `zip_test.ts` opens the lazy ZIP with an independent reader and checks
@@ -1483,8 +1483,9 @@ The surrounding export suite is intentionally split by boundary:
   parsing, and transient versus terminal error classification.
 - `worker_test.ts` proves duplicate deliveries do no work, the database claim is
   canonical, exactly one durable phase executes per call, row/byte overflows are
-  terminal, temporary chunk and final archive keys include the claim token,
-  staged archives are reused, and only the winning lease can advance/finalize.
+  terminal, source-snapshot changes are terminal before encoding, temporary
+  chunk and final archive keys include the claim token, staged archives are
+  reused, and only the winning lease can advance/finalize.
 - `_tests/exportDwcaSecurityCoverage.test.ts` rejects webhook authority creep,
   public global-export access, OFFSET/full-buffer regressions, unbounded
   invocation work, JWT-secret reuse, and fallback salts.
@@ -1492,12 +1493,19 @@ The surrounding export suite is intentionally split by boundary:
   migration shape, immutable canonical budgets, durable phase/cursor/manifest,
   lock-safe install/validation ordering, validated source
   cardinality/element-byte constraints, claim-bound 100-row/256 KiB source
-  pages, 512 KiB chunks, claim-token key validation, and minute resume cron.
+  pages, creation-time membership and SHA-256 revision fences, terminal
+  membership purge, 512 KiB chunks, claim-token key validation, and minute
+  resume cron.
 - `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
   immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
   legacy-error sanitization, post-deadline claim, validated source constraints,
-  aggregate page-byte cutoff, phased cursor/manifest transition, budget
-  overflow, and idempotent-completion contract against local Postgres.
+  aggregate page-byte cutoff, immutable membership/revision rejection, phased
+  cursor/manifest transition, budget overflow, and idempotent-completion
+  contract against local Postgres.
+- `tests/export_dwca_snapshot_security.sql` independently proves job insertion
+  freezes membership, later scans stay excluded, changed privacy, taxonomy, or
+  multimedia revisions return no payload, snapshot routines pass static
+  PL/pgSQL validation, and a terminal job purges membership.
   `privileged_routine_security.sql` independently runs static
   PL/pgSQL/search-path/grant validation over the new definer RPCs.
 

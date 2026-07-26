@@ -32,6 +32,13 @@ const sourceBoundsMigrations = [
   sourceBoundsInstallMigration,
   sourceBoundsValidationMigration,
 ].join("\n");
+const sourceSnapshotMigrationUrl = new URL(
+  "../../migrations/20260726025103_snapshot_dwca_export_sources.sql",
+  import.meta.url,
+);
+const sourceSnapshotMigration = await Deno.readTextFile(
+  sourceSnapshotMigrationUrl,
+);
 
 Deno.test("DwC-A migration installs a private atomic claim lease", () => {
   for (
@@ -301,4 +308,60 @@ Deno.test("DwC-A source constraints release the ALTER lock before validation", (
     "CREATE OR REPLACE FUNCTION public.get_dwca_export_scan_batch",
   );
   assert(validation >= 0 && rpc > validation);
+});
+
+Deno.test("DwC-A phases share one immutable creation-time membership snapshot", () => {
+  for (
+    const expected of [
+      "CREATE TABLE internal.export_job_source_state",
+      "CREATE TABLE internal.export_job_source_membership",
+      "PRIMARY KEY (job_id, scan_id)",
+      "pg_catalog.OCTET_LENGTH(eligibility_sha256) = 32",
+      "CREATE OR REPLACE VIEW internal.dwca_export_current_source",
+      "CREATE OR REPLACE FUNCTION internal.materialize_dwca_export_source_snapshot",
+      "WITH eligible_membership AS MATERIALIZED",
+      "LIMIT job_row.max_export_rows + 1",
+      "extensions.digest(",
+      "'sha256'",
+      "CREATE TRIGGER initialize_dwca_export_source_snapshot",
+      "AFTER INSERT ON public.export_jobs",
+      "CREATE TRIGGER purge_dwca_export_source_snapshot",
+      "DELETE FROM internal.export_job_source_membership",
+      "DELETE FROM internal.export_job_chunks",
+      "SET phase = 'occurrence'",
+      "DROP VIEW internal.dwca_export_occurrence_source",
+      "DROP VIEW internal.dwca_export_multimedia_source",
+      "FROM internal.export_job_source_membership AS membership",
+      "LEFT JOIN internal.dwca_export_current_source AS current_source",
+      "source_revision_changed BOOLEAN",
+      "current_source.eligibility_payload::TEXT",
+      "IS DISTINCT FROM candidates.eligibility_sha256",
+      "source_state.purged_at IS NULL",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+      "TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sourceSnapshotMigration, expected);
+  }
+
+  const pageRpc = sourceSnapshotMigration.slice(
+    sourceSnapshotMigration.indexOf(
+      "CREATE FUNCTION public.get_dwca_export_scan_batch",
+    ),
+  );
+  assertEquals(pageRpc.includes("FROM public.scans"), false);
+  assertEquals(
+    pageRpc.includes("internal.dwca_export_occurrence_source"),
+    false,
+  );
+  assertEquals(
+    pageRpc.includes("internal.dwca_export_multimedia_source"),
+    false,
+  );
+  assertEquals(sourceSnapshotMigration.includes(" OFFSET "), false);
+  assertEquals(
+    sourceSnapshotMigration.includes("pg_catalog.COALESCE"),
+    false,
+  );
 });

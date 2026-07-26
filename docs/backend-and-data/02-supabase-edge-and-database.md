@@ -1331,16 +1331,29 @@ without scanning legacy rows; the second validates those rows before activating
 the read RPC. Validated checks bound image URL arrays to 24 elements of 4,096
 UTF-8 bytes, ecological interaction arrays to 10 elements of 2,048 bytes,
 and selected taxonomy text to finite lengths.
-`get_dwca_export_scan_batch(...)` is executable only by `service_role`, verifies
-the active claim token and exact durable cursor, derives canonical scope from
-the job, and returns no more than 100 rows or 256 KiB of serialized source.
+Those validated write-time limits remain prerequisites for every snapshot page.
+
+Migration `20260726025103_snapshot_dwca_export_sources.sql` moves scope
+evaluation to job creation and fixes one private `(job_id, scan_id)` membership
+set for both CSV passes. It stores three compact SHA-256 fingerprints per scan:
+eligibility/privacy, occurrence fields including joined taxonomy, and
+multimedia fields. The page RPC traverses that membership and returns a live
+projection only when it still matches the creation-time fingerprint. Scans
+created later cannot enter the job, and changed/deleted revisions terminate
+with `source_snapshot_changed` instead of mixing phase revisions. Fingerprints
+are deleted at terminal status. Existing nonterminal jobs are fenced, their
+pre-snapshot manifests are discarded, and they restart from occurrence.
+`get_dwca_export_scan_batch(...)` remains executable only by `service_role`,
+verifies the active claim token and exact durable cursor, and returns no more
+than 100 rows or 256 KiB of serialized source.
 
 Each invocation performs exactly one bounded step:
 
-1. `occurrence` or `multimedia` reads one narrow, monotonic row-and-byte-aware
-   keyset page, incrementally RFC-4180 encodes into a fixed buffer of at most
-   512 KiB, writes one temporary R2 CSV chunk, and transactionally commits its
-   object key, cursor, and cumulative budgets.
+1. `occurrence` or `multimedia` reads one narrow, revision-checked monotonic
+   row-and-byte-aware keyset page from shared immutable job membership,
+   incrementally RFC-4180 encodes into a fixed buffer of at most 512 KiB, writes
+   one temporary R2 CSV chunk, and transactionally commits its object key,
+   cursor, and cumulative budgets.
 2. `assembling` reads the manifest in order and lazily streams the CSV chunks
    through the ZIP32 writer into a bounded R2 multipart upload.
 3. `delivering` resolves the canonical owner's Auth email, calls Resend with

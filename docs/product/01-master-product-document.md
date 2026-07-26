@@ -395,8 +395,11 @@ For endangered or sensitive species, an additional safety offset can extend to a
 
 Darwin Core Archive export uses an asynchronous request-and-worker flow. The
 database atomically leases one durable phase at a time. The worker persists
-100-row keyset cursors and claim-fenced CSV manifests, assembles them into a
-streaming multipart archive, and gives Resend a job-idempotent request for a
+100-row keyset cursors and claim-fenced CSV manifests over one creation-time
+scan membership snapshot. Every phase projection must match its snapshot
+revision fingerprint, so later scans are excluded and changed/deleted source
+revisions cannot produce a mixed archive. The worker assembles chunks into a
+streaming multipart archive and gives Resend a job-idempotent request for a
 time-limited link. Canonical defaults limit one job to 5,000 CSV rows and an
 8 MiB archive. Successful/non-terminal requests are
 rate-limited to approximately one per 24 hours; failed jobs remain retryable.

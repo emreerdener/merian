@@ -177,15 +177,28 @@ selected taxonomy fields are finite too. The service-only
 cursor, then caps each keyset response at 100 scans and 256 KiB of serialized
 source payload.
 
+Migration `20260726025103_snapshot_dwca_export_sources.sql` fixes source
+membership at job insertion in one MVCC statement. Private
+`internal.export_job_source_state` and
+`internal.export_job_source_membership` rows retain only scan IDs and
+fixed-size SHA-256 fingerprints for eligibility, occurrence, and multimedia
+projections. Both CSV phases traverse that same membership; a later scan is not
+discovered, while a changed/deleted projection returns a revision sentinel and
+becomes terminal `source_snapshot_changed` before mixed output can be assembled.
+Terminal jobs purge their membership fingerprints. Nonterminal jobs created
+before this migration are claim-fenced, have their old manifests discarded,
+and restart against one newly established snapshot.
+
 `functions/export-dwca` performs exactly one short phase per invocation:
 occurrence page, multimedia page, assembly, or delivery. The two data phases use
-row-and-byte-aware keyset reads and narrow projections. A fixed 512 KiB encoder
-appends one CSV row at a time, so page strings and media rows are never expanded
-into an unbounded intermediate array. Each page becomes a claim-token-fenced R2
-CSV chunk and is committed to a durable manifest with its cursor and cumulative
-budgets in one transaction. A late expired worker can neither overwrite the
-replacement worker's chunk nor add it to the manifest. The minute scheduler
-resumes due phases without relying on one long-lived Edge invocation.
+row-and-byte-aware keyset reads over immutable job membership and narrow
+revision-checked projections. A fixed 512 KiB encoder appends one CSV row at a
+time, so page strings and media rows are never expanded into an unbounded
+intermediate array. Each page becomes a claim-token-fenced R2 CSV chunk and is
+committed to a durable manifest with its cursor and cumulative budgets in one
+transaction. A late expired worker can neither overwrite the replacement
+worker's chunk nor add it to the manifest. The minute scheduler resumes due
+phases without relying on one long-lived Edge invocation.
 
 Assembly lazily reads manifest chunks into a streaming ZIP32 writer and bounded
 R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is
@@ -203,7 +216,8 @@ rotating a key.
 Regression coverage lives in
 `functions/_tests/exportDwcaSecurityCoverage.test.ts`,
 `functions/_tests/exportDwcaMigrationContract.test.ts`, the route-local export
-tests, and `tests/export_dwca_security.sql`.
+tests, `tests/export_dwca_security.sql`, and
+`tests/export_dwca_snapshot_security.sql`.
 
 ### Public Web Waitlist Boundary
 

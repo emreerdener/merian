@@ -5727,8 +5727,11 @@ This endpoint is not the Explore post-content reporting API.
 
 Queues an asynchronous Darwin Core Archive (DwC-A) export. Because zipping
 thousands of records exceeds 30-second HTTP connection limits, this endpoint
-merely validates the user and inserts a job into the `export_jobs` PostgreSQL
-table, returning a `200 OK` instantly so the iOS client can release its thread.
+validates the user and performs a bounded `export_jobs` insertion transaction.
+That transaction fixes compact source membership/revision metadata under a
+canonical row-budget-plus-one lookahead; CSV, ZIP, storage, and email work
+remains asynchronous. The iOS client awaits the queue response off-main with a
+15-second HTTP timeout.
 
 ### Request Payload
 
@@ -5758,12 +5761,13 @@ table, returning a `200 OK` instantly so the iOS client can release its thread.
   are excluded so a worker/configuration failure can be retried. If the limit
   applies, returns
   `429 Too Many Requests`.
-- Inserts a row into `export_jobs` with status `pending`, triggering the
-  `pg_net` webhook. The insert is idempotent against concurrent duplicate
-  submissions: a `23505` unique-constraint violation (two requests racing in
-  before either commits) is caught and also returns `429 Too Many Requests`,
-  consistent with the explicit rate-limit path and preventing a `500` error from
-  surfacing to the client.
+- Inserts a row into `export_jobs` with status `pending`. Before the `pg_net`
+  webhook can run, an ordered database trigger snapshots the eligible scan IDs
+  and creation-time revision fingerprints in the same transaction. The insert
+  is idempotent against concurrent duplicate submissions: a `23505`
+  unique-constraint violation (two requests racing in before either commits) is
+  caught and also returns `429 Too Many Requests`, consistent with the explicit
+  rate-limit path and preventing a `500` error from surfacing to the client.
 - `anon` and `authenticated` have no direct `INSERT` privilege on `export_jobs`;
   callers cannot bypass this validation/rate-limit boundary through the Data
   API.
@@ -5812,11 +5816,16 @@ contract is also bounded by the shared small JSON reader.
 - Calls service-only
   `get_dwca_export_scan_batch(job_id, claim_token, phase, cursor, 100, 262144)`
   for data phases. The database revalidates the claim and canonical cursor,
-  derives personal/global scope from immutable job state, and stops the keyset
-  response at either 100 scans or 256 KiB of serialized source. Validated row
-  checks separately cap media-array cardinality/URL size, interaction-array
-  cardinality/element size, and selected taxonomy text in UTF-8 bytes. The
-  worker rechecks those bounds before encoding.
+  keyset-paginates the creation-time `(job_id, scan_id)` membership, and stops
+  at either 100 scans or 256 KiB of serialized source. Every returned payload
+  must match the stored SHA-256 eligibility fingerprint and the fingerprint for
+  that phase's narrow projection. A later scan is not part of the job; a changed
+  or deleted source returns `source_revision_changed` and becomes terminal
+  `source_snapshot_changed` rather than producing a mixed archive. Validated
+  row checks separately cap media-array cardinality/URL size,
+  interaction-array cardinality/element size, and selected taxonomy text in
+  UTF-8 bytes. The worker rechecks those bounds before encoding. Terminal jobs
+  purge their source-membership rows.
 - Advance, manifest lookup, staging, completion, release, and heartbeat RPCs
   require the same unexpired UUID token; a delayed worker cannot mutate a
   replacement attempt. These definer routines use an empty `search_path`, call
@@ -5845,12 +5854,13 @@ contract is also bounded by the shared small JSON reader.
   `export_too_large`.
 - **Resumable generation**: An invocation performs exactly one occurrence
   page, multimedia page, assembly, or delivery phase. Data phases use
-  row-and-byte-aware `id > last_id` pages with narrow projections and matching
-  partial indexes. A fixed-capacity encoder appends one header/row at a time and
-  fails before exceeding 512 KiB; it does not retain a page-wide line array or
-  expanded multimedia-row array. Each chunk is committed to the ordered private
-  manifest together with the next cursor and cumulative budgets. The cron
-  resumes the next phase instead of depending on one long-lived Edge invocation.
+  row-and-byte-aware `id > last_id` pages over one immutable membership snapshot
+  with narrow revision-checked projections. A fixed-capacity encoder appends
+  one header/row at a time and fails before exceeding 512 KiB; it does not
+  retain a page-wide line array or expanded multimedia-row array. Each chunk is
+  committed to the ordered private manifest together with the next cursor and
+  cumulative budgets. The cron resumes the next phase instead of depending on
+  one long-lived Edge invocation.
 - **Bounded assembly**: Manifest chunks lazily feed a streaming ZIP32 `STORE`
   writer and fixed 8 MiB R2 multipart upload. No complete page history, CSV,
   ZIP, `arrayBuffer()`, or media binary collection is retained in memory. R2

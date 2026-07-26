@@ -22,6 +22,7 @@ DECLARE
     first_scan_id UUID := '00000000-0000-4000-8000-00000000e131';
     second_scan_id UUID := '00000000-0000-4000-8000-00000000e132';
     third_scan_id UUID := '00000000-0000-4000-8000-00000000e133';
+    fourth_scan_id UUID := '00000000-0000-4000-8000-00000000e134';
     claim_row RECORD;
     returned_rows INTEGER;
     routine_signature TEXT;
@@ -31,6 +32,7 @@ DECLARE
     returned_source_bytes INTEGER;
     batch_complete BOOLEAN;
     batch_oversize BOOLEAN;
+    batch_revision_changed BOOLEAN;
 BEGIN
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
@@ -87,6 +89,30 @@ BEGIN
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
         'internal.export_job_chunks',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.export_job_source_state',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.export_job_source_state',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.export_job_source_state',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.export_job_source_membership',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.export_job_source_membership',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.export_job_source_membership',
         'SELECT'
     ) THEN
         RAISE EXCEPTION 'an API role can bypass private export batch state';
@@ -207,6 +233,31 @@ BEGIN
             'the private export transition trigger has unsafe privileges';
     END IF;
 
+    FOREACH routine_signature IN ARRAY ARRAY[
+        'internal.materialize_dwca_export_source_snapshot(uuid)',
+        'internal.initialize_dwca_export_source_snapshot()',
+        'internal.purge_dwca_export_source_snapshot()'
+    ]
+    LOOP
+        IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
+            'service_role',
+            routine_signature,
+            'EXECUTE'
+        ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+            'authenticated',
+            routine_signature,
+            'EXECUTE'
+        ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+            'anon',
+            routine_signature,
+            'EXECUTE'
+        ) THEN
+            RAISE EXCEPTION
+                'an API role can execute private snapshot routine %',
+                routine_signature;
+        END IF;
+    END LOOP;
+
     IF NOT EXISTS (
         SELECT 1
         FROM pg_catalog.pg_indexes AS index_row
@@ -265,22 +316,28 @@ BEGIN
 
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
-        'internal.dwca_export_occurrence_source',
-        'SELECT'
-    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
-        'service_role',
-        'internal.dwca_export_multimedia_source',
+        'internal.dwca_export_current_source',
         'SELECT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
-        'internal.dwca_export_occurrence_source',
+        'internal.dwca_export_current_source',
         'SELECT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
-        'internal.dwca_export_multimedia_source',
+        'internal.dwca_export_current_source',
         'SELECT'
     ) THEN
-        RAISE EXCEPTION 'an API role can bypass the bounded export page RPC';
+        RAISE EXCEPTION
+            'an API role can bypass the revision-fenced export page RPC';
+    END IF;
+
+    IF pg_catalog.TO_REGCLASS(
+        'internal.dwca_export_occurrence_source'
+    ) IS NOT NULL OR pg_catalog.TO_REGCLASS(
+        'internal.dwca_export_multimedia_source'
+    ) IS NOT NULL THEN
+        RAISE EXCEPTION
+            'a live phase-specific export source projection still exists';
     END IF;
 
     IF (
@@ -309,14 +366,25 @@ BEGIN
         RAISE EXCEPTION 'canonical DwC-A budgets are not pinned';
     END IF;
 
-    IF NOT EXISTS (
+    IF (
+        SELECT pg_catalog.COUNT(*)
+        FROM pg_catalog.pg_trigger AS trigger_row
+        WHERE trigger_row.tgrelid = 'public.export_jobs'::REGCLASS
+          AND trigger_row.tgname IN (
+              'enforce_export_job_update',
+              'initialize_dwca_export_source_snapshot',
+              'purge_dwca_export_source_snapshot'
+          )
+          AND NOT trigger_row.tgisinternal
+    ) <> 3 OR NOT EXISTS (
         SELECT 1
         FROM pg_catalog.pg_trigger AS trigger_row
         WHERE trigger_row.tgrelid = 'public.export_jobs'::REGCLASS
           AND trigger_row.tgname = 'enforce_export_job_update'
           AND NOT trigger_row.tgisinternal
     ) THEN
-        RAISE EXCEPTION 'export canonical-state trigger is missing';
+        RAISE EXCEPTION
+            'an export canonical-state or source-snapshot trigger is missing';
     END IF;
 
     INSERT INTO auth.users (
@@ -487,9 +555,77 @@ BEGIN
         FALSE
     );
 
+    SELECT
+        source_state.source_scan_count,
+        source_state.source_too_large
+    INTO STRICT
+        returned_rows,
+        boolean_result
+    FROM internal.export_job_source_state AS source_state
+    WHERE source_state.job_id = bounded_job_id;
+
+    IF returned_rows <> 3 OR boolean_result THEN
+        RAISE EXCEPTION
+            'job creation did not freeze the expected source membership';
+    END IF;
+
+    SELECT pg_catalog.COUNT(*)::INTEGER
+    INTO returned_rows
+    FROM internal.export_job_source_membership AS membership
+    WHERE membership.job_id = bounded_job_id;
+
+    IF returned_rows <> 3 THEN
+        RAISE EXCEPTION
+            'job creation did not persist every source membership fingerprint';
+    END IF;
+
+    -- This scan is eligible but was created after the export job. Neither CSV
+    -- phase may discover it through a later live-table query.
+    INSERT INTO public.scans (
+        id,
+        user_id,
+        species_id,
+        image_storage_urls,
+        ecological_interactions,
+        ai_confidence_score
+    )
+    VALUES (
+        fourth_scan_id,
+        test_user_id,
+        test_species_id,
+        ARRAY['https://media.example.invalid/fourth.webp'],
+        ARRAY['fourth interaction'],
+        0.6
+    );
+
     SELECT *
     INTO STRICT claim_row
     FROM public.claim_export_job_step(bounded_job_id, bounded_token);
+
+    SELECT
+        pg_catalog.COUNT(*)::INTEGER,
+        pg_catalog.BOOL_AND(bounded_page.page_complete),
+        pg_catalog.BOOL_OR(bounded_page.source_revision_changed)
+    INTO
+        returned_rows,
+        batch_complete,
+        batch_revision_changed
+    FROM public.get_dwca_export_scan_batch(
+        bounded_job_id,
+        bounded_token,
+        'occurrence',
+        NULL,
+        100,
+        262144
+    ) AS bounded_page
+    WHERE bounded_page.scan_payload IS NOT NULL;
+
+    IF returned_rows <> 3
+       OR NOT batch_complete
+       OR batch_revision_changed THEN
+        RAISE EXCEPTION
+            'the occurrence phase did not use immutable job membership';
+    END IF;
 
     SELECT bounded_page.source_byte_count
     INTO STRICT first_source_bytes
@@ -570,6 +706,35 @@ BEGIN
             'the multimedia source page ignored its row or completion bound';
     END IF;
 
+    UPDATE public.scans AS scans
+    SET image_storage_urls =
+        ARRAY['https://media.example.invalid/revised-first.webp']
+    WHERE scans.id = first_scan_id;
+
+    SELECT
+        pg_catalog.COUNT(*)::INTEGER,
+        pg_catalog.BOOL_AND(bounded_page.source_revision_changed),
+        pg_catalog.BOOL_OR(bounded_page.scan_payload IS NOT NULL)
+    INTO
+        returned_rows,
+        batch_revision_changed,
+        boolean_result
+    FROM public.get_dwca_export_scan_batch(
+        bounded_job_id,
+        bounded_token,
+        'multimedia',
+        NULL,
+        100,
+        262144
+    ) AS bounded_page;
+
+    IF returned_rows <> 1
+       OR NOT batch_revision_changed
+       OR boolean_result THEN
+        RAISE EXCEPTION
+            'a changed multimedia revision escaped the snapshot fence';
+    END IF;
+
     SELECT public.release_export_job_step(
         bounded_job_id,
         bounded_token,
@@ -581,6 +746,21 @@ BEGIN
     IF NOT boolean_result THEN
         RAISE EXCEPTION
             'the bounded source-page fixture could not release its active job';
+    END IF;
+
+    SELECT pg_catalog.COUNT(*)::INTEGER
+    INTO returned_rows
+    FROM internal.export_job_source_membership AS membership
+    WHERE membership.job_id = bounded_job_id;
+
+    SELECT source_state.purged_at IS NOT NULL
+    INTO STRICT boolean_result
+    FROM internal.export_job_source_state AS source_state
+    WHERE source_state.job_id = bounded_job_id;
+
+    IF returned_rows <> 0 OR NOT boolean_result THEN
+        RAISE EXCEPTION
+            'terminal export did not purge its source membership';
     END IF;
 
     INSERT INTO public.export_jobs (

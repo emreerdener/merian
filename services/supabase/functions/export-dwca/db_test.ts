@@ -69,6 +69,7 @@ Deno.test("fetchExportScanBatch uses the fenced byte-aware RPC", async () => {
         source_byte_count: 256,
         page_complete: false,
         source_row_oversize: false,
+        source_revision_changed: false,
       },
     ], calls),
   );
@@ -109,6 +110,7 @@ Deno.test("fetchExportScanBatch recognizes the completion sentinel", async () =>
       source_byte_count: 0,
       page_complete: true,
       source_row_oversize: false,
+      source_revision_changed: false,
     }]),
   );
 
@@ -133,6 +135,7 @@ Deno.test("fetchExportScanBatch rejects an oversized source sentinel", async () 
           source_byte_count: MAXIMUM_EXPORT_SOURCE_PAGE_BYTES + 1,
           page_complete: false,
           source_row_oversize: true,
+          source_revision_changed: false,
         }]),
       ),
     ExportWorkerError,
@@ -162,6 +165,7 @@ Deno.test("fetchExportScanBatch rejects arrays beyond database bounds", async ()
           source_byte_count: 1_024,
           page_complete: true,
           source_row_oversize: false,
+          source_revision_changed: false,
         }]),
       ),
     ExportWorkerError,
@@ -190,9 +194,32 @@ Deno.test("fetchExportScanBatch enforces element bounds in UTF-8 bytes", async (
           source_byte_count: 8_192,
           page_complete: true,
           source_row_oversize: false,
+          source_revision_changed: false,
         }]),
       ),
     ExportWorkerError,
   );
   assertEquals(error.code, "database_unavailable");
+});
+
+Deno.test("fetchExportScanBatch rejects a changed source revision terminally", async () => {
+  const error = await assertRejects(
+    () =>
+      fetchExportScanBatch(
+        job,
+        "00000000-0000-4000-8000-000000000401",
+        "multimedia",
+        null,
+        mockClient([{
+          scan_id: null,
+          scan_payload: null,
+          source_byte_count: 0,
+          page_complete: false,
+          source_row_oversize: false,
+          source_revision_changed: true,
+        }]),
+      ),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
 });

@@ -259,6 +259,27 @@ Deno.test("canonical budget failures become terminal under the active fence", as
   assertEquals(events.at(-1), "release:export_too_large:true");
 });
 
+Deno.test("changed source snapshots become terminal under the active fence", async () => {
+  const events: string[] = [];
+  const services = successfulServices(events);
+  services.fetchBatch = () =>
+    Promise.reject(
+      new ExportWorkerError(
+        "source_snapshot_changed",
+        "source revision changed",
+      ),
+    );
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
+  assertEquals(events.includes("encode_batch"), false);
+  assertEquals(events.some((event) => event.startsWith("put:")), false);
+  assertEquals(events.at(-1), "release:source_snapshot_changed:true");
+});
+
 Deno.test("canonical CSV byte failures are rejected before R2 upload", async () => {
   const events: string[] = [];
   const budgetExhausted: ClaimedExportJob = {

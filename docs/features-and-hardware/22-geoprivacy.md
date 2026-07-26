@@ -82,8 +82,10 @@ projects post-owned public map coordinates. Open posts may still render
   projection. Nearby uses the same post-owned public coordinate projection for
   spatial matching, so non-owned `obscured` and `private` posts remain out of
   Nearby while still being eligible for non-spatial Explore feeds.
-Global Darwin Core exports include only open public records; personal exports
-may include the user's own exact telemetry when they request their own archive.
+Global Darwin Core exports snapshot membership from records that are open when
+the job is created; occurrence and multimedia phases must match that
+creation-time eligibility revision. Personal exports may include the user's own
+exact telemetry when they request their own archive.
 
 Field trips have a separate public-profile boundary:
 

@@ -51,6 +51,7 @@ interface ExportScanRpcRow {
   source_byte_count: unknown;
   page_complete: unknown;
   source_row_oversize: unknown;
+  source_revision_changed: unknown;
 }
 
 function databaseFailure(message: string, cause: unknown): ExportWorkerError {
@@ -606,6 +607,7 @@ function parseExportScanBatch(
       sentinel.scan_id !== null ||
       typeof sentinel.page_complete !== "boolean" ||
       typeof sentinel.source_row_oversize !== "boolean" ||
+      typeof sentinel.source_revision_changed !== "boolean" ||
       typeof sentinel.source_byte_count !== "number" ||
       !Number.isSafeInteger(sentinel.source_byte_count) ||
       sentinel.source_byte_count < 0
@@ -616,6 +618,18 @@ function parseExportScanBatch(
       );
     }
     if (
+      sentinel.source_revision_changed &&
+      !sentinel.source_row_oversize &&
+      !sentinel.page_complete &&
+      sentinel.source_byte_count === 0
+    ) {
+      throw new ExportWorkerError(
+        "source_snapshot_changed",
+        "An export source revision changed after the job was created.",
+      );
+    }
+    if (
+      !sentinel.source_revision_changed &&
       sentinel.source_row_oversize &&
       !sentinel.page_complete &&
       sentinel.source_byte_count > MAXIMUM_EXPORT_SOURCE_PAGE_BYTES
@@ -626,6 +640,7 @@ function parseExportScanBatch(
       );
     }
     if (
+      !sentinel.source_revision_changed &&
       !sentinel.source_row_oversize &&
       sentinel.page_complete &&
       sentinel.source_byte_count === 0
@@ -653,7 +668,8 @@ function parseExportScanBatch(
       rpcRow.source_byte_count < 1 ||
       rpcRow.source_byte_count > MAXIMUM_EXPORT_SOURCE_PAGE_BYTES ||
       typeof rpcRow.page_complete !== "boolean" ||
-      rpcRow.source_row_oversize !== false
+      rpcRow.source_row_oversize !== false ||
+      rpcRow.source_revision_changed !== false
     ) {
       throw databaseFailure(
         "The export scan RPC returned a malformed row.",

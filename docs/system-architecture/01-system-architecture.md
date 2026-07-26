@@ -187,10 +187,13 @@ single-responsibility functions under `/services/supabase/functions/`.
     rate limits for personal data exports; global scope is internal-only.
   - `/export-dwca`: Resumable service-role worker that performs one bounded
     row-and-byte-aware keyset page, archive assembly, or delivery phase per
-    invocation. Cardinality/UTF-8 source constraints, 256 KiB claimed database
-    pages, a fixed 512 KiB incremental CSV encoder, durable cursors, and
-    claim-fenced manifests enforce canonical budgets before streaming the
-    Darwin Core ZIP to R2 and dispatching an idempotent Resend request.
+    invocation. Both CSV passes share creation-time scan membership and
+    revision fingerprints; changed/deleted source revisions fail the job before
+    mixed output is assembled. Cardinality/UTF-8 source constraints, 256 KiB
+    claimed database pages, a fixed 512 KiB incremental CSV encoder, durable
+    cursors, and claim-fenced manifests enforce canonical budgets before
+    streaming the Darwin Core ZIP to R2 and dispatching an idempotent Resend
+    request.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge
     proxy memory.

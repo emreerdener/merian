@@ -77,6 +77,7 @@ export class ExportWorkerError extends Error {
     | "delivery_failed"
     | "export_too_large"
     | "pseudonym_key_unavailable"
+    | "source_snapshot_changed"
     | "storage_unavailable";
   readonly safeToFailJob: boolean;
 

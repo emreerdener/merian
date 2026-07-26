@@ -57,7 +57,9 @@ TestFlight, App Store, support, and QA.
   salt. Export source arrays and selected taxonomy values now have validated
   cardinality/UTF-8 byte bounds, each claimed keyset page stops by serialized
   bytes as well as rows, and CSV is encoded one row at a time into a fixed-size
-  buffer.
+  buffer. Occurrence and multimedia now share one creation-time scan membership
+  snapshot with revision fingerprints, so later scans stay out and a changed or
+  deleted source fails safely instead of producing a mixed archive.
 - Made account deletion durable and recoverable. Naturebook now records the
   deletion request before anonymizing account data, verifies that cleanup, and
   cursor-sweeps durable uploads, staging data, avatars, and exports. A delayed

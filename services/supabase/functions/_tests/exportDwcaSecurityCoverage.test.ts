@@ -76,6 +76,8 @@ Deno.test("export pages, durable chunks, and archives are bounded end to end", a
   );
   assertStringIncludes(worker, "manifestBytes !== job.csvBytes");
   assertStringIncludes(worker, "job.maxArchiveBytes");
+  assertStringIncludes(worker, '"source_snapshot_changed"');
+  assertStringIncludes(db, "sentinel.source_revision_changed");
   assertEquals(storage.includes("JSZip"), false);
   assertEquals(storage.includes("arrayBuffer()"), false);
   assertEquals(storage.includes("response.text()"), false);

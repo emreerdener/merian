@@ -176,4 +176,20 @@ struct CompositeLibraryTests {
         #expect(presentation.placeholderStyle == .unavailableReference(.describe), "Unknown non-visual scans should show a non-visual terminal placeholder instead of pretending a fallback image exists")
         #expect(ScanThumbnailBackfillCandidate(record: record) == nil, "Unknown subjects should not enter the background reference-thumbnail backfill queue")
     }
+
+    @Test func testRemoteVisualFailureOnlyUsesArchiveCopyForExplicitlyArchivedRecords() {
+        let record = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch",
+            coverImagePath: "https://media.merian.app/scans/monarch.webp",
+            isLocallyArchived: false
+        )
+
+        #expect(!ScanThumbnail(record: record).isArchivedVisual)
+
+        record.isLocallyArchived = true
+
+        #expect(ScanThumbnail(record: record).isArchivedVisual)
+    }
 }

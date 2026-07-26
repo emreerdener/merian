@@ -28,6 +28,16 @@ no work. Every invocation performs exactly one bounded durable step and returns
 synchronously. A one-minute cron keeps advancing due work; no single `waitUntil`
 workload owns the complete export.
 
+Migration `20260726025103_snapshot_dwca_export_sources.sql` freezes the eligible
+scan IDs when the job is inserted. It stores only fixed-size SHA-256
+fingerprints for the eligibility, occurrence, and multimedia projections rather
+than duplicating complete private payloads. Occurrence and multimedia therefore
+traverse the same `(job_id, scan_id)` membership. The database returns a payload
+only when its projection still matches the creation-time fingerprint; a changed
+or deleted revision produces terminal `source_snapshot_changed`, and no archive
+is assembled from mixed revisions. Membership is purged when the job becomes
+terminal.
+
 ## Bounded archive pipeline
 
 - Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
@@ -38,12 +48,13 @@ workload owns the complete export.
   `ALTER TABLE` lock; the second validates legacy rows before activating the
   source-page RPC.
 - `db.ts` calls `get_dwca_export_scan_batch(...)` under the active claim. The
-  database derives the immutable job scope and durable `id > last_id` cursor,
-  reads at most 100 scans, and stops once serialized source payloads reach 256
-  KiB. A sentinel distinguishes a finished keyset from a first source row that
-  is unexpectedly too large. Tombstones are excluded, and personal and global
-  scans use matching partial indexes. Occurrence pages omit media arrays;
-  multimedia pages omit taxonomy and coordinate fields.
+  database validates the durable `id > last_id` cursor, reads from immutable job
+  membership, compares the selected live projection with its snapshot
+  fingerprint, and stops at 100 scans or 256 KiB of serialized source payload.
+  Sentinels distinguish a finished keyset, an unexpectedly oversized first
+  source row, and a changed source revision. Eligibility is evaluated once when
+  the job is created. Occurrence pages omit media arrays; multimedia pages omit
+  taxonomy and coordinate fields.
 - `archive.ts` uses a fixed-capacity incremental UTF-8 encoder. It appends one
   header or CSV row at a time—without a page-wide string array, `Promise.all`,
   multimedia expansion array, or final `join()`—and can never allocate an output
@@ -94,12 +105,14 @@ Generation, storage, and permanent delivery failures become public-safe database
 failure codes and fixed messages when the worker still owns the fence, allowing
 an immediate new request. The database transition trigger also replaces raw
 failure text from a rollout-era worker before the owner-readable row is stored.
-A lost fence, transient Resend rejection, or completion write failure leaves the
-row processing so the lease/watchdog determines the outcome instead of falsely
-reporting completion. R2 lifecycle policy remains responsible for deleting
-temporary export objects, including an orphan from a worker that died before
-staging, and for aborting incomplete multipart sessions after seven days. The
-checked-in `docs/r2-lifecycle.json` contract includes both rules.
+A source revision mismatch is terminal because recreating the job is the only
+way to establish a new coherent source snapshot. A lost fence, transient Resend
+rejection, or completion write failure leaves the row processing so the
+lease/watchdog determines the outcome instead of falsely reporting completion.
+R2 lifecycle policy remains responsible for deleting temporary export objects,
+including an orphan from a worker that died before staging, and for aborting
+incomplete multipart sessions after seven days. The checked-in
+`docs/r2-lifecycle.json` contract includes both rules.
 
 During the two-hour migration cohort, a previous bundle may already be in
 flight. It can finish an unclaimed cohort job, but once the new worker installs
@@ -135,13 +148,15 @@ old versions until every job pinned to them is terminal and past retention.
 ## Tests
 
 Focused Deno tests cover claim-bound byte-aware source pages, completion and
-oversize sentinels, incremental fixed-buffer CSV encoding, row/archive budgets,
-phased progress, claim-fenced work chunks, exact manifest reads, ZIP
+oversize/revision sentinels, incremental fixed-buffer CSV encoding, row/archive
+budgets, phased progress, claim-fenced work chunks, exact manifest reads, ZIP
 compatibility, bounded multipart upload/abort/provider responses, embedded
 HTTP-200 completion errors, pseudonym key failure/rotation, Resend idempotency,
 canonical claims, staged retry reuse, and stale-worker fencing. Static contracts
-lock the migrations and production-source boundaries. The executable database
-test also proves source constraints, aggregate page byte limits, the finite
-rollout deadline, post-deadline claim requirement, and phased state contract; it
-lives at `services/supabase/tests/export_dwca_security.sql` and is checked by
-the repository-wide privileged-routine catalog validator.
+lock the migrations and production-source boundaries. Executable database tests
+prove source constraints, aggregate page byte limits, creation-time membership,
+revision rejection, terminal purge, the finite rollout deadline, post-deadline
+claim requirement, and phased state contract in
+`services/supabase/tests/export_dwca_security.sql` and
+`services/supabase/tests/export_dwca_snapshot_security.sql`; the repository-wide
+privileged-routine catalog validator checks the definer RPC.

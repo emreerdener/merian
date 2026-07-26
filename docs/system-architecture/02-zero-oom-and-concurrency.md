@@ -475,7 +475,13 @@ When generating delays (like `toastMessage` banners) using SwiftUI's `.task(id:)
 When rendering large arrays of incomplete offline biological achievements (`AwardCard`), unconditionally executing `.overlay` `GeometryReader` linear gradient shaders alongside randomly generated `.task { while !Task.isCancelled }` animation loops locked `@MainActor` execution, wasting CPU cycles on badges the user had not unlocked. Merian bounds both the `.overlay` rendering and the stochastic task generators inside an explicit `guard award.isCompleted else { return }` check, stopping the OS from executing animation sweeps on unearned badges.
 
 ### UI Thread Blocking (`ProfileView` Exports)
-Generating a global Darwin Core Archive (DwC-A) over the `/request-export-dwca` Edge node instantly kicks off a massive SQL/R2-copying workload on the background `/export-dwca` worker. While the request itself completes in sub-100ms with a `200 OK` queue confirmation, awaiting this POST payload blindly would still block the UI thread unnecessarily.
+Requesting a Darwin Core Archive (DwC-A) over `/request-export-dwca` performs
+only the bounded queue transaction synchronously. That transaction fixes the
+eligible scan IDs and compact revision fingerprints, capped by the job's
+canonical row budget plus one lookahead; CSV generation, R2 upload, and email
+remain on the resumable `/export-dwca` worker. The request is not assumed to
+complete within a fixed sub-100ms latency, so awaiting it on the UI thread would
+still be incorrect.
 
 `ExportScans` now launches the export request from a structured `Task` owned by the view lifecycle, keeping `isExporting` on `@MainActor` while the actual network request runs asynchronously off-thread. Only when the API returns the `200 OK` queue confirmation does execution update the main-thread toast state, notifying the user that the request is queued and the archive link will arrive
 by email.
@@ -485,12 +491,14 @@ short synchronous phase under a two-minute database lease and returns `200` to
 the Postgres wake-up. It advances one UUID keyset page, assembles a prepared
 manifest, or performs delivery per invocation. Validated row constraints bound
 media URL and interaction arrays plus selected taxonomy fields before the read;
-the claimed page stops at 100 rows or 256 KiB of serialized source. Occurrence
-pages do not fetch media
-arrays; multimedia pages do not fetch taxonomy/coordinates. CSV encoding
-appends one row at a time into a fixed buffer capped at 512 KiB and commits it
-with its cursor and cumulative row/byte budgets. The minute cron resumes the
-next phase, so one Edge isolate never owns the full database scan.
+job creation fixes one membership set and three SHA-256 revision fingerprints
+per scan, and each claimed page stops at 100 rows or 256 KiB of serialized
+source. Occurrence pages do not fetch media arrays; multimedia pages do not
+fetch taxonomy/coordinates. Both keyset passes traverse the same membership and
+emit only projections that still match their creation-time revision. CSV
+encoding appends one row at a time into a fixed buffer capped at 512 KiB and
+commits it with its cursor and cumulative row/byte budgets. The minute cron
+resumes the next phase, so one Edge isolate never owns the full database scan.
 
 Assembly lazily GETs the ordered chunk manifest into the ZIP stream and
 coalesces only one 8 MiB R2 multipart part at a time. No full result history,

@@ -90,6 +90,25 @@ struct LocalImageLoaderTests {
         #expect(image == nil)
     }
 
+    @Test func remoteImageRetryPolicyRetriesOnlyTransientHTTPFailures() {
+        for statusCode in [408, 425, 429, 500, 502, 503, 599] {
+            #expect(RemoteImageRetryPolicy.shouldRetry(statusCode: statusCode))
+        }
+
+        for statusCode in [200, 301, 400, 401, 403, 404, 422] {
+            #expect(!RemoteImageRetryPolicy.shouldRetry(statusCode: statusCode))
+        }
+    }
+
+    @Test func remoteImageRetryPolicyDefersOfflineRecoveryUntilReconnect() {
+        #expect(RemoteImageRetryPolicy.maximumAttempts == 3)
+        #expect(RemoteImageRetryPolicy.shouldRetry(urlErrorCode: .timedOut))
+        #expect(RemoteImageRetryPolicy.shouldRetry(urlErrorCode: .cannotConnectToHost))
+        #expect(RemoteImageRetryPolicy.shouldRetry(urlErrorCode: .networkConnectionLost))
+        #expect(!RemoteImageRetryPolicy.shouldRetry(urlErrorCode: .notConnectedToInternet))
+        #expect(!RemoteImageRetryPolicy.shouldRetry(urlErrorCode: .cancelled))
+    }
+
     @Test func similarSpeciesDownloadsAreRestoredToSourceOrder() {
         let completionOrder: [(index: Int, value: String?)] = [
             (index: 2, value: "third"),

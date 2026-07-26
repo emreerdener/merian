@@ -101,6 +101,98 @@ actor AsyncPermitPool {
     }
 }
 
+enum RemoteImageRetryPolicy {
+    static let maximumAttempts = 3
+
+    static func shouldRetry(statusCode: Int) -> Bool {
+        statusCode == 408 ||
+            statusCode == 425 ||
+            statusCode == 429 ||
+            (500...599).contains(statusCode)
+    }
+
+    static func shouldRetry(urlErrorCode: URLError.Code) -> Bool {
+        switch urlErrorCode {
+        case .timedOut,
+             .cannotFindHost,
+             .cannotConnectToHost,
+             .networkConnectionLost,
+             .dnsLookupFailed,
+             .resourceUnavailable,
+             .cannotLoadFromNetwork,
+             .secureConnectionFailed,
+             .badServerResponse,
+             .zeroByteResource,
+             .backgroundSessionWasDisconnected:
+            return true
+        default:
+            // A reconnect changes the SwiftUI task identity and retries
+            // .notConnectedToInternet without spinning while fully offline.
+            return false
+        }
+    }
+
+    static func delayMilliseconds(afterAttempt attempt: Int) -> Int {
+        switch attempt {
+        case 1: return 250
+        default: return 750
+        }
+    }
+}
+
+private actor RemoteImageLoadDiagnostics {
+    static let shared = RemoteImageLoadDiagnostics()
+
+    private var lastLoggedAt: [String: Date] = [:]
+    private let throttleInterval: TimeInterval = 30
+
+    func recordHTTPFailure(url: URL, statusCode: Int) {
+        let host = sanitizedHost(for: url)
+        guard shouldLog(key: "\(host)|http|\(statusCode)") else { return }
+        MerianLog.network.error(
+            "LocalImageLoader: remote media HTTP failure host=\(host, privacy: .public) status=\(statusCode, privacy: .public)"
+        )
+    }
+
+    func recordTransportFailure(url: URL, errorDomain: String, errorCode: Int) {
+        let host = sanitizedHost(for: url)
+        guard shouldLog(key: "\(host)|transport|\(errorDomain)|\(errorCode)") else { return }
+        MerianLog.network.error(
+            "LocalImageLoader: remote media transport failure host=\(host, privacy: .public) domain=\(errorDomain, privacy: .public) code=\(errorCode, privacy: .public)"
+        )
+    }
+
+    func recordInvalidResponse(url: URL) {
+        let host = sanitizedHost(for: url)
+        guard shouldLog(key: "\(host)|invalid-response") else { return }
+        MerianLog.network.error(
+            "LocalImageLoader: remote media returned a non-HTTP response host=\(host, privacy: .public)"
+        )
+    }
+
+    func recordDecodeFailure(url: URL) {
+        let host = sanitizedHost(for: url)
+        guard shouldLog(key: "\(host)|decode") else { return }
+        MerianLog.network.error(
+            "LocalImageLoader: remote media decode failed host=\(host, privacy: .public)"
+        )
+    }
+
+    private func sanitizedHost(for url: URL) -> String {
+        url.host?.lowercased() ?? "unknown"
+    }
+
+    private func shouldLog(key: String) -> Bool {
+        let now = Date()
+        if let lastLogged = lastLoggedAt[key],
+           now.timeIntervalSince(lastLogged) < throttleInterval {
+            return false
+        }
+        lastLoggedAt[key] = now
+        return true
+    }
+}
+
 // MARK: - Core Image Processing Engine
 /// Unifies APFS file rendering, sandbox extractions, and Cloudflare R2 loading autonomously handling physical cache networks natively.
 actor LocalImageLoader {
@@ -276,15 +368,89 @@ actor LocalImageLoader {
     /// Downloads a remote URL, downsamples, and caches — entirely off the actor executor.
     static nonisolated func fetchRemote(url: URL, cacheKey: String, maxSize: CGFloat = 500) async -> UIImage? {
         if Task.isCancelled || !ExternalReferenceImagePolicy.isAllowed(url) { return nil }
-        do {
-            let (tempURL, response) = try await LocalImageLoader.mediaSession.download(from: url)
-            defer { try? FileManager.default.removeItem(at: tempURL) }
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+
+        for attempt in 1...RemoteImageRetryPolicy.maximumAttempts {
             if Task.isCancelled { return nil }
-            
-            return await decodeImage(url: tempURL, cacheKey: cacheKey, maxSize: maxSize)
+
+            do {
+                var request = URLRequest(url: url)
+                if attempt > 1 {
+                    request.cachePolicy = .reloadIgnoringLocalCacheData
+                }
+
+                let (tempURL, response) = try await LocalImageLoader.mediaSession.download(for: request)
+                defer { try? FileManager.default.removeItem(at: tempURL) }
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    await RemoteImageLoadDiagnostics.shared.recordInvalidResponse(url: url)
+                    return nil
+                }
+
+                guard (200...299).contains(httpResponse.statusCode) else {
+                    if attempt < RemoteImageRetryPolicy.maximumAttempts,
+                       RemoteImageRetryPolicy.shouldRetry(statusCode: httpResponse.statusCode),
+                       await waitBeforeRemoteRetry(afterAttempt: attempt) {
+                        continue
+                    }
+
+                    await RemoteImageLoadDiagnostics.shared.recordHTTPFailure(
+                        url: url,
+                        statusCode: httpResponse.statusCode
+                    )
+                    return nil
+                }
+
+                if Task.isCancelled { return nil }
+                if let image = await decodeImage(
+                    url: tempURL,
+                    cacheKey: cacheKey,
+                    maxSize: maxSize
+                ) {
+                    return image
+                }
+
+                if attempt < RemoteImageRetryPolicy.maximumAttempts,
+                   await waitBeforeRemoteRetry(afterAttempt: attempt) {
+                    continue
+                }
+
+                await RemoteImageLoadDiagnostics.shared.recordDecodeFailure(url: url)
+                return nil
+            } catch is CancellationError {
+                return nil
+            } catch {
+                let nsError = error as NSError
+                let urlErrorCode = (error as? URLError)?.code
+
+                if attempt < RemoteImageRetryPolicy.maximumAttempts,
+                   let urlErrorCode,
+                   RemoteImageRetryPolicy.shouldRetry(urlErrorCode: urlErrorCode),
+                   await waitBeforeRemoteRetry(afterAttempt: attempt) {
+                    continue
+                }
+
+                if urlErrorCode != .cancelled {
+                    await RemoteImageLoadDiagnostics.shared.recordTransportFailure(
+                        url: url,
+                        errorDomain: nsError.domain,
+                        errorCode: nsError.code
+                    )
+                }
+                return nil
+            }
+        }
+
+        return nil
+    }
+
+    private static nonisolated func waitBeforeRemoteRetry(afterAttempt attempt: Int) async -> Bool {
+        do {
+            try await Task.sleep(
+                for: .milliseconds(RemoteImageRetryPolicy.delayMilliseconds(afterAttempt: attempt))
+            )
+            return !Task.isCancelled
         } catch {
-            return nil
+            return false
         }
     }
 

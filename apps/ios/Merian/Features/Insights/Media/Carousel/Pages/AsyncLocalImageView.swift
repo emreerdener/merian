@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct AsyncLocalImageView: View {
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
+
     let path: String?
     var fallbackImageUrl: String?
     var contentMode: ContentMode = .fill
     var fillHeight: Bool = false
+    var isArchivedVisual: Bool = false
     var onImageLoadFailed: (() -> Void)?
 
     @State private var loadedImage: UIImage?
@@ -16,7 +19,11 @@ struct AsyncLocalImageView: View {
                 if let img = loadedImage {
                     imageView(for: img, in: proxy.size)
                 } else if hasFailedToLoad {
-                    ArchivedVisualsView()
+                    if isArchivedVisual {
+                        ArchivedVisualsView()
+                    } else {
+                        UnavailableVisualsView(isOffline: !offlineQueueManager.isOnline)
+                    }
                 } else {
                     ProgressView()
                         .controlSize(.large)
@@ -29,7 +36,7 @@ struct AsyncLocalImageView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // task(id:) cancels the in-flight load when the view disappears during a fast swipe,
         // preventing multiple concurrent decode tasks from racing and stalling the main thread.
-        .task(id: "\(path ?? "")|\(fallbackImageUrl ?? "")") {
+        .task(id: loadTaskID) {
             loadedImage = nil
             hasFailedToLoad = false
             let img = await LocalImageLoader.shared.loadImage(fromPath: path, fallbackUrl: fallbackImageUrl, maxDimension: Int(MerianConfig.displayImageMaxSize))
@@ -41,6 +48,21 @@ struct AsyncLocalImageView: View {
                 onImageLoadFailed?()
             }
         }
+    }
+
+    private var loadTaskID: String {
+        "\(path ?? "")|\(fallbackImageUrl ?? "")|\(remoteRetryTaskKey)"
+    }
+
+    private var remoteRetryTaskKey: String {
+        guard hasRemoteVisualSource else { return "local_media" }
+        return offlineQueueManager.isOnline ? "remote_online" : "remote_offline"
+    }
+
+    private var hasRemoteVisualSource: Bool {
+        [path, fallbackImageUrl]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .contains { $0.hasPrefix("http://") || $0.hasPrefix("https://") }
     }
 
     @ViewBuilder

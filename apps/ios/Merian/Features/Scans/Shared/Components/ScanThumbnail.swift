@@ -159,6 +159,8 @@ extension LocalScanRecord {
 }
 
 struct ScanThumbnail: View {
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
+
     // MARK: - Asset Dependencies
     let imagePath: String?
     let fallbackImageUrl: String?
@@ -170,6 +172,7 @@ struct ScanThumbnail: View {
     let mediaBadgeAlignment: Alignment
     let maxDimension: Int
     let placeholderStyle: ScanThumbnailPlaceholderStyle
+    let isArchivedVisual: Bool
 
     // MARK: - Rendering State
     @State private var thumbnail: UIImage?
@@ -185,7 +188,8 @@ struct ScanThumbnail: View {
         showsAudioBadge: Bool = false,
         mediaBadgeAlignment: Alignment = .bottomTrailing,
         maxDimension: Int = 600,
-        placeholderStyle: ScanThumbnailPlaceholderStyle = .archived
+        placeholderStyle: ScanThumbnailPlaceholderStyle = .archived,
+        isArchivedVisual: Bool = false
     ) {
         self.imagePath = imagePath
         self.fallbackImageUrl = fallbackImageUrl
@@ -197,6 +201,7 @@ struct ScanThumbnail: View {
         self.mediaBadgeAlignment = mediaBadgeAlignment
         self.maxDimension = maxDimension
         self.placeholderStyle = placeholderStyle
+        self.isArchivedVisual = isArchivedVisual
     }
 
     init(
@@ -217,7 +222,8 @@ struct ScanThumbnail: View {
             showsAudioBadge: showsAudioBadge,
             mediaBadgeAlignment: mediaBadgeAlignment,
             maxDimension: maxDimension,
-            placeholderStyle: presentation.placeholderStyle
+            placeholderStyle: presentation.placeholderStyle,
+            isArchivedVisual: record.isLocallyArchived
         )
     }
 
@@ -261,7 +267,18 @@ struct ScanThumbnail: View {
     }
 
     private var loadTaskID: String {
-        "\(imagePath ?? "no_image_path")|\(fallbackImageUrl ?? "no_fallback_url")|\(audioPath ?? "no_audio_path")|\(placeholderStyle.taskKey)"
+        "\(imagePath ?? "no_image_path")|\(fallbackImageUrl ?? "no_fallback_url")|\(audioPath ?? "no_audio_path")|\(placeholderStyle.taskKey)|\(remoteRetryTaskKey)"
+    }
+
+    private var remoteRetryTaskKey: String {
+        guard hasRemoteVisualSource else { return "local_media" }
+        return offlineQueueManager.isOnline ? "remote_online" : "remote_offline"
+    }
+
+    private var hasRemoteVisualSource: Bool {
+        [imagePath, fallbackImageUrl]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .contains { $0.hasPrefix("http://") || $0.hasPrefix("https://") }
     }
 
     @ViewBuilder
@@ -315,7 +332,11 @@ struct ScanThumbnail: View {
                 subtitle: "No reference photo"
             )
         case .archived:
-            ArchivedVisualsView()
+            if isArchivedVisual {
+                ArchivedVisualsView()
+            } else {
+                UnavailableVisualsView(isOffline: !offlineQueueManager.isOnline)
+            }
         }
     }
 
@@ -341,25 +362,12 @@ struct ScanThumbnail: View {
             return
         }
 
-        let maxAttempts = fallbackImageUrl == nil ? 1 : 3
-        var loadedImage: UIImage?
-
-        for attempt in 0..<maxAttempts {
-            if Task.isCancelled { return }
-
-            loadedImage = await LocalImageLoader.shared.loadImage(
-                fromPath: imagePath,
-                fallbackUrl: fallbackImageUrl,
-                maxDimension: maxDimension
-            )
-
-            if loadedImage != nil {
-                break
-            }
-
-            guard attempt < maxAttempts - 1 else { continue }
-            try? await Task.sleep(for: .milliseconds(350 * (attempt + 1)))
-        }
+        let loadedImage = await LocalImageLoader.shared.loadImage(
+            fromPath: imagePath,
+            fallbackUrl: fallbackImageUrl,
+            maxDimension: maxDimension
+        )
+        guard !Task.isCancelled else { return }
 
         await MainActor.run {
             if let loadedImage {

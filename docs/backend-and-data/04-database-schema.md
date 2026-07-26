@@ -1333,7 +1333,7 @@ progress for two hours.
 
 Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
 `20260725180321_validate_dwca_export_source_bounds.sql` install and validate
-three source-shape constraints, then add private
+three source-shape constraints, then initially add private
 `internal.dwca_export_occurrence_source` and
 `internal.dwca_export_multimedia_source` projections plus
 `public.get_dwca_export_scan_batch(...)`. The definer RPC is allowlisted only
@@ -1341,6 +1341,31 @@ for `service_role`, verifies the active job claim and exact phase cursor, and
 applies both a 100-row ceiling and a 256 KiB cumulative serialized-source
 ceiling before returning payloads to Edge. API roles have no direct read grant
 on either source projection.
+
+Migration `20260726025103_snapshot_dwca_export_sources.sql` replaces those two
+live phase projections with:
+
+- `internal.export_job_source_state`: one private row recording snapshot
+  version/time, the exact eligible scan count (or the canonical row budget plus
+  one when known too large), terminal purge time, and the early-too-large flag.
+- `internal.export_job_source_membership`: the immutable
+  `(job_id, scan_id)` set plus three 32-byte SHA-256 fingerprints covering
+  eligibility/privacy fields, the occurrence projection, and the multimedia
+  projection.
+- `internal.dwca_export_current_source`: a private, unfiltered current
+  projection used only for same-statement revision comparison.
+
+An insertion trigger materializes membership and fingerprints from one MVCC
+snapshot before the webhook can run. There is intentionally no `scan_id`
+foreign key: deleting a scan must cause a revision mismatch rather than silently
+removing it from a later phase. The page RPC keyset-paginates the membership
+primary key and returns a current payload only when both its eligibility and
+phase fingerprint still match. Later scans are never discovered. A mismatch or
+physical deletion yields `source_revision_changed`, which the worker records as
+terminal `source_snapshot_changed`; no mixed archive reaches assembly.
+Pre-migration nonterminal jobs are fenced and restarted with their prior chunk
+manifests discarded. Terminal transitions delete membership rows and retain
+only the nonsensitive source-state metadata with `purged_at`.
 
 ### `failed_scan_ingestions`
 

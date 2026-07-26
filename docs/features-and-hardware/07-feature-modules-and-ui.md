@@ -225,12 +225,14 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 - **Community and Legal Links (`Community.swift`)**: The Profile settings Resources section opens `https://naturebook.earth/guidelines` and `https://naturebook.earth/legal` through the in-app Safari sheet, appending `?theme=light|dark|system` from `AppSettings.themeMode` so Mantine can match the iOS theme. Support/bug reports route to `support@naturebook.earth`, Feedback survey opens the native beta survey, and Changelog routes to the bundled in-app notes screen.
 - **Export Scans (DwC-A)**: *(Auth Required)* Queues a background ZIP
   generation via `/request-export-dwca`. Because PostgreSQL wakes a leased
-  service worker asynchronously, the UI immediately displays a queued alert and
-  releases the main thread. The worker advances cursor-persisted 100-row CSV
-  phases under canonical row/archive budgets, then streams their durable
-  manifest into multipart R2 and sends one idempotent Resend request containing
-  the signed download link. A "Sign in with Apple" prompt prevents anonymous
-  users from generating exports before creating an account.
+  service worker asynchronously, the UI keeps the bounded queue request
+  off-main and displays a queued alert after it succeeds. Job creation freezes
+  compact scan membership/revision metadata; the worker advances
+  cursor-persisted 100-row CSV phases over that shared membership under
+  canonical row/archive budgets, then streams their durable manifest into
+  multipart R2 and sends one idempotent Resend request containing the signed
+  download link. A "Sign in with Apple" prompt prevents anonymous users from
+  generating exports before creating an account.
 
 ### Danger Zone & Data Lifecycle
 - **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background `OfflineQueueManager` URLSession transfers mid-sync from being cleared during manual cache management.

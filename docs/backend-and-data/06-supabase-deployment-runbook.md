@@ -1012,7 +1012,8 @@ Migrations `20260724230849_harden_dwca_export_jobs.sql`,
 `20260725052339_bound_dwca_export_work.sql`, and
 the ordered source-bound pair
 `20260725175312_bound_dwca_export_source_bytes.sql` /
-`20260725180321_validate_dwca_export_source_bounds.sql` must land with
+`20260725180321_validate_dwca_export_source_bounds.sql`, and
+`20260726025103_snapshot_dwca_export_sources.sql` must land with
 `request-export-dwca` and the resumable `export-dwca` bundle. Before the first
 deployment, generate a dedicated version-1 pseudonym key:
 
@@ -1036,11 +1037,14 @@ minute-level cron resumes one due job, and each invocation performs one
 occurrence page, one multimedia page, assembly, or delivery. The database caps
 data pages at 100 scans and 256 KiB of serialized source under the active claim;
 validated row checks bound media, interactions, and selected taxonomy before
-the read. A fixed-capacity incremental encoder caps
-CSV output at 512 KiB. CSV pages are stored as
-claim-token-fenced R2 chunks and committed to a durable cursor/manifest with
-cumulative budgets. These phase and byte boundaries are the production
-memory/time contract.
+the read. Job insertion examines at most the canonical row budget plus one
+lookahead and fixes one scan-ID membership set and three SHA-256 revision
+fingerprints per scan for both CSV phases. A later scan is excluded; a
+changed/deleted revision terminates the job rather than mixing source states.
+Terminal jobs purge those membership rows. A fixed-capacity incremental encoder
+caps CSV output at 512 KiB. CSV pages are stored as claim-token-fenced R2 chunks
+and committed to a durable cursor/manifest with cumulative budgets. These phase
+and byte boundaries are the production memory/time contract.
 
 Before the database push, run this owner-only, read-only legacy-row preflight.
 It must return zero rows. Repair invalid source values through the canonical
@@ -1190,13 +1194,16 @@ deno test --frozen \
 supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
-  services/supabase/tests/export_dwca_security.sql
+  services/supabase/tests/export_dwca_security.sql \
+  services/supabase/tests/export_dwca_snapshot_security.sql
 ```
 
 The database test must prove all three source constraints are validated, API
-roles cannot read the internal projections, only `service_role` can execute the
-source-page RPC, a byte ceiling can stop a page before its row ceiling, and the
-returned completion flag remains false when more keyset work exists.
+roles cannot read the internal projections or membership fingerprints, only
+`service_role` can execute the source-page RPC, a byte ceiling can stop a page
+before its row ceiling, the returned completion flag remains false when more
+keyset work exists, both phases retain creation-time membership, changed
+revisions return no payload, and terminal status purges membership.
 
 Post-deploy, queue one personal test export and deliberately redeliver the same
 job UUID while its first phase owns the lease. Both wake-ups return `200`; one
@@ -1239,6 +1246,20 @@ SELECT
     work.retry_count
 FROM internal.export_job_work AS work
 WHERE work.job_id = '<test-job-uuid>'::UUID;
+
+SELECT
+    source_state.snapshot_version,
+    source_state.snapshot_at,
+    source_state.source_scan_count,
+    source_state.source_too_large,
+    source_state.purged_at,
+    (
+        SELECT COUNT(*)
+        FROM internal.export_job_source_membership AS membership
+        WHERE membership.job_id = source_state.job_id
+    ) AS retained_membership_rows
+FROM internal.export_job_source_state AS source_state
+WHERE source_state.job_id = '<test-job-uuid>'::UUID;
 
 SELECT
     chunks.phase,
