@@ -44,18 +44,17 @@ graph with the TypeScript parser, rejects executable service-role/secret-key
 references, rejects computed or whole-object `process.env` access, and
 enumerates every environment read against the exact public allowlist. It also
 checks the active `.env.example` keys and placeholders, so a safety comment is
-not mistaken for executable credential use.
-`lib/dependency-security.test.ts` rejects frozen Next.js, PostCSS, or Sharp
-versions below the reviewed floors and protects the CI command order.
-`.github/workflows/admin-quality.yml` runs the frozen install, live
-high-severity audit, tests, TypeScript check, and production build for every
-pull request and every affected `main` push. It intentionally avoids pull-request
-path filters so a required check always reports. A high/critical advisory or
-unavailable audit registry blocks this high-sensitivity deployment.
-Configure the repository ruleset to require
+not mistaken for executable credential use. `lib/dependency-security.test.ts`
+rejects frozen Next.js, PostCSS, or Sharp versions below the reviewed floors and
+protects the CI command order. `.github/workflows/admin-quality.yml` runs the
+frozen install, live high-severity audit, tests, TypeScript check, and
+production build for every pull request and every affected `main` push. It
+intentionally avoids pull-request path filters so a required check always
+reports. A high/critical advisory or unavailable audit registry blocks this
+high-sensitivity deployment. Configure the repository ruleset to require
 `Naturebook Admin Quality / test`, then add the same GitHub Action as a required
-Vercel Deployment Check. Checked-in workflow YAML creates the check but does
-not itself prevent a direct merge or production promotion.
+Vercel Deployment Check. Checked-in workflow YAML creates the check but does not
+itself prevent a direct merge or production promotion.
 
 The complete Supabase Edge source/unit suite is the checked-in Deno task:
 
@@ -189,30 +188,32 @@ pending. A fail-closed scope job starts the macOS work for:
   SwiftLint configuration, or iOS build scripts;
 - every merge-queue commit and every manual dispatch.
 
-Do not replace that design with workflow-level pull-request path filters.
-GitHub does not report a completed required check when an entire workflow is
-skipped by path filtering. The in-workflow scope job also avoids GitHub's
-path-filter changed-file ceiling and treats an unresolved event range as
-in-scope rather than silently skipping verification.
+Do not replace that design with workflow-level pull-request path filters. GitHub
+does not report a completed required check when an entire workflow is skipped by
+path filtering. The in-workflow scope job also avoids GitHub's path-filter
+changed-file ceiling and treats an unresolved event range as in-scope rather
+than silently skipping verification.
 
 Two independent `macos-26` jobs use the reviewed Xcode 26.6 toolchain and the
-checked-in `Package.resolved` file:
+checked-in `Package.resolved` file. Checkout, Swift package caching, and
+artifact retention use reviewed, immutable action commits whose current major
+versions run on Node.js 24. The portable workflow contract pins those exact
+commits so a downgrade cannot silently restore a deprecated action runtime.
 
-1. **Full iOS unit tests** resolves only locked package versions, compiles the
+1. **Full iOS unit tests** resolves only locked package versions, validates the
    generated-project source membership against `project.yml`, compiles the app
    plus both shared test bundles with `build-for-testing`, and executes the
    complete `merianTests` target with `test-without-building`. This prevents a
    newly added Swift or Objective-C file from escaping compilation when the
-   committed Xcode project was not regenerated. It also compiles
-   `merianUITests` so UI-test-only changes cannot silently break, but UI tests
-   remain a separate runtime gate. The unit-test selector does not select or
-   skip any suite. Xcode process-level parallel testing is disabled because
-   several hardware, networking, and persistence suites exercise shared
-   singletons. The result gate fails if Xcode returns success without a
-   `Passed` result, a non-empty test run, and at least one passed test case from
-   each critical concurrency boundary: `CameraManagerTests`,
-   `InferenceEngineTests`, `OfflineQueueManagerTests`, and
-   `SyncStateManagerTests`.
+   committed Xcode project was not regenerated. It also compiles `merianUITests`
+   so UI-test-only changes cannot silently break, but UI tests remain a separate
+   runtime gate. The unit-test selector does not select or skip any suite. Xcode
+   process-level parallel testing is disabled because several hardware,
+   networking, and persistence suites exercise shared singletons. The result
+   gate fails if Xcode returns success without a `Passed` result, a non-empty
+   test run, and at least one passed test case from each critical concurrency
+   boundary: `CameraManagerTests`, `InferenceEngineTests`,
+   `OfflineQueueManagerTests`, and `SyncStateManagerTests`.
 2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
    signing disabled. It requires production-shaped RevenueCat client
@@ -228,6 +229,24 @@ change it requires both to be skipped and reports success. Repository and merge
 queue rules should require only the stable final check, not either conditional
 macOS job.
 
+### Repository Rule Setup
+
+The workflow creates status checks but does not block a merge on its own. After
+the workflow has reported once for the default branch, configure the `main`
+ruleset or branch protection rule to require exactly:
+
+```text
+iOS Build and Test / Production readiness
+```
+
+Apply the requirement to pull requests and the merge queue. Do not require
+`Determine iOS build scope`, `Full iOS unit tests`, or
+`Current-SHA Release archive`: those jobs are conditional and correctly report
+skipped for unrelated pull requests. The workflow already handles `merge_group`;
+keep that trigger if the merge queue is enabled. A repository administrator
+should verify the rule with one unrelated pull request and one iOS pull request
+after any workflow or ruleset change.
+
 Successful `main` and manual runs retain the unsigned validation archive for
 seven days. Every run retains compact SHA/toolchain/test or archive evidence for
 fourteen days; failed runs also retain the raw `.xcresult`, package-resolution
@@ -240,11 +259,51 @@ The cheap workflow contracts run with:
 make test-ios-ci-tooling
 ```
 
-Those tests lock the fail-closed scope, immutable action pins, exact-SHA
-checkout, generated-project source membership, full-target unit-test selectors,
-merge-queue trigger, Release archive, embedded-product/dSYM checks, and
-unconditional final decision. They do not replace the macOS compile or
-simulator execution.
+That portable target tests the fail-closed scope detector, immutable action
+pins, exact-SHA checkout, workflow invocation of generated-project source
+membership, full-target unit-test selectors, merge-queue trigger, Release
+archive, embedded-product/dSYM checks, critical-result validation, and the
+unconditional final decision. It does not replace the macOS compile or simulator
+execution.
+
+The membership implementation and its adversarial missing, unexpected, and
+orphan-source fixtures run in the macOS unit job. They can also be run locally
+when the Ruby `xcodeproj` gem is installed:
+
+```bash
+bash scripts/test-ios-project-source-membership.sh
+bash scripts/check-ios-project-source-membership.sh
+```
+
+If the current-project check fails after a source-layout change, update
+`project.yml`, run `make xcodegen`, and commit both the source-of-truth and
+generated project changes.
+
+### Evidence And Failure Triage
+
+Start with the job summary, then use the retained artifact that matches the
+failure:
+
+| Failure                                         | Artifact or local action                                                                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit compile or execution                       | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the `.xcresult`, package-resolution log, and `xcodebuild` log.                |
+| Unit result is empty or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.        |
+| Release archive, embedding, or dSYM             | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`. |
+| Intended release SHA was out of scope           | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                              |
+
+The hosted run is authoritative for simulator and archive behavior. A local
+source-contract pass cannot substitute for its exact-SHA test and archive
+results.
+
+Full-target tests must not depend on files or singleton state left by another
+test. Create media fixtures under a unique temporary directory and remove them
+afterward; when the behavior specifically resolves a Documents reference, create
+a unique real Documents file and clean it up. A test that exercises a shared
+manager must capture and restore every stateful dependency it uses, including
+injected contexts, and explicitly select the durable-context or `UserDefaults`
+fallback path it intends to verify. View-model fixtures must also set routing
+identifiers and active media rather than relying on presentation side effects
+that are absent in a unit test.
 
 ## Core Suites
 
@@ -350,12 +409,11 @@ MerianTests/
   `make validate-ios-project` and `make validate-ios-migration-guardrails`
   first, so known-bad source shapes fail on Ubuntu before the slower macOS
   simulator job spends time resolving packages, building, or booting a
-  simulator. Startup Safety remains path-filtered to
-  startup/schema/recovery surfaces, manual dispatch, and the daily drift check;
-  broad iOS changes instead enter the full compiled gate described above.
-  Workflow/tooling-only changes can start the Startup Safety workflow to
-  validate cheap guardrails, but its simulator steps are skipped unless startup
-  runtime files changed.
+  simulator. Startup Safety remains path-filtered to startup/schema/recovery
+  surfaces, manual dispatch, and the daily drift check; broad iOS changes
+  instead enter the full compiled gate described above. Workflow/tooling-only
+  changes can start the Startup Safety workflow to validate cheap guardrails,
+  but its simulator steps are skipped unless startup runtime files changed.
   - Source-level migration guardrails fail if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
@@ -697,13 +755,12 @@ MerianTests/
 - **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Tests API
   routing, including `.401` retry cycles for Ghost User flows and JSON body
   payload serialization.
-  - **MockURLProtocol Contamination & `.serialized`:** Because XCTest routines
-    process entirely concurrently natively inside Xcode 16+, using generic
-    static closures (like `MockURLProtocol.requestHandler`) generates race
-    conditions during intercept evaluations natively returning expectations
-    completely malformed. You MUST rigidly prefix global Network suites heavily
-    utilizing mock singletons with `@Suite(.serialized)` assuring clean
-    serial-execution pathways.
+  - **MockURLProtocol Contamination & `.serialized`:** Swift Testing may execute
+    suites concurrently under the current Xcode toolchain. Generic static
+    closures such as `MockURLProtocol.requestHandler` can therefore race while
+    intercepting requests and corrupt expectations. Mark network suites that
+    share those global mocks with `@Suite(.serialized)` to keep their
+    interception state isolated.
   - **`testEndpointURLPathContainsFunctionsV1Segment`**: Verifies
     `endpointURL(_:)` produces the full `/functions/v1/<endpoint>` path
     structure by capturing the outbound URL in a mock handler. Guards against
@@ -1748,7 +1805,12 @@ The surrounding export suite is intentionally split by boundary:
 - `db_test.ts` proves the worker uses the claim-bound source-page RPC, accepts
   only consistent row/byte metadata, recognizes the empty completion sentinel,
   recognizes a changed-revision sentinel, and rejects oversized source rows,
-  arrays, or multibyte elements measured in UTF-8 bytes.
+  arrays, or multibyte elements measured in UTF-8 bytes. It also validates
+  bounded due-job discovery and fail-closed queue-health parsing.
+- `drain_test.ts` proves targeted intake fan-out is limited to one job,
+  sequential scheduled oldest-due waves, soft-deadline exit, bounded discovery
+  responses, failed-job suppression, and age/depth/expired-claim health
+  classification with deterministic clocks.
 - `pseudonym_test.ts` proves HMAC determinism, domain/key-version rotation, and
   fail-closed missing/short Base64 keys.
 - `zip_test.ts` opens the lazy ZIP with an independent reader and checks
@@ -1756,6 +1818,12 @@ The surrounding export suite is intentionally split by boundary:
 - `storage_test.ts` proves fixed-size multipart buffering, bounded provider XML,
   completion/signing, rejection of an embedded HTTP-200 `<Error>`, and
   best-effort abort after a failed part or completion.
+- `scripts/monitor_dwca_export_queue_test.ts` proves production monitor
+  thresholds, aggregate-response consistency, severity/failure policy, and
+  operator-summary rendering.
+- `tests/dwca_export_queue_security.sql` executes the service-only health RPC
+  across due, live-claim, and expired-claim states and verifies its ACL,
+  privilege allowlist, and outstanding-job partial index.
 - `_shared/aws_test.ts` loads `docs/r2-lifecycle.json` and requires the global
   seven-day incomplete-multipart abort rule while continuing to reject any
   expiration rule for durable avatars. Deployment smoke checks separately

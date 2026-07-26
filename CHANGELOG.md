@@ -39,6 +39,11 @@ TestFlight, App Store, support, and QA.
 
 ### Beta Operations
 
+- Added an exact-commit iOS production-readiness gate. Build-relevant changes
+  now compile the app and both shared test bundles with Xcode 26.6, execute the
+  complete unit-test target with explicit coverage of camera, inference, and
+  offline-sync concurrency suites, and independently produce and inspect an
+  unsigned Release archive and matching dSYM before release.
 - Release and TestFlight builds now use the normal free/Pro scan meter and
   server-enforced quota. Unlimited local-meter bypasses remain available only in
   DEBUG; subscription testing is still available directly from Settings → Plan.
@@ -1141,6 +1146,10 @@ TestFlight, App Store, support, and QA.
   background.
 - Hardened Edge media request/response handling so chunked or missing-length
   bodies are capped while streaming before V8 heap allocation can run away.
+- Removed the global DwC-A continuation bottleneck by deadline-draining fair
+  oldest-due queue waves under the existing claim fences, with a hard per-run
+  step ceiling and independent oldest-age/backlog/expired-claim production
+  monitoring.
 - Reduced share-import, expanded-original-image, local species-chart, APNs
   fanout, collection-sync, and audio-carousel resource usage to prevent OOMs,
   main-thread stalls, and idle battery drain.

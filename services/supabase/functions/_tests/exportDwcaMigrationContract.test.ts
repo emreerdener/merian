@@ -39,6 +39,13 @@ const sourceSnapshotMigrationUrl = new URL(
 const sourceSnapshotMigration = await Deno.readTextFile(
   sourceSnapshotMigrationUrl,
 );
+const throughputMigrationUrl = new URL(
+  "../../migrations/20260726230837_scale_dwca_export_continuations.sql",
+  import.meta.url,
+);
+const throughputMigration = await Deno.readTextFile(
+  throughputMigrationUrl,
+);
 
 Deno.test("DwC-A migration installs a private atomic claim lease", () => {
   for (
@@ -362,6 +369,41 @@ Deno.test("DwC-A phases share one immutable creation-time membership snapshot", 
   assertEquals(sourceSnapshotMigration.includes(" OFFSET "), false);
   assertEquals(
     sourceSnapshotMigration.includes("pg_catalog.COALESCE"),
+    false,
+  );
+});
+
+Deno.test("DwC-A continuation dispatch has fair backlog telemetry and timeout headroom", () => {
+  for (
+    const expected of [
+      "CREATE INDEX IF NOT EXISTS idx_export_jobs_nonterminal_created",
+      "WHERE status IN ('pending', 'processing')",
+      "CREATE OR REPLACE FUNCTION public.get_due_export_job_ids",
+      "FROM internal.export_job_work AS work",
+      "ORDER BY work.next_step_at, work.job_id",
+      "REVOKE ALL ON FUNCTION public.get_due_export_job_ids(INTEGER)",
+      "CREATE OR REPLACE FUNCTION public.get_dwca_export_queue_health()",
+      "backlog_count BIGINT",
+      "due_count BIGINT",
+      "active_claim_count BIGINT",
+      "expired_claim_count BIGINT",
+      "oldest_due_age_seconds BIGINT",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+      "REVOKE ALL ON FUNCTION public.get_dwca_export_queue_health()",
+      "GRANT EXECUTE ON FUNCTION public.get_dwca_export_queue_health()",
+      "'public.get_dwca_export_queue_health()'",
+      "'resume_dwca_exports_every_minute'",
+      "timeout_milliseconds := 120000",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(throughputMigration, expected);
+  }
+
+  assertEquals(throughputMigration.includes(" OFFSET "), false);
+  assertEquals(
+    throughputMigration.includes("pg_catalog.COALESCE"),
     false,
   );
 });

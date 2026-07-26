@@ -1372,8 +1372,10 @@ check makes concurrent duplicate submissions idempotently rate-limited.
 The queue row is canonical and immutable. PostgreSQL webhooks and the
 minute-level resume cron send either an opaque `job_id` or an empty body; they
 never send trusted user, scope, precision, or cursor values. The service-only
-worker performs an exact bearer comparison, fetches at most one due ID, and
-claims one phase with a fresh UUID token and short lease.
+worker performs an exact bearer comparison and claims each phase with a fresh
+UUID token and short lease. An explicit insertion webhook attempts only its own
+ID once, bounding intake fan-out. Empty-body cron dispatches read five-job
+oldest-due waves from the durable queue.
 
 Migration `20260725052339_bound_dwca_export_work.sql` persists the phase, keyset
 cursors, cumulative row and CSV byte counts, chunk sequence, retry state, and
@@ -1405,7 +1407,7 @@ pre-snapshot manifests are discarded, and they restart from occurrence.
 verifies the active claim token and exact durable cursor, and returns no more
 than 100 rows or 256 KiB of serialized source.
 
-Each invocation performs exactly one bounded step:
+Each claimed step remains independently bounded:
 
 1. `occurrence` or `multimedia` reads one narrow, revision-checked monotonic
    row-and-byte-aware keyset page from shared immutable job membership,
@@ -1416,6 +1418,21 @@ Each invocation performs exactly one bounded step:
    through the ZIP32 writer into a bounded R2 multipart upload.
 3. `delivering` resolves the canonical owner's Auth email, calls Resend with
    `Idempotency-Key: dwca-export/{job_id}`, and completes the job.
+
+Migration `20260726230837_scale_dwca_export_continuations.sql` changes only
+dispatcher throughput and observability, not step ownership. One synchronous
+invocation processes those steps sequentially until a 40-second soft start
+cutoff or a 40-step hard ceiling. After each successful advance,
+`next_step_at = NOW()` places that job behind older due work; a failed or
+contended ID is suppressed for the remainder of the invocation to prevent a
+tight retry loop. This turns the existing phase table into a fair durable queue
+without concurrently assembling several archives in one Edge isolate.
+
+The same migration adds the service-only aggregate
+`get_dwca_export_queue_health()` RPC and an outstanding-job partial index. Every
+dispatch logs backlog depth, due count, live/expired claim count, and oldest-due
+age. A separate five-minute GitHub workflow reads only that aggregate RPC and
+alerts on age, backlog, or expired leases.
 
 Temporary CSV keys include the active claim token as well as phase and sequence.
 A lease-expired worker that resumes after its replacement can therefore neither

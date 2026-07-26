@@ -69,6 +69,16 @@ export interface ExportScanBatch {
   pageComplete: boolean;
 }
 
+export interface ExportQueueHealth {
+  generatedAt: string;
+  backlogCount: number;
+  dueCount: number;
+  activeClaimCount: number;
+  expiredClaimCount: number;
+  oldestDueAt: string | null;
+  oldestDueAgeSeconds: number | null;
+}
+
 export class ExportWorkerError extends Error {
   readonly code:
     | "archive_generation_failed"

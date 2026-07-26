@@ -1,7 +1,7 @@
 # Merian System Architecture
 
-Naturebook is a biological classification and gamification platform built for iOS
-and watchOS. The architecture relies on decoupled modules connecting onboard
+Naturebook is a biological classification and gamification platform built for
+iOS and watchOS. The architecture relies on decoupled modules connecting onboard
 Apple hardware to a Supabase PostgreSQL backend, bridging LLM inferences via
 Cloudflare R2 and Gemini models.
 
@@ -32,9 +32,9 @@ flowchart TD
 ```
 
 Postgres is authoritative for relational ownership, scan/post state, and media
-URLs. R2 is authoritative for the object bytes at those URLs. Neither layer is
-a backup of the other: a retained row cannot reconstruct a deleted object, and
-an orphaned object does not reconstruct its relational context.
+URLs. R2 is authoritative for the object bytes at those URLs. Neither layer is a
+backup of the other: a retained row cannot reconstruct a deleted object, and an
+orphaned object does not reconstruct its relational context.
 
 ## Core Architectural Pillars
 
@@ -62,8 +62,8 @@ an orphaned object does not reconstruct its relational context.
   and pinch gestures on the preview; the control hides itself
   (`isZoomSupported = maxZoomFactor >= 2.0`) on hardware without a meaningful
   zoom range.
-- Short Pro video capture uses `AVCaptureMovieFileOutput` for bounded clips.
-  The movie output may be prepared with the visual camera session for a fast
+- Short Pro video capture uses `AVCaptureMovieFileOutput` for bounded clips. The
+  movie output may be prepared with the visual camera session for a fast
   hold-to-record path, but AVFoundation video stabilization is enabled only for
   the active recording and reset afterward so still-photo capture does not
   inherit crop, latency, or resolution changes.
@@ -75,11 +75,11 @@ an orphaned object does not reconstruct its relational context.
   capture, avoiding iCloud sync delays.
 - **Photos Document Import (`ExternalImageImportStore`):** The app advertises
   `public.image` as an alternate viewer. `MerianApp.onOpenURL` copies a shared
-  Photos file out of its security-scoped or temporary source into an
-  Application Support inbox before publishing a typed `AppEvent`. This is an
-  app-owned document import, not an extension or App Group handoff, and the
-  pending copy survives cold launch and onboarding until Capture stages it or
-  rejects it as terminally unreadable.
+  Photos file out of its security-scoped or temporary source into an Application
+  Support inbox before publishing a typed `AppEvent`. This is an app-owned
+  document import, not an extension or App Group handoff, and the pending copy
+  survives cold launch and onboarding until Capture stages it or rejects it as
+  terminally unreadable.
 - **Pre-warmed Tactile Shutter (`HapticManager`):** The app `.prepare()`s Taptic
   Engine instances (e.g. `UIImpactFeedbackGenerator(style: .medium)`) on app
   boot inside a global `HapticManager`. Centralizing haptics removes the ~20ms
@@ -96,8 +96,8 @@ an orphaned object does not reconstruct its relational context.
   cached coordinates remain a fallback if GPS cannot settle within the timeout.
   It also backfills historical edge metadata (GPS and past WeatherKit
   conditions) from `PHAsset` context for in-app gallery picks or embedded
-  ImageIO metadata for Photos document imports prior to inference. Date-only
-  and coordinate-only imports preserve only the fields actually present.
+  ImageIO metadata for Photos document imports prior to inference. Date-only and
+  coordinate-only imports preserve only the fields actually present.
 
 ### 3. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
 
@@ -105,20 +105,20 @@ an orphaned object does not reconstruct its relational context.
   using `SwiftData` inside `MerianApp`. The durable unit is a canonical ordered
   mixed-media timeline, persisted once at submission time and reused across live
   inference, offline replay, thumbnails, and result hydration.
-- Visual submissions wait for the queue acceptance callback before starting
-  live analysis. If the queue cannot durably write the scan, the UI reports the
+- Visual submissions wait for the queue acceptance callback before starting live
+  analysis. If the queue cannot durably write the scan, the UI reports the
   failure and discards orphaned source media instead of showing a false queued
   or analyzing state.
 - Eligible online live-camera still submissions create the durable row with
   immediate background sync suppressed for that process-local `scan_id`.
-  Inference waits no more than
-  150 ms for shutter-prefetched WeatherKit/geocoding, then begins with available
-  coordinates and cached telemetry. The inline request's body-upload callback
-  releases the queue row; a two-second fail-safe, request failure, connectivity
-  loss, app backgrounding, or relaunch also makes it eligible. Late context is
-  merged locally and through `/update-scan-context` without another model call.
-  Gallery, audio-bearing, and video submissions remain instrumented but retain
-  their prior context wait and upload scheduling behavior.
+  Inference waits no more than 150 ms for shutter-prefetched
+  WeatherKit/geocoding, then begins with available coordinates and cached
+  telemetry. The inline request's body-upload callback releases the queue row; a
+  two-second fail-safe, request failure, connectivity loss, app backgrounding,
+  or relaunch also makes it eligible. Late context is merged locally and through
+  `/update-scan-context` without another model call. Gallery, audio-bearing, and
+  video submissions remain instrumented but retain their prior context wait and
+  upload scheduling behavior.
 - `NWPathMonitor` observes off-grid boundaries, debouncing signals for 3 seconds
   when connectivity returns. `OfflineJobScheduler` then drains runnable scan
   ingestion, cloud deletion, and collection-sync jobs according to persisted
@@ -138,10 +138,10 @@ an orphaned object does not reconstruct its relational context.
   streams and inline non-visual media under a shared validation path, enforcing
   a strict cumulative payload cap before evaluating the combined user context.
   Video scans send five sampled frames and optional extracted audio as evidence;
-  the playback `.mp4` is promoted only as bounded display/share media.
-  Legacy scan-producing routes record the same ingestion job/intent ledger
-  before returning success so staged image/audio and text-only compatibility
-  rows can recover through the multimodal replay worker.
+  the playback `.mp4` is promoted only as bounded display/share media. Legacy
+  scan-producing routes record the same ingestion job/intent ledger before
+  returning success so staged image/audio and text-only compatibility rows can
+  recover through the multimodal replay worker.
 - The latency-sensitive route verifies ES256 JWT claims through cached JWKS,
   combines pre-inference ingestion setup in `begin_scan_ingestion`, and combines
   post-inference cache hydration in `hydrate_identification_dictionary`.
@@ -183,22 +183,25 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/enrich-scan`: On-demand background enrichment for historical "Free" tier
     scans upgrading to Pro insight depths.
   - `/merge-ghost-profile`: Handles existing-account OAuth conflicts with a
-    source-issued, provider-bound proof, atomic Ghost-to-account data merge,
-    and an idempotent cleanup receipt.
+    source-issued, provider-bound proof, atomic Ghost-to-account data merge, and
+    an idempotent cleanup receipt.
   - `/reconcile-ghost-profile-merges`: Five-minute service-role worker that
     leases incomplete receipts and deletes obsolete anonymous Auth shells.
 - **Export & Storage Orchestration**
   - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour
     rate limits for personal data exports; global scope is internal-only.
-  - `/export-dwca`: Resumable service-role worker that performs one bounded
-    row-and-byte-aware keyset page, archive assembly, or delivery phase per
-    invocation. Both CSV passes share creation-time scan membership and
+  - `/export-dwca`: Resumable service-role worker whose individual claims
+    perform one bounded row-and-byte-aware keyset page, archive assembly, or
+    delivery phase. A minute invocation sequentially deadline-drains oldest-due
+    waves with a 40-step ceiling; lease fencing still permits safe overlap and
+    fair rotation. Both CSV passes share creation-time scan membership and
     revision fingerprints; changed/deleted source revisions fail the job before
     mixed output is assembled. Cardinality/UTF-8 source constraints, 256 KiB
     claimed database pages, a fixed 512 KiB incremental CSV encoder, durable
     cursors, and claim-fenced manifests enforce canonical budgets before
     streaming the Darwin Core ZIP to R2 and dispatching an idempotent Resend
-    request.
+    request. Aggregate oldest-due/backlog telemetry feeds a separate production
+    monitor.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge
     proxy memory.
@@ -208,8 +211,8 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/delete-scan`: Owner-bound scan and Cloudflare R2 media erasure.
   - `/safe-delete`: Persists a private deletion job, atomically tombstones and
     clears ownership/personal fields from retained observations, verifies
-    relational data, then cursor-sweeps every canonical R2 prefix and performs
-    a delayed empty verification pass before removing Auth. The database claim
+    relational data, then cursor-sweeps every canonical R2 prefix and performs a
+    delayed empty verification pass before removing Auth. The database claim
     requires the matching cleaned-up `storage_pending` job and rejects live
     profiles or owned scans; the storage outbox is never sufficient authority.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
@@ -222,8 +225,8 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/reconcile-explore-media-health`: Five-minute service-role verifier that
     uses bucket-scoped read-only credentials and two spaced direct R2-origin
     `404` responses before marking primary media missing. Confirmed-missing
-    items leave public projections; all-missing posts are reversibly
-    quarantined without changing author intent or engagement.
+    items leave public projections; all-missing posts are reversibly quarantined
+    without changing author intent or engagement.
   - `/get-explore-media-incidents`: Owner-authenticated recovery queue for
     degraded and quarantined published posts.
   - `/ingest-r2-media-events`: Optional dedicated-secret event accelerator;
@@ -263,10 +266,9 @@ single-responsibility functions under `/services/supabase/functions/`.
     and peak limiting without storing or uploading a derived recording.
   - `MerianMessagesExtension` reads the App Group scan cache and inserts image,
     card, or description content into Messages without sending automatically.
-  - Universal Links bind both
-    `https://naturebook.earth/explore/post/{postId}` and
-    `https://naturebook.earth/species/{speciesId}/{slug}` to their native Explore
-    routes while preserving web fallbacks for users without the app.
+  - Universal Links bind both `https://naturebook.earth/explore/post/{postId}`
+    and `https://naturebook.earth/species/{speciesId}/{slug}` to their native
+    Explore routes while preserving web fallbacks for users without the app.
     `https://merian.earth` remains a legacy redirect and associated-domain
     compatibility host. AASA routes exactly `/explore/post/*` and `/species/*`.
 - **Moderation & Social**
@@ -279,8 +281,8 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/report-explore-post`: Authenticated public-content moderation ingress. It
     writes `explore_post_reports` and never changes the underlying scan's
     identification-review state.
-  - `/flag-issue`: Identification-review ingress for disputed scan inference.
-    It writes `flagged_reviews` and sets `scans.is_flagged`; it is not used for
+  - `/flag-issue`: Identification-review ingress for disputed scan inference. It
+    writes `flagged_reviews` and sets `scans.is_flagged`; it is not used for
     reports about Explore post content.
 - **Revenue Integration**
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription
@@ -299,8 +301,8 @@ single-responsibility functions under `/services/supabase/functions/`.
 
 ### 5. Continuous Gamification Ecosystem (`GamificationManager`)
 
-- Tracks device-native state (`UserDefaults`), tying species identifications
-  to profile persona progression and achievement milestones.
+- Tracks device-native state (`UserDefaults`), tying species identifications to
+  profile persona progression and achievement milestones.
 - Binds global haptics to success triggers and interactions.
 
 ### 6. Private Analytics (`AppTelemetry`, `PostHog`)

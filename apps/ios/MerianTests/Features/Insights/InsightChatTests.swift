@@ -226,7 +226,7 @@ struct InsightChatTests {
             commonName: "Monarch",
             scientificName: "Danaus plexippus",
             insightData: InsightData(aiReasoning: "Orange wings with dark vein patterns.", hazardType: "none"),
-            confidenceScore: 0.72
+            confidenceScore: 0.62
         )
         let viewModel = InsightChatViewModel()
         viewModel.suggestedPrompts = [

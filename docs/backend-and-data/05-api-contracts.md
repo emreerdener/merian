@@ -6146,9 +6146,11 @@ canonical row-derived `user_id`, `export_scope`, and
 authority, they stop appearing automatically after the protocol deadline, and
 post-deadline jobs cannot enter processing without a private claim.
 
-The minute-level resume cron sends `{}`. In that form the route asks
-`get_due_export_job_ids(1)` for at most one canonical due phase. This empty-body
-contract is also bounded by the shared small JSON reader.
+The minute-level resume cron sends `{}`. In that form the route repeatedly asks
+`get_due_export_job_ids(5)` for oldest-due canonical work until the dispatcher's
+soft deadline or step ceiling. An explicit webhook `job_id` is attempted once
+without global discovery, bounding fan-out when many jobs are inserted together.
+This empty-body contract is also bounded by the shared small JSON reader.
 
 ### Security & Enforcement
 
@@ -6201,15 +6203,24 @@ contract is also bounded by the shared small JSON reader.
 - **Canonical budgets**: Jobs default to at most 5,000 CSV rows and an 8 MiB
   final archive; immutable database constraints cap custom internal jobs at
   20,000 rows and 16 MiB. Budget overflow terminates with `export_too_large`.
-- **Resumable generation**: An invocation performs exactly one occurrence page,
-  multimedia page, assembly, or delivery phase. Data phases use
-  row-and-byte-aware `id > last_id` pages over one immutable membership snapshot
-  with narrow revision-checked projections. A fixed-capacity encoder appends one
-  header/row at a time and fails before exceeding 512 KiB; it does not retain a
-  page-wide line array or expanded multimedia-row array. Each chunk is committed
-  to the ordered private manifest together with the next cursor and cumulative
-  budgets. The cron resumes the next phase instead of depending on one
-  long-lived Edge invocation.
+- **Resumable generation**: Every claim performs exactly one occurrence page,
+  multimedia page, assembly, or delivery phase. An empty-body scheduled route
+  invocation processes several claims sequentially, starting no new step after
+  the 40-second soft cutoff and attempting at most 40 steps; a targeted insert
+  wake-up attempts only its requested job once. Five-job discovery waves remain
+  oldest-due ordered, so a successful advance rotates behind older work; failed
+  or contended IDs are suppressed for the remainder of that invocation. Data
+  phases use row-and-byte-aware `id > last_id` pages over one immutable
+  membership snapshot with narrow revision-checked projections. A fixed-capacity
+  encoder appends one header/row at a time and fails before exceeding 512 KiB;
+  it does not retain a page-wide line array or expanded multimedia-row array.
+  Each chunk is committed to the ordered private manifest together with the next
+  cursor and cumulative budgets.
+- **Aggregate queue health**: After every drain, the route calls the
+  service-only `get_dwca_export_queue_health()` RPC and logs backlog, due,
+  active/expired claim, and oldest-due-age values. The five-minute external
+  monitor reads the same aggregate only; no job/user identity appears in its
+  artifact.
 - **Bounded assembly**: Manifest chunks lazily feed a streaming ZIP32 `STORE`
   writer and fixed 8 MiB R2 multipart upload. No complete page history, CSV,
   ZIP, `arrayBuffer()`, or media binary collection is retained in memory. R2
@@ -6234,14 +6245,37 @@ contract is also bounded by the shared small JSON reader.
 
 ### Response
 
-After authentication and bounded parsing, the route synchronously performs one
-bounded phase and returns `HTTP 200`:
+After authentication and bounded parsing, the route synchronously performs a
+deadline-bounded drain and returns `HTTP 200`:
 
 ```json
 {
   "success": true,
   "request_id": "UUID",
   "disposition": "processed",
+  "drain": {
+    "targeted_wakeup": false,
+    "attempted_steps": 8,
+    "advanced_steps": 7,
+    "completed_jobs": 1,
+    "not_claimed_steps": 0,
+    "failed_steps": 0,
+    "discovery_waves": 3,
+    "queue_drained": true,
+    "runtime_deadline_reached": false,
+    "step_limit_reached": false,
+    "elapsed_milliseconds": 1234
+  },
+  "health": {
+    "status": "ok",
+    "backlog_count": 0,
+    "due_count": 0,
+    "active_claim_count": 0,
+    "expired_claim_count": 0,
+    "oldest_due_at": null,
+    "oldest_due_age_seconds": null,
+    "generated_at": "2026-07-26T22:00:00.000Z"
+  },
   "results": [
     {
       "job_id": "UUID_A",
@@ -6252,10 +6286,29 @@ bounded phase and returns `HTTP 200`:
 }
 ```
 
-With no due job it returns `"disposition":"idle"` and an empty result list. A
-duplicate wake-up can return a result with `"disposition":"not_claimed"`.
-Invalid auth/body values and phase failures receive stable request-correlated
-errors; implementation/provider details remain in structured logs only.
+Queue and health fields have deliberately different scopes:
+
+- `backlog_count` includes every nonterminal job, including rows in retry
+  backoff or protected by a live claim.
+- `due_count`, `oldest_due_at`, and `oldest_due_age_seconds` include only rows
+  whose retry deadline has arrived and which have no unexpired claim.
+- `active_claim_count` and `expired_claim_count` count claim rows attached to
+  outstanding jobs. Any expired claim makes health at least `warning`.
+- `queue_drained` means no currently claimable due work remains after the
+  invocation. It can be `true` while `backlog_count` is nonzero because another
+  worker owns a live lease or work is waiting for bounded backoff.
+- `runtime_deadline_reached` and `step_limit_reached` identify why an empty-body
+  global drain stopped with due work remaining. Neither is set merely because
+  delayed or leased backlog remains.
+
+With no attempted job it returns `"disposition":"idle"` and an empty result
+list. A duplicate wake-up can return a result with
+`"disposition":"not_claimed"`. A step failure is durably released for retry or
+terminal failure, appears only as `"disposition":"failed"` plus a stable
+`failure_code`, and does not prevent unrelated due jobs from advancing. Invalid
+auth/body values or dispatcher discovery/health failures receive stable
+request-correlated HTTP errors; implementation/provider details remain in
+structured logs only.
 
 ---
 

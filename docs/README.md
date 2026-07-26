@@ -30,6 +30,15 @@ as their permanent engineering identity.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is
   committed for convenience and should be regenerated after project-structure
   changes.
+- **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
+  `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
+  execute the complete unit-test target and independently inspect an unsigned
+  Release archive from the exact workflow SHA. Repository rules must require
+  the stable `iOS Build and Test / Production readiness` result; the focused
+  Startup Safety lane is supplementary. See the
+  [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
+  and
+  [`release runbook`](./development-guides/14-ios-release-versioning.md#current-sha-ci-archive-gate).
 - **Prelaunch access and purchase QA**: Release and TestFlight use the normal
   free/Pro meter and authoritative server quota; unlimited meter bypasses are
   DEBUG-only. Testers can still open Settings → Plan directly. Debug simulator

@@ -336,9 +336,10 @@ jobs:
       - name: Test Darwin Core export boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,../.github/workflows/deploy.yml \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,../.github/workflows \
             supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
             supabase/functions/export-dwca/db_test.ts \
+            supabase/functions/export-dwca/drain_test.ts \
             supabase/functions/export-dwca/index_test.ts \
             supabase/functions/export-dwca/mail_test.ts \
             supabase/functions/export-dwca/pseudonym_test.ts \

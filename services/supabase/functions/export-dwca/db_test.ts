@@ -3,7 +3,11 @@ import {
   assertRejects,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { fetchExportScanBatch } from "./db.ts";
+import {
+  fetchDueExportJobIds,
+  fetchExportQueueHealth,
+  fetchExportScanBatch,
+} from "./db.ts";
 import {
   MAXIMUM_DWCA_IMAGE_URL_BYTES,
   MAXIMUM_DWCA_IMAGE_URLS,
@@ -222,4 +226,70 @@ Deno.test("fetchExportScanBatch rejects a changed source revision terminally", a
     ExportWorkerError,
   );
   assertEquals(error.code, "source_snapshot_changed");
+});
+
+Deno.test("fetchDueExportJobIds validates the bounded discovery batch", async () => {
+  const calls: Array<{
+    name: string;
+    arguments: Record<string, unknown>;
+  }> = [];
+  const firstJobId = "00000000-0000-4000-8000-000000000501";
+  const secondJobId = "00000000-0000-4000-8000-000000000502";
+  const result = await fetchDueExportJobIds(
+    mockClient([
+      { job_id: firstJobId },
+      { job_id: secondJobId },
+    ], calls),
+    5,
+  );
+
+  assertEquals(result, [firstJobId, secondJobId]);
+  assertEquals(calls, [{
+    name: "get_due_export_job_ids",
+    arguments: { p_limit: 5 },
+  }]);
+  await assertRejects(
+    () => fetchDueExportJobIds(mockClient([]), 6),
+    ExportWorkerError,
+    "limit is invalid",
+  );
+});
+
+Deno.test("fetchExportQueueHealth validates one consistent telemetry row", async () => {
+  const result = await fetchExportQueueHealth(mockClient([{
+    generated_at: "2026-07-26T22:00:00.000Z",
+    backlog_count: 7,
+    due_count: 5,
+    active_claim_count: 2,
+    expired_claim_count: 1,
+    oldest_due_at: "2026-07-26T21:55:00.000Z",
+    oldest_due_age_seconds: 300,
+  }]));
+
+  assertEquals(result, {
+    generatedAt: "2026-07-26T22:00:00.000Z",
+    backlogCount: 7,
+    dueCount: 5,
+    activeClaimCount: 2,
+    expiredClaimCount: 1,
+    oldestDueAt: "2026-07-26T21:55:00.000Z",
+    oldestDueAgeSeconds: 300,
+  });
+});
+
+Deno.test("fetchExportQueueHealth rejects inconsistent telemetry", async () => {
+  await assertRejects(
+    () =>
+      fetchExportQueueHealth(mockClient([{
+        generated_at: "2026-07-26T22:00:00.000Z",
+        backlog_count: 0,
+        due_count: 1,
+        active_claim_count: 0,
+        expired_claim_count: 0,
+        oldest_due_at: null,
+        oldest_due_age_seconds: null,
+      }])),
+    ExportWorkerError,
+    "inconsistent state",
+  );
 });

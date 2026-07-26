@@ -315,7 +315,8 @@ cleanup, and removes login access only after database cleanup is verified.
 ## Getting Started
 
 ### Prerequisites
-- macOS 14+
+- macOS Tahoe 26.2 or later, as required by
+  [Xcode 26.6](https://developer.apple.com/xcode/system-requirements/)
 - Xcode 26.6 to match compiled CI and Release archive validation
 - `xcodegen` (`brew install xcodegen`)
 - Supabase CLI
@@ -339,7 +340,12 @@ Pull requests report the stable
 `iOS Build and Test / Production readiness` check. Relevant iOS, watch,
 project, configuration, and build-tooling changes must pass the complete
 `merianTests` target and an unsigned Release archive from the exact workflow
-SHA before shipping.
+SHA before shipping. The workflow reports the check but cannot make it
+merge-blocking by itself; require that exact final check in the repository
+ruleset. See the
+[compiled iOS CI gate](docs/development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
+and
+[release checklist](docs/development-guides/14-ios-release-versioning.md#current-sha-ci-archive-gate).
 
 Configure the required app-facing client config in `Config.xcconfig` or ignored
 local overrides in `Config.local.xcconfig`. Public client values like

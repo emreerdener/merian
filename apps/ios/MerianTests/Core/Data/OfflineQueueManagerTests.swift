@@ -279,6 +279,18 @@ struct OfflineQueueManagerTests {
 
     @Test func testMediaStagingContractBuildsSanitizedMixedMediaKeys() throws {
         let scanId = "00000000-0000-0000-0000-000000000042"
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true
+        )
+        let audioDirectory = directory.appendingPathComponent("field", isDirectory: true)
+        try FileManager.default.createDirectory(at: audioDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try Data(repeating: 0x21, count: 64).write(to: directory.appendingPathComponent("image one.webp"))
+        try Data(repeating: 0x42, count: 64).write(to: audioDirectory.appendingPathComponent("audio one.wav"))
+        try Data(repeating: 0x63, count: 64).write(to: directory.appendingPathComponent("fallback video.mp4"))
+
         let payload = PendingScanPayload(
             id: scanId,
             localImagePaths: ["image one.webp"],
@@ -286,7 +298,11 @@ struct OfflineQueueManagerTests {
             localVideoPaths: ["fallback video.mp4"]
         )
 
-        let items = MediaStagingContract.uploadItems(for: payload, userId: "USER/ABC")
+        let items = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "USER/ABC",
+            documentsDirectory: directory
+        )
         #expect(items.count == 3)
 
         #expect(items[0].mediaKind == StagedMediaKind.image)
@@ -1166,14 +1182,17 @@ struct OfflineQueueManagerTests {
         let originalRevision = manager.collectionSyncRevision
         let originalSyncing = manager.isCollectionSyncing
         let originalTask = manager.collectionSyncTask
+        let originalModelContext = manager.modelContext
         let originalPending = UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
         defer {
             manager.collectionSyncRevision = originalRevision
             manager.isCollectionSyncing = originalSyncing
             manager.collectionSyncTask = originalTask
+            manager.modelContext = originalModelContext
             UserDefaults.standard.set(originalPending, forKey: UserDefaultsKeys.needsCollectionSync)
         }
 
+        manager.modelContext = nil
         UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
         manager.collectionSyncRevision = 8
         manager.isCollectionSyncing = true
@@ -1194,14 +1213,17 @@ struct OfflineQueueManagerTests {
         let originalRevision = manager.collectionSyncRevision
         let originalSyncing = manager.isCollectionSyncing
         let originalTask = manager.collectionSyncTask
+        let originalModelContext = manager.modelContext
         let originalPending = UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
         defer {
             manager.collectionSyncRevision = originalRevision
             manager.isCollectionSyncing = originalSyncing
             manager.collectionSyncTask = originalTask
+            manager.modelContext = originalModelContext
             UserDefaults.standard.set(originalPending, forKey: UserDefaultsKeys.needsCollectionSync)
         }
 
+        manager.modelContext = nil
         UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
         manager.collectionSyncRevision = 12
         manager.isCollectionSyncing = true
@@ -1219,14 +1241,17 @@ struct OfflineQueueManagerTests {
         let originalRevision = manager.collectionSyncRevision
         let originalSyncing = manager.isCollectionSyncing
         let originalTask = manager.collectionSyncTask
+        let originalModelContext = manager.modelContext
         let originalPending = UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
         defer {
             manager.collectionSyncRevision = originalRevision
             manager.isCollectionSyncing = originalSyncing
             manager.collectionSyncTask = originalTask
+            manager.modelContext = originalModelContext
             UserDefaults.standard.set(originalPending, forKey: UserDefaultsKeys.needsCollectionSync)
         }
 
+        manager.modelContext = nil
         UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
         manager.collectionSyncRevision = 21
         manager.isCollectionSyncing = true

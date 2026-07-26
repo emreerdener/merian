@@ -29,12 +29,20 @@ const revenueCatMonitorWorkflowUrl = new URL(
   "../../../../.github/workflows/revenuecat-reconciliation-health-monitor.yml",
   import.meta.url,
 );
+const dwcaMonitorWorkflowUrl = new URL(
+  "../../../../.github/workflows/dwca-export-health-monitor.yml",
+  import.meta.url,
+);
 const importScriptUrl = new URL(
   "../../scripts/import_community_taxonomy.ts",
   import.meta.url,
 );
 const scanMediaScriptUrl = new URL(
   "../../scripts/monitor_scan_media_health.ts",
+  import.meta.url,
+);
+const dwcaMonitorScriptUrl = new URL(
+  "../../scripts/monitor_dwca_export_queue.ts",
   import.meta.url,
 );
 
@@ -216,6 +224,7 @@ Deno.test("operational callers use exact server-key discovery and shared transpo
       importWorkflowUrl,
       scanMediaWorkflowUrl,
       revenueCatMonitorWorkflowUrl,
+      dwcaMonitorWorkflowUrl,
     ]
   ) {
     const workflow = await Deno.readTextFile(workflowUrl);
@@ -232,7 +241,13 @@ Deno.test("operational callers use exact server-key discovery and shared transpo
     );
   }
 
-  for (const scriptUrl of [importScriptUrl, scanMediaScriptUrl]) {
+  for (
+    const scriptUrl of [
+      importScriptUrl,
+      scanMediaScriptUrl,
+      dwcaMonitorScriptUrl,
+    ]
+  ) {
     const script = await Deno.readTextFile(scriptUrl);
     assertStringIncludes(script, "serviceRoleRequestHeaders(");
     assertStringIncludes(script, 'Deno.env.get("SUPABASE_SERVER_API_KEY")');

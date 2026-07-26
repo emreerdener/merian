@@ -1320,13 +1320,29 @@ Migration `20260725052339_bound_dwca_export_work.sql` adds two private tables:
   `(job_id, phase, sequence)` with a claim-token-fenced R2 object key and byte
   count for each CSV page.
 
-Each Edge invocation claims exactly one phase. Data phases read at most 100
-scans and commit at most a 512 KiB chunk, cursor, manifest row, and cumulative
-budgets transactionally. The expected object key includes the active claim
-token, preventing a lease-expired writer from overwriting a replacement's chunk.
-A minute-level cron calls the worker with an empty body to resume one due phase.
-The updated watchdog fails only work with no live claim and no phase progress
-for two hours.
+Each claim still owns exactly one phase. Data phases read at most 100 scans and
+commit at most a 512 KiB chunk, cursor, manifest row, and cumulative budgets
+transactionally. The expected object key includes the active claim token,
+preventing a lease-expired writer from overwriting a replacement's chunk. A
+minute-level cron calls the worker with an empty body; that invocation
+sequentially drains five-job oldest-due waves until a 40-second soft cutoff or
+40-step ceiling. `next_step_at` plus the partial `export_job_work_due_idx` makes
+each successful job rotate behind older due work. The updated watchdog fails
+only work with no live claim and no phase progress for two hours.
+
+Migration `20260726230837_scale_dwca_export_continuations.sql` adds
+`idx_export_jobs_nonterminal_created` for outstanding-job diagnosis and the
+service-only `get_dwca_export_queue_health()` definer RPC. It returns aggregate
+backlog, due-job, active/expired-claim, and oldest-due-age fields. The routine
+uses an empty search path, calls `internal.require_service_role()`, is
+explicitly revoked from `PUBLIC`/`anon`/`authenticated`, and is the only catalog
+boundary used by dispatcher and scheduled queue-health alerts.
+
+The backlog count includes all nonterminal work, including rows in bounded
+backoff or under a live lease. Due count and oldest-due age include only rows
+whose `next_step_at` has arrived and which have no unexpired claim. A zero due
+count therefore means there is no currently claimable work; it does not imply
+that the nonterminal backlog is empty.
 
 Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
 `20260725180321_validate_dwca_export_source_bounds.sql` install and validate

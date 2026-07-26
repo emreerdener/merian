@@ -14,6 +14,7 @@ import {
   ClaimedExportJob,
   DBScanRow,
   ExportChunkManifestEntry,
+  ExportQueueHealth,
   ExportScanBatch,
   ExportWorkerError,
   ExportWorkPhase,
@@ -54,6 +55,16 @@ interface ExportScanRpcRow {
   source_revision_changed: unknown;
 }
 
+interface ExportQueueHealthRpcRow {
+  generated_at: unknown;
+  backlog_count: unknown;
+  due_count: unknown;
+  active_claim_count: unknown;
+  expired_claim_count: unknown;
+  oldest_due_at: unknown;
+  oldest_due_age_seconds: unknown;
+}
+
 function databaseFailure(message: string, cause: unknown): ExportWorkerError {
   return new ExportWorkerError(
     "database_unavailable",
@@ -65,6 +76,34 @@ function databaseFailure(message: string, cause: unknown): ExportWorkerError {
 
 function nullableString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function requiredTimestamp(value: unknown, field: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    !Number.isFinite(Date.parse(value))
+  ) {
+    throw databaseFailure(
+      `The export queue health RPC returned invalid ${field}.`,
+      value,
+    );
+  }
+  return value;
+}
+
+function nonnegativeSafeInteger(value: unknown, field: string): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0
+  ) {
+    throw databaseFailure(
+      `The export queue health RPC returned invalid ${field}.`,
+      value,
+    );
+  }
+  return value;
 }
 
 function parseClaimedJob(value: unknown): ClaimedExportJob {
@@ -155,6 +194,9 @@ export async function fetchDueExportJobIds(
   supabaseAdmin: SupabaseClient,
   limit = 1,
 ): Promise<string[]> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 5) {
+    throw databaseFailure("The due export limit is invalid.", limit);
+  }
   const { data, error } = await supabaseAdmin.rpc(
     "get_due_export_job_ids",
     { p_limit: limit },
@@ -175,6 +217,71 @@ export async function fetchDueExportJobIds(
     }
     return jobId;
   });
+}
+
+export async function fetchExportQueueHealth(
+  supabaseAdmin: SupabaseClient,
+): Promise<ExportQueueHealth> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_dwca_export_queue_health",
+  );
+  if (error) {
+    throw databaseFailure("Failed to read export queue health.", error);
+  }
+  if (!Array.isArray(data) || data.length !== 1) {
+    throw databaseFailure(
+      "The export queue health RPC returned invalid state.",
+      data,
+    );
+  }
+
+  const row = data[0] as ExportQueueHealthRpcRow;
+  const generatedAt = requiredTimestamp(row.generated_at, "generated_at");
+  const backlogCount = nonnegativeSafeInteger(
+    row.backlog_count,
+    "backlog_count",
+  );
+  const dueCount = nonnegativeSafeInteger(row.due_count, "due_count");
+  const activeClaimCount = nonnegativeSafeInteger(
+    row.active_claim_count,
+    "active_claim_count",
+  );
+  const expiredClaimCount = nonnegativeSafeInteger(
+    row.expired_claim_count,
+    "expired_claim_count",
+  );
+  const oldestDueAt = row.oldest_due_at === null
+    ? null
+    : requiredTimestamp(row.oldest_due_at, "oldest_due_at");
+  const oldestDueAgeSeconds = row.oldest_due_age_seconds === null
+    ? null
+    : nonnegativeSafeInteger(
+      row.oldest_due_age_seconds,
+      "oldest_due_age_seconds",
+    );
+
+  if (
+    (oldestDueAt === null) !== (oldestDueAgeSeconds === null) ||
+    (dueCount === 0 && oldestDueAt !== null) ||
+    (dueCount > 0 && oldestDueAt === null) ||
+    activeClaimCount > backlogCount ||
+    expiredClaimCount > backlogCount
+  ) {
+    throw databaseFailure(
+      "The export queue health RPC returned inconsistent state.",
+      row,
+    );
+  }
+
+  return {
+    generatedAt,
+    backlogCount,
+    dueCount,
+    activeClaimCount,
+    expiredClaimCount,
+    oldestDueAt,
+    oldestDueAgeSeconds,
+  };
 }
 
 export async function renewExportJobClaim(

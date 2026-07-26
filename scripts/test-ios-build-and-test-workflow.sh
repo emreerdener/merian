@@ -71,6 +71,12 @@ assert_count 1 "bash scripts/check-ios-project-source-membership.sh"
 assert_count 1 "bash scripts/test-ios-project-source-membership.sh"
 assert_contains "fetch-depth: 0"
 assert_count 3 "persist-credentials: false"
+# Lock the reviewed Node.js 24 action releases as well as requiring immutable
+# refs below. This prevents a valid old SHA from restoring a deprecated runtime.
+assert_count 3 "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2"
+assert_count 2 "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0"
+assert_count 1 "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0"
+assert_count 5 "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
 assert_contains "Compile app and shared test targets"

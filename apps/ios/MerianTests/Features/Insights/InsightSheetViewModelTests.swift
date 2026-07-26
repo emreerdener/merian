@@ -299,6 +299,7 @@ struct InsightSheetViewModelTests {
         ctx.insert(collection)
         try ctx.save()
         
+        viewModel.activeLocalRecordId = record.id
         viewModel.activeLocalRecord = record
         
         viewModel.toggleScanInCollection(collection, modelContext: ctx)
@@ -853,6 +854,7 @@ struct InsightSheetViewModelTests {
         viewModel.toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
 
         let engine = InferenceEngine()
+        engine.activeMedia = ActiveScanMedia(items: [.image("rose.webp")])
         engine.speciesData = SpeciesData(
             scanId: record.id,
             commonName: "French Rose",

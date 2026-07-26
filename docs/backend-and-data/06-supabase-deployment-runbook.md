@@ -1317,7 +1317,8 @@ Migrations `20260724230849_harden_dwca_export_jobs.sql`,
 `20260725052339_bound_dwca_export_work.sql`, and the ordered source-bound pair
 `20260725175312_bound_dwca_export_source_bytes.sql` /
 `20260725180321_validate_dwca_export_source_bounds.sql`, and
-`20260726025103_snapshot_dwca_export_sources.sql` must land with
+`20260726025103_snapshot_dwca_export_sources.sql`, followed by
+`20260726230837_scale_dwca_export_continuations.sql`, must land with
 `request-export-dwca` and the resumable `export-dwca` bundle. Before the first
 deployment, generate a dedicated version-1 pseudonym key:
 
@@ -1337,18 +1338,21 @@ CSV rows and an 8 MiB archive by default, with hard database ceilings of 20,000
 rows and 16 MiB.
 
 The current worker does not finish a complete export in `waitUntil`. A
-minute-level cron resumes one due job, and each invocation performs one
-occurrence page, one multimedia page, assembly, or delivery. The database caps
-data pages at 100 scans and 256 KiB of serialized source under the active claim;
-validated row checks bound media, interactions, and selected taxonomy before the
-read. Job insertion examines at most the canonical row budget plus one lookahead
-and fixes one scan-ID membership set and three SHA-256 revision fingerprints per
-scan for both CSV phases. A later scan is excluded; a changed/deleted revision
-terminates the job rather than mixing source states. Terminal jobs purge those
-membership rows. A fixed-capacity incremental encoder caps CSV output at 512
-KiB. CSV pages are stored as claim-token-fenced R2 chunks and committed to a
-durable cursor/manifest with cumulative budgets. These phase and byte boundaries
-are the production memory/time contract.
+minute-level cron synchronously drains five-job oldest-due waves. Each claim
+still performs only one occurrence page, multimedia page, assembly, or delivery
+phase; the dispatcher starts no new phase after its 40-second soft cutoff and
+attempts at most 40 phases. Successfully advanced jobs rotate behind older due
+work, while failed/contended IDs are suppressed for the rest of that invocation.
+The database caps data pages at 100 scans and 256 KiB of serialized source under
+the active claim; validated row checks bound media, interactions, and selected
+taxonomy before the read. Job insertion examines at most the canonical row
+budget plus one lookahead and fixes one scan-ID membership set and three SHA-256
+revision fingerprints per scan for both CSV phases. A later scan is excluded; a
+changed/deleted revision terminates the job rather than mixing source states.
+Terminal jobs purge those membership rows. A fixed-capacity incremental encoder
+caps CSV output at 512 KiB. CSV pages are stored as claim-token-fenced R2 chunks
+and committed to a durable cursor/manifest with cumulative budgets. These phase,
+deadline, and byte boundaries are the production memory/time contract.
 
 Before the database push, run this owner-only, read-only legacy-row preflight.
 It must return zero rows. Repair invalid source values through the canonical
@@ -1479,10 +1483,11 @@ deno fmt --check \
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions,services/supabase/migrations,.github/workflows/deploy.yml \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,.github/workflows \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
   services/supabase/functions/export-dwca/archive_test.ts \
   services/supabase/functions/export-dwca/db_test.ts \
+  services/supabase/functions/export-dwca/drain_test.ts \
   services/supabase/functions/export-dwca/index_test.ts \
   services/supabase/functions/export-dwca/mail_test.ts \
   services/supabase/functions/export-dwca/pseudonym_test.ts \
@@ -1499,7 +1504,8 @@ supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/export_dwca_security.sql \
-  services/supabase/tests/export_dwca_snapshot_security.sql
+  services/supabase/tests/export_dwca_snapshot_security.sql \
+  services/supabase/tests/dwca_export_queue_security.sql
 ```
 
 The database test must prove all three source constraints are validated, API
@@ -1507,15 +1513,20 @@ roles cannot read the internal projections or membership fingerprints, only
 `service_role` can execute the source-page RPC, a byte ceiling can stop a page
 before its row ceiling, the returned completion flag remains false when more
 keyset work exists, both phases retain creation-time membership, changed
-revisions return no payload, and terminal status purges membership.
+revisions return no payload, terminal status purges membership, and queue health
+correctly distinguishes due, live-claim, and expired-claim work without widening
+its ACL.
 
 Post-deploy, queue one personal test export and deliberately redeliver the same
-job UUID while its first phase owns the lease. Both wake-ups return `200`; one
-result advances the phase and the duplicate reports `not_claimed` without source
-or provider work. Allow the minute cron to advance every phase. The storage test
-suite also proves that an S3-compatible HTTP-200 `<Error>` completion body is
-rejected and that R2/Resend response bodies stop at their byte ceilings. After
-completion, verify with an owner connection:
+job UUID while a phase owns the lease. Both wake-ups return `200`; no phase is
+owned by both workers, a contended attempt reports `not_claimed` without
+source/provider work, and each targeted response reports exactly one or zero
+attempted steps without discovering unrelated jobs. Confirm a separate
+empty-body minute-cron wake-up advances several fast pages in one invocation
+while reporting no more than 40 attempted steps. The storage test suite also
+proves that an S3-compatible HTTP-200 `<Error>` completion body is rejected and
+that R2/Resend response bodies stop at their byte ceilings. After completion,
+verify with an owner connection:
 
 ```sql
 BEGIN TRANSACTION READ ONLY;
@@ -1585,6 +1596,16 @@ FROM internal.export_worker_protocol AS protocol
 WHERE protocol.singleton;
 
 SELECT
+    health.generated_at,
+    health.backlog_count,
+    health.due_count,
+    health.active_claim_count,
+    health.expired_claim_count,
+    health.oldest_due_at,
+    health.oldest_due_age_seconds
+FROM public.get_dwca_export_queue_health() AS health;
+
+SELECT
     checks.routine_signature,
     HAS_FUNCTION_PRIVILEGE(
         'anon',
@@ -1610,7 +1631,8 @@ FROM (
         ('public.stage_prepared_export_archive(uuid,uuid,text,text)'),
         ('public.complete_prepared_export_job(uuid,uuid)'),
         ('public.release_export_job_step(uuid,uuid,text,boolean)'),
-        ('public.renew_export_job_claim(uuid,uuid)')
+        ('public.renew_export_job_claim(uuid,uuid)'),
+        ('public.get_dwca_export_queue_health()')
 ) AS checks(routine_signature)
 ORDER BY checks.routine_signature;
 
@@ -1625,6 +1647,25 @@ routine. Verify the received message contains one 24-hour signed URL and that
 duplicate processing did not send a second email. The private
 protocol/work/manifest tables are owner-visible operational state only; API
 roles, including `service_role`, must lack direct `SELECT`.
+
+Confirm the **DwC-A Export Queue Health Monitor** workflow is enabled for the
+Production environment. Dispatch it once with the default 5/15-minute age,
+25/100-job backlog, and `fail_on=warning` settings. A drained staging queue
+should report `ok`, zero due jobs, and no expired claim. During an alert,
+inspect the structured `dwca_export_queue_health` and
+`dwca_export_step_complete` events, repair R2/database/Resend availability, and
+let claim-fenced retries resume. Never clear a claim or rewrite a cursor to
+silence the monitor.
+
+Do not treat the 40-step ceiling as a guaranteed per-minute rate or calculate a
+fixed delivery time from it. The dispatcher checks its soft cutoff between
+durable phases, while page, assembly, delivery, and provider durations vary. Use
+oldest-due age and backlog trends to decide whether capacity is healthy. If
+warnings persist after dependency recovery, profile phase duration and database
+plans before changing concurrency. Scale only through bounded workers that use
+the existing oldest-due discovery and claim-token protocol; do not raise the
+step ceiling or add overlapping cron calls without validating Edge CPU, memory,
+wall-clock, and R2/Resend limits.
 
 For key rotation, first add `DWCA_PSEUDONYM_HMAC_KEY_V2` to GitHub, extend the
 workflow to validate/synchronize it, and deploy code capable of reading both
@@ -2731,9 +2772,9 @@ summary, and commits the running checklist when a real import changes it.
 
 The **RevenueCat Reconciliation Health Monitor** runs at minutes 7, 22, 37, and
 52, after the quarter-hour database dispatches. It resolves the production
-service-role key at runtime through the Supabase CLI and calls only the
-aggregate `get_revenuecat_reconciliation_health()` RPC. No subscriber identity
-is written to logs or artifacts.
+server API key at runtime through the revealed Management API resolver and calls
+only the aggregate `get_revenuecat_reconciliation_health()` RPC. No subscriber
+identity is written to logs or artifacts.
 
 Scheduled runs warn and fail at an oldest due age of 30 minutes, become critical
 at 60 minutes, and warn immediately on any expired lease. A monitor request has
@@ -2742,6 +2783,25 @@ the queue is overdue, a worker lease expired, or the monitor could not read
 health. Start with the structured reconciliation health event and queue error
 codes described in the RevenueCat release gate; preserve claim fencing and let
 the durable worker recover.
+
+## DwC-A Export Queue Health Automation
+
+The **DwC-A Export Queue Health Monitor** runs every five minutes, offset from
+the once-per-minute database dispatcher. It resolves the production server API
+key through the revealed Management API resolver and calls only the aggregate
+`get_dwca_export_queue_health()` RPC. User IDs, object keys, claim tokens, and
+work cursors are absent from logs and artifacts.
+
+Scheduled runs warn and fail when the oldest due job reaches five minutes, the
+outstanding backlog reaches 25 jobs, or any claim has expired. They become
+critical at 15 minutes or 100 outstanding jobs. The monitor request has a
+15-second deadline and 64 KiB response ceiling. An alert therefore means
+continuation throughput is behind, a worker claim expired, or health could not
+be read. Start with the route's structured queue-health and step events, then
+verify database, R2, and Resend health. Preserve the durable state machine and
+let its retries drain; do not edit private queue tables. A zero due count means
+no work is currently claimable, not necessarily an empty backlog: inspect active
+claims and retry deadlines before declaring the queue fully idle.
 
 ## Scan Media Health Automation
 
@@ -2896,9 +2956,9 @@ Recommended first production run after a deploy:
 
 If that passes, run the same workflow again with `dry_run = false`. The workflow
 uses `SUPABASE_ACCESS_TOKEN` to resolve a current project secret key (or the
-exact legacy service-role fallback) at runtime
-and constructs `https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref,
-so operators do not need to paste server credentials locally.
+exact legacy service-role fallback) at runtime and constructs
+`https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref, so operators do
+not need to paste server credentials locally.
 
 For routine runs after the first clean production import, `dry_run = false` is
 acceptable. The workflow uploads a JSON/Markdown summary artifact for every run
@@ -3024,16 +3084,15 @@ npm run build
 
 The `.github/workflows/admin-quality.yml` job must pass this same ordered
 application sequence before the separately hosted admin deployment. It reports
-for every pull request so it can be required reliably, and on affected pushes
-to `main`. Its live audit fails on high/critical findings or registry failure,
+for every pull request so it can be required reliably, and on affected pushes to
+`main`. Its live audit fails on high/critical findings or registry failure,
 while the admin dependency-security test also enforces reviewed Next.js,
 PostCSS, and Sharp floors directly from the committed lockfile. A green backend
-deployment workflow does not substitute for this admin gate.
-The repository ruleset must require `Naturebook Admin Quality / test`, and the
-separate admin Vercel project must add that GitHub Action as a required
-Deployment Check. Workflow YAML alone does not block a merge, direct
-deployment, Force Promote, or manual deployment. Verify Vercel is releasing the
-exact checked commit.
+deployment workflow does not substitute for this admin gate. The repository
+ruleset must require `Naturebook Admin Quality / test`, and the separate admin
+Vercel project must add that GitHub Action as a required Deployment Check.
+Workflow YAML alone does not block a merge, direct deployment, Force Promote, or
+manual deployment. Verify Vercel is releasing the exact checked commit.
 
 After the migration, query grants as a non-owner runtime role or run the pgTAP
 security suite against the candidate database. `anon` must not execute admin

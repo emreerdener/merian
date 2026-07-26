@@ -26,9 +26,10 @@ Before contributing, please review our core architectural tenets. Refactoring co
 
 ## Setting Up the Development Environment
 
-1.  **Xcode**: Use Xcode 26.6 to match the compiled CI and Release archive
-    baseline. The app deploys to iOS 17.2+, but the codebase relies on Swift
-    6-era concurrency diagnostics and modern SDK APIs such as
+1.  **Xcode**: Use Xcode 26.6 on macOS Tahoe 26.2 or later to match the
+    [compiled CI and supported host baseline](https://developer.apple.com/xcode/system-requirements/).
+    The app deploys to iOS 17.2+, but the codebase relies on Swift 6-era
+    concurrency diagnostics and modern SDK APIs such as
     `AVCaptureEventInteraction`.
 2.  **Supabase CLI**: For testing edge functions locally, you will need the Supabase CLI installed.
 3.  **Project Generation**: `project.yml` is the source of truth. `Merian.xcodeproj` is committed for convenience, but you should regenerate it after changing targets, packages, entitlements, build settings, or source-group layout:
@@ -57,6 +58,15 @@ Before contributing, please review our core architectural tenets. Refactoring co
   make validate-ios-migration-guardrails
   make test-ios-ci-tooling
   ```
+  If a change adds, removes, moves, or retargets source code, also run:
+  ```bash
+  bash scripts/test-ios-project-source-membership.sh
+  bash scripts/check-ios-project-source-membership.sh
+  ```
+  Those two membership commands require the Ruby `xcodeproj` gem, which is
+  available on the hosted macOS runner. The portable Make target intentionally
+  tests the scope detector, workflow contract, and result validator without
+  requiring that macOS dependency.
   Relevant iOS, watch, Xcode project, configuration, and build-tooling changes
   then enter `.github/workflows/ios-build-and-test.yml`. Its macOS jobs compile
   both shared test bundles, execute the complete `merianTests` target, and

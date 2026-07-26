@@ -147,16 +147,19 @@ Recent schema milestones:
   source-specific plans reach V49 first, then advance through the same V50
   stage.
 
-Compiled iOS assurance lives in
-`.github/workflows/ios-build-and-test.yml`. Its fail-closed detector
-(`scripts/ci-detect-ios-build-source-changes.sh`) sends every iOS/watch/project
-build input, merge-queue commit, and manual request to pinned Xcode 26.6 jobs
-that execute the complete unit-test target and independently create an unsigned
-current-SHA Release archive. `scripts/test-ios-build-and-test-workflow.sh` locks
-the full-target selectors, generated-project source-membership check, exact-SHA
-and lockfile behavior, immutable action pins, archive/dSYM checks, and
-unconditional final decision. Repository rules should require only
-`iOS Build and Test / Production readiness`.
+Compiled iOS assurance lives in `.github/workflows/ios-build-and-test.yml`. Its
+fail-closed detector (`scripts/ci-detect-ios-build-source-changes.sh`) sends
+every iOS/watch/project build input, merge-queue commit, and manual request to
+pinned Xcode 26.6 jobs that execute the complete unit-test target and
+independently create an unsigned current-SHA Release archive.
+`scripts/check-ios-project-source-membership.sh` compares every `project.yml`
+source against the generated build phases and rejects source code orphaned
+outside all declared targets; its adversarial fixture is
+`scripts/test-ios-project-source-membership.sh`.
+`scripts/test-ios-build-and-test-workflow.sh` locks the full-target selectors,
+invocation of that membership check, exact-SHA and lockfile behavior, immutable
+action pins, archive/dSYM checks, and unconditional final decision. Repository
+rules should require only `iOS Build and Test / Production readiness`.
 
 Historical schema snapshots V1 through V39 live under
 `apps/ios/Merian/Models/Schema/`. V40 through V50 live in `SchemaVersions.swift`
@@ -394,8 +397,11 @@ Data lifecycle, identity, and exports:
   budgets; `archive.ts` owns fixed-capacity incremental CSV encoding while
   `zip.ts` owns bounded archive streaming; `storage.ts` owns claim-fenced CSV
   chunks and R2 multipart upload; `pseudonym.ts` owns versioned export HMACs;
-  and `worker.ts` performs one preparation, assembly, or delivery phase per
-  invocation.
+  `worker.ts` performs one preparation, assembly, or delivery phase per claim;
+  and `drain.ts` owns sequential deadline/step bounds, oldest-due waves, failure
+  suppression, and aggregate queue-health classification. Production backlog
+  alerting lives in `scripts/monitor_dwca_export_queue.ts` and
+  `.github/workflows/dwca-export-health-monitor.yml`.
 - `revenuecat-webhook` — verifies the configured bearer credential and
   RevenueCat raw-body HMAC, parses bounded event identities, fetches
   authoritative CustomerInfo, and commits idempotent per-user state through

@@ -24,9 +24,16 @@ MiB).
 `claim_export_job_step(...)` locks the canonical queue and work rows, installs a
 private two-minute UUID lease, and returns one current phase plus its keyset
 cursor and accumulated budgets. A duplicate delivery receives no claim and does
-no work. Every invocation performs exactly one bounded durable step and returns
-synchronously. A one-minute cron keeps advancing due work; no single `waitUntil`
-workload owns the complete export.
+no work. A targeted insertion webhook attempts only its canonical job once,
+bounding fan-out during intake bursts. The once-per-minute empty-body cron
+invokes a synchronous, sequential global drain: it repeatedly discovers up to
+five jobs in oldest-due order and executes one bounded durable phase for each.
+It starts no new phase after the 40-second soft cutoff and attempts at most 40
+phases per invocation. Failed, terminal, or contended jobs are suppressed for
+the rest of that invocation; successfully advanced work re-enters database
+ordering behind older due jobs. This raises continuation throughput without
+making one `waitUntil` workload own the complete export or allowing concurrent
+archive assemblies inside one isolate.
 
 Migration `20260726025103_snapshot_dwca_export_sources.sql` freezes the eligible
 scan IDs when the job is inserted. It stores only fixed-size SHA-256
@@ -84,6 +91,37 @@ bytes. The worker enforces the canonical budget before every work-chunk PUT and
 again while uploading the final archive. Exceeding it produces stable terminal
 `export_too_large`. Streaming bounds heap use; the small phased claims bound
 each Edge invocation's database, encoding, and provider work.
+
+## Queue health and alerting
+
+Migration `20260726230837_scale_dwca_export_continuations.sql` adds the
+service-only `get_dwca_export_queue_health()` RPC and an outstanding-job partial
+index. The RPC exposes aggregate backlog, due-job, active/expired-claim, and
+oldest-due-age values only; API roles cannot execute it or read private queue
+tables.
+
+Every dispatcher call emits one structured `dwca_export_queue_health` event. The
+route warns at an oldest-due age of five minutes, 25 outstanding jobs, or any
+expired claim; it becomes critical at 15 minutes or 100 outstanding jobs. The
+independent **DwC-A Export Queue Health Monitor** workflow runs every five
+minutes with the same defaults, writes bounded JSON/Markdown summaries, and
+fails at warning by default. During an alert, inspect queue-health and
+claim-fenced step logs, repair R2/database/provider availability, and let
+durable retries resume. Do not clear private claims or edit work cursors.
+
+`backlog_count` includes every nonterminal job, including work in backoff or
+under a live lease. `due_count` and the oldest-due fields describe only work
+whose `next_step_at` has arrived and which has no unexpired claim. Consequently,
+`queue_drained: true` means that the dispatcher exhausted currently claimable
+due work; it can coexist with a nonzero backlog waiting on a lease or retry
+deadline.
+
+The 40-step ceiling is a safety bound, not a guaranteed 40-step-per-minute rate.
+The soft cutoff is checked between durable phases, and a phase already in flight
+is allowed to finish or reach its own deadline. Completion latency therefore
+depends on page, R2, Resend, and database duration as well as queue depth. Use
+oldest-due age and backlog trends as the capacity signal instead of deriving a
+fixed completion SLA from the ceiling.
 
 ## Retry and delivery semantics
 
@@ -152,11 +190,14 @@ oversize/revision sentinels, incremental fixed-buffer CSV encoding, row/archive
 budgets, phased progress, claim-fenced work chunks, exact manifest reads, ZIP
 compatibility, bounded multipart upload/abort/provider responses, embedded
 HTTP-200 completion errors, pseudonym key failure/rotation, Resend idempotency,
-canonical claims, staged retry reuse, and stale-worker fencing. Static contracts
-lock the migrations and production-source boundaries. Executable database tests
-prove source constraints, aggregate page byte limits, creation-time membership,
+canonical claims, staged retry reuse, stale-worker fencing, fair multi-wave
+draining, soft-deadline exit, and failure suppression. Static contracts lock the
+migrations and production-source boundaries. Executable database tests prove
+source constraints, aggregate page byte limits, creation-time membership,
 revision rejection, terminal purge, the finite rollout deadline, post-deadline
-claim requirement, and phased state contract in
+claim requirement, queue-health ACL/index behavior, live/expired claim
+accounting, and phased state contract in
 `services/supabase/tests/export_dwca_security.sql` and
-`services/supabase/tests/export_dwca_snapshot_security.sql`; the repository-wide
+`services/supabase/tests/export_dwca_snapshot_security.sql`, plus
+`services/supabase/tests/dwca_export_queue_security.sql`; the repository-wide
 privileged-routine catalog validator checks the definer RPC.

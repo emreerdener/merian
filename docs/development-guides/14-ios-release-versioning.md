@@ -164,12 +164,21 @@ release commit:
 
 Require only the unconditional Production readiness job in GitHub repository
 rules. The two macOS jobs are conditional and are expected to report skipped
-for unrelated pull requests.
+for unrelated pull requests. The exact repository-rule setup and verification
+procedure is documented in the
+[compiled iOS CI gate](./08-testing-strategy.md#repository-rule-setup).
 
 If the intended release SHA contains no iOS build input and the two macOS jobs
 were skipped, manually dispatch `iOS Build and Test` on that ref. A green
 out-of-scope Production readiness decision is safe for merging, but it is not
 current-SHA archive evidence and does not satisfy the release checklist above.
+
+For archive failures, use the job summary first. The
+`ios-release-archive-evidence-<run>-attempt-<attempt>` artifact contains the
+source/toolchain and verification record; failed runs also publish
+`ios-release-archive-failure-<run>-attempt-<attempt>` with package-resolution
+and `xcodebuild` logs. Do not treat either artifact as a signed distribution
+archive.
 
 If Xcode only shows `Command PhaseScriptExecution failed with a nonzero exit
 code`, expand the `Release Versioning Preflight` log. A missing marker means the

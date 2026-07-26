@@ -243,10 +243,11 @@ consumes only the webhook `job_id`. Deprecated canonical row hints exist only
 for jobs created inside a private two-hour migration-before-bundle cohort; after
 that deadline new webhook bodies contain `job_id` only and direct unclaimed
 processing is rejected. Service-only definer RPCs atomically claim the row under
-a private ten-minute UUID lease, return immutable
+a private two-minute initial UUID lease, return immutable
 user/scope/precision/key-version state, and fence renewal, staging, completion,
-and failure to the current unexpired token. All routines have empty search
-paths, explicit allowlist entries, and no public/authenticated execution.
+and failure to the current unexpired token. Long archive assembly renews the
+same token before expiry. All routines have empty search paths, explicit
+allowlist entries, and no public/authenticated execution.
 
 Migration `20260725052339_bound_dwca_export_work.sql` makes generation resumable
 and enforces canonical per-job limits of 5,000 CSV rows and an 8 MiB archive,
@@ -277,16 +278,27 @@ fingerprints. Nonterminal jobs created before this migration are claim-fenced,
 have their old manifests discarded, and restart against one newly established
 snapshot.
 
-`functions/export-dwca` performs exactly one short phase per invocation:
-occurrence page, multimedia page, assembly, or delivery. The two data phases use
-row-and-byte-aware keyset reads over immutable job membership and narrow
-revision-checked projections. A fixed 512 KiB encoder appends one CSV row at a
-time, so page strings and media rows are never expanded into an unbounded
-intermediate array. Each page becomes a claim-token-fenced R2 CSV chunk and is
-committed to a durable manifest with its cursor and cumulative budgets in one
-transaction. A late expired worker can neither overwrite the replacement
-worker's chunk nor add it to the manifest. The minute scheduler resumes due
-phases without relying on one long-lived Edge invocation.
+`functions/export-dwca` executes one short durable phase at a time—occurrence
+page, multimedia page, assembly, or delivery—but a scheduled invocation now
+deadline-drains several phases sequentially. An explicit insertion webhook
+attempts only its canonical job once and returns, which bounds insert-burst
+fan-out. Empty-body cron wake-ups request five-job oldest-due waves until a
+40-second soft cutoff or a 40-step hard ceiling. Successful work is requeued
+behind older due jobs; failed/contended jobs are not retried in a hot loop. The
+two data phases use row-and-byte-aware keyset reads over immutable job
+membership and narrow revision-checked projections. A fixed 512 KiB encoder
+appends one CSV row at a time, so page strings and media rows are never expanded
+into an unbounded intermediate array. Each page becomes a claim-token-fenced R2
+CSV chunk and is committed to a durable manifest with its cursor and cumulative
+budgets in one transaction. A late expired worker can neither overwrite the
+replacement worker's chunk nor add it to the manifest.
+
+Migration `20260726230837_scale_dwca_export_continuations.sql` adds an
+outstanding-job partial index, the service-only aggregate
+`get_dwca_export_queue_health()` RPC, and response-timeout headroom for the
+minute pg_net wake-up. Dispatcher logs and the five-minute
+`dwca-export-health-monitor.yml` automation alert on oldest due age, backlog
+depth, and expired claims without exposing user IDs or private queue rows.
 
 Assembly lazily reads manifest chunks into a streaming ZIP32 writer and bounded
 R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is
@@ -305,7 +317,8 @@ Regression coverage lives in
 `functions/_tests/exportDwcaSecurityCoverage.test.ts`,
 `functions/_tests/exportDwcaMigrationContract.test.ts`, the route-local export
 tests, `tests/export_dwca_security.sql`, and
-`tests/export_dwca_snapshot_security.sql`.
+`tests/export_dwca_snapshot_security.sql`, plus
+`tests/dwca_export_queue_security.sql`.
 
 ### Public Web Waitlist Boundary
 

@@ -9,26 +9,44 @@ const deploymentWorkflow = new URL(
   "../../../../.github/workflows/deploy.yml",
   import.meta.url,
 );
+const monitorWorkflow = new URL(
+  "../../../../.github/workflows/dwca-export-health-monitor.yml",
+  import.meta.url,
+);
+const monitorScript = new URL(
+  "../../scripts/monitor_dwca_export_queue.ts",
+  import.meta.url,
+);
 
 async function source(name: string): Promise<string> {
   return await Deno.readTextFile(new URL(name, exportRoot));
 }
 
-Deno.test("export webhook performs one synchronous durable step", async () => {
+Deno.test("export webhook performs a deadline-bounded fair durable drain", async () => {
   const index = await source("index.ts");
+  const drain = await source("drain.ts");
   const worker = await source("worker.ts");
   const db = await source("db.ts");
 
   assertStringIncludes(index, "const requestedJobId = payload.job_id");
-  assertStringIncludes(index, "await processExportJobStep");
+  assertStringIncludes(index, "await drainExportJobs");
   assertEquals(index.includes("runBackground"), false);
   assertStringIncludes(
     index,
-    'disposition: jobIds.length > 0 ? "processed" : "idle"',
+    'disposition: result.attemptedSteps > 0 ? "processed" : "idle"',
   );
   assertEquals(index.includes("payload.user_id"), false);
   assertEquals(index.includes("payload.export_scope"), false);
   assertEquals(index.includes("payload.include_precise_coordinates"), false);
+  assertStringIncludes(drain, "EXPORT_DRAIN_RUNTIME_BUDGET_MS");
+  assertStringIncludes(drain, "EXPORT_DRAIN_MAXIMUM_STEPS");
+  assertStringIncludes(drain, "EXPORT_DRAIN_DISCOVERY_BATCH_SIZE");
+  assertStringIncludes(drain, "if (targetedWakeup) break");
+  assertStringIncludes(drain, "suppressedJobIds");
+  assertStringIncludes(drain, "await fetchHealth");
+  assertStringIncludes(drain, "exportQueueHealthStatus");
+  assertStringIncludes(db, '"get_due_export_job_ids"');
+  assertStringIncludes(db, '"get_dwca_export_queue_health"');
   assertStringIncludes(worker, "const job = await services.claim");
   assertStringIncludes(db, 'supabaseAdmin.rpc("claim_export_job_step"');
 });
@@ -92,6 +110,7 @@ Deno.test("export identity and delivery use dedicated idempotent secrets", async
     [
       "archive.ts",
       "db.ts",
+      "drain.ts",
       "dwca.ts",
       "index.ts",
       "limits.ts",
@@ -133,6 +152,31 @@ Deno.test("deployment validates and synchronizes the pinned pseudonym key", asyn
   );
   assertStringIncludes(workflow, "base64 --decode");
   assertStringIncludes(workflow, 'if [ "$dwca_key_bytes" -lt 32 ]');
+});
+
+Deno.test("DwC-A backlog monitor shares route defaults and emits bounded artifacts", async () => {
+  const workflow = await Deno.readTextFile(monitorWorkflow);
+  const script = await Deno.readTextFile(monitorScript);
+
+  for (
+    const expected of [
+      "EXPORT_BACKLOG_WARNING_AGE_SECONDS",
+      "EXPORT_BACKLOG_CRITICAL_AGE_SECONDS",
+      "EXPORT_BACKLOG_WARNING_COUNT",
+      "EXPORT_BACKLOG_CRITICAL_COUNT",
+      "MAXIMUM_RESPONSE_BYTES",
+      "RESPONSE_DEADLINE_MS",
+      "get_dwca_export_queue_health",
+    ]
+  ) {
+    assertStringIncludes(script, expected);
+  }
+  assertStringIncludes(workflow, "monitor_dwca_export_queue.ts");
+  assertStringIncludes(workflow, "INPUT_WARNING_AFTER_MINUTES");
+  assertStringIncludes(workflow, "INPUT_CRITICAL_AFTER_MINUTES");
+  assertStringIncludes(workflow, "INPUT_WARNING_BACKLOG");
+  assertStringIncludes(workflow, "INPUT_CRITICAL_BACKLOG");
+  assertStringIncludes(workflow, "retention-days: 30");
 });
 
 Deno.test("failed exports do not consume the next request window", async () => {

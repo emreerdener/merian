@@ -39,9 +39,18 @@ struct SerializedMediaItemTests {
     }
 
     @Test func videoMediaRoundTripsThroughJSONRelationshipsAndActiveMedia() throws {
+        let videoFileName = "clip-\(UUID().uuidString.lowercased()).mp4"
+        let videoURL = URL.documentsDirectory.appendingPathComponent(videoFileName)
+        try FileManager.default.createDirectory(
+            at: videoURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data(repeating: 0x42, count: 64).write(to: videoURL)
+        defer { try? FileManager.default.removeItem(at: videoURL) }
+
         let items: [SerializedMediaItem] = [
             .image(.documents("video-cover.webp")),
-            .video(StoredVideoMediaReference(.documents("clip.mp4"))),
+            .video(StoredVideoMediaReference(.documents(videoFileName))),
             .audio(.documents("sound.wav")),
             .description(ObservationContext(freeText: "Brief movement visible"))
         ]
@@ -54,12 +63,12 @@ struct SerializedMediaItemTests {
 
         #expect(decoded == items)
         #expect(relationshipDecoded == items)
-        #expect(snapshot.videoPaths == ["clip.mp4"])
+        #expect(snapshot.videoPaths == [videoFileName])
         #expect(snapshot.summary.hasVideo)
         #expect(snapshot.summary.preferredThumbnailKind == .video)
 
         let activeMedia = snapshot.activeScanMedia
-        #expect(activeMedia.videoPaths == [URL.documentsDirectory.appendingPathComponent("clip.mp4").path])
+        #expect(activeMedia.videoPaths == [videoURL.path])
     }
 
     @Test func cloudHydrationPrefersCapturedMediaManifestForVideoScans() throws {

@@ -10,7 +10,7 @@ help:
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
-	@printf "  make test-ios-ci-tooling              Test iOS build scope and workflow invariants\n"
+	@printf "  make test-ios-ci-tooling              Test portable iOS CI workflow/result invariants\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
 	@printf "  make generate-edge-dto-contract       Regenerate Identify Swift DTOs from the executable contract\n"
 	@printf "  make validate-edge-dto-contract       Validate the Identify runtime/schema/generated-Swift contract\n"
