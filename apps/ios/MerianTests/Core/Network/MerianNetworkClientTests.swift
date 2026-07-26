@@ -555,6 +555,85 @@ struct MerianNetworkClientTests {
         #expect(result.scanId == scanID)
     }
 
+    @Test func testScanImageCloudInspectionSendsSourceAndParsesMissingStatus() async throws {
+        let sourceUrl =
+            "https://media.merian.app/public_uploads/free/user/old.webp"
+        let responseData = Data("""
+        {
+          "data": {
+            "status": "missing"
+          }
+        }
+        """.utf8)
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/repair-scan-image"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(payload["source_url"] as? String == sourceUrl)
+            #expect(payload["restored_object_key"] == nil)
+            return (response, responseData)
+        }
+
+        let result = try await MerianNetworkClient.shared
+            .inspectScanImageCloudStatus(sourceUrl: sourceUrl)
+
+        #expect(result.status == .missing)
+        #expect(result.updatedScanCount == 0)
+        #expect(result.updatedPostMediaCount == 0)
+    }
+
+    @Test func testScanImageCloudRepairSendsStagedKeyAndParsesCounts() async throws {
+        let sourceUrl =
+            "https://media.merian.app/public_uploads/free/user/old.webp"
+        let restoredObjectKey = "staging/user/repair_new.webp"
+        let responseData = Data("""
+        {
+          "data": {
+            "status": "repaired",
+            "replacement_url": "https://media.merian.app/public_uploads/pro/user/repair_new.webp",
+            "updated_scan_count": 1,
+            "updated_post_media_count": 2
+          }
+        }
+        """.utf8)
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/repair-scan-image"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(payload["source_url"] as? String == sourceUrl)
+            #expect(
+                payload["restored_object_key"] as? String == restoredObjectKey
+            )
+            return (response, responseData)
+        }
+
+        let result = try await MerianNetworkClient.shared
+            .repairScanImageCloudReference(
+                sourceUrl: sourceUrl,
+                restoredObjectKey: restoredObjectKey
+            )
+
+        #expect(result.status == .repaired)
+        #expect(result.updatedScanCount == 1)
+        #expect(result.updatedPostMediaCount == 2)
+    }
+
     @Test func testCommunityRequestSendsStableAIIdempotencyKey() async throws {
         let requestID = "019f7004-cb18-7cd0-84e5-b4a97b759666"
         let scanID = "019f7004-d6c4-7da1-8561-9cc101f6db62"

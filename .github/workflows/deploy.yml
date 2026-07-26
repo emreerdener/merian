@@ -368,6 +368,7 @@ jobs:
             supabase/tests/account_deletion_security.sql \
             supabase/tests/ghost_profile_merge_security.sql \
             supabase/tests/privileged_routine_security.sql \
+            supabase/tests/scan_image_repair_security.sql \
             supabase/tests/ai_quota_security.sql \
             supabase/tests/export_dwca_security.sql \
             supabase/tests/revenuecat_webhook_security.sql \

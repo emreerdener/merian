@@ -381,7 +381,7 @@ Useful checks:
 npm run typecheck
 npm test
 npm run build
-npm audit --audit-level=moderate
+npm run audit:dependencies
 ```
 
 Local waitlist submissions need a Turnstile test widget and matching test
@@ -398,6 +398,13 @@ uses `'strict-dynamic'` and intentionally makes pages dynamic. Production also
 sets HSTS, while all environments set explicit referrer, framing, MIME,
 permissions, and cross-origin headers. Do not add `'unsafe-inline'` to
 `script-src` or move service-role access out of the `server-only` admin module.
+
+The root web manifest temporarily overrides Next.js's nested PostCSS and Sharp
+edges to reviewed patched releases. `lib/dependencySecurity.test.ts` verifies
+all locked copies and the workflow gate; the registry-backed CI audit then
+blocks newly disclosed high or critical dependency findings. Remove an
+override only after a stable reviewed Next.js release declares an equal or
+newer dependency and all four web checks pass.
 
 ## Vercel Deployment
 

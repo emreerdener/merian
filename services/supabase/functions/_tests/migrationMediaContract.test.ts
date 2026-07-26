@@ -767,3 +767,33 @@ Deno.test("ghost profile merge migration keeps ownership atomic and Auth cleanup
     "An Auth FK would bypass the AI ledger's authorized deletion path.",
   );
 });
+
+Deno.test("scan image repair updates every durable metadata surface atomically", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260726041338_repair_owned_scan_image_references.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION internal.replace_jsonb_string_exact",
+      "CREATE OR REPLACE FUNCTION public.repair_owned_scan_image_reference",
+      "PERFORM internal.require_service_role()",
+      "p_source_url = ANY(scans.image_storage_urls)",
+      "UPDATE public.scans AS scans",
+      "internal.replace_jsonb_string_exact( scans.captured_media",
+      "UPDATE public.scan_media_assets AS media_asset",
+      "UPDATE public.explore_post_media AS post_media",
+      "explore_post.user_id = p_user_id",
+      "'updated_scan_count'",
+      "'updated_post_media_count'",
+      "REVOKE ALL ON FUNCTION public.repair_owned_scan_image_reference",
+      "GRANT EXECUTE ON FUNCTION public.repair_owned_scan_image_reference",
+      "'public.repair_owned_scan_image_reference(uuid,text,text)'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});

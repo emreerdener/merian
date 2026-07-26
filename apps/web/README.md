@@ -130,8 +130,22 @@ need live backend behavior. See the canonical destination matrix in
 
 The package pins the reviewed Next.js release exactly; do not replace it with a
 range or `latest`. Use `npm ci` so CI and production consume the committed lock
-file. Dependency update pull requests must run the full test, type-check, and
-production-build gate.
+file. Next currently declares older PostCSS and Sharp releases, so the root
+manifest explicitly overrides those two transitive edges to the reviewed
+patched versions. Keep the overrides until a stable Next.js release declares
+equal or newer versions. Do not remove them merely because image optimization
+is disabled or CSS inputs are currently trusted.
+
+The PostCSS 8.5.18 floor covers both
+[attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
+and the remaining
+[source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).
+The Sharp override tracks 0.35.3, the release recommended by the
+[Sharp/libvips advisory](https://github.com/advisories/GHSA-f88m-g3jw-g9cj).
+`lib/dependencySecurity.test.ts` rejects any PostCSS version below 8.5.18, any
+Sharp version below 0.35.0, missing Next overrides, or removal of the workflow
+audit step. Dependency update pull requests must run the full dependency audit,
+test, type-check, and production-build gate.
 
 `proxy.ts` generates one cryptographically random nonce per request and places
 the same nonce-based Content Security Policy on the request passed to Next.js
@@ -264,12 +278,14 @@ npm run dev
 npm test
 npm run typecheck
 npm run build
-npm audit --audit-level=moderate
+npm run audit:dependencies
 ```
 
-`.github/workflows/web-quality.yml` runs install, unit tests, TypeScript, and a
-production build when the web route, its security helpers, the waitlist
-migration, or the workflow changes.
+`.github/workflows/web-quality.yml` runs a frozen install, a registry-backed
+dependency audit that blocks high and critical findings, unit tests,
+TypeScript, and a production build when the web route, its security helpers,
+the waitlist migration, or the workflow changes. A registry outage is a failed
+security gate, not an implicit pass.
 
 ## Share URL Shape
 

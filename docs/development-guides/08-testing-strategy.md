@@ -11,7 +11,7 @@ cd apps/web
 npm test
 npm run typecheck
 npm run build
-npm audit --audit-level=moderate
+npm run audit:dependencies
 ```
 
 Run these when changing Next.js routes, Mantine UI, public metadata, Supabase
@@ -785,8 +785,13 @@ Turnstile verification. The suite also proves incomplete Turnstile
 configuration fails before any provider fetch. Migration coverage requires
 both bounded counter-retention paths to use `FOR UPDATE SKIP LOCKED`, preventing
 concurrent request cleanup from becoming a lock convoy.
-`.github/workflows/web-quality.yml` runs those tests, TypeScript checking, and
-a production Next.js build for affected web changes.
+`apps/web/lib/dependencySecurity.test.ts` also checks every locked PostCSS and
+Sharp instance against the reviewed patched floors, keeps the Next.js
+transitive overrides explicit, and verifies that the dependency audit follows
+the frozen install. `.github/workflows/web-quality.yml` runs the live
+registry-backed audit with a high-severity failure threshold, those tests,
+TypeScript checking, and a production Next.js build for affected web changes.
+High and critical findings, or an unavailable audit registry, block the job.
 
 Function-local tests under `services/supabase/functions/insight-chat/` verify
 the expanded text-only prompt context, raw image URL/storage-key/coordinate

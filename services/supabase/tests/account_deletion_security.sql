@@ -253,6 +253,50 @@ VALUES (
     '[{"kind":"image","url":"https://media.example.invalid/private.jpg"}]'::JSONB
 );
 
+-- A stale outbox row for a live account must never authorize an R2 prefix
+-- sweep. This row becomes valid only after the durable deletion workflow below
+-- tombstones the profile and advances its matching job to storage_pending.
+INSERT INTO public.pending_storage_deletions (
+    target_user_id,
+    status,
+    prefixes,
+    phase,
+    prefix_index,
+    verification_not_before
+)
+VALUES (
+    '00000000-0000-0000-0000-00000000d201'::UUID,
+    'pending',
+    ARRAY[
+        'public_uploads/free/00000000-0000-0000-0000-00000000d201/',
+        'public_uploads/pro/00000000-0000-0000-0000-00000000d201/',
+        'staging/00000000-0000-0000-0000-00000000d201/',
+        'avatars/00000000-0000-0000-0000-00000000d201/',
+        'exports/00000000-0000-0000-0000-00000000d201/'
+    ]::TEXT[],
+    'sweep',
+    1,
+    pg_catalog.NOW() + INTERVAL '25 hours'
+);
+
+SET LOCAL ROLE service_role;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.claim_pending_storage_deletions(100) AS storage_claim
+        WHERE storage_claim.target_user_id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+    ) THEN
+        RAISE EXCEPTION
+            'An orphaned storage outbox row targeted a live account';
+    END IF;
+END;
+$$;
+
+RESET ROLE;
+
 CREATE TEMP TABLE account_deletion_test_job (
     job_id UUID NOT NULL,
     job_status TEXT NOT NULL

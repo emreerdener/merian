@@ -595,6 +595,9 @@ verify_jwt = false
 [functions.get-scan-explore-share-state]
 verify_jwt = false
 
+[functions.repair-scan-image]
+verify_jwt = false
+
 [functions.get-explore-notifications]
 verify_jwt = false
 

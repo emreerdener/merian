@@ -134,6 +134,28 @@ struct LocalImageLoaderTests {
         #expect(recoveredURL == localURL)
     }
 
+    @Test func localImageLoaderRecoversExploreFallbackURLFromDocuments() async throws {
+        let scanId = UUID().uuidString
+        let localFileName = "\(UUID().uuidString)_scan.png"
+        let localURL = URL.documentsDirectory.appendingPathComponent(localFileName)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.systemGreen.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        let imageData = try #require(image.pngData())
+        try imageData.write(to: localURL, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: localURL) }
+
+        let remoteURL = "https://media.merian.app/public_uploads/free/user/\(scanId)_\(localFileName)"
+        let recoveredImage = await LocalImageLoader.shared.loadImage(
+            fromPath: nil,
+            fallbackUrl: remoteURL,
+            maxDimension: 20
+        )
+
+        #expect(recoveredImage != nil)
+    }
+
     @Test func localScanMediaRecoveryRejectsNonCaptureAndUnsafeURLs() throws {
         let externalURL = try #require(URL(string: "https://example.com/public_uploads/free/user/image.webp"))
         let avatarURL = try #require(URL(string: "https://media.merian.app/avatars/user/image.webp"))

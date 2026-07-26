@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types lib/*.test.ts"
+    "test": "node --test --experimental-strip-types lib/*.test.ts",
+    "audit:dependencies": "npm audit --audit-level=high"
   },
   "dependencies": {
     "@mantine/carousel": "^9.2.1",
@@ -42,9 +43,15 @@
     "@types/node": "25.8.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "postcss": "^8.5.15",
+    "postcss": "^8.5.18",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
     "typescript": "6.0.3"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.18",
+      "sharp": "0.35.3"
+    }
   }
 }

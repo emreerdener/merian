@@ -220,6 +220,164 @@ enum LocalScanMediaRecoveryResolver {
     }
 }
 
+private struct CloudScanImageRepairCandidate: Sendable {
+    let sourceUrl: String
+    let localUrl: URL
+}
+
+actor CloudScanImageRepairActor {
+    static let shared = CloudScanImageRepairActor()
+
+    private var pending: [CloudScanImageRepairCandidate] = []
+    private var pendingSourceUrls: Set<String> = []
+    private var completedSourceUrls: Set<String> = []
+    private var isProcessing = false
+    private var serviceUnavailableUntil: Date?
+    private let retryDelay: TimeInterval = 15 * 60
+
+    func enqueue(sourceUrl: URL, localUrl: URL) {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
+              let candidate = Self.candidate(sourceUrl: sourceUrl, localUrl: localUrl),
+              !completedSourceUrls.contains(candidate.sourceUrl),
+              !pendingSourceUrls.contains(candidate.sourceUrl),
+              serviceUnavailableUntil.map({ $0 <= Date() }) ?? true else {
+            return
+        }
+
+        pending.append(candidate)
+        pendingSourceUrls.insert(candidate.sourceUrl)
+        guard !isProcessing else { return }
+
+        isProcessing = true
+        Task(priority: .utility) {
+            await self.drainQueue()
+        }
+    }
+
+    private func drainQueue() async {
+        while !pending.isEmpty {
+            if let serviceUnavailableUntil, serviceUnavailableUntil > Date() {
+                pending.removeAll()
+                pendingSourceUrls.removeAll()
+                break
+            }
+
+            let candidate = pending.removeFirst()
+            pendingSourceUrls.remove(candidate.sourceUrl)
+
+            do {
+                try await repairIfMissing(candidate)
+                completedSourceUrls.insert(candidate.sourceUrl)
+            } catch {
+                serviceUnavailableUntil = Date().addingTimeInterval(retryDelay)
+                pending.removeAll()
+                pendingSourceUrls.removeAll()
+                MerianLog.network.error(
+                    "Cloud scan image repair paused after a failed request; retrying later."
+                )
+            }
+        }
+
+        isProcessing = false
+    }
+
+    private func repairIfMissing(_ candidate: CloudScanImageRepairCandidate) async throws {
+        let inspection = try await MerianNetworkClient.shared.inspectScanImageCloudStatus(
+            sourceUrl: candidate.sourceUrl
+        )
+        guard inspection.status == .missing else { return }
+
+        guard let attributes = try? FileManager.default.attributesOfItem(
+            atPath: candidate.localUrl.path
+        ) else {
+            return
+        }
+        let sizeBytes = (attributes[.size] as? NSNumber)?.intValue ?? 0
+        guard sizeBytes > 0,
+              sizeBytes <= MerianConfig.stagedImagePayloadMaxBytes,
+              let contentType = Self.contentType(for: candidate.localUrl) else {
+            return
+        }
+
+        let fileExtension = candidate.localUrl.pathExtension.lowercased()
+        let uploadFile = StagingUploadFile(
+            fileName: "repair_\(UUID().uuidString.lowercased()).\(fileExtension)",
+            mediaKind: .image,
+            contentType: contentType,
+            sizeBytes: sizeBytes
+        )
+        let uploadUrls = try await MerianNetworkClient.shared.generateUploadURLs(
+            uploadFiles: [uploadFile]
+        )
+        guard let uploadUrl = uploadUrls.first, uploadUrls.count == 1 else {
+            throw MerianError.invalidResponse
+        }
+
+        try await MerianNetworkClient.shared.uploadToR2(
+            url: uploadUrl.signedUrl,
+            fileURL: candidate.localUrl,
+            mimeType: contentType
+        )
+        let result = try await MerianNetworkClient.shared.repairScanImageCloudReference(
+            sourceUrl: candidate.sourceUrl,
+            restoredObjectKey: uploadUrl.objectKey
+        )
+        guard result.status == .repaired || result.status == .healthy else {
+            throw MerianError.invalidResponse
+        }
+
+        if result.status == .repaired {
+            MerianLog.network.info(
+                "Cloud scan image repair restored \(result.updatedScanCount, privacy: .public) scan record(s) and \(result.updatedPostMediaCount, privacy: .public) Explore media record(s)."
+            )
+        }
+    }
+
+    private static func candidate(
+        sourceUrl: URL,
+        localUrl: URL
+    ) -> CloudScanImageRepairCandidate? {
+        guard LocalScanMediaRecoveryResolver.candidateFileNames(
+            for: sourceUrl
+        ).isEmpty == false,
+              FileManager.default.fileExists(atPath: localUrl.path),
+              contentType(for: localUrl) != nil,
+              var components = URLComponents(
+                  url: sourceUrl,
+                  resolvingAgainstBaseURL: false
+              ) else {
+            return nil
+        }
+
+        components.query = nil
+        components.fragment = nil
+        guard let canonicalUrl = components.url?.absoluteString else {
+            return nil
+        }
+        return CloudScanImageRepairCandidate(
+            sourceUrl: canonicalUrl,
+            localUrl: localUrl
+        )
+    }
+
+    private static func contentType(for fileUrl: URL) -> String? {
+        switch fileUrl.pathExtension.lowercased() {
+        case "webp":
+            return "image/webp"
+        case "jpg", "jpeg":
+            return "image/jpeg"
+        case "png":
+            return "image/png"
+        case "heic":
+            return "image/heic"
+        case "heif":
+            return "image/heif"
+        default:
+            return nil
+        }
+    }
+}
+
 private actor RemoteImageLoadDiagnostics {
     static let shared = RemoteImageLoadDiagnostics()
 
@@ -357,6 +515,10 @@ actor LocalImageLoader {
                        maxSize: CGFloat(maxDimension)
                    ) {
                     await RemoteImageLoadDiagnostics.shared.recordLocalRecovery(url: remoteUrl)
+                    await CloudScanImageRepairActor.shared.enqueue(
+                        sourceUrl: remoteUrl,
+                        localUrl: localURL
+                    )
                     return localImage
                 }
 
@@ -384,6 +546,20 @@ actor LocalImageLoader {
                 for url in urls {
                     // We intentionally do NOT check `Task.isCancelled` here because this is a
                     // detached task serving multiple coalesced callers. We want it to finish caching.
+                    if let localURL = LocalScanMediaRecoveryResolver.existingLocalImageURL(for: url),
+                       let localImage = await LocalImageLoader.decodeImage(
+                           url: localURL,
+                           cacheKey: cacheKey,
+                           maxSize: CGFloat(maxDimension)
+                    ) {
+                        await RemoteImageLoadDiagnostics.shared.recordLocalRecovery(url: url)
+                        await CloudScanImageRepairActor.shared.enqueue(
+                            sourceUrl: url,
+                            localUrl: localURL
+                        )
+                        return localImage
+                    }
+
                     if let networkImage = await LocalImageLoader.fetchRemote(url: url, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                         return networkImage
                     }

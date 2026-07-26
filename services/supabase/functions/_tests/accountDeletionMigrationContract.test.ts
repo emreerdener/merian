@@ -19,6 +19,10 @@ const storageErasureMigrationUrl = new URL(
   "../../migrations/20260725052337_enforce_account_storage_erasure.sql",
   import.meta.url,
 );
+const storageErasureFenceMigrationUrl = new URL(
+  "../../migrations/20260726041109_fence_storage_erasure_claims.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -189,6 +193,32 @@ Deno.test("account deletion requires verified object erasure before Auth", async
     ]
   ) {
     assertStringIncludes(sql, `REVOKE ALL ON FUNCTION ${signature}`);
+  }
+});
+
+Deno.test("storage erasure claims cannot target a live or orphaned account", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(storageErasureFenceMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "INNER JOIN internal.account_deletion_jobs AS deletion_job",
+      "deletion_job.user_id = deletion.target_user_id",
+      "deletion_job.status = 'storage_pending'",
+      "deletion_job.cleanup_completed_at IS NOT NULL",
+      "deletion_job.storage_completed_at IS NULL",
+      "FROM public.users AS live_user",
+      "live_user.id = deletion.target_user_id",
+      "FROM public.scans AS owned_scan",
+      "owned_scan.user_id = deletion.target_user_id",
+      "FOR UPDATE OF deletion SKIP LOCKED",
+      "PERFORM internal.require_service_role()",
+      "REVOKE ALL ON FUNCTION public.claim_pending_storage_deletions(INTEGER)",
+      "GRANT EXECUTE ON FUNCTION public.claim_pending_storage_deletions(INTEGER) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
   }
 });
 

@@ -191,7 +191,7 @@ the native iOS source tree.
 | Web response security     | `apps/web/proxy.ts`, `apps/web/app/layout.tsx`, `apps/web/lib/securityHeaders.ts`                                                                                                           | Per-request nonce CSP, nonce-bound bootstrap script, production HSTS, and explicit browser defense headers. |
 | Universal Links           | `apps/web/app/apple-app-site-association/route.ts`, `apps/web/lib/appleAppSiteAssociation.ts`, `apps/web/lib/canonicalHost.ts`, `apps/web/proxy.ts`                                         | Exact Explore/species AASA paths, direct legacy-host AASA exception, and canonical alias redirects.                    |
 | Formatting helpers         | `apps/web/lib/formatting.ts`                                                                                                                                                                | Shared Naturebook web copy and URL formatting.                                                                         |
-| Local setup and CI         | `apps/web/README.md`, `apps/web/.env.example`, `apps/web/package.json`, `.github/workflows/web-quality.yml`                                                                                | Web setup, waitlist secret/ingress contract, npm scripts, dependency manifest, tests, typecheck, and production build. |
+| Local setup and CI         | `apps/web/README.md`, `apps/web/.env.example`, `apps/web/package.json`, `apps/web/lib/dependencySecurity.test.ts`, `.github/workflows/web-quality.yml`                                     | Web setup, waitlist secret/ingress contract, transitive security overrides, frozen dependency audit, tests, typecheck, and production build. |
 
 ## Core Modules
 

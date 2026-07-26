@@ -94,6 +94,9 @@ TestFlight, App Store, support, and QA.
 - Hardened the public web boundary with the patched exact Next.js release,
   per-request nonce CSP, explicit browser security headers, and a
   `server-only` service-role client separated from anonymous projection reads.
+  Reviewed transitive overrides now replace Next.js's vulnerable PostCSS and
+  Sharp versions, and web CI blocks current or future high/critical dependency
+  findings instead of treating the documented audit as optional.
 - Hardened production workflows with immutable action commit pins, explicit
   read-only permissions, step-scoped secrets, whole-tree formatting/lint, and
   the complete recursive Edge test suite against the disposable database.

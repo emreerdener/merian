@@ -322,6 +322,7 @@ struct ScansSheetView: View {
     private func refreshThumbnailPipeline() {
         let records = searchManager.allScans
         prefetchLeadingThumbnails(from: records)
+        enqueueRecoverableCloudImages(from: records)
 
         let backfillCandidates = records.compactMap(ScanThumbnailBackfillCandidate.init(record:))
         guard !backfillCandidates.isEmpty else { return }
@@ -329,6 +330,39 @@ struct ScansSheetView: View {
         let container = modelContext.container
         Task(priority: .utility) {
             await ScanThumbnailBackfillActor.shared.backfill(records: backfillCandidates, modelContainer: container)
+        }
+    }
+
+    private func enqueueRecoverableCloudImages(from records: [LocalScanRecord]) {
+        guard offlineQueueManager.isOnline else { return }
+
+        var seenSourceUrls: Set<String> = []
+        var recoveries: [(sourceUrl: URL, localUrl: URL)] = []
+        for record in records {
+            let mediaPaths = [
+                record.coverImagePath
+            ].compactMap { $0 } + record.capturedMediaSnapshot.thumbnailImagePaths
+
+            for mediaPath in mediaPaths {
+                guard let sourceUrl = URL(string: mediaPath),
+                      sourceUrl.scheme?.lowercased() == "https",
+                      seenSourceUrls.insert(sourceUrl.absoluteString).inserted,
+                      let localUrl = LocalScanMediaRecoveryResolver
+                          .existingLocalImageURL(for: sourceUrl) else {
+                    continue
+                }
+                recoveries.append((sourceUrl: sourceUrl, localUrl: localUrl))
+            }
+        }
+
+        guard !recoveries.isEmpty else { return }
+        Task(priority: .utility) {
+            for recovery in recoveries {
+                await CloudScanImageRepairActor.shared.enqueue(
+                    sourceUrl: recovery.sourceUrl,
+                    localUrl: recovery.localUrl
+                )
+            }
         }
     }
 
