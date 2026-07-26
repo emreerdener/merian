@@ -2,6 +2,12 @@
 
 Service-role-only worker for published Explore media.
 
+Gateway JWT verification is disabled because current Supabase project secret
+keys are not JWTs. The handler still fails closed: it accepts the exact
+automatically provisioned legacy service-role value, or a supplied project key
+only after a database probe proves service-role access. The accepted token is
+then used for all worker RPCs; missing and unproven keys receive `401`.
+
 The worker leases due media rows, derives canonical object keys from
 `media.merian.app` URLs, and sends signed `HEAD` requests directly to the R2 S3
 origin. Direct durable keys must belong to the leased post owner; cross-owner,

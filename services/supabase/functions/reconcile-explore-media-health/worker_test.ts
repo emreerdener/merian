@@ -8,6 +8,7 @@ import type {
   ExploreMediaHealthClaim,
   ExploreMediaHealthRunInsert,
 } from "./db.ts";
+import { createReconcileExploreMediaHealthHandler } from "./handler.ts";
 import {
   inspectExploreMediaClaim,
   reconcileExploreMediaHealth,
@@ -162,4 +163,81 @@ Deno.test("reconcileExploreMediaHealth audits a batch-claim failure", async () =
   assertEquals(runs.length, 1);
   assertEquals(runs[0].status, "failed");
   assertEquals(runs[0].errors, [{ reason: "claim_failed" }]);
+});
+
+Deno.test("handler accepts a project secret after proving service-role access", async () => {
+  let acceptedToken = "";
+  let receivedOptions: unknown;
+  const result = {
+    claimed: 0,
+    healthy: 0,
+    missingObservations: 0,
+    retryableErrors: 0,
+    errorCount: 0,
+    omittedErrors: 0,
+    errors: [],
+  };
+  const handler = createReconcileExploreMediaHealthHandler({
+    supabaseUrl: "https://project.supabase.co",
+    envServiceRoleKey: "legacy-service-role-key",
+    serviceRoleProbe: (token) =>
+      Promise.resolve(token === "sb_secret_workflow"),
+    createAdminClient: (_supabaseUrl, token) => {
+      acceptedToken = token;
+      return {} as never;
+    },
+    reconcile: (_supabaseAdmin, options) => {
+      receivedOptions = options;
+      return Promise.resolve(result);
+    },
+  });
+
+  const response = await handler(
+    new Request(
+      "https://project.supabase.co/functions/v1/reconcile-explore-media-health",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer sb_secret_workflow",
+          apikey: "sb_secret_workflow",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ limit: 1, leaseSeconds: 300 }),
+      },
+    ),
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(acceptedToken, "sb_secret_workflow");
+  assertEquals(receivedOptions, { limit: 1, leaseSeconds: 300 });
+  assertEquals(await response.json(), { success: true, ...result });
+});
+
+Deno.test("handler rejects a project key without service-role access", async () => {
+  let createdAdminClient = false;
+  const handler = createReconcileExploreMediaHealthHandler({
+    supabaseUrl: "https://project.supabase.co",
+    envServiceRoleKey: "legacy-service-role-key",
+    serviceRoleProbe: () => Promise.resolve(false),
+    createAdminClient: () => {
+      createdAdminClient = true;
+      return {} as never;
+    },
+  });
+
+  const response = await handler(
+    new Request(
+      "https://project.supabase.co/functions/v1/reconcile-explore-media-health",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer unprivileged-key",
+          apikey: "unprivileged-key",
+        },
+      },
+    ),
+  );
+
+  assertEquals(response.status, 401);
+  assertEquals(createdAdminClient, false);
 });

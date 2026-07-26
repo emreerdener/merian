@@ -76,6 +76,12 @@ the same quarantine and item-health predicates.
 
 `reconcile-explore-media-health` runs every five minutes:
 
+The gateway uses `verify_jwt = false` because current Supabase project secret
+keys are not JWTs. This does not make the worker public. The handler accepts the
+exact provisioned legacy service-role value, or validates a candidate project
+key with a service-role-only database access probe before any lease is claimed.
+Missing, ordinary user, and unproven keys fail with `401`.
+
 1. `claim_explore_media_health_checks` leases a bounded due batch with
    `FOR UPDATE SKIP LOCKED`.
 2. The worker derives the canonical durable object key from the public URL.

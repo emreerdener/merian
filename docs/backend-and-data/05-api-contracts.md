@@ -5809,7 +5809,11 @@ Request:
 }
 ```
 
-- Authentication requires the complete non-empty service-role bearer value.
+- Gateway JWT verification is disabled so the endpoint can receive both legacy
+  service-role JWTs and current non-JWT project secret keys. The handler accepts
+  the exact provisioned legacy service-role value, or a candidate key only
+  after a database probe proves service-role access. Missing and unproven keys
+  receive `401`; ordinary user tokens are not accepted.
 - `limit` is clamped to `1...500`.
 - `leaseSeconds` is clamped to `30...600`.
 - Primary and distinct-poster `HEAD` requests run in parallel per row within a
