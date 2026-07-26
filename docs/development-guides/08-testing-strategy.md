@@ -947,8 +947,13 @@ Internal service-key authorization has six complementary checks:
   authorization boundaries, rejects any database/network probe in the shared
   helper, and prevents a caller-supplied credential from being reused for
   database or internal-function work. It also locks exact server-key discovery
-  and shared current/legacy key transport in the taxonomy-import and scan-media
-  monitoring callers.
+  and shared current/legacy key transport in the deployment, taxonomy-import,
+  scan-media, and RevenueCat-health callers.
+- `scripts/resolve_project_api_keys_test.ts` proves Management API lookup always
+  requests `reveal=true`, prefers the revealed current `default` secret, rejects
+  masked or malformed values and loosely named legacy keys, returns every exact
+  public negative-control key, and retains the exact legacy service-role
+  fallback.
 - `_tests/serviceRoleAuthMigrationContract.test.ts` locks the
   `taxonomy_import_runs` blanket revocation and least-privilege service-role
   grant.
@@ -960,17 +965,19 @@ Internal service-key authorization has six complementary checks:
   `community-taxonomy-status`, then prefers a real current secret key (falling
   back to the legacy service-role key) as the positive control. Current secret
   keys are sent only in `apikey`; only legacy JWT keys receive Bearer transport.
-  Do not create a production user merely to obtain an authenticated JWT for this
-  smoke: exact-value matching is covered deterministically and the disposable
-  catalog exercises the authenticated role. Use a dedicated staging user for
-  end-to-end authenticated-JWT testing when a credential-transport change is
-  under review.
+  Key retrieval uses the tested Management API resolver because the CLI key-list
+  command does not reveal a callable current secret. Do not create a production
+  user merely to obtain an authenticated JWT for this smoke: exact-value
+  matching is covered deterministically and the disposable catalog exercises the
+  authenticated role. Use a dedicated staging user for end-to-end
+  authenticated-JWT testing when a credential-transport change is under review.
 
 Run the focused Deno tests from `services`:
 
 ```bash
 deno test --frozen --config supabase/functions/deno.json \
   --allow-read \
+  supabase/scripts/resolve_project_api_keys_test.ts \
   supabase/functions/_shared/serviceRoleClient_test.ts \
   supabase/functions/_tests/serviceRoleAuth.test.ts \
   supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \

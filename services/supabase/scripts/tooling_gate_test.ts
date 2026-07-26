@@ -114,7 +114,11 @@ Deno.test("production deploy reports aggregate Explore publication health", asyn
   );
   assertMatch(
     workflow,
-    /publication_health_response[\s\S]*"\$\{server_headers\[@\]\}"/,
+    /post_server_json\(\)[\s\S]*"\$\{server_headers\[@\]\}"/,
+  );
+  assertMatch(
+    workflow,
+    /publication_health_response[\s\S]*post_server_json[\s\S]*get_explore_publication_health_summary/,
   );
   assertMatch(
     workflow,

@@ -4,8 +4,10 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SERVER_API_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
  */
+
+import { serviceRoleRequestHeaders } from "../functions/_shared/serviceRoleAuth.ts";
 
 export type RevenueCatMonitorFailurePolicy = "critical" | "warning" | "never";
 export type RevenueCatBacklogStatus = "ok" | "warning" | "critical";
@@ -53,10 +55,19 @@ export async function runRevenueCatMonitor(
 ): Promise<number> {
   const args = parseRevenueCatMonitorArgs(rawArgs);
   const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const serverApiKey = (
+    Deno.env.get("SUPABASE_SERVER_API_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+      ""
+  ).trim();
+  if (!serverApiKey) {
+    throw new Error(
+      "Missing required environment variable: SUPABASE_SERVER_API_KEY",
+    );
+  }
   const health = await fetchRevenueCatReconciliationHealth(
     `${supabaseUrl}/rest/v1/rpc/get_revenuecat_reconciliation_health`,
-    serviceRoleKey,
+    serverApiKey,
   );
   const summary = buildRevenueCatMonitorSummary(health, args, new Date());
 
@@ -74,7 +85,7 @@ export async function runRevenueCatMonitor(
 
 async function fetchRevenueCatReconciliationHealth(
   url: string,
-  serviceRoleKey: string,
+  serverApiKey: string,
 ): Promise<RevenueCatReconciliationHealth> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RESPONSE_DEADLINE_MS);
@@ -82,8 +93,7 @@ async function fetchRevenueCatReconciliationHealth(
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${serviceRoleKey}`,
-        "apikey": serviceRoleKey,
+        ...serviceRoleRequestHeaders(serverApiKey),
         "Content-Type": "application/json",
       },
       body: "{}",

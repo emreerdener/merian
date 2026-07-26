@@ -64,7 +64,8 @@ TestFlight, App Store, support, and QA.
   shared boundaries now accept only an exact platform-managed service key,
   reject mixed credentials, keep caller credentials out of downstream database
   clients, and deny real anon/publishable keys in the production smoke suite.
-  Operational callers now prefer current secret keys with API-key-only transport
+  Operational callers now retrieve revealed current secret keys through the
+  Management API, use API-key-only transport, reject masked key representations,
   and fall back only to the exact legacy service-role key.
 - Made scientific exports safe to retry and bounded in memory. Duplicate workers
   now compete for one database lease, stale attempts cannot publish over the

@@ -2609,9 +2609,13 @@ The production Supabase project ref is intentionally stored in the workflow as
 the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus the
 configured database connection. Post-deploy smoke checks, manual taxonomy
 imports, and scan-media monitoring resolve a server API key at runtime through
-`supabase projects api-keys --project-ref qlarqavoqhkuwzmevrmf`, then mask it in
-GitHub Actions logs. They prefer a current `sb_secret_...` key and fall back only
-to the exact legacy key named `service_role`; partial name matching is forbidden.
+`services/supabase/scripts/resolve_project_api_keys.ts`, then mask it in GitHub
+Actions logs. The resolver calls the Management API key-list endpoint with
+`reveal=true`; the CLI key-list command has no equivalent reveal option and must
+not be used to obtain a callable `sb_secret_...` value. Resolution prefers the
+revealed current key named `default`, then another revealed current secret, and
+falls back only to the exact legacy key named `service_role`. Masked values,
+malformed keys, and partial name matches fail closed.
 
 If the Supabase dashboard or Management API is unavailable, do not guess the
 pooler host in production secrets. Wait for the dashboard to recover, or get the
@@ -2640,7 +2644,9 @@ project key and requires `community-taxonomy-status` to return `401` for each
 before the real current secret key (or exact legacy service-role fallback) is
 used as the positive control. Current secret keys are sent only in `apikey`;
 legacy JWT keys are sent in both headers. Do not weaken that denial check when
-rotating API keys.
+rotating API keys. Every positive smoke request records its HTTP status and
+prints only stable error metadata on failure, so a route-specific authorization
+failure is distinguishable from an opaque `curl --fail` exit.
 
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only

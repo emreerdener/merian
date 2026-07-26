@@ -635,13 +635,17 @@ Legacy service-role JWTs may use Bearer transport; named non-JWT secret keys
 must use `apikey` only. Mixed Authorization/apikey values are rejected. After
 authorization, the route creates its database client and internal calls with the
 server-managed environment key rather than reflecting the caller's credential.
-The deploy smoke, Community Taxonomy import, and scan-media health workflows
-prefer a current secret key, fall back only to the exact legacy `service_role`
-key, and use the same shared transport rule.
-Migration `20260726212549_harden_service_role_request_authentication.sql`
-separately revokes all `taxonomy_import_runs` table access from `PUBLIC`,
-`anon`, and `authenticated`, then grants `service_role` only `SELECT`, `INSERT`,
-and `UPDATE`.
+The deploy smoke, Community Taxonomy import, and scan-media health workflows use
+`scripts/resolve_project_api_keys.ts` to request revealed values from the
+Management API, prefer the current `default` secret key, fall back only to the
+exact legacy `service_role` key, and use the same shared transport rule. The
+RevenueCat reconciliation-health monitor uses that resolver and transport too.
+Do not replace the resolver with the CLI API-key listing: its hidden secret-key
+representation cannot pass the exact request boundary. Migration
+`20260726212549_harden_service_role_request_authentication.sql` separately
+revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
+`authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
+`UPDATE`.
 
 ### Ghost Account Upgrade Boundary
 

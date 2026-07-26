@@ -162,11 +162,13 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       "monitor_revenuecat_reconciliation.ts",
       "--warning-after-minutes",
       "--critical-after-minutes",
-      "SUPABASE_SERVICE_ROLE_KEY",
+      "SUPABASE_SERVER_API_KEY",
+      "resolve_project_api_keys.ts",
     ]
   ) {
     assertStringIncludes(workflow, fragment);
   }
+  assertStringIncludes(script, "serviceRoleRequestHeaders(");
 });
 
 Deno.test("RevenueCat production secrets are fail-closed and synchronized", async () => {

@@ -25,6 +25,10 @@ const scanMediaWorkflowUrl = new URL(
   "../../../../.github/workflows/scan-media-health-monitor.yml",
   import.meta.url,
 );
+const revenueCatMonitorWorkflowUrl = new URL(
+  "../../../../.github/workflows/revenuecat-reconciliation-health-monitor.yml",
+  import.meta.url,
+);
 const importScriptUrl = new URL(
   "../../scripts/import_community_taxonomy.ts",
   import.meta.url,
@@ -182,12 +186,10 @@ Deno.test("production smoke tests deny real public project API keys before privi
 
   assert(negativeSmokeIndex >= 0);
   assert(positiveSmokeIndex > negativeSmokeIndex);
-  assertStringIncludes(workflow, 'startswith("sb_publishable_")');
-  assertStringIncludes(workflow, 'startswith("sb_secret_")');
-  assertStringIncludes(
-    workflow,
-    '$type == "legacy" and $name == "service_role"',
-  );
+  assertStringIncludes(workflow, "resolve_project_api_keys.ts");
+  assertStringIncludes(workflow, "--allow-net=api.supabase.com");
+  assertStringIncludes(workflow, "'.server_api_key'");
+  assertStringIncludes(workflow, "'.public_api_keys'");
   assertStringIncludes(
     workflow,
     'if [[ "$SUPABASE_SERVER_API_KEY" != sb_secret_* ]]',
@@ -197,6 +199,10 @@ Deno.test("production smoke tests deny real public project API keys before privi
     !workflow.includes('| contains("service")'),
     "Server-key discovery must not accept loosely named API keys.",
   );
+  assert(
+    !workflow.includes("supabase projects api-keys"),
+    "Secret-key discovery must use the revealed Management API resolver.",
+  );
   assertStringIncludes(workflow, 'if [ "$denied_status" != "401" ]');
   assertStringIncludes(
     workflow,
@@ -205,17 +211,24 @@ Deno.test("production smoke tests deny real public project API keys before privi
 });
 
 Deno.test("operational callers use exact server-key discovery and shared transport", async () => {
-  for (const workflowUrl of [importWorkflowUrl, scanMediaWorkflowUrl]) {
+  for (
+    const workflowUrl of [
+      importWorkflowUrl,
+      scanMediaWorkflowUrl,
+      revenueCatMonitorWorkflowUrl,
+    ]
+  ) {
     const workflow = await Deno.readTextFile(workflowUrl);
-    assertStringIncludes(workflow, 'startswith("sb_secret_")');
-    assertStringIncludes(
-      workflow,
-      '$type == "legacy" and $name == "service_role"',
-    );
+    assertStringIncludes(workflow, "resolve_project_api_keys.ts");
+    assertStringIncludes(workflow, "--allow-net=api.supabase.com");
     assertStringIncludes(workflow, "SUPABASE_SERVER_API_KEY:");
     assert(
       !workflow.includes('| contains("service")'),
       `${workflowUrl.pathname} must not classify keys by a partial name.`,
+    );
+    assert(
+      !workflow.includes("supabase projects api-keys"),
+      `${workflowUrl.pathname} must not use an unrevealed secret-key listing.`,
     );
   }
 

@@ -595,31 +595,16 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          api_keys_json="$(supabase projects api-keys --project-ref "$PROJECT_ID" --output json)"
+          resolved_keys_json="$(
+            deno run --quiet --frozen \
+              --config supabase/functions/deno.json \
+              --allow-env=SUPABASE_ACCESS_TOKEN \
+              --allow-net=api.supabase.com \
+              supabase/scripts/resolve_project_api_keys.ts \
+              --project-ref "$PROJECT_ID"
+          )"
           server_api_key="$(
-            echo "$api_keys_json" | jq -r '
-              [
-                (if type == "array" then . else (.api_keys // .keys // []) end)[]
-                | (.api_key // .apiKey // .apikey // .key // .value // empty) as $value
-                | ((.name // .key_name // "") | ascii_downcase) as $name
-                | ((.type // "") | ascii_downcase) as $type
-                | select(
-                    ($value | type) == "string"
-                    and ($value | length) > 0
-                    and (
-                      ($value | startswith("sb_secret_"))
-                      or ($type == "legacy" and $name == "service_role")
-                    )
-                  )
-                | {
-                    value: $value,
-                    priority: (if ($value | startswith("sb_secret_")) then 0 else 1 end),
-                    name: $name
-                  }
-              ]
-              | sort_by(.priority, .name)
-              | .[0].value // empty
-            '
+            jq -er '.server_api_key' <<< "$resolved_keys_json"
           )"
 
           if [ -z "$server_api_key" ] || [ "$server_api_key" = "null" ]; then
@@ -628,26 +613,9 @@ jobs:
           fi
 
           public_api_keys_json="$(
-            echo "$api_keys_json" | jq -c '
-              [
-                (if type == "array" then . else (.api_keys // .keys // []) end)[]
-                | . as $entry
-                | (.api_key // .apiKey // .apikey // .key // .value // empty) as $value
-                | ((.name // .key_name // .type // .id // "") | ascii_downcase) as $label
-                | ((.type // "") | ascii_downcase) as $type
-                | select(
-                    ($value | type) == "string"
-                    and ($value | length) > 0
-                    and (
-                      ($value | startswith("sb_publishable_"))
-                      or ($type == "legacy" and $label == "anon")
-                    )
-                  )
-                | $value
-              ]
-              | unique
-            '
+            jq -ce '.public_api_keys' <<< "$resolved_keys_json"
           )"
+          unset resolved_keys_json
           if [ "$(echo "$public_api_keys_json" | jq 'length')" -lt 1 ]; then
             echo "Unable to resolve an anon or publishable key for the negative authorization smoke test."
             exit 1
@@ -671,6 +639,32 @@ jobs:
               -H "Authorization: Bearer ${SUPABASE_SERVER_API_KEY}"
             )
           fi
+          smoke_response_file="$RUNNER_TEMP/supabase-production-smoke-response.json"
+
+          post_server_json() {
+            local endpoint="$1"
+            local payload="$2"
+            local status
+            if ! status="$(
+              curl -sS \
+                -o "$smoke_response_file" \
+                -w "%{http_code}" \
+                -X POST "${supabase_url}${endpoint}" \
+                "${server_headers[@]}" \
+                --data "$payload"
+            )"; then
+              echo "Production smoke request could not reach ${endpoint}." >&2
+              return 1
+            fi
+            if ! [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+              echo "Production smoke request ${endpoint} returned HTTP ${status}." >&2
+              jq -c \
+                'if type == "object" then {error, code, request_id} else {error: "Non-object response"} end' \
+                "$smoke_response_file" >&2 2>/dev/null || true
+              return 1
+            fi
+            cat "$smoke_response_file"
+          }
 
           public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"
           for ((index = 0; index < public_key_count; index++)); do
@@ -701,35 +695,31 @@ jobs:
           done
 
           status_response="$(
-            curl -fsS \
-              -X POST "${supabase_url}/functions/v1/community-taxonomy-status" \
-              "${server_headers[@]}" \
-              --data '{"view":"coverage","target":"birds","import_run_limit":3,"job_limit":1}'
+            post_server_json \
+              "/functions/v1/community-taxonomy-status" \
+              '{"view":"coverage","target":"birds","import_run_limit":3,"job_limit":1}'
           )"
           echo "$status_response" | jq -e '.success == true and .view == "coverage" and (.coverage_targets | length) >= 1'
 
           dry_run_response="$(
-            curl -fsS \
-              -X POST "${supabase_url}/functions/v1/sync-community-taxonomy-index" \
-              "${server_headers[@]}" \
-              --data '{"target":"birds","limit":5,"page_count":1,"dry_run":true}'
+            post_server_json \
+              "/functions/v1/sync-community-taxonomy-index" \
+              '{"target":"birds","limit":5,"page_count":1,"dry_run":true}'
           )"
           echo "$dry_run_response" | jq -e '.success == true and .dry_run == true and .normalized_count > 0'
 
           media_health_response="$(
-            curl -fsS \
-              -X POST "${supabase_url}/functions/v1/scan-media-health" \
-              "${server_headers[@]}" \
-              --data '{"limit":10,"recent_scan_limit":100}'
+            post_server_json \
+              "/functions/v1/scan-media-health" \
+              '{"limit":10,"recent_scan_limit":100}'
           )"
           echo "$media_health_response" | jq -e '.success == true and (.status == "ok" or .status == "warning" or .status == "critical")'
           echo "$media_health_response" | jq '{status, counts}'
 
           explore_media_response="$(
-            curl -fsS \
-              -X POST "${supabase_url}/functions/v1/reconcile-explore-media-health" \
-              "${server_headers[@]}" \
-              --data '{"limit":1,"leaseSeconds":300}'
+            post_server_json \
+              "/functions/v1/reconcile-explore-media-health" \
+              '{"limit":1,"leaseSeconds":300}'
           )"
           echo "$explore_media_response" | jq -e '
             .success == true
@@ -738,10 +728,9 @@ jobs:
           '
 
           publication_health_response="$(
-            curl -fsS \
-              -X POST "${supabase_url}/rest/v1/rpc/get_explore_publication_health_summary" \
-              "${server_headers[@]}" \
-              --data '{}'
+            post_server_json \
+              "/rest/v1/rpc/get_explore_publication_health_summary" \
+              '{}'
           )"
           echo "$publication_health_response" | jq -e '
             type == "array"
