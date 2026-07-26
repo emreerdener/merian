@@ -13,6 +13,9 @@ remote identification pipeline. Capture-specific composition remains under
   actor, including image encoding, response parsing, and scan persistence.
 - On-device Vision classification runs concurrently with the network request to
   provide scanning phrases. It does not replace or add a Gemini call.
+- The marked Identify wire block in `InferenceEdgeDTOs.swift` is generated from
+  the server's executable contract. It owns explicit `CodingKeys` and
+  `init(from:)` implementations; do not hand-edit or extend those DTOs.
 
 ## First-Result Critical Path
 
@@ -63,6 +66,29 @@ External-reference suppressions are also an invariant: they target an immutable
 media identity, never a species name, result index, or provider host. A denied
 first URL must promote the next permitted URL rather than removing the species
 or producing a synthetic censored carousel item.
+
+## Generated Edge DTO Boundary
+
+The canonical response descriptor lives at
+`services/supabase/functions/_shared/identify/contract.ts`. It generates the
+provider schema, executes server runtime validation, and generates the marked
+Identify DTO block in `InferenceEdgeDTOs.swift`. The generated client boundary
+includes nested DTOs, array and primitive types, wire `CodingKeys`, and explicit
+decoders. Domain types remain separate and are populated after decoding.
+
+For an intentional contract change, regenerate and validate from the repository
+root:
+
+```sh
+make generate-edge-dto-contract
+make validate-edge-dto-contract
+```
+
+Review the Swift diff. The validation lane compares the generated block exactly
+and scans all of `apps/ios` for redeclarations or direct/aliased extensions of
+generated DTOs. Root response fields remain optional to decode older cached
+payloads and support staggered rollout; the Edge runtime validates the full
+final response strictly before sending it.
 
 ## Live Attempt Ownership
 

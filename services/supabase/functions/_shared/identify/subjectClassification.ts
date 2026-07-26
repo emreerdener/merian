@@ -134,8 +134,8 @@ export function normalizeProcessedMaterialSubject(
   return {
     demoted: true,
     reason: "processed_material_or_artifact_subject",
-    previousCommonName,
-    previousScientificName,
+    previousCommonName: previousCommonName ?? undefined,
+    previousScientificName: previousScientificName ?? undefined,
   };
 }
 
@@ -159,7 +159,7 @@ function clearNonBiologicalFields(
   data.individual_count = undefined;
   data.ecological_interactions = undefined;
   data.pet_identification = null;
-  data.candidates = null;
+  data.candidates = [];
 }
 
 function isLikelyProcessedMaterialSubject(

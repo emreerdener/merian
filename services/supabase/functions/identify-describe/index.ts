@@ -24,9 +24,12 @@ import {
 import {
   CachedSpeciesRow,
   ClientPayload,
-  MerianIdentification,
   StaticSpeciesData,
 } from "../_shared/identify/types.ts";
+import {
+  parseDescribeIdentification,
+  parseIdentifySuccessEnvelope,
+} from "../_shared/identify/contract.ts";
 import {
   canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
@@ -48,7 +51,10 @@ import {
   upsertGhostUserIfMissing,
   upsertSpeciesDictionary,
 } from "./db.ts";
-import { isNewToMerianDictionary } from "../_shared/identify/clientPayload.ts";
+import {
+  isNewToMerianDictionary,
+  normalizeWireHazardType,
+} from "../_shared/identify/clientPayload.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 
 // Text-only model configs — no image parts, so thinking budgets are smaller.
@@ -283,9 +289,11 @@ Deno.serve((req: Request) =>
       );
     }
 
-    let parsedData: MerianIdentification;
+    let parsedData;
     try {
-      parsedData = extractJson<MerianIdentification>(responseText);
+      parsedData = parseDescribeIdentification(
+        extractJson<unknown>(responseText),
+      );
     } catch (parseError) {
       await quotaLease.fail();
       logStructuredError("identify-describe/parse_failed", {
@@ -415,9 +423,13 @@ Deno.serve((req: Request) =>
         ? client_scan_id
         : quotaLease.reservation.requestId;
 
-    const payloadReadyForClient: ClientPayload = {
+    let payloadReadyForClient: ClientPayload = {
       ...parsedData,
       scan_id: generatedScanId,
+      blur_score: parsedData.blur_score ?? 0,
+      colors: [],
+      estimated_size_cm: null,
+      pet_identification: parsedData.pet_identification ?? null,
       inference_tier: userTier === "pro" ? "pro" : "flash",
     };
 
@@ -478,7 +490,9 @@ Deno.serve((req: Request) =>
           },
           iucn_red_list_status: cachedSpecies.iucn_red_list_status ??
             "not_evaluated",
-          hazard_type: cachedSpecies.hazard_type || "none",
+          hazard_type: normalizeWireHazardType(
+            cachedSpecies.hazard_type,
+          ),
           speciesHabitat: cachedSpecies.habitat_description ?? undefined,
         };
         speciesId = cachedSpecies.id;
@@ -515,13 +529,36 @@ Deno.serve((req: Request) =>
       }
       payloadReadyForClient.insight_data = {
         ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
-        hazard_type: staticData.hazard_type,
+        hazard_type: normalizeWireHazardType(staticData.hazard_type),
       };
       if (staticData.speciesHabitat) {
         payloadReadyForClient.species_insights = {
           habitat_description: staticData.speciesHabitat,
         };
       }
+    }
+
+    let responseEnvelope;
+    try {
+      responseEnvelope = parseIdentifySuccessEnvelope({
+        success: true,
+        data: payloadReadyForClient,
+      });
+      payloadReadyForClient = responseEnvelope.data;
+    } catch (error) {
+      await quotaLease.fail();
+      logStructuredError("identify-describe/wire_contract_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonResponse(
+        {
+          error: "AI response validation failed. Please retry.",
+          code: "identify_response_invalid",
+        },
+        502,
+      );
     }
 
     const compatibilityLedger = await createCompatibilityScanIngestionLedger(
@@ -632,8 +669,8 @@ Deno.serve((req: Request) =>
             gps_elevation: gpsElevation,
             ai_confidence_score: payloadReadyForClient.confidence_score,
             is_biological_subject: parsedData.is_biological_subject,
-            ecology_type: payloadReadyForClient.ecology_type,
-            is_invasive: payloadReadyForClient.is_invasive,
+            ecology_type: payloadReadyForClient.ecology_type ?? undefined,
+            is_invasive: payloadReadyForClient.is_invasive ?? undefined,
             invasive_status_region:
               payloadReadyForClient.invasive_status_region ?? null,
             invasive_rationale: payloadReadyForClient.invasive_rationale ??
@@ -690,9 +727,6 @@ Deno.serve((req: Request) =>
             resolvedGroupTags.group_tags,
             supabaseAdmin,
           );
-          if (!payloadReadyForClient.group_tags?.length) {
-            payloadReadyForClient.group_tags = resolvedGroupTags.group_tags;
-          }
         }
 
         if (missingCandidates.length > 0) {
@@ -766,6 +800,6 @@ Deno.serve((req: Request) =>
     runBackground(runBackgroundIngestion());
 
     console.log(`[⏱ BENCH] total: ${Date.now() - fnStart}ms`);
-    return jsonResponse({ success: true, data: payloadReadyForClient });
+    return jsonResponse(responseEnvelope);
   })
 );

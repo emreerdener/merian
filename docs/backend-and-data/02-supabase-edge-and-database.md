@@ -1,8 +1,8 @@
 # Supabase Edge and PostgreSQL Engine
 
-Naturebook uses Supabase as its backend platform. API keys are kept in `.xcconfig`
-files and never bundled into the client binary. All LLM and database operations
-execute server-side in Deno Edge Functions.
+Naturebook uses Supabase as its backend platform. API keys are kept in
+`.xcconfig` files and never bundled into the client binary. All LLM and database
+operations execute server-side in Deno Edge Functions.
 
 ## Core Schema Structure
 
@@ -43,8 +43,8 @@ Several utilities are shared across all Edge Functions via
 - **`http.ts`**: The unified networking primitive module. Defines `corsHeaders`,
   `jsonResponse(payload, status)`, strict POST payload
   `requireParams(body, fields)`, and cryptographic `timingSafeCompare(a, b)` for
-  secret validation. Its canonical `parseJsonBody(...)` reader accepts only
-  JSON media types, enforces declared and streamed byte counts, rejects invalid
+  secret validation. Its canonical `parseJsonBody(...)` reader accepts only JSON
+  media types, enforces declared and streamed byte counts, rejects invalid
   UTF-8, coalesces transport chunks without retaining a per-chunk object graph,
   and requires a JSON object by default. Routes select a 16 KiB `small`, 64 KiB
   `standard`, 1 MiB `bulk`, or reviewed media-specific limit; production
@@ -89,12 +89,12 @@ Several utilities are shared across all Edge Functions via
   `species_dictionary.alternative_common_names` during the Cache Miss enrichment
   pass and served back to the iOS client as `alternative_common_names` on Cache
   Hit. Reference-image results are passed through `externalImagePolicy.ts`
-  before return. That helper owns narrow, exact provider-media suppressions;
-  its current rule rejects all variants beneath
+  before return. That helper owns narrow, exact provider-media suppressions; its
+  current rule rejects all variants beneath
   `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` without blocking
   the provider or species.
 - **`gemini.ts`**: Contains the physical module-level `_genAI` client wrapper
-  initialization and the `extractJson<T>(text)` AST parser string evaluation.
+  initialization and syntax-only JSON object extraction.
 - **`posthog.ts`**: A headless telemetry ingestion pipeline executing
   asynchronous `node-fetch` style queries to log per-scan events to PostHog for
   behavioral analytics (conversion funnel, scan frequency, species discovery
@@ -109,16 +109,16 @@ Several utilities are shared across all Edge Functions via
   the service-only `reserve_ai_quota` RPC. That atomic transaction resolves the
   durable plan, selects the allowlisted model, and consumes daily/user/IP
   counters before Edge provider dispatch. A provider attempt is committed;
-  provider failure remains charged but becomes retryable, abandoned
-  pre-provider leases expire, and only a verified pre-provider no-op is
-  refunded. `_shared/groupTagQuota.ts` applies this boundary to optional
-  group-tag generation.
+  provider failure remains charged but becomes retryable, abandoned pre-provider
+  leases expire, and only a verified pre-provider no-op is refunded.
+  `_shared/groupTagQuota.ts` applies this boundary to optional group-tag
+  generation.
 - **`entitlement.ts`**: Non-provider feature and telemetry tier resolver. It
   reads `subscription_tier`, `created_at`, `subscription_expires_at`, and
   `entitlement_version` on every call. Query errors and missing rows return
   `503 ai_entitlement_unavailable` for query errors, missing rows, or malformed
-  durable values; there is no isolate-local authorization cache or webhook
-  cache invalidation.
+  durable values; there is no isolate-local authorization cache or webhook cache
+  invalidation.
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
   `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`)
   used for purging storage footprints. `deleteR2Objects` is bounded through
@@ -158,12 +158,12 @@ Several utilities are shared across all Edge Functions via
   logged but never block scan ingestion or public dictionary reads.
 - **`auth.ts` / `claimsAuth.ts`**: `auth.ts` owns shared bearer extraction,
   explicit claims validation, and `auth.getUser()` compatibility.
-  `claimsAuth.ts` is injected only by latency-sensitive
-  `/identify-multimodal` and `/update-scan-context`; it uses
-  `auth.getClaims(token)` with the project's cached ES256 JWKS, then validates
-  issuer, audience, expiration/not-before, role, and `sub`. The claims path
-  accepts anonymous/authenticated user roles but rejects service-role replay,
-  while unrelated functions avoid its additional SDK graph.
+  `claimsAuth.ts` is injected only by latency-sensitive `/identify-multimodal`
+  and `/update-scan-context`; it uses `auth.getClaims(token)` with the project's
+  cached ES256 JWKS, then validates issuer, audience, expiration/not-before,
+  role, and `sub`. The claims path accepts anonymous/authenticated user roles
+  but rejects service-role replay, while unrelated functions avoid its
+  additional SDK graph.
 
 ## Authoritative AI Entitlement and Quota
 
@@ -179,8 +179,8 @@ authorization. `reserve_ai_quota(...)` is a service-role-only,
 2. Selects the enabled policy and allowlisted model for the exact operation and
    effective plan.
 3. Serializes only identical `(user, operation, request_id)` keys.
-4. Conditionally upserts shared UTC-day, per-user, and per-IP counters without
-   a read-then-write race.
+4. Conditionally upserts shared UTC-day, per-user, and per-IP counters without a
+   read-then-write race.
 5. Returns an idempotent reservation, a ten-minute expiry, a per-attempt UUID
    fencing token, and remaining daily capacity.
 
@@ -189,8 +189,8 @@ already consume their counters, so a process crash or settlement failure cannot
 create unmetered work. Refund is restricted to a verified no-provider path and
 decrements each linked counter exactly once. A daily-rotating HMAC address
 bucket supports network throttling without persisting a raw IP address.
-Reservation and refund paths acquire daily, user-rate, and IP-rate counter
-locks in the same order to avoid deadlocks under concurrent traffic.
+Reservation and refund paths acquire daily, user-rate, and IP-rate counter locks
+in the same order to avoid deadlocks under concurrent traffic.
 `refund_expired_ai_quota_reservations()` reclaims abandoned pre-provider leases
 every five minutes. A fresh fencing token on retry prevents delayed settlement
 from an older attempt from changing the new attempt. Provider errors transition
@@ -250,11 +250,10 @@ deleted and marked `deleted`, and stranded playback video objects are promoted
 from `staging/` into `public_uploads/` before the scan's video URL array and
 captured-media manifest are repaired. Rebuilt video rows derive `has_audio` from
 the captured-media video audio reference, not from video kind alone. If no scan
-row exists after the
-abandonment TTL, remaining staging objects are deleted and the asset row is
-marked `failed` for audit. The worker does not replay AI inference; the iOS
-offline queue remains responsible for inline/redacted scans, while
-`replay-scan-ingestion` retries resumable staged scans that never reached
+row exists after the abandonment TTL, remaining staging objects are deleted and
+the asset row is marked `failed` for audit. The worker does not replay AI
+inference; the iOS offline queue remains responsible for inline/redacted scans,
+while `replay-scan-ingestion` retries resumable staged scans that never reached
 completion.
 
 The worker now reads `scan_ingestion_jobs` before deciding whether stale media
@@ -283,9 +282,8 @@ This worker is deliberately a dispatcher, not a second inference pipeline.
 calls, scan-ingestion moderation, playback-video promotion, scan insertion,
 `captured_media`, and asset finalization. Explore publication moderation is a
 separate fail-closed classifier owned by `share-scan-to-explore`. Existing
-complete scan rows are marked complete without replay;
-existing incomplete video rows are left retryable for media reconciliation or
-local-video repair.
+complete scan rows are marked complete without replay; existing incomplete video
+rows are left retryable for media reconciliation or local-video repair.
 
 Legacy scan-producing endpoints (`identify`, `identify-describe`, and
 `audio-spec`) write compatibility `scan_ingestion_jobs` and
@@ -331,11 +329,10 @@ requires an active owned scan reference, and performs an R2 `HEAD`. It returns
 `healthy`, `missing`, or `not_referenced` without mutating state.
 
 For a confirmed missing object, the app obtains an ordinary owner-bound signed
-upload URL, uploads the local file to
-`staging/{sameUser}/repair_...`, and repeats the request with
-`restored_object_key`. The function verifies both object states, promotes the
-staging image into a new durable key for the owner's current tier, validates
-that owner prefix, and calls service-only
+upload URL, uploads the local file to `staging/{sameUser}/repair_...`, and
+repeats the request with `restored_object_key`. The function verifies both
+object states, promotes the staging image into a new durable key for the owner's
+current tier, validates that owner prefix, and calls service-only
 `repair_owned_scan_image_reference`. One transaction replaces the exact URL
 across scan arrays, recursive captured-media JSON, normalized media rows, and
 matching Explore snapshots owned by the same account. A persistence failure
@@ -351,8 +348,8 @@ file discovery and confidence constraints are documented in
 Published observation availability is verified separately from client display
 and from author/moderation state. The service-role worker leases due active
 `explore_post_media` rows, performs signed direct R2-origin `HEAD` requests with
-required bucket-scoped read-only credentials, and records every result through
-a claim-token-fenced RPC.
+required bucket-scoped read-only credentials, and records every result through a
+claim-token-fenced RPC.
 
 One `404` creates `suspected_missing`; a second direct `404` at least five
 minutes later confirms `missing`. Transport errors, timeouts, credential
@@ -527,22 +524,24 @@ The `/identify` Edge Function acts as the inference proxy:
    also record field-level provenance in `species_content_provenance` so stale
    or low-confidence species content can be refreshed deliberately later. The
    pipeline _exclusively_ sources reference imagery from these verified APIs to
-   prevent LLM hallucinations. All Gemini response parsing uses
-   `extractJson<T>(text)` from `_shared/gemini.ts`, which isolates the outermost
-   JSON object via `indexOf`/`lastIndexOf` — necessary because Gemini
-   occasionally wraps output in markdown fences even with
-   `responseMimeType: "application/json"`. Parse failures return HTTP 422, which
-   tells the iOS client to abort its retry loop rather than deadlock the offline
-   queue. Error messages are generic: Gemini hallucinations surface as
-   `"Processing Error: Malformed AI response."` and schema validation failures
-   as `"AI processing error. Please try again."` — implementation details are
-   not exposed to clients. **503 vs 400 for Gemini errors**: The
-   `catch (genError)` block wrapping the Gemini call returns HTTP **503**
-   (Service Unavailable) for transient Gemini errors — iOS treats 4xx as
-   permanent and tombstones the scan, whereas 503 causes the offline queue to
-   retain the scan for retry. Non-STOP finish reasons also return 503,
-   **except** `SAFETY` and `PROHIBITED_CONTENT` which return 400 (permanent
-   content policy failure — no point retrying).
+   prevent LLM hallucinations. `extractJson<unknown>(text)` from
+   `_shared/gemini.ts` handles only outer JSON syntax because Gemini can still
+   wrap output in markdown fences. The extracted value is parsed against the
+   dependency-free executable model contract in `_shared/identify/contract.ts`.
+   After normalization, cache hydration, and server enrichment, the complete
+   `{ success, data }` payload is parsed again against the final wire contract
+   before persistence or delivery. These gates enforce nested types,
+   requiredness, nullability, enums, string/cardinality limits, safe integers,
+   and numeric bounds. Malformed provider JSON/model output returns HTTP 422; a
+   final enriched-payload mismatch returns HTTP 502 with stable code
+   `identify_response_invalid`. Internal contract details are logged but not
+   exposed. **503 vs 400 for Gemini errors**: The `catch (genError)` block
+   wrapping the Gemini call returns HTTP **503** (Service Unavailable) for
+   transient Gemini errors — iOS treats 4xx as permanent and tombstones the
+   scan, whereas 503 causes the offline queue to retain the scan for retry.
+   Non-STOP finish reasons also return 503, **except** `SAFETY` and
+   `PROHIBITED_CONTENT` which return 400 (permanent content policy failure — no
+   point retrying).
 9. **Swift `JSONDecoder` Null Protection**: `wikipedia_overview` is a flat
    `TEXT` column on `species_dictionary` — it can be `null` if Wikipedia has no
    entry. The iOS decoding struct types this as
@@ -556,26 +555,25 @@ The `/identify` Edge Function acts as the inference proxy:
     Misses can add new `common_names` entries to an existing row. Existing
     `common_names.en` values are canonical and win over scan-level names; the
     scan name can only fill an empty English name for a normalized biological
-    subject. To prevent
-    lower-quality Flash-generated data from overwriting previously stored
-    Pro-sourced taxonomy, toxicity, IUCN status, and habitat data, all those
-    fields are written using `??` null-coalescing — existing non-null values are
-    always preserved. `common_names` is merged through the shared keyed helper
-    so existing English names remain stable while missing locale keys can still
-    be filled.
+    subject. To prevent lower-quality Flash-generated data from overwriting
+    previously stored Pro-sourced taxonomy, toxicity, IUCN status, and habitat
+    data, all those fields are written using `??` null-coalescing — existing
+    non-null values are always preserved. `common_names` is merged through the
+    shared keyed helper so existing English names remain stable while missing
+    locale keys can still be filled.
 11. **Atomic Entitlement + Quota Reservation**: Before provider work,
     `_shared/aiQuota.ts` calls `reserve_ai_quota` with the authenticated user,
     operation, UUID request key, and HMAC address bucket. The transaction reads
-    the current durable entitlement, derives `free`, `pro_trial`, or
-    `pro_paid`, selects the policy model, and atomically consumes the shared
+    the current durable entitlement, derives `free`, `pro_trial`, or `pro_paid`,
+    selects the policy model, and atomically consumes the shared
     daily/per-minute counters. Paid passes with stale expiry resolve free even
-    before the expiry worker repairs the row. A missing `public.users` row is
-    an identity-system fault and fails closed; it is never interpreted as a
-    ghost Pro trial. Successful Auth signup is responsible for creating that
-    row before inference. Optional group-tag generation uses
-    `_shared/groupTagQuota.ts`, the separate
-    `scan_group_tag_enrichment` policy, and its database-selected model; public
-    routes cannot dispatch the biological helper directly.
+    before the expiry worker repairs the row. A missing `public.users` row is an
+    identity-system fault and fails closed; it is never interpreted as a ghost
+    Pro trial. Successful Auth signup is responsible for creating that row
+    before inference. Optional group-tag generation uses
+    `_shared/groupTagQuota.ts`, the separate `scan_group_tag_enrichment` policy,
+    and its database-selected model; public routes cannot dispatch the
+    biological helper directly.
 12. **Scan Insert**: Calls `supabaseAdmin.from('scans').insert()` using the
     service role key, binding the scan to the authenticated `user.id`. All
     environmental telemetry (time of day, month, locale, semantic location,
@@ -588,31 +586,31 @@ The `/identify` Edge Function acts as the inference proxy:
     biological colors) are all written in the same insert. `llm_thinking_tokens`
     captures Gemini's internal reasoning token consumption and is billed at the
     output token rate — it is the dominant cost driver for Pro scans.
-    `llm_cached_tokens` is non-zero when
-    Gemini's implicit context caching served the system instruction prefix from
-    cache (Flash only; requires the prefix to exceed 2,048 tokens); cached
-    tokens are billed at 75% off the standard input rate. `colors` feeds into
-    `semanticTags` on the Swift side for full-text search. `ai_reasoning` is
-    fetched back during historical cloud sync and stored as
-    `LocalScanRecord.aiReasoning`. The legacy `/identify` Flash route explicitly
-    uses a 2,048-token thinking budget, while `/identify-multimodal` preserves
-    its existing Flash provider-default behavior; both primary Pro routes retain
-    their existing explicit 5,000-token budget. Note: `group_tags` are stored on
-    `species_dictionary`, not `scans`. **LLM field sanitization bounds**
-    (applied in `index.ts` after scientific name sanitization, before the DB
-    insert): `colors`, `extracted_visual_traits`, and `ecological_interactions`
-    are each capped at 10 items; `ai_reasoning` is truncated to 2000 characters;
-    `individual_count` is validated as a positive integer ≤ 99999;
-    `estimated_size_cm` (client-supplied) is validated as a positive finite
-    number ≤ 50000. **GPS coordinate range validation**: `gpsLatitude` and
-    `gpsLongitude` from the client payload are validated against physical bounds
-    (`−90 ≤ lat ≤ 90`, `−180 ≤ lon ≤ 180`). Out-of-range values are sanitised to
-    `null` (stored as `safeGpsLat`/`safeGpsLon`) rather than rejecting the
-    request — location is supplementary metadata and a bad coordinate must not
-    abort identification. **`candidates` cap**: the `candidates` array received
-    from Gemini is capped at 5 items before `payloadReadyForClient` is built,
-    bounding the JSONB column and client decode size. These guards protect the
-    V8 heap and SQLite columns from unbounded LLM output.
+    `llm_cached_tokens` is non-zero when Gemini's implicit context caching
+    served the system instruction prefix from cache (Flash only; requires the
+    prefix to exceed 2,048 tokens); cached tokens are billed at 75% off the
+    standard input rate. `colors` feeds into `semanticTags` on the Swift side
+    for full-text search. `ai_reasoning` is fetched back during historical cloud
+    sync and stored as `LocalScanRecord.aiReasoning`. The legacy `/identify`
+    Flash route explicitly uses a 2,048-token thinking budget, while
+    `/identify-multimodal` preserves its existing Flash provider-default
+    behavior; both primary Pro routes retain their existing explicit 5,000-token
+    budget. Note: `group_tags` are stored on `species_dictionary`, not `scans`.
+    **LLM field sanitization bounds** (applied in `index.ts` after scientific
+    name sanitization, before the DB insert): `colors`,
+    `extracted_visual_traits`, and `ecological_interactions` are each capped at
+    10 items; `ai_reasoning` is truncated to 2000 characters; `individual_count`
+    is validated as a positive integer ≤ 99999; `estimated_size_cm`
+    (client-supplied) is validated as a positive finite number ≤ 50000. **GPS
+    coordinate range validation**: `gpsLatitude` and `gpsLongitude` from the
+    client payload are validated against physical bounds (`−90 ≤ lat ≤ 90`,
+    `−180 ≤ lon ≤ 180`). Out-of-range values are sanitised to `null` (stored as
+    `safeGpsLat`/`safeGpsLon`) rather than rejecting the request — location is
+    supplementary metadata and a bad coordinate must not abort identification.
+    **`candidates` cap**: the `candidates` array received from Gemini is capped
+    at 5 items before `payloadReadyForClient` is built, bounding the JSONB
+    column and client decode size. These guards protect the V8 heap and SQLite
+    columns from unbounded LLM output.
 13. **Response format**: Returns `{ success: true, data: { ... } }` to the iOS
     client via `jsonResponse()`.
 
@@ -622,7 +620,8 @@ The `/species-dictionary` Edge Function is a public read-only projection over
 species-level dictionary data. It powers the standalone
 `SpeciesDictionaryPageView` opened from Insight similar-species cards and
 Explore post detail similar-species cards, plus the server-rendered
-`/species/[speciesId]/[slug]` web route and its UUID-only compatibility redirect.
+`/species/[speciesId]/[slug]` web route and its UUID-only compatibility
+redirect.
 
 Key rules:
 
@@ -657,10 +656,10 @@ Key rules:
 - V1 does not expose provenance in the API response. Freshness/source data is
   stored separately in `species_content_provenance` for internal refresh
   workflows and future curation surfaces.
-- Normalized image rows, legacy image caches, catalog thumbnails, and
-  lookalike thumbnails use the same exact external-media policy. A denied first
-  URL is omitted and the next permitted ordered URL is promoted; the response
-  schema and species/navigation rows are unchanged.
+- Normalized image rows, legacy image caches, catalog thumbnails, and lookalike
+  thumbnails use the same exact external-media policy. A denied first URL is
+  omitted and the next permitted ordered URL is promoted; the response schema
+  and species/navigation rows are unchanged.
 - The Next.js server invokes this function with `species_id`; it does not query
   broad species, scan, profile, or Explore tables. Invalid UUIDs and function
   `404` responses become non-indexable web 404s, while transient failures stay
@@ -701,9 +700,9 @@ entirely on-device by iOS.
 Key rules:
 
 - `verify_jwt = false` is configured in `services/supabase/config.toml`.
-- The response remains public. Missing/project-key Authorization uses an
-  IP-only budget; a valid user JWT adds a per-user budget; an invalid supplied
-  user token returns `401`. The atomic IP preflight runs before optional token
+- The response remains public. Missing/project-key Authorization uses an IP-only
+  budget; a valid user JWT adds a per-user budget; an invalid supplied user
+  token returns `401`. The atomic IP preflight runs before optional token
   validation, bounding invalid-token traffic before it reaches Supabase Auth.
   The hosted gateway must overwrite the proxy-address headers used for the IP
   HMAC; a custom proxy must not pass through caller-controlled values.
@@ -736,16 +735,16 @@ Key rules:
   are still available to render a useful chart. Any provider failure with no
   useful data becomes `unavailable`; an empty failed result is never cached as
   `partial`.
-- A failed refresh preserves a positive payload that is still within the
-  37-day retention ceiling. The database marks it `stale`, retains the original
+- A failed refresh preserves a positive payload that is still within the 37-day
+  retention ceiling. The database marks it `stale`, retains the original
   `fetched_at`, records the current row-level provider error, and retries after
   a five-minute backoff instead of replacing it with empty unavailable data.
 - iOS validates the UUID/name bounds before networking and accepts a response
   for memoization only when `schema_version >= 2` and the returned canonical
   identity matches the request.
-- Successful responses vary only by content encoding, not Authorization,
-  because the public body is identity-independent. This preserves shared cache
-  reuse across sessions; errors stay private/no-store and authorization-varying.
+- Successful responses vary only by content encoding, not Authorization, because
+  the public body is identity-independent. This preserves shared cache reuse
+  across sessions; errors stay private/no-store and authorization-varying.
 - The response must not include Merian scan IDs, user IDs, Explore post IDs,
   field notes, comments, locations, local media, local observation counts, or
   preferred-name overrides.
@@ -775,8 +774,8 @@ Key rules:
   hour with `{ "limit": 25 }`; manual service-role calls may use `dry_run`,
   `as_of`, `limit`, and `content_keys`.
 - Newly inserted or backfilled sparse dictionary rows are queued in
-  `species_enrichment_jobs`; this worker claims `gbif_wikipedia_reference`
-  jobs before falling back to the older provenance queue.
+  `species_enrichment_jobs`; this worker claims `gbif_wikipedia_reference` jobs
+  before falling back to the older provenance queue.
 - Per-species refresh work runs with a concurrency cap of 4 to stay within Edge
   runtime bounds without overwhelming GBIF/Wikipedia.
 - V1 refreshes only fields backed by authoritative external APIs:
@@ -799,11 +798,10 @@ Key rules:
 
 The `/refresh-species-model-content` Edge Function is the paired internal
 service-role worker for model-heavy species dictionary hydration. It claims
-`habitat`, `lookalikes`, and `group_tags` jobs from
-`species_enrichment_jobs`, reuses the species-level biology primitives behind
-`enrich-scan`, writes results to `species_dictionary` and
-`species_lookalikes`, records provenance, and marks each job succeeded or
-failed.
+`habitat`, `lookalikes`, and `group_tags` jobs from `species_enrichment_jobs`,
+reuses the species-level biology primitives behind `enrich-scan`, writes results
+to `species_dictionary` and `species_lookalikes`, records provenance, and marks
+each job succeeded or failed.
 
 Key rules:
 
@@ -839,17 +837,17 @@ Key rules:
   species resolution through `COALESCE(confirmed_species_id, species_id)`, and
   up to 8 promoted images per species.
 - Public rows store only `url`, the stable technical `source = "merian"`,
-  `license = "Used with permission via Naturebook"`, and the public author label in
-  `attribution`. This uses `public_author_name`, not the username handle unless
-  the display label itself is the default username. Source scan/post/user IDs
-  remain in the private `species_reference_image_merian_sources` table along
+  `license = "Used with permission via Naturebook"`, and the public author label
+  in `attribution`. This uses `public_author_name`, not the username handle
+  unless the display label itself is the default username. Source scan/post/user
+  IDs remain in the private `species_reference_image_merian_sources` table along
   with the private confidence/provenance snapshot used for promotion.
 - `/species-dictionary` performs one bounded lookup by the promoted source's
   stable `(species_id, image_url)` key and joins `users.public_username`. This
   still resolves legacy promoted rows whose nullable `reference_image_id` link
-  has not been repaired. The public image item adds only `author_user_id` and the
-  current `author_username`; source scan/post IDs and all other provenance stay
-  out of the response.
+  has not been repaired. The public image item adds only `author_user_id` and
+  the current `author_username`; source scan/post IDs and all other provenance
+  stay out of the response.
 - If an Explore post is unshared, media is cleared, the source scan geoprivacy
   becomes private, the scan is tombstoned, or the author is shadowbanned, the
   next refresh removes the corresponding Merian public reference image. This
@@ -874,9 +872,9 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    usually a compressed 720p export, with an original-file fallback only when
    the source remains under the hard video byte cap. `visualMediaItems` is the
    preferred contract for telling the prompt which visual inputs are still
-   photos and which are ordered frames from one or more short clips;
-   still-photo entries may add a validated top-left-normalized `focusRegion`
-   that prioritizes the likely subject without replacing the full image;
+   photos and which are ordered frames from one or more short clips; still-photo
+   entries may add a validated top-left-normalized `focusRegion` that
+   prioritizes the likely subject without replacing the full image;
    `audioMediaItems` identifies standalone audio versus audio extracted from a
    video clip. If optional video audio cannot be parsed or is too short after
    trimming, the edge skips that audio when visual evidence is present instead
@@ -959,8 +957,8 @@ upload-session lookup, ingestion-job claim, sanitized intent recording, and the
 manifest and payload checksums only after the resolved upload-session ids are
 merged into the stored payload. After Gemini,
 `hydrate_identification_dictionary` combines cached primary-species hydration
-and candidate common-name lookup. Both functions revoke execution from
-`PUBLIC`, `anon`, and `authenticated`; only `service_role` may call them.
+and candidate common-name lookup. Both functions revoke execution from `PUBLIC`,
+`anon`, and `authenticated`; only `service_role` may call them.
 
 Cache-miss Wikipedia/GBIF enrichment, analytics, and optional image ingestion
 updates run behind `EdgeRuntime.waitUntil` so they cannot delay the response.
@@ -1004,30 +1002,30 @@ the identify pipeline. The current shipped surface includes:
 `explore-post-chat` creates one private conversation per requesting viewer and
 active post. The authenticated viewer ID is supplied by `withEdgeHandler`, not
 the request body. Other viewers cannot read that thread; when the viewer is the
-post author, they can use their own private post-scoped conversation.
-The Edge Function uses service-role access internally, while its three storage
-tables retain RLS ownership policies and revoke direct `anon` and
-`authenticated` Data API access. Chat context comes only from the same public
-post/detail projections used by Explore plus Species Dictionary fields;
-unpublishing the post deletes all attached viewer conversations.
+post author, they can use their own private post-scoped conversation. The Edge
+Function uses service-role access internally, while its three storage tables
+retain RLS ownership policies and revoke direct `anon` and `authenticated` Data
+API access. Chat context comes only from the same public post/detail projections
+used by Explore plus Species Dictionary fields; unpublishing the post deletes
+all attached viewer conversations.
 
 The in-app notifications feed is backed by server tables, not by local client
-state. Explore post activity lives in `public.explore_post_notifications`.
-Field trip-only activity for comments, replies, and followed-author
-publications lives in `public.field_trip_activity_notifications` and is unioned
-into `get_explore_notifications` for the in-app activity sheet and unread bell.
+state. Explore post activity lives in `public.explore_post_notifications`. Field
+trip-only activity for comments, replies, and followed-author publications lives
+in `public.field_trip_activity_notifications` and is unioned into
+`get_explore_notifications` for the in-app activity sheet and unread bell.
 Seasonal Field trip Challenges use their own challenge participation, badge,
 entry, like, and comment tables; challenge joins, likes, badges, and progress
-updates do not notify other users and never fan out to APNs.
-Like notifications are recomputed from the authoritative `explore_post_likes`
-table after each insert/delete so concurrency cannot drift the aggregate count,
-comment notifications are created and removed via triggers on
-`explore_post_comments`, comment-reaction notifications are recomputed per
-`(comment, emoji)` from `explore_comment_reactions`, follow notifications are
-created and removed via triggers on `user_follows`, Field trip activity is
-created from Field trip publication/comment triggers, self-notifications are
-suppressed server-side, and rows are pruned or hidden when relevant content is
-removed, a follow is removed, or either user blocks the other.
+updates do not notify other users and never fan out to APNs. Like notifications
+are recomputed from the authoritative `explore_post_likes` table after each
+insert/delete so concurrency cannot drift the aggregate count, comment
+notifications are created and removed via triggers on `explore_post_comments`,
+comment-reaction notifications are recomputed per `(comment, emoji)` from
+`explore_comment_reactions`, follow notifications are created and removed via
+triggers on `user_follows`, Field trip activity is created from Field trip
+publication/comment triggers, self-notifications are suppressed server-side, and
+rows are pruned or hidden when relevant content is removed, a follow is removed,
+or either user blocks the other.
 
 The authenticated `/field-trips` catalog and template-detail actions use a
 private viewer-specific projection that is intentionally different from public
@@ -1036,38 +1034,38 @@ include `completed_scan_id`, linking the item to its exact
 `user_field_trip_item_completions.scan_id`, but the response contains no media
 URL. iOS resolves that identifier only against the caller's device-local scan
 library. The catalog/detail RPCs are revoked from `PUBLIC`, `anon`, and
-`authenticated` and granted only to `service_role`; the Edge action supplies
-the verified `user.id`. Public profiles, publications, challenge entries and
-badges, Explore feed/map data, and the Scan `capture_context` projection remain
+`authenticated` and granted only to `service_role`; the Edge action supplies the
+verified `user.id`. Public profiles, publications, challenge entries and badges,
+Explore feed/map data, and the Scan `capture_context` projection remain
 evidence-free. This contract is defined by
 `20260718043218_expose_field_trip_completion_scan_ids.sql`. Template detail may
 also include the requesting owner's active, non-deleted `publication_id` and
-`published_at` inside `active_progress`; iOS uses only that detail-only state for
-the Private/Published badge. This addition is defined by
+`published_at` inside `active_progress`; iOS uses only that detail-only state
+for the Private/Published badge. This addition is defined by
 `20260718051748_expose_field_trip_publication_status.sql` and does not expand
 catalog or public/capture projections.
 
 The scan-progress response is extended by
 `20260718150932_add_credited_field_trip_progress.sql` and hardened by
-`20260718162409_scope_credited_progress_to_current_attempt.sql`. Both the standard and
-Seasonal Challenge progress RPCs retain their signatures, security-definer
-search paths, execute permissions, and existing response fields. They add the
-level number/title and completed/target counts credited by the scan so a client
-can distinguish a just-completed level from the next active level. The
-two migrations add response fields only, and iOS decodes those additions
-optionally during staged rollout. The follow-up scope prevents a
+`20260718162409_scope_credited_progress_to_current_attempt.sql`. Both the
+standard and Seasonal Challenge progress RPCs retain their signatures,
+security-definer search paths, execute permissions, and existing response
+fields. They add the level number/title and completed/target counts credited by
+the scan so a client can distinguish a just-completed level from the next active
+level. The two migrations add response fields only, and iOS decodes those
+additions optionally during staged rollout. The follow-up scope prevents a
 re-identified scan with historical completions in an earlier level from
 duplicating a response destination or supplying the wrong progress ring.
 
 `20260722025411_persistent_field_trip_scan_contributions.sql` replaces the
 progress entry point with an additive preferred-goal contract and enforces one
 credit per scan per standard outing or Event participation. The preference is
-stored only in private `field_trip_scan_goal_preferences`, validated against
-the verified owner and scan-time activity window, and ignored when stale,
-hidden, completed, unauthorized, noncurrent, or nonmatching. Without a valid
-preference, the database uses deterministic specificity and checklist ranking.
-Unfinished identification corrections can move or remove credit in the original
-credited level; completed experiences are immutable.
+stored only in private `field_trip_scan_goal_preferences`, validated against the
+verified owner and scan-time activity window, and ignored when stale, hidden,
+completed, unauthorized, noncurrent, or nonmatching. Without a valid preference,
+the database uses deterministic specificity and checklist ranking. Unfinished
+identification corrections can move or remove credit in the original credited
+level; completed experiences are immutable.
 
 The same migration adds private
 `public.get_field_trip_scan_contributions(self_id, target_scan_id)`, with
@@ -1096,13 +1094,13 @@ No direct client RPC is intentionally exposed. The same migration repairs
 `publish_field_trip(...)` so snapshot rows use the publication ID returned by
 the upsert.
 
-The follow-up
-`20260722195453_exclude_ants_from_bee_wasp_goal.sql` adds the generic
-`taxonomy_excluding_family` checklist criterion. At that migration step, Park
-Pollinators keeps `Hymenoptera` as the positive order for **Bee or wasp** but
-excludes `Formicidae`, preventing ants from matching. Family lineage is required
-for this negative criterion; an unknown family fails closed. The migration
-repairs existing ant-backed credit and its derived receipts/completion state.
+The follow-up `20260722195453_exclude_ants_from_bee_wasp_goal.sql` adds the
+generic `taxonomy_excluding_family` checklist criterion. At that migration step,
+Park Pollinators keeps `Hymenoptera` as the positive order for **Bee or wasp**
+but excludes `Formicidae`, preventing ants from matching. Family lineage is
+required for this negative criterion; an unknown family fails closed. The
+migration repairs existing ant-backed credit and its derived receipts/completion
+state.
 
 `20260722211636_tighten_field_trip_goal_matching.sql` adds the conjunctive
 `taxonomy_and_signal` criterion. It requires at least one populated taxonomy
@@ -1112,9 +1110,9 @@ where a signal alone could accept the wrong kingdom or a broad taxonomy could
 accept the wrong group. Spider goals require order `Araneae`; Backyard
 **Butterfly** additionally requires the `butterfly` group tag. Context that the
 saved scan contract cannot prove is removed from Park prompt copy, and the old
-scene-based **Pollinator habitat** target becomes a plant-plus-meadow
-**Meadow plant** target. **Bee or wasp** is also finalized as Hymenoptera plus
-either the `bee` or `wasp` semantic category, preventing sawflies and other
+scene-based **Pollinator habitat** target becomes a plant-plus-meadow **Meadow
+plant** target. **Bee or wasp** is also finalized as Hymenoptera plus either the
+`bee` or `wasp` semantic category, preventing sawflies and other
 non-bee/non-wasp members of the order from receiving credit. Compound semantic
 criteria may separate accepted alternatives with `|`. The migration removes
 previously credited rows that no longer satisfy the corrected rules and repairs
@@ -1127,16 +1125,17 @@ client-staged iOS surface. Standard Outings are public; iOS requests and renders
 challenge catalogs, details, badges, entries, routes, and hashtag suggestions
 only when `FieldTripEventsAvailability` is enabled, and filters challenge rows
 from shared scan-progress responses otherwise. The flag is a presentation and
-release gate, not database authorization. Publishing Events later requires a
-new client build but no schema or function change unless the backend contract
-has changed independently.
+release gate, not database authorization. Publishing Events later requires a new
+client build but no schema or function change unless the backend contract has
+changed independently.
 
 `get-explore-post` is an important routing helper for the iOS client and the
 public Next.js web app: it returns a single privacy-safe feed-card projection so
-notification taps, deep links, and `https://naturebook.earth/explore/post/{postId}`
-pages do not depend on the target post already existing in the currently paged
-`ExploreFeedViewModel.posts` array. Public web consumers must treat this as the
-maximum public projection and avoid querying private scan/auth tables directly.
+notification taps, deep links, and
+`https://naturebook.earth/explore/post/{postId}` pages do not depend on the
+target post already existing in the currently paged `ExploreFeedViewModel.posts`
+array. Public web consumers must treat this as the maximum public projection and
+avoid querying private scan/auth tables directly.
 
 Explore post common names are post snapshots, not live dictionary labels. The
 share and edit functions may write `explore_posts.species_common_name` from the
@@ -1243,10 +1242,10 @@ The map path is intentionally split into two layers.
 `public.get_explore_map_posts(...)` is the privacy-safe SQL projection over
 `explore_posts`, `scans`, `users`, and `species_dictionary`;
 `get-explore-map-points` enriches those rows with ordered media, derives
-cross-filtered species-category and media-type counts, applies requested
-species and media groups before clustering, and returns either clusters or
-individual post rows. Values are OR-matched within a group and the two groups
-intersect. Explore now stores the author-selected post geoprivacy on
+cross-filtered species-category and media-type counts, applies requested species
+and media groups before clustering, and returns either clusters or individual
+post rows. Values are OR-matched within a group and the two groups intersect.
+Explore now stores the author-selected post geoprivacy on
 `explore_posts.location_sharing` and projects post-owned public map fields when
 that value is `open`. `obscured` and `private` posts can still be visible on
 non-map Explore surfaces when otherwise eligible, but the map does not return
@@ -1270,8 +1269,8 @@ challenge participation and entries also stay out of push, widgets, maps, and
 Explore feed rows. Delivery fanout is bounded with
 `mapWithConcurrencyLimit(devices, 8,
 ...)` so one notification row cannot launch
-unbounded APNs requests and device state writes from a single V8 isolate.
-The device-token table checks a 32...512 character length separately from its
+unbounded APNs requests and device state writes from a single V8 isolate. The
+device-token table checks a 32...512 character length separately from its
 hex-only regex. A `{32,512}` PostgreSQL regex bound is invalid because the
 engine caps repetition bounds at 255; migration
 `20260720174209_fix_push_device_token_constraint.sql` corrects the original
@@ -1289,8 +1288,8 @@ moving existing scan media between R2 prefixes. Both `public_uploads/free/` and
 `public_uploads/pro/` are durable scan-media storage, so RevenueCat events only
 update `users.subscription_tier` and `users.subscription_expires_at` through a
 single service-only RPC. The database trigger atomically advances
-`users.entitlement_version`; the next quota reservation observes the new
-version from durable state regardless of which Edge isolate handles it.
+`users.entitlement_version`; the next quota reservation observes the new version
+from durable state regardless of which Edge isolate handles it.
 
 Ingress is dual authenticated. `timingSafeCompare()` verifies the configured
 Bearer credential, and `signature.ts` verifies RevenueCat's
@@ -1309,11 +1308,10 @@ Active `pro` or `Naturalist Tier` entitlements produce Pro through the later of
 their recurring expiration or grace-period expiration; that timestamp is
 persisted so access can expire without another webhook. `NULL` is reserved for
 an explicitly non-expiring lifetime entitlement. An authoritative `pro_week`
-non-subscription transaction produces a timed seven-day grant.
-Refund/revocation events exclude the matching pass transaction.
-CustomerInfo timeouts, rate limits, invalid responses, missing public user rows,
-and identity groups that map to multiple live users fail closed without a tier
-write.
+non-subscription transaction produces a timed seven-day grant. Refund/revocation
+events exclude the matching pass transaction. CustomerInfo timeouts, rate
+limits, invalid responses, missing public user rows, and identity groups that
+map to multiple live users fail closed without a tier write.
 
 `public.apply_revenuecat_customer_state(...)` then performs the event insert,
 per-user lock, ordering comparison, tier projection, and durable watermark
@@ -1341,10 +1339,10 @@ every 24 hours. Webhook handling also advances affected subjects' due times.
 Historical seven-day purchases are not newly granted by background
 reconciliation, so a refund cannot be resurrected from CustomerInfo history.
 
-The service-only `get_revenuecat_reconciliation_health()` RPC returns due
-count, expired-claim count, and oldest due age. A separate GitHub monitor checks
-it every 15 minutes, alerts after 30 minutes or on any expired lease, and marks
-60 minutes critical.
+The service-only `get_revenuecat_reconciliation_health()` RPC returns due count,
+expired-claim count, and oldest due age. A separate GitHub monitor checks it
+every 15 minutes, alerts after 30 minutes or on any expired lease, and marks 60
+minutes critical.
 
 The scheduled `expire-subscription-passes` worker remains a fail-safe whenever
 any timed recurring, grace-period, or pass grant reaches
@@ -1367,10 +1365,9 @@ signature query string parameters from the URL to prevent Cloudflare R2
 
 The client-facing `/request-export-dwca` route requires a permanent account and
 accepts only `exportScope: "personal"`. Global exports are intentionally
-internal-only because they consume a shared repository-wide budget. Direct
-Data API insertion is revoked, and a partial unique index plus the 24-hour
-recent-job check makes concurrent duplicate submissions idempotently
-rate-limited.
+internal-only because they consume a shared repository-wide budget. Direct Data
+API insertion is revoked, and a partial unique index plus the 24-hour recent-job
+check makes concurrent duplicate submissions idempotently rate-limited.
 
 The queue row is canonical and immutable. PostgreSQL webhooks and the
 minute-level resume cron send either an opaque `job_id` or an empty body; they
@@ -1378,11 +1375,11 @@ never send trusted user, scope, precision, or cursor values. The service-only
 worker performs an exact bearer comparison, fetches at most one due ID, and
 claims one phase with a fresh UUID token and short lease.
 
-Migration `20260725052339_bound_dwca_export_work.sql` persists the phase,
-keyset cursors, cumulative row and CSV byte counts, chunk sequence, retry state,
-and ordered R2 chunk manifest. Canonical defaults allow at most 5,000 CSV rows
-and an 8 MiB final archive. Database constraints impose absolute ceilings of
-20,000 rows and 16 MiB, and callers cannot mutate either budget after insert.
+Migration `20260725052339_bound_dwca_export_work.sql` persists the phase, keyset
+cursors, cumulative row and CSV byte counts, chunk sequence, retry state, and
+ordered R2 chunk manifest. Canonical defaults allow at most 5,000 CSV rows and
+an 8 MiB final archive. Database constraints impose absolute ceilings of 20,000
+rows and 16 MiB, and callers cannot mutate either budget after insert.
 Deleted-account tombstones are excluded by matching partial indexes.
 
 Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
@@ -1390,19 +1387,19 @@ Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
 pre-encoding allocation gap. The first transaction installs new-write checks
 without scanning legacy rows; the second validates those rows before activating
 the read RPC. Validated checks bound image URL arrays to 24 elements of 4,096
-UTF-8 bytes, ecological interaction arrays to 10 elements of 2,048 bytes,
-and selected taxonomy text to finite lengths.
-Those validated write-time limits remain prerequisites for every snapshot page.
+UTF-8 bytes, ecological interaction arrays to 10 elements of 2,048 bytes, and
+selected taxonomy text to finite lengths. Those validated write-time limits
+remain prerequisites for every snapshot page.
 
 Migration `20260726025103_snapshot_dwca_export_sources.sql` moves scope
 evaluation to job creation and fixes one private `(job_id, scan_id)` membership
 set for both CSV passes. It stores three compact SHA-256 fingerprints per scan:
-eligibility/privacy, occurrence fields including joined taxonomy, and
-multimedia fields. The page RPC traverses that membership and returns a live
-projection only when it still matches the creation-time fingerprint. Scans
-created later cannot enter the job, and changed/deleted revisions terminate
-with `source_snapshot_changed` instead of mixing phase revisions. Fingerprints
-are deleted at terminal status. Existing nonterminal jobs are fenced, their
+eligibility/privacy, occurrence fields including joined taxonomy, and multimedia
+fields. The page RPC traverses that membership and returns a live projection
+only when it still matches the creation-time fingerprint. Scans created later
+cannot enter the job, and changed/deleted revisions terminate with
+`source_snapshot_changed` instead of mixing phase revisions. Fingerprints are
+deleted at terminal status. Existing nonterminal jobs are fenced, their
 pre-snapshot manifests are discarded, and they restart from occurrence.
 `get_dwca_export_scan_batch(...)` remains executable only by `service_role`,
 verifies the active claim token and exact durable cursor, and returns no more
@@ -1420,11 +1417,11 @@ Each invocation performs exactly one bounded step:
 3. `delivering` resolves the canonical owner's Auth email, calls Resend with
    `Idempotency-Key: dwca-export/{job_id}`, and completes the job.
 
-Temporary CSV keys include the active claim token as well as phase and
-sequence. A lease-expired worker that resumes after its replacement can
-therefore neither overwrite the winner's chunk nor commit an unexpected key to
-the manifest. Final archive keys are claim-fenced too. A durably staged archive
-is reused after lease recovery rather than regenerated.
+Temporary CSV keys include the active claim token as well as phase and sequence.
+A lease-expired worker that resumes after its replacement can therefore neither
+overwrite the winner's chunk nor commit an unexpected key to the manifest. Final
+archive keys are claim-fenced too. A durably staged archive is reused after
+lease recovery rather than regenerated.
 
 The CSV encoder appends one row at a time without page-wide line arrays,
 concurrent row expansion, or a final string join. The ZIP writer maintains
@@ -1437,10 +1434,9 @@ are rejected.
 
 Personal exports retain the owner's UUID and can include the owner's precise
 coordinates. A reviewed internal global job uses a stable, versioned,
-domain-separated HMAC-SHA256 pseudonym from
-`DWCA_PSEUDONYM_HMAC_KEY_V{n}`; there is no JWT-secret reuse or literal
-fallback. Protected taxa still receive only their public coordinate
-projection.
+domain-separated HMAC-SHA256 pseudonym from `DWCA_PSEUDONYM_HMAC_KEY_V{n}`;
+there is no JWT-secret reuse or literal fallback. Protected taxa still receive
+only their public coordinate projection.
 
 ## The Edge Moderation Node (`block-user`)
 
@@ -1475,9 +1471,9 @@ that operate on anonymous IDFV boundaries:
   retain the gateway check; `merge-ghost-profile` therefore uses
   `verify_jwt = true` for both its anonymous prepare phase and permanent-account
   completion phase. `withEdgeHandler` additionally resolves the live Auth user,
-  and both transaction RPCs bind authority again with `auth.uid()`.
-  Routes with `verify_jwt = false` must have a documented replacement boundary:
-  an in-handler `requireAuth`/claims policy, a timing-safe service credential,
+  and both transaction RPCs bind authority again with `auth.uid()`. Routes with
+  `verify_jwt = false` must have a documented replacement boundary: an
+  in-handler `requireAuth`/claims policy, a timing-safe service credential,
   webhook signature verification, or an intentionally public read contract.
   `/identify-multimodal` and `/update-scan-context` use cached ES256 JWKS claims
   verification; other authenticated routes retain their documented `getUser`
@@ -1487,9 +1483,9 @@ that operate on anonymous IDFV boundaries:
     have no stable identity to bind an export to.
   - **`species-dictionary`**: Keeps `verify_jwt = false` but intentionally skips
     `requireAuth` because it returns only public species-level dictionary data.
-  - **`species-observation-stats`**: Keeps `verify_jwt = false` but
-    returns only public species-level iNaturalist aggregates and cache metadata.
-    Its replacement boundary is canonical dictionary binding, optional live-user
+  - **`species-observation-stats`**: Keeps `verify_jwt = false` but returns only
+    public species-level iNaturalist aggregates and cache metadata. Its
+    replacement boundary is canonical dictionary binding, optional live-user
     verification, daily HMAC IP identity, atomic request/cold-population limits,
     and a fenced database lease. Local Merian observation data is not sent to
     this endpoint.
@@ -1498,8 +1494,8 @@ that operate on anonymous IDFV boundaries:
     then enforce the service-role bearer header inside Deno with
     `timingSafeCompare`. This includes species refresh, reference-image refresh,
     taxonomy import/status/refresh, consensus processing, non-biological purge,
-    `backfill-explore-audio-spectrograms`, and
-    `reconcile-ghost-profile-merges` workers.
+    `backfill-explore-audio-spectrograms`, and `reconcile-ghost-profile-merges`
+    workers.
 - **Rule for new Edge Functions**: Every new function directory under
   `services/supabase/functions/` MUST have a corresponding `[functions.<name>]`
   entry in `config.toml` before deployment. Use `verify_jwt = true` for routes
@@ -1509,10 +1505,10 @@ that operate on anonymous IDFV boundaries:
   verification path. Public unauthenticated routes must document their
   data-exposure boundary in both the function README and
   `docs/backend-and-data/05-api-contracts.md`; internal cron workers must
-  document their service-role authorization boundary. Dependency validation
-  and the planner test require exact parity between configured function names
-  and discoverable entrypoint graphs. Fleet size is derived from those sets;
-  there is no numeric count to update when a reviewed route is added.
+  document their service-role authorization boundary. Dependency validation and
+  the planner test require exact parity between configured function names and
+  discoverable entrypoint graphs. Fleet size is derived from those sets; there
+  is no numeric count to update when a reviewed route is added.
 
 ## Database Indexing & Performance
 
@@ -1537,8 +1533,7 @@ indexes:
   transitions.
 - `idx_scans_lifecycle` on `scans (timestamp) WHERE image_storage_urls != '{}'`
   — supports media-present scans queries used by public/feed/reference-image
-  projections.
-Additional migration-specific indexes:
+  projections. Additional migration-specific indexes:
 
 - `idx_scans_nonbio_lifecycle` on
   `scans (timestamp) WHERE is_biological_subject = false` — scopes the
@@ -1561,8 +1556,8 @@ Additional migration-specific indexes:
 
 All migration-owned index DDL intentionally omits `CONCURRENTLY`. Supabase fresh
 database creation replays SQL through a statement pipeline, and workflow run
-1444 demonstrated that `db start` can reject concurrent index creation even
-when a sibling CLI migration command has special handling for it. The static
+1444 demonstrated that `db start` can reject concurrent index creation even when
+a sibling CLI migration command has special handling for it. The static
 `migrationExecutionContract.test.ts` guard covers the full migration directory.
 Zero-downtime index creation on a populated production table is an explicit
 pre-deploy operation; the migration retains an idempotent ordinary index
@@ -1575,11 +1570,10 @@ relational scan/post/media rows and URLs that reference those objects. A
 surviving URL is not a byte-level backup and must not be treated as proof that
 an object remains available.
 
-Biological scan media is intended to be durable regardless of subscription
-tier. Migration
-`20260616130000_disable_free_tier_media_expiration.sql` retired the earlier
-free-tier media expiration policy and the targeted domesticated-media purge.
-Successful biological sightings keep their image evidence unless the user
+Biological scan media is intended to be durable regardless of subscription tier.
+Migration `20260616130000_disable_free_tier_media_expiration.sql` retired the
+earlier free-tier media expiration policy and the targeted domesticated-media
+purge. Successful biological sightings keep their image evidence unless the user
 deletes the scan, moderation removes the media, or an operator performs an
 explicit support action.
 
@@ -1603,18 +1597,19 @@ be restored from Cloudflare.
 
 The `auto-purge-nonbio` Edge Function, triggered by `pg_cron` via `pg_net`,
 removes non-biological scans and their durable image, video, and standalone
-audio objects after 30 days. A standard Cloudflare R2 Object
-Lifecycle rule cannot be used here because R2 lifecycle rules operate on object
-age and prefix, not on the PostgreSQL `is_biological_subject = false` flag. A
-bare Postgres `DELETE` without R2 coordination would orphan stored objects. The
-Edge Function handles both the database deletion and the R2 object removal
-as one ordered operation: any rejected or non-successful R2 delete aborts the
-database deletion so the job can retry without orphaning media. Webhook secret validation in this function uses
-`timingSafeCompare()` for constant-time comparison. The function must delete R2
-objects through `deleteScanMediaR2Objects(...)`, not raw `deleteR2Objects(...)`,
-so only `public_uploads/free/` and `public_uploads/pro/` URLs are eligible for
-scan purge deletion. `avatars/`, `staging/`, `quarantine/`, and `exports/` URLs
-are skipped even if a malformed scan row contains them.
+audio objects after 30 days. A standard Cloudflare R2 Object Lifecycle rule
+cannot be used here because R2 lifecycle rules operate on object age and prefix,
+not on the PostgreSQL `is_biological_subject = false` flag. A bare Postgres
+`DELETE` without R2 coordination would orphan stored objects. The Edge Function
+handles both the database deletion and the R2 object removal as one ordered
+operation: any rejected or non-successful R2 delete aborts the database deletion
+so the job can retry without orphaning media. Webhook secret validation in this
+function uses `timingSafeCompare()` for constant-time comparison. The function
+must delete R2 objects through `deleteScanMediaR2Objects(...)`, not raw
+`deleteR2Objects(...)`, so only `public_uploads/free/` and `public_uploads/pro/`
+URLs are eligible for scan purge deletion. `avatars/`, `staging/`,
+`quarantine/`, and `exports/` URLs are skipped even if a malformed scan row
+contains them.
 
 The iOS app mirrors this retention boundary locally.
 `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` is invoked on
@@ -1627,8 +1622,8 @@ then returns local media paths for `FileIOActor` cleanup.
 Explore audio moderation attestations are database metadata, not R2 media.
 Deleting a scan or its audio removes the media object and public references but
 does not currently delete the global checksum decision, because the row has no
-user, URL, post, or scan identity and may protect against repeated submission
-of identical bytes. Operators may prune obsolete model/policy generations; old
+user, URL, post, or scan identity and may protect against repeated submission of
+identical bytes. Operators may prune obsolete model/policy generations; old
 generations are never reused after the derived policy hash or model changes.
 
 ## Token Cost Analytics (`services/supabase/analytics/`)
@@ -1698,19 +1693,19 @@ Users can flag incorrect taxonomy results from `InsightSheetView`:
   constraint violations (`23503`) implicitly converting missing offline
   references into a clean `HTTP 404` rejection stream to properly shield
   downstream logs from transient offline sync race-condition 500 alerts.
-- **`flagged_reviews` table** (`00005_flagged_reviews.sql`): Stores identification
-  review requests tied to the reviewing `user_id`, defaulting to
+- **`flagged_reviews` table** (`00005_flagged_reviews.sql`): Stores
+  identification review requests tied to the reviewing `user_id`, defaulting to
   `PENDING_REVIEW`. Explore post-content reports do not use this table.
-- **`scans` table update**: Sets `is_flagged = true` and writes review context to
-  `human_intervention_notes` when an identification is flagged for review.
+- **`scans` table update**: Sets `is_flagged = true` and writes review context
+  to `human_intervention_notes` when an identification is flagged for review.
   After the internal-admin migration, `is_flagged` is recomputed from whether a
   grouped identification case remains `open` or `in_review`.
 - **`explore_post_reports` table**: Stores native Explore post-content reports
   submitted through `/report-explore-post`, without changing `scans.is_flagged`.
 - **`explore_comment_reports` table**: Stores comment abuse intake separately
   from post and identification reports.
-- **`user_reports` table**: Stores authenticated non-self visible-profile reports
-  submitted through `/report-user`. Reporting does not block the target.
+- **`user_reports` table**: Stores authenticated non-self visible-profile
+  reports submitted through `/report-user`. Reporting does not block the target.
 - **Duplicate lifecycle**: One row is retained per post and reporter. Repeat
   reports refresh context without resetting a moderator's `DISMISSED` or
   `ACTIONED` status to `PENDING_REVIEW`.
@@ -1718,19 +1713,19 @@ Users can flag incorrect taxonomy results from `InsightSheetView`:
   the immutable post id; the public web route does not write this queue.
 
 Migration `20260719161112_add_internal_admin_foundation.sql` attaches all four
-intake families to one private `internal.review_cases` model. A case is unique by
-type/subject, retains immutable source links and append-only notes, supports
+intake families to one private `internal.review_cases` model. A case is unique
+by type/subject, retains immutable source links and append-only notes, supports
 assignment/priority/status/resolution, and reopens terminal state only when a
 new independent reporter arrives. Reversible post/comment hide/restore is a
 separate audited action and never resolves the case automatically.
 
 `apps/admin` is the only product UI for raw queues. It authenticates through
-Google OAuth cookies plus TOTP AAL2 and calls narrow `SECURITY DEFINER` RPCs.
-It has no service-role key or direct table grants. Analysts receive only
+Google OAuth cookies plus TOTP AAL2 and calls narrow `SECURITY DEFINER` RPCs. It
+has no service-role key or direct table grants. Analysts receive only
 aggregates; moderators and owners may access raw review/feedback/user context;
-owners additionally manage memberships, sessions, and audit history. The
-private `internal` schema is not a Data API schema and remains inaccessible to
-browser roles.
+owners additionally manage memberships, sessions, and audit history. The private
+`internal` schema is not a Data API schema and remains inaccessible to browser
+roles.
 
 The one-time beta product survey uses a separate feedback path rather than the
 moderation queue:
@@ -1754,9 +1749,9 @@ deployment and incident response.
 
 ## Account Deletion & Data Preservation (`safe-delete`)
 
-Account deletions use the `apply_user_tombstone` PL/pgSQL function
-(introduced by `00006_apply_user_tombstone.sql` and hardened by later forward
-migrations). Instead of cascade-deleting retained observations, migration
+Account deletions use the `apply_user_tombstone` PL/pgSQL function (introduced
+by `00006_apply_user_tombstone.sql` and hardened by later forward migrations).
+Instead of cascade-deleting retained observations, migration
 `20260725041308_ownerless_account_deletion_tombstones.sql` makes those scans
 ownerless (`user_id = NULL`) and sets `is_tombstoned = true`. It clears exact
 latitude, longitude, elevation, and free-form intervention notes before the
@@ -1765,9 +1760,9 @@ ownerless scan only when it is tombstoned, and the anonymous table-read policy
 explicitly excludes tombstones.
 
 `20260725035737_repair_tombstone_profile_seed.sql` is a no-op compatibility
-bridge for production run 1461. The attempted public-only all-zero profile
-could not satisfy production's canonical `public.users.id → auth.users.id`
-foreign key. The forward migration preserves that relationship with
+bridge for production run 1461. The attempted public-only all-zero profile could
+not satisfy production's canonical `public.users.id → auth.users.id` foreign
+key. The forward migration preserves that relationship with
 `ON DELETE RESTRICT`, ensuring an Auth-first delete is rejected until verified
 relational cleanup removes the profile, and never creates a synthetic Auth or
 public user.
@@ -1782,31 +1777,30 @@ updated or deleted through ordinary service-role writes.
 **Operation order**: Migration `20260725030308_durable_account_deletion.sql`
 adds durable deletion intake, and migration
 `20260725052337_enforce_account_storage_erasure.sql` completes the private
-`pending → storage_pending → auth_pending → completed` state machine.
-Migration `20260726041109_fence_storage_erasure_claims.sql` makes that private
-job the mandatory authority for every R2 claim.
-`/safe-delete` first persists an idempotent `pending` receipt, then claims it
-with a five-minute UUID lease. The claim writes the storage job, invokes
-`apply_user_tombstone`, verifies that no public profile or scan still references
-the user, and commits `storage_pending` in one database transaction. The Auth
-Admin API remains forbidden until storage verification advances the account job
-to `auth_pending`. This ordering guarantees that any relational or R2 failure
-leaves the login identity available for retry instead of stranding personal
-data behind an inaccessible account.
+`pending → storage_pending → auth_pending → completed` state machine. Migration
+`20260726041109_fence_storage_erasure_claims.sql` makes that private job the
+mandatory authority for every R2 claim. `/safe-delete` first persists an
+idempotent `pending` receipt, then claims it with a five-minute UUID lease. The
+claim writes the storage job, invokes `apply_user_tombstone`, verifies that no
+public profile or scan still references the user, and commits `storage_pending`
+in one database transaction. The Auth Admin API remains forbidden until storage
+verification advances the account job to `auth_pending`. This ordering
+guarantees that any relational or R2 failure leaves the login identity available
+for retry instead of stranding personal data behind an inaccessible account.
 
 The SQL storage claim inner-joins the corresponding private job at
-`storage_pending`, requires completed relational cleanup and incomplete
-storage, and rejects the target while a matching `public.users` row or owned
-`public.scans` row exists. Historical outbox rows may survive an interrupted
-old workflow; queue status, age, due time, or a reset marker alone can never
+`storage_pending`, requires completed relational cleanup and incomplete storage,
+and rejects the target while a matching `public.users` row or owned
+`public.scans` row exists. Historical outbox rows may survive an interrupted old
+workflow; queue status, age, due time, or a reset marker alone can never
 authorize an account-prefix sweep.
 
 Relational cleanup also clears every compatibility media URL, captured-media
 reference, exact coordinate/elevation, semantic-location value, device
 locale/time-zone context, free-form note, and custom tag retained on ownerless
 scientific tombstones. Every claimed retry repeats cleanup and verification
-before progressing. A private deletion-state trigger rejects attempts to recreate
-`public.users` while a job is active, including Auth metadata-triggered
+before progressing. A private deletion-state trigger rejects attempts to
+recreate `public.users` while a job is active, including Auth metadata-triggered
 upserts. The upload signer checks the same durable state and rejects new
 staging/public uploads while deletion is active.
 
@@ -1819,34 +1813,32 @@ direct job-table privileges to API roles.
 normally returns `202` while durable R2 work remains. A `200` means relational
 cleanup, delayed storage verification, and Auth removal are all complete. The
 scheduled `reconcile-account-deletions` route leases due account jobs and
-storage jobs every five minutes. Each storage claim processes at most one
-50-key keyset page from one of the five canonical user prefixes. Progress and
-failures are persisted under a UUID claim token with bounded backoff.
+storage jobs every five minutes. Each storage claim processes at most one 50-key
+keyset page from one of the five canonical user prefixes. Progress and failures
+are persisted under a UUID claim token with bounded backoff.
 
-After the first sweep reaches the end of all prefixes, the job waits at least
-25 hours and starts a complete verification sweep. Only an empty delayed pass
-marks storage complete and wakes the account job transactionally. A final
-bounded account pass may then remove Auth in the same invocation. Cleanup or
-storage failure never reaches Auth deletion; Auth failure leaves the
-fully-erased job at `auth_pending` with bounded backoff. HTTP
-`404` and Auth code `user_not_found` are idempotent success, so a lost
-completion response is recoverable. Expired claim tokens cannot clear or finish
-a newer attempt.
+After the first sweep reaches the end of all prefixes, the job waits at least 25
+hours and starts a complete verification sweep. Only an empty delayed pass marks
+storage complete and wakes the account job transactionally. A final bounded
+account pass may then remove Auth in the same invocation. Cleanup or storage
+failure never reaches Auth deletion; Auth failure leaves the fully-erased job at
+`auth_pending` with bounded backoff. HTTP `404` and Auth code `user_not_found`
+are idempotent success, so a lost completion response is recoverable. Expired
+claim tokens cannot clear or finish a newer attempt.
 
-The terminal transition re-verifies cleanup and storage completion, records
-Auth deletion, clears the claim, and sets the private job's `user_id` to
-`NULL`. The completed storage receipt remains available for the terminal gate
-and operations audit.
+The terminal transition re-verifies cleanup and storage completion, records Auth
+deletion, clears the claim, and sets the private job's `user_id` to `NULL`. The
+completed storage receipt remains available for the terminal gate and operations
+audit.
 
 **`logStructuredError` alerting requirement**:
 `logStructuredError(event, details)` from `_shared/edgeHandler.ts` emits
 `JSON.stringify({ ...details, event, ts })` to `console.error`. These structured
 logs must be connected to a log drain (Logflare or Datadog) with alerts on
-`account_deletion_attempt_deferred`,
-`account_deletion_reconciliation_deferred`, and
-`account_storage_erasure_deferred`. Operators must also alert on
-overdue active rows or repeatedly increasing `attempt_count`; remediation is to
-repair the failing cleanup/R2/Auth dependency and let the reaper resume the
+`account_deletion_attempt_deferred`, `account_deletion_reconciliation_deferred`,
+and `account_storage_erasure_deferred`. Operators must also alert on overdue
+active rows or repeatedly increasing `attempt_count`; remediation is to repair
+the failing cleanup/R2/Auth dependency and let the reaper resume the
 claim-fenced job, never to delete Auth manually.
 
 On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
@@ -1870,23 +1862,23 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 4. **Gamification Projection**: The statement-level scan-delete trigger
    subtracts the deleted rows from `internal.user_species_scan_counts`. If a
    `(user_id, species_id)` row reaches zero, the ledger row is removed and
-   `users.total_species_discovered` decreases by one without going below zero.
-   A multi-row delete aggregates each affected pair once.
+   `users.total_species_discovered` decreases by one without going below zero. A
+   multi-row delete aggregates each affected pair once.
 
 #### V8 Execution Abstractions
 
-- **Deploy-Stable Runtime Imports**: Production deploys rely on
-  a generated `deno.json` inside each function directory, which is the config
-  Supabase discovers while creating that function graph. The root
+- **Deploy-Stable Runtime Imports**: Production deploys rely on a generated
+  `deno.json` inside each function directory, which is the config Supabase
+  discovers while creating that function graph. The root
   `services/supabase/functions/deno.json` owns reviewed exact pins; generated
-  configs copy those aliases and point at the shared frozen
-  `dependencies.lock`. Production code imports aliases rather than direct URL,
-  npm, or JSR specifiers. New entrypoints call `Deno.serve(...)` directly, and
-  runtime base64/hex work uses `_shared/encoding.ts`.
+  configs copy those aliases and point at the shared frozen `dependencies.lock`.
+  Production code imports aliases rather than direct URL, npm, or JSR
+  specifiers. New entrypoints call `Deno.serve(...)` directly, and runtime
+  base64/hex work uses `_shared/encoding.ts`.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,
   `external.ts`, `aiQuota.ts`, `entitlement.ts`, `posthog.ts`, `gemini.ts`,
-  `aws.ts`, `encoding.ts`, `auth.ts`, and opt-in `claimsAuth.ts` domains cleanly separate
-  the core proxy engine natively without polluting the specific Webhook
+  `aws.ts`, `encoding.ts`, `auth.ts`, and opt-in `claimsAuth.ts` domains cleanly
+  separate the core proxy engine natively without polluting the specific Webhook
   routers. All routes resolve the same exact Supabase SDK through generated
   function-local configs and the shared frozen lock. `claimsAuth.ts` stays
   outside `edgeHandler.ts` so unrelated functions retain their established
@@ -1961,10 +1953,10 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
 - **`collection_scans` membership hydration**: Existing memberships for all
   owned incoming collections are fetched through one keyset-paginated
   `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`.
-  Each bounded page resumes strictly after the last composite primary key;
-  no progressively slower `.range(...)`/OFFSET walk is used. This avoids the
-  previous N+1 latency stack while preventing the theoretical maximum
-  (200 collections × 5000 scan IDs = 1M rows) from loading into one isolate
+  Each bounded page resumes strictly after the last composite primary key; no
+  progressively slower `.range(...)`/OFFSET walk is used. This avoids the
+  previous N+1 latency stack while preventing the theoretical maximum (200
+  collections × 5000 scan IDs = 1M rows) from loading into one isolate
   allocation. The existing `PRIMARY KEY (collection_id, scan_id)` supports the
   cursor order.
 
@@ -2011,14 +2003,14 @@ Migration `20260723144640_harden_privileged_routine_execution.sql` removes
 `SECURITY DEFINER` function, then grants only the exact reviewed signatures in
 `internal.privileged_routine_grants`.
 
-Direct clients therefore have no anonymous privileged RPC surface.
-Authenticated execution is limited to RPCs that bind authority inside the
-database to `auth.uid()`/`auth.jwt()` or the internal admin authorization
-helper. Service-key Edge calls are limited to reviewed worker/maintenance
-signatures, and every service-exposed function calls
-`internal.require_service_role()` even if an ACL is later broadened by mistake.
-Internal helpers such as follow reparenting and database-wide Explore-media
-refresh receive no Data API role grant.
+Direct clients therefore have no anonymous privileged RPC surface. Authenticated
+execution is limited to RPCs that bind authority inside the database to
+`auth.uid()`/`auth.jwt()` or the internal admin authorization helper.
+Service-key Edge calls are limited to reviewed worker/maintenance signatures,
+and every service-exposed function calls `internal.require_service_role()` even
+if an ACL is later broadened by mistake. Internal helpers such as follow
+reparenting and database-wide Explore-media refresh receive no Data API role
+grant.
 
 Every public definer has `search_path = ''`; application relations, custom
 types, and extension operators are schema-qualified. PostgreSQL function
@@ -2035,12 +2027,12 @@ read the existing public projection only. This keeps read latency predictable
 and prevents a popular profile or feed page from creating database writes.
 
 `syncPublicAuthorIdentity(...)` remains the shared Edge helper for public write
-paths. It is called when sharing a scan, creating Explore or Field trip comments,
-requesting Community identification, and merging a ghost profile. Auth metadata
-triggers also refresh the projection at the database boundary. Ghost merge
-transfers scan and Explore post ownership before
-refreshing the target identity, so the new account owns every denormalized row
-before the ghost is purged.
+paths. It is called when sharing a scan, creating Explore or Field trip
+comments, requesting Community identification, and merging a ghost profile. Auth
+metadata triggers also refresh the projection at the database boundary. Ghost
+merge transfers scan and Explore post ownership before refreshing the target
+identity, so the new account owns every denormalized row before the ghost is
+purged.
 
 Migration `20260720042641_optimize_explore_author_maintenance.sql` defines both
 maintenance RPCs as `SECURITY DEFINER SET search_path = ''`, fully qualifies
@@ -2064,13 +2056,12 @@ The live anonymous source first calls `operation = prepare` with the OAuth
 provider and exact token subject. The server generates a 256-bit secret, stores
 only its SHA-256 hash, and binds the handoff to `auth.uid()`, that provider
 identity, and a 30-day expiry. iOS persists the secret in a versioned,
-device-only Keychain queue with
-`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` before switching sessions.
-Multiple interrupted upgrades cannot overwrite one another, and the older
-single-record format is decoded and migrated in place.
+device-only Keychain queue with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
+before switching sessions. Multiple interrupted upgrades cannot overwrite one
+another, and the older single-record format is decoded and migrated in place.
 
-After provider sign-in, the permanent destination calls
-`operation = complete`. `public.consume_ghost_profile_merge_handoff(...)`:
+After provider sign-in, the permanent destination calls `operation = complete`.
+`public.consume_ghost_profile_merge_handoff(...)`:
 
 1. derives the destination exclusively from `auth.uid()`;
 2. locks the handoff and source/destination Auth and public-user rows;
@@ -2079,14 +2070,14 @@ After provider sign-in, the permanent destination calls
 4. resolves known uniqueness conflicts, reparents every supported user foreign
    key, preserves customized guest identity, and deletes the Ghost public row in
    one transaction;
-5. fails closed if schema drift introduces an unsupported composite user
-   foreign key or leaves a source reference behind; and
+5. fails closed if schema drift introduces an unsupported composite user foreign
+   key or leaves a source reference behind; and
 6. records an idempotent merge receipt.
 
 Only after that database transaction commits does the Edge Function delete the
 anonymous Auth user. Failed Auth cleanup returns a retryable response; repeating
-the same completion returns the durable receipt and safely retries deletion.
-The client removes a proof only after success or terminal
+the same completion returns the durable receipt and safely retries deletion. The
+client removes a proof only after success or terminal
 `handoff_expired`/`handoff_invalid`; wrong-destination and transient responses
 remain queued.
 
@@ -2112,28 +2103,27 @@ optional controls are set in the Supabase Edge secret store via the CLI
   production workflow validates and synchronizes the override only when it is
   configured; an explicitly weak override fails closed.
 - The same **`GEMINI_API_KEY`** also authenticates the dedicated
-  `gemini-2.5-flash` speech/non-speech classifier used by the fail-closed Explore
-  audio publication gate. A valid content-addressed attestation can be reused
-  while Gemini is unavailable; cache misses remain rejected when this secret is
-  absent.
+  `gemini-2.5-flash` speech/non-speech classifier used by the fail-closed
+  Explore audio publication gate. A valid content-addressed attestation can be
+  reused while Gemini is unavailable; cache misses remain rejected when this
+  secret is absent.
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
 - **`R2_ACCOUNT_ID` / `R2_BUCKET_NAME`**: Select the exact Cloudflare account
   and production media bucket.
-- **`R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`**: Grants existing promotion
-  and reviewed deletion workers their required bucket access. Do not use these
+- **`R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`**: Grants existing promotion and
+  reviewed deletion workers their required bucket access. Do not use these
   values in clients or Cloudflare event consumers.
 - **`R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY`**: Required
-  bucket-scoped Object Read credentials used by
-  `reconcile-explore-media-health` for direct signed origin `HEAD`. The worker
-  does not fall back to existing promotion/deletion credentials; audit that
-  this token cannot write or delete.
+  bucket-scoped Object Read credentials used by `reconcile-explore-media-health`
+  for direct signed origin `HEAD`. The worker does not fall back to existing
+  promotion/deletion credentials; audit that this token cannot write or delete.
 - **`R2_EVENT_WEBHOOK_SECRET`** (optional): At least 32 high-entropy characters
   shared only with the trusted Cloudflare Queue consumer. It accelerates checks
   and is not object-state authority; when absent, event ingress fails closed
   while scheduled reconciliation remains correct.
 - **`REVENUECAT_WEBHOOK_SECRET`**: At least 32 random characters used for the
-  RevenueCat webhook's configured Authorization header. Constant-time
-  comparison is the first ingress check.
+  RevenueCat webhook's configured Authorization header. Constant-time comparison
+  is the first ingress check.
 - **`REVENUECAT_WEBHOOK_SIGNING_SECRET`**: RevenueCat-generated HMAC signing
   secret used to authenticate the exact raw body and enforce the five-minute
   replay window. There is no unsigned production mode.
@@ -2144,9 +2134,9 @@ optional controls are set in the Supabase Edge secret store via the CLI
 - **`RESEND_API_KEY`**: The API Key from Resend for sending transactional emails
   (like DwC-A exports).
 - **`RESEND_FROM_EMAIL`**: The verified sender identity
-  `Naturebook Data Exports <exports@naturebook.earth>`. If absent, it falls back to Resend's testing domain
-  `onboarding@resend.dev` which will FAIL unless sending to the developer's
-  registered account.
+  `Naturebook Data Exports <exports@naturebook.earth>`. If absent, it falls back
+  to Resend's testing domain `onboarding@resend.dev` which will FAIL unless
+  sending to the developer's registered account.
 - **`DWCA_PSEUDONYM_HMAC_KEY_V1`**: Required Base64-encoded key that decodes to
   at least 32 random bytes. It is used only for version-1 global-export
   pseudonyms, is validated/synchronized from the GitHub `Production`

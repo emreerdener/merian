@@ -84,7 +84,7 @@ const domesticCatCommonNames = new Set([
   "house cat",
 ]);
 
-function normalizedText(value: string | undefined): string {
+function normalizedText(value: string | null | undefined): string {
   return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
 }
 
@@ -98,7 +98,7 @@ function petSpeciesGroup(value: unknown): "dog" | "cat" | null {
 export function canonicalizeDomesticPetScientificName(
   scientificName: string,
   petIdentification?: unknown,
-  commonName?: string,
+  commonName?: string | null,
 ): string {
   const normalized = normalizedText(scientificName);
   if (domesticDogScientificNames.has(normalized)) {
@@ -202,7 +202,7 @@ const allowedPetLabelTypes = new Set([
 ]);
 
 function expectedPetGroup(
-  scientificName: string | undefined,
+  scientificName: string | null | undefined,
 ): "dog" | "cat" | null {
   const normalized = normalizedText(scientificName);
   if (domesticDogScientificNames.has(normalized)) return "dog";
@@ -219,7 +219,7 @@ function cleanPetText(value: unknown, maxLength: number): string | null {
 
 export function sanitizePetIdentification(
   value: unknown,
-  scientificName: string | undefined,
+  scientificName: string | null | undefined,
 ): SanitizedPetIdentification | null {
   const speciesGroup = expectedPetGroup(scientificName);
   if (!speciesGroup || value == null || typeof value !== "object") return null;
@@ -245,6 +245,7 @@ export function sanitizePetIdentification(
       .filter((entry): entry is string => !!entry)
       .slice(0, 3)
     : [];
+  if (evidence.length === 0) return null;
 
   return {
     species_group: speciesGroup,

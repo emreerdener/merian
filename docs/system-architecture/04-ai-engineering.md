@@ -28,11 +28,11 @@ The AI inference layer is split across three files under
   local tuple still owns the slot. The durable foreground UUID is separately
   checked at provider and side-effect boundaries. Without both fences, a
   cancelled task could race against a replacement for the same scan.
-  **Live-success helpers**: The visual and nonvisual success paths now
-  share private `@MainActor` helpers for new-discovery marking, achievement
-  refresh, completion notifications, queued-scan cleanup, reference URL
-  normalization, and post-inference hydration scheduling. These helpers do not
-  merge modality-specific request construction or media display setup.
+  **Live-success helpers**: The visual and nonvisual success paths now share
+  private `@MainActor` helpers for new-discovery marking, achievement refresh,
+  completion notifications, queued-scan cleanup, reference URL normalization,
+  and post-inference hydration scheduling. These helpers do not merge
+  modality-specific request construction or media display setup.
   **`targetEradicationRecord` (reanalysis path)**:
   `analyze(targetEradicationRecord: LocalScanRecord?)` and
   `analyzeNonVisual(targetEradicationRecord:)` accept an optional reference to
@@ -88,8 +88,11 @@ The AI inference layer is split across three files under
   parameters thread the ordered media timeline, structured observation contexts,
   and optional audio file paths through to both `saveLiveScanRecord` and
   `saveNonVisualRecord`.
-- **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication:
-  `APIError`, `EdgeResponseWrapper`, and `EdgeResponse`.
+- **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication.
+  `APIError` remains hand-written; the marked `EdgeResponseWrapper`,
+  `EdgeResponse`, pet, candidate, taxonomy, quality, and insight graph is
+  generated from the executable server contract with explicit coding keys and
+  decoders.
 - **`InferenceEdgeDTOs.swift`** also declares `EnrichScanResponse` — the
   `Codable` DTO for the `enrich-scan` Edge Function response, with nested
   `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and
@@ -101,18 +104,35 @@ The AI inference layer is split across three files under
 
 The active inference path is `/identify-multimodal`, with shared logic extracted
 into `services/supabase/functions/_shared/identify/` so the live path,
-`/identify`, and the legacy describe flow reuse the same schema, thresholds, DB
-helpers, media validation, and moderation logic:
+`/identify`, and the legacy describe flow reuse the same executable contract,
+schema, thresholds, DB helpers, media validation, and moderation logic:
 
 - **`identify-multimodal/index.ts`**: The main active orchestrator. Executes the
   critical path (image/audio resolution, Gemini invocation, cache checks) and
   safely spins off follow-on enrichment into background work.
-- **`_shared/identify/schema.ts`**: The semantic logic. Contains the
-  strongly-typed `merianResponseSchema`, the vision `systemInstruction`, and the
-  schema cache used by the shared identification stack.
-- **`_shared/identify/types.ts`**: The API contracts. Exports
-  `MerianIdentification` and `ClientPayload` (iOS DTO mapping), plus
-  `CachedSpeciesRow` and `StaticSpeciesData`.
+- **`_shared/identify/contract.ts`**: The dependency-free executable model and
+  complete final wire contract. It generates provider schemas, infers deployed
+  TypeScript payload types, runtime-validates provider and server-enriched
+  values, and supplies deterministic Swift DTO generation metadata.
+- **`_shared/identify/googleSchema.ts`**: The typed, exhaustive seam between the
+  provider-neutral schema projection and the pinned Google SDK. SDK schema-field
+  changes fail Deno checking without loading SDK runtime code into contract
+  tooling.
+- **`_shared/identify/schema.ts`**: The vision `systemInstruction` and cached
+  provider schema generated from the executable contract. The Describe route
+  generates its text-only zero-image-quality variant from the same contract.
+- **`_shared/identify/types.ts`**: Request/database contracts and the
+  `MerianIdentification` / `ClientPayload` aliases inferred from `contract.ts`.
+
+Provider JSON is parsed recursively against the model contract immediately after
+syntax extraction. The full `{ success, data }` envelope is parsed again after
+sanitization, dictionary hydration, candidate enrichment, and server-added
+fields, before persistence or client delivery. This final gate rejects
+requiredness, nullability, nested type, enum, cardinality, string, safe-integer,
+and numeric-bound drift with stable public code `identify_response_invalid`. The
+generated Swift boundary is checked exactly across the full iOS source graph by
+`make validate-edge-dto-contract`.
+
 - **`_shared/identify/clientPayload.ts`**: Shared payload hydration for
   cache-hit species responses. Ensures `/identify` and `/identify-multimodal`
   project the same cached taxonomy, IUCN, hazard, habitat, GBIF key, group tags,
@@ -230,10 +250,10 @@ After a successful biological scan, `InferenceEngine` automatically fires
      least once.
    - **Tier 2 (Flash + back-fill):** If the `"en"` key is absent (species in
      dictionary but `common_names` is `NULL`, `{}`, or only has non-English
-     keys), `resolveLookalikesToJoinTable` calls the service-role-only,
-     bounded `merge_common_name_en_batch` Postgres RPC once for the request to
-     merge Flash-generated names as `{"en": "..."}` without overwriting
-     existing locale keys. Implemented via a JSONB `||` merge operator:
+     keys), `resolveLookalikesToJoinTable` calls the service-role-only, bounded
+     `merge_common_name_en_batch` Postgres RPC once for the request to merge
+     Flash-generated names as `{"en": "..."}` without overwriting existing
+     locale keys. Implemented via a JSONB `||` merge operator:
      `COALESCE(common_names, '{}') || jsonb_build_object('en', p_en_name)` with
      a `NOT (common_names ? 'en')` guard so it is always a safe no-op for
      species that already have English.
@@ -362,9 +382,9 @@ function:
    `insertScan(... user_observation_context: ...)`.
 
 4. **Persistence**: `InferenceProcessingActor.parseAndSave(...)` →
-   `BackgroundDatabaseActor.saveLiveScanRecord(..., persistenceFence: fence)` → scalar
-   `LocalScanRecord.capturedMediaJSON` + V41 `capturedMediaEntries` mirror. The
-   first structured observation context still persists to
+   `BackgroundDatabaseActor.saveLiveScanRecord(..., persistenceFence: fence)` →
+   scalar `LocalScanRecord.capturedMediaJSON` + V41 `capturedMediaEntries`
+   mirror. The first structured observation context still persists to
    `public.scans.user_observation_context` on the cloud side.
 
 5. **Attempt ownership**: A queue-backed live request carries the foreground
@@ -372,20 +392,19 @@ function:
    entry, after external suspension points, immediately before provider
    dispatch, and at every result or failure side-effect boundary.
    `BackgroundDatabaseActor` validates the same generation in the scan-ingestion
-   job while holding the per-scan persistence coordinator.
-   `OfflineQueueManager` atomically consumes the generation before provider
-   dispatch and owns tokenized retirement for cancellation and pre-provider
-   exits. Duplicate active or retiring generations therefore cannot restart,
-   even through a second engine instance. Result publication and queue cleanup
-   are owned by the single-use attempt UUID, not merely by the reusable
-   `scanId`. Retirement registration immediately fences persistence, UI, and
-   cleanup while raw durable release is pending. A transient durable-owner
-   handoff failure retains the registry slot and retries with bounded backoff
-   instead of reopening that UUID or indefinitely suppressing recovery.
-   A failure handler snapshots the full current owner before synchronous
-   retirement; only that owner may emit telemetry, update the circuit breaker,
-   trigger an error haptic, or publish an error placeholder. A replaced task
-   exits without observable failure effects.
+   job while holding the per-scan persistence coordinator. `OfflineQueueManager`
+   atomically consumes the generation before provider dispatch and owns
+   tokenized retirement for cancellation and pre-provider exits. Duplicate
+   active or retiring generations therefore cannot restart, even through a
+   second engine instance. Result publication and queue cleanup are owned by the
+   single-use attempt UUID, not merely by the reusable `scanId`. Retirement
+   registration immediately fences persistence, UI, and cleanup while raw
+   durable release is pending. A transient durable-owner handoff failure retains
+   the registry slot and retries with bounded backoff instead of reopening that
+   UUID or indefinitely suppressing recovery. A failure handler snapshots the
+   full current owner before synchronous retirement; only that owner may emit
+   telemetry, update the circuit breaker, trigger an error haptic, or publish an
+   error placeholder. A replaced task exits without observable failure effects.
    Confidence-zero is still a terminal response that intentionally saves no
    local record, but queue-backed foreground and generated background results
    must echo the exact scan ID before that response can finalize the job.
@@ -421,8 +440,8 @@ provider dispatch:
 4. **Durable ownership**: The queue inserts the scan directly as `.staged` and
    stores its foreground generation in the scan-ingestion job. The client
    revalidates that owner immediately before provider dispatch. The live save,
-   result or failure publication, and successful queue deletion carry that
-   exact UUID; failure hands the row to normal background replay.
+   result or failure publication, and successful queue deletion carry that exact
+   UUID; failure hands the row to normal background replay.
 
 5. **Persistence path**: `InferenceEngine.analyzeNonVisual` forwards the ordered
    `mediaTimeline`, then `InferenceProcessingActor.parseAndSave(...)` routes
@@ -453,11 +472,11 @@ provider dispatch:
     subject as inanimate, man-made, manufactured, or processed material, and the
     subject evidence is an object/material such as a rug, textile, leather good,
     wooden furniture, paper, prepared food, artwork, toy, or species depiction,
-    the shared classifier flips the result to `is_biological_subject=false`.
-    It clears source-species scientific names, candidates, biology-only fields,
-    and dictionary novelty before cache or upsert work can run. Living
-    organisms, dead organisms, intact organism parts, fossils, pressed plants,
-    dried specimens, and preserved specimens remain biological.
+    the shared classifier flips the result to `is_biological_subject=false`. It
+    clears source-species scientific names, candidates, biology-only fields, and
+    dictionary novelty before cache or upsert work can run. Living organisms,
+    dead organisms, intact organism parts, fossils, pressed plants, dried
+    specimens, and preserved specimens remain biological.
   - **Gap-fill condition**: If a species exists in `species_dictionary` but is
     missing `habitat_description`, the background task fires a Flash text call
     to fill the field. This covers species stored before the enrichment pipeline
@@ -469,10 +488,10 @@ provider dispatch:
     `refresh-species-model-content` worker handles queued habitat, lookalikes,
     and group tags; IUCN status, hazard type, and common-name overrides remain
     curation-owned.
-- **Flat Object Schema (Non-Biological Bounds)**: `getMerianResponseSchema()` in
-  `services/supabase/functions/_shared/identify/schema.ts` returns a single flat
-  `OBJECT` schema — not a top-level `anyOf` with discriminated branches. All
-  biology-specific fields (`ecology_type`, `is_invasive`,
+- **Flat Object Schema (Non-Biological Bounds)**: `merianModelContract` in
+  `services/supabase/functions/_shared/identify/contract.ts` generates a single
+  flat `OBJECT` provider schema — not a top-level `anyOf` with discriminated
+  branches. All biology-specific fields (`ecology_type`, `is_invasive`,
   `invasive_status_region`, `invasive_rationale`, `invasive_confidence`,
   `life_stage`, `reproductive_condition`, `sex`, `sex_confidence`,
   `sex_evidence`, `individual_count`, `ecological_interactions`) are declared
@@ -480,11 +499,11 @@ provider dispatch:
   `scientific_name` and `common_name` are likewise `nullable: true` to support
   identifiable geological subjects (rocks, minerals) while permitting omission
   for generic debris. Every numeric model property carries explicit finite
-  bounds: confidence values are `0...1`, image-quality dimensions are
-  `1...10` with `overall_score` at `0...100`, and `individual_count` is
-  `1...99999`. The schema/Swift deployment validator rejects unbounded
-  numerics, integer ranges that do not fit their Swift representation, and
-  non-Double JSON `NUMBER` wire mappings.
+  bounds: confidence values are `0...1`, image-quality dimensions are `1...10`
+  with `overall_score` at `0...100`, and `individual_count` is `1...99999`. The
+  same bounds are enforced recursively on live provider and final response
+  values. Generated JSON integers map to Swift `Int` and JSON numbers to
+  `Double`; the boundary never infers a narrow integer from its nominal range.
 - **Two-Call Identification Architecture (Optimised TTFM)**: Every scan follows
   a two-stage pipeline designed for absolute lowest "Time-To-First-Meaning"
   (latency from shutter to first UI render):
@@ -529,20 +548,18 @@ provider dispatch:
        features visible; 0.80–0.94 = confident but similar species can't be
        ruled out; 0.60–0.79 = probable; <0.60 = insufficient diagnostic detail)
        are embedded in the `confidence_score` field description of
-       `getMerianResponseSchema()` so the model encounters them during
-       structured output.
+       `merianModelContract` so the model encounters them in the generated
+       structured output schema.
      - **`common_name` schema contract**: Defined in
-       `services/supabase/functions/_shared/identify/schema.ts` inside the flat
-       `OBJECT` schema as `SchemaType.STRING` with description _"Most specific,
-       commonly recognised English name in Title Case."_ It is **not** in the
-       `required` array — it is declared `nullable: true` so the model may omit
-       it for non-biological subjects such as generic debris, while still
-       populating it for identifiable geological subjects (rocks, minerals).
-       `common_name` is not persisted to `public.scans`. For biological cache
-       misses it may fill `species_dictionary.common_names.en`, but an existing
-       English dictionary name always wins over the scan label. Non-biological
-       processed-material results may still return an object display name, but
-       they never write that name into `species_dictionary`.
+       `services/supabase/functions/_shared/identify/contract.ts` as a nullable,
+       bounded string in the flat model object. It is **not** required, so the
+       model may omit it for non-biological subjects such as generic debris,
+       while still populating it for identifiable geological subjects (rocks,
+       minerals). `common_name` is not persisted to `public.scans`. For
+       biological cache misses it may fill `species_dictionary.common_names.en`,
+       but an existing English dictionary name always wins over the scan label.
+       Non-biological processed-material results may still return an object
+       display name, but they never write that name into `species_dictionary`.
   2. **Enrichment Text pass** (`enrich-scan`, plus follow-up cache warming):
      Generates the bulky metadata. `fetchStaticEncyclopedicData` is a text-only,
      image-free Flash prompt used by enrichment flows to deduce `hazard_type`,
@@ -550,17 +567,17 @@ provider dispatch:
      `iucn_red_list_status` without slowing the first response from
      `/identify-multimodal`. `gbif_taxon_key` is fetched natively from GBIF APIs
      and then served back on later cache hits.
-- **Tier-Based Model Selection**: The `merianResponseSchema` is applied to all
-  requests regardless of tier. Model selection is tier-based: effective Pro
-  users use `gemini-2.5-pro` for maximum identification depth (rare species,
-  fossils, subspecies, cultivars); effective free users use `gemini-2.5-flash`
-  for 2–3× lower latency. `_shared/aiQuota.ts` obtains the model from an atomic
-  database reservation rather than trusting the client or isolate memory. The
-  reservation separates model choice from paid storage: paid subscribers and
-  active paid 7-day passes return `plan = "pro_paid"`, dynamic 7-day trial users
-  return `plan = "pro_trial"` while usually keeping raw
-  `subscription_tier = "free"`, and expired free/timed-pass users return
-  `plan = "free"`.
+- **Tier-Based Model Selection**: The schema generated from
+  `merianModelContract` is applied to all requests regardless of tier. Model
+  selection is tier-based: effective Pro users use `gemini-2.5-pro` for maximum
+  identification depth (rare species, fossils, subspecies, cultivars); effective
+  free users use `gemini-2.5-flash` for 2–3× lower latency. `_shared/aiQuota.ts`
+  obtains the model from an atomic database reservation rather than trusting the
+  client or isolate memory. The reservation separates model choice from paid
+  storage: paid subscribers and active paid 7-day passes return
+  `plan = "pro_paid"`, dynamic 7-day trial users return `plan = "pro_trial"`
+  while usually keeping raw `subscription_tier = "free"`, and expired
+  free/timed-pass users return `plan = "free"`.
 - **Fossil, Geological & Non-Biological Handling**: The system instruction
   explicitly distinguishes liveness from biological identity. Fossils, pressed
   plants, museum specimens, and dried organisms are
@@ -584,13 +601,14 @@ provider dispatch:
   `ScanScoreCallout` inside `ConfidenceExplanationSheet` as a blur advisory when
   the score exceeds 0.5.
 - **`image_quality` Object**: Gemini evaluates the photographic quality of each
-  submitted image as a structured sub-object in the shared response schema
-  (`services/supabase/functions/_shared/identify/schema.ts`). The object
-  contains three sub-scores (each 1–10): `sharpness` (optical clarity),
-  `framing` (subject positioning and composition), and `diagnostic_utility` (how
-  useful the photo is for species identification), plus an `overall_score`
-  (0–100) aggregating all three. All four fields are required in the Gemini
-  response schema. The TypeScript interface is `ImageQuality` in
+  submitted image as a structured sub-object in the executable shared contract
+  (`services/supabase/functions/_shared/identify/contract.ts`), which generates
+  the provider response schema. The object contains three sub-scores (each
+  1–10): `sharpness` (optical clarity), `framing` (subject positioning and
+  composition), and `diagnostic_utility` (how useful the photo is for species
+  identification), plus an `overall_score` (0–100) aggregating all three. All
+  four fields are required in the Gemini response schema. The inferred
+  TypeScript alias is `ImageQuality` in
   `services/supabase/functions/_shared/identify/types.ts`; the Swift counterpart
   is the `ImageQuality` struct in `InferenceEdgeDTOs.swift`
   (`image_quality: ImageQuality?` on `EdgeResponse`). Only `overall_score` is
@@ -676,25 +694,24 @@ provider dispatch:
     uncertainty UX lives in `CandidatesCard`, not in the similar-species
     gallery.
   - **Identification candidates**: `candidates` is a **required field** in
-    `merianResponseSchema` (`schema.ts`). Biological subjects are instructed to
-    return exactly 2 alternative species, while non-biological subjects return an
-    empty array. The server clears candidates for processed-material demotions
-    and strips biological candidates to `null` if
+    `merianModelContract` (`contract.ts`). Biological subjects are instructed to
+    return exactly 2 alternative species, while non-biological subjects return
+    an empty array. The server clears candidates for processed-material
+    demotions and strips biological candidates to `null` if
     `confidence_score >= diagnosticTrigger` _before_ sending the response and
     before `insertScan`. This server gate is the sole confidence enforcement
     mechanism; the model is not asked to conditionally self-suppress biological
-    candidates (which was unreliable).
-    Candidates are persisted per-scan to `public.scans.candidates` (JSONB) and
-    on-device to `LocalScanRecord.candidatesData` (Data blob,
-    `MerianSchemaV28`). Persisted candidates do not automatically render UI: the
-    iOS client filters them through `CandidateReviewVisibilityPolicy`.
-    Candidate-review UI appears when the primary confidence is below the tier's
-    Strong threshold, or when a Strong primary has a top candidate with
-    `confidenceScore >= 0.80` within `0.15` of the primary confidence. The same
-    thresholds feed the Needs review smart collection. Baseline guards suppress
-    candidate review for unknown, non-biological, human, confirmed, overridden,
-    and alternatives-exhausted scans. Legacy flag values no longer suppress
-    candidate review.
+    candidates (which was unreliable). Candidates are persisted per-scan to
+    `public.scans.candidates` (JSONB) and on-device to
+    `LocalScanRecord.candidatesData` (Data blob, `MerianSchemaV28`). Persisted
+    candidates do not automatically render UI: the iOS client filters them
+    through `CandidateReviewVisibilityPolicy`. Candidate-review UI appears when
+    the primary confidence is below the tier's Strong threshold, or when a
+    Strong primary has a top candidate with `confidenceScore >= 0.80` within
+    `0.15` of the primary confidence. The same thresholds feed the Needs review
+    smart collection. Baseline guards suppress candidate review for unknown,
+    non-biological, human, confirmed, overridden, and alternatives-exhausted
+    scans. Legacy flag values no longer suppress candidate review.
   - **User identification review** (`MerianSchemaV29`): Users can confirm or
     override the AI's identification from the policy-visible `CandidatesCard` or
     the confidence explanation sheet. The pending card shows a direct
@@ -842,16 +859,15 @@ provider dispatch:
   `identify-multimodal` with the same `client_scan_id`; inline-media rows remain
   client retry only. Server replay is capped at 10 claims per sanitized intent,
   after which the job becomes `failed_terminal / server_replay_limit_reached`.
-  Compatibility scan-producing endpoints (`identify`,
-  `identify-describe`, and `audio-spec`) now use
-  `_shared/scanIngestionCompatibility.ts` to write the same ledger before
-  returning success. Their staged media and text-only intents are shaped as
-  multimodal replay requests, while inline media is recorded only as redacted
-  counts. On failure, a JSON-structured log line is emitted via `console.error`
-  including `event`, `user_id`, `scan_id`, `error`, and `ts` fields. This
-  replaces the previous silent swallow of background errors and makes failures
-  observable in Supabase Edge Function logs without exposing internals to the
-  client.
+  Compatibility scan-producing endpoints (`identify`, `identify-describe`, and
+  `audio-spec`) now use `_shared/scanIngestionCompatibility.ts` to write the
+  same ledger before returning success. Their staged media and text-only intents
+  are shaped as multimodal replay requests, while inline media is recorded only
+  as redacted counts. On failure, a JSON-structured log line is emitted via
+  `console.error` including `event`, `user_id`, `scan_id`, `error`, and `ts`
+  fields. This replaces the previous silent swallow of background errors and
+  makes failures observable in Supabase Edge Function logs without exposing
+  internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
   (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
   in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and
@@ -866,9 +882,11 @@ provider dispatch:
   shim that normalised to `{ response: { text: () => string, usageMetadata } }`
   has been removed now that all callers (`biology.ts`) are updated to the native
   SDK shape. Generation config is passed as `config:` (not `generationConfig:`).
-  `extractJson<T>(text)` centralises the `indexOf`/`lastIndexOf` JSON extraction
-  pattern that Gemini occasionally requires even with
-  `responseMimeType: "application/json"`.
+  `extractJson<unknown>(text)` centralises the `indexOf`/`lastIndexOf`
+  syntax-extraction pattern that Gemini occasionally requires even with
+  `responseMimeType: "application/json"`. It does not establish a type.
+  `_shared/identify/contract.ts` performs the model and final wire runtime
+  validation.
 - **Vision Model Safety Settings**: Both `modelConfigs.flash` and
   `modelConfigs.pro` in `identify/index.ts` include a shared
   `BIOLOGICAL_SAFETY_SETTINGS` array that relaxes two harm categories to
@@ -954,26 +972,25 @@ insight sheet display.
 
 - **Pinned-session connection + auth pre-warm**
   (`CaptureWorkspaceViewModel.init`): a background task refreshes auth and sends
-  an `OPTIONS` request to `/identify-multimodal` through
-  `MerianNetworkClient`'s actual TLS-pinned `URLSession`. This warms the same
-  connection pool used by inference instead of warming only the Supabase SDK's
-  separate auth session.
+  an `OPTIONS` request to `/identify-multimodal` through `MerianNetworkClient`'s
+  actual TLS-pinned `URLSession`. This warms the same connection pool used by
+  inference instead of warming only the Supabase SDK's separate auth session.
 - **Bounded environmental-context grace** (`Analysis.swift`): durable queue
-  acceptance remains mandatory. For eligible live-camera still scans,
-  WeatherKit and reverse geocoding receive at
-  most 150 ms after acceptance. On timeout, inference starts with shutter-time
-  coordinates/date/time/distance plus cached telemetry. Late weather or location
-  is merged locally and through `/update-scan-context`; it never causes a second
-  Gemini call. Gallery, audio-bearing, and video submissions keep their prior
-  full-context behavior in this pass.
-- **Live/background upload handoff**: the eligible active live-camera still scan is durably queued but
-  excluded from background upload until the inline request body finishes
-  sending. Upload progress releases the queue immediately; a two-second
-  fail-safe, transport failure, connectivity loss, app backgrounding, or relaunch
-  keeps recovery durable without creating uplink contention. All other online
-  queue-backed live paths may stage recovery media immediately, but their exact
-  foreground inference generation prevents replay from starting a competing
-  identification.
+  acceptance remains mandatory. For eligible live-camera still scans, WeatherKit
+  and reverse geocoding receive at most 150 ms after acceptance. On timeout,
+  inference starts with shutter-time coordinates/date/time/distance plus cached
+  telemetry. Late weather or location is merged locally and through
+  `/update-scan-context`; it never causes a second Gemini call. Gallery,
+  audio-bearing, and video submissions keep their prior full-context behavior in
+  this pass.
+- **Live/background upload handoff**: the eligible active live-camera still scan
+  is durably queued but excluded from background upload until the inline request
+  body finishes sending. Upload progress releases the queue immediately; a
+  two-second fail-safe, transport failure, connectivity loss, app backgrounding,
+  or relaunch keeps recovery durable without creating uplink contention. All
+  other online queue-backed live paths may stage recovery media immediately, but
+  their exact foreground inference generation prevents replay from starting a
+  competing identification.
 - **First-result commit before secondary work** (`InferenceEngine.swift`): after
   response parsing and local persistence, saved media and `speciesData` are
   committed immediately. Award calculation and Field trips run asynchronously;
@@ -1014,35 +1031,34 @@ insight sheet display.
 
 - **Local JWKS claims verification**: `/identify-multimodal` verifies the ES256
   JWT through the opt-in `claimsAuth.ts` `auth.getClaims(token)` path and
-  validates signature-backed claims, issuer, audience,
-  expiration/not-before, role, and `sub`. Anonymous and authenticated users
-  remain supported; service-role JWTs are rejected on the public inference
-  path. The cached JWKS path avoids an Auth-server request per scan, while
-  the opt-in policy boundary keeps unrelated routes on their established
-  `getUser` behavior. All Edge Functions use the same exact pinned Supabase SDK
-  and shared frozen dependency lock.
+  validates signature-backed claims, issuer, audience, expiration/not-before,
+  role, and `sub`. Anonymous and authenticated users remain supported;
+  service-role JWTs are rejected on the public inference path. The cached JWKS
+  path avoids an Auth-server request per scan, while the opt-in policy boundary
+  keeps unrelated routes on their established `getUser` behavior. All Edge
+  Functions use the same exact pinned Supabase SDK and shared frozen dependency
+  lock.
 - **Atomic ingestion setup RPC**: upload-session lookup, ingestion-job claim,
   sanitized replay-intent recording, and the `ai_inference_started` transition
   execute through one service-role-only SQL RPC. A compatibility fallback keeps
   rolling deployment safe until the migration reaches every environment.
 - **At most one dictionary hydration RPC**: after Gemini returns, eligible
   biological results fetch cached primary-species data and candidate common
-  names together. External Wikipedia/GBIF
-  cache misses, analytics, and optional image-scan ingestion work run under
-  `EdgeRuntime.waitUntil` and cannot delay the HTTP response. Video durability
-  semantics remain unchanged.
+  names together. External Wikipedia/GBIF cache misses, analytics, and optional
+  image-scan ingestion work run under `EdgeRuntime.waitUntil` and cannot delay
+  the HTTP response. Video durability semantics remain unchanged.
 - **Atomic critical-path entitlement reservation**: One service-role RPC reads
   tier, creation time, timed expiry, and `entitlement_version`; derives
   `pro_paid`, `pro_trial`, or `free`; selects the operation's allowlisted model;
   and conditionally consumes UTC-day/user/IP counters. The transaction is
   idempotent on `(user, operation, request_id)` and serializes only duplicate
-  keys. It holds a share lock on the entitlement row, so a concurrent
-  downgrade and reservation have one database order, and uses a consistent
-  daily/user/IP counter lock order for reservation and refund. Each attempt has
-  a ten-minute lease and UUID fencing token, preventing a delayed old callback
-  from settling a newer retry. Active timed passes are paid Pro; stale expired
-  or future-dated invalid profiles resolve free. Missing/malformed user rows and
-  database errors fail closed.
+  keys. It holds a share lock on the entitlement row, so a concurrent downgrade
+  and reservation have one database order, and uses a consistent daily/user/IP
+  counter lock order for reservation and refund. Each attempt has a ten-minute
+  lease and UUID fencing token, preventing a delayed old callback from settling
+  a newer retry. Active timed passes are paid Pro; stale expired or future-dated
+  invalid profiles resolve free. Missing/malformed user rows and database errors
+  fail closed.
 - **No isolate-local entitlement authority**: RevenueCat tier changes advance a
   durable version in the same row update. Every provider reservation reads that
   database state, so another Edge isolate cannot retain stale Pro access.
@@ -1094,25 +1110,26 @@ Server-Timing: auth;dur=3.1, body_read;dur=11.8, tier;dur=0.4, pre_gemini_db;dur
 {"event":"multimodal/latency","tier":"free","model":"gemini-2.5-flash","image_count":1,"payload_bytes":183424,"edge_region":"...","constrained_network":false,"auth_ms":3,"gemini_latency_ms":4189,"edge_total_ms":4223}
 ```
 
-`gemini_latency_ms` stops immediately when `generateContent` returns; dictionary,
-enrichment, ingestion, and response assembly are not included. Diagnostic
-headers are privacy-safe and do not contain scan, user, species, location, or
-media identifiers. The production gates are non-Gemini p50 ≤300 ms, non-Gemini
-p95 ≤1 second, and response-to-first-render p95 ≤300 ms. Region selection remains
-automatic until an A/B test demonstrates at least a 150 ms p95 improvement with
-no failure-rate increase.
+`gemini_latency_ms` stops immediately when `generateContent` returns;
+dictionary, enrichment, ingestion, and response assembly are not included.
+Diagnostic headers are privacy-safe and do not contain scan, user, species,
+location, or media identifiers. The production gates are non-Gemini p50 ≤300 ms,
+non-Gemini p95 ≤1 second, and response-to-first-render p95 ≤300 ms. Region
+selection remains automatic until an A/B test demonstrates at least a 150 ms p95
+improvement with no failure-rate increase.
 
 This work deliberately does not change inference economics or semantics. Free
 remains `gemini-2.5-flash`, Pro remains `gemini-2.5-pro`, and thinking budgets,
 schema, image resolutions, output-token limits, prompts, and one primary
-identification Gemini call per scan remain fixed. If measured end-to-end p95 remains high while the `gemini`
-timing dominates, that model duration is the documented latency floor.
+identification Gemini call per scan remain fixed. If measured end-to-end p95
+remains high while the `gemini` timing dominates, that model duration is the
+documented latency floor.
 
 ### Production Rollout Gate
 
-Deploy timing instrumentation first, then the client critical-path changes,
-then the Edge/RPC migration. Edge changes advance through 10%, 50%, and 100%
-only while non-Gemini p95 is ≤1 second, response-to-first-render p95 is ≤300 ms,
+Deploy timing instrumentation first, then the client critical-path changes, then
+the Edge/RPC migration. Edge changes advance through 10%, 50%, and 100% only
+while non-Gemini p95 is ≤1 second, response-to-first-render p95 is ≤300 ms,
 failure rate rises by less than 0.5 percentage points, identification-quality
 metrics remain neutral, and missing remote scans/stuck ingestion jobs do not
 increase. Automatic nearest-user Edge execution remains the baseline; a forced
@@ -1128,14 +1145,14 @@ boundary. Independent overview/lookalike/group-tag enrichment, Field prompts and
 summaries, and Explore audio moderation use bounded background RPC writes.
 Gemini `usageMetadata` is normalized into prompt, cached, candidate, thinking,
 tool, total, and per-modality counts; prompts and responses are never stored.
-Effective-dated model prices produce clearly labeled estimates. Historical
-token columns are idempotently backfilled as partial/primary-only, and account
+Effective-dated model prices produce clearly labeled estimates. Historical token
+columns are idempotently backfilled as partial/primary-only, and account
 deletion removes linkage while retaining anonymous aggregate usage.
 
 `geminiUsageModalityBreakdown(...)` stores `prompt`, `cached`, `candidates`, and
-`tool` objects inside the ledger's legacy-named
-`prompt_tokens_by_modality` column. Preserve that nested shape when adding a
-writer; do not flatten categories or put content into the JSON.
+`tool` objects inside the ledger's legacy-named `prompt_tokens_by_modality`
+column. Preserve that nested shape when adding a writer; do not flatten
+categories or put content into the JSON.
 
 Canonical operations currently include:
 
@@ -1148,9 +1165,9 @@ Canonical operations currently include:
 - `insight_chat_summary`
 - `explore_audio_moderation`
 
-Do not create a new spelling for an existing semantic operation. New Gemini
-call sites must choose an operation, exact returned model, effective plan,
-input modality, outcome, durable linkage, coverage scope, and normalized
+Do not create a new spelling for an existing semantic operation. New Gemini call
+sites must choose an operation, exact returned model, effective plan, input
+modality, outcome, durable linkage, coverage scope, and normalized
 `usageMetadata`. The ledger metadata field may contain non-content execution
 facts, but never prompts, responses, report text, chat text, coordinates, or
 media URLs.
@@ -1187,5 +1204,5 @@ rewriting historical rows. The maintenance procedure is in
 [`../backend-and-data/11-internal-admin-operations.md`](../backend-and-data/11-internal-admin-operations.md#pricing-maintenance).
 
 Google's authoritative references are the
-[GenerateContent usage metadata](https://ai.google.dev/api/generate-content)
-and [Gemini pricing table](https://ai.google.dev/gemini-api/docs/pricing).
+[GenerateContent usage metadata](https://ai.google.dev/api/generate-content) and
+[Gemini pricing table](https://ai.google.dev/gemini-api/docs/pricing).

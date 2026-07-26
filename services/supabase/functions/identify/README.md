@@ -19,16 +19,18 @@ to modify the pipeline, modify the exact module below rather than cluttering
   payloads, calling the Vision Model, checking the cache, returning the payload,
   claiming the compatibility ingestion ledger, and spinning up the heavy
   Database Background Task.
-- **`schema.ts`** The semantic brain. Contains the massive `systemInstruction`
-  prompt sent to Gemini Vision, as well as the strongly-typed
-  `merianResponseSchema` defining what the AI is allowed to return. **Modify
-  this file when you want to change how the Vision AI specifically behaves or
-  interprets subjects.** Dog/cat breed, mix, coat-pattern, and body-type display
-  hints belong here as `pet_identification`, not as replacement species
-  taxonomy.
-- **`types.ts`** The structural contracts. Contains `MerianIdentification` and
-  `ClientPayload` to ensure Swift client expectations remain strictly
-  synchronized with Edge function output.
+- **`../_shared/identify/contract.ts`** The executable structural contract. It
+  owns provider and final response fields, requiredness, nullability, strings,
+  arrays, enums, numeric bounds, inferred TypeScript types, and Swift generation
+  metadata.
+- **`schema.ts`** The semantic brain. Contains the `systemInstruction` prompt
+  sent to Gemini Vision and exports the cached Gemini schema generated from the
+  shared executable contract. Modify the prompt here when changing Vision
+  interpretation; modify `contract.ts` for a response-shape change. Dog/cat
+  breed, mix, coat-pattern, and body-type display hints belong in
+  `pet_identification`, not as replacement species taxonomy.
+- **`types.ts`** Request/database structural types and aliases inferred from the
+  executable model/client contract.
 - **`media.ts`** The payload resolver. Houses `resolveImagePayloads()`, which
   safely handles `R2` Base64 buffer loading in serial increments through
   `_shared/mediaBudgets.ts` capped stream readers. Declared `Content-Length` is
@@ -39,9 +41,9 @@ to modify the pipeline, modify the exact module below rather than cluttering
   perfectly clean.
 - **`sanitize.ts`** The response guardrail layer. It normalizes AI output before
   persistence, including `pet_identification`: labels are trimmed and
-  length-capped, evidence is capped, confidence is clamped, generic Dog/Cat
-  labels are dropped, low-confidence labels are dropped, and non-dog/cat taxa
-  never receive pet metadata.
+  length-capped, evidence is required and capped, confidence is clamped, generic
+  Dog/Cat labels are dropped, low-confidence or evidence-free labels are
+  dropped, and non-dog/cat taxa never receive pet metadata.
 - **`../_shared/aiQuota.ts`** The atomic entitlement, quota, rate-limit, model
   selection, and idempotency boundary used before provider dispatch. The
   reservation returns the durable tier telemetry and database-selected model;
@@ -63,6 +65,29 @@ else silently _after_ the user receives their fast ID.
 - _Rule:_ Offload all encyclopedic text enrichment, GBIF API polling, PostHog
   telemetry inserts, species table caching, and R2 moderation purges into the
   Background Engine.
+
+## Response Contract
+
+JSON extraction is only syntax handling. The extracted Gemini object is parsed
+against `merianModelContract` before normalization or database use. After cache
+hydration and all server-added fields, the full `{ success, data }` object is
+parsed against `identifyWireEnvelopeContract` before persistence or HTTP
+success. The parser strips reviewed unknown keys and rejects invalid nested
+types, missing required fields, nullability violations, enum drift, excessive
+strings/arrays, unsafe integers, and out-of-range numbers.
+
+A final wire-contract failure is logged internally and returns HTTP `502` with
+the stable public code `identify_response_invalid`. Never bypass this second
+parse to save or return a partially enriched payload.
+
+After an intentional shape change:
+
+```sh
+make generate-edge-dto-contract
+make validate-edge-dto-contract
+```
+
+Review the generated Swift DTO diff; do not hand-edit its marked block.
 
 ## Ingestion Durability
 

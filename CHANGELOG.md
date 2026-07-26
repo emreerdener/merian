@@ -14,9 +14,9 @@ TestFlight, App Store, support, and QA.
 - Added a persistent Scan Library recovery banner plus one incident
   notification. A repaired cloud image automatically restores the affected
   Explore media; successful restoration is reported quietly in app.
-- Published-scan counts, the Profile preview, and the full grid now use the
-  same server visibility rules. Locally cached share state no longer creates
-  tiles that are absent from the full grid.
+- Published-scan counts, the Profile preview, and the full grid now use the same
+  server visibility rules. Locally cached share state no longer creates tiles
+  that are absent from the full grid.
 - Owners with affected publications see separate preserved, visible, and
   recovery-needed totals on Profile, while deployment monitoring reports only
   aggregate affected-account scope.
@@ -25,8 +25,8 @@ TestFlight, App Store, support, and QA.
 
 ### Brand
 
-- Merian is now Naturebook. The name is new; your scans, account,
-  subscriptions, and Explore content stay exactly where they are.
+- Merian is now Naturebook. The name is new; your scans, account, subscriptions,
+  and Explore content stay exactly where they are.
 
 ### Settings
 
@@ -40,22 +40,20 @@ TestFlight, App Store, support, and QA.
 ### Beta Operations
 
 - Release and TestFlight builds now use the normal free/Pro scan meter and
-  server-enforced quota. Unlimited local-meter bypasses remain available only
-  in DEBUG; subscription testing is still available directly from Settings →
-  Plan.
+  server-enforced quota. Unlimited local-meter bypasses remain available only in
+  DEBUG; subscription testing is still available directly from Settings → Plan.
 - Paywall diagnostics now distinguish a missing current offering, an empty
   package set, and missing required `pro_week` / `pro_annual` products so beta
   store-configuration failures are visible before release.
-- Subscription synchronization now verifies RevenueCat's signed delivery,
-  checks authoritative subscriber state, and ignores duplicate or delayed
-  events that could otherwise roll a newer renewal or refund backward.
-  RevenueCat account transfers now reconcile both the source and destination
-  atomically instead of relying on a follow-up lifecycle event. Recurring and
-  grace-period expirations are now durable, and a scheduled authoritative
-  subscriber sweep repairs a missed webhook without restoring refunded pass
-  history. That sweep now drains repeated leased waves against a runtime
-  deadline instead of stopping after ten users, indexes expired leases, and has
-  an independent oldest-due-age alert.
+- Subscription synchronization now verifies RevenueCat's signed delivery, checks
+  authoritative subscriber state, and ignores duplicate or delayed events that
+  could otherwise roll a newer renewal or refund backward. RevenueCat account
+  transfers now reconcile both the source and destination atomically instead of
+  relying on a follow-up lifecycle event. Recurring and grace-period expirations
+  are now durable, and a scheduled authoritative subscriber sweep repairs a
+  missed webhook without restoring refunded pass history. That sweep now drains
+  repeated leased waves against a runtime deadline instead of stopping after ten
+  users, indexes expired leases, and has an independent oldest-due-age alert.
 - Hardened every server JSON endpoint against oversized or malformed streamed
   bodies and replaced internal exception details with stable request-correlated
   errors. The public beta waitlist now requires a verified security challenge,
@@ -70,10 +68,10 @@ TestFlight, App Store, support, and QA.
   provider replies are byte-capped, HTTP-200 multipart error documents are
   rejected, abandoned multipart sessions have an explicit seven-day lifecycle
   abort, rollout compatibility expires to a finite job cohort, raw rollout-era
-  failures are sanitized, claimed/terminal results reject old-worker
-  overwrites, and email delivery is idempotent. Global attribution now uses a
-  dedicated versioned HMAC key instead of a Supabase credential or fallback
-  salt. Export source arrays and selected taxonomy values now have validated
+  failures are sanitized, claimed/terminal results reject old-worker overwrites,
+  and email delivery is idempotent. Global attribution now uses a dedicated
+  versioned HMAC key instead of a Supabase credential or fallback salt. Export
+  source arrays and selected taxonomy values now have validated
   cardinality/UTF-8 byte bounds, each claimed keyset page stops by serialized
   bytes as well as rows, and CSV is encoded one row at a time into a fixed-size
   buffer. Occurrence and multimedia now share one creation-time scan membership
@@ -83,56 +81,60 @@ TestFlight, App Store, support, and QA.
   deletion request before anonymizing account data, verifies that cleanup, and
   cursor-sweeps durable uploads, staging data, avatars, and exports. A delayed
   empty verification sweep must finish before sign-in access is removed as the
-  final step. Interrupted attempts are
-  resumed automatically instead of leaving an inaccessible account with
-  personal profile data still present. Retained scientific observations now
-  become ownerless tombstones with exact location and free-form notes removed,
-  rather than relying on a synthetic login/profile identity. Delayed ingestion
-  replay treats those tombstones as terminal and cannot invoke AI for them.
-- Fenced account-level R2 erasure against stale or orphaned storage markers.
-  The database now requires the matching private deletion job to have completed
+  final step. Interrupted attempts are resumed automatically instead of leaving
+  an inaccessible account with personal profile data still present. Retained
+  scientific observations now become ownerless tombstones with exact location
+  and free-form notes removed, rather than relying on a synthetic login/profile
+  identity. Delayed ingestion replay treats those tombstones as terminal and
+  cannot invoke AI for them.
+- Fenced account-level R2 erasure against stale or orphaned storage markers. The
+  database now requires the matching private deletion job to have completed
   relational cleanup, and refuses a storage claim while a live profile or any
   owned scan remains. Historical queue state alone can no longer authorize an
   active account's free/Pro prefix sweep.
 - Fixed offline retry/result callbacks that could pass their in-memory token
   checks and still overwrite a newer SwiftData generation. Queue claims now
   persist their UUID atomically, and retries, cancellation, result saves, and
-  deletion compare that durable owner under one per-scan coordinator.
-  Foreground inference now carries the same durable generation through
-  provider calls, persistence, UI publication, and queue cleanup, so a delayed
-  live result cannot clear or cancel a newer retry. The queue manager now
-  atomically consumes each generation and owns tokenized retirement across
-  cancellation and pre-provider exits. Durable-owner lookup/save errors fail
-  closed and retry with bounded backoff, and loading a historical scan now
-  relinquishes the exact live owner without deleting its queued recovery work.
-  Online text-only Describe now queues a zero-byte staged job before provider
-  dispatch, removing its weaker process-local persistence exception. Valid
-  confidence-zero responses remain terminal without a redundant provider call,
-  while missing or mismatched response scan IDs now fail closed and preserve
-  queued recovery work. Provider preflight and terminal failure effects now
-  require the full exact owner, so a retired attempt cannot invoke nonvisual
-  inference, trip the circuit breaker, or overwrite its replacement with an
-  error.
+  deletion compare that durable owner under one per-scan coordinator. Foreground
+  inference now carries the same durable generation through provider calls,
+  persistence, UI publication, and queue cleanup, so a delayed live result
+  cannot clear or cancel a newer retry. The queue manager now atomically
+  consumes each generation and owns tokenized retirement across cancellation and
+  pre-provider exits. Durable-owner lookup/save errors fail closed and retry
+  with bounded backoff, and loading a historical scan now relinquishes the exact
+  live owner without deleting its queued recovery work. Online text-only
+  Describe now queues a zero-byte staged job before provider dispatch, removing
+  its weaker process-local persistence exception. Valid confidence-zero
+  responses remain terminal without a redundant provider call, while missing or
+  mismatched response scan IDs now fail closed and preserve queued recovery
+  work. Provider preflight and terminal failure effects now require the full
+  exact owner, so a retired attempt cannot invoke nonvisual inference, trip the
+  circuit breaker, or overwrite its replacement with an error.
+- Kept transient Insight image failures out of durable scan state. Failed image
+  pages now move behind available visuals without deleting user media or
+  reference URLs, recover into source order after a successful retry, and reset
+  their availability state when the displayed scan changes.
 - Hardened the public web boundary with the patched exact Next.js release,
-  per-request nonce CSP, explicit browser security headers, and a
-  `server-only` service-role client separated from anonymous projection reads.
-  Reviewed transitive overrides now replace Next.js's vulnerable PostCSS and
-  Sharp versions, and web CI blocks current or future high/critical dependency
+  per-request nonce CSP, explicit browser security headers, and a `server-only`
+  service-role client separated from anonymous projection reads. Reviewed
+  transitive overrides now replace Next.js's vulnerable PostCSS and Sharp
+  versions, and web CI blocks current or future high/critical dependency
   findings instead of treating the documented audit as optional.
 - Hardened production workflows with immutable action commit pins, explicit
   read-only permissions, step-scoped secrets, whole-tree Supabase
   function/tooling formatting and lint, a discovery-based complete script test
   gate including ghost-user maintenance, and the complete recursive Edge test
-  suite against the disposable database.
-  Identify schema/Swift DTO drift now uses the canonical shared schema through
-  a fail-closed compiler-AST deployment gate instead of a path-sensitive text
-  scan that could silently validate zero fields. The gate resolves local
-  TypeScript bindings by compiler symbol rather than global identifier text,
-  scans the production Swift source graph for extension-based custom decoders,
-  and requires explicit numeric schema bounds before accepting Swift integer
-  types. A lightweight iOS guardrail now runs the same contract gate for every
-  app source change, so an extension-only decoder change cannot wait until the
-  next backend deployment to be detected.
+  suite against the disposable database. Identify responses now use one
+  executable contract to generate Gemini schemas, infer Edge types, validate
+  provider and final server-enriched payloads at runtime, and generate the
+  checked-in Swift DTO decoders. Malformed or numerically out-of-range responses
+  fail before persistence or client delivery. Supported provider-side string and
+  array bounds are projected from that same contract through a typed Google SDK
+  adapter, and universally emitted nullable values remain required keys. The
+  fail-closed contract gate checks the exact generated Swift block and exclusive
+  DTO ownership across the complete iOS source graph, including cross-file and
+  module-qualified aliases; a lightweight iOS guardrail runs the same gate for
+  every app source change.
 
 ### Species Dictionary
 
@@ -141,10 +143,10 @@ TestFlight, App Store, support, and QA.
 - Hardened public observation charts against duplicate cold refreshes and
   provider outages. Charts now require a canonical Dictionary species, reuse
   negatively cached misses, and bound provider work with server-side rate
-  limits, deadlines, and cross-server refresh leases. A failed refresh now
-  keeps still-usable chart data stale instead of replacing it with an empty
-  result, shared public caches are no longer fragmented by session token, and
-  the app rejects legacy or mismatched responses before caching.
+  limits, deadlines, and cross-server refresh leases. A failed refresh now keeps
+  still-usable chart data stale instead of replacing it with an empty result,
+  shared public caches are no longer fragmented by session token, and the app
+  rejects legacy or mismatched responses before caching.
 - Added sharing to Species Dictionary pages. Shared links open the matching
   Dictionary page in Naturebook when installed and otherwise show a rich public
   web reference with licensed imagery, attribution, taxonomy, conservation and
@@ -169,18 +171,20 @@ TestFlight, App Store, support, and QA.
   across Insight and shared Explore pages, while keeping the user's captured
   media and retaining reference galleries for wild felids and canids.
 - Added single-photo import from the iOS share sheet. Sharing an image from
-  Photos to Naturebook now opens the app and routes the file through the existing
-  gallery crop, confirmation, quota, metadata, analysis, and offline-queue flow.
-  Included EXIF date/location is preserved online and offline; excluded Location
-  never falls back to the device's current coordinates.
+  Photos to Naturebook now opens the app and routes the file through the
+  existing gallery crop, confirmation, quota, metadata, analysis, and
+  offline-queue flow. Included EXIF date/location is preserved online and
+  offline; excluded Location never falls back to the device's current
+  coordinates.
 - Reduced live-camera still-image analysis wait time by starting inference after
-  a bounded environmental-context grace period, avoiding duplicate live/background
-  uploads and duplicate inference dispatch, and moving optional enrichment,
-  awards, and Field trips work off the first-result path. Free and Pro Gemini models and quality settings are
-  unchanged; gallery, audio-bearing, and video submission behavior is unchanged.
+  a bounded environmental-context grace period, avoiding duplicate
+  live/background uploads and duplicate inference dispatch, and moving optional
+  enrichment, awards, and Field trips work off the first-result path. Free and
+  Pro Gemini models and quality settings are unchanged; gallery, audio-bearing,
+  and video submission behavior is unchanged.
 - Fixed Audio recording occasionally reporting unavailable hardware immediately
-  after switching from Camera. Recording now waits for camera release and
-  safely recovers while the microphone route settles.
+  after switching from Camera. Recording now waits for camera release and safely
+  recovers while the microphone route settles.
 - Fixed videos starting silently after capture or app launch. Audible playback
   now reactivates the shared media session across Scans, Insights, and Explore
   without requiring an audio post to be played first.
@@ -194,8 +198,8 @@ TestFlight, App Store, support, and QA.
   an older frame-rate limit after the device heated up or recovered.
 - Prevented delayed offline upload, inference, retry, status-probe, and
   background-expiration callbacks from clearing or cancelling a newer sync
-  attempt. Queue progress now remains accurate across rapid reconnects,
-  retries, and app suspension.
+  attempt. Queue progress now remains accurate across rapid reconnects, retries,
+  and app suspension.
 - Made search-library filters responsive for large histories by caching filter
   dimensions and normalized scan values per library generation, then filtering
   and sorting immutable snapshots away from the main UI actor. Collection sync
@@ -209,18 +213,19 @@ TestFlight, App Store, support, and QA.
 - Prevented non-finite media geometry from reaching SwiftUI in Explore detail
   zoom and audio playmarkers, eliminating invalid-frame warnings and unstable
   offsets during transient layout/player states.
-- Removed the Capture startup SwiftUI AttributeGraph cycle for every configurable
-  first mode (Camera, Audio, and Description). The pager now builds pages lazily,
-  Description isolates its vertical scroller and reactive lifecycle from the
-  horizontal pager, and capture chrome uses a fixed layout reservation. Startup
-  Field-trip goal loading also shares one freshness-gated refresh instead of
-  repeating the same capture-context and introduction requests. Leaving
-  Description or closing the workspace now also stops dictation that is active
-  or still starting.
+- Removed the Capture startup SwiftUI AttributeGraph cycle for every
+  configurable first mode (Camera, Audio, and Description). The pager now builds
+  pages lazily, Description isolates its vertical scroller and reactive
+  lifecycle from the horizontal pager, and capture chrome uses a fixed layout
+  reservation. Startup Field-trip goal loading also shares one freshness-gated
+  refresh instead of repeating the same capture-context and introduction
+  requests. Leaving Description or closing the workspace now also stops
+  dictation that is active or still starting.
 - Restored the camera hint badge's pre-regression position above the shutter;
   full-screen overlays now use their prior fixed 250 pt clearance without
   reintroducing capture-bar measurement or startup layout feedback, with a UI
-  regression test that checks the rendered hint and shutter frames do not overlap.
+  regression test that checks the rendered hint and shutter frames do not
+  overlap.
 - Center-aligned the primary and secondary capture controls across Scan, Record,
   and Describe, and restored the Describe editor's clearance above that row;
   expanded the editor to fill the available height instead of leaving blank
@@ -256,11 +261,11 @@ TestFlight, App Store, support, and QA.
 - Fixed cross-device preferred species names repeatedly writing an already
   matching value or tombstone during cloud reconciliation.
 
-- Fixed the Field notes editor so closing an unchanged note no longer republishes
-  its existing visibility, shows a misleading public toast, or refreshes the
-  Explore detail page. Real text edits still autosave with a **Field notes
-  updated** confirmation, while public/private messages appear only after an
-  actual visibility change.
+- Fixed the Field notes editor so closing an unchanged note no longer
+  republishes its existing visibility, shows a misleading public toast, or
+  refreshes the Explore detail page. Real text edits still autosave with a
+  **Field notes updated** confirmation, while public/private messages appear
+  only after an actual visibility change.
 - Released Field trips and standard Outings to every user. The Events segment
   remains a client-gated preview for the tester account and simulator builds so
   its seasonal challenge UI can continue iterating independently.
@@ -279,9 +284,9 @@ TestFlight, App Store, support, and QA.
   the Field trips catalog, including an illustrated empty state for levels
   without a current trip.
 - Moved Goals and Tips into pinned toolbar tabs on standard Field trip and
-  Seasonal Challenge detail pages. Goals now owns the trip overview,
-  progress, actions, checklist, and Community content, while Tips opens directly
-  to the curated guide.
+  Seasonal Challenge detail pages. Goals now owns the trip overview, progress,
+  actions, checklist, and Community content, while Tips opens directly to the
+  curated guide.
 - Added the same circular progress treatment to the active outing level header.
   Completed goals now replace their illustration with the exact captured photo
   or video thumbnail in both outing cards and detail, keep the standard neutral
@@ -297,11 +302,11 @@ TestFlight, App Store, support, and QA.
 - Added a persistent **Field trips** card to saved biological Insights. Its
   compact rows separate the uppercase completion state from the goal name and
   pair larger objective artwork with a prominent credited-level progress ring.
-  It keeps every outing or visible Event credited by that scan together and
-  now matches other Insight card headers, removes the redundant level subtitle,
-  uses a smaller goal heading, and opens the outing/Event Goals overview in the
-  same navigation stack. Back returns to the originating Insight without
-  replaying milestone feedback.
+  It keeps every outing or visible Event credited by that scan together and now
+  matches other Insight card headers, removes the redundant level subtitle, uses
+  a smaller goal heading, and opens the outing/Event Goals overview in the same
+  navigation stack. Back returns to the originating Insight without replaying
+  milestone feedback.
 - Standard outings now advance only after the user explicitly starts them, and
   Events only after the user joins. One scan can count toward several active
   experiences, but only one goal in each; a selected live Camera goal wins when
@@ -314,8 +319,8 @@ TestFlight, App Store, support, and QA.
   without duplicating them after recovery.
 - Made Field trip attribution durable and transactional. Scan ingestion now
   applies standard outing progress, joined Event progress, the selected-goal
-  preference, and first-outing achievement state in one database transaction;
-  a private receipt lets later retries recover the original unlock result after
+  preference, and first-outing achievement state in one database transaction; a
+  private receipt lets later retries recover the original unlock result after
   app termination. The local selected-goal hint is kept until the server
   acknowledges progress.
 - Hardened every Field trip and Event `SECURITY DEFINER` database function so
@@ -333,31 +338,30 @@ TestFlight, App Store, support, and QA.
 - Tightened the rest of the active Outing checklist so labels and completion
   rules agree. Moths no longer count as Backyard **Butterfly**, ticks and
   scorpions no longer count as **Spider**, and animal/plant/ecology goals now
-  require both the named organism group and the matching signal. Park goals
-  that could not verify “near flowers” are now honestly labeled **Spider** and
+  require both the named organism group and the matching signal. Park goals that
+  could not verify “near flowers” are now honestly labeled **Spider** and
   **Bird**, and the scene-based **Pollinator habitat** target is now the
   verifiable **Meadow plant** target. Earlier credit that fails the corrected
   rules is removed from active progress.
-- Added a left-aligned, above-title **Private** / **Published** badge to standard outing detail.
-  Published is shown only when the owner has an active public outing snapshot;
-  completion alone remains Private.
-- Added a compact active outing target beneath the visual Scan mode picker.
-  It matches the picker width and centers an instructional `Look for: {target}`
+- Added a left-aligned, above-title **Private** / **Published** badge to
+  standard outing detail. Published is shown only when the owner has an active
+  public outing snapshot; completion alone remains Private.
+- Added a compact active outing target beneath the visual Scan mode picker. It
+  matches the picker width and centers an instructional `Look for: {target}`
   label and outing name between artwork and an AirPods-inspired circular
   progress ring. Swiping cycles through unfinished targets across active
   standard outings, and tapping opens and highlights the matching guide. The
   indicator stays out of staged captures, refinement, video recording, other
-  capture modes, and Seasonal Challenges.
-  Its capsule uses untinted interactive Liquid Glass on iOS 26 and a neutral
-  material fallback on earlier supported versions.
-  An on-by-default Field trip goals setting can hide the capsule without changing
-  outing data or progress, and tapping the capsule now provides light haptic
-  confirmation before opening its guide.
-  Its shared goal context is source-agnostic, so future guided experiences can
-  integrate without coupling their API models or ranking rules to the camera.
+  capture modes, and Seasonal Challenges. Its capsule uses untinted interactive
+  Liquid Glass on iOS 26 and a neutral material fallback on earlier supported
+  versions. An on-by-default Field trip goals setting can hide the capsule
+  without changing outing data or progress, and tapping the capsule now provides
+  light haptic confirmation before opening its guide. Its shared goal context is
+  source-agnostic, so future guided experiences can integrate without coupling
+  their API models or ranking rules to the camera.
 - Kept a linked standard outing available in the Scan target indicator after
-  joining a Seasonal Challenge. Challenge-specific progress remains separate
-  and does not enter the standard outing indicator.
+  joining a Seasonal Challenge. Challenge-specific progress remains separate and
+  does not enter the standard outing indicator.
 - Retired the placeholder Forest Edges outing from catalogs, detail/start
   routes, and the Scan target indicator while preserving existing progress,
   scans, publications, and evidence.
@@ -376,20 +380,20 @@ TestFlight, App Store, support, and QA.
   scan is reported; reasoning is hidden only when the identification itself is
   replaced by a user override.
 - Added an optional **Boost audio** control to public web audio posts. It makes
-  quiet recordings easier to hear with browser-local gain, rumble filtering,
-  and peak limiting while leaving the published recording unchanged.
+  quiet recordings easier to hear with browser-local gain, rumble filtering, and
+  peak limiting while leaving the published recording unchanged.
 - Updated the public web discovery grid to show the species reference image for
   audio posts while retaining the spectrogram and playback controls on post
   detail pages.
-- Simplified public Explore post details by removing like and comment counts
-  and moving **Report this post** below the Taxonomy card.
+- Simplified public Explore post details by removing like and comment counts and
+  moving **Report this post** below the Taxonomy card.
 - Reworked public Explore audio posts so the recording spectrogram fills the
   square media carousel and playback controls sit directly over its lower edge,
   with species reference images following as normal carousel slides.
 - Added video playback to public Explore post pages. The active carousel video
   now receives the canonical public video URL, autoplays muted with native
-  controls on a continuous loop, and shares the same square frame as every
-  other carousel item; the public discovery grid remains poster-only for fast
+  controls on a continuous loop, and shares the same square frame as every other
+  carousel item; the public discovery grid remains poster-only for fast
   browsing.
 - Kept audio presentation scoped correctly: feed and post detail always show a
   persisted or locally generated spectrogram, while compact Map, profile, and
@@ -405,23 +409,23 @@ TestFlight, App Store, support, and QA.
   media-only discovery had no hero image. Map points now use media posters or
   species reference thumbnails and isolate missing-thumbnail data safely. Map
   discovery cards now keep the Map-specific reference poster when an older feed
-  copy of the same post is cached, retain audio/video typing, and show the shared
-  compact bottom-right waveform or play badge.
+  copy of the same post is cached, retain audio/video typing, and show the
+  shared compact bottom-right waveform or play badge.
 - Fixed the Explore author profile's full published-scans view so it shows one
   back button instead of overlapping the stack and profile-library controls.
 - Fixed missing Explore location labels on audio-only and other non-visual
   discoveries by resolving their capture location before scan persistence.
   Existing affected posts can be repaired from their saved coordinates without
   changing the author’s post-level location-sharing choice.
-- Fixed standalone-audio thumbnails in profile and compact Explore grids so
-  they keep the species reference photo after remote post data loads, with a
-  bottom-right waveform badge identifying the recording; video posts retain
-  the matching play badge.
+- Fixed standalone-audio thumbnails in profile and compact Explore grids so they
+  keep the species reference photo after remote post data loads, with a
+  bottom-right waveform badge identifying the recording; video posts retain the
+  matching play badge.
 - Added tactile feedback to user-controlled audio and video playback, mute,
   seeking, and audio-boost actions while keeping autoplay and restored settings
   silent.
-- Added tap-to-seek and drag-to-scrub playback directly on audio spectrograms
-  in Explore post detail. Feed cards remain playback-only so their navigation
+- Added tap-to-seek and drag-to-scrub playback directly on audio spectrograms in
+  Explore post detail. Feed cards remain playback-only so their navigation
   gestures stay predictable.
 - Smoothed standalone-audio playheads in Explore feed and post detail. The line
   now follows audible playback at the display refresh rate, stays fixed while
@@ -442,15 +446,15 @@ TestFlight, App Store, support, and QA.
   continues progressively in the background.
 - Replaced the still-image laser sweep with a fast native focus treatment. When
   Naturebook isolates a clear subject, the analyzing image now uses Lens-style
-  corner brackets, a dimmed exterior, and the full-strength laser sweep contained
-  inside the selected area. Broad or ambiguous scenes show no fallback box and
-  retain the original full-image scan animation. The two scan treatments never
-  appear together, and the full cropped image is still analyzed.
+  corner brackets, a dimmed exterior, and the full-strength laser sweep
+  contained inside the selected area. Broad or ambiguous scenes show no fallback
+  box and retain the original full-image scan animation. The two scan treatments
+  never appear together, and the full cropped image is still analyzed.
 - Improved fullscreen video viewing with the same streamlined custom play/pause
   and mute controls used elsewhere, while keeping carousel dots in their
-  standard gallery position. Fullscreen videos now begin playing immediately
-  and inherit the Insight carousel's current sound setting. Video playback now
-  loops while the video remains selected in both carousel sizes.
+  standard gallery position. Fullscreen videos now begin playing immediately and
+  inherit the Insight carousel's current sound setting. Video playback now loops
+  while the video remains selected in both carousel sizes.
 - Added a protected center play/pause tap area to Insight video carousels so
   playback taps no longer open the fullscreen media viewer.
 - Paused Insight-sheet video playback before opening the fullscreen media
@@ -517,8 +521,8 @@ TestFlight, App Store, support, and QA.
   preview six exact-species public Explore posts and can open a paginated grid,
   while respecting each viewer's Explore visibility and privacy rules.
 - Added durable species dictionary enrichment queueing so new and existing
-  sparse species records can backfill Wikipedia, GBIF, reference image,
-  habitat, lookalike, and group-tag details through the scheduled workers.
+  sparse species records can backfill Wikipedia, GBIF, reference image, habitat,
+  lookalike, and group-tag details through the scheduled workers.
 
 ### Capture
 
@@ -536,9 +540,9 @@ TestFlight, App Store, support, and QA.
 - Added Pro short video scans from the visual shutter: tap still takes a photo,
   while a brief hold latches into a 5-second video recording with saved playback
   and image-based thumbnails.
-- Enabled native iOS stabilization for Pro video recordings, while resetting
-  the prepared movie output after stop, cancel, or failure so still-photo
-  capture keeps its normal resolution and latency.
+- Enabled native iOS stabilization for Pro video recordings, while resetting the
+  prepared movie output after stop, cancel, or failure so still-photo capture
+  keeps its normal resolution and latency.
 - Added clearer haptic feedback for video recording start, finish, successful
   staging, and recording failures.
 - Fixed a crash that could happen after tapping stop on a Pro video recording
@@ -629,8 +633,8 @@ TestFlight, App Store, support, and QA.
   audio feed and detail menus, with adaptive gain, gentle rumble reduction,
   clipping protection, synchronized settings, and position-preserving switching
   while the original recording remains unchanged; active boosted clips show a
-  small “Boosted audio” badge on the spectrogram, and saved boost settings restore quietly
-  without showing action-progress messaging.
+  small “Boosted audio” badge on the spectrogram, and saved boost settings
+  restore quietly without showing action-progress messaging.
 
 ### Insights
 
@@ -641,10 +645,11 @@ TestFlight, App Store, support, and QA.
   Insights with standalone audio. Mixed-media scans apply one setting to every
   audio page, preserve playback position while switching, restore quietly, and
   leave the original recording unchanged.
-- Added an allowlisted Field trips preview to Explore: regional checklist quests can auto-start from
-  new scans, unlock levels sequentially, show active checklist progress on
-  public profiles, and publish Field trip pages with species snapshots, likes,
-  and comments without creating Explore feed posts or map points.
+- Added an allowlisted Field trips preview to Explore: regional checklist quests
+  can auto-start from new scans, unlock levels sequentially, show active
+  checklist progress on public profiles, and publish Field trip pages with
+  species snapshots, likes, and comments without creating Explore feed posts or
+  map points.
 - Expanded Field trips with guided trip detail pages, explicit Start, curated
   item tips, a Field trips-only Community segment with For You, Following, and
   Recent filters, template Community previews, and up to 3 pinned published
@@ -683,8 +688,8 @@ TestFlight, App Store, support, and QA.
   fail-closed publication check: speech is transcribed and moderated before the
   share succeeds, so rejected or failed checks create no public post.
 - Added approved Explore audio to public web share pages with native,
-  user-initiated playback and audio-safe social metadata. Audio-only posts remain
-  excluded from Home Screen widgets.
+  user-initiated playback and audio-safe social metadata. Audio-only posts
+  remain excluded from Home Screen widgets.
 - Fixed standalone-audio R2 cleanup so user scan deletion, the 30-day
   non-biological purge, and failed-ingestion rollback do not orphan recordings.
 - Added public-audio health checks, privacy-safe moderation telemetry, web
@@ -715,9 +720,9 @@ TestFlight, App Store, support, and QA.
 
 ### Scans
 
-- Fixed newly empty scan libraries showing a blank screen instead of the first-scan
-  empty state, including after switching from a previously signed-in account to a
-  ghost session.
+- Fixed newly empty scan libraries showing a blank screen instead of the
+  first-scan empty state, including after switching from a previously signed-in
+  account to a ghost session.
 - Improved offline queue reliability so image, video, audio, and description
   scans keep retry state across app restarts, show retry/needs-attention status,
   and no longer discard user media after a fixed number of transient failures.
@@ -750,8 +755,8 @@ TestFlight, App Store, support, and QA.
 
 ### Profile
 
-- Added an Edit profile picture action to the Profile identity menu so the avatar
-  picker is available alongside name and username editing.
+- Added an Edit profile picture action to the Profile identity menu so the
+  avatar picker is available alongside name and username editing.
 - Fixed repeat observations moving an achievement's original unlock date
   forward. Repeat scans still update the latest-interaction date, while
   retroactive-notification decisions remain tied to the scan that earned the
@@ -768,8 +773,8 @@ TestFlight, App Store, support, and QA.
 
 ### Insight Sheet
 
-- Video scan media now starts muted playback when its Insight sheet opens,
-  loops while analysis is running, and keeps a bottom-left sound status toggle.
+- Video scan media now starts muted playback when its Insight sheet opens, loops
+  while analysis is running, and keeps a bottom-left sound status toggle.
 - Fixed account-library video scans whose cloud record still listed sampled
   frames so Insight opens the playable video instead of a thumbnail sequence.
 - Video scans that only have sampled frames available now fall back to the
@@ -799,8 +804,8 @@ TestFlight, App Store, support, and QA.
 - Fixed Overview interactions so longer ecological interaction notes wrap fully
   instead of truncating.
 - Improved Insight overviews with a compact, location-aware invasive status
-  summary that can show the assessed region, confidence, and Naturebook's rationale
-  when available.
+  summary that can show the assessed region, confidence, and Naturebook's
+  rationale when available.
 - Hid the upgrade plan card from the confidence details sheet for Pro users.
 
 ### Insight Chat
@@ -935,8 +940,8 @@ TestFlight, App Store, support, and QA.
 
 - Fixed Explore post web links so Universal Links open the matching native
   Explore post when Naturebook is installed.
-- Updated Explore post sharing copy so shared links introduce the Naturebook public
-  web preview more clearly.
+- Updated Explore post sharing copy so shared links introduce the Naturebook
+  public web preview more clearly.
 - Added dynamic species-type filters to Explore Map, with horizontal filter
   pills, a detailed filter sheet, and backend-backed category counts for the
   current map region.

@@ -1,8 +1,8 @@
 # API Contracts and Network Mappings
 
-Naturebook operates through a decoupled backend. The iOS application exclusively hits Supabase Edge
-Functions, abstracting its networking away from 3rd-party providers like Google
-Gemini.
+Naturebook operates through a decoupled backend. The iOS application exclusively
+hits Supabase Edge Functions, abstracting its networking away from 3rd-party
+providers like Google Gemini.
 
 ## Fleet-Wide JSON Ingress and Error Contract
 
@@ -13,24 +13,22 @@ reader, and reviewed media adapters delegate to its bounded JSON reader. The
 ordinary object reader:
 
 - accepts `application/json` and `application/*+json` only;
-- rejects malformed, negative, non-decimal, or conflicting
-  `Content-Length` values;
+- rejects malformed, negative, non-decimal, or conflicting `Content-Length`
+  values;
 - compares the declared size with the actual streamed size;
 - cancels the stream before retaining a chunk that would cross the limit;
 - coalesces accepted chunks into a geometrically growing bounded buffer so
-  allocation stays proportional to byte count rather than transport chunk
-  count;
+  allocation stays proportional to byte count rather than transport chunk count;
 - rejects invalid UTF-8 and malformed JSON; and
-- requires a JSON object unless the endpoint explicitly documents another
-  shape.
+- requires a JSON object unless the endpoint explicitly documents another shape.
 
 Routes use the smallest endpoint class that can contain a valid request:
 
-| Class | Maximum body | Intended payload |
+| Class      | Maximum body | Intended payload                     |
 | ---------- | -----------: | ------------------------------------ |
-| `small` | 16 KiB | scalar IDs, actions, and preferences |
-| `standard` | 64 KiB | ordinary structured API requests |
-| `bulk` | 1 MiB | explicitly bounded batches |
+| `small`    |       16 KiB | scalar IDs, actions, and preferences |
+| `standard` |       64 KiB | ordinary structured API requests     |
+| `bulk`     |        1 MiB | explicitly bounded batches           |
 
 Media endpoints may use a reviewed larger ceiling through
 `_shared/mediaBudgets.ts`; they still use the same streaming reader. Bodies are
@@ -40,11 +38,11 @@ array counts, UUIDs, and ownership.
 
 Parser failures use stable public codes:
 
-| HTTP | Code |
+| HTTP | Code                                                               |
 | ---: | ------------------------------------------------------------------ |
-| 400 | `invalid_content_length`, `invalid_json`, or `invalid_json_object` |
-| 413 | `payload_too_large` |
-| 415 | `unsupported_media_type` |
+|  400 | `invalid_content_length`, `invalid_json`, or `invalid_json_object` |
+|  413 | `payload_too_large`                                                |
+|  415 | `unsupported_media_type`                                           |
 
 Edge errors return:
 
@@ -59,14 +57,14 @@ Edge errors return:
 `X-Request-ID` carries the same UUID and is exposed through CORS. The server
 does not trust an inbound request-ID header. Authenticated routes use
 `withEdgeHandler`; custom-auth, webhook, and intentionally public routes use
-`serveEdge`. Expected thrown failures use `PublicHttpError`, while explicit
-safe response failures use `publicErrorResponse(...)`. Retained returned `4xx`
+`serveEdge`. Expected thrown failures use `PublicHttpError`, while explicit safe
+response failures use `publicErrorResponse(...)`. Retained returned `4xx`
 contracts must contain only audited validation or caller-state data; the
-boundary validates/adds their stable code and request ID. An arbitrary
-exception is logged privately and becomes `500 internal_error`; an ordinary
-returned `5xx` keeps its status but receives the generic status-derived
-code/message. Retryable public failures may additionally include
-`retry_after_seconds` and a bounded `Retry-After` header.
+boundary validates/adds their stable code and request ID. An arbitrary exception
+is logged privately and becomes `500 internal_error`; an ordinary returned `5xx`
+keeps its status but receives the generic status-derived code/message. Retryable
+public failures may additionally include `retry_after_seconds` and a bounded
+`Retry-After` header.
 
 The Next.js waitlist API uses the equivalent web envelope with `message` in
 place of `error`. Its 4 KiB request ceiling, CAPTCHA, database rate limits, and
@@ -172,10 +170,10 @@ state.
 `user_field_trip_item_completions.scan_id` that satisfied the item. It is
 non-null only for completed standard-outing items; incomplete items return the
 key as `null`. The response deliberately does not add a media URL: iOS resolves
-the ID against the caller's device-local scan library and renders the normal photo or
-video-poster thumbnail. If that record is unavailable locally, clients retain
-the curated placeholder. Completion count or array position must never be used
-to infer which checklist items are complete.
+the ID against the caller's device-local scan library and renders the normal
+photo or video-poster thumbnail. If that record is unavailable locally, clients
+retain the curated placeholder. Completion count or array position must never be
+used to infer which checklist items are complete.
 
 The catalog and template-detail RPCs are revoked from `PUBLIC`, `anon`, and
 `authenticated` and granted only to `service_role`. The authenticated
@@ -196,8 +194,8 @@ An unfinished stopped outing has `active_progress: null` and an optional
 `stopped_progress` object with the same saved checklist counts plus
 `stopped_at`. Its `levels` include the saved completion state. Clients use
 active-or-stopped viewer progress for catalog status, filters, and detail cards,
-but active-only surfaces such as Capture and public active summaries continue
-to read only active progress.
+but active-only surfaces such as Capture and public active summaries continue to
+read only active progress.
 
 ### Template Detail and Explicit Start
 
@@ -248,8 +246,8 @@ Lifecycle requests:
 { "action": "reset", "user_field_trip_id": "uuid" }
 ```
 
-Stop preserves standard checklist progress, closes the open activity period,
-and removes the outing from Capture/profile active projections. Reset rejects
+Stop preserves standard checklist progress, closes the open activity period, and
+removes the outing from Capture/profile active projections. Reset rejects
 completed or published outings, clears only unfinished standard progress and
 activity periods, and retains the shared outing row so Seasonal Challenge data
 is not cascaded away. Both responses contain refreshed template detail and use
@@ -295,37 +293,38 @@ Response:
 
 This is a narrow read model for the idle visual Scan surface. It returns only
 active, incomplete, non-hidden standard Field trips that the caller can access.
-For each field trip it returns unfinished targets from the current unlocked level;
-completed targets and later levels are absent. Seasonal Challenge participation,
-labels, and challenge-specific completions are not projected. Joining a
-challenge reuses the underlying standard `user_field_trips` row, so that
-standard field trip remains eligible and continues to show only its normal Field
-Trip progress.
+For each field trip it returns unfinished targets from the current unlocked
+level; completed targets and later levels are absent. Seasonal Challenge
+participation, labels, and challenge-specific completions are not projected.
+Joining a challenge reuses the underlying standard `user_field_trips` row, so
+that standard field trip remains eligible and continues to show only its normal
+Field Trip progress.
 
 Stopped trips are deliberately absent. A reset Backyard Safari can qualify for
 the unstarted introduction again; a stopped one cannot because its
 `stopped_progress` proves it has saved viewer progress.
 
-Field trips order by `last_engaged_at DESC`, where engagement is the later of the
-trip start and any item completion. `user_field_trip_id` is the stable tie
+Field trips order by `last_engaged_at DESC`, where engagement is the later of
+the trip start and any item completion. `user_field_trip_id` is the stable tie
 breaker. Targets order by curated `(sort_order, item_id)`. Field trips with no
-unfinished target are omitted, and an account with no eligible field trips receives
-`{ "data": [] }`.
+unfinished target are omitted, and an account with no eligible field trips
+receives `{ "data": [] }`.
 
 Privacy and authorization are deliberately stricter than the catalog contract:
 
-- The request accepts no user identifier. `withEdgeHandler` verifies the
-  caller, and the Edge action passes only `user.id` to the database helper.
+- The request accepts no user identifier. `withEdgeHandler` verifies the caller,
+  and the Edge action passes only `user.id` to the database helper.
 - `public.get_field_trip_capture_context(uuid)` is `SECURITY INVOKER`, with an
-  empty search path and fully qualified database objects. Execute access is revoked from `PUBLIC`, `anon`,
-  and `authenticated`, then granted only to `service_role`.
+  empty search path and fully qualified database objects. Execute access is
+  revoked from `PUBLIC`, `anon`, and `authenticated`, then granted only to
+  `service_role`.
 - The response contains no scan ID, media URL, location, field note, completed
   common/scientific name, or other evidence.
 
-The iOS mapping is
-`MerianNetworkClient.shared.getFieldTripCaptureContext()`. Capture treats the
-request as non-blocking enrichment: it may retain the last successful
-account-scoped result and must not show a request error over the camera.
+The iOS mapping is `MerianNetworkClient.shared.getFieldTripCaptureContext()`.
+Capture treats the request as non-blocking enrichment: it may retain the last
+successful account-scoped result and must not show a request error over the
+camera.
 
 ### Scan Progress
 
@@ -413,10 +412,10 @@ Response:
 ```
 
 The backing atomic RPC counts only scans owned by the caller, only after the
-Field Trip starts, and only against the current unlocked level. Matching accepts AI
-identifications and later user-confirmed/corrected identifications through the
-same scan row, then writes idempotent item completions. Eligibility is based on
-the saved biological scan, not its capture modality, so qualifying photos and
+Field Trip starts, and only against the current unlocked level. Matching accepts
+AI identifications and later user-confirmed/corrected identifications through
+the same scan row, then writes idempotent item completions. Eligibility is based
+on the saved biological scan, not its capture modality, so qualifying photos and
 videos can count. Upload/request time does not replace the scan timestamp, so a
 scan captured inside a now-closed outing period or Event window can receive
 delayed first credit. A single scan is evaluated against every matching current-
@@ -425,53 +424,53 @@ credit per outing and one per joined live challenge. It may still advance
 several deliberately active experiences, with every completion row pointing to
 the same scan.
 
-The optional `preferred_goal` is accepted only for an owned standard outing
-that was active at the scan timestamp and whose current visible item matches
-the saved identification. It wins inside that outing only. Missing, stale,
+The optional `preferred_goal` is accepted only for an owned standard outing that
+was active at the scan timestamp and whose current visible item matches the
+saved identification. It wins inside that outing only. Missing, stale,
 unauthorized, completed, and nonmatching hints are ignored. Fallback selection
 is exact species, scientific name, taxonomy from genus through kingdom,
 including excluded-family and taxonomy-plus-signal variants, semantic tag,
-ecology, habitat, curated checklist order, then item ID. A
-`taxonomy_and_signal` goal requires at least one taxonomy constraint, at least
-one ecology/habitat/semantic constraint, and every populated constraint to
-match. The exact catalog is maintained in the
+ecology, habitat, curated checklist order, then item ID. A `taxonomy_and_signal`
+goal requires at least one taxonomy constraint, at least one
+ecology/habitat/semantic constraint, and every populated constraint to match.
+The exact catalog is maintained in the
 [Field Trips matching contract](../features-and-hardware/25-field-trips.md#active-objective-matching-contract).
-Park Pollinators' **Bee or wasp** goal
-requires order `Hymenoptera` plus either the `bee` or `wasp` semantic category,
-so ants, sawflies, and other broader-order matches do not satisfy it. Compound
-semantic alternatives are `|`-separated. Spider goals require order `Araneae`;
-animal and plant signal goals also require their named kingdom.
+Park Pollinators' **Bee or wasp** goal requires order `Hymenoptera` plus either
+the `bee` or `wasp` semantic category, so ants, sawflies, and other
+broader-order matches do not satisfy it. Compound semantic alternatives are
+`|`-separated. Spider goals require order `Araneae`; animal and plant signal
+goals also require their named kingdom.
 
-For new scans, the identify ingestion intent stores the validated preference
-and the scan-insert trigger invokes the same atomic RPC before scan persistence
+For new scans, the identify ingestion intent stores the validated preference and
+the scan-insert trigger invokes the same atomic RPC before scan persistence
 commits. Standard progress, Event progress, preference persistence, first Field
 trip achievement evaluation, and a private scan-revision receipt therefore
 commit or roll back together. `apply_scan_progress` retrieves that receipt for
 notification delivery. Relevant identification corrections create a new scan
 revision and re-evaluate unfinished experiences through the same transaction.
 
-V4 clients should continue reading `data` for normal Field trip progress and
-may read `challenge_updates` for joined live challenge progress. Older clients
-can ignore `challenge_updates`.
+V4 clients should continue reading `data` for normal Field trip progress and may
+read `challenge_updates` for joined live challenge progress. Older clients can
+ignore `challenge_updates`.
 
 Both arrays add four backward-compatible credited-level fields:
-`credited_level_number`, `credited_level_title`,
-`credited_completed_count`, and `credited_target_count`. They describe the
-level that accepted this scan's newly completed item. If the write finishes a
-level and advances immediately, the existing `current_*`, `completed_count`,
-and `target_count` fields describe the newly active level while `credited_*`
-retains the completed level and therefore reports a full ring instead of the
-next level's `0/N`. During a staged database/client rollout, iOS decodes these
-fields optionally and falls back to the existing counts when they are absent.
-Credited counts and `newly_completed_items` are scoped to completion rows
-inserted by the current application attempt. If an older scan is re-identified
-after level advancement, its historical completion rows cannot duplicate a
-destination or replace the new level's ring.
+`credited_level_number`, `credited_level_title`, `credited_completed_count`, and
+`credited_target_count`. They describe the level that accepted this scan's newly
+completed item. If the write finishes a level and advances immediately, the
+existing `current_*`, `completed_count`, and `target_count` fields describe the
+newly active level while `credited_*` retains the completed level and therefore
+reports a full ring instead of the next level's `0/N`. During a staged
+database/client rollout, iOS decodes these fields optionally and falls back to
+the existing counts when they are absent. Credited counts and
+`newly_completed_items` are scoped to completion rows inserted by the current
+application attempt. If an older scan is re-identified after level advancement,
+its historical completion rows cannot duplicate a destination or replace the new
+level's ring.
 
 Both update kinds may also include `removed_item_ids`. While an experience is
 unfinished, an identification correction can move or remove this scan's credit
-within its original credited level and reset progress to the earliest
-incomplete level. Completed outings and challenges are immutable.
+within its original credited level and reset progress to the earliest incomplete
+level. Completed outings and challenges are immutable.
 
 Migration `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a
 one-time repair for ant scans credited before that family exclusion existed. It
@@ -488,9 +487,9 @@ plant-plus-meadow **Meadow plant** goal.
 Only updates with a nonempty `newly_completed_items` array are eligible for a
 scan progress toast. Reapplying an unchanged scan is idempotent and returns its
 stored receipt, including the original update payload; this lets a client that
-terminated after ingestion recover the unlock notification. iOS acknowledges
-and deletes its durable goal-hint outbox after consuming success/terminal state,
-and separately deduplicates already released milestones by scan ID. A changed
+terminated after ingestion recover the unlock notification. iOS acknowledges and
+deletes its durable goal-hint outbox after consuming success/terminal state, and
+separately deduplicates already released milestones by scan ID. A changed
 identification revision replaces the receipt with its correction result.
 `preferred_goal` is an optional additive request field. Older clients omit it
 and receive the deterministic fallback. The response remains backward-
@@ -550,8 +549,8 @@ The challenge API is deployed before the Events UI is public. Standard Outings
 are available to every iOS user, while the client omits the Events segment,
 catalog/detail requests, badges, entry routes, and hashtag suggestions unless
 `FieldTripEventsAvailability` is enabled. `apply_scan_progress` may still return
-challenge progress from the shared server transaction; an Events-disabled
-client filters those rows before caching, refresh publication, navigation, or
+challenge progress from the shared server transaction; an Events-disabled client
+filters those rows before caching, refresh publication, navigation, or
 presentation. This release gate is not an authorization boundary: all actions
 continue to enforce the verified viewer and existing database policies. The
 future public Events flip does not change these request or response shapes.
@@ -609,9 +608,9 @@ Catalog rows include:
 ```
 
 `status` is one of `live`, `upcoming`, or `ended`. Access is
-server-authoritative and independent from the linked template's ordinary
-catalog access; a challenge can be free, Pro-only, or temporarily free during
-its schedule.
+server-authoritative and independent from the linked template's ordinary catalog
+access; a challenge can be free, Pro-only, or temporarily free during its
+schedule.
 
 Detail and join requests:
 
@@ -684,8 +683,8 @@ Publish/detail/like/comment requests:
 Publishing requires a completed challenge participation and snapshots challenge
 item completions into `field_trip_challenge_entry_items`. Challenge entry likes
 and comments are stored in challenge-specific tables, not Explore or normal
-Field trip publication tables. Joins, likes, badges, and progress updates do
-not notify other users in V4.
+Field trip publication tables. Joins, likes, badges, and progress updates do not
+notify other users in V4.
 
 ### Profile Summaries
 
@@ -775,9 +774,9 @@ Active summaries are profile-status only. They must not expose scan IDs, media
 URLs, field notes, exact coordinates, public location labels, or private
 evidence. Published summaries expose only Field trip publication IDs and
 snapshot metadata. `pinned` is capped at 3 and omitted from the general
-`published` list. Shadowbanned authors and mutual blocks are excluded.
-Challenge badges are lightweight profile rewards only; they expose no scan IDs,
-media URLs, exact location, field notes, or private evidence.
+`published` list. Shadowbanned authors and mutual blocks are excluded. Challenge
+badges are lightweight profile rewards only; they expose no scan IDs, media
+URLs, exact location, field notes, or private evidence.
 
 Set pinned publications request:
 
@@ -848,8 +847,8 @@ Response:
 
 `mode` accepts `smart`, `following`, or `recent`. `smart` is deterministic
 bucketed ranking, not ML: followed author plus local/template relevance,
-followed author, local/habitat/season/template match, global/no-region
-fallback, then other visible fallback. Within each bucket, rows order by
+followed author, local/habitat/season/template match, global/no-region fallback,
+then other visible fallback. Within each bucket, rows order by
 `published_at DESC, publication_id DESC`. `following` filters to existing
 `user_follows` relationships. `recent` is reverse chronological for all visible
 published Field trips. `template_id` limits results for template-detail
@@ -872,8 +871,8 @@ Compatibility request:
 }
 ```
 
-`recent_publications` is a compatibility alias for
-`community_publications` with `mode: "recent"`.
+`recent_publications` is a compatibility alias for `community_publications` with
+`mode: "recent"`.
 
 Community Publications is Field trips-native and never creates Explore post
 rows. The iOS client also reuses this action to mix typed Field trip cards into
@@ -977,11 +976,10 @@ Create-comment request:
 }
 ```
 
-Field trip likes and comments are stored in
-`field_trip_publication_likes` and `field_trip_publication_comments`, not in
-Explore post tables. Comment payloads intentionally mirror the compact
-`ExploreComment` shape for iOS reuse, with `post_id` carrying the Field trip
-publication ID inside this scoped endpoint.
+Field trip likes and comments are stored in `field_trip_publication_likes` and
+`field_trip_publication_comments`, not in Explore post tables. Comment payloads
+intentionally mirror the compact `ExploreComment` shape for iOS reuse, with
+`post_id` carrying the Field trip publication ID inside this scoped endpoint.
 
 Publishing a Field trip never writes `explore_posts`, Explore feed cards,
 Explore map rows, normal Explore post notifications, APNs, widgets, or public
@@ -1030,22 +1028,21 @@ request body. To prevent array-abuse memory locking on the Edge Node, the
 endpoint strictly requires exactly 1 to 6 `files`, with at most 5 images, 2
 audio files, and 1 video file. The six-file ceiling exists for the canonical Pro
 video scan shape: five sampled `image/webp` inference frames plus one
-`video/mp4` playback clip. It is not a general expansion to six images. The
-main app queue builds this manifest through `MediaStagingContract` and must
-apply the same filename sanitization as the Edge function before upload URL
-generation. For scan uploads, each structured entry may also include
-`clientScanId` and `mediaRole`; when present, `/generate-upload-urls` creates a
-server-owned staged `scan_media_assets` row before returning the signed URL.
-Those staged rows are valid with `scan_id = NULL` until the final scan row
-exists and with `url = NULL` until media promotion produces a public URL; they
-are keyed by user, client scan id, and upload session for later promotion or
-cleanup. Image roles may be `display`, `thumbnail`, or
-`inference_frame`; video uses `playback`; audio uses `audio`. The Edge parser
-rejects unsanitized filenames, invalid `mediaKind` values, invalid role/kind
-combinations, content-type/kind mismatches, and oversized media before signing.
-Structured manifests require `sizeBytes`; the legacy `fileNames` array remains
-accepted for older clients but is compatibility-only and cannot express byte
-budgets or media asset sessions.
+`video/mp4` playback clip. It is not a general expansion to six images. The main
+app queue builds this manifest through `MediaStagingContract` and must apply the
+same filename sanitization as the Edge function before upload URL generation.
+For scan uploads, each structured entry may also include `clientScanId` and
+`mediaRole`; when present, `/generate-upload-urls` creates a server-owned staged
+`scan_media_assets` row before returning the signed URL. Those staged rows are
+valid with `scan_id = NULL` until the final scan row exists and with
+`url = NULL` until media promotion produces a public URL; they are keyed by
+user, client scan id, and upload session for later promotion or cleanup. Image
+roles may be `display`, `thumbnail`, or `inference_frame`; video uses
+`playback`; audio uses `audio`. The Edge parser rejects unsanitized filenames,
+invalid `mediaKind` values, invalid role/kind combinations, content-type/kind
+mismatches, and oversized media before signing. Structured manifests require
+`sizeBytes`; the legacy `fileNames` array remains accepted for older clients but
+is compatibility-only and cannot express byte budgets or media asset sessions.
 Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
 This extended window gives iOS `BackgroundTasks` flexibility to transmit
 overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting
@@ -1077,11 +1074,11 @@ profile avatars, and for legacy `fileNames` clients. During
 staging keys update the matching staged rows and link them to the completed
 scan. Consumed extracted `video_audio` staging keys become `deleted`;
 moderation, promotion, or scan-insert failures mark still-staged rows as
-`failed`. The returned `mediaSessionId`
-values also let ingestion recover the exact upload sessions for the staged
-object keys; those session ids participate in the `scan_ingestion_jobs`
-`manifest_checksum`, giving retries and repair workers a stable server-side
-description of the requested media set without storing media bytes.
+`failed`. The returned `mediaSessionId` values also let ingestion recover the
+exact upload sessions for the staged object keys; those session ids participate
+in the `scan_ingestion_jobs` `manifest_checksum`, giving retries and repair
+workers a stable server-side description of the requested media set without
+storing media bytes.
 
 > The pre-signed URL is generated with the exact `contentType` from the
 > structured manifest. The iOS `URLRequest` must send the same `Content-Type`
@@ -1178,11 +1175,11 @@ sanitized intent payload, and invokes `/identify-multimodal` with the original
 `client_scan_id`. The multimodal endpoint still owns AI inference, moderation,
 media promotion, scan insert idempotency, and the strict playback-video
 durability gate. A service-authenticated `X-Merian-Replay-Attempt` header
-derives a distinct deterministic quota UUID from the scan UUID and durable
-claim count. This prevents the original committed reservation from blocking
-recovery while keeping each replay metered and idempotent within one claim.
-Inline foreground requests remain client-owned because their raw media bytes
-are never stored server-side.
+derives a distinct deterministic quota UUID from the scan UUID and durable claim
+count. This prevents the original committed reservation from blocking recovery
+while keeping each replay metered and idempotent within one claim. Inline
+foreground requests remain client-owned because their raw media bytes are never
+stored server-side.
 
 Automatic replay is capped at 10 claims per sanitized intent. The claim RPC
 excludes over-budget intents from new replay work and marks the paired
@@ -1341,8 +1338,8 @@ authentication, and media-restoration retries. Newly created and existing
 Explore posts use the same mandatory audio publication gate as
 `share-scan-to-explore`: each audible item receives a checksum/policy-derived
 child key, and a cache miss reserves `explore_audio_moderation` before provider
-dispatch. The database resolves entitlement/model and applies daily plus
-user/IP limits. Cache hits refund the provisional reservation. Missing quota,
+dispatch. The database resolves entitlement/model and applies daily plus user/IP
+limits. Cache hits refund the provisional reservation. Missing quota,
 entitlement, policy, provider, or moderation state fails closed and does not
 replace public media.
 
@@ -1396,8 +1393,8 @@ filtered out server-side. Identification timeline rows include a computed
 internal consensus/audit behavior; clients should not expose these labels as
 user-facing copy. The response also includes additive `suggested_taxa` for the
 Suggest ID sheet and the detail header card. The top-level `inference_tier`
-mirrors `scans.inference_tier` so clients can label the card as Naturebook Pro or
-Naturebook Flash; missing or unknown tiers should display as Flash. The first
+mirrors `scans.inference_tier` so clients can label the card as Naturebook Pro
+or Naturebook Flash; missing or unknown tiers should display as Flash. The first
 suggestion is the request's `ai_initial` taxon, hydrated from the backing scan's
 `ai_confidence_score` and `ai_reasoning` so clients can frame it as Merian's
 starting identification without borrowing human consensus or alternative
@@ -1561,8 +1558,8 @@ Every authenticated route that can dispatch paid model work uses the same
 database boundary. Clients should send a UUID `Idempotency-Key`; scan routes use
 the exact `client_scan_id`, and chat sends use `client_message_id`. A validated
 body request ID takes precedence over the header. The iOS network layer
-preserves the same key across transient transport, auth-refresh, missing-session,
-and `5xx` retries.
+preserves the same key across transient transport, auth-refresh,
+missing-session, and `5xx` retries.
 
 Before provider dispatch, `reserve_ai_quota` atomically verifies entitlement,
 selects the operation's database policy/model, and consumes daily/user/IP
@@ -1578,14 +1575,14 @@ it does not promise to replay a prior HTTP response body.
 
 Shared authorization errors are:
 
-| Status | Code | Meaning |
+| Status | Code                                                        | Meaning                                                                                    |
 | ------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `400` | `ai_request_id_invalid` | Supplied body/header request key is not a UUID |
-| `402` | `pro_required` | Operation is disabled for the effective plan |
-| `409` | `ai_request_in_progress` / `ai_request_already_completed` | Duplicate paid-provider attempt; an in-progress response retries after the remaining lease |
-| `429` | `ai_quota_daily_exceeded` | Database UTC-day safety ceiling reached |
-| `429` | `ai_user_rate_limit_exceeded` / `ai_ip_rate_limit_exceeded` | Shared minute ceiling reached |
-| `503` | `ai_entitlement_unavailable` / `ai_quota_unavailable` | Durable authorization could not be verified |
+| `400`  | `ai_request_id_invalid`                                     | Supplied body/header request key is not a UUID                                             |
+| `402`  | `pro_required`                                              | Operation is disabled for the effective plan                                               |
+| `409`  | `ai_request_in_progress` / `ai_request_already_completed`   | Duplicate paid-provider attempt; an in-progress response retries after the remaining lease |
+| `429`  | `ai_quota_daily_exceeded`                                   | Database UTC-day safety ceiling reached                                                    |
+| `429`  | `ai_user_rate_limit_exceeded` / `ai_ip_rate_limit_exceeded` | Shared minute ceiling reached                                                              |
+| `503`  | `ai_entitlement_unavailable` / `ai_quota_unavailable`       | Durable authorization could not be verified                                                |
 
 Rate-limit and temporary entitlement responses may include both the
 `Retry-After` header and `retry_after_seconds` JSON field. Clients must not
@@ -1696,29 +1693,45 @@ To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
   cultivars) and effective free users to `gemini-2.5-flash` (2–3× lower
   latency). Effective Pro includes paid subscribers and dynamic 7-day trial
   users. The server does not trust an iOS tier hint. It atomically calls
-  `reserve_ai_quota` before provider work; that transaction resolves the
-  durable plan and expiry, selects an allowlisted model from
+  `reserve_ai_quota` before provider work; that transaction resolves the durable
+  plan and expiry, selects an allowlisted model from
   `internal.ai_quota_policies`, and consumes daily/user/IP counters under the
   request idempotency key. Text-only enrichment currently selects
   `gemini-2.5-flash` through the same database policy. A missing user row,
-  entitlement query failure, disabled/missing policy, or unsupported model
-  fails closed before Gemini. Both identification models use the
-  `merianResponseSchema` constraint to protect SwiftData UI logic.
-- **Dynamic Token Truncation (Non-biological targets)**: When processing
-  non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, and
-  `ecology_type` from the `required: []` array and passes
-  `is_biological_subject: false`. The Swift layer maps the absent fields to
-  native Optionals. **Geology Bypass**: Gemini's prompt explicitly instructs the
-  LLM to output `scientific_name` and `common_name` for geological subjects
-  (e.g. rocks) despite being non-biological. This surfaces rocks cleanly in the
-  iOS layer under `isBiological: false` (routing them out of the main dictionary
-  and into the 30-day auto-purge graveyard) without reverting to generic
-  "Unknown Subject" names.
+  entitlement query failure, disabled/missing policy, or unsupported model fails
+  closed before Gemini. Both identification models use the structured schema
+  generated from `merianModelContract`.
+- **Conditional biological fields**: The static executable contract makes
+  biological-only fields optional and nullable. The prompt requires them to be
+  omitted for non-biological subjects; the runtime parser and processed-material
+  guard then enforce the safe boundary. **Geology Bypass**: Gemini's prompt
+  explicitly instructs the LLM to output `scientific_name` and `common_name` for
+  identifiable geological subjects despite `is_biological_subject=false`. This
+  surfaces rocks cleanly in the iOS layer while routing them out of the main
+  biological dictionary.
 
-If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
-Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously
-support both the Pro schema and Free text-prompt shapes without causing
-`JSONDecoder()` failures.
+The canonical source for every model and final response key is
+`services/supabase/functions/_shared/identify/contract.ts`. It generates the
+provider schema and Swift wire DTO block, infers the deployed TypeScript
+payloads, and recursively validates live values. Provider output is validated
+immediately after JSON syntax extraction. After name sanitization, cache
+hydration, candidate enrichment, and server-added fields, the complete
+`{ "success": true, "data": ... }` envelope is validated again before
+persistence or HTTP success.
+
+Successful Identify responses always contain `blur_score`, `colors`,
+`candidates` (nullable), `estimated_size_cm` (nullable), `image_quality`, and
+`pet_identification` (nullable); the contract rejects an omitted key even though
+generated root Swift properties remain optional for staggered rollout
+compatibility. The Describe model contract also rejects `is_live_capture=true`
+and nonzero image-quality values.
+
+For an intentional response change, edit the executable contract, run
+`make generate-edge-dto-contract`, review the generated
+`InferenceEdgeDTOs.swift` diff, and run `make validate-edge-dto-contract`. Do
+not hand-edit or extend a generated wire DTO. The final server contract is
+strict; generated root Swift properties are optional only to support older
+cached payloads and staggered rollout.
 
 > **Image format**: All images in this pipeline are encoded as lossy **WebP**
 > (`image/webp`). The `inlineData.mimeType` field passed to the Gemini SDK in
@@ -1753,10 +1766,10 @@ return this boolean in the client payload. It is `true` only when the scan is a
 biological subject and the initial `species_dictionary` lookup found no existing
 row for the normalized scientific name. iOS decodes the field as
 `SpeciesData.isNewToMerianDictionary` and uses it to show the bottom in-app
-`New to Naturebook` milestone notification. Do not infer global dictionary novelty
-from missing enrichment fields such as `alternative_common_names`; cache gaps,
-GBIF gaps, and partial rows are not milestone signals. Existing dictionary rows
-with incomplete taxonomy/enrichment are still treated as not new to the
+`New to Naturebook` milestone notification. Do not infer global dictionary
+novelty from missing enrichment fields such as `alternative_common_names`; cache
+gaps, GBIF gaps, and partial rows are not milestone signals. Existing dictionary
+rows with incomplete taxonomy/enrichment are still treated as not new to the
 Naturebook dictionary.
 
 **Processed-material guardrail**: The identify routes demote manufactured or
@@ -1767,10 +1780,10 @@ fabric, prepared food, toys, artwork, ornaments, and species depictions are not
 biological observations even when made from biological material. The response
 keeps the object `common_name` when useful for the non-biological result, clears
 source-species `scientific_name`, strips candidates, and never sets
-`is_new_to_merian_dictionary`. iOS also treats
-`is_biological_subject=false` as authoritative during decode, forcing
-`SpeciesData.isNewToMerianDictionary=false` and `SpeciesData.candidates=nil`
-even if a stale or malformed Edge response includes those fields.
+`is_new_to_merian_dictionary`. iOS also treats `is_biological_subject=false` as
+authoritative during decode, forcing `SpeciesData.isNewToMerianDictionary=false`
+and `SpeciesData.candidates=nil` even if a stale or malformed Edge response
+includes those fields.
 
 Processed-material response shape:
 
@@ -1916,7 +1929,7 @@ constraint in the Deno schema.
 > `{"species_group":"dog","label":"Australian Cattle Dog mix","label_type":"breed_mix","confidence_score":0.82,"evidence":["blue-roan ticking","black saddle patch","compact herding-dog build"]}`.
 > The stored species would still be `Domestic Dog` / `Canis lupus familiaris`.
 >
-> `candidates` is required in `merianResponseSchema`; biological subjects are
+> `candidates` is required in `merianModelContract`; biological subjects are
 > instructed to return exactly 2 alternatives, while non-biological subjects
 > return an empty array. The identify routes strip candidates to `null` when
 > `confidence_score >= diagnosticTrigger` (`0.99` for both Flash and Pro),
@@ -1925,6 +1938,15 @@ constraint in the Deno schema.
 > stripped to `null` regardless of confidence. Candidates are scan-specific and
 > persist to `public.scans.candidates` plus `LocalScanRecord.candidatesData`,
 > while client display is separately gated by `CandidateReviewVisibilityPolicy`.
+>
+> **Executable validation**: Numeric bounds, enums, nested required fields,
+> nullability, safe-integer semantics, string lengths, and array cardinalities
+> above are enforced by the Edge runtime, not only documented in the provider
+> schema. Unknown provider/server keys follow the contract's explicit strip
+> policy. A malformed provider object returns HTTP `422`. If the final
+> server-enriched envelope violates its wire contract, the route returns HTTP
+> `502` with stable code `identify_response_invalid` before persistence or
+> client delivery.
 
 ### Background Ingestion & Media Moderation
 
@@ -2271,9 +2293,10 @@ Content quality:
   payloads. Sparse and needs-enrichment pages render an intentional status card
   rather than leaving the missing sections unexplained.
 - iOS sends species dictionary analytics through `AppTelemetry` to PostHog.
-  Events include `entryPoint`, `contentQuality`, and image `source` where relevant;
-  species names, species IDs, scan IDs, Explore post IDs, user locations, field
-  notes, comments, image URLs, and review state are not attached.
+  Events include `entryPoint`, `contentQuality`, and image `source` where
+  relevant; species names, species IDs, scan IDs, Explore post IDs, user
+  locations, field notes, comments, image URLs, and review state are not
+  attached.
 
 Name and imagery mapping:
 
@@ -2297,12 +2320,11 @@ Name and imagery mapping:
 - Normalized rows are ordered Merian first, then Wikipedia, then GBIF.
 - Normalized rows and legacy strings are filtered through
   `_shared/externalImagePolicy.ts` before source mapping or first-image
-  selection. The current exact rule removes every original/resized/query
-  variant below
-  `inaturalist-open-data.s3.amazonaws.com/photos/605615444/`. If it was first,
-  the next permitted ordered image is promoted. If none remain, existing image
-  fields are empty/null according to their existing types; no moderation field
-  is added and the species or lookalike row is not removed.
+  selection. The current exact rule removes every original/resized/query variant
+  below `inaturalist-open-data.s3.amazonaws.com/photos/605615444/`. If it was
+  first, the next permitted ordered image is promoted. If none remain, existing
+  image fields are empty/null according to their existing types; no moderation
+  field is added and the species or lookalike row is not removed.
 - `similar_species` is hydrated from `species_lookalikes` using the explicit
   PostgREST hint `species_dictionary!lookalike_id` and includes `species_id` for
   canonical tap-through routing. Similar-species thumbnails prefer the first
@@ -2319,8 +2341,8 @@ Image licensing and attribution:
   `reference_images` item when the metadata exists. Legacy comma-separated
   fallback images usually have only `url` and `source`.
 - For a promoted Naturebook image, the Edge data layer uses the private source
-  row's stable `(species_id, image_url)` key to resolve only the public author ID
-  and current username. This works even if the nullable `reference_image_id`
+  row's stable `(species_id, image_url)` key to resolve only the public author
+  ID and current username. This works even if the nullable `reference_image_id`
   link is absent. Scan IDs, post IDs, source media indexes, confidence data, and
   locations remain private.
 - iOS shows a truncated, tappable `@username` badge over Naturebook images and
@@ -2330,9 +2352,8 @@ Image licensing and attribution:
   without falling back to stored display-name or permission wording, or external
   attribution/license/source metadata when present. A Naturebook image missing
   username data shows only the source label.
-- The web species mapper calls
-  `publicWebReferenceImageAttributionIssues(...)` from
-  `_shared/publicSpeciesProjection.ts` before rendering reference media or
+- The web species mapper calls `publicWebReferenceImageAttributionIssues(...)`
+  from `_shared/publicSpeciesProjection.ts` before rendering reference media or
   selecting metadata images, and omits any image with missing license or
   attribution.
 
@@ -2536,8 +2557,8 @@ Caching:
   five-minute `unavailable` cache.
 - Atomic request limits are 60/user/minute and 120/IP/minute. Cold population
   additionally allows 12/user/minute, 30/IP/minute, and four globally/minute.
-- Every provider fetch has a five-second timeout. Foreground/background work
-  has 15/45-second deadlines and each response body is stream-limited to 1 MiB.
+- Every provider fetch has a five-second timeout. Foreground/background work has
+  15/45-second deadlines and each response body is stream-limited to 1 MiB.
 - Database RPCs and cache reads are client-aborted after five seconds; the
   privileged RPCs independently enforce a five-second statement timeout.
 - Fresh and `no_data` `200 OK` responses include
@@ -2546,8 +2567,8 @@ Caching:
 - `partial`, `stale`, and `unavailable` `200 OK` responses use
   `Cache-Control: public, max-age=30, s-maxage=60, stale-while-revalidate=300`
   and `Vary: Accept-Encoding`.
-- Successful payloads do not vary by Authorization because identity affects
-  only abuse accounting, not the public body. This avoids per-token cache
+- Successful payloads do not vary by Authorization because identity affects only
+  abuse accounting, not the public body. This avoids per-token cache
   fragmentation. Errors remain `private, no-store` and vary by Authorization.
 - iOS adds a 5-minute, 64-key in-memory memo cache in `MerianNetworkClient`,
   keyed by normalized `species_id` and scientific name. Only schema-v2-or-newer
@@ -2562,15 +2583,15 @@ Privacy:
 
 Error responses:
 
-| Status | Code | Meaning |
+| Status | Code                                                  | Meaning                                            |
 | ------ | ----------------------------------------------------- | -------------------------------------------------- |
-| `400` | `species_stats_invalid_request` or validation message | Missing/invalid UUID or bounded name |
-| `401` | `invalid_session_token` | Invalid supplied user credential |
-| `404` | `species_stats_species_not_found` | Unknown dictionary UUID or canonical-name mismatch |
-| `413` | validation message | Compatibility POST body exceeds 4 KiB |
-| `429` | `species_stats_rate_limited` | Request or cold-population budget exhausted |
-| `503` | `species_stats_refresh_in_progress` | Another isolate owns the cold lease |
-| `503` | `species_stats_unavailable` | Database/security boundary unavailable |
+| `400`  | `species_stats_invalid_request` or validation message | Missing/invalid UUID or bounded name               |
+| `401`  | `invalid_session_token`                               | Invalid supplied user credential                   |
+| `404`  | `species_stats_species_not_found`                     | Unknown dictionary UUID or canonical-name mismatch |
+| `413`  | validation message                                    | Compatibility POST body exceeds 4 KiB              |
+| `429`  | `species_stats_rate_limited`                          | Request or cold-population budget exhausted        |
+| `503`  | `species_stats_refresh_in_progress`                   | Another isolate owns the cold lease                |
+| `503`  | `species_stats_unavailable`                           | Database/security boundary unavailable             |
 
 `429`/`503` retry responses include `retry_after_seconds` and `Retry-After`.
 Every error response is `private, no-store`.
@@ -2885,8 +2906,8 @@ Next.js same-origin stream used only after a visitor activates **Boost audio**.
 It accepts HTTPS `.wav` URLs on exact host `media.merian.app` below
 `/public_uploads/`, forwards byte ranges and safe cache/media headers, and
 rejects arbitrary hosts, credentials, staging/private paths, unsupported
-formats, missing upstream media, and oversized non-range responses. It stores
-no bytes and does not change the public recording or moderation state.
+formats, missing upstream media, and oversized non-range responses. It stores no
+bytes and does not change the public recording or moderation state.
 
 ### `/get-explore-post-detail`
 
@@ -3049,8 +3070,8 @@ Validation and availability rules:
   including domestic cat and dog scan achievements.
 - Preview posts use the same Explore visibility rules as feed/library posts and
   never include unshared, tombstoned, media-less, system-quarantined, or
-  non-species-backed posts. Confirmed-missing items are omitted.
-  Private post location sharing withholds location but does not hide the post.
+  non-species-backed posts. Confirmed-missing items are omitted. Private post
+  location sharing withholds location but does not hide the post.
   Administratively hidden posts (`moderated_at IS NOT NULL`) are also excluded
   from both profile discoverability and previews.
 - Achievement progress never includes qualifying scan IDs.
@@ -3155,12 +3176,12 @@ authority to bypass the report endpoint's self-report and visibility checks.
 `explore_projected_post_cards(self_id)` projection.
 
 `owner_publication_summary` is non-null only for the authenticated owner. It
-separates preserved, active publication intent from current canonical
-visibility and reports active degraded/quarantined recovery totals. Other
-viewers receive `null`; the object is not a public author statistic.
-`field_trips` is hydrated separately after the core profile RPC and contains
-only privacy-scoped active progress and published snapshots; it never exposes
-scan IDs, field notes, exact coordinates, or private evidence.
+separates preserved, active publication intent from current canonical visibility
+and reports active degraded/quarantined recovery totals. Other viewers receive
+`null`; the object is not a public author statistic. `field_trips` is hydrated
+separately after the core profile RPC and contains only privacy-scoped active
+progress and published snapshots; it never exposes scan IDs, field notes, exact
+coordinates, or private evidence.
 
 ### `/get-explore-author-posts`
 
@@ -3400,12 +3421,12 @@ Privacy and filtering rules:
 - the map excludes unshared posts, tombstoned scans, scans with no remaining
   published image/video/audio media, non-open post `location_sharing`,
   shadowbanned authors, and both directions of user blocking
-- media filters match authoritative `media_items.kind` values, not poster
-  images or a video's `has_audio` flag; legacy rows without media items count
-  as images only when they retain a non-empty hero image
-- `category_counts` reflects the active media selection and
-  `media_type_counts` reflects the active species selection; absent facet
-  values are omitted rather than returned with zero counts
+- media filters match authoritative `media_items.kind` values, not poster images
+  or a video's `has_audio` flag; legacy rows without media items count as images
+  only when they retain a non-empty hero image
+- `category_counts` reflects the active media selection and `media_type_counts`
+  reflects the active species selection; absent facet values are omitted rather
+  than returned with zero counts
 - `coordinate_visibility` communicates whether an open post point is exact or
   approximate because species-safety or uncertainty rules rounded the public
   projection
@@ -3537,64 +3558,60 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   `scan_media_assets` refresh for ready playback rows, and then writes the
   public Explore snapshot.
 - Sharing snapshots image, video, and standalone-audio URLs into
-  `explore_post_media`, ordered for
-  the public carousel. `hero_image_url` remains the backward-compatible image
-  field; author-post reads also return `reference_thumbnail_url` for compact
-  audio tiles. Video media without an image thumbnail is
-  rejected with `Video thumbnail unavailable.`
+  `explore_post_media`, ordered for the public carousel. `hero_image_url`
+  remains the backward-compatible image field; author-post reads also return
+  `reference_thumbnail_url` for compact audio tiles. Video media without an
+  image thumbnail is rejected with `Video thumbnail unavailable.`
 - New clients may pass ordered `media_items` using owner-scoped
   `source_media_id` values from `/get-explore-composer-media`; legacy
   `source_index` and `thumbnail_source_index` are accepted only when they map to
-  eligible scan image/video/audio URLs. Empty selections, unsupported media kinds,
-  Describe/observation context, AI/reference images, and Dictionary media are
-  rejected or ignored before the public post snapshot is written.
+  eligible scan image/video/audio URLs. Empty selections, unsupported media
+  kinds, Describe/observation context, AI/reference images, and Dictionary media
+  are rejected or ignored before the public post snapshot is written.
 - `source_media_id` values are resolved through the same media source list
   returned to the composer: ready display/playback/audio `scan_media_assets`
   rows first, `captured_media` second, and legacy image/video/audio URL arrays
-  last. This
-  keeps video playback URLs and poster thumbnails paired even when sampled
-  inference frames remain in compatibility image URL arrays. Share-state
+  last. This keeps video playback URLs and poster thumbnails paired even when
+  sampled inference frames remain in compatibility image URL arrays. Share-state
   visibility requires a saved `explore_post_media` row, preventing failed media
   writes from appearing as existing Explore posts. When a selected video source
   is missing from the cloud row, the endpoint returns a clean validation error
   so the iOS client can attempt local `.mp4` repair instead of publishing an
   image-only historical row.
-- Video `has_audio` metadata is copied from ready media rows or derived from
-  the `captured_media` video audio reference. Legacy URL-array video sources
-  default false because they do not prove that an audio companion exists.
+- Video `has_audio` metadata is copied from ready media rows or derived from the
+  `captured_media` video audio reference. Legacy URL-array video sources default
+  false because they do not prove that an audio companion exists.
 - `restored_audio_object_keys` accepts at most two owner-scoped
   `staging/{userId}/` WAV/M4A keys for legacy scans that still have local audio
   but no durable cloud audio. Successful repair promotes the objects, writes
   `audio_storage_urls`, replaces standalone local references in
   `captured_media`, refreshes normalized assets, and then enters the normal
-  moderation gate. Promotion or persistence failure publishes nothing and
-  rolls back promoted objects.
-- If any selected item is standalone audio or an audio-bearing video,
-  every audible item must have a matching content-addressed attestation or pass
-  the database-selected structured audio classifier (currently
-  `gemini-2.5-flash`) before the
-  Explore post/media upsert runs. Attestations match SHA-256, model, and the
-  automatically derived policy-contract hash; changed bytes or rules force a
-  new decision. A rejected clip
-  returns `422`; provider/configuration failures return `503`. Neither failure
-  creates, reactivates, or changes a public post. Successful shares return
-  `200` with `publication_status = published`. The transcript and non-speech
-  description are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`.
-  Cache lookup/store failures degrade to live classification rather than
-  approving by default.
+  moderation gate. Promotion or persistence failure publishes nothing and rolls
+  back promoted objects.
+- If any selected item is standalone audio or an audio-bearing video, every
+  audible item must have a matching content-addressed attestation or pass the
+  database-selected structured audio classifier (currently `gemini-2.5-flash`)
+  before the Explore post/media upsert runs. Attestations match SHA-256, model,
+  and the automatically derived policy-contract hash; changed bytes or rules
+  force a new decision. A rejected clip returns `422`; provider/configuration
+  failures return `503`. Neither failure creates, reactivates, or changes a
+  public post. Successful shares return `200` with
+  `publication_status = published`. The transcript and non-speech description
+  are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`. Cache
+  lookup/store failures degrade to live classification rather than approving by
+  default.
 - Clients send one UUID `Idempotency-Key` for the share and preserve it through
   transport/auth/media-restoration retries. Each audible checksum and policy
-  version receives a deterministic child reservation ID, allowing multiple
-  clips without duplicate provider spend on an ambiguous retry. Cache hits
-  explicitly refund the provisional reservation. Cache misses atomically apply
-  the `explore_audio_moderation` daily and per-user/IP limits before dispatch.
-- After standalone WAV audio passes moderation,
-  `share-scan-to-explore` and media edits through
-  `update-explore-field-notes` generate or reuse a deterministic PNG
-  spectrogram beside the durable recording and store its URL in both the post
-  snapshot and matching normalized scan asset. This presentation step is
-  non-blocking: unsupported legacy codecs and generation failures retain
-  playback plus the volume-icon fallback. The service-role-only
+  version receives a deterministic child reservation ID, allowing multiple clips
+  without duplicate provider spend on an ambiguous retry. Cache hits explicitly
+  refund the provisional reservation. Cache misses atomically apply the
+  `explore_audio_moderation` daily and per-user/IP limits before dispatch.
+- After standalone WAV audio passes moderation, `share-scan-to-explore` and
+  media edits through `update-explore-field-notes` generate or reuse a
+  deterministic PNG spectrogram beside the durable recording and store its URL
+  in both the post snapshot and matching normalized scan asset. This
+  presentation step is non-blocking: unsupported legacy codecs and generation
+  failures retain playback plus the volume-icon fallback. The service-role-only
   `/backfill-explore-audio-spectrograms` endpoint accepts an optional bounded
   `{ "limit": 1...200 }` batch size and repairs older blank WAV thumbnails;
   repeat while `generated_count` is greater than zero.
@@ -3636,8 +3653,8 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 Service-role-only `POST` worker for historical standalone WAV
 `explore_post_media` rows with a null/blank thumbnail. `verify_jwt = false`
 allows the service-role credential through the gateway; the function still
-performs an explicit timing-safe comparison against
-`SUPABASE_SERVICE_ROLE_KEY`. It must never be called by iOS or public web code.
+performs an explicit timing-safe comparison against `SUPABASE_SERVICE_ROLE_KEY`.
+It must never be called by iOS or public web code.
 
 Request:
 
@@ -3651,11 +3668,11 @@ post-owned thumbnail, and best-effort updates the matching normalized scan
 asset. The worker does not change moderation, visibility, recording URLs, or
 species data.
 
-Response counters are `scanned_count`, `generated_count`,
-`unsupported_count`, and `failed_count`, plus bounded per-media `errors`.
-Repeat bounded calls while `generated_count` is greater than zero. Non-WAV
-legacy audio is not selected; malformed/mislabeled WAV increments
-`unsupported_count` and retains the playback fallback.
+Response counters are `scanned_count`, `generated_count`, `unsupported_count`,
+and `failed_count`, plus bounded per-media `errors`. Repeat bounded calls while
+`generated_count` is greater than zero. Non-WAV legacy audio is not selected;
+malformed/mislabeled WAV increments `unsupported_count` and retains the playback
+fallback.
 
 ### `/update-explore-field-notes`
 
@@ -4227,8 +4244,8 @@ Current response shape:
 
 `post_id` is nullable because follow notifications and Field trip activity are
 not Explore-post-backed. Field trip activity rows include
-`field_trip_publication_id` and route to `FieldTripPublicationDetailView`; follow
-rows remain informational and do not attempt post navigation.
+`field_trip_publication_id` and route to `FieldTripPublicationDetailView`;
+follow rows remain informational and do not attempt post navigation.
 
 ### `/get-explore-unread-notification-count`
 
@@ -4245,8 +4262,8 @@ Unlike most read endpoints, this response returns the scalar at the top level
 rather than nesting it under `data`.
 
 The iOS client coordinates this request globally through
-`AppIconBadgeCoordinator`. Concurrent callers await one in-flight request, and
-a successful count may be reused for 10 seconds. Explore-post activity uses
+`AppIconBadgeCoordinator`. Concurrent callers await one in-flight request, and a
+successful count may be reused for 10 seconds. Explore-post activity uses
 Realtime as the primary refresh path, while routine five-minute polling also
 covers Field trip-only rows, missed events, and subscription failure. Realtime
 events and notification-sheet dismissal force a fresh count. Keep the server
@@ -4288,8 +4305,8 @@ activity pushes:
   just like the other Explore nodes.
 - `device_token` is normalized to lowercase and upserted by
   `(device_token, platform, environment)`. It must contain only hexadecimal
-  characters and be 32...512 characters long. The Edge Function may express
-  that complete policy as the JavaScript regex `/^[0-9a-f]{32,512}$/i` because
+  characters and be 32...512 characters long. The Edge Function may express that
+  complete policy as the JavaScript regex `/^[0-9a-f]{32,512}$/i` because
   JavaScript accepts that repetition bound. PostgreSQL enforces the same policy
   as separate format and length constraints because its regex engine rejects
   repetition bounds above 255. Do not "repair" the valid Edge Function regex or
@@ -4345,8 +4362,8 @@ rendering:
 - `species_scientific_name`
 - `pet_identification`
 - `hero_image_url`
-- `reference_thumbnail_url` (author-post grids; nullable species reference
-  image used for audio-backed compact thumbnails)
+- `reference_thumbnail_url` (author-post grids; nullable species reference image
+  used for audio-backed compact thumbnails)
 - `hashtags`
 - `like_count`
 - `comment_count`
@@ -4529,8 +4546,8 @@ ordered compositions of images, audio, and descriptive context.
   `source = vision_objectness`; invalid regions and all video-frame regions are
   stripped without rejecting the scan. Valid regions add a primary-subject hint
   to that photo's prompt entry while the full image remains the only Gemini
-  visual part. The sanitized region survives `scan_ingestion_intents` replay;
-  no raw image bytes or completed-scan field are added.
+  visual part. The sanitized region survives `scan_ingestion_intents` replay; no
+  raw image bytes or completed-scan field are added.
 - Before inference work starts, the endpoint claims a `scan_ingestion_jobs` row
   for the authenticated user and `client_scan_id`. The claim records media
   counts, staged image/audio/video object keys, recovered upload-session ids,
@@ -4552,11 +4569,10 @@ ordered compositions of images, audio, and descriptive context.
   Insight hydration for biological and non-biological video scans. The video
   item carries an audio reference only when extracted video audio exists, so
   downstream `scan_media_assets` and Explore rows can set `has_audio`
-  accurately. The ready
-  display/playback `scan_media_assets` rows are refreshed from the same manifest
-  by the database trigger plus a best-effort Edge refresh call, so server-side
-  composer and status checks no longer need to infer video assets directly from
-  sampled frame arrays.
+  accurately. The ready display/playback `scan_media_assets` rows are refreshed
+  from the same manifest by the database trigger plus a best-effort Edge refresh
+  call, so server-side composer and status checks no longer need to infer video
+  assets directly from sampled frame arrays.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
@@ -4593,6 +4609,13 @@ ordered compositions of images, audio, and descriptive context.
 - The multimodal background ingestion path shares the same `_shared/identify`
   DB, media, schema, threshold, and moderation primitives as `/identify`.
 
+The Gemini object and final server-enriched response are both parsed through
+`_shared/identify/contract.ts`. The second parse occurs before synchronous video
+finalization and HTTP success, so cache/provider drift cannot reach the
+generated Swift decoder or durable scan state. Contract failures use stable
+public code `identify_response_invalid`; detailed path errors remain in
+structured server logs.
+
 ### Latency and Authentication Contract
 
 The request and JSON response bodies remain backward-compatible. The endpoint
@@ -4611,8 +4634,8 @@ single `generateContent` call returns.
 `/identify-multimodal` verifies the bearer token with the cached ES256 JWKS path
 through `auth.getClaims(token)`, then explicitly validates issuer, audience,
 expiration, not-before, role, and `sub`. Both anonymous and authenticated user
-JWTs are accepted. Service-role tokens are rejected on this public endpoint.
-The request body's `user_id` is never an authority source. The existing
+JWTs are accepted. Service-role tokens are rejected on this public endpoint. The
+request body's `user_id` is never an authority source. The existing
 `X-Merian-Internal-Replay` path is checked before public claims auth and retains
 its timing-safe service-role verification plus explicit replay-user header.
 
@@ -4620,10 +4643,9 @@ Before Gemini, one service-role-only `begin_scan_ingestion` RPC performs upload
 session lookup, ingestion claim, sanitized intent recording, and the
 `ai_inference_started` stage transition atomically. It returns the recovered
 upload-session ids plus manifest and payload checksums canonicalized from the
-exact stored values. After Gemini, eligible
-biological results use at most one `hydrate_identification_dictionary` RPC to
-return cached primary-species data and candidate common names. External
-Wikipedia/GBIF cache misses, analytics, and
+exact stored values. After Gemini, eligible biological results use at most one
+`hydrate_identification_dictionary` RPC to return cached primary-species data
+and candidate common names. External Wikipedia/GBIF cache misses, analytics, and
 optional image-scan ingestion updates run under `EdgeRuntime.waitUntil`; video
 finalization retains its existing synchronous durability gate.
 
@@ -4730,23 +4752,25 @@ promoted media to persist.
 ### Response Schema
 
 The response shape mirrors the `/identify` / `/identify-multimodal` JSON
-response exactly. `scan_id` is returned as the scan UUID generated for that
-text-only request.
+response exactly and is validated by the same executable final wire contract.
+The Describe provider schema is generated from a text-only contract variant that
+requires every `image_quality` value to be exactly zero. `scan_id` is returned
+as the scan UUID generated for that text-only request.
 
 ### IDOR & Auth
 
-The server extracts the user identity from the verified
-`Authorization: Bearer` JWT claims. The `user_id` in the request body is ignored
-for auth purposes.
+The server extracts the user identity from the verified `Authorization: Bearer`
+JWT claims. The `user_id` in the request body is ignored for auth purposes.
 
 ### Error Responses
 
-| Status | Body                                                                   | Meaning                                                                            |
-| ------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `400`  | `{ "error": "At least one media element or description is required" }` | No image, audio, or non-empty `observation_contexts[*].freeText` text was provided |
-| `400`  | `{ "error": "AI processing error. Please try again." }`                | Permanent Gemini safety / policy failure                                           |
-| `422`  | `{ "error": "Processing Error: Malformed AI response." }`              | Gemini returned unparseable output                                                 |
-| `503`  | `{ "error": "AI processing error. Please try again." }`                | Transient Gemini failure                                                           |
+| Status | Body                                                                                               | Meaning                                                                            |
+| ------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `400`  | `{ "error": "At least one media element or description is required" }`                             | No image, audio, or non-empty `observation_contexts[*].freeText` text was provided |
+| `400`  | `{ "error": "AI processing error. Please try again." }`                                            | Permanent Gemini safety / policy failure                                           |
+| `422`  | `{ "error": "Processing Error: Malformed AI response." }`                                          | Gemini returned unparseable output                                                 |
+| `502`  | `{ "error": "AI response validation failed. Please retry.", "code": "identify_response_invalid" }` | Final server-enriched payload violated the wire contract                           |
+| `503`  | `{ "error": "AI processing error. Please try again." }`                                            | Transient Gemini failure                                                           |
 
 ---
 
@@ -4948,8 +4972,8 @@ the separate candidates/review surface.
 
 **Authoritative quota**: Cache hits perform no paid provider work and consume no
 AI quota. A cache miss reserves either `scan_overview_enrichment` or
-`scan_lookalike_enrichment` before generation. Their shared UTC-day ceilings
-are 4 for free, 100 for Pro trial, and 500 for paid Pro, with additional shared
+`scan_lookalike_enrichment` before generation. Their shared UTC-day ceilings are
+4 for free, 100 for Pro trial, and 500 for paid Pro, with additional shared
 per-user/IP minute ceilings. iOS uses the stable scan UUID as the
 `Idempotency-Key` for both scopes (the operation is part of the database
 namespace), so later app-level retries cannot allocate a fresh reservation.
@@ -4958,15 +4982,15 @@ pre-provider cache/no-op path may refund.
 
 ### Error Responses
 
-| Status | Body | Meaning |
+| Status      | Body                                                                | Meaning                                       |
 | ----------- | ------------------------------------------------------------------- | --------------------------------------------- |
-| `400` | `{ "error": "Missing required parameters..." }` | Required enrichment input absent |
-| `400` | `{ "code": "ai_request_id_invalid", ... }` | Supplied request key is not a UUID |
-| `400`/`500` | `{ "error": "AI processing error during enrichment..." }` | Provider or enrichment persistence failure |
-| `429` | `{ "code": "ai_quota_daily_exceeded", "retry_after_seconds": ... }` | Plan's UTC-day AI ceiling reached |
-| `429` | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Per-user minute ceiling reached |
-| `429` | `{ "code": "ai_ip_rate_limit_exceeded", ... }` | Network minute ceiling reached |
-| `503` | `{ "code": "ai_entitlement_unavailable", ... }` | Entitlement/quota state could not be verified |
+| `400`       | `{ "error": "Missing required parameters..." }`                     | Required enrichment input absent              |
+| `400`       | `{ "code": "ai_request_id_invalid", ... }`                          | Supplied request key is not a UUID            |
+| `400`/`500` | `{ "error": "AI processing error during enrichment..." }`           | Provider or enrichment persistence failure    |
+| `429`       | `{ "code": "ai_quota_daily_exceeded", "retry_after_seconds": ... }` | Plan's UTC-day AI ceiling reached             |
+| `429`       | `{ "code": "ai_user_rate_limit_exceeded", ... }`                    | Per-user minute ceiling reached               |
+| `429`       | `{ "code": "ai_ip_rate_limit_exceeded", ... }`                      | Network minute ceiling reached                |
+| `503`       | `{ "code": "ai_entitlement_unavailable", ... }`                     | Entitlement/quota state could not be verified |
 
 ---
 
@@ -4974,10 +4998,9 @@ pre-provider cache/no-op path may refund.
 
 Private Pro follow-up chat for completed biological Insight sheets. The endpoint
 uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership
-of `scan_id`, and reads durable effective tier through
-`_shared/entitlement.ts`. Each provider action then reserves its operation in
-the database, which repeats entitlement verification atomically with quota and
-model selection.
+of `scan_id`, and reads durable effective tier through `_shared/entitlement.ts`.
+Each provider action then reserves its operation in the database, which repeats
+entitlement verification atomically with quota and model selection.
 
 ### Request Payload
 
@@ -5183,16 +5206,16 @@ edible/foraging certainty, medical/veterinary treatment, dangerous handling,
 illegal collection, pesticide/poison instructions, and human-subject
 identification requests.
 
-| Status | Body                                     | Meaning                                            |
+| Status | Body                                             | Meaning                                            |
 | ------ | ------------------------------------------------ | -------------------------------------------------- |
-| `400`  | `{ "code": "unsupported_scan", ... }`    | Scan is non-biological or request shape is invalid |
-| `402`  | `{ "code": "pro_required", ... }`        | Effective tier is not Pro/trial                    |
-| `404`  | `{ "code": "scan_not_ready", ... }`      | No owned completed scan row exists yet             |
-| `429`  | `{ "code": "daily_limit_reached", ... }` | Daily send cap reached                             |
-| `429`  | `{ "code": "ai_quota_daily_exceeded", ... }` | Database AI safety ceiling reached              |
-| `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached           |
-| `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }` | Shared network minute ceiling reached          |
-| `503`  | `{ "code": "ai_entitlement_unavailable", ... }` | Entitlement/quota lookup failed closed         |
+| `400`  | `{ "code": "unsupported_scan", ... }`            | Scan is non-biological or request shape is invalid |
+| `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not Pro/trial                    |
+| `404`  | `{ "code": "scan_not_ready", ... }`              | No owned completed scan row exists yet             |
+| `429`  | `{ "code": "daily_limit_reached", ... }`         | Daily send cap reached                             |
+| `429`  | `{ "code": "ai_quota_daily_exceeded", ... }`     | Database AI safety ceiling reached                 |
+| `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached                 |
+| `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }`   | Shared network minute ceiling reached              |
+| `503`  | `{ "code": "ai_entitlement_unavailable", ... }`  | Entitlement/quota lookup failed closed             |
 
 Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
 `InsightChatRateLimited`, `InsightChatModelError`,
@@ -5216,12 +5239,12 @@ flows and do not change the `/insight-chat` response payload.
 ## Deno `/explore-post-chat` Edge Node
 
 Private Pro Field chat for any active Explore post visible to the viewer,
-including their own. The endpoint
-authenticates with `withEdgeHandler`, derives the viewer from the verified JWT,
-requires the post to be visible to that viewer, and resolves Pro/trial access
-server-side. Each `(post_id, viewer user_id)` pair has its own conversation.
-Other viewers cannot load or mutate it; the post author may own a conversation
-when viewing their own published post.
+including their own. The endpoint authenticates with `withEdgeHandler`, derives
+the viewer from the verified JWT, requires the post to be visible to that
+viewer, and resolves Pro/trial access server-side. Each
+`(post_id, viewer user_id)` pair has its own conversation. Other viewers cannot
+load or mutate it; the post author may own a conversation when viewing their own
+published post.
 
 Model sends reserve `explore_post_chat_reply` using
 `client_message_id`/`Idempotency-Key` before provider dispatch and use the
@@ -5243,26 +5266,27 @@ and `suggest_prompts`:
 
 The response reuses the iOS `InsightChatResponse` envelope. For compatibility,
 each message's `scan_id` field contains the Explore post ID; it never exposes
-the owner's source scan ID. Conversations allow 600 characters per user
-message, 30 total messages, and share the 20-send UTC daily allowance with the
-viewer's Insight chats. Prompt suggestions and feedback do not consume a send.
+the owner's source scan ID. Conversations allow 600 characters per user message,
+30 total messages, and share the 20-send UTC daily allowance with the viewer's
+Insight chats. Prompt suggestions and feedback do not consume a send.
 
 The model context is built from the privacy-filtered `get_explore_post` and
-`get_explore_post_detail` projections plus public Species Dictionary fields.
-It excludes private owner scan rows, exact coordinates, unpublished notes,
+`get_explore_post_detail` projections plus public Species Dictionary fields. It
+excludes private owner scan rows, exact coordinates, unpublished notes,
 comments, owner chat history, and media bytes/URLs. Questions that require
 direct inspection of the post's media must be answered without claiming media
 access. These technical boundaries remain server-enforced even though the iOS
-empty state presents only the concise trust message: `This Field chat is
+empty state presents only the concise trust message:
+`This Field chat is
 private and visible only to you.`
 
-`404 post_not_available` covers missing, unpublished, or blocked posts; `402
-pro_required` covers non-Pro viewers; `404 message_not_found`
-covers feedback targeting a non-owned assistant message; and
-`429 daily_limit_reached` returns the current conversation envelope with no new
-send. Shared `409`, `429`, and fail-closed `503` AI quota errors follow the
-authorization table above. Unpublishing a post deletes all of its private
-viewer conversations.
+`404 post_not_available` covers missing, unpublished, or blocked posts;
+`402
+pro_required` covers non-Pro viewers; `404 message_not_found` covers
+feedback targeting a non-owned assistant message; and `429 daily_limit_reached`
+returns the current conversation envelope with no new send. Shared `409`, `429`,
+and fail-closed `503` AI quota errors follow the authorization table above.
+Unpublishing a post deletes all of its private viewer conversations.
 
 ---
 
@@ -5314,9 +5338,8 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    query with `.eq("user_id", userId)` as a defence-in-depth layer.
    `deleteCollections` now throws on database error rather than logging
    silently, preventing false-success `200` responses when the deletion fails.
-5. **Bulk Insertion & Mismatched FK Protection**: Applying
-   `collection_scans` relationships in bounded set-based upsert chunks avoids
-   N+1 query timeouts.
+5. **Bulk Insertion & Mismatched FK Protection**: Applying `collection_scans`
+   relationships in bounded set-based upsert chunks avoids N+1 query timeouts.
    To prevent PostgreSQL Foreign Key violations from crashing the overarching
    chunk transaction, the Edge Node dynamically pre-validates all incoming
    `scan_id` payloads against the core `scans` table. If a user groups a scan
@@ -5504,11 +5527,11 @@ The iOS client may enter this fallback only for Supabase Auth code
 ```
 
 The live anonymous session is the source authority. The response contains
-`handoff_id`, a one-time 256-bit `handoff_secret`, and `expires_at`; it is marked
-`Cache-Control: no-store`. The database stores only the secret hash and binds it
-to `auth.uid()` plus the exact provider identity for 30 days. Provider subjects
-must be 1–255 characters with no Unicode control characters. iOS persists the
-proof in a versioned Keychain queue using
+`handoff_id`, a one-time 256-bit `handoff_secret`, and `expires_at`; it is
+marked `Cache-Control: no-store`. The database stores only the secret hash and
+binds it to `auth.uid()` plus the exact provider identity for 30 days. Provider
+subjects must be 1–255 characters with no Unicode control characters. iOS
+persists the proof in a versioned Keychain queue using
 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` before changing sessions.
 
 Successful response: HTTP 201.
@@ -5539,16 +5562,16 @@ request UUID. In one database transaction, the RPC:
    provider subject;
 2. serializes concurrent attempts by source and locks both users;
 3. resolves known relationship/progress uniqueness conflicts;
-4. reparents all supported `public.users` and external `auth.users` foreign
-   keys and refuses unknown composite ownership; and
+4. reparents all supported `public.users` and external `auth.users` foreign keys
+   and refuses unknown composite ownership; and
 5. records an idempotent receipt before commit.
 
 The Edge Function deletes the anonymous Auth user only after commit. A cleanup
 failure returns a retryable `503`; replay by the same destination is safe. The
 client queues independent handoffs rather than overwriting an older interrupted
 upgrade. It removes a queue item only after success or terminal
-`handoff_expired`/`handoff_invalid`. A 403 for a different active destination
-is retained so the proof can complete when its bound account signs in.
+`handoff_expired`/`handoff_invalid`. A 403 for a different active destination is
+retained so the proof can complete when its bound account signs in.
 
 Successful response: HTTP 200.
 
@@ -5568,20 +5591,20 @@ Successful response: HTTP 200.
 
 Error bodies use `{ "code": "...", "error": "..." }`.
 
-| HTTP | Code | Meaning | Client action |
+| HTTP | Code                                       | Meaning                                                                  | Client action                                      |
 | ---- | ------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| 400 | `invalid_request` | Invalid JSON, unsupported fields, provider/subject, UUID, or secret | Do not switch away during prepare; fix the request |
-| 413 | `invalid_request` | JSON body exceeds 4 KiB | Do not retry unchanged |
-| 401 | shared auth error | Missing, invalid, expired, or non-live user JWT | Refresh/re-authenticate |
-| 403 | `ghost_session_required` | Prepare caller is not anonymous | Do not retry as that session |
-| 403 | `permanent_session_required` | Complete/refresh caller is anonymous | Sign in to the permanent account |
-| 403 | `handoff_forbidden` | Destination is not the exact bound provider identity | Retain the queued proof for the correct account |
-| 404 | `handoff_invalid` | Unknown, superseded, consumed by another destination, or unusable source | Remove that queued proof |
-| 409 | `source_already_merged` / `merge_conflict` | Source already upgraded or conflicting concurrent state | Refresh state; do not create an unproved fallback |
-| 410 | `handoff_expired` | 30-day recovery window elapsed | Remove that queued proof |
-| 503 | `auth_cleanup_pending` | Data merge committed; Auth deletion still pending | Retain and retry safely |
-| 503 | `merge_temporarily_unavailable` | Timeout, deadlock, serialization/lock failure, or guarded schema drift | Retain and retry; alert operations on repetition |
-| 500 | `merge_failed` | Unexpected server failure | Retain and retry; investigate logs |
+| 400  | `invalid_request`                          | Invalid JSON, unsupported fields, provider/subject, UUID, or secret      | Do not switch away during prepare; fix the request |
+| 413  | `invalid_request`                          | JSON body exceeds 4 KiB                                                  | Do not retry unchanged                             |
+| 401  | shared auth error                          | Missing, invalid, expired, or non-live user JWT                          | Refresh/re-authenticate                            |
+| 403  | `ghost_session_required`                   | Prepare caller is not anonymous                                          | Do not retry as that session                       |
+| 403  | `permanent_session_required`               | Complete/refresh caller is anonymous                                     | Sign in to the permanent account                   |
+| 403  | `handoff_forbidden`                        | Destination is not the exact bound provider identity                     | Retain the queued proof for the correct account    |
+| 404  | `handoff_invalid`                          | Unknown, superseded, consumed by another destination, or unusable source | Remove that queued proof                           |
+| 409  | `source_already_merged` / `merge_conflict` | Source already upgraded or conflicting concurrent state                  | Refresh state; do not create an unproved fallback  |
+| 410  | `handoff_expired`                          | 30-day recovery window elapsed                                           | Remove that queued proof                           |
+| 503  | `auth_cleanup_pending`                     | Data merge committed; Auth deletion still pending                        | Retain and retry safely                            |
+| 503  | `merge_temporarily_unavailable`            | Timeout, deadlock, serialization/lock failure, or guarded schema drift   | Retain and retry; alert operations on repetition   |
+| 500  | `merge_failed`                             | Unexpected server failure                                                | Retain and retry; investigate logs                 |
 
 `{"operation":"refresh_identity"}` is the separate permanent-session operation
 for refreshing public provider identity when no merge is required. It returns
@@ -5591,10 +5614,11 @@ for refreshing public provider identity when no merge is required. It returns
 
 `/reconcile-ghost-profile-merges` is not a client API. A five-minute `pg_cron`
 job calls it with the service-role bearer credential; the function uses
-`verify_jwt = false` only so that server credential can reach Deno, then performs
-an exact timing-safe comparison. It leases at most 100 merged receipts, deletes
-the obsolete anonymous Auth users, and records each claim-token-bound outcome.
-HTTP 404 and exact Auth code `user_not_found` are idempotent cleanup success.
+`verify_jwt = false` only so that server credential can reach Deno, then
+performs an exact timing-safe comparison. It leases at most 100 merged receipts,
+deletes the obsolete anonymous Auth users, and records each claim-token-bound
+outcome. HTTP 404 and exact Auth code `user_not_found` are idempotent cleanup
+success.
 
 ---
 
@@ -5619,27 +5643,27 @@ prevent IDOR vulnerabilities.
    durable `202` response rather than duplicate work.
 4. For every `pending`, `storage_pending`, or `auth_pending` claim,
    `complete_account_deletion_cleanup` atomically writes the idempotent storage
-   job, invokes `apply_user_tombstone`, and verifies no public user or scan still
-   references the UUID. Retained scans become ownerless tombstones and clear
-   compatibility media URLs, structured captured-media references, exact
+   job, invokes `apply_user_tombstone`, and verifies no public user or scan
+   still references the UUID. Retained scans become ownerless tombstones and
+   clear compatibility media URLs, structured captured-media references, exact
    location/elevation, semantic location, device locale/time-zone context,
-   free-form notes, and custom tags. No synthetic `auth.users` or
-   `public.users` identity is created.
+   free-form notes, and custom tags. No synthetic `auth.users` or `public.users`
+   identity is created.
 5. Relational completion returns `storage_pending` and releases the account
    claim. The storage worker keyset-sweeps the user's free uploads, Pro uploads,
    staging, avatars, and exports prefixes in 50-key pages. After at least 25
    hours it repeats all five prefixes from the beginning. Only an empty delayed
-   verification pass transactionally advances the account to `auth_pending`.
-   A storage row is claimable only when the matching private job is
+   verification pass transactionally advances the account to `auth_pending`. A
+   storage row is claimable only when the matching private job is
    `storage_pending` with completed cleanup and incomplete storage, and no live
    public profile or scan ownership remains. An outbox row by itself never
    authorizes R2 deletion.
-6. Only `auth_pending` may call
-   `supabaseAdmin.auth.admin.deleteUser(user.id)`. HTTP `404` and exact Auth
-   code `user_not_found` are treated as idempotent success.
-7. `finish_account_deletion_attempt` records terminal completion or releases
-   the claim with bounded retry backoff. Completion clears the private job's
-   direct `user_id`.
+6. Only `auth_pending` may call `supabaseAdmin.auth.admin.deleteUser(user.id)`.
+   HTTP `404` and exact Auth code `user_not_found` are treated as idempotent
+   success.
+7. `finish_account_deletion_attempt` records terminal completion or releases the
+   claim with bounded retry backoff. Completion clears the private job's direct
+   `user_id`.
 
 All state-machine RPCs are `service_role`-only, call
 `internal.require_service_role()`, and have empty `search_path` values. The
@@ -5647,10 +5671,9 @@ caller cannot supply a user ID in the body.
 
 While the job is active, a private database trigger rejects recreation of the
 original `public.users` row. Auth metadata synchronization and trusted backend
-upserts therefore cannot restore a profile after cleanup but before the
-external Auth call. `/generate-upload-urls` also returns
-`409 account_deletion_in_progress`, preventing new signed writes during
-erasure.
+upserts therefore cannot restore a profile after cleanup but before the external
+Auth call. `/generate-upload-urls` also returns
+`409 account_deletion_in_progress`, preventing new signed writes during erasure.
 
 ### Responses
 
@@ -5672,14 +5695,14 @@ drops all local SQLite `ModelContext` state through
 
 `/reconcile-account-deletions` accepts a bounded optional `{ "limit": n }`
 object and authenticates the complete service-role bearer value with a
-timing-safe comparison. It never accepts a target UUID. Each invocation
-performs a bounded account pass, bounded storage pages, and, when storage
-verification completes, one final account pass. It returns only aggregate
-`account_claimed`, `account_completed`, `account_deferred`,
-`waiting_for_storage`, `storage_claimed`, `storage_completed`, and
-`storage_deferred` counts. Claim expiry, persisted prefix cursors, delayed
-verification, idempotent Auth-not-found handling, and database-calculated
-backoff make crashes and lost responses resumable.
+timing-safe comparison. It never accepts a target UUID. Each invocation performs
+a bounded account pass, bounded storage pages, and, when storage verification
+completes, one final account pass. It returns only aggregate `account_claimed`,
+`account_completed`, `account_deferred`, `waiting_for_storage`,
+`storage_claimed`, `storage_completed`, and `storage_deferred` counts. Claim
+expiry, persisted prefix cursors, delayed verification, idempotent
+Auth-not-found handling, and database-calculated backoff make crashes and lost
+responses resumable.
 
 ---
 
@@ -5713,13 +5736,12 @@ file:
 `source_url` must be an HTTPS `media.merian.app` URL under one durable
 `public_uploads/free|pro/{owner}/` image key, with no query or fragment.
 `restored_object_key` is optional; when present it must be one image directly
-under the authenticated user's exact staging prefix. The JWT identity—not a
-body field—selects the owner.
+under the authenticated user's exact staging prefix. The JWT identity—not a body
+field—selects the owner.
 
 `config.toml` uses `verify_jwt = false` for this app-facing route, so the
 function must retain `withEdgeHandler` as its custom live-user authentication
-boundary. Disabling the gateway check does not make inspection or repair
-public.
+boundary. Disabling the gateway check does not make inspection or repair public.
 
 ### Inspection Response
 
@@ -5763,8 +5785,8 @@ The repair boundary:
 5. otherwise promotes the staging image into the caller's current durable
    free/Pro prefix;
 6. validates the promoted owner prefix; and
-7. invokes service-only `repair_owned_scan_image_reference` to replace the
-   exact URL across scan arrays, recursive captured-media JSON, normalized scan
+7. invokes service-only `repair_owned_scan_image_reference` to replace the exact
+   URL across scan arrays, recursive captured-media JSON, normalized scan
    assets, and owner Explore snapshots in one transaction. Matching Explore
    media health is reset to `healthy` in that transaction, allowing projection
    and owner incident state to restore automatically.
@@ -5784,8 +5806,8 @@ transaction succeeds.
 - `500`: promotion, atomic persistence, or an unexpected internal boundary
   failed; provider details, keys, and SQL errors are not returned.
 
-This endpoint is a recovery mechanism, not a general media replacement API.
-See the
+This endpoint is a recovery mechanism, not a general media replacement API. See
+the
 [July 2026 account-scoped R2 image-loss incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
 
 ---
@@ -5851,17 +5873,17 @@ Request:
 
 - Gateway JWT verification is disabled so the endpoint can receive both legacy
   service-role JWTs and current non-JWT project secret keys. The handler accepts
-  the exact provisioned legacy service-role value, or a candidate key only
-  after a database probe proves service-role access. Missing and unproven keys
-  receive `401`; ordinary user tokens are not accepted.
+  the exact provisioned legacy service-role value, or a candidate key only after
+  a database probe proves service-role access. Missing and unproven keys receive
+  `401`; ordinary user tokens are not accepted.
 - `limit` is clamped to `1...500`.
 - `leaseSeconds` is clamped to `30...600`.
 - Primary and distinct-poster `HEAD` requests run in parallel per row within a
-  global 24-media-row concurrency cap (at most 48 simultaneous `HEAD`
-  requests); a five-minute lease covers the bounded provider-timeout envelope.
+  global 24-media-row concurrency cap (at most 48 simultaneous `HEAD` requests);
+  a five-minute lease covers the bounded provider-timeout envelope.
 - The request cannot specify media IDs, post IDs, object keys, or owner IDs.
-- Every primary/poster URL must resolve to a direct durable free/Pro key for
-  the owner already attached to the leased database row. Cross-owner,
+- Every primary/poster URL must resolve to a direct durable free/Pro key for the
+  owner already attached to the leased database row. Cross-owner,
   temporary-prefix, nested, and arbitrary keys fail closed.
 - Each leased primary URL receives a signed S3-origin `HEAD`. A distinct
   thumbnail receives an auxiliary check.
@@ -5887,12 +5909,11 @@ Response:
 }
 ```
 
-Every invocation attempts to write
-`explore_media_health_reconciliation_runs`. Per-row result failures are
-reported as at most 50 private structured samples with fixed reason codes;
-complete URLs/provider messages are never persisted or returned.
-`errorCount` remains the authoritative total and `omittedErrors` reports
-truncated samples. Any failure produces `partial_failure` audit status.
+Every invocation attempts to write `explore_media_health_reconciliation_runs`.
+Per-row result failures are reported as at most 50 private structured samples
+with fixed reason codes; complete URLs/provider messages are never persisted or
+returned. `errorCount` remains the authoritative total and `omittedErrors`
+reports truncated samples. Any failure produces `partial_failure` audit status.
 Configuration or lease-claim failures attempt a fixed-code `failed` audit row
 before the endpoint returns its generic internal error.
 
@@ -6069,23 +6090,21 @@ remains asynchronous. The iOS client awaits the queue response off-main with a
   `supabaseAdmin.auth.getUser(jwt)`.
 - Rejects anonymous/ghost sessions with `403 account_required`; export email and
   per-account rate limits require a permanent authenticated identity.
-- **`exportScope` authorization**: the public route accepts only
-  `"personal"`. The default when omitted is `"personal"`. A `"global"` request
-  receives `403 global_export_forbidden`; repository-wide exports require a
-  reviewed internal administrative workflow. A non-string scope receives
-  `HTTP 400`.
+- **`exportScope` authorization**: the public route accepts only `"personal"`.
+  The default when omitted is `"personal"`. A `"global"` request receives
+  `403 global_export_forbidden`; repository-wide exports require a reviewed
+  internal administrative workflow. A non-string scope receives `HTTP 400`.
 - **`includePreciseCoordinates` type validation**: `includePreciseCoordinates`
   must be a boolean. A non-boolean value (e.g. a string `"true"`) is rejected
   with `HTTP 400`.
 - **Database Rate Limit**: Queries `export_jobs` to verify the user has not
   queued a successful or non-terminal export in the last 24 hours. Failed jobs
   are excluded so a worker/configuration failure can be retried. If the limit
-  applies, returns
-  `429 Too Many Requests`.
+  applies, returns `429 Too Many Requests`.
 - Inserts a row into `export_jobs` with status `pending`. Before the `pg_net`
   webhook can run, an ordered database trigger snapshots the eligible scan IDs
-  and creation-time revision fingerprints in the same transaction. The insert
-  is idempotent against concurrent duplicate submissions: a `23505`
+  and creation-time revision fingerprints in the same transaction. The insert is
+  idempotent against concurrent duplicate submissions: a `23505`
   unique-constraint violation (two requests racing in before either commits) is
   caught and also returns `429 Too Many Requests`, consistent with the explicit
   rate-limit path and preventing a `500` error from surfacing to the client.
@@ -6124,15 +6143,16 @@ contract is also bounded by the shared small JSON reader.
 ### Security & Enforcement
 
 - Authenticates the Postgres origin by verifying that
-  `Authorization: Bearer <token>` timing-safely matches `SUPABASE_SERVICE_ROLE_KEY`. The route accepts only `POST`, uses the shared
+  `Authorization: Bearer <token>` timing-safely matches
+  `SUPABASE_SERVICE_ROLE_KEY`. The route accepts only `POST`, uses the shared
   small bounded JSON reader, and returns stable request-correlated errors.
 - Treats `job_id` only as an opaque wake-up identifier and never reads the
   deprecated user/scope/precision rollout hints. Status, pseudonym version, and
   object-key fields are absent from the webhook contract.
-- Calls service-only `claim_export_job_step(job_id, claim_token)`. The RPC
-  locks the queue and private work rows, returns immutable canonical state plus
-  the current durable phase/cursors/budgets, and creates a private two-minute
-  lease. An active, not-due, or terminal job returns no claim and performs no
+- Calls service-only `claim_export_job_step(job_id, claim_token)`. The RPC locks
+  the queue and private work rows, returns immutable canonical state plus the
+  current durable phase/cursors/budgets, and creates a private two-minute lease.
+  An active, not-due, or terminal job returns no claim and performs no
   source/provider work.
 - Calls service-only
   `get_dwca_export_scan_batch(job_id, claim_token, phase, cursor, 100, 262144)`
@@ -6142,18 +6162,17 @@ contract is also bounded by the shared small JSON reader.
   must match the stored SHA-256 eligibility fingerprint and the fingerprint for
   that phase's narrow projection. A later scan is not part of the job; a changed
   or deleted source returns `source_revision_changed` and becomes terminal
-  `source_snapshot_changed` rather than producing a mixed archive. Validated
-  row checks separately cap media-array cardinality/URL size,
-  interaction-array cardinality/element size, and selected taxonomy text in
-  UTF-8 bytes. The worker rechecks those bounds before encoding. Terminal jobs
-  purge their source-membership rows.
+  `source_snapshot_changed` rather than producing a mixed archive. Validated row
+  checks separately cap media-array cardinality/URL size, interaction-array
+  cardinality/element size, and selected taxonomy text in UTF-8 bytes. The
+  worker rechecks those bounds before encoding. Terminal jobs purge their
+  source-membership rows.
 - Advance, manifest lookup, staging, completion, release, and heartbeat RPCs
   require the same unexpired UUID token; a delayed worker cannot mutate a
   replacement attempt. These definer routines use an empty `search_path`, call
   `internal.require_service_role()`, and are not executable by `PUBLIC`, `anon`,
   or `authenticated`.
-- Resolves the
-  email from the claimed canonical `user_id` through
+- Resolves the email from the claimed canonical `user_id` through
   `supabaseAdmin.auth.admin.getUserById(...)`.
 - **DwC-A Global Geoprivacy Leak Prevention**: Enforces strict IUCN Red List and
   ownership gating during ZIP compilation. Evaluates
@@ -6171,17 +6190,16 @@ contract is also bounded by the shared small JSON reader.
   JWT/service keys and has no fallback.
 - **Canonical budgets**: Jobs default to at most 5,000 CSV rows and an 8 MiB
   final archive; immutable database constraints cap custom internal jobs at
-  20,000 rows and 16 MiB. Budget overflow terminates with
-  `export_too_large`.
-- **Resumable generation**: An invocation performs exactly one occurrence
-  page, multimedia page, assembly, or delivery phase. Data phases use
+  20,000 rows and 16 MiB. Budget overflow terminates with `export_too_large`.
+- **Resumable generation**: An invocation performs exactly one occurrence page,
+  multimedia page, assembly, or delivery phase. Data phases use
   row-and-byte-aware `id > last_id` pages over one immutable membership snapshot
-  with narrow revision-checked projections. A fixed-capacity encoder appends
-  one header/row at a time and fails before exceeding 512 KiB; it does not
-  retain a page-wide line array or expanded multimedia-row array. Each chunk is
-  committed to the ordered private manifest together with the next cursor and
-  cumulative budgets. The cron resumes the next phase instead of depending on
-  one long-lived Edge invocation.
+  with narrow revision-checked projections. A fixed-capacity encoder appends one
+  header/row at a time and fails before exceeding 512 KiB; it does not retain a
+  page-wide line array or expanded multimedia-row array. Each chunk is committed
+  to the ordered private manifest together with the next cursor and cumulative
+  budgets. The cron resumes the next phase instead of depending on one
+  long-lived Edge invocation.
 - **Bounded assembly**: Manifest chunks lazily feed a streaming ZIP32 `STORE`
   writer and fixed 8 MiB R2 multipart upload. No complete page history, CSV,
   ZIP, `arrayBuffer()`, or media binary collection is retained in memory. R2
@@ -6192,8 +6210,8 @@ contract is also bounded by the shared small JSON reader.
   `phase/sequence-claim_token.csv`, and final archives use
   `exports/{user_id}/{job_id}/{claim_token}.zip`. A stale writer can therefore
   neither overwrite the winning chunk/archive nor commit an unexpected key to
-  the manifest. After staging, a replacement lease reuses the stored archive
-  key and signed URL.
+  the manifest. After staging, a replacement lease reuses the stored archive key
+  and signed URL.
 - **Idempotent delivery**: Calls Resend directly with
   `Idempotency-Key: dwca-export/{job_id}` and marks the job complete only after
   Resend accepts the request. Re-entry with a staged archive does not regenerate
@@ -6277,10 +6295,10 @@ Manual service-role calls may also include:
    exists.
 5. Synchronizes normalized images through
    `public.replace_species_reference_images(...)`, which preserves
-   `source = "merian"` rows managed by the Merian reference-image worker.
-   Denied external media has already been removed from both the legacy string
-   and normalized RPC payload; a database trigger silently rejects the current
-   exact outlier if another service-role path attempts to write it.
+   `source = "merian"` rows managed by the Merian reference-image worker. Denied
+   external media has already been removed from both the legacy string and
+   normalized RPC payload; a database trigger silently rejects the current exact
+   outlier if another service-role path attempts to write it.
 6. Records new `species_content_provenance` rows for refreshed keys and marks
    claimed enrichment jobs succeeded or failed.
 
@@ -6695,11 +6713,11 @@ Edge authentication wrapper; it is not an anonymous endpoint.
 }
 ```
 
-| Field | Required | Contract |
+| Field              | Required | Contract                                                                   |
 | ------------------ | -------: | -------------------------------------------------------------------------- |
-| `reported_user_id` | Yes | UUID; must differ from authenticated user |
-| `reason` | Yes | `Spam`, `Harassment`, `Impersonation`, `Inappropriate profile`, or `Other` |
-| `details` | No | Trimmed text, maximum 1,000 characters; blank becomes `null` |
+| `reported_user_id` |      Yes | UUID; must differ from authenticated user                                  |
+| `reason`           |      Yes | `Spam`, `Harassment`, `Impersonation`, `Inappropriate profile`, or `Other` |
+| `details`          |       No | Trimmed text, maximum 1,000 characters; blank becomes `null`               |
 
 Before persisting, the function calls
 `get_explore_author_profile(self_id, target_author_user_id, 1)` with the service
@@ -6762,10 +6780,10 @@ Every remaining RPC calls `internal.require_admin`, which verifies:
 
 ### Aggregate RPCs
 
-| RPC | Parameters | Minimum role | Response |
+| RPC                      | Parameters                                                                    | Minimum role | Response                                                                                      |
 | ------------------------ | ----------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
-| `admin_get_overview` | `p_days`, `p_timezone`, `p_refresh` | Analyst | Range, account/plan counts, open reviews, new feedback, AI totals, prior period, daily rows |
-| `admin_ai_usage_summary` | `p_days`, optional operation/model/plan/modality, `p_scan_scope`, `p_refresh` | Analyst | Token categories, cache rate, scan avg/p50/p95, modality totals, daily rows, coverage cutover |
+| `admin_get_overview`     | `p_days`, `p_timezone`, `p_refresh`                                           | Analyst      | Range, account/plan counts, open reviews, new feedback, AI totals, prior period, daily rows   |
+| `admin_ai_usage_summary` | `p_days`, optional operation/model/plan/modality, `p_scan_scope`, `p_refresh` | Analyst      | Token categories, cache rate, scan avg/p50/p95, modality totals, daily rows, coverage cutover |
 
 `p_days` is clamped from 0 (all time) through 36,500. Overview daily rows use
 the requested IANA timezone; AI summary daily rows currently use database time.
@@ -6774,12 +6792,12 @@ for five minutes by the full filter key; `p_refresh = true` bypasses the cache.
 
 ### Review RPCs
 
-| RPC | Important parameters | Minimum role |
+| RPC                            | Important parameters                                                       | Minimum role |
 | ------------------------------ | -------------------------------------------------------------------------- | -----------: |
-| `admin_list_review_cases` | Optional status/type/priority/assignee/reason/from/to, tuple cursor, limit | Moderator |
-| `admin_get_review_case` | `p_case_id` | Moderator |
-| `admin_update_review_case` | Case ID, optional status/priority/assignee change/resolution/note | Moderator |
-| `admin_set_content_visibility` | Case ID, hidden boolean, required reason | Moderator |
+| `admin_list_review_cases`      | Optional status/type/priority/assignee/reason/from/to, tuple cursor, limit |    Moderator |
+| `admin_get_review_case`        | `p_case_id`                                                                |    Moderator |
+| `admin_update_review_case`     | Case ID, optional status/priority/assignee change/resolution/note          |    Moderator |
+| `admin_set_content_visibility` | Case ID, hidden boolean, required reason                                   |    Moderator |
 
 Review list responses use:
 
@@ -6794,38 +6812,38 @@ Review list responses use:
 }
 ```
 
-Case detail returns `case`, `subject`, `sources`, `notes`, and a nullable `scan`.
-The scan object, available only for identification review, may include exact
-coordinates; the read is audited. Assignments accept only active moderator or
-owner UUIDs. Note storage permits 4,000 characters, but the current transition
-RPC mirrors the note into the audit `reason` field and therefore has an
-effective 1,000-character limit. Hide/restore is valid only for post/comment
+Case detail returns `case`, `subject`, `sources`, `notes`, and a nullable
+`scan`. The scan object, available only for identification review, may include
+exact coordinates; the read is audited. Assignments accept only active moderator
+or owner UUIDs. Note storage permits 4,000 characters, but the current
+transition RPC mirrors the note into the audit `reason` field and therefore has
+an effective 1,000-character limit. Hide/restore is valid only for post/comment
 cases, requires a reason of at least three characters, and never changes case
 status.
 
 ### Feedback and user RPCs
 
-| RPC | Parameters | Minimum role |
+| RPC                     | Parameters                                                     | Minimum role |
 | ----------------------- | -------------------------------------------------------------- | -----------: |
-| `admin_list_feedback` | Optional source/status/rating/app-version, tuple cursor, limit | Moderator |
-| `admin_update_feedback` | Source type/ID, state, assignee, tags, optional note | Moderator |
-| `admin_list_users` | Search, `(created_at,id)` cursor, limit | Moderator |
-| `admin_get_user_detail` | User UUID | Moderator |
+| `admin_list_feedback`   | Optional source/status/rating/app-version, tuple cursor, limit |    Moderator |
+| `admin_update_feedback` | Source type/ID, state, assignee, tags, optional note           |    Moderator |
+| `admin_list_users`      | Search, `(created_at,id)` cursor, limit                        |    Moderator |
+| `admin_get_user_detail` | User UUID                                                      |    Moderator |
 
 Feedback states are `new`, `reviewed`, `planned`, and `closed`; original
-submissions are never changed. User search matches partial/exact email, Auth UUID,
-and public handle. Search input is sent through a server action rather than a URL
-query. Both search and detail access are audited.
+submissions are never changed. User search matches partial/exact email, Auth
+UUID, and public handle. Search input is sent through a server action rather
+than a URL query. Both search and detail access are audited.
 
 ### Owner RPCs
 
-| RPC | Parameters | Purpose |
+| RPC                    | Parameters                                 | Purpose                                         |
 | ---------------------- | ------------------------------------------ | ----------------------------------------------- |
-| `admin_list_members` | None | Membership inventory |
-| `admin_upsert_member` | Exact email, role, active state | Add/update an existing verified Google user |
-| `admin_list_sessions` | None | Supabase/internal admin sessions |
-| `admin_revoke_session` | Session UUID, reason | Revoke internal session and delete Auth session |
-| `admin_list_audit` | Optional exact action, tuple cursor, limit | Immutable audit history |
+| `admin_list_members`   | None                                       | Membership inventory                            |
+| `admin_upsert_member`  | Exact email, role, active state            | Add/update an existing verified Google user     |
+| `admin_list_sessions`  | None                                       | Supabase/internal admin sessions                |
+| `admin_revoke_session` | Session UUID, reason                       | Revoke internal session and delete Auth session |
+| `admin_list_audit`     | Optional exact action, tuple cursor, limit | Immutable audit history                         |
 
 The member RPC accepts roles `analyst`, `moderator`, and `owner`, and prevents
 disabling/demoting the final active owner. Revocation reasons must contain at
@@ -6851,33 +6869,33 @@ database write.
 
 The body is a RevenueCat Webhook envelope with an `.event`. The handler requires
 bounded, non-control-character values for `event.id` and `event.type`, plus a
-non-negative safe-integer `event.event_timestamp_ms`. Optional
-`app_user_id`, `original_app_user_id`, `aliases`, `product_id`,
-`transaction_id`, and `original_transaction_id` are validated before use.
-`TRANSFER` instead requires non-empty, bounded `transferred_from` and
-`transferred_to` arrays. An event timestamp more than five minutes ahead of the
-signed delivery timestamp is rejected before database access. The request body
-is capped at 256 KiB.
+non-negative safe-integer `event.event_timestamp_ms`. Optional `app_user_id`,
+`original_app_user_id`, `aliases`, `product_id`, `transaction_id`, and
+`original_transaction_id` are validated before use. `TRANSFER` instead requires
+non-empty, bounded `transferred_from` and `transferred_to` arrays. An event
+timestamp more than five minutes ahead of the signed delivery timestamp is
+rejected before database access. The request body is capped at 256 KiB.
 
 ### Authentication Enforcement
 
 - Requires `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>` and compares it
   in constant time.
-- Requires `X-RevenueCat-Webhook-Signature:
+- Requires
+  `X-RevenueCat-Webhook-Signature:
   t=<unix-seconds>,v1=<hmac-sha256-hex>`.
   `REVENUECAT_WEBHOOK_SIGNING_SECRET` signs the ASCII timestamp/dot prefix plus
   the exact raw request bytes. Verification happens before UTF-8 decoding or
   JSON parsing, permits more than one `v1` digest for protocol compatibility,
   and rejects timestamps more than five minutes in the past or future.
-- Missing any of the Authorization, signing, or server API secrets returns
-  `401` or `503`; there is no static-secret-only compatibility path.
-- **Customer identity contract**: iOS logs RevenueCat into the Supabase Auth UUID
-  and writes subscriber attributes (`supabase_user_id`, `auth_email`,
+- Missing any of the Authorization, signing, or server API secrets returns `401`
+  or `503`; there is no static-secret-only compatibility path.
+- **Customer identity contract**: iOS logs RevenueCat into the Supabase Auth
+  UUID and writes subscriber attributes (`supabase_user_id`, `auth_email`,
   `public_username`, `public_author_name`, `public_identity_source`,
   `account_kind`) before entitlement checks. Manual dashboard adjustments should
-  use the UUID/App User ID first, with subscriber attributes as the human-readable
-  cross-reference. This applies to both RevenueCat Test Store and production
-  keys.
+  use the UUID/App User ID first, with subscriber attributes as the
+  human-readable cross-reference. This applies to both RevenueCat Test Store and
+  production keys.
 - UUID candidates are ordered from `app_user_id`, `original_app_user_id`, then
   `aliases` and deduplicated. A RevenueCat `TRANSFER` creates independent source
   and destination subjects from its two identity arrays; it does not have an
@@ -6895,23 +6913,22 @@ is capped at 256 KiB.
 - The server calls, for every mapped customer,
   `GET https://api.revenuecat.com/v1/subscribers/{app_user_id}` with
   `Authorization: Bearer <REVENUECAT_SECRET_API_KEY>` after each new accepted
-  webhook. Before that call,
-  `get_revenuecat_webhook_event_result(...)` checks the private ledger; a
-  committed duplicate with the same event timestamp, type, and payload SHA-256
-  returns immediately so normal retries and in-window replays do not amplify
-  provider traffic. The response is capped at 2 MiB and
-  must contain a safe-integer
-  `request_date_ms` and subscriber object; an implausibly future snapshot is
-  rejected. Network/provider errors return `502`/`503` without a database
-  mutation. For `TRANSFER`, source and destination lookups run concurrently and
-  both must succeed before the database call.
-- An active standard entitlement whose identifier is `pro` or
-  `Naturalist Tier` projects `subscription_tier = pro` and persists the later
-  of recurring expiration and grace-period expiration. `NULL` is reserved for
-  an entitlement whose provider expiration is explicitly null (lifetime).
+  webhook. Before that call, `get_revenuecat_webhook_event_result(...)` checks
+  the private ledger; a committed duplicate with the same event timestamp, type,
+  and payload SHA-256 returns immediately so normal retries and in-window
+  replays do not amplify provider traffic. The response is capped at 2 MiB and
+  must contain a safe-integer `request_date_ms` and subscriber object; an
+  implausibly future snapshot is rejected. Network/provider errors return
+  `502`/`503` without a database mutation. For `TRANSFER`, source and
+  destination lookups run concurrently and both must succeed before the database
+  call.
+- An active standard entitlement whose identifier is `pro` or `Naturalist Tier`
+  projects `subscription_tier = pro` and persists the later of recurring
+  expiration and grace-period expiration. `NULL` is reserved for an entitlement
+  whose provider expiration is explicitly null (lifetime).
 - An unexpired authoritative `pro_week` transaction projects a timed Pro expiry
-  at `purchase_date + 7 days`. A matching pass refund/revocation is excluded;
-  an unmatchable revocation fails closed for transactions at or before the event
+  at `purchase_date + 7 days`. A matching pass refund/revocation is excluded; an
+  unmatchable revocation fails closed for transactions at or before the event
   time while preserving a provably later purchase.
 - No active paid state projects `subscription_tier = free` and a null expiry.
 - `public.apply_revenuecat_customer_state(...)` records `event.id` under a
@@ -6932,17 +6949,18 @@ is capped at 256 KiB.
 ### Response contract
 
 - `200 {"success":true,"outcome":"applied","subject_count":N,
-  "applied_count":N,"stale_count":0}`: all mapped authoritative transitions
-  were accepted.
+  "applied_count":N,"stale_count":0}`:
+  all mapped authoritative transitions were accepted.
 - `200 ... "duplicate"`: the exact event ID/timestamp/type/payload was already
   committed; the three counts describe its original result.
-- `200 ... "stale"`: all mapped subjects were recorded but their ordering
-  tuples were older.
+- `200 ... "stale"`: all mapped subjects were recorded but their ordering tuples
+  were older.
 - `200 ... "mixed"`: a multi-subject transfer applied for one user while the
   other already had a newer watermark.
 - `200 {"success":true,"outcome":"ignored","subject_count":0,
-  "applied_count":0,"stale_count":0}`: no Supabase UUID existed in the
-  RevenueCat identity set; the event ID was still persisted.
+  "applied_count":0,"stale_count":0}`:
+  no Supabase UUID existed in the RevenueCat identity set; the event ID was
+  still persisted.
 - `400`: malformed event data.
 - `401`: Authorization or HMAC verification failed, including replay-window
   rejection.
@@ -6956,11 +6974,10 @@ is capped at 256 KiB.
 
 ### Service-only authoritative reconciliation
 
-`/reconcile-revenuecat-subscribers` is not a client API. The 15-minute
-`pg_cron` call sends `POST {}` with the complete service-role bearer. The route
-also requires a configured `sk_` RevenueCat server key and accepts no user ID,
-lookup ID, tier, or limit from HTTP. Its `pg_net` response timeout is 120
-seconds.
+`/reconcile-revenuecat-subscribers` is not a client API. The 15-minute `pg_cron`
+call sends `POST {}` with the complete service-role bearer. The route also
+requires a configured `sk_` RevenueCat server key and accepts no user ID, lookup
+ID, tier, or limit from HTTP. Its `pg_net` response timeout is 120 seconds.
 
 The private queue leases six due linked customers per short
 `FOR UPDATE SKIP LOCKED` wave for two minutes. The worker repeats waves until

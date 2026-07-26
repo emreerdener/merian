@@ -1,79 +1,19 @@
-export interface MerianIdentification {
-  is_biological_subject: boolean;
-  is_live_capture: boolean;
-  ecology_type?: "wild" | "urban" | "domesticated" | "unknown";
-  scientific_name?: string;
-  confidence_score: number;
-  blur_score?: number;
-  is_invasive?: boolean;
-  invasive_status_region?: string | null;
-  invasive_rationale?: string | null;
-  invasive_confidence?: number | null;
-  ai_reasoning: string;
-  extracted_visual_traits: string[];
-  common_name?: string;
-  hazard_type?: "none" | "poisonous" | "venomous" | "allergenic" | "irritant";
-  life_stage?:
-    | "egg"
-    | "larva"
-    | "pupa"
-    | "nymph"
-    | "juvenile"
-    | "subadult"
-    | "adult"
-    | "seedling"
-    | "sapling"
-    | "unknown";
-  reproductive_condition?:
-    | "flowering"
-    | "fruiting"
-    | "budding"
-    | "vegetative"
-    | "sporing"
-    | "pregnant"
-    | "gravid"
-    | "mating"
-    | "spawning"
-    | "nesting"
-    | "dormant"
-    | "not_applicable";
-  sex?:
-    | "female"
-    | "male"
-    | "hermaphrodite"
-    | "mixed"
-    | "cannot_determine"
-    | "not_applicable";
-  sex_confidence?: number;
-  sex_evidence?: string;
-  individual_count?: number;
-  ecological_interactions?: string[];
-  candidates?: IdentificationCandidate[] | null;
-  image_quality?: ImageQuality;
-  pet_identification?: PetIdentification | null;
-}
+import type {
+  ClientPayload as ContractClientPayload,
+  MerianIdentification as ContractMerianIdentification,
+} from "./contract.ts";
 
-export interface IdentificationCandidate {
-  scientific_name: string;
-  common_name?: string;
-  confidence_score: number;
-  distinguishing_feature: string;
-}
-
-export interface ImageQuality {
-  sharpness: number;
-  framing: number;
-  diagnostic_utility: number;
-  overall_score: number;
-}
-
-export interface PetIdentification {
-  species_group: "dog" | "cat";
-  label: string;
-  label_type: "breed" | "breed_mix" | "coat_pattern" | "body_type";
-  confidence_score: number;
-  evidence: string[];
-}
+export type MerianIdentification = ContractMerianIdentification;
+export type ClientPayload = ContractClientPayload;
+export type IdentificationCandidate = NonNullable<
+  MerianIdentification["candidates"]
+>[number];
+export type ImageQuality = NonNullable<
+  MerianIdentification["image_quality"]
+>;
+export type PetIdentification = NonNullable<
+  MerianIdentification["pet_identification"]
+>;
 
 export interface ObservationContextDTO {
   freeText?: string;
@@ -208,31 +148,6 @@ export interface AudioMediaItemDTO {
   source_index?: number;
   clipIndex?: number;
   clip_index?: number;
-}
-
-export interface ClientPayload extends MerianIdentification {
-  scan_id: string;
-  reference_image_url?: string | null;
-  wikipedia_url?: string | null;
-  wikipedia_overview?: string | null;
-  group_tags?: string[] | null;
-  is_new_to_merian_dictionary?: boolean;
-  gbif_taxon_key?: number | null;
-  taxonomy?: Record<string, string>;
-  iucn_red_list_status?: string;
-  insight_data?: {
-    ai_reasoning: string;
-    hazard_type: string;
-  };
-  species_insights?: {
-    habitat_description: string;
-  };
-  inference_tier: string;
-  /// All known English vernacular synonyms for this species beyond the primary canonical name.
-  /// Sourced from GBIF vernacular names on first enrichment; served from species_dictionary cache on
-  /// subsequent hits. The primary common_name is always excluded from this array.
-  /// Do not use absence as a novelty signal; use `is_new_to_merian_dictionary`.
-  alternative_common_names?: string[] | null;
 }
 
 /** Row shape returned by fetchCachedSpecies — mirrors the species_dictionary SELECT columns. */

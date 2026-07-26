@@ -323,7 +323,7 @@ struct ScanThumbnail: View {
             ScanThumbnailPlaceholderView(
                 mediaKind: mediaKind,
                 title: "Reference unavailable",
-                subtitle: "Will retry later"
+                subtitle: nil
             )
         case .unavailableReference(let mediaKind):
             ScanThumbnailPlaceholderView(
@@ -521,7 +521,7 @@ actor AudioSpectrogramThumbnailLoader {
 private struct ScanThumbnailPlaceholderView: View {
     let mediaKind: CapturedMediaKind
     let title: String
-    let subtitle: String
+    let subtitle: String?
 
     var body: some View {
         ZStack {
@@ -543,11 +543,13 @@ private struct ScanThumbnailPlaceholderView: View {
                     .foregroundColor(.primary.opacity(0.82))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                Text(subtitle)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
             }
             .padding(12)
         }

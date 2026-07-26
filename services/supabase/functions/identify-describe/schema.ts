@@ -1,7 +1,8 @@
-import { Schema, Type } from "@google/genai";
+import type { Schema } from "@google/genai";
+import { merianDescribeModelContract } from "../_shared/identify/contract.ts";
+import { googleSchemaFromContract } from "../_shared/identify/googleSchema.ts";
 
 type ResponseSchema = Schema;
-const SchemaType = Type;
 
 // ---------------------------------------------------------------------------
 // System instruction — text-only identification path
@@ -21,7 +22,7 @@ You are an expert field-guide biologist and taxonomist specializing in species i
 # Identification Rules
 1. **Nomenclature:** common_name must be maximally specific in Title Case.
 2. **Scientific Name:** Must be the currently accepted binomial from GBIF, ITIS, or Catalogue of Life. Return a genus-level name only when species determination is genuinely impossible from the description. Never fabricate names.
-3. **is_live_capture:** ALWAYS return false — this is a recalled verbal describe, not a photographic capture.
+3. **is_live_capture:** ALWAYS return false — this is a recalled verbal description, not a photographic capture.
 4. **image_quality:** ALWAYS return { sharpness: 0, framing: 0, diagnostic_utility: 0, overall_score: 0 } — there is no image to score. This field exists only for schema parity with the vision path.
 5. **extracted_visual_traits:** Extract the 3 most taxonomically significant descriptors directly from the observation description. These must be verbatim or closely paraphrased from what the user wrote, not inferred.
 6. **Confidence Calibration:** Text-based identifications are inherently less precise than photographic ones. Anchors:
@@ -44,187 +45,11 @@ If the description clearly refers to a non-biological subject (rock, building, v
 Use the same life_stage, reproductive_condition, sex, and ecology_type values as the vision path where determinable from the description.
 `;
 
-// ---------------------------------------------------------------------------
-// Response schema — identical structure to the vision path for iOS parity
-// ---------------------------------------------------------------------------
-
-const sharedProperties = (): Record<string, ResponseSchema> => ({
-  extracted_visual_traits: {
-    type: SchemaType.ARRAY,
-    items: { type: SchemaType.STRING },
-    description:
-      "Extract exactly 3 distinct traits from the observation description (e.g., 'brown coloration', 'palm-sized', 'perching on tree bark'). Must come directly from the user's description.",
-  },
-  ai_reasoning: {
-    type: SchemaType.STRING,
-    description:
-      "1–3 sentence analysis of the identification reasoning. Reference the specific descriptors in the observation that support the identification and explain why they point to this species over the alternatives.",
-  },
-  is_biological_subject: { type: SchemaType.BOOLEAN },
-  is_live_capture: {
-    type: SchemaType.BOOLEAN,
-    description: "Always false for describe descriptions.",
-  },
-  confidence_score: {
-    type: SchemaType.NUMBER,
-    description:
-      "Calibrated confidence based solely on the description's diagnostic specificity (0.0–1.0). " +
-      "ANCHORS: ≥0.85 = description maps unambiguously to one species in the given region/season; " +
-      "0.60–0.84 = confident but similar species cannot be ruled out; " +
-      "0.40–0.59 = probable, description lacks diagnostic detail; <0.40 = too generic for reliable ID. " +
-      "Most descriptions warrant 0.45–0.75. NEVER inflate based on local abundance.",
-  },
-  candidates: {
-    type: SchemaType.ARRAY,
-    items: {
-      type: SchemaType.OBJECT,
-      properties: {
-        scientific_name: { type: SchemaType.STRING },
-        confidence_score: { type: SchemaType.NUMBER },
-        distinguishing_feature: {
-          type: SchemaType.STRING,
-          description:
-            "The single most important difference between this candidate and the primary identification, phrased in terms of the user's description (e.g., 'lacks the spotted pattern user described').",
-        },
-      },
-      required: [
-        "scientific_name",
-        "confidence_score",
-        "distinguishing_feature",
-      ],
-    },
-    description:
-      "For biological descriptions, provide exactly 2 alternative species grounded in the observation description. For non-biological descriptions, return an empty array.",
-  },
-  image_quality: {
-    type: SchemaType.OBJECT,
-    properties: {
-      sharpness: { type: SchemaType.INTEGER },
-      framing: { type: SchemaType.INTEGER },
-      diagnostic_utility: { type: SchemaType.INTEGER },
-      overall_score: { type: SchemaType.INTEGER },
-    },
-    required: ["sharpness", "framing", "diagnostic_utility", "overall_score"],
-    description:
-      "Always return all zeros for describe descriptions — no image to score.",
-  },
-});
-
-const SHARED_REQUIRED = [
-  "is_biological_subject",
-  "is_live_capture",
-  "extracted_visual_traits",
-  "ai_reasoning",
-  "confidence_score",
-  "image_quality",
-  "candidates",
-] as const;
-
 let schemaCache: ResponseSchema | null = null;
 
+/** Provider schema projection of the executable Describe model contract. */
 export const getDescribeResponseSchema = (): ResponseSchema => {
   if (schemaCache) return schemaCache;
-
-  schemaCache = {
-    type: SchemaType.OBJECT,
-    properties: {
-      ...sharedProperties(),
-      scientific_name: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Formally accepted binomial. Null for manufactured, processed, or unidentifiable non-biological subjects.",
-      },
-      common_name: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description: "Most specific recognized English name in Title Case.",
-      },
-      ecology_type: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["wild", "urban", "domesticated", "unknown"],
-        nullable: true,
-      },
-      is_invasive: { type: SchemaType.BOOLEAN, nullable: true },
-      invasive_status_region: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Region label used for the invasive-status assessment, such as 'Austin, TX', 'Central Texas', or 'Unavailable'. Null for non-biological subjects.",
-      },
-      invasive_rationale: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "One concise sentence explaining the invasive-status assessment from the original description reasoning, location context, species identity, and ecological context. Null for non-biological subjects.",
-      },
-      invasive_confidence: {
-        type: SchemaType.NUMBER,
-        nullable: true,
-        description:
-          "Confidence from 0.0 to 1.0 for the invasive-status assessment, separate from identification confidence. Null when location evidence is insufficient or subject is non-biological.",
-      },
-      life_stage: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: [
-          "egg",
-          "larva",
-          "pupa",
-          "nymph",
-          "juvenile",
-          "subadult",
-          "adult",
-          "seedling",
-          "sapling",
-          "unknown",
-        ],
-        nullable: true,
-      },
-      reproductive_condition: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: [
-          "flowering",
-          "fruiting",
-          "budding",
-          "vegetative",
-          "sporing",
-          "pregnant",
-          "gravid",
-          "mating",
-          "spawning",
-          "nesting",
-          "dormant",
-          "not_applicable",
-        ],
-        nullable: true,
-      },
-      sex: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: [
-          "female",
-          "male",
-          "hermaphrodite",
-          "mixed",
-          "cannot_determine",
-          "not_applicable",
-        ],
-        nullable: true,
-      },
-      sex_confidence: { type: SchemaType.NUMBER, nullable: true },
-      sex_evidence: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Short phrase naming the user-described evidence for sex. Null when unsupported.",
-      },
-      individual_count: { type: SchemaType.INTEGER, nullable: true },
-    },
-    required: [...SHARED_REQUIRED],
-  };
-
+  schemaCache = googleSchemaFromContract(merianDescribeModelContract);
   return schemaCache;
 };

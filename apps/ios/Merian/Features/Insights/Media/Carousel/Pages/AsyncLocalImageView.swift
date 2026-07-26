@@ -8,6 +8,7 @@ struct AsyncLocalImageView: View {
     var contentMode: ContentMode = .fill
     var fillHeight: Bool = false
     var isArchivedVisual: Bool = false
+    var onImageLoaded: (() -> Void)?
     var onImageLoadFailed: (() -> Void)?
 
     @State private var loadedImage: UIImage?
@@ -43,6 +44,7 @@ struct AsyncLocalImageView: View {
             guard !Task.isCancelled else { return }
             if let img {
                 loadedImage = img
+                onImageLoaded?()
             } else {
                 hasFailedToLoad = true
                 onImageLoadFailed?()

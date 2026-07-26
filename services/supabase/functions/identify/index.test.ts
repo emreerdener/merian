@@ -921,6 +921,22 @@ Deno.test("sanitize pet identification — drops generic and low-confidence labe
   );
 });
 
+Deno.test("sanitize pet identification — drops labels without usable evidence", () => {
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "cat",
+        label: "Brown Tabby",
+        label_type: "coat_pattern",
+        confidence_score: 0.8,
+        evidence: ["   ", "\n\t"],
+      },
+      "Felis catus",
+    ),
+    null,
+  );
+});
+
 Deno.test("sanitize pet identification — rejects mismatched and non-pet taxa", () => {
   assertEquals(
     sanitizePetIdentification(

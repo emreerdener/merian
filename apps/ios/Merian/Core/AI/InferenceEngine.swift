@@ -2471,34 +2471,6 @@ private struct GBIFMedia: Decodable {
     }
 #endif
 
-    /// Removes an invalid image URL from the carousel and from the stored `referenceImageUrl` field.
-    func dropInvalidCarouselImage(_ identifier: String) {
-        MerianLog.general.debug("Dropping invalid carousel image: \(identifier, privacy: .private)")
-        // Attempt to remove from items
-        self.activeMedia.items.removeAll { item in
-            if case .image(let path) = item, path == identifier { return true }
-            return false
-        }
-        
-        // Attempt to remove from referenceState
-        if case .loaded(var urls) = self.activeMedia.referenceState {
-            urls.removeAll { $0 == identifier }
-            self.activeMedia.referenceState = urls.isEmpty ? .empty : .loaded(urls)
-            MerianLog.general.debug("New referenceState after drop: \(urls, privacy: .private)")
-        }
-
-        if var updated = self.speciesData, let currentRef = updated.referenceImageUrl {
-            var parts = Self.normalizedReferenceURLs(from: currentRef)
-
-            if let idx = parts.firstIndex(of: identifier) {
-                parts.remove(at: idx)
-                let joined = parts.joined(separator: ",")
-                updated.referenceImageUrl = joined.isEmpty ? nil : joined
-                self.speciesData = updated
-            }
-        }
-    }
-
     // MARK: - Local Record Loading
 
     /// Rehydrates engine state from a persisted `LocalScanRecord` for the insight sheet.

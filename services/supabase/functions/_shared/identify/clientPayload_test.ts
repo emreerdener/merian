@@ -14,6 +14,17 @@ Deno.test("hydratePayloadFromCachedSpecies injects cached taxonomy and habitat f
     scientific_name: "Danaus plexippus",
     common_name: "Monarch",
     confidence_score: 0.97,
+    blur_score: 0.1,
+    colors: [],
+    candidates: null,
+    estimated_size_cm: null,
+    image_quality: {
+      sharpness: 9,
+      framing: 8,
+      diagnostic_utility: 9,
+      overall_score: 90,
+    },
+    pet_identification: null,
     ai_reasoning: "Visible wing veins and orange-black pattern.",
     extracted_visual_traits: ["orange wings", "black veins", "white spots"],
     insight_data: {
@@ -73,6 +84,17 @@ Deno.test("hydratePayloadFromCachedSpecies falls back safely when optional cache
     scientific_name: "Unknownus examplea",
     common_name: "Example Species",
     confidence_score: 0.88,
+    blur_score: 0.2,
+    colors: [],
+    candidates: null,
+    estimated_size_cm: null,
+    image_quality: {
+      sharpness: 8,
+      framing: 7,
+      diagnostic_utility: 8,
+      overall_score: 80,
+    },
+    pet_identification: null,
     ai_reasoning: "Pattern and silhouette match the cached species.",
     extracted_visual_traits: ["patterned body"],
     insight_data: {
@@ -139,4 +161,52 @@ Deno.test("isNewToMerianDictionary is true only for biological dictionary misses
   assertEquals(isNewToMerianDictionary(true, null), true);
   assertEquals(isNewToMerianDictionary(true, cachedSpecies), false);
   assertEquals(isNewToMerianDictionary(false, null), false);
+});
+
+Deno.test("hydratePayloadFromCachedSpecies normalizes unsupported cached hazards", () => {
+  const payload: ClientPayload = {
+    scan_id: "scan-hazard",
+    is_biological_subject: true,
+    is_live_capture: true,
+    scientific_name: "Example species",
+    common_name: "Example",
+    confidence_score: 0.9,
+    blur_score: 0.1,
+    colors: [],
+    candidates: null,
+    estimated_size_cm: null,
+    image_quality: {
+      sharpness: 9,
+      framing: 9,
+      diagnostic_utility: 9,
+      overall_score: 90,
+    },
+    pet_identification: null,
+    ai_reasoning: "Visible diagnostic traits support the identification.",
+    extracted_visual_traits: ["diagnostic trait"],
+    inference_tier: "flash",
+  };
+  const cachedSpecies: CachedSpeciesRow = {
+    id: "species-hazard",
+    common_names: null,
+    alternative_common_names: null,
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
+    wikipedia_overview: null,
+    hazard_type: "legacy_unsafe_value",
+    reference_image_url: null,
+    wikipedia_url: null,
+    iucn_red_list_status: null,
+    habitat_description: null,
+    gbif_taxon_key: null,
+    group_tags: null,
+  };
+
+  const hydrated = hydratePayloadFromCachedSpecies(payload, cachedSpecies);
+
+  assertEquals(hydrated.insight_data?.hazard_type, "none");
 });

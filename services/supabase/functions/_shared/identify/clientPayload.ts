@@ -1,5 +1,28 @@
 import { CachedSpeciesRow, ClientPayload } from "./types.ts";
 
+type WireHazardType =
+  | "none"
+  | "poisonous"
+  | "venomous"
+  | "allergenic"
+  | "irritant";
+
+const allowedHazardTypes = new Set<WireHazardType>([
+  "none",
+  "poisonous",
+  "venomous",
+  "allergenic",
+  "irritant",
+]);
+
+export function normalizeWireHazardType(
+  value: string | null,
+): WireHazardType {
+  return value && allowedHazardTypes.has(value as WireHazardType)
+    ? value as WireHazardType
+    : "none";
+}
+
 export function isNewToMerianDictionary(
   isIdentifiedBiologicalSubject: boolean,
   cachedSpecies: CachedSpeciesRow | null,
@@ -8,7 +31,7 @@ export function isNewToMerianDictionary(
 }
 
 function filterAlternativeCommonNames(
-  primaryName: string | undefined,
+  primaryName: string | null | undefined,
   alternativeCommonNames: string[] | null,
 ): string[] | null {
   if (!alternativeCommonNames?.length) return null;
@@ -52,7 +75,7 @@ export function hydratePayloadFromCachedSpecies(
     hydrated.ai_reasoning ?? "Reasoning omitted.";
   hydrated.insight_data = {
     ai_reasoning: aiReasoning,
-    hazard_type: cachedSpecies.hazard_type || "none",
+    hazard_type: normalizeWireHazardType(cachedSpecies.hazard_type),
   };
 
   if (cachedSpecies.group_tags?.length) {

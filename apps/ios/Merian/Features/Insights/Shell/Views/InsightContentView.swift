@@ -48,10 +48,6 @@ struct InsightContentView: View {
                         activeMedia: activeMedia,
                         referenceWikipediaUrl: inferenceEngine.speciesData?.wikipediaUrl,
                         isProcessing: activeIsProcessing,
-                        onImageFailure: { path in
-                            guard activeQueuedContext == nil else { return }
-                            inferenceEngine.dropInvalidCarouselImage(path)
-                        },
                         onDescriptionTap: { isObservationSheetPresented = true },
                         onVisualImageTap: { presentation in
                             fullscreenGalleryPresentation = presentation

@@ -1393,6 +1393,67 @@ struct InsightSheetViewModelTests {
         #expect(pages.map(\.referenceAttributionLabel) == ["Naturebook", "Wikipedia", "GBIF"])
     }
 
+    @Test func testUnavailableCarouselImagesMoveToTheBackWithoutDroppingTheirReferences() {
+        let unavailablePath = "documents/unavailable.webp"
+        let availablePath = "documents/available.webp"
+        let videoPath = "documents/observation.mp4"
+        let referenceURL = "https://example.com/reference.webp"
+        let media = ActiveScanMedia(
+            items: [
+                .image(unavailablePath),
+                .video(videoPath),
+                .image(availablePath)
+            ],
+            referenceState: .loaded([referenceURL])
+        )
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: media,
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let reorderedPages = CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+            sourcePages,
+            unavailableIdentifiers: [unavailablePath]
+        )
+
+        #expect(reorderedPages.map(\.id) == [
+            "image-\(availablePath)",
+            "video-\(videoPath)",
+            "reference-\(referenceURL)",
+            "image-\(unavailablePath)"
+        ])
+        #expect(reorderedPages[1].id == sourcePages[1].id, "Non-image carousel slots must remain stable")
+        #expect(reorderedPages.contains { $0.imageIdentifier == unavailablePath })
+        #expect(media.items.contains(.image(unavailablePath)))
+    }
+
+    @Test func testAvailableLiveImageMovesAheadOfUnavailablePersistedImage() {
+        let unavailablePath = "documents/unavailable.webp"
+        let liveImageData = Data([0x01, 0x02, 0x03])
+        let media = ActiveScanMedia(items: [
+            .image(unavailablePath),
+            .liveImage(liveImageData)
+        ])
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: media,
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let reorderedPages = CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+            sourcePages,
+            unavailableIdentifiers: [unavailablePath]
+        )
+
+        #expect(reorderedPages.map(\.id) == [
+            "liveImage-\(liveImageData.hashValue)",
+            "image-\(unavailablePath)"
+        ])
+    }
+
     @Test func testReferenceDeduplicationIgnoresNaturebookURLDecorationsButKeepsStrictExternalIdentity() {
         let references = [
             "https://media.merian.app/public_uploads/pro/user/photo.webp?width=900",

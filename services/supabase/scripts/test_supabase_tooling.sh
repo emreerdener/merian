@@ -8,8 +8,8 @@ cd "$tooling_repository_root"
 shopt -s nullglob
 
 # Most tooling shares the reviewed Edge Function dependency graph. The DTO
-# validator is checked separately below because its compiler dependency is
-# intentionally isolated from deployable function graphs.
+# validator is checked separately below with its narrower filesystem
+# permissions and dedicated frozen dependency graph.
 tooling_sources=()
 tooling_tests=()
 for source in services/supabase/scripts/*.ts; do

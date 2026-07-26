@@ -80,6 +80,26 @@ temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
 Latency optimization must happen around this call, not by changing its economics
 or identification semantics.
 
+## Response Contract
+
+`_shared/identify/contract.ts` is the executable boundary for both Gemini model
+output and the complete response returned to iOS. It generates the structured
+provider schema and the checked-in Swift DTO block, while its runtime parser
+enforces nested types, requiredness, nullability, enum values, cardinality and
+string limits, safe integers, and numeric bounds.
+
+The route validates the provider object immediately after JSON extraction. It
+validates the full `{ success, data }` envelope again after sanitization,
+dictionary hydration, candidate enrichment, and server-added fields, before
+durable video finalization, persistence, or HTTP success. A final mismatch marks
+the ingestion job retryable and returns HTTP `502` with
+`identify_response_invalid`; internal contract detail is logged but not exposed.
+
+Run `make generate-edge-dto-contract` and `make validate-edge-dto-contract` for
+intentional response changes. The root Swift fields are generated as optional
+for staggered rollout compatibility, but the server contract remains strict
+before delivery.
+
 ## Media Rules
 
 - Still images are Gemini visual inputs and durable scan/display media.

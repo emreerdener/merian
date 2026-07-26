@@ -13,6 +13,12 @@ function identification(
     confidence_score: 0.82,
     ai_reasoning: "The subject appears biological.",
     extracted_visual_traits: ["visible organism"],
+    image_quality: {
+      sharpness: 8,
+      framing: 8,
+      diagnostic_utility: 8,
+      overall_score: 80,
+    },
     candidates: [
       {
         scientific_name: "Capra hircus",
@@ -48,7 +54,7 @@ Deno.test("processed material normalization demotes a wool kilim rug false posit
   assertEquals(data.is_live_capture, false);
   assertEquals(data.scientific_name, undefined);
   assertEquals(data.common_name, "Wool Kilim Rug");
-  assertEquals(data.candidates, null);
+  assertEquals(data.candidates, []);
   assertEquals(data.ecology_type, undefined);
   assertEquals(data.life_stage, undefined);
 });
@@ -71,7 +77,7 @@ Deno.test("processed material normalization strips candidates from existing non-
 
   assertEquals(result.demoted, false);
   assertEquals(data.scientific_name, undefined);
-  assertEquals(data.candidates, null);
+  assertEquals(data.candidates, []);
 });
 
 Deno.test("processed material normalization preserves a living sheep observation", () => {
@@ -217,5 +223,5 @@ Deno.test("processed material normalization preserves non-biological geological 
 
   assertEquals(result.demoted, false);
   assertEquals(data.scientific_name, "SiO2");
-  assertEquals(data.candidates, null);
+  assertEquals(data.candidates, []);
 });

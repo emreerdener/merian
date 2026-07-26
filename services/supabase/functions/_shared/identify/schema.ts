@@ -1,8 +1,6 @@
-import { Schema, Type } from "@google/genai";
-
-// Alias for backward compat within this file
-type ResponseSchema = Schema;
-const SchemaType = Type;
+import type { Schema } from "@google/genai";
+import { merianModelContract } from "./contract.ts";
+import { googleSchemaFromContract } from "./googleSchema.ts";
 
 export const getSystemInstruction = (_diagnosticTrigger: number) =>
   `# Role
@@ -22,8 +20,8 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 
 # Identification Rules
 1. **Nomenclature:** \`common_name\` must be maximally specific in Title Case.
-2. **Scientific Name:** \`scientific_name\` MUST be the currently accepted binomial recognized by GBIF, ITIS, or Catalogue of Life. 
-   - Never return author citations (e.g., omit "(Linnaeus, 1758)"), hybrid markers (×), or infraspecific ranks unless it is the minimal determinate rank (e.g., *Brassica oleracea var. italica*). 
+2. **Scientific Name:** \`scientific_name\` MUST be the currently accepted binomial recognized by GBIF, ITIS, or Catalogue of Life.
+   - Never return author citations (e.g., omit "(Linnaeus, 1758)"), hybrid markers (×), or infraspecific ranks unless it is the minimal determinate rank (e.g., *Brassica oleracea var. italica*).
    - Return a genus-level name alone (without "sp.") ONLY when species determination is impossible. Never fabricate names.
 3. **Invasiveness:** Evaluate \`is_invasive\`, \`invasive_status_region\`, \`invasive_rationale\`, and \`invasive_confidence\` as one location-aware assessment based on the provided GPS coordinates, coarse location label, species identity, and ecological context. \`invasive_status_region\` is the region label used for the assessment, not the status itself. If location context is missing, return \`is_invasive=false\`, \`invasive_status_region="Unavailable"\`, explain the limitation in \`invasive_rationale\`, and use low or null \`invasive_confidence\`.
 4. **Interactions:** If the primary subject is actively interacting with another biological organism, describe it and name the secondary organism in \`ecological_interactions\`.
@@ -75,7 +73,7 @@ Output fields must align semantically with the Darwin Core data standard:
 
 **reproductive_condition:** (Apply strictly to primary subject)
 - \`flowering\`: one/more open flowers visible
-- \`fruiting\`: ripe/unripe fruit, berries, cones, seed pods 
+- \`fruiting\`: ripe/unripe fruit, berries, cones, seed pods
 - \`budding\`: unopened flower/leaf buds only
 - \`vegetative\`: active growth, no reproductive structures
 - \`sporing\`: visible spore-bearing structures (sori, gills, pores)
@@ -101,305 +99,21 @@ Output fields must align semantically with the Darwin Core data standard:
 - \`domesticated\`: captive animal, cultivated plant, farmed organism
 `;
 
-// Shared schema properties present in both the biological and non-biological branches.
-// Extracted to a factory function so both branches reference identical field definitions
-// without duplication. Called at schema-build time (module scope, warm isolate cached).
-const sharedProperties = (): Record<string, ResponseSchema> => ({
-  extracted_visual_traits: {
-    type: SchemaType.ARRAY,
-    items: { type: SchemaType.STRING },
-    description:
-      "Extract exactly 3 distinct physical or structural traits observed in the visual evidence (e.g. 'smooth texture', 'embedded in concrete', 'green leaves').",
-  },
-  ai_reasoning: {
-    type: SchemaType.STRING,
-    description:
-      "A 1-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence that substantiate this classification.",
-  },
-  is_biological_subject: { type: SchemaType.BOOLEAN },
-  is_live_capture: { type: SchemaType.BOOLEAN },
-  confidence_score: {
-    type: SchemaType.NUMBER,
-    minimum: 0,
-    maximum: 1,
-    description:
-      "Calibrated confidence in the primary identification (0.0–1.0). " +
-      "ANCHORS: " +
-      "≥0.95 = key diagnostic features are unambiguously visible in the visual evidence AND no visually confusable species shares those exact features in the same region and season; " +
-      "0.80–0.94 = confident but one or more similar species cannot be definitively ruled out from the visual evidence alone; " +
-      "0.60–0.79 = probable identification, multiple visually similar species remain plausible; " +
-      "<0.60 = uncertain, visual evidence lacks sufficient diagnostic detail for reliable species-level identification. " +
-      "CRITICAL: base confidence ONLY on morphological features visible in the visual evidence. " +
-      "NEVER inflate it because a species is locally common, seasonally expected, or habitat-appropriate — those factors resolve the primary identification but do not raise confidence. " +
-      "Most field photographs of common species warrant a score of 0.70–0.88.",
-  },
-  candidates: {
-    type: SchemaType.ARRAY,
-    items: {
-      type: SchemaType.OBJECT,
-      properties: {
-        scientific_name: { type: SchemaType.STRING },
-        confidence_score: {
-          type: SchemaType.NUMBER,
-          minimum: 0,
-          maximum: 1,
-        },
-        distinguishing_feature: {
-          type: SchemaType.STRING,
-          description:
-            "The single most important visual feature that separates this candidate from the primary identification. Must reference a specific trait from extracted_visual_traits or a directly observable morphological difference (e.g. 'cap margin lacks striations', 'wing bars absent', 'leaf base asymmetric'). One concise clause — do not repeat the species name.",
-        },
-      },
-      required: [
-        "scientific_name",
-        "confidence_score",
-        "distinguishing_feature",
-      ],
-    },
-    description:
-      "For biological subjects, provide exactly 2 alternative species candidates grounded in the extracted_visual_traits. For non-biological subjects, return an empty array. Choose candidates that share the most observed traits with the primary identification — not just taxonomically related species. For each, distinguishing_feature must name the specific observable difference that rules it in or out.",
-  },
-  image_quality: {
-    type: SchemaType.OBJECT,
-    properties: {
-      sharpness: {
-        type: SchemaType.INTEGER,
-        minimum: 1,
-        maximum: 10,
-      },
-      framing: {
-        type: SchemaType.INTEGER,
-        minimum: 1,
-        maximum: 10,
-      },
-      diagnostic_utility: {
-        type: SchemaType.INTEGER,
-        minimum: 1,
-        maximum: 10,
-      },
-      overall_score: {
-        type: SchemaType.INTEGER,
-        minimum: 0,
-        maximum: 100,
-      },
-    },
-    required: ["sharpness", "framing", "diagnostic_utility", "overall_score"],
-    description:
-      "Photographic quality scores for encyclopedic reference use. sharpness 1–10: focus and motion blur. framing 1–10: subject fully visible and isolated. diagnostic_utility 1–10: taxonomic features clearly displayed. overall_score 0–100: holistic reference quality.",
-  },
-  pet_identification: {
-    type: SchemaType.OBJECT,
-    nullable: true,
-    properties: {
-      species_group: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["dog", "cat"],
-      },
-      label: {
-        type: SchemaType.STRING,
-        description:
-          "Breed, visible breed mix, coat pattern, or body type in Title Case. Never generic Dog/Cat labels.",
-      },
-      label_type: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["breed", "breed_mix", "coat_pattern", "body_type"],
-      },
-      confidence_score: {
-        type: SchemaType.NUMBER,
-        minimum: 0,
-        maximum: 1,
-        description:
-          "Confidence in this pet-specific label from visible morphology only.",
-      },
-      evidence: {
-        type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
-      },
-    },
-    required: [
-      "species_group",
-      "label",
-      "label_type",
-      "confidence_score",
-      "evidence",
-    ],
-    description:
-      "Optional domestic dog/cat pet label. Null for all non-dog/cat taxa and for unsupported pet labels.",
-  },
-});
+type ResponseSchema = Schema;
 
-// Required fields common to both branches.
-const SHARED_REQUIRED = [
-  "is_biological_subject",
-  "is_live_capture",
-  "extracted_visual_traits",
-  "ai_reasoning",
-  "confidence_score",
-  "image_quality",
-  "candidates",
-] as const;
-
-// Schema cache keyed by diagnosticTrigger so warm isolate re-use avoids repeated
-// object construction across requests. Two entries maximum (flash=0.95, pro=0.85).
-// The trigger value does not currently affect schema shape but the cache is keyed
-// by it for forward compatibility if per-tier schema divergence is introduced later.
 const schemaCache = new Map<number, ResponseSchema>();
 
+/**
+ * The provider schema is a projection of the executable model contract.
+ * Runtime validation consumes the same contract before provider data is used.
+ */
 export const getMerianResponseSchema = (
   diagnosticTrigger: number,
 ): ResponseSchema => {
-  if (schemaCache.has(diagnosticTrigger)) {
-    return schemaCache.get(diagnosticTrigger)!;
-  }
+  const cached = schemaCache.get(diagnosticTrigger);
+  if (cached) return cached;
 
-  // Flat schema: all fields in one object, biology-specific ones nullable.
-  // Previously used anyOf [biologicalBranch, nonBiologicalBranch] to let Gemini
-  // pick the right field set, but anyOf at the responseSchema root can cause the
-  // Gemini API to reject the entire request with a structured-output validation
-  // error before inference starts — the root schema must be a plain OBJECT.
-  // The system instruction already tells the model to omit biology fields for
-  // non-biological subjects (is_biological_subject=false), so the flat schema
-  // produces equivalent output quality with universal API compatibility.
-  const schema: ResponseSchema = {
-    type: SchemaType.OBJECT,
-    properties: {
-      ...sharedProperties(),
-      scientific_name: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Formally accepted binomial scientific name. Required for biological subjects and identifiable geological specimens. Null for manufactured, processed, or unidentifiable non-natural objects.",
-      },
-      common_name: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Most specific, commonly recognized English name in Title Case. Null for unidentifiable non-natural objects.",
-      },
-      ecology_type: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["wild", "urban", "domesticated", "unknown"],
-        nullable: true,
-        description:
-          "Biological subjects only. Null for non-biological subjects.",
-      },
-      is_invasive: {
-        type: SchemaType.BOOLEAN,
-        nullable: true,
-        description:
-          "Biological subjects only. Null for non-biological subjects.",
-      },
-      invasive_status_region: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Biological subjects only. Region label used for the invasive-status assessment, such as 'Austin, TX', 'Central Texas', or 'Unavailable'. Null for non-biological subjects.",
-      },
-      invasive_rationale: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Biological subjects only. One concise sentence explaining the invasive-status assessment from the original identification reasoning, location context, species identity, and ecological context. Null for non-biological subjects.",
-      },
-      invasive_confidence: {
-        type: SchemaType.NUMBER,
-        minimum: 0,
-        maximum: 1,
-        nullable: true,
-        description:
-          "Biological subjects only. Confidence from 0.0 to 1.0 for the invasive-status assessment, separate from identification confidence. Null when location evidence is insufficient or subject is non-biological.",
-      },
-      life_stage: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: [
-          "egg",
-          "larva",
-          "pupa",
-          "nymph",
-          "juvenile",
-          "subadult",
-          "adult",
-          "seedling",
-          "sapling",
-          "unknown",
-        ],
-        nullable: true,
-        description:
-          "Biological subjects only. Null for non-biological subjects.",
-      },
-      reproductive_condition: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: [
-          "flowering",
-          "fruiting",
-          "budding",
-          "vegetative",
-          "sporing",
-          "pregnant",
-          "gravid",
-          "mating",
-          "spawning",
-          "nesting",
-          "dormant",
-          "not_applicable",
-        ],
-        nullable: true,
-        description:
-          "Biological subjects only. Null for non-biological subjects.",
-      },
-      sex: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: [
-          "female",
-          "male",
-          "hermaphrodite",
-          "mixed",
-          "cannot_determine",
-          "not_applicable",
-        ],
-        nullable: true,
-        description:
-          "Darwin Core sex for the primary biological subject. Use cannot_determine unless visible/described evidence is diagnostic. Null for non-biological subjects.",
-      },
-      sex_confidence: {
-        type: SchemaType.NUMBER,
-        minimum: 0,
-        maximum: 1,
-        nullable: true,
-        description:
-          "Confidence in the sex annotation from direct evidence only, 0.0–1.0. Null when sex is null, not_applicable, or cannot_determine.",
-      },
-      sex_evidence: {
-        type: SchemaType.STRING,
-        nullable: true,
-        description:
-          "Short phrase naming the exact evidence for sex, such as dimorphic plumage, antlers, flowers, gravid abdomen, or mating role. Null when unsupported.",
-      },
-      individual_count: {
-        type: SchemaType.INTEGER,
-        minimum: 1,
-        maximum: 99999,
-        nullable: true,
-        description:
-          "Number of distinct individuals of the primary species visible. Null when impossible to estimate or for non-biological subjects.",
-      },
-      ecological_interactions: {
-        type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
-        nullable: true,
-        description:
-          "Active interactions with other biological organisms visible in the frame. Use complete phrases; do not end entries with ellipses or truncated wording. Null for non-biological subjects.",
-      },
-    },
-    required: [...SHARED_REQUIRED],
-  };
-
+  const schema = googleSchemaFromContract(merianModelContract);
   schemaCache.set(diagnosticTrigger, schema);
   return schema;
 };

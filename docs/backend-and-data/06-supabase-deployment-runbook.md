@@ -62,8 +62,9 @@ The workflow performs the following steps:
    Functions and `services/supabase/scripts`, then runs the discovery-based
    complete tooling gate. That gate type-checks every standard script, runs
    every `*_test.ts` (including ghost-user audit and cleanup), exercises the
-   isolated structural DTO validator across its canonical TypeScript schema and
-   Swift nested/coding-key boundaries, and syntax-checks/tests shell tooling.
+   isolated executable Identify response contract, checks the exact generated
+   Swift nested/coding-key/decoder block across the complete iOS source graph,
+   runs deployed runtime-contract tests, and syntax-checks/tests shell tooling.
    Deployment/provider secrets are scoped only to the individual steps that
    consume them; they are not job-wide environment values and are never
    persisted through `GITHUB_ENV`.
@@ -82,12 +83,12 @@ The workflow performs the following steps:
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the account deletion, Explore media quarantine,
-   privileged-routine, AI quota, RevenueCat, DwC-A, species-count,
-   public-species-stats, and waitlist pgTAP catalog gates.
-   It then invokes the checked-in recursive `deno task test` with an explicit
-   database URL, so route-local tests cannot be omitted by a curated CI list and
-   database-backed tests cannot silently skip.
+   and runs the account deletion, Explore media quarantine, privileged-routine,
+   AI quota, RevenueCat, DwC-A, species-count, public-species-stats, and
+   waitlist pgTAP catalog gates. It then invokes the checked-in recursive
+   `deno task test` with an explicit database URL, so route-local tests cannot
+   be omitted by a curated CI list and database-backed tests cannot silently
+   skip.
 9. Builds an affected-function deployment plan from the pushed Git diff. Manual
    dispatch and an unresolvable Git diff safely select the full fleet.
 10. Prepares a Postgres connection string for database migrations without
@@ -111,8 +112,8 @@ The workflow performs the following steps:
 18. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-19. Smoke-tests the Community Taxonomy status endpoint, scan-media health,
-    a one-item Explore direct-origin reconciliation, and a dry-run bounded GBIF
+19. Smoke-tests the Community Taxonomy status endpoint, scan-media health, a
+    one-item Explore direct-origin reconciliation, and a dry-run bounded GBIF
     import with the production service-role credential.
 
 Local and CI database rebuilds require Supabase CLI `2.109.0` or newer, and CI
@@ -135,16 +136,18 @@ Actual GBIF taxonomy imports are intentionally separated into
 smoke-tests a dry run; it does not write taxonomy rows or advance import
 cursors.
 
-The deployment subset is computed from the TypeScript import graph rather than a
-hand-maintained list. A route-local runtime change selects that route. A
-shared-module change selects every function that transitively imports it. A
-function-local `deno.json` change selects that function. Changes to
-`config.toml`, the root dependency manifest, or the shared lock select the full
-fleet because they can affect any bundle. New, deleted, or otherwise
-unresolvable shared runtime files also fall back to the full fleet. Docs and
-test-only changes select no functions. This preserves shared-helper consistency
-without paying for an unconditional full-fleet deployment on every backend
-commit.
+The deployment subset is computed from the TypeScript runtime import graph
+rather than a hand-maintained list. Explicit `import type` / `export type` edges
+are erased from deployed bundles and therefore excluded from selection; the
+whole-tree Deno check still validates them. A route-local runtime change selects
+that route. A shared-module change selects every function that transitively
+runtime-imports it. A function-local `deno.json` change selects that function.
+Changes to `config.toml`, the root dependency manifest, or the shared lock
+select the full fleet because they can affect any bundle. New, deleted, or
+otherwise unresolvable shared runtime files also fall back to the full fleet.
+Docs and test-only changes select no functions. This preserves shared-helper
+consistency without paying for an unconditional full-fleet deployment on every
+backend commit.
 
 The graph/configuration test compares the sorted function names discovered from
 `functions/*/index.ts` with the sorted `[functions.<name>]` names parsed from
@@ -860,8 +863,8 @@ migrations:
   verification sweep;
 - prevents new signed uploads while deletion is active;
 - adds `storage_pending` and requires completed storage before `auth_pending`;
-- makes every storage claim require the matching cleaned-up
-  `storage_pending` private job while vetoing live profiles and owned scans;
+- makes every storage claim require the matching cleaned-up `storage_pending`
+  private job while vetoing live profiles and owned scans;
 - installs service-only account and storage claim/advance/failure RPCs; and
 - schedules `reconcile_account_deletions_every_five_minutes`.
 
@@ -1029,9 +1032,8 @@ Smoke-test with a staging-only account that owns at least one scan. Confirm:
 4. anonymous table access does not return the tombstoned scan;
 5. the original public profile is absent and one storage job exists with all
    five canonical prefixes;
-6. before deletion, a deliberately stale/orphaned outbox row for a separate
-   live fixture account cannot be returned by
-   `claim_pending_storage_deletions`;
+6. before deletion, a deliberately stale/orphaned outbox row for a separate live
+   fixture account cannot be returned by `claim_pending_storage_deletions`;
 7. recreating the original public profile while the job is active is rejected;
 8. a new upload-signing request is rejected while deletion is active;
 9. Auth remains present through `storage_pending`, and disappears only after an
@@ -1063,9 +1065,9 @@ The July 2026 incident response adds two migrations and one Edge Function:
 - `repair-scan-image` exposes owner-authenticated inspection and repair.
 
 The normal workflow order—migrations before Edge bundles—is required. The SQL
-claim fence protects against the existing worker immediately after migration;
-it is not dependent on deploying a new worker bundle. If the five-prefix
-migration is present but the fence migration is absent, treat account-storage
+claim fence protects against the existing worker immediately after migration; it
+is not dependent on deploying a new worker bundle. If the five-prefix migration
+is present but the fence migration is absent, treat account-storage
 reconciliation as unsafe and apply the forward fence immediately. If deployment
 is blocked, pause only the named account-deletion reconciliation cron under the
 normal reviewed change-control procedure, record its prior state, and restore it
@@ -1105,9 +1107,8 @@ After deployment:
 
 Repository mitigation, production deployment, production runtime verification,
 and recovered-object coverage are separate status fields. Do not call the
-incident resolved merely because the migration and function exist in `main`.
-The canonical evidence, leading cause, recovery limits, and exit criteria are
-in the
+incident resolved merely because the migration and function exist in `main`. The
+canonical evidence, leading cause, recovery limits, and exit criteria are in the
 [July 2026 incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
 
 #### Explore media-health and reversible-quarantine release gate
@@ -1122,23 +1123,22 @@ Ship the Explore response to unexpected object loss as one compatibility unit:
    five-minute cron;
 3. `20260726174555_align_explore_author_publication_contract.sql` aligns author
    count/preview/grid visibility and adds owner and service aggregate summaries;
-4. deploy `reconcile-explore-media-health`,
-   `get-explore-media-incidents`, and `ingest-r2-media-events`;
+4. deploy `reconcile-explore-media-health`, `get-explore-media-incidents`, and
+   `ingest-r2-media-events`;
 5. redeploy `get-explore-author-profile`, `get-explore-author-posts`, and
    `send-push-notification`;
 6. verify Vault has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then
-   configure bucket-scoped Object Read credentials in
-   `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` at the GitHub and
-   Supabase boundaries;
+   configure bucket-scoped Object Read credentials in `R2_READ_ACCESS_KEY_ID` /
+   `R2_READ_SECRET_ACCESS_KEY` at the GitHub and Supabase boundaries;
 7. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
    GitHub/Supabase and the trusted Cloudflare Queue consumer; and
 8. release the iOS owner banners, notification routes, repair refresh, and scan
    deletion warning only after the backend owner endpoints are available.
 
-Do not combine the enum migration into the state-machine transaction:
-PostgreSQL cannot safely use a newly added enum value in the same transaction.
-The state-machine migration initializes existing rows as healthy/due and does
-not claim historical loss without R2 evidence.
+Do not combine the enum migration into the state-machine transaction: PostgreSQL
+cannot safely use a newly added enum value in the same transaction. The
+state-machine migration initializes existing rows as healthy/due and does not
+claim historical loss without R2 evidence.
 
 Pre-deploy:
 
@@ -1208,13 +1208,11 @@ FROM cron.job
 WHERE jobname = 'reconcile_explore_media_health_every_five_minutes';
 ```
 
-Require all three migration versions,
-`service_can_claim = true`, `client_can_claim = false`,
-`owner_can_list_incidents = true`,
+Require all three migration versions, `service_can_claim = true`,
+`client_can_claim = false`, `owner_can_list_incidents = true`,
 `owner_can_read_publication_summary = true`,
 `client_can_read_global_summary = false`,
-`service_can_read_global_summary = true`, and one active `*/5 * * * *` cron
-row.
+`service_can_read_global_summary = true`, and one active `*/5 * * * *` cron row.
 
 Staging smoke matrix:
 
@@ -1223,8 +1221,8 @@ Staging smoke matrix:
 2. delete one fixture object through the reviewed staging storage path;
 3. verify the first direct check yields `suspected_missing` and leaves the item
    public;
-4. after at least five minutes, verify the second direct `404` yields
-   `missing`, the item is omitted, and the post remains public as `degraded`;
+4. after at least five minutes, verify the second direct `404` yields `missing`,
+   the item is omitted, and the post remains public as `degraded`;
 5. delete the second fixture object and repeat confirmation; verify
    `quarantined`, every public surface omits the post, and the owner endpoint,
    in-app notification, push, Profile explanation, and Scan Library banner
@@ -1232,8 +1230,8 @@ Staging smoke matrix:
 6. verify the post row, `unshared_at`, likes, and comments are unchanged;
 7. restore one object and run reconciliation; verify the post automatically
    returns as degraded;
-8. restore the second object; verify healthy state, one in-app
-   `media_restored`, no restore push, and no owner banner;
+8. restore the second object; verify healthy state, one in-app `media_restored`,
+   no restore push, and no owner banner;
 9. mark the fixture author-unpublished and prove a later healthy check does not
    republish it; and
 10. verify author-profile `published_post_count`, `preview_posts`, and all
@@ -1265,12 +1263,11 @@ over 15 minutes, leases expire repeatedly, result recording fails, or confirmed
 loss rises suddenly. A Cloudflare event may make a row due but is never proof;
 scheduled direct-origin reconciliation is the correctness path.
 
-The deploy workflow also invokes
-`get_explore_publication_health_summary()` with the service-role key and prints
-only aggregate totals. Treat `affected_author_count` as the production scope
-signal: `1` confirms an account-scoped cohort at that moment; any larger value
-requires investigation of additional owners. This smoke must never print owner
-IDs or media keys.
+The deploy workflow also invokes `get_explore_publication_health_summary()` with
+the service-role key and prints only aggregate totals. Treat
+`affected_author_count` as the production scope signal: `1` confirms an
+account-scoped cohort at that moment; any larger value requires investigation of
+additional owners. This smoke must never print owner IDs or media keys.
 
 Rollback is fix-forward. Do not clear `missing`, set posts healthy in bulk,
 delete notifications, or rewrite `unshared_at`. If the worker bundle is faulty,
@@ -1317,8 +1314,7 @@ the complete disposable database gate.
 ### Darwin Core Export Release Gate
 
 Migrations `20260724230849_harden_dwca_export_jobs.sql`,
-`20260725052339_bound_dwca_export_work.sql`, and
-the ordered source-bound pair
+`20260725052339_bound_dwca_export_work.sql`, and the ordered source-bound pair
 `20260725175312_bound_dwca_export_source_bytes.sql` /
 `20260725180321_validate_dwca_export_source_bounds.sql`, and
 `20260726025103_snapshot_dwca_export_sources.sql` must land with
@@ -1344,15 +1340,15 @@ The current worker does not finish a complete export in `waitUntil`. A
 minute-level cron resumes one due job, and each invocation performs one
 occurrence page, one multimedia page, assembly, or delivery. The database caps
 data pages at 100 scans and 256 KiB of serialized source under the active claim;
-validated row checks bound media, interactions, and selected taxonomy before
-the read. Job insertion examines at most the canonical row budget plus one
-lookahead and fixes one scan-ID membership set and three SHA-256 revision
-fingerprints per scan for both CSV phases. A later scan is excluded; a
-changed/deleted revision terminates the job rather than mixing source states.
-Terminal jobs purge those membership rows. A fixed-capacity incremental encoder
-caps CSV output at 512 KiB. CSV pages are stored as claim-token-fenced R2 chunks
-and committed to a durable cursor/manifest with cumulative budgets. These phase
-and byte boundaries are the production memory/time contract.
+validated row checks bound media, interactions, and selected taxonomy before the
+read. Job insertion examines at most the canonical row budget plus one lookahead
+and fixes one scan-ID membership set and three SHA-256 revision fingerprints per
+scan for both CSV phases. A later scan is excluded; a changed/deleted revision
+terminates the job rather than mixing source states. Terminal jobs purge those
+membership rows. A fixed-capacity incremental encoder caps CSV output at 512
+KiB. CSV pages are stored as claim-token-fenced R2 chunks and committed to a
+durable cursor/manifest with cumulative budgets. These phase and byte boundaries
+are the production memory/time contract.
 
 Before the database push, run this owner-only, read-only legacy-row preflight.
 It must return zero rows. Repair invalid source values through the canonical
@@ -1809,15 +1805,15 @@ expiration and grace-period expiration; only an explicitly lifetime entitlement
 may have a null expiry. `pro_week` must have an expiry exactly seven days after
 its authoritative purchase time.
 
-Confirm the active `reconcile_revenuecat_subscribers_every_fifteen_minutes`
-cron and its 120-second `pg_net` timeout, then invoke the service-only route
-once. It must process repeated six-row waves rather than stop after one wave.
-Its aggregate response must report no unpersisted failures, its queue claims
-must be released, and an equal/older CustomerInfo snapshot must report stale
-without changing the tier. Temporarily suppressing a staging webhook and
-allowing the sweep to observe a newer authoritative snapshot is the
-missed-delivery recovery smoke test. Pro rows should next be due in roughly six
-hours and free rows in roughly 24 hours.
+Confirm the active `reconcile_revenuecat_subscribers_every_fifteen_minutes` cron
+and its 120-second `pg_net` timeout, then invoke the service-only route once. It
+must process repeated six-row waves rather than stop after one wave. Its
+aggregate response must report no unpersisted failures, its queue claims must be
+released, and an equal/older CustomerInfo snapshot must report stale without
+changing the tier. Temporarily suppressing a staging webhook and allowing the
+sweep to observe a newer authoritative snapshot is the missed-delivery recovery
+smoke test. Pro rows should next be due in roughly six hours and free rows in
+roughly 24 hours.
 
 Confirm the `RevenueCat Reconciliation Health Monitor` workflow is enabled for
 the Production environment. Dispatch it once with the default 30/60-minute
@@ -2538,13 +2534,13 @@ secret set into either Vercel project.
 | `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Synchronized by the workflow to Supabase Edge only            |
 | `R2_READ_ACCESS_KEY_ID`             | Synchronized by the workflow to Supabase Edge only            |
 | `R2_READ_SECRET_ACCESS_KEY`         | Synchronized by the workflow to Supabase Edge only            |
-| `R2_EVENT_WEBHOOK_SECRET`           | Optional; synchronized to Supabase Edge for R2 event hints     |
+| `R2_EVENT_WEBHOOK_SECRET`           | Optional; synchronized to Supabase Edge for R2 event hints    |
 | `SUPABASE_ACCESS_TOKEN`             | Used by the GitHub runner to operate the Supabase CLI         |
 | `SUPABASE_DB_URL`                   | Used by the GitHub runner for database migration/audit access |
 | `SUPABASE_DB_PASSWORD`              | Used only by the runner's alternative pooler connection path  |
 
-None of these values belongs in Vercel. The public-web Vercel contract is
-the explicit table in **Public Web Waitlist Release** above and
+None of these values belongs in Vercel. The public-web Vercel contract is the
+explicit table in **Public Web Waitlist Release** above and
 [`apps/web/.env.example`](../../apps/web/.env.example). Do not confuse its
 `SUPABASE_URL` HTTPS API endpoint with the privileged `SUPABASE_DB_URL`
 PostgreSQL connection string. The separate internal-admin Vercel project
@@ -2986,8 +2982,8 @@ After deployment:
 - For an Explore media-health release, complete the structural checks and
   staging smoke matrix in **Explore media-health and reversible-quarantine
   release gate**. Require public-surface agreement, preserved author/engagement
-  state, spaced direct-origin confirmation, and automatic repair recovery
-  before calling the release complete.
+  state, spaced direct-origin confirmation, and automatic repair recovery before
+  calling the release complete.
 - For `20260725045544_repair_complete_edge_database_contracts.sql`, verify a
   resolved Community request without `explore_published_at` is absent from the
   feed and species-sightings RPC, then publish it with the owner flow and verify

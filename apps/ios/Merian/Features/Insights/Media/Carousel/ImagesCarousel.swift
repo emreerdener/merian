@@ -13,6 +13,7 @@ struct CarouselPageBuilder {
         audioBoostActionToken: UUID? = nil,
         onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
         onAudioBoostToggleRequested: (() -> Void)? = nil,
+        onImageSuccess: @escaping (String) -> Void = { _ in },
         onImageFailure: @escaping (String) -> Void,
         onDescriptionTap: (() -> Void)?
     ) -> [CarouselPageItem] {
@@ -37,9 +38,10 @@ struct CarouselPageBuilder {
                     AsyncLocalImageView(
                         path: path,
                         fallbackImageUrl: nil,
+                        onImageLoaded: { onImageSuccess(path) },
                         onImageLoadFailed: { onImageFailure(path) }
                     )
-                ), focusRegion: focusRegion))
+                ), imageIdentifier: path, focusRegion: focusRegion))
             case .description(let context):
                 pages.append(CarouselPageItem(
                     id: "description-\(context.serialized())",
@@ -96,9 +98,10 @@ struct CarouselPageBuilder {
                     AsyncLocalImageView(
                         path: nil,
                         fallbackImageUrl: urlString,
+                        onImageLoaded: { onImageSuccess(urlString) },
                         onImageLoadFailed: { onImageFailure(urlString) }
                     )
-                ), referenceAttributionLabel: source.label))
+                ), imageIdentifier: urlString, referenceAttributionLabel: source.label))
             }
         }
         
@@ -208,7 +211,7 @@ struct InsightImageGalleryBuilder {
     }
 }
 
-enum CarouselMediaKind {
+enum CarouselMediaKind: Equatable {
     case visual
     case audio
     case video
@@ -524,6 +527,7 @@ struct CarouselPageItem: Identifiable, Equatable {
     let id: String
     let mediaKind: CarouselMediaKind
     let view: AnyView
+    let imageIdentifier: String?
     let referenceAttributionLabel: String?
     let focusRegion: NormalizedImageFocusRegion?
 
@@ -531,18 +535,50 @@ struct CarouselPageItem: Identifiable, Equatable {
         id: String,
         mediaKind: CarouselMediaKind,
         view: AnyView,
+        imageIdentifier: String? = nil,
         referenceAttributionLabel: String? = nil,
         focusRegion: NormalizedImageFocusRegion? = nil
     ) {
         self.id = id
         self.mediaKind = mediaKind
         self.view = view
+        self.imageIdentifier = imageIdentifier
         self.referenceAttributionLabel = referenceAttributionLabel
         self.focusRegion = focusRegion
     }
 
     static func == (lhs: CarouselPageItem, rhs: CarouselPageItem) -> Bool {
         lhs.id == rhs.id && lhs.focusRegion == rhs.focusRegion
+    }
+}
+
+enum CarouselImageAvailabilityOrdering {
+    static func movingUnavailableImagesToBack(
+        _ pages: [CarouselPageItem],
+        unavailableIdentifiers: Set<String>
+    ) -> [CarouselPageItem] {
+        let imageIndices = pages.indices.filter { index in
+            pages[index].mediaKind == .visual && pages[index].id != "reference-loading"
+        }
+        guard imageIndices.count > 1, !unavailableIdentifiers.isEmpty else {
+            return pages
+        }
+
+        let imagePages = imageIndices.map { pages[$0] }
+        let availablePages = imagePages.filter { page in
+            guard let identifier = page.imageIdentifier else { return true }
+            return !unavailableIdentifiers.contains(identifier)
+        }
+        let unavailablePages = imagePages.filter { page in
+            guard let identifier = page.imageIdentifier else { return false }
+            return unavailableIdentifiers.contains(identifier)
+        }
+
+        var reorderedPages = pages
+        for (index, page) in zip(imageIndices, availablePages + unavailablePages) {
+            reorderedPages[index] = page
+        }
+        return reorderedPages
     }
 }
 
@@ -589,10 +625,6 @@ struct ImagesCarousel: View {
     let referenceWikipediaUrl: String?
     /// Whether inference is currently in progress. Controls the dimming overlay.
     let isProcessing: Bool
-    /// Called when a carousel image fails to load. The caller decides whether to
-    /// propagate the failure to the engine (live path) or swallow it (queued path).
-    let onImageFailure: (String) -> Void
-    
     /// Triggers exclusively when tapping the interactive textual subcomponent.
     let onDescriptionTap: (() -> Void)?
     /// Triggers when the currently selected carousel page can be represented in
@@ -607,6 +639,7 @@ struct ImagesCarousel: View {
     @State private var selectedIndex: Int = 0
     @State private var isVideoMuted = true
     @State private var videoPlaybackCoordinator = InsightCarouselVideoPlaybackCoordinator()
+    @State private var unavailableImageIdentifiers: Set<String> = []
 
     // MARK: - Body
     var body: some View {
@@ -653,10 +686,25 @@ struct ImagesCarousel: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: isProcessing)
+        .onChange(of: scanId) { _, _ in
+            // Carousel interaction and availability belong to one observation.
+            // A failed URL may legitimately be reused by a later scan, and a
+            // newly selected video must not inherit an unmuted predecessor.
+            selectedIndex = 0
+            isVideoMuted = true
+            unavailableImageIdentifiers.removeAll()
+        }
     }
 
     // MARK: - Page Construction
     private var carouselPages: [CarouselPageItem] {
+        CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+            sourceCarouselPages,
+            unavailableIdentifiers: unavailableImageIdentifiers
+        )
+    }
+
+    private var sourceCarouselPages: [CarouselPageItem] {
         CarouselPageBuilder.buildPages(
             for: activeMedia,
             referenceWikipediaUrl: referenceWikipediaUrl,
@@ -667,6 +715,7 @@ struct ImagesCarousel: View {
             audioBoostActionToken: audioBoostActionToken,
             onAudioBoostActionFinished: onAudioBoostActionFinished,
             onAudioBoostToggleRequested: onAudioBoostToggleRequested,
+            onImageSuccess: { handleImageSuccess(identifier: $0) },
             onImageFailure: { handleImageFailure(identifier: $0) },
             onDescriptionTap: onDescriptionTap
         )
@@ -709,8 +758,45 @@ struct ImagesCarousel: View {
     }
 
     private func handleImageFailure(identifier: String) {
-        if activeMedia.totalItems > 1 {
-            onImageFailure(identifier)
+        updateImageAvailability(identifier: identifier, isUnavailable: true)
+    }
+
+    private func handleImageSuccess(identifier: String) {
+        updateImageAvailability(identifier: identifier, isUnavailable: false)
+    }
+
+    private func updateImageAvailability(identifier: String, isUnavailable: Bool) {
+        let previousPages = carouselPages
+        let selectedPage = previousPages[safe: selectedIndex]
+        var nextUnavailableIdentifiers = unavailableImageIdentifiers
+        let didChange: Bool
+
+        if isUnavailable {
+            didChange = nextUnavailableIdentifiers.insert(identifier).inserted
+        } else {
+            didChange = nextUnavailableIdentifiers.remove(identifier) != nil
+        }
+        guard didChange else { return }
+
+        let reorderedPages = CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+            sourceCarouselPages,
+            unavailableIdentifiers: nextUnavailableIdentifiers
+        )
+        unavailableImageIdentifiers = nextUnavailableIdentifiers
+
+        if isUnavailable,
+           selectedPage?.imageIdentifier == identifier,
+           let firstAvailableVisualIndex = reorderedPages.firstIndex(where: { page in
+               guard page.mediaKind == .visual else { return false }
+               guard let imageIdentifier = page.imageIdentifier else {
+                   return page.id != "reference-loading"
+               }
+               return !nextUnavailableIdentifiers.contains(imageIdentifier)
+           }) {
+            selectedIndex = firstAvailableVisualIndex
+        } else if let selectedPage,
+                  let preservedIndex = reorderedPages.firstIndex(where: { $0.id == selectedPage.id }) {
+            selectedIndex = preservedIndex
         }
     }
 }

@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -11,7 +11,8 @@ help:
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
-	@printf "  make validate-edge-dto-contract       Validate Identify schema against the complete iOS DTO source graph\n"
+	@printf "  make generate-edge-dto-contract       Regenerate Identify Swift DTOs from the executable contract\n"
+	@printf "  make validate-edge-dto-contract       Validate the Identify runtime/schema/generated-Swift contract\n"
 	@printf "  make test-supabase-tooling            Run complete discovery-based Supabase tooling tests\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
 	@printf "  make test-supabase-privileged-routines Validate privileged-routine, account-deletion, Ghost-merge, AI-quota, DwC-A, RevenueCat, species-stats, and waitlist catalogs locally\n"
@@ -41,6 +42,14 @@ test-ios-versioning:
 
 validate-ios-migration-guardrails:
 	bash scripts/check-ios-migration-source-guardrails.sh
+
+generate-edge-dto-contract:
+	deno run --frozen \
+		--config services/supabase/scripts/validate_edge_dtos.deno.json \
+		--allow-read=apps/ios \
+		--allow-write=apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift \
+		services/supabase/scripts/validate_edge_dtos.ts \
+		--write-swift
 
 validate-edge-dto-contract:
 	bash services/supabase/scripts/validate_edge_dto_contract.sh

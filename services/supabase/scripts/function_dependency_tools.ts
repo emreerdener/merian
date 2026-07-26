@@ -54,13 +54,17 @@ export async function discoverFunctionEntrypoints(
 export function importedSpecifiers(source: string): string[] {
   const specifiers = new Set<string>();
   const staticPattern =
-    /\b(?:import|export)\s+(?:type\s+)?(?:[^"'`;]*?\s+from\s+)?["']([^"']+)["']/g;
+    /\b(?:import|export)\s+(type\s+)?(?:[^"'`;]*?\s+from\s+)?["']([^"']+)["']/g;
   const dynamicPattern = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
 
-  for (const pattern of [staticPattern, dynamicPattern]) {
-    for (const match of source.matchAll(pattern)) {
-      if (match[1]) specifiers.add(match[1]);
-    }
+  for (const match of source.matchAll(staticPattern)) {
+    // Explicit type-only edges are erased from the deployed bundle. Tracking
+    // them here causes unrelated routes to redeploy when only a compile-time
+    // contract changes; whole-tree Deno checks remain responsible for them.
+    if (!match[1] && match[2]) specifiers.add(match[2]);
+  }
+  for (const match of source.matchAll(dynamicPattern)) {
+    if (match[1]) specifiers.add(match[1]);
   }
   return [...specifiers];
 }

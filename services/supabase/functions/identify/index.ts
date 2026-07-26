@@ -37,9 +37,12 @@ import {
 import {
   CachedSpeciesRow,
   ClientPayload,
-  MerianIdentification,
   Payload,
 } from "../_shared/identify/types.ts";
+import {
+  parseIdentifySuccessEnvelope,
+  parseMerianIdentification,
+} from "../_shared/identify/contract.ts";
 import {
   getMerianResponseSchema,
   getSystemInstruction,
@@ -434,9 +437,11 @@ Deno.serve((req: Request) =>
       );
     }
 
-    let parsedData: MerianIdentification;
+    let parsedData;
     try {
-      parsedData = extractJson<MerianIdentification>(responseText);
+      parsedData = parseMerianIdentification(
+        extractJson<unknown>(responseText),
+      );
     } catch (parseError) {
       await quotaLease.fail();
       // Log enough context to diagnose the root cause without re-reading the code.
@@ -625,6 +630,14 @@ Deno.serve((req: Request) =>
     let payloadReadyForClient: ClientPayload = {
       ...parsedData,
       scan_id: generatedScanId,
+      blur_score: parsedData.blur_score ?? 0,
+      colors: [],
+      estimated_size_cm:
+        (estimated_size_cm != null && Number.isFinite(estimated_size_cm) &&
+            estimated_size_cm > 0)
+          ? Math.min(estimated_size_cm, 50_000)
+          : null,
+      pet_identification: parsedData.pet_identification ?? null,
       inference_tier: userTier === "pro" ? "pro" : "flash",
     };
 
@@ -714,6 +727,31 @@ Deno.serve((req: Request) =>
           hazard_type: "none",
         };
       }
+    }
+
+    let responseEnvelope;
+    try {
+      responseEnvelope = parseIdentifySuccessEnvelope({
+        success: true,
+        data: payloadReadyForClient,
+      });
+      // Use the parsed copy for persistence as well as the response so unknown
+      // or malformed server-added values cannot cross either boundary.
+      payloadReadyForClient = responseEnvelope.data;
+    } catch (error) {
+      await quotaLease.fail();
+      logStructuredError("identify/wire_contract_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonResponse(
+        {
+          error: "AI response validation failed. Please retry.",
+          code: "identify_response_invalid",
+        },
+        502,
+      );
     }
 
     const compatibilityLedger = await createCompatibilityScanIngestionLedger(
@@ -930,7 +968,7 @@ Deno.serve((req: Request) =>
               ? zoomFactor
               : null,
             ecology_type: payloadReadyForClient.ecology_type,
-            is_invasive: payloadReadyForClient.is_invasive,
+            is_invasive: payloadReadyForClient.is_invasive ?? undefined,
             invasive_status_region:
               payloadReadyForClient.invasive_status_region ?? null,
             invasive_rationale: payloadReadyForClient.invasive_rationale ??
@@ -1192,6 +1230,6 @@ Deno.serve((req: Request) =>
     runBackground(runBackgroundIngestion());
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
-    return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
+    return jsonResponse(responseEnvelope, 200);
   })
 );

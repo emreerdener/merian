@@ -9,12 +9,11 @@ without guessing.
 ### Privileged routine ACL catalog
 
 `internal.privileged_routine_grants` is the reviewed source of truth for API
-role execution on public-schema `SECURITY DEFINER` functions. Its primary key
-is `(role_name, routine_signature)`; `role_name` is limited to
-`authenticated` or `service_role`, the signature must be a fully qualified
-public function identity, and `purpose` records the approved caller.
-`PUBLIC`, `anon`, `authenticated`, and `service_role` cannot read or mutate the
-table directly.
+role execution on public-schema `SECURITY DEFINER` functions. Its primary key is
+`(role_name, routine_signature)`; `role_name` is limited to `authenticated` or
+`service_role`, the signature must be a fully qualified public function
+identity, and `purpose` records the approved caller. `PUBLIC`, `anon`,
+`authenticated`, and `service_role` cannot read or mutate the table directly.
 
 Migration `20260723144640_harden_privileged_routine_execution.sql` revokes all
 historical API execution from public definer functions before resolving and
@@ -57,30 +56,29 @@ Separate `AFTER INSERT`, `DELETE`, and `UPDATE` statement triggers consume
 transition tables, aggregate the net delta for each pair, and call one private
 empty-search-path definer helper. The update trigger compares complete OLD and
 NEW statement sets because PostgreSQL does not permit `UPDATE OF` together with
-transition relations. An unrelated update therefore builds no net delta and
-does not touch the ledger or public total. Owner changes lock every affected
+transition relations. An unrelated update therefore builds no net delta and does
+not touch the ledger or public total. Owner changes lock every affected
 `public.users` row in UUID order before applying deltas, so concurrent writes
 cannot lose a distinct-species boundary and multi-owner helper calls follow one
 deterministic lock order. A negative delta that exceeds a still-live owner's
 ledger state aborts with `user_species_scan_count_underflow` instead of hiding
 corruption. A truncate trigger clears the ledger and projections.
 
-The migration opens an explicit transaction, takes a `SHARE ROW EXCLUSIVE`
-lock on `public.scans`, backfills the ledger once, repairs historical
+The migration opens an explicit transaction, takes a `SHARE ROW EXCLUSIVE` lock
+on `public.scans`, backfills the ledger once, repairs historical
 `users.total_species_discovered` drift, atomically swaps the triggers, and
 commits only after the final trigger exists. PostgreSQL rejects `LOCK TABLE`
 outside a transaction block; the explicit boundary is therefore part of the
-migration contract rather than optional deployment syntax. Ownerless
-tombstones are excluded because their user ID is null; the historical all-zero
-owner guard remains as migration compatibility. The ledger intentionally
-follows raw non-null `scans.species_id`; it does not change public Explore's
-separate biological/confirmed-species counting contract.
+migration contract rather than optional deployment syntax. Ownerless tombstones
+are excluded because their user ID is null; the historical all-zero owner guard
+remains as migration compatibility. The ledger intentionally follows raw
+non-null `scans.species_id`; it does not change public Explore's separate
+biological/confirmed-species counting contract.
 
 The dictionary foreign key lives in the `internal` namespace. Any diagnostic or
 test that forces its deferred check must use
 `SET CONSTRAINTS internal.user_species_scan_counts_species_id_fkey IMMEDIATE`;
-an unqualified name is not visible when `internal` is absent from
-`search_path`.
+an unqualified name is not visible when `internal` is absent from `search_path`.
 
 ### `users`
 
@@ -93,8 +91,8 @@ Tracks the global state of the anonymous/authenticated user.
   support lookups.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `subscription_expires_at` (TIMESTAMPTZ, nullable): For recurring RevenueCat
-  access, the later of entitlement expiration and grace-period expiration. It
-  is also set for timed grants such as the detached `pro_week` non-renewing
+  access, the later of entitlement expiration and grace-period expiration. It is
+  also set for timed grants such as the detached `pro_week` non-renewing
   purchase. `NULL` is reserved for an explicitly non-expiring lifetime
   entitlement. The hourly `expire-subscription-passes` worker downgrades any
   expired timed access and clears this value, even when the final provider
@@ -114,12 +112,12 @@ Tracks the global state of the anonymous/authenticated user.
   exists and species-safety rules allow it.
 - `current_streak_count` (Int): Gamification metric.
 - `total_species_discovered` (Int): Server-owned projection of the number of
-  rows in `internal.user_species_scan_counts` for the user. Statement-level
-  scan triggers increment or decrement it only when a non-null
+  rows in `internal.user_species_scan_counts` for the user. Statement-level scan
+  triggers increment or decrement it only when a non-null
   `(user_id, species_id)` ledger row is created or removed. Bulk writes are
-  aggregated, owner transfers update both OLD and NEW owners, and unrelated
-  scan updates leave it untouched. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE
-  OR EDGE FUNCTIONS.
+  aggregated, owner transfers update both OLD and NEW owners, and unrelated scan
+  updates leave it untouched. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR
+  EDGE FUNCTIONS.
 - `abuse_strikes` (INT, DEFAULT 0): Incremented by the `/identify` background
   moderation pipeline each time Gemini's safety ratings flag submitted media as
   `MEDIUM` or `HIGH` probability, or when `finishReason === "SAFETY"`. Never
@@ -171,9 +169,9 @@ Auth signup normally derives the three required public-identity columns through
 that insert `public.users` directly bypass that trigger and must first insert a
 matching transactional `auth.users` fixture, then supply a valid unique
 `public_username`, a non-empty `public_author_name`, and a CHECK-valid
-`public_identity_source`. These columns have no direct-insert fallback
-defaults; do not weaken their Auth foreign key, `NOT NULL`, validation, or
-uniqueness constraints for fixture convenience.
+`public_identity_source`. These columns have no direct-insert fallback defaults;
+do not weaken their Auth foreign key, `NOT NULL`, validation, or uniqueness
+constraints for fixture convenience.
 
 Migration `20260725041308_ownerless_account_deletion_tombstones.sql` normalizes
 the profile primary key as a validated `ON DELETE RESTRICT` foreign key to
@@ -218,13 +216,13 @@ rows must satisfy:
 - email length 3–254 characters of ASCII-shaped canonical input, local part at
   most 64 characters, domain labels at most 63 characters, and no whitespace,
   controls, consecutive dots, or leading/trailing label hyphens;
-- `source = 'web_waitlist'` at the RPC boundary and database source length
-  1–64; and
+- `source = 'web_waitlist'` at the RPC boundary and database source length 1–64;
+  and
 - optional user-agent length 1–512 with no control characters.
 
-The three check constraints are initially `NOT VALID` so unknown historical
-junk cannot block the production migration; PostgreSQL still enforces them on
-every new or updated row. Operators must audit historical rows and validate the
+The three check constraints are initially `NOT VALID` so unknown historical junk
+cannot block the production migration; PostgreSQL still enforces them on every
+new or updated row. Operators must audit historical rows and validate the
 constraints after cleanup. Do not weaken the new-row boundary to accommodate
 legacy data.
 
@@ -387,8 +385,7 @@ images first, then Wikipedia, then GBIF, with `sort_order`, `created_at`, and
 
 ### Current-scan exclusion projection
 
-Migration
-`20260721033935_exclude_current_scan_reference_images.sql` adds
+Migration `20260721033935_exclude_current_scan_reference_images.sql` adds
 `public.public_species_reference_image_urls_excluding_media(...)`. The helper
 accepts a species ID, the legacy comma-separated fallback, and an array of media
 URLs owned by the current scan. It delegates source selection to
@@ -514,8 +511,8 @@ unresolved requests or to unresolved requests created by the viewer.
 Migration `20260725045544_repair_complete_edge_database_contracts.sql` restores
 that publication gate in the canonical media-backed
 `explore_projected_post_cards` projection after a later media migration
-overwrote it. It preserves the later reversible-moderation exclusion and keeps
-a withdrawn request visible through its original observation. Species sightings
+overwrote it. It preserves the later reversible-moderation exclusion and keeps a
+withdrawn request visible through its original observation. Species sightings
 reuse this projection, so an unpublished resolved request cannot remain visible
 through a species-specific read.
 
@@ -593,11 +590,11 @@ provenance fields were added in
   `reference_image_id`, to resolve only the contributor's public user ID and
   current public username. Source scan/post IDs, confidence snapshots, and other
   provenance are not exposed.
-- The repair migration keeps candidate upserts and stale-source
-  disqualification disjoint, then links promoted rows and demotes valid
-  unselected rows in sequential statements. A provenance row is never targeted
-  by competing sibling mutations, so active links converge and unshared or
-  otherwise ineligible media is deterministically marked disqualified.
+- The repair migration keeps candidate upserts and stale-source disqualification
+  disjoint, then links promoted rows and demotes valid unselected rows in
+  sequential statements. A provenance row is never targeted by competing sibling
+  mutations, so active links converge and unshared or otherwise ineligible media
+  is deterministically marked disqualified.
 
 ### `species_observation_stats_cache`
 
@@ -631,8 +628,8 @@ original `fetched_at` is no more than 37 days old is retained. The finalizer
 sets both row and payload status to `stale`, preserves the original payload and
 `fetched_at`, records the latest bounded `provider_error`, and advances only
 `expires_at` by five minutes as a retry backoff. Cold misses, `no_data` rows,
-and positive rows outside that retention ceiling use the ordinary
-five-minute `unavailable` negative cache.
+and positive rows outside that retention ceiling use the ordinary five-minute
+`unavailable` negative cache.
 
 The payload contains public iNaturalist aggregates only: seasonality, rolling
 seven-year history, life-stage annotation series, sex annotation series, total
@@ -669,10 +666,10 @@ Private distributed cold-population ownership added in migration
   RPC connection closes.
 - `finalize_species_observation_stats_population(...)` compares the token and
   atomically validates provider identity, stores an exact taxon ID, upserts the
-  public cache, and removes the lease. A late generation returns `false`.
-  An unavailable refresh also preserves any still-retained positive payload in
-  the same fenced transaction, so a provider incident cannot replace chart data
-  with an empty response.
+  public cache, and removes the lease. A late generation returns `false`. An
+  unavailable refresh also preserves any still-retained positive payload in the
+  same fenced transaction, so a provider incident cannot replace chart data with
+  an empty response.
 - No API role has direct table privileges; only the four allowlisted
   service-role RPCs can preflight IP use, authorize, claim, or finalize.
 
@@ -858,9 +855,9 @@ claims `habitat`, `lookalikes`, and `group_tags` jobs and reuses the same
 species-level primitives behind `enrich-scan`. New GBIF-backed species
 materialized from Community ID publish enqueue all four content groups so
 external refresh and model-heavy enrichment can proceed independently.
-`20260707153931_species_dictionary_enrichment_queue_backfill.sql` adds an
-insert trigger on `species_dictionary` so every future species row, regardless
-of creator, queues only the enrichment groups it is missing. The same migration
+`20260707153931_species_dictionary_enrichment_queue_backfill.sql` adds an insert
+trigger on `species_dictionary` so every future species row, regardless of
+creator, queues only the enrichment groups it is missing. The same migration
 backfills existing sparse rows into `species_enrichment_jobs` with
 `source_trigger = 'species_dictionary_sparse_backfill'`.
 `community-taxonomy-status` exposes queue counts, next queued jobs, and recent
@@ -901,10 +898,9 @@ The transaction log for every successful identification.
 
 - `id` (UUID)
 - `user_id` (UUID - Foreign Key, nullable only for tombstones): Normally
-  references `public.users(id)`. Account-deleted retained observations set it
-  to `NULL`; validated
-  `scans_ownerless_requires_tombstone_check` rejects every ownerless row whose
-  `is_tombstoned` value is not true.
+  references `public.users(id)`. Account-deleted retained observations set it to
+  `NULL`; validated `scans_ownerless_requires_tombstone_check` rejects every
+  ownerless row whose `is_tombstoned` value is not true.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the
   Gemini schema description ruleset.
@@ -1043,8 +1039,7 @@ The transaction log for every successful identification.
   separately gated by `CandidateReviewVisibilityPolicy`. Only scans at or above
   `0.99` (effectively certain) have candidates stripped. `NULL` for those
   near-certain scans, non-biological/processed-material demotions, and all scans
-  captured before migration
-  `20260330000000_add_candidates_to_scans.sql`. Shape:
+  captured before migration `20260330000000_add_candidates_to_scans.sql`. Shape:
   `[{"scientific_name": "...", "confidence_score": 0.71}, ...]`. A partial index
   (`idx_scans_candidates_not_null WHERE candidates IS NOT NULL`) keeps index
   overhead minimal since the majority of scans are high-confidence (NULL).
@@ -1118,7 +1113,8 @@ kilims, leather goods, wooden furniture, paper/cardboard, cotton or linen
 fabric, prepared food, toys, artwork, ornaments, and species depictions to
 `is_biological_subject = false` before species lookup or dictionary writes.
 These demotions retain the object display name when useful, clear source-species
-scientific names and candidates, and do not trigger `is_new_to_merian_dictionary`.
+scientific names and candidates, and do not trigger
+`is_new_to_merian_dictionary`.
 
 ### `insight_chat_conversations`, `insight_chat_messages`, `insight_chat_message_feedback`, `insight_chat_feature_feedback`
 
@@ -1179,15 +1175,13 @@ dictionary endpoints, public web pages, or Darwin Core exports.
 ### `explore_post_chat_conversations`, `explore_post_chat_messages`, `explore_post_chat_message_feedback`
 
 Private per-viewer Field chat for any active Explore post visible to the viewer,
-including their own, added in
-`20260721141655_add_explore_post_chat.sql`.
+including their own, added in `20260721141655_add_explore_post_chat.sql`.
 
 - `explore_post_chat_conversations` is unique on `(post_id, user_id)`, so each
   viewer has one thread per post. `user_id` is the conversation owner and may
   also be the post author's ID.
-- `species_dictionary_id` records the public species context used by the
-  thread. A context change causes the Edge Function to replace the stale
-  conversation.
+- `species_dictionary_id` records the public species context used by the thread.
+  A context change causes the Edge Function to replace the stale conversation.
 - `explore_post_chat_messages` stores owner-bound user and assistant messages,
   optional idempotent `client_message_id` values, refusal metadata, and Gemini
   token telemetry.
@@ -1195,11 +1189,11 @@ including their own, added in
   assistant message, with an optional note capped at 500 characters.
 - All three tables enable RLS with `auth.uid() = user_id` ownership checks and
   revoke direct `anon` and `authenticated` table privileges. Only the
-  authenticated Edge Function uses service-role access. No other viewer can
-  load the conversation.
-- Foreign-key cascades remove messages and feedback with their conversation.
-  An `explore_posts.unshared_at` trigger deletes every viewer conversation when
-  the source post is unpublished.
+  authenticated Edge Function uses service-role access. No other viewer can load
+  the conversation.
+- Foreign-key cascades remove messages and feedback with their conversation. An
+  `explore_posts.unshared_at` trigger deletes every viewer conversation when the
+  source post is unpublished.
 
 These rows are private conversation data, not Explore comments, notifications,
 public profile content, web post data, or Species Dictionary contributions.
@@ -1238,8 +1232,8 @@ content.
 
 `(post_id, reporter_user_id)` is unique so repeat submissions update one queue
 item. RLS is enabled with no public policies; the authenticated
-`/report-explore-post` Edge Function performs validated service-role writes.
-New rows default to `PENDING_REVIEW`; repeat submissions preserve an existing
+`/report-explore-post` Edge Function performs validated service-role writes. New
+rows default to `PENDING_REVIEW`; repeat submissions preserve an existing
 `DISMISSED` or `ACTIONED` status. This table never changes `scans.is_flagged`.
 
 ### `export_jobs`
@@ -1272,11 +1266,11 @@ Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
 - `created_at`, `completed_at` (TIMESTAMPTZ): Lifecycle tracking metrics.
 
 The request fields, budgets, and creation time are immutable after insert.
-Direct `anon`/`authenticated` insertion is revoked; `request-export-dwca`
-queues only personal exports with its service client. Global rows can be
-created only by a reviewed internal administrative workflow. A partial unique
-index permits at most one pending/processing job per user, while the recent-job
-lookup excludes failures.
+Direct `anon`/`authenticated` insertion is revoked; `request-export-dwca` queues
+only personal exports with its service client. Global rows can be created only
+by a reviewed internal administrative workflow. A partial unique index permits
+at most one pending/processing job per user, while the recent-job lookup
+excludes failures.
 
 `internal.export_job_claims` stores the private claim UUID, short lease,
 heartbeat, and bounded attempt count. It has RLS, no API-role table grants, and
@@ -1289,36 +1283,35 @@ transactionally by `claim_export_job_step(...)`.
 `internal.export_worker_protocol` is a private singleton with the finite
 `legacy_payload_until` deadline. Pre-existing nonterminal jobs and jobs created
 in the first two hours after the migration are the finite compatibility cohort;
-newly queued cohort jobs may carry canonical row-derived
-user/scope/precision hints for the previous bundle and may finish without the
-new archive columns. Jobs created after that deadline receive `job_id` only and
-the transition trigger requires a private claim before `processing`. The
-hardened bundle ignores rollout hints in all cases. Failure transitions
-always replace caller-supplied text with a stable owner-safe message, including
-failures written by the previous bundle.
-Once a hardened claim exists, a rollout-era worker cannot fail that attempt or
-replace its staged archive; its redundant `processing` write is rejected too.
-The new worker does not recover an unclaimed cohort row that is already
-`processing`; the watchdog owns that 30-minute failure path. Result fields
-become immutable at a terminal status. The pre-existing atomic ghost-profile
-merge marker is normalized to `owner_changed` so an identity merge can still
-terminate colliding active jobs. The protocol table has RLS and no API-role
-table grants.
+newly queued cohort jobs may carry canonical row-derived user/scope/precision
+hints for the previous bundle and may finish without the new archive columns.
+Jobs created after that deadline receive `job_id` only and the transition
+trigger requires a private claim before `processing`. The hardened bundle
+ignores rollout hints in all cases. Failure transitions always replace
+caller-supplied text with a stable owner-safe message, including failures
+written by the previous bundle. Once a hardened claim exists, a rollout-era
+worker cannot fail that attempt or replace its staged archive; its redundant
+`processing` write is rejected too. The new worker does not recover an unclaimed
+cohort row that is already `processing`; the watchdog owns that 30-minute
+failure path. Result fields become immutable at a terminal status. The
+pre-existing atomic ghost-profile merge marker is normalized to `owner_changed`
+so an identity merge can still terminate colliding active jobs. The protocol
+table has RLS and no API-role table grants.
 
 **Export jobs watchdog cron** (lease-aware definition in
 `20260724230849_harden_dwca_export_jobs.sql`): A `pg_cron` job
 (`expire-stuck-export-jobs`) runs every 5 minutes and tombstones any job stuck
 pending beyond 30 minutes or processing without a live claim. It writes a stable
-failure code/message so the user can request a new job. The watchdog is
-a plain SQL function (`public.expire_stuck_export_jobs()`) run by the existing cron
+failure code/message so the user can request a new job. The watchdog is a plain
+SQL function (`public.expire_stuck_export_jobs()`) run by the existing cron
 schedule; no additional Edge Function is required.
 
 Migration `20260725052339_bound_dwca_export_work.sql` adds two private tables:
 
-- `internal.export_job_work`: one row per job containing phase
-  (`occurrence`, `multimedia`, `assembling`, `delivering`, or `completed`),
-  separate UUID keyset cursors, cumulative row/CSV-byte counts, chunk sequence,
-  next-attempt time, and bounded retries.
+- `internal.export_job_work`: one row per job containing phase (`occurrence`,
+  `multimedia`, `assembling`, `delivering`, or `completed`), separate UUID
+  keyset cursors, cumulative row/CSV-byte counts, chunk sequence, next-attempt
+  time, and bounded retries.
 - `internal.export_job_chunks`: an ordered manifest keyed by
   `(job_id, phase, sequence)` with a claim-token-fenced R2 object key and byte
   count for each CSV page.
@@ -1326,10 +1319,10 @@ Migration `20260725052339_bound_dwca_export_work.sql` adds two private tables:
 Each Edge invocation claims exactly one phase. Data phases read at most 100
 scans and commit at most a 512 KiB chunk, cursor, manifest row, and cumulative
 budgets transactionally. The expected object key includes the active claim
-token, preventing a lease-expired writer from overwriting a replacement's
-chunk. A minute-level cron calls the worker with an empty body to resume one due
-phase. The updated watchdog fails only work with no live claim and no phase
-progress for two hours.
+token, preventing a lease-expired writer from overwriting a replacement's chunk.
+A minute-level cron calls the worker with an empty body to resume one due phase.
+The updated watchdog fails only work with no live claim and no phase progress
+for two hours.
 
 Ordered migrations `20260725175312_bound_dwca_export_source_bytes.sql` and
 `20260725180321_validate_dwca_export_source_bounds.sql` install and validate
@@ -1348,24 +1341,23 @@ live phase projections with:
 - `internal.export_job_source_state`: one private row recording snapshot
   version/time, the exact eligible scan count (or the canonical row budget plus
   one when known too large), terminal purge time, and the early-too-large flag.
-- `internal.export_job_source_membership`: the immutable
-  `(job_id, scan_id)` set plus three 32-byte SHA-256 fingerprints covering
-  eligibility/privacy fields, the occurrence projection, and the multimedia
-  projection.
+- `internal.export_job_source_membership`: the immutable `(job_id, scan_id)` set
+  plus three 32-byte SHA-256 fingerprints covering eligibility/privacy fields,
+  the occurrence projection, and the multimedia projection.
 - `internal.dwca_export_current_source`: a private, unfiltered current
   projection used only for same-statement revision comparison.
 
 An insertion trigger materializes membership and fingerprints from one MVCC
-snapshot before the webhook can run. There is intentionally no `scan_id`
-foreign key: deleting a scan must cause a revision mismatch rather than silently
+snapshot before the webhook can run. There is intentionally no `scan_id` foreign
+key: deleting a scan must cause a revision mismatch rather than silently
 removing it from a later phase. The page RPC keyset-paginates the membership
 primary key and returns a current payload only when both its eligibility and
 phase fingerprint still match. Later scans are never discovered. A mismatch or
 physical deletion yields `source_revision_changed`, which the worker records as
 terminal `source_snapshot_changed`; no mixed archive reaches assembly.
 Pre-migration nonterminal jobs are fenced and restarted with their prior chunk
-manifests discarded. Terminal transitions delete membership rows and retain
-only the nonsensitive source-state metadata with `purged_at`.
+manifests discarded. Terminal transitions delete membership rows and retain only
+the nonsensitive source-state metadata with `purged_at`.
 
 ### `failed_scan_ingestions`
 
@@ -1450,13 +1442,14 @@ service-role writers own mutation, and the claim RPC is executable only by
 `service_role`.
 
 Migration `20260715153946_reduce_identification_latency_round_trips.sql` adds
-`public.begin_scan_ingestion(...)`. It performs upload-session lookup, job claim,
-sanitized intent upsert, and the `ai_inference_started` stage transition in one
-transaction. After resolving upload sessions, it canonicalizes the manifest and
-sanitized-payload checksums against the exact stored JSON and returns those
-checksums with the recovered upload-session ids. The function validates and
-casts the text scan id to UUID before querying UUID-backed media rows. Execute is
-revoked from `PUBLIC`, `anon`, and `authenticated`; only `service_role` may call it.
+`public.begin_scan_ingestion(...)`. It performs upload-session lookup, job
+claim, sanitized intent upsert, and the `ai_inference_started` stage transition
+in one transaction. After resolving upload sessions, it canonicalizes the
+manifest and sanitized-payload checksums against the exact stored JSON and
+returns those checksums with the recovered upload-session ids. The function
+validates and casts the text scan id to UUID before querying UUID-backed media
+rows. Execute is revoked from `PUBLIC`, `anon`, and `authenticated`; only
+`service_role` may call it.
 
 The media reconciliation worker also feeds back into this ledger. If a stale
 capture-upload row still belongs to an active or future-retry job, the worker
@@ -1537,21 +1530,21 @@ has started but before `public.scans` is inserted. Added in migration
   deferred fields accepted by `/update-scan-context`: `gps_elevation`,
   `weather_temperature_f`, `weather_condition`, and `semantic_location`.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Initial and most recent staged
-  update. `idx_scan_deferred_context_updates_created` supports bounded stale
-  row inspection or cleanup.
+  update. `idx_scan_deferred_context_updates_created` supports bounded stale row
+  inspection or cleanup.
 
 RLS is enabled with no client policy, and direct table privileges are revoked
 from `PUBLIC`, `anon`, and `authenticated`. `service_role` receives only the
 table access required by the Edge RPC.
 
-`public.apply_or_stage_scan_context(p_scan_id, p_user_id, p_context)` updates the
-matching owner scan when it already exists. Otherwise it requires a matching
-owner `scan_ingestion_jobs` row and upserts the staged context. The service-role-
-only function returns `true` for an immediate scan update and `false` for a
-staged update. A `BEFORE INSERT` trigger on `public.scans` merges any staged
-context into the new owner row and deletes the staging record in the same
-transaction. Late context never initiates AI inference or changes ingestion job
-ownership.
+`public.apply_or_stage_scan_context(p_scan_id, p_user_id, p_context)` updates
+the matching owner scan when it already exists. Otherwise it requires a matching
+owner `scan_ingestion_jobs` row and upserts the staged context. The
+service-role- only function returns `true` for an immediate scan update and
+`false` for a staged update. A `BEFORE INSERT` trigger on `public.scans` merges
+any staged context into the new owner row and deletes the staging record in the
+same transaction. Late context never initiates AI inference or changes ingestion
+job ownership.
 
 ### `user_blocks`
 
@@ -1614,8 +1607,8 @@ Manual-share public feed wrapper around `scans`. Added in migration
 - `moderated_at` (TIMESTAMPTZ, nullable): Reversible internal-admin hide marker.
   Every public feed, map, profile, detail, notification, and web projection
   requires this value to be `NULL`.
-- `moderated_by_user_id` (UUID FK → `auth.users.id`, nullable): Admin Auth
-  user who most recently hid the post. Restore clears this together with
+- `moderated_by_user_id` (UUID FK → `auth.users.id`, nullable): Admin Auth user
+  who most recently hid the post. Restore clears this together with
   `moderated_at`.
 - `species_common_name` (TEXT, nullable): Author-selected public common-name
   snapshot for the post. Added by
@@ -1640,9 +1633,9 @@ Manual-share public feed wrapper around `scans`. Added in migration
   or `quarantined`. It never overwrites `unshared_at` or `moderated_at`.
 - `missing_media_count` / `total_media_count` (INT): Trigger-maintained media
   health counts.
-- `media_health_updated_at` / `media_quarantined_at` /
-  `media_last_recovered_at` (TIMESTAMPTZ, nullable where applicable): Incident
-  and automatic-recovery audit timestamps.
+- `media_health_updated_at` / `media_quarantined_at` / `media_last_recovered_at`
+  (TIMESTAMPTZ, nullable where applicable): Incident and automatic-recovery
+  audit timestamps.
 
 **Post media rule**: Explore no longer reads media directly from
 `scans.image_storage_urls` at response time. Sharing snapshots safe public image
@@ -1662,11 +1655,10 @@ media writes are hidden until sharing succeeds.
 Normalized scan media lifecycle assets. Added in migration
 `20260705100000_add_scan_media_assets.sql`. Migration
 `20260706100000_allow_staged_scan_media_without_scan_id.sql` repairs early
-deployed tables by dropping any lingering `NOT NULL` requirement from
-`scan_id`. Migration
-`20260707020956_allow_staged_scan_media_without_url.sql` does the same for
-`url`, because staged upload rows exist before a public media URL is available.
-Migration
+deployed tables by dropping any lingering `NOT NULL` requirement from `scan_id`.
+Migration `20260707020956_allow_staged_scan_media_without_url.sql` does the same
+for `url`, because staged upload rows exist before a public media URL is
+available. Migration
 `20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` replaces the
 refresh helper after an early deployment exposed an ambiguous PL/pgSQL
 `image_url` reference in the legacy-array fallback path. Migration
@@ -1674,20 +1666,20 @@ refresh helper after an early deployment exposed an ambiguous PL/pgSQL
 derivation so generated media rows and Explore snapshots only mark audio when a
 captured-media video audio reference exists. Migration
 `20260710120000_add_explore_audio_moderation.sql` adds durable standalone-audio
-URLs and permits approved audio snapshots in Explore post media.
-Migration `20260711055524_add_explore_audio_moderation_attestations.sql` adds
-the service-only `explore_audio_moderation_attestations` cache. Its composite
-key is `(checksum_sha256, policy_version, model)`, so unchanged bytes can reuse
-a decision while policy/model upgrades automatically require re-moderation. It
+URLs and permits approved audio snapshots in Explore post media. Migration
+`20260711055524_add_explore_audio_moderation_attestations.sql` adds the
+service-only `explore_audio_moderation_attestations` cache. Its composite key is
+`(checksum_sha256, policy_version, model)`, so unchanged bytes can reuse a
+decision while policy/model upgrades automatically require re-moderation. It
 stores no transcript, URL, filename, user identity, or media bytes; RLS is
-enabled and client roles have no table grants.
-Migration `20260711143348_repair_scan_media_assets_audio_constraints.sql`
-repairs early production tables whose existing `kind`, `role`, kind/role, ready
-URL, and ready-order index definitions predated standalone audio. This explicit
+enabled and client roles have no table grants. Migration
+`20260711143348_repair_scan_media_assets_audio_constraints.sql` repairs early
+production tables whose existing `kind`, `role`, kind/role, ready URL, and
+ready-order index definitions predated standalone audio. This explicit
 replacement is required because the original `CREATE TABLE IF NOT EXISTS`
-migration cannot alter constraints on an already-existing table.
-Migration `20260720230648_repair_scan_media_asset_uniqueness.sql` removes an
-early global `UNIQUE (scan_id, order_index)` constraint that prevented promoted
+migration cannot alter constraints on an already-existing table. Migration
+`20260720230648_repair_scan_media_asset_uniqueness.sql` removes an early global
+`UNIQUE (scan_id, order_index)` constraint that prevented promoted
 capture-upload lifecycle rows from coexisting with generated ready rows. It
 restores the intended partial unique indexes: generated rows are unique by
 `(scan_id, source, role, order_index)` within `scan_refresh`/`backfill`, and
@@ -1742,16 +1734,16 @@ manifest is absent, it falls back to `image_storage_urls` / `video_storage_urls`
 and collapses legacy sampled video frames behind a single ready playback video
 asset whose `has_audio` is false because legacy URL arrays cannot prove that an
 audio companion was persisted. The fallback query uses qualified aliases such as
-`media_images.raw_image_url` and `media_videos.raw_video_url`; avoid
-unqualified names that match PL/pgSQL variables, because scan inserts execute
-this helper through the `scans` trigger. A trigger keeps generated rows
-synchronized after scan media inserts, updates, and deletes; Edge write paths
-also make best-effort refresh RPC calls after critical scan inserts and
-video-repair updates, but existing manifest/array fallbacks remain available if
-refresh fails. RLS lets owners read their lifecycle rows; public open-scan reads
-are limited to ready display/playback rows so staged/failed diagnostics stay
-private. The refresh helpers are service-role-only RPC surfaces; app roles
-should read `scan_media_assets`, not call refresh functions directly.
+`media_images.raw_image_url` and `media_videos.raw_video_url`; avoid unqualified
+names that match PL/pgSQL variables, because scan inserts execute this helper
+through the `scans` trigger. A trigger keeps generated rows synchronized after
+scan media inserts, updates, and deletes; Edge write paths also make best-effort
+refresh RPC calls after critical scan inserts and video-repair updates, but
+existing manifest/array fallbacks remain available if refresh fails. RLS lets
+owners read their lifecycle rows; public open-scan reads are limited to ready
+display/playback rows so staged/failed diagnostics stay private. The refresh
+helpers are service-role-only RPC surfaces; app roles should read
+`scan_media_assets`, not call refresh functions directly.
 
 `/generate-upload-urls` creates `capture_upload` rows with `status = 'staged'`
 when structured scan uploads include `clientScanId` and `mediaRole`.
@@ -1760,32 +1752,33 @@ capture-upload rows must also have a final `scan_id` and public URL.
 `identify-multimodal` links those rows to `scan_id` during finalization:
 promoted image/video/standalone-audio rows become durable media, while extracted
 video-audio rows become `deleted`; failed moderation/promotion/insert paths mark
-remaining staged rows as `failed`. The scheduled `reconcile-scan-media-assets` worker revisits
-old staged rows: existing scan rows can be repaired from surviving staged
-playback videos, while abandoned upload sessions are failed and garbage
-collected after their TTL. A generated row and its promoted capture-upload audit
-row may share the same scan position; consumers should select by lifecycle
-source/status rather than assuming `(scan_id, order_index)` identifies one row.
+remaining staged rows as `failed`. The scheduled `reconcile-scan-media-assets`
+worker revisits old staged rows: existing scan rows can be repaired from
+surviving staged playback videos, while abandoned upload sessions are failed and
+garbage collected after their TTL. A generated row and its promoted
+capture-upload audit row may share the same scan position; consumers should
+select by lifecycle source/status rather than assuming `(scan_id, order_index)`
+identifies one row.
 
-Migration
-`20260726041338_repair_owned_scan_image_references.sql` adds service-only
+Migration `20260726041338_repair_owned_scan_image_references.sql` adds
+service-only
 `public.repair_owned_scan_image_reference(user_id, source_url,
-replacement_url)`. After the Edge layer verifies R2 state, one transaction
-replaces only the exact missing URL across:
+replacement_url)`.
+After the Edge layer verifies R2 state, one transaction replaces only the exact
+missing URL across:
 
 - active owned `scans.image_storage_urls`;
 - recursively nested string values in `scans.captured_media`;
 - owner-scoped `scan_media_assets.url` and `thumbnail_url`, including the new
   durable `storage_key` and repair metadata; and
-- `explore_post_media.url` and `thumbnail_url` for posts owned by the same
-  user.
+- `explore_post_media.url` and `thumbnail_url` for posts owned by the same user.
 
-The RPC rejects invalid/non-canonical URLs, replacement keys outside the
-owner's durable free/Pro prefixes, and sources with no owned scan or Explore
-reference. It calls `internal.require_service_role()`, has an empty search path,
-and grants execution only through the central service-role routine allowlist.
-The owner-authenticated `/repair-scan-image` function is the only app-facing
-caller; clients cannot invoke this RPC directly.
+The RPC rejects invalid/non-canonical URLs, replacement keys outside the owner's
+durable free/Pro prefixes, and sources with no owned scan or Explore reference.
+It calls `internal.require_service_role()`, has an empty search path, and grants
+execution only through the central service-role routine allowlist. The
+owner-authenticated `/repair-scan-image` function is the only app-facing caller;
+clients cannot invoke this RPC directly.
 
 Operational note: `20260705110000_schedule_scan_media_asset_reconciliation.sql`
 also repairs early deployed `scan_media_assets` tables that were created before
@@ -1822,9 +1815,9 @@ migration `20260703130000_add_explore_post_media.sql`.
   audio object.
 - `thumbnail_url` (TEXT, nullable): Public image thumbnail for video playback,
   compact previews, or a standalone-audio spectrogram. Video posts require a
-  thumbnail when shared. Approved WAV shares generate a deterministic PNG in
-  the recording's durable `public_uploads/{tier}/{userId}/` directory and copy
-  that URL into both the post snapshot and matching scan media asset.
+  thumbnail when shared. Approved WAV shares generate a deterministic PNG in the
+  recording's durable `public_uploads/{tier}/{userId}/` directory and copy that
+  URL into both the post snapshot and matching scan media asset.
 - `order_index` (INT): Stable carousel ordering within the post.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
   or audio metadata.
@@ -1833,39 +1826,39 @@ migration `20260703130000_add_explore_post_media.sql`.
   writers copy this from ready media rows or from the `captured_media` video
   audio reference; legacy URL-array video sources default false.
 - `health_status` (TEXT): `healthy`, `suspected_missing`, or `missing`.
-  `missing` requires two service-recorded direct R2-origin `404` observations
-  at least five minutes apart.
+  `missing` requires two service-recorded direct R2-origin `404` observations at
+  least five minutes apart.
 - `health_checked_at`, `missing_first_observed_at`, `missing_confirmed_at`,
   `recovered_at` (TIMESTAMPTZ, nullable): Origin-check lifecycle evidence.
 - `consecutive_missing_checks` (INT): Bounded non-negative observation count.
 - `next_health_check_at` (TIMESTAMPTZ): Indexed due time for the service lease
   queue.
-- `last_health_http_status` /
-  `last_thumbnail_health_http_status` (INT, nullable): Last direct primary and
-  auxiliary-object response. A thumbnail `404` removes the poster from public
-  JSON but does not hide a playable primary media object.
+- `last_health_http_status` / `last_thumbnail_health_http_status` (INT,
+  nullable): Last direct primary and auxiliary-object response. A thumbnail
+  `404` removes the poster from public JSON but does not hide a playable primary
+  media object.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Snapshot lifecycle timestamps.
 
 `public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
 detail, author, hashtag, map, and Community ID read paths, excluding only
 confirmed-missing primary objects and confirmed-missing auxiliary thumbnails.
 Map, widget, profile grid, and compact surfaces normally use `hero_image_url`.
-The author-post RPC
-also projects `reference_thumbnail_url` from normalized/legacy species imagery;
-iOS profile and other compact Explore grids prefer it for audio-backed posts and
-add a waveform badge. Feed/detail playback remains media-item-driven. In-app
-compact previews add a play indicator for video, while Home Screen widgets
-intentionally show clean still thumbnails without a video badge. Scan media source
-resolution prefers ready display/playback/audio `scan_media_assets` rows, then
-`captured_media`, and finally legacy URL arrays so playback video URLs and
-poster thumbnails remain paired. Audio approval is checked before the
-Explore post/media write, so the database contains no pending audio post:
-successful rows are normal shared posts and rejected/failed attempts do not
-mutate public state. Spectrogram generation is deliberately non-blocking after
-approval: unsupported legacy codecs or thumbnail failures keep the audio post
-playable with its existing fallback instead of weakening moderation or blocking
-publication. `backfill-explore-audio-spectrograms` repairs blank historical WAV
-thumbnails in bounded service-role-only batches.
+The author-post RPC also projects `reference_thumbnail_url` from
+normalized/legacy species imagery; iOS profile and other compact Explore grids
+prefer it for audio-backed posts and add a waveform badge. Feed/detail playback
+remains media-item-driven. In-app compact previews add a play indicator for
+video, while Home Screen widgets intentionally show clean still thumbnails
+without a video badge. Scan media source resolution prefers ready
+display/playback/audio `scan_media_assets` rows, then `captured_media`, and
+finally legacy URL arrays so playback video URLs and poster thumbnails remain
+paired. Audio approval is checked before the Explore post/media write, so the
+database contains no pending audio post: successful rows are normal shared posts
+and rejected/failed attempts do not mutate public state. Spectrogram generation
+is deliberately non-blocking after approval: unsupported legacy codecs or
+thumbnail failures keep the audio post playable with its existing fallback
+instead of weakening moderation or blocking publication.
+`backfill-explore-audio-spectrograms` repairs blank historical WAV thumbnails in
+bounded service-role-only batches.
 
 Generated spectrogram objects remain scan-owned lifecycle media even though the
 post snapshot also references them. `delete-scan` reads thumbnail URLs from both
@@ -1876,8 +1869,8 @@ thumbnail-row update from orphaning the deterministic PNG.
 
 ### Explore media-health internals and reconciliation audit
 
-Migration
-`20260726144754_implement_explore_media_quarantine_state_machine.sql` adds:
+Migration `20260726144754_implement_explore_media_quarantine_state_machine.sql`
+adds:
 
 - `internal.explore_media_health_check_claims`: private short leases keyed by
   media row and UUID claim token. API roles have no direct table privileges.
@@ -1914,8 +1907,8 @@ Migration `20260726174555_align_explore_author_publication_contract.sql` adds:
 The same migration moves the author-profile visible count onto
 `explore_projected_post_cards(self_id)`, matching preview and grid visibility.
 
-`internal.refresh_explore_post_media_health` maintains aggregate post state.
-Its triggers create one `media_missing` notification when an incident begins,
+`internal.refresh_explore_post_media_health` maintains aggregate post state. Its
+triggers create one `media_missing` notification when an incident begins,
 replace it with `media_restored` after full recovery, and preserve author,
 moderation, and engagement state.
 
@@ -2114,11 +2107,10 @@ Remote push device registry for Explore activity delivery. Added in migration
 - `device_token` (TEXT): Lowercase APNs token, unique per
   `(device_token, platform, environment)`. Migration
   `20260720174209_fix_push_device_token_constraint.sql` validates the 32...512
-  character length separately from the hex-only regex. Do not combine that
-  range into a PostgreSQL `{32,512}` regex bound: PostgreSQL rejects repetition
-  bounds above 255 and registration fails before the row is written. The active
-  validated constraints are
-  `user_push_devices_device_token_format_check` and
+  character length separately from the hex-only regex. Do not combine that range
+  into a PostgreSQL `{32,512}` regex bound: PostgreSQL rejects repetition bounds
+  above 255 and registration fails before the row is written. The active
+  validated constraints are `user_push_devices_device_token_format_check` and
   `user_push_devices_device_token_length_check`.
 - `platform` (TEXT): Currently `'ios'`.
 - `environment` (TEXT): `'sandbox'` or `'production'` so debug and release
@@ -2197,13 +2189,13 @@ coordinates to the client contract.
   Nearby. The RPC filters matches to the requested 1–100-mile radius (50 miles
   by default), then sorts surviving rows by `(shared_at DESC, post_id DESC)`.
   Species, media, and shared-date filters run before ordering and `LIMIT`, as
-  they do in the other three feed RPCs. This keeps the
-  client feed feeling like Explore rather than a pure nearest-neighbor list
-  while preserving the same coordinate boundary used by the map.
+  they do in the other three feed RPCs. This keeps the client feed feeling like
+  Explore rather than a pure nearest-neighbor list while preserving the same
+  coordinate boundary used by the map.
 - `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same
   public card projection for a single post, including canonical ordered
-  `media_items`. This is used by native routing and the public web detail page so
-  video/audio playback does not query private scan tables or depend on an
+  `media_items`. This is used by native routing and the public web detail page
+  so video/audio playback does not query private scan tables or depend on an
   already-loaded feed row.
 - `public.get_explore_post_detail(self_id UUID, target_post_id UUID)`: Returns a
   single public species-detail projection for the Explore detail page. Fields
@@ -2272,8 +2264,8 @@ coordinates to the client contract.
 - `public.get_explore_author_profile(self_id UUID, target_author_user_id UUID, preview_limit INTEGER)`:
   Returns another author's public profile row only when the target has at least
   one currently visible Explore post or visible Field trip profile surface for
-  the requester. The owner may retrieve their own row with zero visible posts
-  so recovery status can be presented. It emits public author identity, species
+  the requester. The owner may retrieve their own row with zero visible posts so
+  recovery status can be presented. It emits public author identity, species
   count, current streak, 52-week heatmap JSON, achievement-progress JSON,
   canonical visible published post count, follower/following counts, requester
   follow state, up to `preview_limit` preview posts, and Field trip summaries.
@@ -2282,10 +2274,10 @@ coordinates to the client contract.
   `explore_projected_post_cards(self_id)` and never include unshared,
   tombstoned, media-less, system-quarantined, or non-species-backed posts.
   Backing-scan geoprivacy does not hide an explicitly shared post; the
-  post-owned location setting controls public location output. Active Field
-  trip summaries include checklist status only and never return scan IDs, media
-  URLs, field notes, exact coordinates, public location labels, or private
-  evidence. Achievement progress never returns qualifying scan IDs.
+  post-owned location setting controls public location output. Active Field trip
+  summaries include checklist status only and never return scan IDs, media URLs,
+  field notes, exact coordinates, public location labels, or private evidence.
+  Achievement progress never returns qualifying scan IDs.
 - `public.get_explore_author_posts(self_id UUID, target_author_user_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   Returns the author's currently visible published Explore posts for the full
   profile library. Rows share the same card projection as the feed, use the same
@@ -2293,146 +2285,137 @@ coordinates to the client contract.
   stably on `(shared_at DESC, post_id DESC)`. Each row additionally includes
   nullable `reference_thumbnail_url`, resolved through
   `public_species_first_reference_image_url`, for nonvisual-media thumbnails.
-- `public.get_owned_explore_publication_summary(self_id UUID)`:
-  Owner-only totals separating active publication intent from canonical visible
-  posts and active media recovery. Ordinary callers must have
-  `auth.uid() = self_id`; the Edge function derives this ID from the verified
-  session.
-- `public.get_explore_publication_health_summary()`:
-  Service-only aggregate publication/media-health scope used by deploy smoke
-  tests and monitoring. It returns no owner identity or object key.
-- `public.field_trip_templates`:
-  Curated Field trip definitions with slug, title, region/season/habitat tags,
-  difficulty, Pro/rotating-free access flags, active state, optional cover
-  image, estimated duration, and curated guide sections.
-- `public.field_trip_levels`:
-  Sequential levels for a template. Levels unlock in `level_number` order.
-- `public.field_trip_checklist_items`:
-  Curated checklist prompts for each level. Items support species,
-  scientific-name, taxonomy/group, taxonomy-with-one-excluded-family,
-  taxonomy combined with ecology/habitat/semantic evidence, habitat/ecology,
-  prompt-text matching, and optional curated item-level tips.
-  `taxonomy_excluding_family` treats `taxonomy_family` as the excluded family
-  while the remaining populated taxonomy ranks stay positive constraints. It
-  was introduced to reject `Formicidae` (ants) from Park Pollinators before the
-  active goal was narrowed further. `taxonomy_and_signal` requires at least one
-  taxonomy rank, at least one ecology/habitat/semantic signal, and all populated
-  constraints to match. A compound semantic signal can contain `|`-separated
-  accepted alternatives; **Bee or wasp** uses `bee|wasp` together with order
-  `Hymenoptera`. Structured guides may provide Where to look, Best conditions,
-  What to notice, and Scan safely sections.
-- `public.user_field_trips`:
-  Per-user progress rows with start time, current level, profile visibility,
-  completion time, and denormalized progress counts.
-- `public.user_field_trip_item_completions`:
-  Idempotent item completion rows linking a Field trip item to the saved scan
-  that completed it. Rows are written only for caller-owned scans whose capture
-  timestamp belongs to an explicit activity period. A unique
-  `(user_field_trip_id, scan_id)` index limits the scan to one credit in that
-  outing, while a scan-first `(scan_id, user_field_trip_id)` index supports
-  Insight lookup. The same scan may still link to one item in several outings.
-- `public.field_trip_scan_goal_preferences`:
-  Private scan-keyed live-Capture preference with owner, standard outing, and
-  checklist item IDs. It contains no media, coordinates, notes, or public
-  evidence. RLS is enabled, all access is revoked from `PUBLIC`, `anon`, and
-  `authenticated`, and only `service_role` may read or mutate it.
-- `public.field_trip_scan_progress_receipts`:
-  Private scan-keyed idempotency receipt for the last processed identification
-  revision. It retains the validated preference IDs and the complete atomic
-  progress/achievement result so post-ingestion retries can recover the original
-  unlock payload after client termination. RLS is enabled and only
-  `service_role` may access it.
-- `public.field_trip_publications`:
-  Published Field trip snapshot headers with user-editable title, optional
-  description, optional AI summary, counts, author/template linkage, and
-  optional profile pin position metadata capped at 3 per author.
-- `public.field_trip_publication_items`:
-  Snapshot item rows for published pages. These can include species/taxonomy
-  labels and selected snapshot media, but they do not make the underlying scans
-  Explore posts.
-- `public.field_trip_publication_likes`:
-  Field trip publication likes, separate from `explore_post_likes`.
-- `public.field_trip_publication_comments`:
-  Field trip publication comments and one-level replies, separate from
-  `explore_post_comments`.
-- `public.field_trip_activity_notifications`:
-  Field trip-only in-app activity rows for publication comments, replies, and
-  followed-author publications. These rows are separate from
-  `explore_post_notifications` and never trigger APNs, widgets, feed cards, map
-  rows, or `explore_posts`. `type` is checked text
-  (`field_trip_comment`, `field_trip_reply`, or
+- `public.get_owned_explore_publication_summary(self_id UUID)`: Owner-only
+  totals separating active publication intent from canonical visible posts and
+  active media recovery. Ordinary callers must have `auth.uid() = self_id`; the
+  Edge function derives this ID from the verified session.
+- `public.get_explore_publication_health_summary()`: Service-only aggregate
+  publication/media-health scope used by deploy smoke tests and monitoring. It
+  returns no owner identity or object key.
+- `public.field_trip_templates`: Curated Field trip definitions with slug,
+  title, region/season/habitat tags, difficulty, Pro/rotating-free access flags,
+  active state, optional cover image, estimated duration, and curated guide
+  sections.
+- `public.field_trip_levels`: Sequential levels for a template. Levels unlock in
+  `level_number` order.
+- `public.field_trip_checklist_items`: Curated checklist prompts for each level.
+  Items support species, scientific-name, taxonomy/group,
+  taxonomy-with-one-excluded-family, taxonomy combined with
+  ecology/habitat/semantic evidence, habitat/ecology, prompt-text matching, and
+  optional curated item-level tips. `taxonomy_excluding_family` treats
+  `taxonomy_family` as the excluded family while the remaining populated
+  taxonomy ranks stay positive constraints. It was introduced to reject
+  `Formicidae` (ants) from Park Pollinators before the active goal was narrowed
+  further. `taxonomy_and_signal` requires at least one taxonomy rank, at least
+  one ecology/habitat/semantic signal, and all populated constraints to match. A
+  compound semantic signal can contain `|`-separated accepted alternatives;
+  **Bee or wasp** uses `bee|wasp` together with order `Hymenoptera`. Structured
+  guides may provide Where to look, Best conditions, What to notice, and Scan
+  safely sections.
+- `public.user_field_trips`: Per-user progress rows with start time, current
+  level, profile visibility, completion time, and denormalized progress counts.
+- `public.user_field_trip_item_completions`: Idempotent item completion rows
+  linking a Field trip item to the saved scan that completed it. Rows are
+  written only for caller-owned scans whose capture timestamp belongs to an
+  explicit activity period. A unique `(user_field_trip_id, scan_id)` index
+  limits the scan to one credit in that outing, while a scan-first
+  `(scan_id, user_field_trip_id)` index supports Insight lookup. The same scan
+  may still link to one item in several outings.
+- `public.field_trip_scan_goal_preferences`: Private scan-keyed live-Capture
+  preference with owner, standard outing, and checklist item IDs. It contains no
+  media, coordinates, notes, or public evidence. RLS is enabled, all access is
+  revoked from `PUBLIC`, `anon`, and `authenticated`, and only `service_role`
+  may read or mutate it.
+- `public.field_trip_scan_progress_receipts`: Private scan-keyed idempotency
+  receipt for the last processed identification revision. It retains the
+  validated preference IDs and the complete atomic progress/achievement result
+  so post-ingestion retries can recover the original unlock payload after client
+  termination. RLS is enabled and only `service_role` may access it.
+- `public.field_trip_publications`: Published Field trip snapshot headers with
+  user-editable title, optional description, optional AI summary, counts,
+  author/template linkage, and optional profile pin position metadata capped at
+  3 per author.
+- `public.field_trip_publication_items`: Snapshot item rows for published pages.
+  These can include species/taxonomy labels and selected snapshot media, but
+  they do not make the underlying scans Explore posts.
+- `public.field_trip_publication_likes`: Field trip publication likes, separate
+  from `explore_post_likes`.
+- `public.field_trip_publication_comments`: Field trip publication comments and
+  one-level replies, separate from `explore_post_comments`.
+- `public.field_trip_activity_notifications`: Field trip-only in-app activity
+  rows for publication comments, replies, and followed-author publications.
+  These rows are separate from `explore_post_notifications` and never trigger
+  APNs, widgets, feed cards, map rows, or `explore_posts`. `type` is checked
+  text (`field_trip_comment`, `field_trip_reply`, or
   `field_trip_followed_publication`) rather than a new
   `explore_notification_type` enum value, so the migration can deploy in one
-  transaction while keeping Field trip activity separate from push-backed Explore
-  notifications.
-- `public.field_trip_challenges`:
-  Curated/admin-created seasonal challenge definitions linked to a Field trip
-  template. Rows store title, description, cover image, start/end timestamps,
-  region/season/habitat tags, normalized suggested hashtags, access flags,
-  active state, and sort order.
-- `public.field_trip_challenge_participants`:
-  Explicit per-user challenge joins with `joined_at`, linked
-  `user_field_trip_id`, current level, completion time, badge timestamp, and
-  private/profile visibility flags.
-- `public.field_trip_challenge_item_completions`:
-  Challenge-specific item completions keyed by participation and checklist item.
-  Rows link to caller-owned scans made after `joined_at` and before the
-  challenge `ends_at`; they do not retroactively satisfy normal Field trip
-  progress. A unique `(participation_id, scan_id)` index limits the scan to one
-  Event credit, with a scan-first lookup index for Insight contributions.
-- `public.field_trip_challenge_badges`:
-  Completion badge rows for non-competitive challenges. Profile-visible badges
-  expose no scan IDs, media, exact locations, notes, or private evidence.
-- `public.field_trip_challenge_entries`:
-  Published challenge completion snapshots. These are distinct from
-  `field_trip_publications` so repeat seasonal challenges on the same template
-  do not overwrite normal Field trip publication history.
-- `public.field_trip_challenge_entry_items`:
-  Snapshot item rows for challenge entries, including species/taxonomy labels
-  and selected snapshot media without creating Explore posts.
-- `public.field_trip_challenge_entry_likes`:
-  Challenge entry likes, separate from Explore post likes and normal Field trip
-  publication likes.
-- `public.field_trip_challenge_entry_comments`:
-  Challenge entry comments and one-level replies, separate from Explore post
-  comments and normal Field trip publication comments.
+  transaction while keeping Field trip activity separate from push-backed
+  Explore notifications.
+- `public.field_trip_challenges`: Curated/admin-created seasonal challenge
+  definitions linked to a Field trip template. Rows store title, description,
+  cover image, start/end timestamps, region/season/habitat tags, normalized
+  suggested hashtags, access flags, active state, and sort order.
+- `public.field_trip_challenge_participants`: Explicit per-user challenge joins
+  with `joined_at`, linked `user_field_trip_id`, current level, completion time,
+  badge timestamp, and private/profile visibility flags.
+- `public.field_trip_challenge_item_completions`: Challenge-specific item
+  completions keyed by participation and checklist item. Rows link to
+  caller-owned scans made after `joined_at` and before the challenge `ends_at`;
+  they do not retroactively satisfy normal Field trip progress. A unique
+  `(participation_id, scan_id)` index limits the scan to one Event credit, with
+  a scan-first lookup index for Insight contributions.
+- `public.field_trip_challenge_badges`: Completion badge rows for
+  non-competitive challenges. Profile-visible badges expose no scan IDs, media,
+  exact locations, notes, or private evidence.
+- `public.field_trip_challenge_entries`: Published challenge completion
+  snapshots. These are distinct from `field_trip_publications` so repeat
+  seasonal challenges on the same template do not overwrite normal Field trip
+  publication history.
+- `public.field_trip_challenge_entry_items`: Snapshot item rows for challenge
+  entries, including species/taxonomy labels and selected snapshot media without
+  creating Explore posts.
+- `public.field_trip_challenge_entry_likes`: Challenge entry likes, separate
+  from Explore post likes and normal Field trip publication likes.
+- `public.field_trip_challenge_entry_comments`: Challenge entry comments and
+  one-level replies, separate from Explore post comments and normal Field trip
+  publication comments.
 - `public.get_field_trip_catalog(self_id UUID, user_region TEXT, max_limit INTEGER)`:
   Returns active templates with access state, levels, checklist items, and the
   requester's progress. Completed items include their exact private
-  `completed_scan_id`; incomplete items return a null evidence link. The response
-  includes no media URL.
+  `completed_scan_id`; incomplete items return a null evidence link. The
+  response includes no media URL.
 - `public.get_field_trip_template_detail(self_id UUID, target_template_id UUID, target_slug TEXT)`:
   Returns one catalog-shaped template payload with guide fields, item tips,
   access state, viewer progress, and the same private completion scan link. The
   detail-only progress object also returns the requesting owner's active,
   non-deleted publication ID/timestamp so iOS can distinguish **Private** from
-  **Published** without inferring from completion or Community results.
-  Both catalog/detail functions are restricted to `service_role`; authenticated
+  **Published** without inferring from completion or Community results. Both
+  catalog/detail functions are restricted to `service_role`; authenticated
   callers reach them through `/field-trips`, which supplies the verified user
   ID. `20260718043218_expose_field_trip_completion_scan_ids.sql` defines this
   evidence-link contract;
   `20260718051748_expose_field_trip_publication_status.sql` adds the detail-only
   publication status while preserving the same role grants.
-- `public.get_field_trip_capture_context(self_id UUID)`:
-  Private service-role read model for the visual Scan indicator. Returns only
-  accessible active, incomplete, non-hidden standard field trips and unfinished
-  targets from each current unlocked level. Field trips order by latest start or
-  item completion, and targets use curated checklist order. It reads standard
-  Field trip completions only; Seasonal labels and challenge-specific
-  completions are excluded, but joining a challenge does not hide the shared
-  underlying standard field trip. The payload contains aggregate progress and
-  prompt metadata only—never scan IDs, media, location, notes, completed species
-  labels, or evidence. Execute is revoked from `PUBLIC`, `anon`, and
-  `authenticated` and granted only to `service_role`; the authenticated
-  `/field-trips` Edge action supplies the verified user ID. The function uses an
-  empty search path with fully qualified objects. The final behavior is defined
-  by `20260717213641_preserve_standard_outings_in_capture_context.sql`.
+- `public.get_field_trip_capture_context(self_id UUID)`: Private service-role
+  read model for the visual Scan indicator. Returns only accessible active,
+  incomplete, non-hidden standard field trips and unfinished targets from each
+  current unlocked level. Field trips order by latest start or item completion,
+  and targets use curated checklist order. It reads standard Field trip
+  completions only; Seasonal labels and challenge-specific completions are
+  excluded, but joining a challenge does not hide the shared underlying standard
+  field trip. The payload contains aggregate progress and prompt metadata
+  only—never scan IDs, media, location, notes, completed species labels, or
+  evidence. Execute is revoked from `PUBLIC`, `anon`, and `authenticated` and
+  granted only to `service_role`; the authenticated `/field-trips` Edge action
+  supplies the verified user ID. The function uses an empty search path with
+  fully qualified objects. The final behavior is defined by
+  `20260717213641_preserve_standard_outings_in_capture_context.sql`.
   `20260717224544_retire_forest_edges_outing.sql` deactivates the placeholder
   Forest Edges template, so this read model and other active-template RPCs omit
   it without deleting historical user rows.
-- `public.start_field_trip(self_id UUID, target_template_id UUID)`:
-  Explicitly starts or unhides the caller's progress row for an accessible
-  Field trip template.
+- `public.start_field_trip(self_id UUID, target_template_id UUID)`: Explicitly
+  starts or unhides the caller's progress row for an accessible Field trip
+  template.
 - `public.get_field_trip_community_publications(self_id UUID, mode TEXT, target_template_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], viewer_season_tags TEXT[], max_limit INTEGER, before_rank_bucket INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
   Returns visible published completed trips for the Field trips `Community`
   surface. `smart` ranks by followed-author and coarse region/habitat/season or
@@ -2442,14 +2425,14 @@ coordinates to the client contract.
 - `public.get_recent_field_trip_publications(self_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], max_limit INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
   Compatibility wrapper for `get_field_trip_community_publications(...)` with
   `mode = 'recent'`.
-- `public.field_trip_item_matches_scan(...)`:
-  Internal matcher used by progress application. It checks species,
-  scientific-name, positive taxonomy/group constraints, optional excluded
-  taxonomy family, conjunctive taxonomy-plus-signal rules, habitat/ecology, and
-  prompt-text signals against the saved scan. An excluded-family match requires
-  a populated scan family so missing lineage cannot produce a false positive.
-  A conjunctive match fails closed unless it has both kinds of configured
-  evidence and every configured constraint matches.
+- `public.field_trip_item_matches_scan(...)`: Internal matcher used by progress
+  application. It checks species, scientific-name, positive taxonomy/group
+  constraints, optional excluded taxonomy family, conjunctive
+  taxonomy-plus-signal rules, habitat/ecology, and prompt-text signals against
+  the saved scan. An excluded-family match requires a populated scan family so
+  missing lineage cannot produce a false positive. A conjunctive match fails
+  closed unless it has both kinds of configured evidence and every configured
+  constraint matches.
 - `public.apply_field_trip_scan_progress_v2(self_id UUID, target_scan_id UUID, preferred_user_field_trip_id UUID, preferred_item_id UUID)`:
   Applies server-authoritative progress for one caller-owned saved biological
   scan. Standard outings must already exist and the scan timestamp must belong
@@ -2461,11 +2444,11 @@ coordinates to the client contract.
   semantic tag, ecology, habitat, curated checklist order, then item ID. The
   exact active objective criteria are maintained in the
   [Field Trips matching contract](../features-and-hardware/25-field-trips.md#active-objective-matching-contract).
-  The same scan may still advance several eligible experiences.
-  Reapplication is idempotent. While an experience remains unfinished,
-  identification correction can move or remove credit in the original credited
-  level and recompute the earliest incomplete level; completed experiences are
-  immutable during normal progress application. Migration
+  The same scan may still advance several eligible experiences. Reapplication is
+  idempotent. While an experience remains unfinished, identification correction
+  can move or remove credit in the original credited level and recompute the
+  earliest incomplete level; completed experiences are immutable during normal
+  progress application. Migration
   `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a one-time
   correction of ant-backed **Bee or wasp** completions, reopens affected
   standard/Event progress, clears derived receipts/preferences and badges, and
@@ -2473,22 +2456,22 @@ coordinates to the client contract.
   completed again. `20260722211636_tighten_field_trip_goal_matching.sql`
   performs the equivalent repair for other corrected active goals, including
   Butterfly, Spider, flowering/fruiting plants, animal ecology goals, wild
-  plants, and Meadow plant. Responses preserve current and credited-level
-  counts and may add `removed_item_ids`.
+  plants, and Meadow plant. Responses preserve current and credited-level counts
+  and may add `removed_item_ids`.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
   Compatibility wrapper that calls V2 without a preference, preserving older
   Edge/client behavior.
 - `public.apply_field_trip_scan_progress_atomic(self_id UUID, target_scan_id UUID, preferred_user_field_trip_id UUID, preferred_item_id UUID)`:
   Transactional Edge-owned entry point. It locks the caller-owned scan, returns
   a matching scan-revision receipt when available, otherwise applies standard
-  outing and joined Event progress, persists the validated preference,
-  evaluates the first Field trip achievement, and writes the receipt in the
-  same transaction. Any error rolls back every component. Scan-ingestion and
+  outing and joined Event progress, persists the validated preference, evaluates
+  the first Field trip achievement, and writes the receipt in the same
+  transaction. Any error rolls back every component. Scan-ingestion and
   identification-correction triggers call this function; the Edge progress
   action calls it again to retrieve the response for notifications.
-- `public.get_first_field_trip_achievement_progress(self_id UUID)`:
-  Private `SECURITY INVOKER` achievement projection executable only by
-  `service_role`. The repair migration adds that role's missing read access to
+- `public.get_first_field_trip_achievement_progress(self_id UUID)`: Private
+  `SECURITY INVOKER` achievement projection executable only by `service_role`.
+  The repair migration adds that role's missing read access to
   `user_field_trips`, `field_trip_templates`, and
   `field_trip_challenge_participants`, the three source tables required by this
   function. Existing client-table access remains governed by each table's
@@ -2513,8 +2496,8 @@ coordinates to the client contract.
   Publishes a completed trip into Field trip publication tables without writing
   `explore_posts`, map points, APNs, widgets, or normal Explore post
   notifications. Publication item materialization uses the ID returned by the
-  publication upsert. V3 followed-author publication activity is stored only
-  in `field_trip_activity_notifications`.
+  publication upsert. V3 followed-author publication activity is stored only in
+  `field_trip_activity_notifications`.
 - `public.get_field_trip_publication_detail(self_id UUID, target_publication_id UUID)`:
   Returns a visible Field trip publication detail payload.
 - `public.get_field_trip_comments(self_id UUID, target_publication_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
@@ -2556,11 +2539,11 @@ coordinates to the client contract.
 - `public.get_field_trip_challenge_badges(self_id UUID, target_author_user_id UUID, max_limit INTEGER)`:
   Returns profile-visible completion badges for public profile modules.
 
-All public-schema `SECURITY DEFINER` functions whose names contain
-`field_trip` or `challenge` are Edge-owned. Execute is revoked from `PUBLIC`,
-`anon`, and `authenticated` and granted only to `service_role`; the Edge handler
-derives `self_id` from its verified session rather than accepting client-owned
-identity. Trigger functions use the same least-privilege ACL and are invoked by
+All public-schema `SECURITY DEFINER` functions whose names contain `field_trip`
+or `challenge` are Edge-owned. Execute is revoked from `PUBLIC`, `anon`, and
+`authenticated` and granted only to `service_role`; the Edge handler derives
+`self_id` from its verified session rather than accepting client-owned identity.
+Trigger functions use the same least-privilege ACL and are invoked by
 PostgreSQL, not direct RPC callers.
 
 - `public.get_explore_comments(self_id UUID, target_post_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`:
@@ -2602,10 +2585,10 @@ PostgreSQL, not direct RPC callers.
   APNs-safe actor names plus comment body text or Community request/taxon
   display fields for one pushable notification row. Follow notifications are
   skipped before push dispatch and have no post payload.
-- `public.reparent_user_follows(ghost_id UUID, target_user_id UUID)`:
-  Legacy service-role-only helper retained for deployment compatibility.
-  Authenticated execution is revoked; the atomic Ghost merge now resolves
-  follow conflicts inside its private transaction.
+- `public.reparent_user_follows(ghost_id UUID, target_user_id UUID)`: Legacy
+  service-role-only helper retained for deployment compatibility. Authenticated
+  execution is revoked; the atomic Ghost merge now resolves follow conflicts
+  inside its private transaction.
 - `public.repair_community_request_ownership_for_user(target_user_id UUID)`:
   Repairs existing Ask the Community rows whose `requested_by` no longer matches
   the owner of their backing `scans` row. This keeps the Identify Yours filter,
@@ -2674,9 +2657,8 @@ Suppresses iNaturalist media `605615444`, surfaced through GBIF occurrence
 `5938154750`, without removing the European wildcat species row. The migration:
 
 - deletes matching `species_reference_images` rows;
-- removes matching entries from
-  `species_dictionary.reference_image_url` while preserving permitted source
-  order;
+- removes matching entries from `species_dictionary.reference_image_url` while
+  preserving permitted source order;
 - replaces `public.public_species_reference_image_urls(...)` and
   `public.public_species_first_reference_image_url(...)` with filtered versions
   so normalized and legacy projections promote the next permitted image; and
@@ -2786,21 +2768,20 @@ service-role definer RPCs.
   decrements these counters once in the same daily/user/IP lock order used by
   reservation, removes zero rows, then removes the links.
 
-`reserve_ai_quota(uuid,text,uuid,text)` serializes only an identical request
-key with a transaction advisory lock, takes share locks on the entitlement and
+`reserve_ai_quota(uuid,text,uuid,text)` serializes only an identical request key
+with a transaction advisory lock, takes share locks on the entitlement and
 selected policy rows, resolves the durable plan, and consumes all applicable
 counters atomically. Those row locks linearize concurrent RevenueCat/policy
-updates and quota decisions. Future-dated free profiles resolve free rather
-than receiving an extended trial. `finalize_ai_quota_reservation(...)`
-requires the current per-attempt fencing token and performs an idempotent
-commit/fail/refund transition. Committed provider failures retain their consumed
-counters but may be reserved as a newly metered retry; stale callbacks with an
-older token are rejected. Both public RPCs use
-`SECURITY DEFINER SET search_path = ''`, call
+updates and quota decisions. Future-dated free profiles resolve free rather than
+receiving an extended trial. `finalize_ai_quota_reservation(...)` requires the
+current per-attempt fencing token and performs an idempotent commit/fail/refund
+transition. Committed provider failures retain their consumed counters but may
+be reserved as a newly metered retry; stale callbacks with an older token are
+rejected. Both public RPCs use `SECURITY DEFINER SET search_path = ''`, call
 `internal.require_service_role()`, and are allowlisted only to `service_role`.
-`internal.refund_expired_ai_quota_reservations()` uses
-`FOR UPDATE SKIP LOCKED` every five minutes to refund abandoned `reserved`
-attempts after their ten-minute lease without racing an active finalizer.
+`internal.refund_expired_ai_quota_reservations()` uses `FOR UPDATE SKIP LOCKED`
+every five minutes to refund abandoned `reserved` attempts after their
+ten-minute lease without racing an active finalizer.
 `internal.prune_ai_quota_state()` runs hourly and uses cleanup indexes on
 terminal reservation update time and counter window start to delete bounded
 batches of old state and unreferenced counters; it never drops a live
@@ -2811,25 +2792,26 @@ reservation without first releasing its counters.
 Migration `20260723201500_secure_revenuecat_webhook_delivery.sql` adds the
 private RevenueCat synchronization ledger:
 
-- `internal.revenuecat_webhook_events`: one row per provider `event_id`, enforced
-  by the primary key. It stores provider event metadata, raw-payload SHA-256
-  digest, signature timestamp, aggregate `applied` / `stale` / `mixed` /
+- `internal.revenuecat_webhook_events`: one row per provider `event_id`,
+  enforced by the primary key. It stores provider event metadata, raw-payload
+  SHA-256 digest, signature timestamp, aggregate `applied` / `stale` / `mixed` /
   `ignored` outcome and counts, and receipt time. Raw webhook JSON and
   RevenueCat secret values are not stored.
 - `internal.revenuecat_webhook_event_subjects`: zero to two rows per event. Each
-  row stores a resolved Merian user, customer/transfer-source/transfer-destination
-  kind, authoritative snapshot timestamp, projected tier/expiry, per-user
-  outcome, and entitlement version. Separating event identity from subjects
-  allows one `TRANSFER` event to own both sides of the move.
+  row stores a resolved Merian user,
+  customer/transfer-source/transfer-destination kind, authoritative snapshot
+  timestamp, projected tier/expiry, per-user outcome, and entitlement version.
+  Separating event identity from subjects allows one `TRANSFER` event to own
+  both sides of the move.
 - `internal.revenuecat_customer_state`: one row per Merian user containing the
   last accepted event ID, provider event timestamp, authoritative CustomerInfo
   timestamp, and update time.
 
-All three tables have RLS enabled and revoke all direct access from `PUBLIC`, `anon`,
-`authenticated`, and `service_role`. Edge code can mutate them only through
-`public.apply_revenuecat_customer_state(...)`, a service-role allowlisted
-`SECURITY DEFINER` routine with an empty search path and an in-function caller
-check. The identically protected
+All three tables have RLS enabled and revoke all direct access from `PUBLIC`,
+`anon`, `authenticated`, and `service_role`. Edge code can mutate them only
+through `public.apply_revenuecat_customer_state(...)`, a service-role
+allowlisted `SECURITY DEFINER` routine with an empty search path and an
+in-function caller check. The identically protected
 `public.get_revenuecat_webhook_event_result(...)` returns an existing committed
 receipt without granting direct ledger access, avoiding another RevenueCat API
 call for ordinary at-least-once retries.
@@ -2846,14 +2828,13 @@ CustomerInfo snapshot time the primary per-user version; provider event
 timestamp and event ID break only exact snapshot ties. A newer version updates
 tier/expiry, its subject row, and the watermark in the same transaction. A
 duplicate returns aggregate counts without another write; an older version is
-retained as `stale`. Reusing an event ID with a
-different timestamp, type, or payload digest raises a unique-conflict error.
-Normal events can contain at most one `customer` subject; transfers can contain
-at most one source and one destination, enforced in both the RPC and a
-per-event subject-kind uniqueness constraint.
-Indexes cover event receipt time, subject user foreign keys, and the watermark's
-event foreign key so account deletion and operational joins do not scan the
-private tables.
+retained as `stale`. Reusing an event ID with a different timestamp, type, or
+payload digest raises a unique-conflict error. Normal events can contain at most
+one `customer` subject; transfers can contain at most one source and one
+destination, enforced in both the RPC and a per-event subject-kind uniqueness
+constraint. Indexes cover event receipt time, subject user foreign keys, and the
+watermark's event foreign key so account deletion and operational joins do not
+scan the private tables.
 
 `internal.revenuecat_reconciliation_queue` holds one durable repair row per
 linked Merian user. It stores the RevenueCat lookup ID, next due time, bounded
@@ -2864,10 +2845,10 @@ empty or its runtime start-work cutoff and limits CustomerInfo concurrency to
 three. The due-row partial index supports unclaimed selection; a second partial
 index led by `claim_expires_at` supports expired-lease cleanup without scanning
 future or unclaimed rows. Pro users are rescheduled for six hours and free users
-for 24 hours. Only a snapshot newer than
-`internal.revenuecat_customer_state` can change access. Webhook processing
-schedules affected subjects transactionally. Background reconciliation never
-newly grants a historical seven-day pass.
+for 24 hours. Only a snapshot newer than `internal.revenuecat_customer_state`
+can change access. Webhook processing schedules affected subjects
+transactionally. Background reconciliation never newly grants a historical
+seven-day pass.
 
 `public.get_revenuecat_reconciliation_health()` is a service-role-only
 `SECURITY DEFINER` routine with an empty search path and an in-body caller
@@ -2892,8 +2873,8 @@ Important columns and invariants:
   present or all absent
 - `attempt_count`, `next_attempt_at`, and a bounded `last_error_code`
 
-Partial indexes cover due active work and expired claims. The service-only
-state transitions are:
+Partial indexes cover due active work and expired claims. The service-only state
+transitions are:
 
 - `request_account_deletion(uuid)` — idempotent durable intake
 - `claim_account_deletion_jobs(integer,uuid)` — bounded `SKIP LOCKED` leasing;
@@ -2902,8 +2883,7 @@ state transitions are:
   insert, idempotent tombstone, and relational verification; returns
   `storage_pending` until delayed storage verification permits `auth_pending`
 - `finish_account_deletion_attempt(uuid,uuid,boolean,text)` — terminal Auth
-  receipt or database-calculated retry; success verifies completed storage
-  again
+  receipt or database-calculated retry; success verifies completed storage again
 
 The separate service-only storage transitions are
 `claim_pending_storage_deletions(integer)`,
@@ -2914,11 +2894,11 @@ bounded R2 prefix page under a UUID claim token.
 Migration `20260726041109_fence_storage_erasure_claims.sql` makes the private
 account job—not the public outbox row—the authority for every destructive
 storage claim. `claim_pending_storage_deletions` now inner-joins the same
-owner's job at `storage_pending`, requires non-null
-`cleanup_completed_at` and null `storage_completed_at`, and rejects candidates
-while any matching `public.users` row or owned `public.scans` row exists. An
-orphaned, old, reset, or manually due outbox row is inert. This fence is a
-required invariant, not an optional worker-side preflight.
+owner's job at `storage_pending`, requires non-null `cleanup_completed_at` and
+null `storage_completed_at`, and rejects candidates while any matching
+`public.users` row or owned `public.scans` row exists. An orphaned, old, reset,
+or manually due outbox row is inert. This fence is a required invariant, not an
+optional worker-side preflight.
 
 `trg_reject_account_deletion_profile_recreation` runs before inserts on
 `public.users` and rejects the original UUID while an active job exists. This
@@ -2966,10 +2946,10 @@ The public-schema RPC names are Data API entrypoints, not public permissions:
 `internal.perform_ghost_profile_merge` resolves known unique-key conflicts,
 reparents supported single-column foreign keys, verifies no source reference
 remains, preserves customized public identity, and deletes the source
-`public.users` row in one transaction. Unsupported composite ownership or
-schema drift fails closed. The obsolete anonymous `auth.users` row is deleted
-only after commit by Edge Auth Admin, with the scheduled reconciliation worker
-as durable recovery.
+`public.users` row in one transaction. Unsupported composite ownership or schema
+drift fails closed. The obsolete anonymous `auth.users` row is deleted only
+after commit by Edge Auth Admin, with the scheduled reconciliation worker as
+durable recovery.
 
 `internal.ghost_user_cleanup_reservations` is the companion safety boundary for
 the manual old-empty-ghost cleanup script. A service-role RPC creates a
@@ -3049,10 +3029,10 @@ update/delete.
 
 ### `internal.ai_model_pricing` and `admin_aggregate_cache`
 
-`ai_model_pricing` stores exact model/modality Standard prices per million input,
-cached, and output tokens with `effective_from`, optional `effective_to`, and a
-version label. Overlapping ranges are prohibited operationally; pricing changes
-must close the old row and insert a new version in one migration.
+`ai_model_pricing` stores exact model/modality Standard prices per million
+input, cached, and output tokens with `effective_from`, optional `effective_to`,
+and a version label. Overlapping ranges are prohibited operationally; pricing
+changes must close the old row and insert a new version in one migration.
 
 `admin_aggregate_cache` stores a private JSON payload by cache key and
 `created_at`. Overview and AI summary RPCs accept cache entries only for five
@@ -3061,18 +3041,17 @@ this cache.
 
 ### Moderation and durable usage columns
 
-`explore_posts` adds nullable `moderated_at` and
-`moderated_by_user_id`. Visible public-post indexes and every public Explore
-projection require `moderated_at IS NULL` as well as the prior visibility
-rules. Existing reversible comment moderation columns are reused.
+`explore_posts` adds nullable `moderated_at` and `moderated_by_user_id`. Visible
+public-post indexes and every public Explore projection require
+`moderated_at IS NULL` as well as the prior visibility rules. Existing
+reversible comment moderation columns are reused.
 
 `scans` and `insight_chat_messages` add non-null
-`llm_usage_metadata JSONB DEFAULT '{}'`. Durable insert triggers normalize
-these values into `ai_usage_events` transactionally.
+`llm_usage_metadata JSONB DEFAULT '{}'`. Durable insert triggers normalize these
+values into `ai_usage_events` transactionally.
 
 For authorization, review behavior, anonymization, retention boundaries, and
-pricing semantics, see
-[`10-internal-admin.md`](./10-internal-admin.md).
+pricing semantics, see [`10-internal-admin.md`](./10-internal-admin.md).
 
 ## SwiftData Schema (Local Offline Queue)
 
@@ -3083,9 +3062,9 @@ strategy, attempts corruption-specific quarantine and retry only for verified
 store corruption, archives non-corrupt legacy migration failures under
 `store-rescue/` before opening a fresh persistent store, then falls back to an
 in-memory safe-mode container if recovery fails, and finally shows a
-startup-blocked recovery surface if no container can be created.
-It must not silently wipe `URL.documentsDirectory`, and it must not hard-crash
-from bootstrap with `fatalError`. To prevent schema failures as the app evolves,
+startup-blocked recovery surface if no container can be created. It must not
+silently wipe `URL.documentsDirectory`, and it must not hard-crash from
+bootstrap with `fatalError`. To prevent schema failures as the app evolves,
 Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage`
 closures that safely transpose old structures (e.g. `MerianSchemaV8` to
 `MerianSchemaV9`) without corrupting local scan data._
@@ -3128,9 +3107,9 @@ historical schema must also be schema-scoped snapshots; V41 owns
 `MerianSchemaV41.CapturedMediaEntry` so V40→V41 can create media-entry rows
 without SwiftData casting V41 records to active `LocalScanRecord` or
 `OfflineQueuedScan`. Custom migrations that create relationship rows must insert
-each new row into the migration `ModelContext` before assigning the relationship;
-relationship assignment alone is not a durable insert path while SwiftData is
-inside staged store migration.
+each new row into the migration `ModelContext` before assigning the
+relationship; relationship assignment alone is not a durable insert path while
+SwiftData is inside staged store migration.
 
 The current active schema is `MerianSchemaV50`. Recent milestones:
 
@@ -3165,22 +3144,22 @@ The current active schema is `MerianSchemaV50`. Recent milestones:
   V44/V45/V46 remain available as historical types and source-specific recovery
   inputs, but they must not appear in the full historical
   `MerianMigrationPlan.schemas` or `MerianMigrationPlan.stages`; that plan jumps
-  V42→V49 or V43→V49 so unknown older stores do not force SwiftData to validate the
-  duplicate-prone recent representatives. V47 keeps local-scan, captured-media,
-  and collection entities frozen inside V47, and keeps its queued scan model
-  scalar-only. V44, V45, and V46 stores skip V47 and jump directly to V49 from
-  source-isolated V44→V49, V45→V49, and V46→V49 plans so SwiftData never
-  migrates unchanged entities across duplicate-prone recent representatives.
-  App startup reads store metadata before creating `ModelContainer`: fresh/current
-  stores open without a migration plan, known recent stores use the source-isolated
-  V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older stores use the full
-  historical plan. The V42 and V43 recent plans jump directly to V49 to avoid
-  validating older full-historical custom stages and to keep V42 off the older
-  V42→V43 bridge that still failed on real TestFlight stores, while V45 and V46 deliberately use one
-  matching source representative each before the V49 repair target.
-  Stores that still hit SwiftData's duplicate-checksum validator during plan
-  construction retry with the same source-isolated recent plans before legacy
-  rescue or safe mode.
+  V42→V49 or V43→V49 so unknown older stores do not force SwiftData to validate
+  the duplicate-prone recent representatives. V47 keeps local-scan,
+  captured-media, and collection entities frozen inside V47, and keeps its
+  queued scan model scalar-only. V44, V45, and V46 stores skip V47 and jump
+  directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
+  SwiftData never migrates unchanged entities across duplicate-prone recent
+  representatives. App startup reads store metadata before creating
+  `ModelContainer`: fresh/current stores open without a migration plan, known
+  recent stores use the source-isolated V48/V47/V46/V45/V44/V43/V42 plans, and
+  only unknown older stores use the full historical plan. The V42 and V43 recent
+  plans jump directly to V49 to avoid validating older full-historical custom
+  stages and to keep V42 off the older V42→V43 bridge that still failed on real
+  TestFlight stores, while V45 and V46 deliberately use one matching source
+  representative each before the V49 repair target. Stores that still hit
+  SwiftData's duplicate-checksum validator during plan construction retry with
+  the same source-isolated recent plans before legacy rescue or safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -3196,19 +3175,20 @@ The current active schema is `MerianSchemaV50`. Recent milestones:
   exposing local paths, account IDs, scan text, or media URLs.
 - V50 adds the scan-keyed `OfflineQueuedScanGoalHint` companion through a
   lightweight V49→V50 migration. The released V49 `OfflineQueuedScan` model is
-  reused unchanged. Every source-isolated recent recovery plan reaches V49
-  first and then applies the same lightweight V50 stage.
+  reused unchanged. Every source-isolated recent recovery plan reaches V49 first
+  and then applies the same lightweight V50 stage.
 
-**Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
-`EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
-`EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse`
-contains nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`,
-`taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and
-`SimilarSpeciesEntry` (maps `scientific_name`, `common_name`,
-`reference_image_url`, `iucn_red_list_status`, plus optional lookalike relation
-metadata such as `reason`, `visual_traits`, `confidence`, `source`,
-`review_status`, `is_bidirectional`, and `sort_order`) structs. `EdgeResponse`
-also contains a nested `IdentificationCandidate` struct
+**Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
+marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from
+the executable server contract and owns explicit coding keys and decoders.
+`EnrichScanResponse` (the `/enrich-scan` response) remains a separate
+hand-written contract. `EnrichScanResponse` contains nested `EnrichData` (maps
+`habitat_description`, `gbif_taxon_key`, `taxonomy`, and
+`similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps
+`scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`,
+plus optional lookalike relation metadata such as `reason`, `visual_traits`,
+`confidence`, `source`, `review_status`, `is_bidirectional`, and `sort_order`)
+structs. `EdgeResponse` also contains a nested `IdentificationCandidate` struct
 (`scientific_name: String`, `confidence_score: Double`,
 `distinguishing_feature: String?`) and a
 `candidates: [IdentificationCandidate]?` field mapping the `/identify` response
@@ -3396,13 +3376,13 @@ snapshots to repair or recreate current-schema queued scans and seed
 `OfflineJobRecord` / `OfflineQueueEvent` rows. That avoids SwiftData carrying a
 stale V47 model identity into V49 while preserving all queued media kinds.
 
-The V48→V49 migrations snapshot queued scans before recreating V49 rows and normalize
-queued-scan retry metadata. Known-good V48 stores migrate directly to V49. The accidental
-optional-queue V48 TestFlight source has its own `MerianSchemaV48OptionalQueue`
-and recovery plan; it snapshots optional queue fields in `willMigrate`, deletes
-the source rows, and recreates V49 queued scans with non-optional defaults
-(`queueAttemptCount = 0`, `queueUpdatedAt = now`, `queueNeedsAttention = false`)
-when the optional source stored `nil`.
+The V48→V49 migrations snapshot queued scans before recreating V49 rows and
+normalize queued-scan retry metadata. Known-good V48 stores migrate directly to
+V49. The accidental optional-queue V48 TestFlight source has its own
+`MerianSchemaV48OptionalQueue` and recovery plan; it snapshots optional queue
+fields in `willMigrate`, deletes the source rows, and recreates V49 queued scans
+with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
+`queueNeedsAttention = false`) when the optional source stored `nil`.
 
 ### `OfflineQueuedScanGoalHint`
 
@@ -3427,11 +3407,10 @@ cards.
 ### `OfflineJobRecord`
 
 Added in `MerianSchemaV48` and carried forward unchanged through V50.
-Scheduler/control-plane row for media-agnostic
-offline work. Current `kindRaw` values are `scanIngestion`, `cloudDeletion`,
-`collectionSync`, `speciesPreferenceSync`, and `future`; current `statusRaw`
-values are `pending`, `running`, `waiting`, `needsAttention`, `complete`, and
-`cancelled`.
+Scheduler/control-plane row for media-agnostic offline work. Current `kindRaw`
+values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
+`speciesPreferenceSync`, and `future`; current `statusRaw` values are `pending`,
+`running`, `waiting`, `needsAttention`, `complete`, and `cancelled`.
 
 - `id`: String (unique stable job id such as `scan-ingestion:{scanId}`,
   `cloud-deletion:{scanId}`, or `collection-sync`.)
@@ -3440,10 +3419,10 @@ values are `pending`, `running`, `waiting`, `needsAttention`, `complete`, and
 - `priority`: Int
 - `createdAt`, `updatedAt`: Date
 - `lastAttemptAt`, `nextRunAt`: Date?
-- `attemptCount`: Int
-  Tracks bounded automatic retry attempts for durable offline jobs. Scan
-  ingestion, cloud deletion, and collection sync pause at `needsAttention` after
-  `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts` automatic failures.
+- `attemptCount`: Int Tracks bounded automatic retry attempts for durable
+  offline jobs. Scan ingestion, cloud deletion, and collection sync pause at
+  `needsAttention` after `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`
+  automatic failures.
 - `lastErrorCode`, `lastErrorMessage`: String?
 - `lastHTTPStatus`: Int?
 - `serverStatus`, `serverStage`, `serverRetryAfter`: server ingestion status
@@ -3542,8 +3521,8 @@ Tracks locally synchronized species scans for the Scans library.
   Image Carousel).
 - `isLocallyArchived`: Bool (Legacy/backward-compatible flag for records whose
   visual payload was previously copied into local Documents storage. This local
-  presentation flag is unrelated to `store-rescue` directories and does not
-  mean an R2 object was moved to an archive tier).
+  presentation flag is unrelated to `store-rescue` directories and does not mean
+  an R2 object was moved to an archive tier).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`,
   `taxonomyFamily`, `taxonomyGenus`: String? (Linnaean taxonomy fields added in
   `MerianSchemaV3`, enabling background semantic discovery without relying on

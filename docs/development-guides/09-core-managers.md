@@ -17,9 +17,8 @@ triggering excessive SwiftUI view rebuilds.
 - **`isRecording: Bool`** — the single source of truth for dictation state.
   `DescribeInputLifecycleObserver` mirrors it into
   `CaptureActionCoordinator.isDictationRequested`, which drives the capture-bar
-  pulse. Never set to `true` until
-  `audioEngine.start()` succeeds; reset to `false` in all failure and teardown
-  paths.
+  pulse. Never set to `true` until `audioEngine.start()` succeeds; reset to
+  `false` in all failure and teardown paths.
 - **`isStarting: Bool`** — prevents overlapping permission/session startup and
   lets the lifecycle observer tear down a dictation request that is still
   negotiating permissions or audio hardware.
@@ -114,9 +113,9 @@ triggering excessive SwiftUI view rebuilds.
   session activation and before engine start so normal failure cleanup can
   release any partially acquired resources.
 - **Transient input-route recovery** — after the recording audio session is
-  active, a zero-rate or zero-channel input format is retried four times at
-  75 ms intervals with `audioEngine.reset()`. A route that remains invalid
-  after the bounded 300 ms window still throws
+  active, a zero-rate or zero-channel input format is retried four times at 75
+  ms intervals with `audioEngine.reset()`. A route that remains invalid after
+  the bounded 300 ms window still throws
   `AudioCaptureError.hardwareSampleRateZero`.
 - **`pauseRecording()`** — cancels countdown, calls `audioEngine.pause()`, sets
   `isPaused = true`.
@@ -355,25 +354,24 @@ triggering excessive SwiftUI view rebuilds.
 - **First-result critical path**: visual analysis receives the original
   Analyze-tap timestamp, commits persisted media and parsed `speciesData`
   immediately, and measures the response-to-state boundary. A one-shot UIKit
-  draw probe in `InsightSheetView` closes tap-to-first-render timing on the first
-  actual result frame. `ScanMilestoneCoordinator` runs in follow-up work, polls
-  `/check-scan-status` before retrieving the server-applied Field trip progress
-  receipt, then calculates awards and batches standard outings, Events-visible Seasonal Challenges,
-  achievements, and
-  **New to Naturebook**. Tools requiring server persistence stay disabled until
-  the existing ingestion ledger confirms the final scan ID. The progress call
-  may carry the durable camera-only selected-goal hint, and its completion
-  publishes a scan-specific contribution invalidation so an open historical
-  Insight reloads without replaying milestone celebrations.
+  draw probe in `InsightSheetView` closes tap-to-first-render timing on the
+  first actual result frame. `ScanMilestoneCoordinator` runs in follow-up work,
+  polls `/check-scan-status` before retrieving the server-applied Field trip
+  progress receipt, then calculates awards and batches standard outings,
+  Events-visible Seasonal Challenges, achievements, and **New to Naturebook**.
+  Tools requiring server persistence stay disabled until the existing ingestion
+  ledger confirms the final scan ID. The progress call may carry the durable
+  camera-only selected-goal hint, and its completion publishes a scan-specific
+  contribution invalidation so an open historical Insight reloads without
+  replaying milestone celebrations.
 - **Inline/background upload handoff**: `analyze()` installs a two-second
   fail-safe, then asks `MerianNetworkClient` to release the live scan's deferred
   queue row when request-body upload completes. Network failure releases the row
   immediately. Every callback carries the expected foreground generation, so a
   delayed callback is an idempotent no-op after replacement. Progress, response
   fallback, failure, and timer races cannot release another attempt's queue
-  ownership.
-  A separate foreground-inference claim lets recovery media stage without
-  allowing staged replay to dispatch a duplicate primary identification.
+  ownership. A separate foreground-inference claim lets recovery media stage
+  without allowing staged replay to dispatch a duplicate primary identification.
 - **Post-inference carousel handoff**: On a successful result, the saved user
   media is rebuilt into `ActiveScanMedia` _before_ `speciesData` is assigned.
   This ensures the insight sheet carousel always has the user's saved
@@ -384,8 +382,8 @@ triggering excessive SwiftUI view rebuilds.
   share private finalization helpers for new-discovery marking, achievement
   notification refresh, reanalysis metadata transfer (`customTags`, collections,
   field notes), exact-generation queued-scan flush/delete handoff, completion
-  notification delivery, and reference URL normalization. The helpers stay inside
-  `InferenceEngine` so they preserve `@MainActor` state ordering and the
+  notification delivery, and reference URL normalization. The helpers stay
+  inside `InferenceEngine` so they preserve `@MainActor` state ordering and the
   `AppDIContainer` singleton boundaries while removing duplicated success-path
   logic.
 - **Non-biological correction reanalysis**: Correction from the Non-biological
@@ -450,25 +448,28 @@ triggering excessive SwiftUI view rebuilds.
   and poster thumbnail together. The relationship mirror remains a fallback for
   older data and may only preserve the video path; the scalar JSON carries the
   richer poster metadata used by current UI and Explore sharing.
-- `InferenceEdgeDTOs.swift` — contains `APIError`, `EdgeResponseWrapper`,
-  `EdgeResponse`, and nested types (`Taxonomy`, `Insight`, `Diagnostic`). These
-  were previously nested inside `InferenceEngine`.
+- `InferenceEdgeDTOs.swift` — contains hand-written `APIError` and enrichment
+  DTOs plus the marked, generated `EdgeResponseWrapper`, `EdgeResponse`,
+  taxonomy, insight, quality, candidate, and pet response graph. The Identify
+  block comes from `_shared/identify/contract.ts`; regenerate it with
+  `make generate-edge-dto-contract` rather than editing or extending it.
 
 ### `OfflineQueueManager`
 
 - Manages background `URLSession` uploads, queuing scan media to the local
   Documents Directory when the device is off-grid.
-- **Durable live-scan suppression**: `enqueueCapture(...,
-  startSyncImmediately: false)` persists eligible online live-camera still scans without immediately
-  consuming the uplink twice. `syncPendingScans()` filters the process-local
-  deferred-ID set until `releaseDeferredLiveUpload` is called with the matching
-  foreground inference generation by inline request progress, its two-second
-  fail-safe, request failure, connectivity loss, or app backgrounding. A stale
-  release cannot affect a replacement generation. Relaunch starts with an empty
-  set, so durable rows are never stranded after termination; live success still
-  cancels tasks and removes the queue row through exact-generation cleanup.
-  Gallery, audio-bearing, and video submissions continue using immediate
-  background sync.
+- **Durable live-scan suppression**:
+  `enqueueCapture(...,
+  startSyncImmediately: false)` persists eligible online
+  live-camera still scans without immediately consuming the uplink twice.
+  `syncPendingScans()` filters the process-local deferred-ID set until
+  `releaseDeferredLiveUpload` is called with the matching foreground inference
+  generation by inline request progress, its two-second fail-safe, request
+  failure, connectivity loss, or app backgrounding. A stale release cannot
+  affect a replacement generation. Relaunch starts with an empty set, so durable
+  rows are never stranded after termination; live success still cancels tasks
+  and removes the queue row through exact-generation cleanup. Gallery,
+  audio-bearing, and video submissions continue using immediate background sync.
 - **Deferred environment context**: `updateDeferredContext` merges late
   WeatherKit/geocoding values into the queued record. The live path also calls
   `/update-scan-context`, allowing the server to apply the same owner-scoped
@@ -485,8 +486,9 @@ triggering excessive SwiftUI view rebuilds.
   `OfflineQueueEvent` rows replace the old process-local retry authority, so app
   relaunch preserves attempts, next retry time, last server stage, and
   user-attention state. Automatic scan upload, inference, cloud deletion, and
-  collection-sync retries all share `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`;
-  after that ceiling the job moves to `needsAttention` instead of rescheduling.
+  collection-sync retries all share
+  `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`; after that ceiling
+  the job moves to `needsAttention` instead of rescheduling.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
@@ -521,18 +523,16 @@ triggering excessive SwiftUI view rebuilds.
   clear or cancel replacement B after resuming from an `await`. Status probes
   and server polls keep their token for the full awaited operation and
   revalidate after each suspension instead of clearing ownership before work
-  begins. Current task
-  descriptions are `upload|scanId|uploadIndex|generation` and
-  `inference_v2|generation|scanId`; parsers retain legacy compatibility for
-  tasks created by older app builds.
-  Queue-backed foreground inference additionally persists its UUID on the
-  scan-ingestion job and atomically consumes it before provider dispatch.
-  `InferenceEngine` checks the scan, presentation UUID, and foreground UUID at
-  task entry, after suspension, immediately before provider dispatch, and
-  before each result or failure effect. A current failure handler snapshots
-  that proof before synchronous retirement; a stale handler cannot emit
-  telemetry, update the circuit breaker, trigger a haptic, or replace the UI
-  with an error.
+  begins. Current task descriptions are `upload|scanId|uploadIndex|generation`
+  and `inference_v2|generation|scanId`; parsers retain legacy compatibility for
+  tasks created by older app builds. Queue-backed foreground inference
+  additionally persists its UUID on the scan-ingestion job and atomically
+  consumes it before provider dispatch. `InferenceEngine` checks the scan,
+  presentation UUID, and foreground UUID at task entry, after suspension,
+  immediately before provider dispatch, and before each result or failure
+  effect. A current failure handler snapshots that proof before synchronous
+  retirement; a stale handler cannot emit telemetry, update the circuit breaker,
+  trigger a haptic, or replace the UI with an error.
 - **Orphaned `.uploading` Reconciliation**: `markScansAsUploading` runs before
   `generateUploadURLs`, returns the scan IDs whose `.pending → .uploading`
   transition actually committed, and `syncPendingScans` signs/dispatches only
@@ -540,16 +540,15 @@ triggering excessive SwiftUI view rebuilds.
   URLSession tasks are launched. If the URL-generation request fails after a
   successful claim (e.g. task cancelled when the user backgrounds), any scans
   already transitioned to `.uploading` are reset to `.pending`, then each
-  affected scan records durable retry metadata through `OfflineQueueRetryPolicy`.
-  When the shared automatic retry budget is exhausted, those rows move to
-  `queueNeedsAttention` rather than scheduling another in-memory retry.
-  Additionally,
-  `replayInferenceForUploadedScans` cross-references live URLSession tasks on
-  every call to catch orphans that bypass the catch block. Upload/inference
-  claims, retries, and both reconcilers use one cached queue actor. Each
-  reconciliation captures `observedThrough` before URLSession enumeration and
-  excludes rows updated later, so a stale task snapshot cannot reset a newer
-  claim while waiting for that actor.
+  affected scan records durable retry metadata through
+  `OfflineQueueRetryPolicy`. When the shared automatic retry budget is
+  exhausted, those rows move to `queueNeedsAttention` rather than scheduling
+  another in-memory retry. Additionally, `replayInferenceForUploadedScans`
+  cross-references live URLSession tasks on every call to catch orphans that
+  bypass the catch block. Upload/inference claims, retries, and both reconcilers
+  use one cached queue actor. Each reconciliation captures `observedThrough`
+  before URLSession enumeration and excludes rows updated later, so a stale task
+  snapshot cannot reset a newer claim while waiting for that actor.
 - **Server-Owned Inference Recovery**: Before replay resets an orphaned
   `.inferencing` scan, it polls `/check-scan-status` with the queued scan's
   required video count. `found` scans are synced down and the queue row is
@@ -565,8 +564,8 @@ triggering excessive SwiftUI view rebuilds.
   on status polling instead of guessing from process-local retry state. This
   keeps video playback finalization from being mistaken for a local inference
   failure after app suspension or restart. Server-side replay is also capped at
-  10 claims per sanitized intent; over-budget jobs are marked
-  `failed_terminal` at `server_replay_limit_reached`.
+  10 claims per sanitized intent; over-budget jobs are marked `failed_terminal`
+  at `server_replay_limit_reached`.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (6),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5
@@ -604,9 +603,8 @@ triggering excessive SwiftUI view rebuilds.
   queued scans upload unconditionally regardless of `freeScansRemaining`.
   Supabase still applies the authoritative entitlement and quota reservation
   before provider dispatch. Non-biological provider attempts count and are not
-  refunded. A correction
-  reanalysis for a non-biological result can bypass the Pro feature gate, but
-  not daily free-scan accounting.
+  refunded. A correction reanalysis for a non-biological result can bypass the
+  Pro feature gate, but not daily free-scan accounting.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through
   `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the
   pipeline progresses.
@@ -659,9 +657,9 @@ triggering excessive SwiftUI view rebuilds.
   - `forceIdle()` invalidates the current upload and all inference tokens. Late
     completions become no-ops and cannot decrement work started after
     connectivity restores.
-- Internally, one `UploadActivity` and an `[UUID: InferenceActivity]` map replace
-  the former force-resettable integer count. Phase priority is finalizing,
-  inferencing, uploading, then idle.
+- Internally, one `UploadActivity` and an `[UUID: InferenceActivity]` map
+  replace the former force-resettable integer count. Phase priority is
+  finalizing, inferencing, uploading, then idle.
 
 ### `ScanRepository`
 
@@ -759,15 +757,14 @@ triggering excessive SwiftUI view rebuilds.
   substring semantics intact (`"yard"` still matches `"backyard"`, and
   one-character queries no longer fall back to the full library) without
   scanning the entire library for every keystroke.
-- **Generation-scoped advanced-filter index**:
-  `ScanLibraryFilterIndexSnapshot` stores one immutable, pre-normalized
-  `ScanLibraryFilterDocument` per scan plus cached filter-sheet dimensions and
-  category counts. Main-actor extraction yields every 128 records; normalization
-  and aggregate construction run on a detached utility task. A filter change
-  builds one `ScanLibraryFilterQuery`, normalizing selected values and date
-  bounds once, then performs matching and sorting together off-main. Never add a
-  computed filter option that scans `allScans` or a predicate that reads
-  `LocalScanRecord` inside the query loop.
+- **Generation-scoped advanced-filter index**: `ScanLibraryFilterIndexSnapshot`
+  stores one immutable, pre-normalized `ScanLibraryFilterDocument` per scan plus
+  cached filter-sheet dimensions and category counts. Main-actor extraction
+  yields every 128 records; normalization and aggregate construction run on a
+  detached utility task. A filter change builds one `ScanLibraryFilterQuery`,
+  normalizing selected values and date bounds once, then performs matching and
+  sorting together off-main. Never add a computed filter option that scans
+  `allScans` or a predicate that reads `LocalScanRecord` inside the query loop.
 - **Targeted invalidation**: custom-tag notifications and Explore share-state
   events advance the cache generation, coalesce every pending scan ID into the
   replacement search task, rebuild the immutable filter snapshot, and rerun the
@@ -775,10 +772,10 @@ triggering excessive SwiftUI view rebuilds.
   into task B can silently remove A from the index.
 - **Debug completion hook**: In `DEBUG`, `ScansManager` exposes internal
   `SearchDebugEvent` callbacks for `indexingCompleted`,
-  `filterIndexingCompleted`, and `searchCompleted`.
-  The test suite uses these events to await real background completion instead
-  of sleeping for guessed debounce/indexing windows, which makes search
-  regressions deterministic without changing the production control flow.
+  `filterIndexingCompleted`, and `searchCompleted`. The test suite uses these
+  events to await real background completion instead of sleeping for guessed
+  debounce/indexing windows, which makes search regressions deterministic
+  without changing the production control flow.
 - **Category bucketing**: Category filters (`Plants`, `Fungi`, `Birds`, etc.)
   are precomputed into `SearchCategoryBucket` posting lists inside the snapshot,
   so category-only searches never re-evaluate taxonomy on every document.
@@ -864,32 +861,32 @@ triggering excessive SwiftUI view rebuilds.
 - **Do not inline string literals for these keys anywhere in the codebase.**
   Always reference the constant.
 
-| Constant                               | Key string                               | Sites                                                                                                                                                                               |
-| -------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.      |
-| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | `AppSettings` typed property. `MerianApp` and `AppLifecycleManager` gate root/lifecycle behavior through the injected settings instance.                                            |
-| `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                        |
-| `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
-| `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors. |
-| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                               |
-| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off.                    |
-| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                   | one-time migration in `MerianApp`                                                                                                                                                   |
-| `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"` | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                         |
-| `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`             | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                              |
-| `hasSeenExploreNewChip`                | `"hasSeenExploreNewChip"`                | `AppSettings` typed property. `MainTabBar` uses it for the one-time Explore "NEW" chip.                                                                                             |
-| `hasUnseenExplorePost`                 | `"hasUnseenExplorePost"`                 | `AppSettings` typed property. Set after local share, cleared when the Recent Explore feed is loaded, and read by `MainTabBar`.                                                      |
-| `lastSeenExplorePostSharedAt`          | `"lastSeenExplorePostSharedAt"`          | `AppSettings` typed property. Updated by `ExploreFeedViewModel` after the Recent feed loads and used by `MainTabBar` badge refresh.                                                 |
-| `suppressInferenceBanners`             | `"suppressInferenceBanners"`             | `AppSettings` typed property for mutation; `PushNotificationManager.willPresent` performs a direct synchronous key read because the delegate method is nonisolated.                 |
-| `lastBackgroundedDate`                 | `"lastBackgroundedDate"`                 | `AppLifecycleManager`                                                                                                                                                               |
-| `lastHistoricalSyncDate`               | `"lastHistoricalSyncDate"`               | `AppLifecycleManager`, `SupabaseManager`                                                                                                                                            |
-| `enrichedSpeciesTimestamps`            | `"enrichedSpeciesTimestamps"`            | `InferenceEngine`                                                                                                                                                                   |
-| `isLiveInferencePaused`                | `"isLiveInferencePaused"`                | `CameraSettingsView`, `CameraManager`                                                                                                                                               |
-| `invertZoomDirection`                  | `"invertZoomDirection"`                  | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                           |
-| `zoomSideLeft`                         | `"zoomSideLeft"`                         | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                           |
-| `zoomSliderVisible`                    | `"zoomSliderVisible"`                    | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                              |
-| `needsCollectionSync`                  | `"needsCollectionSync"`                  | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.           |
-| `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`             | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                          |
-| `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                             |
+| Constant                               | Key string                               | Sites                                                                                                                                                                                                                                                                                      |
+| -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                             |
+| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | `AppSettings` typed property. `MerianApp` and `AppLifecycleManager` gate root/lifecycle behavior through the injected settings instance.                                                                                                                                                   |
+| `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                               |
+| `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`.                     |
+| `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                        |
+| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                                                                                                                                      |
+| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off. |
+| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                   | one-time migration in `MerianApp`                                                                                                                                                                                                                                                          |
+| `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"` | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                                                                                                                                |
+| `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`             | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                                                                                                                                     |
+| `hasSeenExploreNewChip`                | `"hasSeenExploreNewChip"`                | `AppSettings` typed property. `MainTabBar` uses it for the one-time Explore "NEW" chip.                                                                                                                                                                                                    |
+| `hasUnseenExplorePost`                 | `"hasUnseenExplorePost"`                 | `AppSettings` typed property. Set after local share, cleared when the Recent Explore feed is loaded, and read by `MainTabBar`.                                                                                                                                                             |
+| `lastSeenExplorePostSharedAt`          | `"lastSeenExplorePostSharedAt"`          | `AppSettings` typed property. Updated by `ExploreFeedViewModel` after the Recent feed loads and used by `MainTabBar` badge refresh.                                                                                                                                                        |
+| `suppressInferenceBanners`             | `"suppressInferenceBanners"`             | `AppSettings` typed property for mutation; `PushNotificationManager.willPresent` performs a direct synchronous key read because the delegate method is nonisolated.                                                                                                                        |
+| `lastBackgroundedDate`                 | `"lastBackgroundedDate"`                 | `AppLifecycleManager`                                                                                                                                                                                                                                                                      |
+| `lastHistoricalSyncDate`               | `"lastHistoricalSyncDate"`               | `AppLifecycleManager`, `SupabaseManager`                                                                                                                                                                                                                                                   |
+| `enrichedSpeciesTimestamps`            | `"enrichedSpeciesTimestamps"`            | `InferenceEngine`                                                                                                                                                                                                                                                                          |
+| `isLiveInferencePaused`                | `"isLiveInferencePaused"`                | `CameraSettingsView`, `CameraManager`                                                                                                                                                                                                                                                      |
+| `invertZoomDirection`                  | `"invertZoomDirection"`                  | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                                                                                                                                  |
+| `zoomSideLeft`                         | `"zoomSideLeft"`                         | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                                                                                                                                  |
+| `zoomSliderVisible`                    | `"zoomSliderVisible"`                    | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                                                                                                                                     |
+| `needsCollectionSync`                  | `"needsCollectionSync"`                  | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.                                                                                                                  |
+| `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`             | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                                                                                                                                 |
+| `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                                                                                                                                    |
 
 `KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the
 authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`,
@@ -970,8 +967,8 @@ and `KeychainManager` migration logic. Do not inline
   `Core/Utilities`.
 - Owns the typed, in-memory representation of high-churn persisted settings such
   as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`,
-  `showsCaptureGoalProgress`, `gridColumns`, `saveToCameraRoll`, and notification
-  toggles.
+  `showsCaptureGoalProgress`, `gridColumns`, `saveToCameraRoll`, and
+  notification toggles.
 - Writes through to `UserDefaults` on mutation, reloads from
   `UserDefaults.didChangeNotification`, and exposes `refreshFromDefaults()` for
   foreground reconciliation after background delegates or extensions mutate
@@ -1034,15 +1031,15 @@ and `KeychainManager` migration logic. Do not inline
 - Prevents redundant remote fetches using tracked `Task` closures off the
   `@MainActor`.
 - **Async Decode Bounds**: A cancellation-aware four-permit pool suspends excess
-  callers without blocking threads. Admitted synchronous ImageIO work runs on
-  an explicitly QoS-tagged concurrent queue, preventing both decode
+  callers without blocking threads. Admitted synchronous ImageIO work runs on an
+  explicitly QoS-tagged concurrent queue, preventing both decode
   over-subscription JetSam panics and priority-inversion hang warnings.
 - **Isolated media session**: `mediaSession` uses
   `httpMaximumConnectionsPerHost = 4`, `httpShouldSetCookies = false`,
   `requestCachePolicy = .reloadIgnoringLocalCacheData`, and `urlCache = nil`.
   This prevents remote thumbnail fetches from bloating the shared URL cache or
-  starving the decode pool with a wider connection fan-out than the
-  downsampler can sustain.
+  starving the decode pool with a wider connection fan-out than the downsampler
+  can sustain.
 - Supports fallback fetching: loops natively through comma-separated URLs via
   Zero-OOM `ImageDownsampler` bounds.
 - I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents
@@ -1181,15 +1178,16 @@ and `KeychainManager` migration logic. Do not inline
   external identity systems are only notified once per session.
 - **RevenueCat identity attributes**: `linkExternalTelemetry(user:)` performs a
   best-effort read of the user's `public.users` row before calling
-  `RevenueCatManager.shared.linkWithSupabase(...)`. The RevenueCat customer keeps
-  the Supabase Auth UUID as the App User ID and also receives subscriber
+  `RevenueCatManager.shared.linkWithSupabase(...)`. The RevenueCat customer
+  keeps the Supabase Auth UUID as the App User ID and also receives subscriber
   attributes such as `supabase_user_id`, `auth_email`, `public_username`,
   `public_author_name`, `public_identity_source`, and `account_kind` so Test
-  Store customers can be matched back to Merian accounts.
-  The lookup decodes a bounded array and uses its first row rather than requiring
-  PostgREST singular-object semantics. A newly authenticated user may not have a
-  `public.users` projection yet; an empty result is a normal best-effort fallback,
-  not a `406` auth failure, and telemetry linking continues with Auth metadata.
+  Store customers can be matched back to Merian accounts. The lookup decodes a
+  bounded array and uses its first row rather than requiring PostgREST
+  singular-object semantics. A newly authenticated user may not have a
+  `public.users` projection yet; an empty result is a normal best-effort
+  fallback, not a `406` auth failure, and telemetry linking continues with Auth
+  metadata.
 - **`ghostSessionTask` single-flight**:
   `@ObservationIgnored private var ghostSessionTask: Task<Void, Never>?` —
   serializes anonymous session creation across all callers. This closes the
@@ -1308,18 +1306,18 @@ and `KeychainManager` migration logic. Do not inline
 
 - Manages `isProActive` state.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
-  entitlements, and treats `pro_week` as a detached non-subscription
-  purchase that is active for seven days from its purchase date.
+  entitlements, and treats `pro_week` as a detached non-subscription purchase
+  that is active for seven days from its purchase date.
 - Connects authenticated users to RevenueCat; the `revenuecat-webhook` Edge
   function remains the server-side purchase authority. It verifies signed
-  delivery, fetches authoritative CustomerInfo, persists recurring/grace
-  expiry, and writes snapshot-primary tier/timed-pass state through the
-  service-only transaction. The durable
-  `reconcile-revenuecat-subscribers` sweep repairs missed deliveries; the iOS
-  manager is never the database entitlement authority.
+  delivery, fetches authoritative CustomerInfo, persists recurring/grace expiry,
+  and writes snapshot-primary tier/timed-pass state through the service-only
+  transaction. The durable `reconcile-revenuecat-subscribers` sweep repairs
+  missed deliveries; the iOS manager is never the database entitlement
+  authority.
 - `RevenueCatOfferingPolicy` defines the paywall's required App Store product
-  identifiers: `pro_week` and `pro_annual`. `fetchOfferings()` logs an error when
-  there is no current offering, no available packages, or either required
+  identifiers: `pro_week` and `pro_annual`. `fetchOfferings()` logs an error
+  when there is no current offering, no available packages, or either required
   product is absent. These diagnostics do not create products or repair package
   mapping; App Store Connect product readiness and RevenueCat dashboard mapping
   remain release prerequisites.
@@ -1378,8 +1376,8 @@ and `KeychainManager` migration logic. Do not inline
   `ProfileDatabaseActor.calculateAwards()` completes after every inference.
   Checks for newly completed awards, persists `unlockedAchievements`, returns
   toast-eligible awards, and queues native local push notifications via
-  `PushNotificationManager` when the achievement notification setting allows
-  it. `enqueueToasts` defaults to `true` for existing callers; scan completion
+  `PushNotificationManager` when the achievement notification setting allows it.
+  `enqueueToasts` defaults to `true` for existing callers; scan completion
   passes `false` so the coordinator can batch the returned awards after Field
   trip progress. Cat and dog achievements use a July 4, 2026 notification cutoff
   so historical qualifying scans are seeded silently instead of showing
@@ -1388,10 +1386,9 @@ and `KeychainManager` migration logic. Do not inline
   scan calculator. `ScanMilestoneCoordinator` merges the typed earliest standard
   outing for every user and a Seasonal Challenge payload only when
   `FieldTripEventsAvailability` is enabled, saves only visible results in an
-  account-scoped `UserDefaults` cache, and passes it to
-  `GamificationManager` only when the current server mutation reports a new
-  unlock. There is no rollout cutoff because Field trips had no prior user
-  engagement.
+  account-scoped `UserDefaults` cache, and passes it to `GamificationManager`
+  only when the current server mutation reports a new unlock. There is no
+  rollout cutoff because Field trips had no prior user engagement.
 - Full architecture documented in
   [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
 
@@ -1406,31 +1403,30 @@ and `KeychainManager` migration logic. Do not inline
   plus `.fieldTrip(FieldTripMilestonePayload)` for standard outing and Seasonal
   Challenge progress.
 - `ScanMilestoneCoordinator` is the production scan-completion boundary shared
-  by foreground `InferenceEngine` and background `OfflineQueueManager` paths.
-  It deduplicates by final scan ID, awaits the existing persistence/progress
+  by foreground `InferenceEngine` and background `OfflineQueueManager` paths. It
+  deduplicates by final scan ID, awaits the existing persistence/progress
   attempt, gathers achievements without presenting them immediately, evaluates
   `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
-  Field trips, visible Seasonal Challenges, achievements, then **New to Naturebook**.
-  When Events are disabled, the coordinator removes challenge progress before
-  caching, refresh publication, destination construction, or toast presentation.
-  Identification corrections reapply progress through the same coordinator but
-  do not replay the original scan-achievement/dictionary batch. When Field trips
-  are disabled, the coordinator skips its progress resolver while ordinary scan
-  achievements and dictionary milestones continue normally.
-  `.fieldTrips` is currently enabled in the central `FeatureFlags` registry;
-  availability injection remains as a test seam and future emergency
-  client-build control. The
-  independent Events gate does not suppress standard outing progress.
-  Retryable failures keep the selected-goal SwiftData row as a durable outbox,
-  release ordinary milestones through a separate once-per-scan guard, and use
-  bounded in-process retries. `OfflineJobScheduler` replays leftover hints after
-  relaunch; only success, terminal ingestion failure, or disabled Field trips
-  acknowledges and removes the hint.
+  Field trips, visible Seasonal Challenges, achievements, then **New to
+  Naturebook**. When Events are disabled, the coordinator removes challenge
+  progress before caching, refresh publication, destination construction, or
+  toast presentation. Identification corrections reapply progress through the
+  same coordinator but do not replay the original scan-achievement/dictionary
+  batch. When Field trips are disabled, the coordinator skips its progress
+  resolver while ordinary scan achievements and dictionary milestones continue
+  normally. `.fieldTrips` is currently enabled in the central `FeatureFlags`
+  registry; availability injection remains as a test seam and future emergency
+  client-build control. The independent Events gate does not suppress standard
+  outing progress. Retryable failures keep the selected-goal SwiftData row as a
+  durable outbox, release ordinary milestones through a separate once-per-scan
+  guard, and use bounded in-process retries. `OfflineJobScheduler` replays
+  leftover hints after relaunch; only success, terminal ingestion failure, or
+  disabled Field trips acknowledges and removes the hint.
 - The presenter controls only in-app banner presentation. It does not mutate
   Field trip progress, achievement progress, dictionary state, analytics, or
-  native notification authorization. DEBUG Settings preview entry points
-  enqueue representative achievement, dictionary, and Field trip payloads
-  through the same queue while bypassing persistence and OS notifications.
+  native notification authorization. DEBUG Settings preview entry points enqueue
+  representative achievement, dictionary, and Field trip payloads through the
+  same queue while bypassing persistence and OS notifications.
 - Completed Field Naturalist cards and unlock toasts carry a typed
   `CaptureGoalDestination` and open the outing or Seasonal Challenge that earned
   the award. Its locked card continues to open the requirement sheet.

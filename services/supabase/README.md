@@ -89,13 +89,13 @@ boundary.
 Migration `20260725030308_durable_account_deletion.sql` establishes durable
 deletion intake. Migration `20260725052337_enforce_account_storage_erasure.sql`
 completes the private `pending → storage_pending → auth_pending → completed`
-state machine. Migration
-`20260726041109_fence_storage_erasure_claims.sql` makes that private state
-machine the sole authority for destructive storage claims. `/safe-delete`
-persists intent before destructive work, then a five-minute claim-fenced
-transaction writes the idempotent storage job, tombstones relational data, and
-verifies that the public profile and original scan ownership are gone. Auth
-Admin deletion is forbidden until R2 erasure is durably verified.
+state machine. Migration `20260726041109_fence_storage_erasure_claims.sql` makes
+that private state machine the sole authority for destructive storage claims.
+`/safe-delete` persists intent before destructive work, then a five-minute
+claim-fenced transaction writes the idempotent storage job, tombstones
+relational data, and verifies that the public profile and original scan
+ownership are gone. Auth Admin deletion is forbidden until R2 erasure is durably
+verified.
 
 Migration `20260725035737_repair_tombstone_profile_seed.sql` is an intentional
 no-op compatibility bridge for production run 1461, where the attempted
@@ -127,11 +127,11 @@ job. Listing and deletion have explicit deadlines and bounded response bodies;
 claims, progress, and failures are token-fenced and retryable.
 
 The SQL claim itself inner-joins the corresponding private job at
-`storage_pending`, requires completed relational cleanup and incomplete
-storage, and vetoes any target that still has a live public profile or owned
-scan. A historical, orphaned, reset, or manually due
-`pending_storage_deletions` row is inert. Worker code must not weaken or replace
-this database authorization boundary.
+`storage_pending`, requires completed relational cleanup and incomplete storage,
+and vetoes any target that still has a live public profile or owned scan. A
+historical, orphaned, reset, or manually due `pending_storage_deletions` row is
+inert. Worker code must not weaken or replace this database authorization
+boundary.
 
 Every retry repeats the idempotent relational cleanup before considering Auth
 deletion. It also clears compatibility media URLs, structured captured-media
@@ -162,10 +162,9 @@ Cloud media has two layers: Supabase Postgres stores owner/scan/post metadata
 and public URLs, while Cloudflare R2 stores the referenced bytes. A surviving
 URL does not imply that its object exists.
 
-Migration
-`20260726041338_repair_owned_scan_image_references.sql` and
-`repair-scan-image` restore a missing durable image from a surviving local
-owner copy:
+Migration `20260726041338_repair_owned_scan_image_references.sql` and
+`repair-scan-image` restore a missing durable image from a surviving local owner
+copy:
 
 - shared authentication derives the user from the JWT and fails closed while
   account deletion is active;
@@ -173,12 +172,11 @@ owner copy:
   canonical source URL;
 - R2 `HEAD` distinguishes healthy from missing media before any upload is
   promoted;
-- a restored key must be a direct image child of the same user's staging
-  prefix;
+- a restored key must be a direct image child of the same user's staging prefix;
 - promotion creates a new durable key under the user's current free/Pro prefix;
-- one service-only transaction replaces the exact URL in scan arrays,
-  recursive captured-media JSON, normalized media assets, and matching
-  owner-post Explore snapshots; and
+- one service-only transaction replaces the exact URL in scan arrays, recursive
+  captured-media JSON, normalized media assets, and matching owner-post Explore
+  snapshots; and
 - persistence failure triggers best-effort deletion of the newly promoted
   object.
 
@@ -188,10 +186,9 @@ replacement API and cannot select a target user from HTTP.
 
 Coverage lives in `functions/repair-scan-image/worker_test.ts`,
 `functions/repair-scan-image/validation_test.ts`,
-`_tests/migrationMediaContract.test.ts`,
-`tests/scan_image_repair_security.sql`, and the iOS
-`MerianNetworkClientTests`/`LocalImageLoaderTests` recovery suites. Operational
-deployment and incident exit criteria are in
+`_tests/migrationMediaContract.test.ts`, `tests/scan_image_repair_security.sql`,
+and the iOS `MerianNetworkClientTests`/`LocalImageLoaderTests` recovery suites.
+Operational deployment and incident exit criteria are in
 [`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../docs/backend-and-data/06-supabase-deployment-runbook.md)
 and the
 [July 2026 incident report](../../docs/incidents/2026-07-account-scoped-r2-image-loss.md).
@@ -207,8 +204,8 @@ profile count/preview/grid visibility aligned:
   `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY`;
 - one primary `404` is only suspected; a second at least five minutes later
   confirms missing;
-- confirmed-missing items are omitted, while an all-missing post becomes
-  system `quarantined` without changing author or moderation state;
+- confirmed-missing items are omitted, while an all-missing post becomes system
+  `quarantined` without changing author or moderation state;
 - `get-explore-media-incidents` returns only the verified owner's active
   recovery queue;
 - optional `ingest-r2-media-events` batches make rows due under
@@ -224,12 +221,11 @@ owner separate preserved-publication, canonical-visible, and recovery totals.
 affected-author/post/item scope without identities or object keys. The deploy
 workflow calls the latter after function smoke tests.
 
-The private continuity ledger preserves health across the existing
-DELETE+INSERT snapshot refresh. The worker never deletes R2 objects, posts,
-likes, or comments.
+The private continuity ledger preserves health across the existing DELETE+INSERT
+snapshot refresh. The worker never deletes R2 objects, posts, likes, or
+comments.
 
-Coverage lives in
-`functions/reconcile-explore-media-health/worker_test.ts`,
+Coverage lives in `functions/reconcile-explore-media-health/worker_test.ts`,
 `functions/ingest-r2-media-events/validation_test.ts`,
 `_tests/exploreMediaQuarantineMigrationContract.test.ts`,
 `tests/explore_media_quarantine_security.sql`, and
@@ -271,15 +267,15 @@ source payload.
 
 Migration `20260726025103_snapshot_dwca_export_sources.sql` fixes source
 membership at job insertion in one MVCC statement. Private
-`internal.export_job_source_state` and
-`internal.export_job_source_membership` rows retain only scan IDs and
-fixed-size SHA-256 fingerprints for eligibility, occurrence, and multimedia
-projections. Both CSV phases traverse that same membership; a later scan is not
-discovered, while a changed/deleted projection returns a revision sentinel and
-becomes terminal `source_snapshot_changed` before mixed output can be assembled.
-Terminal jobs purge their membership fingerprints. Nonterminal jobs created
-before this migration are claim-fenced, have their old manifests discarded,
-and restart against one newly established snapshot.
+`internal.export_job_source_state` and `internal.export_job_source_membership`
+rows retain only scan IDs and fixed-size SHA-256 fingerprints for eligibility,
+occurrence, and multimedia projections. Both CSV phases traverse that same
+membership; a later scan is not discovered, while a changed/deleted projection
+returns a revision sentinel and becomes terminal `source_snapshot_changed`
+before mixed output can be assembled. Terminal jobs purge their membership
+fingerprints. Nonterminal jobs created before this migration are claim-fenced,
+have their old manifests discarded, and restart against one newly established
+snapshot.
 
 `functions/export-dwca` performs exactly one short phase per invocation:
 occurrence page, multimedia page, assembly, or delivery. The two data phases use
@@ -582,17 +578,17 @@ even if RevenueCat never delivers the final expiration webhook.
 The service-only `reconcile-revenuecat-subscribers` route is invoked every 15
 minutes. A durable queue leases six-record `FOR UPDATE SKIP LOCKED` waves and
 keeps draining until empty or the 60-second start-work cutoff. Provider
-concurrency remains three, and only newer CustomerInfo snapshots apply under
-the claim token. A claimed-row partial index supports expired-lease cleanup.
-Pro users reconcile every six hours and free users every 24 hours; webhook
+concurrency remains three, and only newer CustomerInfo snapshots apply under the
+claim token. A claimed-row partial index supports expired-lease cleanup. Pro
+users reconcile every six hours and free users every 24 hours; webhook
 processing also advances the due time for affected subjects. This authoritative
 sweep repairs missed deliveries without granting a historical seven-day pass
 after a refund.
 
 The service-only `get_revenuecat_reconciliation_health()` RPC reports due and
 expired-claim counts plus oldest due age. A separate pinned-action GitHub
-monitor checks it every 15 minutes, fails on a 30-minute warning by default,
-and marks 60 minutes critical. It uses the existing Production
+monitor checks it every 15 minutes, fails on a 30-minute warning by default, and
+marks 60 minutes critical. It uses the existing Production
 `SUPABASE_ACCESS_TOKEN` to resolve the service-role key; no additional monitor
 secret is required.
 
@@ -695,42 +691,53 @@ deno check --frozen \
 
 `test_supabase_tooling.sh` dynamically type-checks every standard script and
 runs every standard `*_test.ts`, including the ghost-user audit and cleanup
-suites. It then tests and executes the Identify compiler-AST validator under its
-isolated frozen config, syntax-checks every shell script, and runs every
-`*_test.sh`. New conventionally named tooling tests therefore enter the gate
-without editing CI.
+suites. It then tests and executes the executable Identify contract/Swift
+generator under its isolated frozen config, syntax-checks every shell script,
+and runs every `*_test.sh`. New conventionally named tooling tests therefore
+enter the gate without editing CI.
 
 `validate_edge_dto_contract.sh` is the shared isolated entrypoint used by both
 the backend deployment workflow and the lightweight iOS project guardrail.
-Consequently, an extension-only decoder change anywhere under
-`apps/ios/Merian` is checked immediately without causing a production backend
-deployment.
+Consequently, an extension-only decoder change anywhere under `apps/ios` is
+checked immediately without causing a production backend deployment.
 
-The current canonical comparison resolves 31 unique TypeScript schema
-properties (22 top-level) and 36 direct Swift `EdgeResponse` properties.
-It structurally validates 35 schema paths across nested objects, arrays,
-primitive types, requiredness, nullability, numeric bounds, and active
-coding-key aliases. TypeScript identifiers are resolved by their lexical
-compiler symbols, so an unrelated shadowed declaration cannot replace the
-canonical schema binding. The real comparison also scans every production iOS
-Swift source file for extensions of a schema-backed DTO; extension-based custom
-decoders or coding-key declarations fail closed rather than escaping the
-single-file DTO comparison.
-`InferenceEdgeDTOs.swift` owns the complete response graph, including a dedicated
-pet-identification wire DTO with standard snake-case `CodingKeys`; decoded
-values are mapped into the separate domain `PetIdentification` afterward.
-Changes to the wire DTO file trigger the deployment gate.
-Every schema `INTEGER` and `NUMBER` field must declare finite `minimum` and
-`maximum` values. Integer bounds must also be JavaScript-safe and fit the
-selected Swift integer representation. JSON `NUMBER` wire values map only to
-Swift `Double`; narrower or differently encoded numeric DTO types require an
-intentional contract-model change rather than an implicit compatibility guess.
-`ai_reasoning` and `extracted_visual_traits` are the only reviewed top-level
-schema exceptions because iOS receives reasoning under `insight_data` and does
-not decode server-retained visual traits. Swift-only fields populated from
-request telemetry, cache hydration, or post-model enrichment are maintained as
-an explicit reviewed server-added path set. Update either exception set or the
-counts/floors only alongside an intentional contract change and its tests.
+`functions/_shared/identify/contract.ts` is the one source of truth for the
+model output and final `{ success, data }` response. Its typed descriptor
+generates both Vision and Describe provider schemas, infers deployed TypeScript
+payload types, and executes recursive runtime validation for nested fields,
+arrays, requiredness, nullability, enums, string/cardinality limits, safe
+integers, and numeric bounds. Provider output is validated immediately after
+JSON extraction. `functions/_shared/identify/googleSchema.ts` translates the
+dependency-free projection into the pinned Google SDK through a structurally
+typed adapter, so SDK schema-field changes fail Deno checking without loading
+SDK runtime code into contract tooling. The complete payload is validated again
+after cache hydration and server enrichment, before persistence or HTTP success;
+invalid responses expose only the stable `identify_response_invalid` public
+code. The successful envelope literal must be `success=true`; every route must
+emit `blur_score`, `colors`, `candidates` (which may be `null`),
+`estimated_size_cm` (which may be `null`), `image_quality`, and
+`pet_identification` (which may be `null`), while biological-only enrichment
+remains optional or nullable.
+
+The same descriptor generates the marked Identify block in
+`InferenceEdgeDTOs.swift`, including the full nested response graph, explicit
+`CodingKeys`, and explicit `init(from:)` implementations. This makes custom
+decoder replacement a Swift redeclaration error, while the fast contract gate
+also rejects direct or aliased extensions and top-level redeclarations across
+the complete `apps/ios` graph. Root Swift fields remain optional for
+backward-compatible rollout, but the server runtime contract is strict before
+delivery. `ai_reasoning` and `extracted_visual_traits` are intentionally
+server-only because iOS receives reasoning through `insight_data` and does not
+decode retained visual traits.
+
+Every numeric contract node has finite bounds and is checked at runtime before
+Swift decoding. Integers must also be JavaScript-safe; generated JSON integers
+use signed Swift `Int` and JSON numbers use `Double`, avoiding implicit `UInt8`,
+`Float`, or `CGFloat` narrowing. The validator has no compiler/parser dependency
+and cannot accidentally resolve a shadow declaration: it imports the same
+frozen, dependency-free contract code that the Edge runtime executes. Run
+`make generate-edge-dto-contract` after an intentional contract change, review
+the generated Swift diff, then run `make validate-edge-dto-contract`.
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh
@@ -743,8 +750,8 @@ The checked-in `deno task test` is the canonical complete function source and
 unit suite. Its read allowlist includes the function tree plus the migration,
 monitor-script, Supabase config, deployment-workflow, and waitlist-route
 surfaces inspected by security contract tests. Deployment CI runs it after
-migrating the disposable database so database-backed cases cannot silently
-skip. Do not replace it in CI with a selected test subset.
+migrating the disposable database so database-backed cases cannot silently skip.
+Do not replace it in CI with a selected test subset.
 
 Run it directly:
 
@@ -942,8 +949,8 @@ make validate-supabase-migrations
 Use Supabase CLI `2.109.0` or newer; CI pins `2.109.1`. The repository keeps
 every migration compatible with fresh-schema statement-pipeline replay rather
 than depending on CLI-specific handling for concurrent index DDL. The local
-email catcher uses the current `[local_smtp]` configuration section. Confirm
-the local version before database verification:
+email catcher uses the current `[local_smtp]` configuration section. Confirm the
+local version before database verification:
 
 ```bash
 supabase --version
@@ -1020,13 +1027,14 @@ supabase --workdir services functions deploy
 ```
 
 That command is the emergency/manual full-fleet path. Production CI computes the
-affected functions from the transitive import graph, deploys bounded batches,
-and isolates retries to members of a failed batch. A manual workflow dispatch
-intentionally selects the full fleet. Database migrations still run before
-function deployment, so same-release schema changes must follow
-expand/migrate/contract compatibility: the migration must remain safe for the
-currently live function version, and destructive cleanup ships only after the
-new readers/writers are proven live.
+affected functions from the transitive runtime import graph, excludes erased
+explicit type-only edges, deploys bounded batches, and isolates retries to
+members of a failed batch. Whole-tree Deno checks still validate compile-only
+imports. A manual workflow dispatch intentionally selects the full fleet.
+Database migrations still run before function deployment, so same-release schema
+changes must follow expand/migrate/contract compatibility: the migration must
+remain safe for the currently live function version, and destructive cleanup
+ships only after the new readers/writers are proven live.
 
 For identification-latency releases, apply migrations before deploying function
 code that calls the new RPCs, then stage the client and Edge rollout using the

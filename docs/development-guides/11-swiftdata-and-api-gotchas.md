@@ -693,12 +693,17 @@ All write paths in `InferenceEngine` that modify `speciesData` follow this patte
 | `fetchWikipediaAndHydrate` | `wikipediaOverview`, `wikipediaUrl`, `referenceImageUrl` |
 | `fetchAndPatchOverrideData` (cache hit) | `commonName`, `insightData`, `taxonomy`, `iucnRedListStatus`, `habitatDescription`, `gbifTaxonKey`, `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` |
 | `applyIdentificationOverride` (wipe) | All contextual fields reset to nil + override identity fields |
-| `dropInvalidCarouselImage` | `referenceImageUrl` (URL removed from comma-separated list) |
 | Historical load path | `similarSpecies`, `candidates` |
 
 ### Why This Matters for Live UI
 
 The insight sheet is open while background hydration tasks (`fetchWikipediaAndHydrate`, `fetchAndApplyEnrichment`, `fetchAndPatchOverrideData`) complete asynchronously. If these tasks use optional-chain mutations, the cards (`HabitatAndDistributionCard`, `TaxonomyCard`, `SimilarSpeciesGallery`) will not update live — the user sees empty or skeleton states until the sheet is dismissed and reopened. Full-value replacement ensures cards populate in real time without any user interaction. `ImagesCarousel` receives its data through `InsightSheetViewModel` computed properties, so the same full-value-replacement rule applies at the engine level — the viewModel's observation chain propagates changes correctly only when `speciesData` itself is replaced, not field-mutated.
+
+Transient image failures are deliberately absent from the table:
+`ImagesCarousel` owns them as scan-scoped presentation state and never edits
+`speciesData.referenceImageUrl` or the persisted media timeline. Changing the
+scan clears that transient state, resets page selection, and restores muted
+video playback.
 
 ---
 

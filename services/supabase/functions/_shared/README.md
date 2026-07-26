@@ -170,7 +170,15 @@ identical:
   staging keys.
 - **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media
   promotion.
-- **`schema.ts`**: Gemini response schema definitions.
+- **`contract.ts`**: Dependency-free executable model and final wire contract.
+  It generates provider schemas, infers TypeScript payloads, validates runtime
+  values recursively, and supplies Swift DTO generation metadata.
+- **`googleSchema.ts`**: Typed adapter from the provider-neutral projection into
+  the pinned `@google/genai` `Schema`; SDK field-shape changes fail compilation
+  without loading SDK runtime code into contract tooling.
+- **`schema.ts`**: Vision prompt plus the cached Gemini schema generated from
+  `contract.ts` through `googleSchema.ts`.
 - **`thresholds.ts`**: Tier-specific confidence thresholds mirrored by
   `MerianConfig`.
-- **`types.ts`**: Shared TypeScript DTOs for the identify family.
+- **`types.ts`**: Shared request/database types plus model and client payload
+  aliases inferred from `contract.ts`.

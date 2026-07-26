@@ -35,10 +35,13 @@ import {
   AudioMediaItemDTO,
   CachedSpeciesRow,
   ClientPayload,
-  MerianIdentification,
   MultimodalPayload,
   VisualMediaItemDTO,
 } from "../_shared/identify/types.ts";
+import {
+  parseIdentifySuccessEnvelope,
+  parseMerianIdentification,
+} from "../_shared/identify/contract.ts";
 import {
   hydratePayloadFromCachedSpecies,
   isNewToMerianDictionary,
@@ -1152,9 +1155,11 @@ export async function handleIdentifyMultimodalRequest(
     );
   }
 
-  let parsedData: MerianIdentification;
+  let parsedData;
   try {
-    parsedData = extractJson<MerianIdentification>(responseText);
+    parsedData = parseMerianIdentification(
+      extractJson<unknown>(responseText),
+    );
   } catch {
     await quotaLease.fail();
     await updateIngestionJobBestEffort(
@@ -1338,13 +1343,22 @@ export async function handleIdentifyMultimodalRequest(
     invasive_rationale: parsedData.invasive_rationale,
     invasive_confidence: parsedData.invasive_confidence,
     life_stage: parsedData.life_stage ?? "unknown",
+    reproductive_condition: parsedData.reproductive_condition,
     sex: parsedData.sex,
     sex_confidence: parsedData.sex_confidence,
     sex_evidence: parsedData.sex_evidence,
+    individual_count: parsedData.individual_count,
+    ecological_interactions: parsedData.ecological_interactions,
+    colors: [],
+    estimated_size_cm:
+      (estimatedSizeCm != null && Number.isFinite(estimatedSizeCm) &&
+          estimatedSizeCm > 0)
+        ? Math.min(estimatedSizeCm, 50_000)
+        : null,
     inference_tier: inferenceTier,
     candidates: parsedData.candidates,
     image_quality: parsedData.image_quality,
-    pet_identification: parsedData.pet_identification,
+    pet_identification: parsedData.pet_identification ?? null,
     ai_reasoning: parsedData.ai_reasoning,
     insight_data: {
       ai_reasoning: parsedData.ai_reasoning,
@@ -1449,6 +1463,37 @@ export async function handleIdentifyMultimodalRequest(
   const persistedObservationContext = observation_contexts.find((context) =>
     context != null && typeof context === "object" && !Array.isArray(context)
   ) as Record<string, unknown> | undefined;
+
+  let responseEnvelope;
+  try {
+    responseEnvelope = parseIdentifySuccessEnvelope({
+      success: true,
+      data: payloadReadyForClient,
+    });
+    payloadReadyForClient = responseEnvelope.data;
+  } catch (error) {
+    await quotaLease.fail();
+    logStructuredError("multimodal/wire_contract_failed", {
+      user_id: user.id,
+      scan_id: generatedScanId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    await updateIngestionJobBestEffort(
+      "failed_retryable",
+      "identify_response_invalid",
+      {
+        lastError: "Identify response failed its wire contract.",
+        retryAfter: retryAfterIso(),
+      },
+    );
+    return jsonResponse(
+      {
+        error: "AI response validation failed. Please retry.",
+        code: "identify_response_invalid",
+      },
+      502,
+    );
+  }
 
   const requireDurableVideo = videoR2ObjectKeys.length > 0;
   if (requireDurableVideo) {
@@ -1782,7 +1827,7 @@ export async function handleIdentifyMultimodalRequest(
           is_biological_subject: parsedData.is_biological_subject,
           blur_score: parsedData.blur_score,
           ecology_type: parsedData.ecology_type,
-          is_invasive: parsedData.is_invasive,
+          is_invasive: parsedData.is_invasive ?? undefined,
           invasive_status_region: parsedData.invasive_status_region ?? null,
           invasive_rationale: parsedData.invasive_rationale ?? null,
           invasive_confidence: parsedData.invasive_confidence ?? null,
@@ -2155,7 +2200,7 @@ export async function handleIdentifyMultimodalRequest(
   }));
 
   return jsonResponse(
-    { success: true, data: payloadReadyForClient },
+    responseEnvelope,
     200,
     {
       "Server-Timing": serverTimingValue([

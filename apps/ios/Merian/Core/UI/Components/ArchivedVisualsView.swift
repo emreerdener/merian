@@ -42,16 +42,18 @@ struct UnavailableVisualsView: View {
                 Text(isOffline ? "Offline" : "Image unavailable")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.7))
-                Text(isOffline ? "Reconnect to retry" : "Will retry later")
-                    .font(.system(size: 9))
-                    .foregroundColor(.white.opacity(0.55))
+                if isOffline {
+                    Text("Reconnect to retry")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.55))
+                }
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             isOffline
                 ? "Image unavailable while offline. Reconnect to retry."
-                : "Image temporarily unavailable. It will retry later."
+                : "Image unavailable."
         )
     }
 }

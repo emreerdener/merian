@@ -6,6 +6,23 @@ The active iOS Describe path now submits through `/identify-multimodal` via the
 shared non-visual request builder, but this route remains deployed for older
 clients, route-parity tests, and ops compatibility.
 
+## Response Contract
+
+The compatibility route consumes the same executable model/final response
+descriptor as the visual routes. Its provider schema is generated from
+`merianDescribeModelContract`, which preserves the shared fields and requires
+`is_live_capture=false` plus exactly zero for every image-quality value on
+text-only input. Its provider descriptions remain text-specific rather than
+reusing vision-oriented evidence language. Provider output is runtime-parsed
+before normalization, and the complete server-enriched `{ success, data }`
+response is parsed again before persistence or delivery.
+
+Invalid nested fields, requiredness, enums, cardinality, string limits, unsafe
+integers, or numeric bounds fail closed. A final mismatch returns HTTP `502`
+with `identify_response_invalid`; no malformed payload is saved or delivered.
+Intentional contract changes require `make generate-edge-dto-contract` followed
+by `make validate-edge-dto-contract`.
+
 ## Durability
 
 Before returning success, `identify-describe` records a `scan_ingestion_jobs`
@@ -46,5 +63,5 @@ English name for a normalized biological subject.
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts services/supabase/functions/_shared/identify/subjectClassification.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/contract_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```

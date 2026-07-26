@@ -62,14 +62,15 @@ relational constraints securely away from your proxy layer.
 
 ## 3. The API Interfaces (`types.ts`)
 
-The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
-directly linking the Swift iOS front-end structs with the Deno V8 isolates
-natively.
+Request/database interfaces remain explicit in `types.ts`. Identify model and
+client response aliases instead come from the executable descriptor in
+`_shared/identify/contract.ts`, which also generates the Swift wire boundary.
 
 **Rules for `types.ts`:**
 
-- **Exact Field Matching:** Interface keys must perfectly align with the JSON
-  decoder keys evaluated directly inside `InferenceEdgeDTOs.swift`.
+- **Exact Field Matching:** Response-shape changes belong in `contract.ts`.
+  Regenerate `InferenceEdgeDTOs.swift` with `make generate-edge-dto-contract`;
+  never maintain a duplicate hand-written interface/decoder mapping.
 - **Oversharing Defense:** Only declare fields strictly consumed by the
   frontend; do not dump generic Postgres wildcard `*` objects out locally to the
   client natively.
@@ -89,15 +90,14 @@ natively.
 - `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
   validates the action payload, user identity, UUIDs, cursor pairs, pin arrays,
   habitat tags, comment lengths, and optional preferred-goal pair; `db.ts` is
-  the only layer that calls the
-  Field trip RPCs and publication/comment tables. The endpoint is intentionally
-  action-based because the Field trips endpoint serves catalog, template detail, explicit
-  start, Community publications, Recent compatibility, profile pins, scan
-  progress, private scan contributions, publication detail, likes, and comments
-  from one Field trips-native
-  surface without extending Explore feed functions. Catalog/detail can project
-  the verified viewer's private `completed_scan_id` through service-role-only
-  RPCs; `db.ts` must not copy that field into capture context, public profile,
+  the only layer that calls the Field trip RPCs and publication/comment tables.
+  The endpoint is intentionally action-based because the Field trips endpoint
+  serves catalog, template detail, explicit start, Community publications,
+  Recent compatibility, profile pins, scan progress, private scan contributions,
+  publication detail, likes, and comments from one Field trips-native surface
+  without extending Explore feed functions. Catalog/detail can project the
+  verified viewer's private `completed_scan_id` through service-role-only RPCs;
+  `db.ts` must not copy that field into capture context, public profile,
   publication/challenge, or Explore projections.
 - The identify and enrich-scan `db.ts` files include `alternative_common_names`
   in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new
@@ -424,9 +424,9 @@ species-level public data should route its mapping through
 common-name fallback, reference-image source mapping, nullable taxonomy shape,
 and private-field exclusions consistent across `/species-dictionary`,
 `/enrich-scan` lookalikes, Explore detail similar species, and the public web
-species mapper. Tests in `_shared/publicSpeciesProjection_test.ts` must fail if scan
-IDs, user IDs, field notes, coordinates, AI reasoning, or preference fields leak
-into a public species projection.
+species mapper. Tests in `_shared/publicSpeciesProjection_test.ts` must fail if
+scan IDs, user IDs, field notes, coordinates, AI reasoning, or preference fields
+leak into a public species projection.
 
 **Public Species Refresh Rule:** Internal refresh work must consume
 `species_enrichment_jobs` or the legacy
@@ -571,9 +571,8 @@ a single enrichment pass.
 
 The single-species `merge_common_name_en(p_id uuid, p_en_name text)` RPC
 (migration `20260330170000`) remains only as an owner/internal compatibility
-helper and has no API-role execution grant.
-`resolveLookalikesToJoinTable` exclusively uses the bounded batch variant
-(migration `20260330180000`).
+helper and has no API-role execution grant. `resolveLookalikesToJoinTable`
+exclusively uses the bounded batch variant (migration `20260330180000`).
 
 **`species_lookalikes` Index — O(log N) Fetch Path:** The UNIQUE constraint on
 `(species_id, lookalike_id)` required by the upsert in

@@ -16,16 +16,15 @@ npm run audit:dependencies
 
 Run these when changing Next.js routes, Mantine UI, public metadata, Supabase
 web access, canonical `naturebook.earth` sharing, or legacy `merian.earth`
-compatibility. Open Graph routes should remain
-server-rendered so link unfurlers can read metadata without client hydration.
-`lib/explorePoster.test.ts` locks detail/social spectrogram precedence and the
-grid-only species-reference policy. `lib/exploreVisualMedia.test.ts` locks
-canonical mixed-media ordering and deduplication. `lib/audioProxy.test.ts`
-locks the Boost Audio stream to public Naturebook WAV URLs on the exact durable
-`media.merian.app` technical host and rejects arbitrary hosts, staging paths,
-credentials, and unsupported formats. Browser
-verification should cover Boost → Boosted → original transitions because Web
-Audio context activation cannot be proven by TypeScript alone.
+compatibility. Open Graph routes should remain server-rendered so link unfurlers
+can read metadata without client hydration. `lib/explorePoster.test.ts` locks
+detail/social spectrogram precedence and the grid-only species-reference policy.
+`lib/exploreVisualMedia.test.ts` locks canonical mixed-media ordering and
+deduplication. `lib/audioProxy.test.ts` locks the Boost Audio stream to public
+Naturebook WAV URLs on the exact durable `media.merian.app` technical host and
+rejects arbitrary hosts, staging paths, credentials, and unsupported formats.
+Browser verification should cover Boost → Boosted → original transitions because
+Web Audio context activation cannot be proven by TypeScript alone.
 
 The complete Supabase Edge source/unit suite is the checked-in Deno task:
 
@@ -39,9 +38,9 @@ surfaces inspected by security contracts: migrations, Supabase config, the
 account-deletion catalog fixture, the deployment workflow, and the web waitlist
 route. Deployment CI runs this task after the disposable database is migrated,
 so database-backed cases execute rather than reporting connection skips; its
-explicit `SUPABASE_DB_TEST_URL` makes an unavailable database a test failure.
-CI must run the complete task rather than substituting a hand-selected subset
-whose permissions happen to pass.
+explicit `SUPABASE_DB_TEST_URL` makes an unavailable database a test failure. CI
+must run the complete task rather than substituting a hand-selected subset whose
+permissions happen to pass.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -52,11 +51,12 @@ deno lint --config services/supabase/functions/deno.json \
 make test-supabase-tooling
 ```
 
-`test_supabase_tooling.sh` type-checks every standard TypeScript script and
-runs every conventionally named `*_test.ts`, so the ghost-user audit and
-cleanup tests cannot fall out of CI through list drift. It separately exercises
-the frozen compiler-AST DTO validator, syntax-checks every shell script, and
-runs every `*_test.sh`. `tooling_gate_test.ts` protects that discovery policy.
+`test_supabase_tooling.sh` type-checks every standard TypeScript script and runs
+every conventionally named `*_test.ts`, so the ghost-user audit and cleanup
+tests cannot fall out of CI through list drift. It separately exercises the
+frozen executable DTO contract and Swift generator, syntax-checks every shell
+script, and runs every `*_test.sh`. `tooling_gate_test.ts` protects that
+discovery policy.
 
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
@@ -71,9 +71,9 @@ step only for deliberate partial-write/no-media cases or when the test inserts
 its own media rows. Scan geoprivacy does not hide a shared post, and clearing a
 scan's source URL array does not erase an already published post snapshot.
 Negative SQL assertions inside a transaction must use a savepoint so the
-expected error does not abort later assertions. Community-resolved fixtures
-must create the matching request and set `explore_published_at` before expecting
-the post on normal Explore or Species Dictionary surfaces.
+expected error does not abort later assertions. Community-resolved fixtures must
+create the matching request and set `explore_published_at` before expecting the
+post on normal Explore or Species Dictionary surfaces.
 
 `lib/species.test.ts` locks canonical/native UUID URLs, versioned Edge response
 mapping, 404-versus-transient failure behavior, shared attribution filtering,
@@ -203,12 +203,12 @@ MerianTests/
     `fullHistoricalEqualReferenceFailureIsLegacyRescueEligible` test covers the
     production startup contract for full-historical equal-reference failures:
     classify them as non-corrupt legacy migration failures that are eligible for
-    `store-rescue/`.
-    The V30→V33 test validates the V31 (`isFlagged`) lightweight addition, the V32 (`isUploaded`)
-    lightweight addition, and the V33 custom `migrateV32toV33` stage
-    (backfilling `scanStateRaw` from the old booleans) in a single migration
-    pass. Update the "from" version and description when a new schema is added.
-    Run both tests on an iOS 26 simulator on every schema bump.
+    `store-rescue/`. The V30→V33 test validates the V31 (`isFlagged`)
+    lightweight addition, the V32 (`isUploaded`) lightweight addition, and the
+    V33 custom `migrateV32toV33` stage (backfilling `scanStateRaw` from the old
+    booleans) in a single migration pass. Update the "from" version and
+    description when a new schema is added. Run both tests on an iOS 26
+    simulator on every schema bump.
   - `knownGoodV48RequiredValueFailureUsesLegacyRescue` and
     `optionalQueueV48RequiredValueFailureUsesLegacyRescue`: synthesize the
     required-value validation errors seen in TestFlight and assert that
@@ -228,8 +228,8 @@ MerianTests/
     caught before release. The V47 fixture also guards the snapshot-backed
     scheduler-row migration shape that prevents SwiftData from casting stale V47
     queued rows as the current model during `didMigrate`. This is the preferred
-    place for schema-version
-    migration fixtures and SwiftData checksum regressions.
+    place for schema-version migration fixtures and SwiftData checksum
+    regressions.
   - V49→V50 coverage verifies the lightweight migration preserves existing
     queued scans and permits a new `OfflineQueuedScanGoalHint` companion with
     the same scan ID. Queue tests must cover hint persistence through foreground
@@ -242,10 +242,9 @@ MerianTests/
   sanitized `recovery-manifest.json` output, startup diagnostic rescue flags,
   and a source-scan boundary that prevents store recovery from referencing
   `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
-  The focused CI lane is
-  `.github/workflows/ios-startup-safety.yml`; it runs both
-  `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup safe
-  mode and schema-upgrade failures are caught together. The cheap
+  The focused CI lane is `.github/workflows/ios-startup-safety.yml`; it runs
+  both `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup
+  safe mode and schema-upgrade failures are caught together. The cheap
   `.github/workflows/ios-project-guardrails.yml` lane runs
   `make validate-ios-project` and `make validate-ios-migration-guardrails`
   first, so known-bad source shapes fail on Ubuntu before the slower macOS
@@ -265,30 +264,28 @@ MerianTests/
     assignment. They also keep the duplicate-prone V44/V45/V46 recent cluster
     collapsed out of the full historical runtime migration path so SwiftData
     cannot reject startup with duplicate version checksums. Disk-backed
-    migration tests should open `ModelContainer`
-    through the Objective-C exception bridge so SwiftData `NSException`s are
-    reported as test failures with their original reason instead of aborting the
-    whole test runner. V47 must reuse the V45 checksum representative for
-    unchanged local-scan, captured-media, and collection models, while V45 and
-    V46 recent plans must keep those sources isolated from each other and route
-    directly to V49 before the shared lightweight V49→V50 stage. Disk-backed
-    SwiftData migration tests should use unique
-    temporary store URLs and must not unlink the `.sqlite`, `.sqlite-shm`, or
-    `.sqlite-wal` files during the test process. Core Data may keep those file
-    descriptors alive after the visible `ModelContainer` scope ends; deleting
-    them in-process can surface as sqlite `vnode unlinked while in use` traps in
-    later tests.
-    The workflow's
-    Swift package cache key depends on the checked-in
+    migration tests should open `ModelContainer` through the Objective-C
+    exception bridge so SwiftData `NSException`s are reported as test failures
+    with their original reason instead of aborting the whole test runner. V47
+    must reuse the V45 checksum representative for unchanged local-scan,
+    captured-media, and collection models, while V45 and V46 recent plans must
+    keep those sources isolated from each other and route directly to V49 before
+    the shared lightweight V49→V50 stage. Disk-backed SwiftData migration tests
+    should use unique temporary store URLs and must not unlink the `.sqlite`,
+    `.sqlite-shm`, or `.sqlite-wal` files during the test process. Core Data may
+    keep those file descriptors alive after the visible `ModelContainer` scope
+    ends; deleting them in-process can surface as sqlite
+    `vnode unlinked while in use` traps in later tests. The workflow's Swift
+    package cache key depends on the checked-in
     `Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
     lockfile and runs with automatic package resolution disabled so startup
     failures are not hidden behind cold dependency resolution or silent package
     upgrades. The workflow also uploads the raw `xcodebuild` log and appends
     build diagnostics to the job summary when Xcode fails before the selected
     startup tests run, because `xcresulttool get test-results summary` reports
-    those build-only failures as `unknown` with zero tests.
-    The startup-safety workflow also runs on a daily schedule as a drift check,
-    but it is separate from the Supabase production deploy gate.
+    those build-only failures as `unknown` with zero tests. The startup-safety
+    workflow also runs on a daily schedule as a drift check, but it is separate
+    from the Supabase production deploy gate.
 - **`SerializedMediaItemTests.swift`**: Locks the active-schema mixed-media read
   precedence. `localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror`
   and `offlineQueuedScanPrefersCapturedMediaJSONOverRelationshipMirror` seed
@@ -302,10 +299,9 @@ MerianTests/
   `activeScanId` lifecycle: `testPrepareForNewScanClearsActiveScanId` verifies
   the pre-scan reset clears the stale ID;
   `testActiveScanIdClearedByInferenceTaskDefer` documents the generation-fenced
-  defer contract;
-  `testCancelActiveRequestClearsActiveScanId` verifies explicit cancellation
-  clears both the presentation UUID and paired scan ID, because the invalidated
-  task defer no longer owns that slot.
+  defer contract; `testCancelActiveRequestClearsActiveScanId` verifies explicit
+  cancellation clears both the presentation UUID and paired scan ID, because the
+  invalidated task defer no longer owns that slot.
   `staleAttemptForSameScanCannotOverwriteReplacementGeneration` fixes the ABA
   contract independently of scan ID: attempt A is rejected while replacement B
   owns the same queued scan and only B may publish result state.
@@ -363,13 +359,13 @@ MerianTests/
   disk-isolated container to validate actor-boundary `Sendable` payload
   extraction across a `Task.detached` boundary. Its upload and inference
   reconciliation tests also seed rows on both sides of an `observedThrough`
-  cutoff and prove the older orphan resets while newer replacement work
-  remains claimed. `SyncStateManagerTests` also
-  locks the generation-fencing contract: a stale upload completion cannot
-  clear a replacement batch; a completion delivered after `forceIdle()` cannot
-  remove a newer inference token; a stale finalizing transition cannot advance
-  the replacement's UI phase; and `GenerationTaskRegistry` rejects
-  compare-before-clear and owner-cancel attempts from a replaced slot.
+  cutoff and prove the older orphan resets while newer replacement work remains
+  claimed. `SyncStateManagerTests` also locks the generation-fencing contract: a
+  stale upload completion cannot clear a replacement batch; a completion
+  delivered after `forceIdle()` cannot remove a newer inference token; a stale
+  finalizing transition cannot advance the replacement's UI phase; and
+  `GenerationTaskRegistry` rejects compare-before-clear and owner-cancel
+  attempts from a replaced slot.
   **`testFetchPendingScansExcludesNonPendingScans`** (V33) seeds scans in all
   five states (`.pending`, `.uploading`, `.staged`, `.inferencing`, `.failed`)
   and asserts `fetchPendingScans` returns only the `.pending` record — directly
@@ -413,11 +409,11 @@ MerianTests/
   dimensions refresh after a targeted mutation, confirm selected values are
   normalized without changing matching semantics, and exercise rapid targeted
   reindexes so a superseded task cannot drop another document.
-- **`LocalImageLoaderTests.swift`**: Locks concurrent network payload
-  boundaries and request coalescing to prevent multi-grid fetch flooding. The
-  async decode permit tests prove concurrency remains bounded and a cancelled
-  waiter cannot consume the next released slot. Recovery cases cover promoted
-  basename compatibility, registered scan-ID mapping after cloud renaming,
+- **`LocalImageLoaderTests.swift`**: Locks concurrent network payload boundaries
+  and request coalescing to prevent multi-grid fetch flooding. The async decode
+  permit tests prove concurrency remains bounded and a cancelled waiter cannot
+  consume the next released slot. Recovery cases cover promoted basename
+  compatibility, registered scan-ID mapping after cloud renaming,
   high-confidence timestamp groups, Explore fallback rendering from Documents,
   and rejection of unrelated/unsafe URLs.
 - **`OfflineQueueManagerTests.swift`**: Mocks queue payload insertions.
@@ -430,18 +426,18 @@ MerianTests/
     soft-deleted items are removed while undeleted items persist).
   - **Media staging contract drift**: Loads
     `docs/contracts/media-staging-upload-manifest.json` and asserts
-    `MerianConfig` matches the documented file, audio, and video budgets.
-    Also covers the canonical video scan upload shape: five sampled inference
-    frame files plus one playback video file must fit in one signing batch.
+    `MerianConfig` matches the documented file, audio, and video budgets. Also
+    covers the canonical video scan upload shape: five sampled inference frame
+    files plus one playback video file must fit in one signing batch.
   - **Background task identity and single-flight ownership**: Verifies current
     upload descriptions round-trip underscored scan IDs, media indices, and the
-    batch UUID; verifies current
-    `inference_v2|generation|scanId` and legacy `inference_scanId` parsing; and
-    proves inference preparation rejects a second claimant and ignores a
-    compare-clear from the wrong UUID. Upload ownership tests prove a delayed
-    batch UUID is rejected after replacement, one completion callback cannot
-    remove another callback's membership token, and an old batch cannot release
-    the replacement's global latch or UI activity.
+    batch UUID; verifies current `inference_v2|generation|scanId` and legacy
+    `inference_scanId` parsing; and proves inference preparation rejects a
+    second claimant and ignores a compare-clear from the wrong UUID. Upload
+    ownership tests prove a delayed batch UUID is rejected after replacement,
+    one completion callback cannot remove another callback's membership token,
+    and an old batch cannot release the replacement's global latch or UI
+    activity.
   - **Disk Teardown**: Confirms that sandbox files in `URL.documentsDirectory`
     are deleted during purges to prevent storage bloat.
   - **`isSyncing` Latch Safety
@@ -467,10 +463,9 @@ MerianTests/
     queue metadata remains unchanged. Guards against dispatching a second
     pipeline for a scan already in `.inferencing` state — the function only
     queries `.staged` scans.
-  - **Durable retry backoff math**:
-    Asserts `OfflineQueueRetryPolicy` floors short retries, clamps long retries
-    to `maximumRetryDelay`, and stops scheduling automatic work once
-    `maximumAutomaticRetryAttempts` is exhausted.
+  - **Durable retry backoff math**: Asserts `OfflineQueueRetryPolicy` floors
+    short retries, clamps long retries to `maximumRetryDelay`, and stops
+    scheduling automatic work once `maximumAutomaticRetryAttempts` is exhausted.
   - **Durable queue retry policy**: `OfflineQueueRetryPolicy` tests should cover
     transient network/server failures, local-media terminal failures, persisted
     `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. Video
@@ -523,20 +518,20 @@ MerianTests/
 
 - **`CameraManagerTests.swift`, `CaptureWorkspaceViewModelRefinementTests`**:
   Validates camera state routing, target-FPS debounce ownership, and the
-  video-generation correlation policy. A controlled async sleeper proves the
-  FPS debouncer reads the current target after its delay and rejects a replaced
+  video-generation correlation policy. A controlled async sleeper proves the FPS
+  debouncer reads the current target after its delay and rejects a replaced
   generation even when the sleeper intentionally ignores cooperative
-  cancellation. Focused recording tests prove callback URLs bind to the
-  intended temporary file, generation-A callbacks/actions are rejected while
-  generation B is active, and cooperatively cancelled timeout/stop tasks are
-  rejected after their action token is replaced. These policy tests do not
-  require simulator camera hardware. `CaptureWorkspaceViewModelRefinementTests`
-  drives `startRefinementScan(from:)` through the injected
-  `PreparedStagedImageLoader` seam, asserting both the success path
-  (bounded display-sized refinement request is committed into `stagedCapture.images`)
-  and the failure path (`isStagingRefinement` drops back to `false` without
-  appending a stale image). This gives deterministic coverage over refinement
-  staging behavior without simulator-driven UI automation.
+  cancellation. Focused recording tests prove callback URLs bind to the intended
+  temporary file, generation-A callbacks/actions are rejected while generation B
+  is active, and cooperatively cancelled timeout/stop tasks are rejected after
+  their action token is replaced. These policy tests do not require simulator
+  camera hardware. `CaptureWorkspaceViewModelRefinementTests` drives
+  `startRefinementScan(from:)` through the injected `PreparedStagedImageLoader`
+  seam, asserting both the success path (bounded display-sized refinement
+  request is committed into `stagedCapture.images`) and the failure path
+  (`isStagingRefinement` drops back to `false` without appending a stale image).
+  This gives deterministic coverage over refinement staging behavior without
+  simulator-driven UI automation.
 - **`MediaPreparationActorTests.swift`**: Pins the production still-image
   contract directly: file URL inputs return bounded inference/display payloads,
   metrics stay within byte and dimension limits, avatar/crop previews return
@@ -550,31 +545,31 @@ MerianTests/
   real ImageIO plus dictionary fixtures for date/GPS, date-only,
   coordinate-only, absent, incomplete, and malformed metadata. Telemetry tests
   prove a gallery item never falls back to the current device location.
-- **`OfflineQueueManagerTests` gallery replay cases**: Persist gallery provenance
-  in the existing visual-media manifest and prove offline replay keeps embedded
-  dates while omitting a queue bookkeeping timestamp when the photo contained
-  coordinates only or no date. Local-only provenance must remain absent from
-  the edge request JSON.
+- **`OfflineQueueManagerTests` gallery replay cases**: Persist gallery
+  provenance in the existing visual-media manifest and prove offline replay
+  keeps embedded dates while omitting a queue bookkeeping timestamp when the
+  photo contained coordinates only or no date. Local-only provenance must remain
+  absent from the edge request JSON.
 - **`CaptureWorkspaceViewModelRefinementTests` external-import cases**: Inject a
   temporary `ExternalImageImportStore` and prepared-image loader to prove a
   pending image is staged with the required crop and acknowledged only after
   commit. Separate cases prove a full tray retains the receipt until capacity
   clears, an exhausted free quota retains the receipt until Pro entitlement is
-  active, and an unreadable file is removed with terminal feedback.
-  Confirmation and crop cancellation continue to be owned by the shared
-  gallery staging tests rather than a second import-only pipeline.
-- **Launch presentation and explicit-route precedence**:
-  `AppDIContainerTests` proves `opensExploreOnLaunch` defaults off, persists an
-  enabled value, reloads from external `UserDefaults`, and requires both
-  completed onboarding and opt-in. `CaptureWorkspaceViewModelRefinementTests`
-  initializes generic Explore, then verifies Photos/Files imports, Explore post
-  routes, community requests, scan routes, and the Scans library replace it.
-  The import case also sends the foreground timeout event and asserts the
-  staged image and required crop survive. Foreground returns must never be
-  modeled as another launch-policy evaluation.
+  active, and an unreadable file is removed with terminal feedback. Confirmation
+  and crop cancellation continue to be owned by the shared gallery staging tests
+  rather than a second import-only pipeline.
+- **Launch presentation and explicit-route precedence**: `AppDIContainerTests`
+  proves `opensExploreOnLaunch` defaults off, persists an enabled value, reloads
+  from external `UserDefaults`, and requires both completed onboarding and
+  opt-in. `CaptureWorkspaceViewModelRefinementTests` initializes generic
+  Explore, then verifies Photos/Files imports, Explore post routes, community
+  requests, scan routes, and the Scans library replace it. The import case also
+  sends the foreground timeout event and asserts the staged image and required
+  crop survive. Foreground returns must never be modeled as another
+  launch-policy evaluation.
 - **`AppTelemetryTests.testExternalImageImportEventContainsOnlyOutcomeAndClientSource`**:
-  Guards the privacy boundary by asserting the event contains only `outcome`
-  and `event_source`.
+  Guards the privacy boundary by asserting the event contains only `outcome` and
+  `event_source`.
 - **`HardwareOrchestratorTests.swift`**: Mocks
   `ProcessInfo.processInfo.thermalState` boundaries to verify the camera
   throttles FPS dynamically without restarting instances. Verifies the
@@ -652,10 +647,10 @@ MerianTests/
 - **`ScansManagerTests.swift`**: Verifies text/filter-index construction,
   incremental and coalesced reindexing, sort behavior, and selection limits for
   the Scans library.
-- **`BackgroundDatabaseActorTests.swift` collection projection**: Creates
-  member and unrelated scans plus Favorites, then verifies
-  `collectionSyncPayloads()` returns only the non-Favorites collection's direct,
-  deterministically sorted membership IDs.
+- **`BackgroundDatabaseActorTests.swift` collection projection**: Creates member
+  and unrelated scans plus Favorites, then verifies `collectionSyncPayloads()`
+  returns only the non-Favorites collection's direct, deterministically sorted
+  membership IDs.
 - **`AppDIContainerTests.swift` preferred-name coverage**: Verifies matching
   normalized cloud values and existing tombstones are converged without an
   upsert, while real conflicts retain timestamp ordering.
@@ -709,9 +704,9 @@ wraps each into a `SimilarSpeciesEntry` with `nil` enrichment fields:
 lookup when `referenceImageUrl == nil`.
 
 A historical cached `SimilarSpeciesEntry.referenceImageUrl` is also normalized
-during decode. If it matches the exact external-media denylist, it becomes
-`nil` and enters the same fallback path; the surrounding lookalike entry and
-cache remain intact.
+during decode. If it matches the exact external-media denylist, it becomes `nil`
+and enters the same fallback path; the surrounding lookalike entry and cache
+remain intact.
 
 ### Exact external reference media
 
@@ -750,8 +745,9 @@ logic models decoupled from live Apple ecosystem HTTP constraints.
 ## API & Edge Function Testing (Deno)
 
 Merian relies on Supabase Edge Functions. Due to the rapid iteration cycle of
-Gemini structures, type safety at the network boundary (Swift → TS) must be
-guaranteed by AST regression guards.
+Gemini structures, type safety at the Identify network boundary must come from
+the shared executable contract, runtime parsing, and deterministic Swift DTO
+generation described below.
 
 Dependency validation must use the same boundary as production bundling.
 `sync_function_deno_configs.ts --check` verifies every deployable function has
@@ -761,16 +757,17 @@ Supabase SDK, the explicit one-day minimum dependency age, aliased runtime
 imports, and `config.toml` parity, then CI runs
 `deno check --frozen --config <function>/deno.json <function>/index.ts` for all
 entrypoints. `function_dependency_tools_test.ts` independently requires exact
-parity between configured functions and discoverable dependency graphs, then
-locks deployment selection for route-local, transitive shared, config,
+parity between configured functions and discoverable dependency graphs, proves
+explicit type-only edges do not inflate runtime deployments, then locks
+deployment selection for route-local, transitive shared, config,
 dependency-policy, docs, and test-only changes.
 `deploy_function_batches_test.sh` uses a fake Supabase CLI to prove a failed
 batch retries only its own members and rejects malformed function names.
 `_tests/workflowSecurity.test.ts` independently locks immutable action SHAs,
 least-privilege workflow permissions, and step-scoped secrets across the whole
-workflow directory.
-This suite exists specifically to prevent local checks from passing against a
-parent config that the remote function bundler does not discover.
+workflow directory. This suite exists specifically to prevent local checks from
+passing against a parent config that the remote function bundler does not
+discover.
 
 JSON ingress and public error behavior have four complementary Deno checks:
 
@@ -798,17 +795,17 @@ limits, and exact verified/global rate boundaries. The web companion tests in
 `apps/web/lib/boundedJson.test.ts` and `waitlistSecurity.test.ts` cover the 4
 KiB reader, tiny-chunk coalescing, conservative email normalization, trusted
 proxy parsing, rotating IP HMAC, bounded Siteverify responses, and fail-closed
-Turnstile verification. The suite also proves incomplete Turnstile
-configuration fails before any provider fetch. Migration coverage requires
-both bounded counter-retention paths to use `FOR UPDATE SKIP LOCKED`, preventing
-concurrent request cleanup from becoming a lock convoy.
+Turnstile verification. The suite also proves incomplete Turnstile configuration
+fails before any provider fetch. Migration coverage requires both bounded
+counter-retention paths to use `FOR UPDATE SKIP LOCKED`, preventing concurrent
+request cleanup from becoming a lock convoy.
 `apps/web/lib/dependencySecurity.test.ts` also checks every locked PostCSS and
-Sharp instance against the reviewed patched floors, keeps the Next.js
-transitive overrides explicit, and verifies that the dependency audit follows
-the frozen install. `.github/workflows/web-quality.yml` runs the live
-registry-backed audit with a high-severity failure threshold, those tests,
-TypeScript checking, and a production Next.js build for affected web changes.
-High and critical findings, or an unavailable audit registry, block the job.
+Sharp instance against the reviewed patched floors, keeps the Next.js transitive
+overrides explicit, and verifies that the dependency audit follows the frozen
+install. `.github/workflows/web-quality.yml` runs the live registry-backed audit
+with a high-severity failure threshold, those tests, TypeScript checking, and a
+production Next.js build for affected web changes. High and critical findings,
+or an unavailable audit registry, block the job.
 
 Function-local tests under `services/supabase/functions/insight-chat/` verify
 the expanded text-only prompt context, raw image URL/storage-key/coordinate
@@ -834,11 +831,11 @@ status, repair, and Explore-share contracts aligned;
 `_shared/mediaBudgets_test.ts` and `generate-upload-urls/storage_test.ts` keep
 the staged signing limits, allowed content types, and six-file video batch in
 sync with the documented contract; and `_tests/migrationMediaContract.test.ts`
-checks the scan-media, reconciliation, scanless staged-row repair,
-video-audio metadata backfill, ingestion-job, manifest-checksum, intent-outbox,
-replay-worker migrations, and the APNs device-token constraint repair.
-Run the migration contract test with `--allow-read=services/supabase/migrations`
-because it reads SQL files directly.
+checks the scan-media, reconciliation, scanless staged-row repair, video-audio
+metadata backfill, ingestion-job, manifest-checksum, intent-outbox,
+replay-worker migrations, and the APNs device-token constraint repair. Run the
+migration contract test with `--allow-read=services/supabase/migrations` because
+it reads SQL files directly.
 
 `_tests/migrationExecutionContract.test.ts` enumerates the complete migration
 directory, strips SQL comments, and rejects executable concurrent index DDL.
@@ -918,27 +915,26 @@ Durable account deletion has seven complementary checks:
   `config.toml`, workflow wiring, and the executable fixture's
   cleanup-before-storage phase order present.
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
-  machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order,
-  cleanup verification, required `storage_pending` phase, five-prefix keyset
-  cursor, 25-hour delayed verification, media/location/context clearing,
-  upload-signing fence, profile-recreation guard, terminal UUID minimization,
-  service-only ACLs, five-minute cron, the failed-version no-op bridge,
-  ownerless-tombstone constraint, the Auth/profile foreign key, and the absence
-  of synthetic user creation. It also requires the storage-claim SQL to join a
-  matching cleaned-up `storage_pending` private job and to veto live profiles
-  and owned scans.
+  machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order, cleanup
+  verification, required `storage_pending` phase, five-prefix keyset cursor,
+  25-hour delayed verification, media/location/context clearing, upload-signing
+  fence, profile-recreation guard, terminal UUID minimization, service-only
+  ACLs, five-minute cron, the failed-version no-op bridge, ownerless-tombstone
+  constraint, the Auth/profile foreign key, and the absence of synthetic user
+  creation. It also requires the storage-claim SQL to join a matching cleaned-up
+  `storage_pending` private job and to veto live profiles and owned scans.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
-  Auth-first delete, premature Auth completion is denied, all five sweep and
-  all five delayed verification prefixes advance in order, cleanup commits
-  while Auth still exists, retained scans are ownerless tombstones with media
-  and personal fields cleared, no all-zero profile exists, active deletion
-  blocks profile resurrection, retries preserve `auth_pending`, final
-  completion erases the direct UUID, and duplicate completion is idempotent.
-  Before deletion begins, the same fixture inserts a stale storage outbox row
-  for its live owner and proves the claim RPC cannot return it.
-- `safe-delete/storageWorker_test.ts` proves one bounded page per claim,
-  delete concurrency behavior, empty-prefix advancement, delayed verification,
+  Auth-first delete, premature Auth completion is denied, all five sweep and all
+  five delayed verification prefixes advance in order, cleanup commits while
+  Auth still exists, retained scans are ownerless tombstones with media and
+  personal fields cleared, no all-zero profile exists, active deletion blocks
+  profile resurrection, retries preserve `auth_pending`, final completion erases
+  the direct UUID, and duplicate completion is idempotent. Before deletion
+  begins, the same fixture inserts a stale storage outbox row for its live owner
+  and proves the claim RPC cannot return it.
+- `safe-delete/storageWorker_test.ts` proves one bounded page per claim, delete
+  concurrency behavior, empty-prefix advancement, delayed verification,
   idempotent 404 deletion, retry persistence, and claim-token propagation.
 - `tests/ghost_profile_merge_security.sql` runs in the same disposable-catalog
   gate and proves the restrictive profile/Auth identity key is skipped only for
@@ -991,8 +987,8 @@ Explore media quarantine has four complementary boundaries:
 - `tests/explore_media_quarantine_security.sql` runs the complete healthy →
   degraded → quarantined → degraded → healthy state path against disposable
   Postgres. It proves partial omission, all-surface canonical hiding,
-  preservation of publication intent, continuity across media snapshot
-  refresh, automatic republish after repair, notification replacement, and
+  preservation of publication intent, continuity across media snapshot refresh,
+  automatic republish after repair, notification replacement, and
   private/service authorization.
 - The iOS target build plus notification/library tests must cover decoding both
   new notification types, owner incident DTOs, missing navigation to Scan
@@ -1015,19 +1011,18 @@ Incremental species-count maintenance has two complementary checks:
   `FOR EACH ROW`, or early-commit path in the replacement migration.
 - `tests/species_count_trigger_security.sql` runs on the migrated catalog. It
   checks trigger shape and transition aliases, legacy-routine removal, private
-  ACLs, and exact ledger/projection behavior across bulk insert, no-op
-  unrelated update, simultaneous OLD/NEW changes, last-duplicate removal, and
-  bulk delete. It rejects a live-owner ledger underflow and forces the deferred
-  dictionary constraint by its schema-qualified `internal` name after an
-  `ON DELETE SET NULL` transition. The
-  intentionally corrupted projection before the unrelated update is a
-  regression sentinel: the value must remain untouched, proving that routine
-  updates do not hide a full-history recount.
+  ACLs, and exact ledger/projection behavior across bulk insert, no-op unrelated
+  update, simultaneous OLD/NEW changes, last-duplicate removal, and bulk delete.
+  It rejects a live-owner ledger underflow and forces the deferred dictionary
+  constraint by its schema-qualified `internal` name after an
+  `ON DELETE SET NULL` transition. The intentionally corrupted projection before
+  the unrelated update is a regression sentinel: the value must remain
+  untouched, proving that routine updates do not hide a full-history recount.
 
 Both are wired into `make validate-supabase-migrations`,
 `make test-supabase-privileged-routines`, and the deploy workflow. Run the
-database file only against the disposable local stack; it writes fixtures
-inside a transaction and rolls them back.
+database file only against the disposable local stack; it writes fixtures inside
+a transaction and rolls them back.
 
 Authoritative AI quota and entitlement security has four complementary checks:
 
@@ -1036,15 +1031,15 @@ Authoritative AI quota and entitlement security has four complementary checks:
 - `_shared/aiQuota_test.ts` locks UUID request-key validation, trusted proxy
   address selection, daily-rotating/domain-separated HMAC behavior, optional
   server-key fallback, weak explicit-secret failure, fail-closed commit, and
-  per-attempt fencing-token propagation.
-  `_shared/audioModeration_test.ts` additionally proves cache hits refund while
-  provider attempts commit the database-selected model before dispatch.
+  per-attempt fencing-token propagation. `_shared/audioModeration_test.ts`
+  additionally proves cache hits refund while provider attempts commit the
+  database-selected model before dispatch.
 - `_tests/aiQuotaCoverage.test.ts` inventories every direct provider-dispatch
-  file and every public paid-model route, including transitive
-  Explore/Community audio-publication callers, their exact operation,
-  model-policy propagation, settlement ordering, removal of the public
-  dictionary model fallback, quota-guarded group-tag calls, attempt-specific
-  server replay keys, and absence of webhook cache invalidation.
+  file and every public paid-model route, including transitive Explore/Community
+  audio-publication callers, their exact operation, model-policy propagation,
+  settlement ordering, removal of the public dictionary model fallback,
+  quota-guarded group-tag calls, attempt-specific server replay keys, and
+  absence of webhook cache invalidation.
 - `_tests/aiQuotaMigrationContract.test.ts` statically locks the private schema,
   API-role revocations, atomic conditional UPSERT, idempotency/refund semantics,
   lease fencing and stale cleanup, service-only grants, and complete 30-row
@@ -1055,11 +1050,10 @@ Authoritative AI quota and entitlement security has four complementary checks:
   reservation/replay/limit/refund/failed-retry/stale-lease/fencing/version
   transitions.
 
-The production workflow applies all migrations to a disposable database and
-runs `privileged_routine_security.sql`, `ai_quota_security.sql`, and
-`revenuecat_webhook_security.sql`, and
-`species_observation_stats_security.sql`. Do not replace that catalog execution
-with source inspection alone.
+The production workflow applies all migrations to a disposable database and runs
+`privileged_routine_security.sql`, `ai_quota_security.sql`, and
+`revenuecat_webhook_security.sql`, and `species_observation_stats_security.sql`.
+Do not replace that catalog execution with source inspection alone.
 
 Public species-observation stats have layered resource-abuse coverage:
 
@@ -1100,12 +1094,12 @@ Owner-level pgTAP fixtures that insert `public.users` directly bypass
 `handle_new_user()`. They must first create a matching transactional
 `auth.users` fixture, then supply a deterministic, unique `public_username`
 accepted by `public.is_valid_public_username(...)`, a non-empty
-`public_author_name`, and a CHECK-valid `public_identity_source`, in addition
-to the fields relevant to the behavior under test. Usernames are currently
-3–24 lowercase characters, start with a letter, end with an alphanumeric
-character, contain no `__`, and cannot be reserved. Keep fixtures
-transactional; never drop or weaken the Auth FK or another production
-constraint to accommodate stale test data.
+`public_author_name`, and a CHECK-valid `public_identity_source`, in addition to
+the fields relevant to the behavior under test. Usernames are currently 3–24
+lowercase characters, start with a letter, end with an alphanumeric character,
+contain no `__`, and cannot be reserved. Keep fixtures transactional; never drop
+or weaken the Auth FK or another production constraint to accommodate stale test
+data.
 
 Identification latency has focused contract coverage at each boundary:
 
@@ -1116,35 +1110,34 @@ Identification latency has focused contract coverage at each boundary:
   malformed-issuer/audience/subject, and public service-role rejection. Internal
   replay continues to use its separate service-role/replay-user tests; never
   weaken that path to make public claims tests pass.
-- `_tests/migrationMediaContract.test.ts` verifies that
-  `begin_scan_ingestion`, `hydrate_identification_dictionary`, and
-  `apply_or_stage_scan_context` are service-role-only and that deferred context
-  is RLS-protected and merged at scan insert. `_shared/identify/latencyDb_test.ts`
-  verifies that the atomic setup client consumes the RPC's server-canonicalized
-  upload-session ids and checksums.
+- `_tests/migrationMediaContract.test.ts` verifies that `begin_scan_ingestion`,
+  `hydrate_identification_dictionary`, and `apply_or_stage_scan_context` are
+  service-role-only and that deferred context is RLS-protected and merged at
+  scan insert. `_shared/identify/latencyDb_test.ts` verifies that the atomic
+  setup client consumes the RPC's server-canonicalized upload-session ids and
+  checksums.
 - `MerianNetworkClientTests` verifies pinned-session `OPTIONS` prewarming,
   idempotent inline request-body completion, and owner-scoped
   `/update-scan-context` construction.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
-for slow WeatherKit, reverse geocoding, awards, Field trips, Wikipedia, and GBIF;
-none may delay first render. Exercise queue durability rejection, inline request
-failure, connectivity loss, app background during upload, termination/relaunch,
-duplicate live/background completion, and the two-second upload fail-safe.
-Verify specifically that releasing the body-upload hold does not release
-foreground inference ownership: staged recovery media must wait until live
-success, failure, cancellation, or app backgrounding resolves that ownership.
-After replacement B is registered, a delayed body-sent callback carrying A
-must also leave B's recovery-upload hold intact. Cancelling the current owner
-must release its hold synchronously before its now-invalidated task exits.
-Run the same-scan overlap case with foreground generation A replaced by B:
-`BackgroundDatabaseActorTests` must reject A's fenced save, and
+for slow WeatherKit, reverse geocoding, awards, Field trips, Wikipedia, and
+GBIF; none may delay first render. Exercise queue durability rejection, inline
+request failure, connectivity loss, app background during upload,
+termination/relaunch, duplicate live/background completion, and the two-second
+upload fail-safe. Verify specifically that releasing the body-upload hold does
+not release foreground inference ownership: staged recovery media must wait
+until live success, failure, cancellation, or app backgrounding resolves that
+ownership. After replacement B is registered, a delayed body-sent callback
+carrying A must also leave B's recovery-upload hold intact. Cancelling the
+current owner must release its hold synchronously before its now-invalidated
+task exits. Run the same-scan overlap case with foreground generation A replaced
+by B: `BackgroundDatabaseActorTests` must reject A's fenced save, and
 `OfflineQueueManagerTests` must prove A can neither release B's durable claim
-nor cancel B's retry slot or delete B's queued row.
-`InferenceEngineTests` must also prove that background recovery invalidates A's
-presentation UUID before cancellation, so A cannot resume an error/result
-commit over the recovered UI state.
-Exercise visual and nonvisual replacement at task entry, after an awaited
+nor cancel B's retry slot or delete B's queued row. `InferenceEngineTests` must
+also prove that background recovery invalidates A's presentation UUID before
+cancellation, so A cannot resume an error/result commit over the recovered UI
+state. Exercise visual and nonvisual replacement at task entry, after an awaited
 preflight operation, and immediately before provider dispatch. Once A has been
 retired or B has replaced it, A must not issue a provider request, emit failure
 telemetry, record a circuit-breaker failure, trigger an error haptic, or publish
@@ -1157,11 +1150,11 @@ same UUID cannot restart between synchronous cancellation and the asynchronous
 durable handoff. It also forces the first handoff to run without a model
 context, proving a transient local-database failure retains the exact owner and
 retries successfully after the context returns. The duplicate claim assertion
-targets the manager-owned registry, so the guarantee is process-wide rather
-than scoped to one `InferenceEngine` instance. The same test verifies that
-registry retirement alone rejects a delayed UI result before raw durable
-ownership is cleared; `staleLiveGenerationCannotPersistOverReplacementAttempt`
-locks the equivalent database-persistence fence.
+targets the manager-owned registry, so the guarantee is process-wide rather than
+scoped to one `InferenceEngine` instance. The same test verifies that registry
+retirement alone rejects a delayed UI result before raw durable ownership is
+cleared; `staleLiveGenerationCannotPersistOverReplacementAttempt` locks the
+equivalent database-persistence fence.
 `confidenceZeroResponseIsTerminalWithoutPersistence` preserves the valid
 no-record terminal contract without issuing a redundant provider retry, while
 `confidenceZeroResponseWithWrongScanIdRemainsRecoverable` and
@@ -1171,31 +1164,30 @@ background paths still fail closed on callback identity.
 historical record cancels the live provider task, releases only its exact
 foreground owner and upload hold, and preserves the queued capture for recovery.
 Queue scenarios must keep a description-only zero-byte job in `.staged`; the
-user-facing submission path must create that row before online Describe
-provider dispatch so its persistence is covered by the same durable fence.
-When recovery takes ownership, verify its pre-dispatch status check polls a
-processing/finalizing server job and accepts fractional PostgreSQL
-`retry_after` timestamps.
-Inspect `Server-Timing` and the one-shot first-draw marker rather than treating a
-successful build or state assignment as latency proof. Run one Free and one Pro
-scan and verify the expected model/configuration and exactly one primary
-identification model call.
+user-facing submission path must create that row before online Describe provider
+dispatch so its persistence is covered by the same durable fence. When recovery
+takes ownership, verify its pre-dispatch status check polls a
+processing/finalizing server job and accepts fractional PostgreSQL `retry_after`
+timestamps. Inspect `Server-Timing` and the one-shot first-draw marker rather
+than treating a successful build or state assignment as latency proof. Run one
+Free and one Pro scan and verify the expected model/configuration and exactly
+one primary identification model call.
 
 Field trip capture guidance has focused coverage on both sides of the Edge
 boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private
 RPC grants, verified-user Edge call, filtering/order clauses, preservation of a
-standard field trip after a Seasonal Challenge join, exclusion of challenge-specific
-progress, the non-destructive retirement of placeholder templates, and the
-evidence-free capture projection. It also locks the private catalog/detail
-`completed_scan_id` projection, detail-only publication status, owner/non-deleted
-join, service-role-only grants, and credited-level/count fields in both scan-
-progress RPCs. The persistent-contribution contract additionally locks the
-migration abort guard, private preference table, one-credit uniqueness and
-scan-first indexes, preferred-goal validation/ranking, correction invalidation,
-service-role-only contribution RPC, and evidence-minimal projection.
-The atomic-hardening contract locks the receipt/trigger/transactional entry
-point, publication-ID repair, empty security-definer search paths, and global
-Field trip/Event ACL revocation.
+standard field trip after a Seasonal Challenge join, exclusion of
+challenge-specific progress, the non-destructive retirement of placeholder
+templates, and the evidence-free capture projection. It also locks the private
+catalog/detail `completed_scan_id` projection, detail-only publication status,
+owner/non-deleted join, service-role-only grants, and credited-level/count
+fields in both scan- progress RPCs. The persistent-contribution contract
+additionally locks the migration abort guard, private preference table,
+one-credit uniqueness and scan-first indexes, preferred-goal validation/ranking,
+correction invalidation, service-role-only contribution RPC, and
+evidence-minimal projection. The atomic-hardening contract locks the
+receipt/trigger/transactional entry point, publication-ID repair, empty
+security-definer search paths, and global Field trip/Event ACL revocation.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
@@ -1206,13 +1198,13 @@ ends, preferred-goal priority, deterministic fallback, advancement, unfinished
 correction removal/move after deactivation, completed-experience immutability,
 ownership isolation, concurrency, and idempotent reapplication under the same
 local-stack requirement. Its active-catalog matrix also locks the narrow goal
-boundaries introduced by
-`20260722211636_tighten_field_trip_goal_matching.sql`: butterfly versus moth,
-spider versus tick/scorpion, bee/wasp versus ant/sawfly, animal versus plant for
-ecology goals, flowering/fruiting plant kingdom gates, and meadow plant versus
-meadow animal. Every narrowed rule has representative positive and negative
-coverage; additions or label changes must update both that matrix and the
-canonical criteria table in `docs/features-and-hardware/25-field-trips.md`.
+boundaries introduced by `20260722211636_tighten_field_trip_goal_matching.sql`:
+butterfly versus moth, spider versus tick/scorpion, bee/wasp versus ant/sawfly,
+animal versus plant for ecology goals, flowering/fruiting plant kingdom gates,
+and meadow plant versus meadow animal. Every narrowed rule has representative
+positive and negative coverage; additions or label changes must update both that
+matrix and the canonical criteria table in
+`docs/features-and-hardware/25-field-trips.md`.
 `_tests/fieldTripAtomicProgressDb.test.ts` executes ingestion-triggered standard
 and Event progress, preference and first-achievement evaluation, receipt replay,
 and an injected Event failure that must roll everything back.
@@ -1227,45 +1219,43 @@ its snapshot items use the created publication ID.
 manually maintained snapshot of the actions emitted by iOS and verifies that
 missing and unknown actions are rejected. It does not parse Swift source, so
 review the client call sites and update both arrays whenever an action is added,
-renamed, or retired.
-`FieldTripCaptureContextModelsTests` covers capture-context decoding, while
-`FieldTripAPIModelsTests` covers the optional completing scan ID used by
-catalog/detail thumbnails, published status, optional removed-item metadata,
-and standard/Event contribution decoding plus typed destinations. A separate
-legacy-payload test ensures absent publication fields decode as Private during
-rollout.
-The progress-response tests cover both the legacy shape and an extended level-
-advancement shape where current counts are `0/N` but credited counts are the
-completed full level. `AchievementToastPresenterTests` covers delayed strict
-ordering, multiple standard/challenge destinations, common-name fallback,
-progress failure, empty matches, completed-level rings, and foreground/background
-scan-ID deduplication. `InsightSheetViewModelTests` covers contribution loading,
-scan-change race rejection, silent error/empty states, queued/unauthenticated/
-non-biological gates, Events filtering, invalidation reload, and root/embedded
-routing in addition to the dictionary eligibility policy.
-`OfflineQueuedScanDeletionTests` verifies normal cancellation removes a goal
-hint while successful scan finalization preserves it until explicit progress
-acknowledgement. `MerianNetworkClientTests` locks the nested snake-case
+renamed, or retired. `FieldTripCaptureContextModelsTests` covers capture-context
+decoding, while `FieldTripAPIModelsTests` covers the optional completing scan ID
+used by catalog/detail thumbnails, published status, optional removed-item
+metadata, and standard/Event contribution decoding plus typed destinations. A
+separate legacy-payload test ensures absent publication fields decode as Private
+during rollout. The progress-response tests cover both the legacy shape and an
+extended level- advancement shape where current counts are `0/N` but credited
+counts are the completed full level. `AchievementToastPresenterTests` covers
+delayed strict ordering, multiple standard/challenge destinations, common-name
+fallback, progress failure, empty matches, completed-level rings, and
+foreground/background scan-ID deduplication. `InsightSheetViewModelTests` covers
+contribution loading, scan-change race rejection, silent error/empty states,
+queued/unauthenticated/ non-biological gates, Events filtering, invalidation
+reload, and root/embedded routing in addition to the dictionary eligibility
+policy. `OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
+goal hint while successful scan finalization preserves it until explicit
+progress acknowledgement. `MerianNetworkClientTests` locks the nested snake-case
 `preferred_goal` ingestion payload; ingestion intent/compatibility/replay Deno
 tests prove the preference survives server-side background reconstruction.
 `ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
 mapping, server-order preservation, typed destinations, bidirectional
 wraparound, completion advancement, account-isolated versioned caching,
 refresh-failure retention, single-fetch coalescing for overlapping startup
-freshness checks, indicator presentation/gesture policy, exact-art
-fallback, user-visibility gating, and focused Explore route compatibility. The
-exact-art test includes the renamed Park **Spider**, **Bird**, and **Meadow
-plant** prompts while retaining aliases for historical publication snapshots.
-Capture preference tests cover visible selected-goal priority across automatic,
+freshness checks, indicator presentation/gesture policy, exact-art fallback,
+user-visibility gating, and focused Explore route compatibility. The exact-art
+test includes the renamed Park **Spider**, **Bird**, and **Meadow plant**
+prompts while retaining aliases for historical publication snapshots. Capture
+preference tests cover visible selected-goal priority across automatic,
 crop-confirmed, and manual camera-still submission. `StagedCaptureTests` locks
 the camera-only media gate so gallery, mixed camera/gallery, audio, video,
 Describe, Record, refinement, and missing selections cannot persist a hint.
 Capture startup diagnostics must also exercise the user-configurable first-mode
 matrix. For each of Camera, Audio, and Description, persist that mode first,
-cold-launch with `AG_PRINT_CYCLES=3`, leave the default page idle long enough for
-initial tasks and sheets to settle, and require no `AttributeGraph: cycle`
-output. Description-first QA must also confirm the question content scrolls,
-the keyboard dismisses on drag, the table-of-contents sheet opens, and dictation
+cold-launch with `AG_PRINT_CYCLES=3`, leave the default page idle long enough
+for initial tasks and sheets to settle, and require no `AttributeGraph: cycle`
+output. Description-first QA must also confirm the question content scrolls, the
+keyboard dismisses on drag, the table-of-contents sheet opens, and dictation
 stops when leaving the mode. Preserve the lazy horizontal pager, the UIKit
 Describe vertical-scroll boundary, workspace-owned lifecycle/sheet state, and
 the fixed capture-bar layout reservation when extending these surfaces.
@@ -1273,16 +1263,16 @@ the fixed capture-bar layout reservation when extending these surfaces.
 launch selection. `testDescribeFirstLaunchRendersAndOpensPrompts` locks the
 Description-first selection, render path, and workspace-owned prompt-sheet
 interaction. It also compares rendered frames: all three Describe controls must
-share a centerline, and the rounded editor must end 8...32 pt above the row.
-The upper bound ensures the flexible editor fills the available page height
-instead of leaving a blank band above the controls.
-The question navigation must also begin 8...32 pt below the mode selector; this
-upper bound catches a duplicated top-safe-area reservation.
-Strict cycle tracing remains a separate diagnostic requirement.
+share a centerline, and the rounded editor must end 8...32 pt above the row. The
+upper bound ensures the flexible editor fills the available page height instead
+of leaving a blank band above the controls. The question navigation must also
+begin 8...32 pt below the mode selector; this upper bound catches a duplicated
+top-safe-area reservation. Strict cycle tracing remains a separate diagnostic
+requirement.
 
-After installing the intended Debug build on a disposable booted simulator,
-run each mode as a separate cold launch. Launch arguments override the stored
-order for that process without changing the simulator's persistent preference:
+After installing the intended Debug build on a disposable booted simulator, run
+each mode as a separate cold launch. Launch arguments override the stored order
+for that process without changing the simulator's persistent preference:
 
 ```bash
 SIMCTL_CHILD_AG_PRINT_CYCLES=3 xcrun simctl launch --terminate-running-process --console booted app.merian.Merian -captureModeOrder visual,audio,describe
@@ -1297,8 +1287,7 @@ hardware. Description-first must render the input, open **Prompts** through
 `DescribePrompts`, scroll vertically, dismiss the keyboard on drag, and stop
 dictation when changing modes. It must also keep the editor clear of the prompt,
 submit, and dictation row rather than letting those controls straddle its bottom
-edge.
-`AppDIContainerTests` verifies the presentation preference defaults on and
+edge. `AppDIContainerTests` verifies the presentation preference defaults on and
 persists an explicit opt-out. `AppTelemetryTests` locks the coarse
 action/source-only event shape and prevents goal content or identifiers from
 entering analytics. UI/device QA must also confirm Dynamic Type, VoiceOver
@@ -1307,14 +1296,13 @@ visibility, and that target swipes do not page capture modes. The architectural
 test obligations for future sources are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
 
-Explore identity database coverage lives in
-`_tests/exploreIdentityDb.test.ts`. It verifies safe identity derivation,
-custom-avatar precedence, ownership repair, a stable row version after a
-converged refresh, and execute privileges limited to `service_role`. The shared
-DB helper may skip only when it is using the absent default local stack. Set
-`SUPABASE_DB_TEST_URL` for CI or release checks; an unreachable explicitly
-configured URL is a test failure, so a successful run proves the test actually
-connected.
+Explore identity database coverage lives in `_tests/exploreIdentityDb.test.ts`.
+It verifies safe identity derivation, custom-avatar precedence, ownership
+repair, a stable row version after a converged refresh, and execute privileges
+limited to `service_role`. The shared DB helper may skip only when it is using
+the absent default local stack. Set `SUPABASE_DB_TEST_URL` for CI or release
+checks; an unreachable explicitly configured URL is a test failure, so a
+successful run proves the test actually connected.
 
 The split release gates have explicit regression coverage.
 `FieldTripsAvailabilityTests` locks standard Field trips on for every account
@@ -1340,8 +1328,8 @@ newly completed items, and credited rings.
 
 Manual completion-evidence QA must use a non-leading checklist item to catch
 count-based slot inference, cover photo and video-poster thumbnails, verify the
-neutral border/no blue completion outline, and open the completed scan from
-both catalog and detail into the embedded Insight route. Back must return to the
+neutral border/no blue completion outline, and open the completed scan from both
+catalog and detail into the embedded Insight route. Back must return to the
 outing, and a locally unavailable scan must preserve the placeholder without
 opening a blank Insight.
 
@@ -1389,11 +1377,10 @@ suite exercises the shared Core policy and both playback surfaces. The
 `insightAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` and
 `exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` tests require live
 player time only when UI intent and the concrete player are both playing, and
-require stored progress while paused, waiting, or seeking.
-The same suite passes `NaN`, infinity, non-positive dimensions, and out-of-range
-progress through `AudioSpectrogramSeekingPolicy` and
-`ExploreDetailZoomLayoutPolicy`; every returned frame/offset must be finite,
-clamped, or absent.
+require stored progress while paused, waiting, or seeking. The same suite passes
+`NaN`, infinity, non-positive dimensions, and out-of-range progress through
+`AudioSpectrogramSeekingPolicy` and `ExploreDetailZoomLayoutPolicy`; every
+returned frame/offset must be finite, clamped, or absent.
 `boostedAudioIsFullyReadableBeforePublication` verifies every rendered frame can
 be reopened and decoded; the source-handoff and failure-recovery tests lock idle
 replacement and last-confirmed-position fallback.
@@ -1419,70 +1406,74 @@ and detail seeking still behaves as documented.
 
 ### `validate_edge_dtos.ts`
 
-- **Canonical AST source**: The validator reads
-  `services/supabase/functions/_shared/identify/schema.ts`, locates the exported
-  `getMerianResponseSchema` factory with the pinned TypeScript compiler AST, and
-  resolves local identifiers through the compiler `TypeChecker`, returned
-  object literals, and property spreads such as `...sharedProperties()`.
-  Lexical symbols—not a global name table—own every value lookup; ambiguous
-  declarations and unsupported aliases fail closed. It also walks nested
-  `properties`, array `items`, required arrays and their spreads. Schema
-  composition fails closed until the structural compatibility model explicitly
-  supports it. The tool must not infer the schema by scanning an Edge entrypoint
-  or by matching source text with a regular expression.
-- **Fail-closed assurance**: The production policy requires at least 30 unique
-  schema properties, 20 top-level schema properties, 34 direct Swift
-  `EdgeResponse` properties, and the required biological, identity, candidate,
-  quality, pet, and interaction sentinels. Zero fields, a count below any floor,
-  an unresolved properties object, a missing sentinel, or an unsupported
-  property-map member fails validation before the DTO diff can pass. If the
-  canonical contract intentionally becomes smaller, update the schema, policy
-  floor, regression fixture, and this documentation in the same review.
-- **Structural compatibility**: Every generated client-visible field must
-  resolve to a Swift property through its declaration or an active
-  `CodingKey`. Primitive and array types must match recursively. A non-optional
-  Swift property is legal only when the schema field is required and non-null;
-  Swift may otherwise be more permissive by decoding a guaranteed value
-  optionally. The validator also rejects non-optional nested Swift properties
-  that disappeared from their schema object. Any optional Swift-only field in a
-  schema-backed object must likewise be listed as an intentional server-added
-  path; this records request telemetry, cache hydration, and post-model
-  enrichment as explicit protocol decisions instead of validator blind spots.
-  Ordinary synthesized `CodingKeys` aliases are resolved structurally. The
-  declaration parser remains isolated to `InferenceEdgeDTOs.swift`, while a
-  balanced-token scan of every production iOS Swift file finds extensions
-  targeting any schema-backed DTO. A custom `init(from:)` in either the
-  declaration or an extension fails closed because arbitrary decoder data flow
-  cannot be proven; coding-key enums declared in extensions likewise fail until
-  their semantics are explicitly modeled. Comments, ordinary/multiline strings,
-  and raw strings are masked before extension discovery. Keep wire DTOs,
-  including `PetIdentificationDTO`, inside `InferenceEdgeDTOs.swift` and map
-  them into domain models after decoding. Every `INTEGER` and `NUMBER` schema
-  must declare finite `minimum` and `maximum` bounds. Integer bounds must be
-  JavaScript-safe and fit the selected signed/unsigned Swift type; JSON
-  `NUMBER` maps only to Swift `Double`, avoiding silent Float, CGFloat, or
-  Decimal narrowing. `ai_reasoning` and
-  `extracted_visual_traits` are explicit top-level schema exceptions: reasoning
-  is delivered to iOS under `insight_data`, while visual traits are retained
-  server-side. Additions to either exception set require a documented protocol
-  decision.
+- **Canonical executable source**:
+  `services/supabase/functions/_shared/identify/contract.ts` is a
+  dependency-free typed descriptor for the provider output and complete final
+  `{ success, data }` response. Provider schemas, deployed TypeScript payload
+  types, recursive runtime parsers, and generated Swift DTOs all consume this
+  descriptor. There is no source-text inference, global identifier map,
+  TypeScript symbol lookup, or Swift declaration parser to silently bind to the
+  wrong declaration.
+- **Typed provider seam**: `_shared/identify/googleSchema.ts` recursively adapts
+  the provider-neutral projection to the pinned `@google/genai` `Schema`. Every
+  SDK schema field is structurally checked at compile time; only the SDK's
+  string-enum `type` representation crosses one narrow cast. The SDK import is
+  type-only, so schema validation does not gain environment permissions or
+  provider startup side effects.
+- **Runtime assurance**: The provider result is parsed against the model
+  contract immediately after JSON extraction. After name normalization, cache
+  hydration, candidate enrichment, and server-added fields, the full response
+  envelope is parsed again before persistence or delivery. Parsing recursively
+  checks nested objects, arrays, requiredness, nullability, enums, unknown-key
+  policy, string and array limits, safe integer semantics, and finite numeric
+  bounds. Describe additionally enforces `is_live_capture=false` and zero image
+  quality, while every successful final envelope enforces `success=true` and its
+  always-emitted core fields. A final contract failure logs internal detail but
+  returns only HTTP `502` with `code: "identify_response_invalid"`.
+- **Generated Swift boundary**: `validate_edge_dtos.ts` deterministically
+  generates the marked Identify DTO block in `InferenceEdgeDTOs.swift`.
+  Generated structs own their types, nested structure, explicit `CodingKeys`,
+  and explicit `init(from:)`; the gate compares that block byte-for-byte with
+  the contract output. Because decoding is declared in the generated type, an
+  extension cannot silently replace it. The ownership scan also gives an early,
+  focused error for direct or aliased extensions and top-level generated DTO
+  redeclarations anywhere under `apps/ios`. Keep wire DTOs, including
+  `PetIdentificationDTO`, in the generated block and map them into domain models
+  after decoding.
+- **Compatibility and numbers**: The final server contract is strict. Root Swift
+  response properties are intentionally generated as optional so older cached
+  responses and staggered client/server rollouts continue to decode. Every
+  numeric node declares bounds that are enforced in the Edge runtime; integer
+  values must be safe JavaScript integers and generate signed Swift `Int`, while
+  JSON numbers generate Swift `Double`. Narrow integer and floating-point DTOs
+  are not inferred from spelling or nominal range. `ai_reasoning` and
+  `extracted_visual_traits` are intentional server-only fields: iOS receives
+  reasoning under `insight_data` and does not decode retained visual traits.
 - **CI gates**: `deploy.yml` invokes the complete discovery-based
   `test_supabase_tooling.sh` suite before any migration or Edge deployment,
   while `ios-project-guardrails.yml` invokes the isolated
   `validate_edge_dto_contract.sh` lane for every iOS source change. Both run the
-  focused validator regression and the real repository comparison. The read
-  allowlist includes the production iOS source root so extensions outside the
-  declaration file are covered. Shared-schema/tooling changes trigger both
-  lanes; arbitrary app Swift changes trigger the lightweight iOS guardrail
-  without initiating a production backend deployment. The tool has a separate
-  frozen Deno config/lock so the
-  TypeScript compiler is a CI-only dependency and cannot enter a deployable
-  Edge Function graph.
+  adversarial generator regression tests, the exact checked-in comparison, and
+  deployed runtime-contract tests. The read allowlist includes the complete
+  `apps/ios` tree and asserts every current production source root is present.
+  Shared-contract/tooling changes trigger both lanes; arbitrary app Swift
+  changes trigger the lightweight iOS guardrail without initiating a backend
+  deployment. The validator uses a separate frozen, third-party-free Deno config
+  and lock.
+- **Route integration coverage**: `_tests/identifyContractCoverage.test.ts`
+  proves every Identify entrypoint parses the provider's unknown JSON, performs
+  the final envelope parse before persistence/finalization, settles a charged
+  invalid response as failed, and returns only the parsed envelope with the
+  stable public error code.
+- **Intentional changes**: Edit `contract.ts`, run
+  `make generate-edge-dto-contract`, review the Swift code-generation diff, and
+  run `make validate-edge-dto-contract`. Do not hand-edit the generated block.
+  Tests must accompany any new server-only field or source-root policy change.
 - **Enrich response coverage**: `EnrichData.similar_species` and
   `SimilarSpeciesEntry` are a separate endpoint contract. Their additive
-  metadata and legacy decoding behavior are covered by
-  `InferenceEngineTests`, `MerianNetworkClientTests`, and the focused
-  `enrich-scan` Deno tests rather than this Identify schema validator.
+  metadata and legacy decoding behavior are covered by `InferenceEngineTests`,
+  `MerianNetworkClientTests`, and the focused `enrich-scan` Deno tests rather
+  than this Identify schema validator.
 - **Lookalike relation metadata**: Swift and Deno tests cover the additive
   `reason`, `visual_traits`, `confidence`, source/review, direction, and order
   fields. Older payloads and cached `lookalikesData` blobs without those keys
@@ -1508,13 +1499,12 @@ and detail seeking still behaves as documented.
   `_shared/publicSpeciesProjection_test.ts` covers normalized, legacy, and
   first-image promotion; and `refresh-species-content/db.test.ts` verifies
   neither cache nor normalized RPC writes receive the denied media.
-- **Current-scan reference-image exclusion**:
-  `InsightSheetViewModelTests` verifies Naturebook host/object-path matching,
-  strict external URL identity, corrected page counts, shared inline/fullscreen
-  ordering, preservation of other-scan and Wikipedia references, and
-  `.loaded`-to-`.empty` normalization for all-duplicate sets.
-  `MerianNetworkClientTests` verifies Explore reference attribution survives
-  client-side filtering. On the backend,
+- **Current-scan reference-image exclusion**: `InsightSheetViewModelTests`
+  verifies Naturebook host/object-path matching, strict external URL identity,
+  corrected page counts, shared inline/fullscreen ordering, preservation of
+  other-scan and Wikipedia references, and `.loaded`-to-`.empty` normalization
+  for all-duplicate sets. `MerianNetworkClientTests` verifies Explore reference
+  attribution survives client-side filtering. On the backend,
   `_tests/migrationMediaContract.test.ts` locks the helper and unchanged RPC
   projection contract, while `_tests/explorePostDetailDb.test.ts` covers exact
   current-scan exclusion, other-scan preservation, ordered external references,
@@ -1527,11 +1517,11 @@ and detail seeking still behaves as documented.
 - **Public species URL compatibility**: `apps/web/lib/species.test.ts` verifies
   lowercase ASCII slug generation, common/scientific/generic fallbacks, the
   80-character bound, canonical UUID-plus-slug paths, UUID-only and stale-slug
-  redirect decisions, UUID validation, native UUID URLs, metadata, and the
-  exact AASA path list. `SpeciesDictionaryTests` locks the same canonical iOS
-  share URL and slug rules, while `MessageScanShareCacheTests` verifies
-  canonical, UUID-only, stale-slug, legacy-host, and custom-scheme parsing all
-  produce only the normalized UUID.
+  redirect decisions, UUID validation, native UUID URLs, metadata, and the exact
+  AASA path list. `SpeciesDictionaryTests` locks the same canonical iOS share
+  URL and slug rules, while `MessageScanShareCacheTests` verifies canonical,
+  UUID-only, stale-slug, legacy-host, and custom-scheme parsing all produce only
+  the normalized UUID.
 - **Species content provenance contract**:
   `_shared/speciesContentProvenance_test.ts` verifies source assignment and
   refresh windows for dictionary fields, group tags, and lookalikes. It should
@@ -1546,8 +1536,8 @@ and detail seeking still behaves as documented.
 - **Scheduled species model-content worker**:
   `refresh-species-model-content/db.test.ts` verifies request validation,
   service-role job claiming, habitat/lookalike/group-tag persistence, and
-  provenance/job completion behavior with a mocked Supabase client. It should
-  be updated whenever the model-heavy `content_group` set or retry semantics
+  provenance/job completion behavior with a mocked Supabase client. It should be
+  updated whenever the model-heavy `content_group` set or retry semantics
   change.
 - **Species dictionary enrichment migration contract**:
   `_tests/speciesContentMigrationContract.test.ts` reads
@@ -1639,8 +1629,8 @@ The surrounding export suite is intentionally split by boundary:
   contract against local Postgres.
 - `tests/export_dwca_snapshot_security.sql` independently proves job insertion
   freezes membership, later scans stay excluded, changed privacy, taxonomy, or
-  multimedia revisions return no payload, snapshot routines pass static
-  PL/pgSQL validation, and a terminal job purges membership.
+  multimedia revisions return no payload, snapshot routines pass static PL/pgSQL
+  validation, and a terminal job purges membership.
   `privileged_routine_security.sql` independently runs static
   PL/pgSQL/search-path/grant validation over the new definer RPCs.
 
@@ -1673,8 +1663,8 @@ The surrounding export suite is intentionally split by boundary:
 - **`_tests/revenueCatWebhookMigrationContract.test.ts`**: Static SQL contract
   for the unique event ledger, per-event subject table, ordering watermark,
   snapshot-primary ordering, deterministic multi-user row locks, durable
-  reconciliation queue/leases/backoff, expired-claim partial index,
-  oldest-due health RPC, 15-minute cron timeout, service-only
+  reconciliation queue/leases/backoff, expired-claim partial index, oldest-due
+  health RPC, 15-minute cron timeout, service-only
   duplicate/mutation/reconciliation RPCs, RLS, and explicit revocations.
 - **`reconcile-revenuecat-subscribers/db_test.ts`**: Validates each bounded
   claim wave and rejects malformed or inconsistent queue-health responses.
@@ -1686,16 +1676,15 @@ The surrounding export suite is intentionally split by boundary:
 - **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
   minute age thresholds, expired-lease warning, fail policy, response schema,
   CLI safety, and operator summary.
-- **`tests/revenuecat_webhook_security.sql`**: Executable pgTAP coverage for ACLs,
-  direct-table isolation, duplicate delivery, a delayed expiration after
+- **`tests/revenuecat_webhook_security.sql`**: Executable pgTAP coverage for
+  ACLs, direct-table isolation, duplicate delivery, a delayed expiration after
   renewal, a delayed purchase after refund, snapshot-primary ordering,
   reconciliation claim/application fencing, indexed expired-lease reclamation,
-  backlog-health telemetry, event-ID/payload conflict, atomic
-  transfer of source and destination, a deleted transfer source with a live
-  destination, ambiguous-alias rejection, missing-user failure, and
-  entitlement-version advancement. Keep this test in the
-  disposable-database deployment gate alongside
-  `privileged_routine_security.sql` and `ai_quota_security.sql`.
+  backlog-health telemetry, event-ID/payload conflict, atomic transfer of source
+  and destination, a deleted transfer source with a live destination,
+  ambiguous-alias rejection, missing-user failure, and entitlement-version
+  advancement. Keep this test in the disposable-database deployment gate
+  alongside `privileged_routine_security.sql` and `ai_quota_security.sql`.
 
 ### `sync-collections/db_test.ts`
 
@@ -1710,8 +1699,8 @@ The surrounding export suite is intentionally split by boundary:
 ### `_shared/entitlement_test.ts` and `_shared/aiQuota_test.ts`
 
 These replace the former worker-cache tests. Entitlement tests must prove every
-call observes durable database state and never upgrades a query error or
-missing profile. Quota helper tests must keep request IDs bounded to UUIDs,
-protect raw network addresses with a strong rotating HMAC, and fail closed when
+call observes durable database state and never upgrades a query error or missing
+profile. Quota helper tests must keep request IDs bounded to UUIDs, protect raw
+network addresses with a strong rotating HMAC, and fail closed when
 configuration is missing. Database atomicity and ACL behavior belong in
 `tests/ai_quota_security.sql`, not a mocked TypeScript client.

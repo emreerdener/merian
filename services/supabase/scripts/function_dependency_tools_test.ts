@@ -6,6 +6,7 @@ import {
 import {
   buildAllFunctionGraphs,
   configuredFunctionNames,
+  importedSpecifiers,
   planAffectedFunctions,
   supabaseRoot,
 } from "./function_dependency_tools.ts";
@@ -14,6 +15,19 @@ const graphs = await buildAllFunctionGraphs();
 const configuredFunctions = configuredFunctionNames(
   await Deno.readTextFile(join(supabaseRoot, "config.toml")),
 );
+
+Deno.test("deployment graphs ignore erased type-only edges", () => {
+  assertEquals(
+    importedSpecifiers(`
+      import type { CompileOnly } from "./compile-only.ts";
+      export type { ReExported } from "./re-exported.ts";
+      import { runtimeValue } from "./runtime.ts";
+      import "./side-effect.ts";
+      const lazy = import("./dynamic.ts");
+    `).sort(),
+    ["./dynamic.ts", "./runtime.ts", "./side-effect.ts"],
+  );
+});
 
 Deno.test("every configured Edge Function has a discoverable graph", () => {
   assertEquals(
@@ -29,6 +43,15 @@ Deno.test("route-local changes deploy only that route", () => {
       "services/supabase/functions/identify-multimodal/index.ts",
     ], graphs),
     ["identify-multimodal"],
+  );
+});
+
+Deno.test("Identify contract changes deploy every and only Identify consumer", () => {
+  assertEquals(
+    planAffectedFunctions([
+      "services/supabase/functions/_shared/identify/contract.ts",
+    ], graphs),
+    ["identify", "identify-describe", "identify-multimodal"],
   );
 });
 
