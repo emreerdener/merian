@@ -58,19 +58,46 @@ permissions:
 
 jobs:
   startup-store-recovery:
-    runs-on: macos-latest
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 2
+          persist-credentials: false
+
+      - name: Initialize runner-local startup paths
+        run: |
+          : "${GITHUB_WORKSPACE:?Missing GITHUB_WORKSPACE}"
+          : "${RUNNER_TEMP:?Missing RUNNER_TEMP}"
+          {
+            echo "SWIFT_PACKAGE_CLONES=$GITHUB_WORKSPACE/.build/xcode-source-packages"
+            echo "SWIFT_PACKAGE_CACHE=$RUNNER_TEMP/startup-safety-package-cache"
+          } >> "$GITHUB_ENV"
 
       - name: Summarize workflow context
         env:
           WORKFLOW_PURPOSE: "Focused iOS startup and SwiftData migration safety on macOS."
           WORKFLOW_REASON: "Runs for startup/schema/recovery/project changes, manual dispatch, and a daily scheduled drift check. It is not part of the Supabase backend deployment gate."
         run: bash scripts/ci-run-summary.sh
+
+      - name: Verify pinned Xcode toolchain
+        run: |
+          if [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ]; then
+            echo "Pinned Xcode is unavailable at $DEVELOPER_DIR." >&2
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          xcodebuild -version
+          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 26.6" ]; then
+            echo "Startup Safety requires Xcode 26.6." >&2
+            exit 1
+          fi
+          command -v jq >/dev/null
 
       - name: Validate generated project guardrails
         run: make validate-ios-project
@@ -88,9 +115,40 @@ jobs:
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-xcode-spm-
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-26.6-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Resolve only Package.resolved versions
+        if: steps.startup-scope.outputs.should_run == 'true'
+        timeout-minutes: 10
+        env:
+          XCODE_PACKAGE_LOG: ${{ runner.temp }}/startup-safety-package-resolution.log
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          package_resolved="$xcode_project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -s "$package_resolved" ] \
+            || ! jq -e '(.pins | type) == "array" and (.pins | length) > 0' \
+              "$package_resolved" >/dev/null; then
+            echo "A non-empty checked-in Package.resolved is required." >&2
+            exit 1
+          fi
+          xcodebuild -resolvePackageDependencies \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackageUpdates \
+            2>&1 | tee "$XCODE_PACKAGE_LOG"
+          if ! git diff --quiet -- "$package_resolved"; then
+            echo "Package resolution modified the checked-in lockfile." >&2
+            git diff -- "$package_resolved"
+            exit 1
+          fi
 
       - name: Select iOS test simulator
         if: steps.startup-scope.outputs.should_run == 'true'
@@ -116,7 +174,9 @@ jobs:
             -scheme Merian \
             -project "$xcode_project" \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
-            -clonedSourcePackagesDirPath .build/xcode-source-packages \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
             -skipPackageUpdates \
             -disableAutomaticPackageResolution \
             -derivedDataPath "$XCODE_DERIVED_DATA" \
@@ -139,7 +199,9 @@ jobs:
             -scheme Merian \
             -project "$xcode_project" \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
-            -clonedSourcePackagesDirPath .build/xcode-source-packages \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
             -skipPackageUpdates \
             -disableAutomaticPackageResolution \
             -derivedDataPath "$XCODE_DERIVED_DATA" \
@@ -150,11 +212,11 @@ jobs:
             2>&1 | tee -a "$XCODE_BUILD_LOG"
 
       - name: Save Swift package checkouts
-        if: always() && steps.startup-scope.outputs.should_run == 'true' && steps.swift-package-cache.outputs.cache-hit != 'true'
+        if: steps.startup-scope.outputs.should_run == 'true' && steps.swift-package-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-26.6-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Print startup safety failure summary
         if: failure() && steps.startup-scope.outputs.should_run == 'true'
@@ -256,5 +318,6 @@ jobs:
             ${{ runner.temp }}/startup-safety.xcresult
             ${{ runner.temp }}/startup-safety-test-summary.json
             ${{ runner.temp }}/startup-safety-xcodebuild.log
+            ${{ runner.temp }}/startup-safety-package-resolution.log
             ${{ runner.temp }}/startup-safety-build-diagnostics.txt
           if-no-files-found: ignore

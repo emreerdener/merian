@@ -308,7 +308,7 @@ cleanup, and removes login access only after database cleanup is verified.
 | Email Services | Resend |
 
 **Minimum deployment target**: iOS 17.2
-**Current schema**: MerianSchemaV45
+**Current schema**: MerianSchemaV50
 
 ---
 
@@ -316,7 +316,7 @@ cleanup, and removes login access only after database cleanup is verified.
 
 ### Prerequisites
 - macOS 14+
-- Xcode 16+ for Swift 6-era concurrency checks
+- Xcode 26.6 to match compiled CI and Release archive validation
 - `xcodegen` (`brew install xcodegen`)
 - Supabase CLI
 
@@ -334,6 +334,12 @@ open Merian.xcodeproj
 Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple Developer Team ID before opening the project. This file is ignored by git so your local signing choice survives `xcodegen generate`.
 
 `Merian.xcodeproj` is committed for convenience, but `project.yml` remains the source of truth. Regenerate the project after target, package, build setting, entitlement, or source-group changes.
+
+Pull requests report the stable
+`iOS Build and Test / Production readiness` check. Relevant iOS, watch,
+project, configuration, and build-tooling changes must pass the complete
+`merianTests` target and an unsigned Release archive from the exact workflow
+SHA before shipping.
 
 Configure the required app-facing client config in `Config.xcconfig` or ignored
 local overrides in `Config.local.xcconfig`. Public client values like

@@ -39,6 +39,7 @@ fi
 
 is_startup_runtime_file() {
   case "$1" in
+    .github/workflows/ios-startup-safety.yml | \
     project.yml | \
     Merian.xcodeproj/* | \
     merian.xcodeproj/* | \

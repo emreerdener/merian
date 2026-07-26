@@ -1,0 +1,704 @@
+name: iOS Build and Test
+
+on:
+  # Report the final gate for every pull request so repository rules can require
+  # it safely. The scope job skips expensive macOS work for unrelated changes.
+  pull_request:
+  push:
+    branches:
+      - main
+  merge_group:
+    types:
+      - checks_requested
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build-and-test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    name: Determine iOS build scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.ios-scope.outputs.should_run }}
+      reason: ${{ steps.ios-scope.outputs.reason }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # The detector compares the complete event range rather than relying
+          # on GitHub's 300-file path-filter window.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Summarize workflow context
+        env:
+          WORKFLOW_PURPOSE: "Compile and execute the complete iOS unit-test target, then produce a validation-only Release archive from the exact workflow SHA."
+          WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
+        run: bash scripts/ci-run-summary.sh
+
+      - name: Determine iOS macOS scope
+        id: ios-scope
+        run: bash scripts/ci-detect-ios-build-source-changes.sh
+
+  ios-unit-tests:
+    name: Full iOS unit tests
+    needs: scope
+    if: needs.scope.outputs.should_run == 'true'
+    runs-on: macos-26
+    timeout-minutes: 65
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+    steps:
+      - name: Checkout exact workflow SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Initialize runner-local unit-test paths
+        run: |
+          : "${GITHUB_WORKSPACE:?Missing GITHUB_WORKSPACE}"
+          : "${RUNNER_TEMP:?Missing RUNNER_TEMP}"
+          {
+            echo "SWIFT_PACKAGE_CLONES=$GITHUB_WORKSPACE/.build/xcode-source-packages"
+            echo "SWIFT_PACKAGE_CACHE=$RUNNER_TEMP/ios-unit-package-cache"
+            echo "XCODE_DERIVED_DATA=$RUNNER_TEMP/ios-unit-derived-data"
+            echo "XCODE_RESULT_BUNDLE=$RUNNER_TEMP/ios-unit-tests.xcresult"
+            echo "XCODE_BUILD_LOG=$RUNNER_TEMP/ios-unit-xcodebuild.log"
+            echo "XCODE_PACKAGE_LOG=$RUNNER_TEMP/ios-unit-package-resolution.log"
+            echo "XCODE_TEST_SUMMARY=$RUNNER_TEMP/ios-unit-test-summary.json"
+            echo "XCODE_TEST_TREE=$RUNNER_TEMP/ios-unit-test-tree.json"
+            echo "XCODE_EVIDENCE=$RUNNER_TEMP/ios-unit-test-evidence.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify exact source revision
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$GITHUB_SHA" ]; then
+            echo "Expected workflow SHA $GITHUB_SHA, checked out $actual_sha." >&2
+            exit 1
+          fi
+          if ! git diff --quiet --ignore-submodules --; then
+            echo "Checkout is dirty before the iOS build." >&2
+            git status --short
+            exit 1
+          fi
+          echo "Verified source revision $actual_sha"
+
+      - name: Verify pinned Xcode toolchain
+        run: |
+          if [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ]; then
+            echo "Pinned Xcode is unavailable at $DEVELOPER_DIR." >&2
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          xcodebuild -version | tee "${RUNNER_TEMP}/ios-unit-xcode-version.txt"
+          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 26.6" ]; then
+            echo "This gate requires Xcode 26.6." >&2
+            exit 1
+          fi
+          command -v jq >/dev/null
+          sw_vers
+          df -h "$RUNNER_TEMP"
+
+      - name: Verify generated project source membership
+        run: |
+          bash scripts/test-ios-project-source-membership.sh
+          bash scripts/check-ios-project-source-membership.sh
+
+      - name: Restore locked Swift package checkouts
+        id: swift-package-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-26.6-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Resolve only Package.resolved versions
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          package_resolved="$xcode_project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -s "$package_resolved" ] \
+            || ! jq -e '(.pins | type) == "array" and (.pins | length) > 0' \
+              "$package_resolved" >/dev/null; then
+            echo "A non-empty checked-in Package.resolved is required." >&2
+            exit 1
+          fi
+          xcodebuild -resolvePackageDependencies \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackageUpdates \
+            2>&1 | tee "$XCODE_PACKAGE_LOG"
+          if ! git diff --quiet -- "$package_resolved"; then
+            echo "Package resolution modified the checked-in lockfile." >&2
+            git diff -- "$package_resolved"
+            exit 1
+          fi
+
+      - name: Save locked Swift package checkouts
+        if: steps.swift-package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-26.6-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Select current iOS simulator
+        id: ios-test-simulator
+        run: |
+          destination="$(bash scripts/select-ios-simulator-destination.sh)"
+          echo "destination=${destination}" >> "$GITHUB_OUTPUT"
+          echo "Selected ${destination}"
+
+      - name: Compile app and shared test targets
+        timeout-minutes: 25
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          xcodebuild build-for-testing \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -configuration Debug \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            -only-testing:merianTests \
+            -only-testing:merianUITests \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee "$XCODE_BUILD_LOG"
+
+      - name: Run complete unit-test target
+        id: xcode-tests
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          xcodebuild test-without-building \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -configuration Debug \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            -resultBundlePath "$XCODE_RESULT_BUNDLE" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianTests \
+            2>&1 | tee -a "$XCODE_BUILD_LOG"
+
+      - name: Validate and summarize unit-test execution
+        if: always()
+        env:
+          TEST_STEP_OUTCOME: ${{ steps.xcode-tests.outcome }}
+          IOS_TEST_DESTINATION: ${{ steps.ios-test-simulator.outputs.destination }}
+        run: |
+          summary_available="false"
+          test_tree_available="false"
+          if [ -d "$XCODE_RESULT_BUNDLE" ] \
+            && xcrun xcresulttool get test-results summary \
+              --path "$XCODE_RESULT_BUNDLE" > "$XCODE_TEST_SUMMARY"; then
+            summary_available="true"
+          fi
+          if [ -d "$XCODE_RESULT_BUNDLE" ] \
+            && xcrun xcresulttool get test-results tests \
+              --path "$XCODE_RESULT_BUNDLE" > "$XCODE_TEST_TREE"; then
+            test_tree_available="true"
+          fi
+
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg destination "${IOS_TEST_DESTINATION:-unavailable}" \
+            --arg outcome "${TEST_STEP_OUTCOME:-unknown}" \
+            --arg xcode "$(xcodebuild -version 2>/dev/null | paste -sd ' ' - || true)" \
+            '{
+              source_sha: $sha,
+              event: $event,
+              simulator_destination: $destination,
+              test_step_outcome: $outcome,
+              xcode: $xcode
+            }' > "$XCODE_EVIDENCE"
+
+          {
+            echo ""
+            echo "### Full iOS unit-test gate"
+            echo ""
+            echo "- Source SHA: \`$GITHUB_SHA\`"
+            echo "- Xcode step: \`${TEST_STEP_OUTCOME:-unknown}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$summary_available" == "true" ]; then
+            jq -r '
+              [
+                "- Result: `\(.result)`",
+                "- Passed: `\(.passedTests // 0)`",
+                "- Failed: `\(.failedTests // 0)`",
+                "- Skipped: `\(.skippedTests // 0)`"
+              ] | .[]
+            ' "$XCODE_TEST_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Result bundle summary: unavailable" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "${TEST_STEP_OUTCOME:-unknown}" == "success" ]; then
+            if [ "$summary_available" != "true" ]; then
+              echo "xcodebuild succeeded without a readable result summary." >&2
+              exit 1
+            fi
+            if [ "$test_tree_available" != "true" ]; then
+              echo "xcodebuild succeeded without a readable test tree." >&2
+              exit 1
+            fi
+            bash scripts/validate-ios-critical-test-results.sh \
+              "$XCODE_TEST_SUMMARY" \
+              "$XCODE_TEST_TREE"
+          fi
+
+      - name: Print unit-test failure diagnostics
+        if: failure()
+        run: |
+          diagnostics="${RUNNER_TEMP}/ios-unit-test-diagnostics.txt"
+          if [ -f "$XCODE_BUILD_LOG" ]; then
+            grep -E \
+              "error:|fatal error:|xcodebuild: error|Test Case .* failed|The following build commands failed|\\([0-9]+ failures\\)" \
+              "$XCODE_BUILD_LOG" > "$diagnostics" || true
+            if [ ! -s "$diagnostics" ]; then
+              tail -n 160 "$XCODE_BUILD_LOG" > "$diagnostics"
+            fi
+          else
+            echo "No xcodebuild log was produced." > "$diagnostics"
+          fi
+          {
+            echo ""
+            echo "#### Unit-test diagnostics"
+            echo ""
+            echo '```text'
+            head -n 160 "$diagnostics"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload unit-test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-unit-test-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-unit-test-evidence.json
+            ${{ runner.temp }}/ios-unit-test-summary.json
+            ${{ runner.temp }}/ios-unit-test-tree.json
+            ${{ runner.temp }}/ios-unit-xcode-version.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload unit-test failure bundle
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-unit-test-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-unit-tests.xcresult
+            ${{ runner.temp }}/ios-unit-xcodebuild.log
+            ${{ runner.temp }}/ios-unit-package-resolution.log
+            ${{ runner.temp }}/ios-unit-test-tree.json
+            ${{ runner.temp }}/ios-unit-test-diagnostics.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  ios-release-archive:
+    name: Current-SHA Release archive
+    needs: scope
+    if: needs.scope.outputs.should_run == 'true'
+    runs-on: macos-26
+    timeout-minutes: 70
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+    steps:
+      - name: Checkout exact workflow SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Initialize runner-local archive paths
+        run: |
+          : "${GITHUB_WORKSPACE:?Missing GITHUB_WORKSPACE}"
+          : "${RUNNER_TEMP:?Missing RUNNER_TEMP}"
+          {
+            echo "SWIFT_PACKAGE_CLONES=$GITHUB_WORKSPACE/.build/xcode-source-packages"
+            echo "SWIFT_PACKAGE_CACHE=$RUNNER_TEMP/ios-archive-package-cache"
+            echo "XCODE_DERIVED_DATA=$RUNNER_TEMP/ios-archive-derived-data"
+            echo "XCODE_ARCHIVE=$RUNNER_TEMP/Merian.xcarchive"
+            echo "XCODE_RESULT_BUNDLE=$RUNNER_TEMP/ios-release-archive.xcresult"
+            echo "XCODE_BUILD_LOG=$RUNNER_TEMP/ios-release-archive-xcodebuild.log"
+            echo "XCODE_PACKAGE_LOG=$RUNNER_TEMP/ios-archive-package-resolution.log"
+            echo "XCODE_EVIDENCE=$RUNNER_TEMP/ios-release-archive-evidence.json"
+            echo "IOS_RELEASE_PREP_MARKER=$RUNNER_TEMP/ios-ci-release-prep.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify exact source revision
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$GITHUB_SHA" ]; then
+            echo "Expected workflow SHA $GITHUB_SHA, checked out $actual_sha." >&2
+            exit 1
+          fi
+          if ! git diff --quiet --ignore-submodules --; then
+            echo "Checkout is dirty before the Release archive." >&2
+            git status --short
+            exit 1
+          fi
+          echo "Verified source revision $actual_sha"
+
+      - name: Verify pinned Xcode toolchain
+        run: |
+          if [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ]; then
+            echo "Pinned Xcode is unavailable at $DEVELOPER_DIR." >&2
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          xcodebuild -version | tee "${RUNNER_TEMP}/ios-archive-xcode-version.txt"
+          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 26.6" ]; then
+            echo "This gate requires Xcode 26.6." >&2
+            exit 1
+          fi
+          command -v jq >/dev/null
+          sw_vers
+          df -h "$RUNNER_TEMP"
+
+      - name: Restore locked Swift package checkouts
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-26.6-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Resolve only Package.resolved versions
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          package_resolved="$xcode_project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -s "$package_resolved" ] \
+            || ! jq -e '(.pins | type) == "array" and (.pins | length) > 0' \
+              "$package_resolved" >/dev/null; then
+            echo "A non-empty checked-in Package.resolved is required." >&2
+            exit 1
+          fi
+          xcodebuild -resolvePackageDependencies \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackageUpdates \
+            2>&1 | tee "$XCODE_PACKAGE_LOG"
+          if ! git diff --quiet -- "$package_resolved"; then
+            echo "Package resolution modified the checked-in lockfile." >&2
+            git diff -- "$package_resolved"
+            exit 1
+          fi
+
+      - name: Create validation-only release marker
+        run: |
+          project_version="$(
+            awk '$1 == "MARKETING_VERSION:" { print $2; exit }' project.yml
+          )"
+          project_build="$(
+            awk '$1 == "CURRENT_PROJECT_VERSION:" { print $2; exit }' project.yml
+          )"
+          if [ -z "$project_version" ] || ! [[ "$project_build" =~ ^[0-9]+$ ]]; then
+            echo "Could not resolve the checked-in iOS version/build." >&2
+            exit 1
+          fi
+          jq -n \
+            --arg version "$project_version" \
+            --argjson build "$project_build" \
+            --arg source_sha "$GITHUB_SHA" \
+            '{
+              version: $version,
+              build: $build,
+              source_sha: $source_sha,
+              ci_validation_only: true
+            }' > "$IOS_RELEASE_PREP_MARKER"
+
+      - name: Archive unsigned Release from current SHA
+        id: xcode-archive
+        timeout-minutes: 38
+        env:
+          MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY: "1"
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          xcodebuild archive \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$XCODE_ARCHIVE" \
+            -resultBundlePath "$XCODE_RESULT_BUNDLE" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee "$XCODE_BUILD_LOG"
+
+      - name: Verify Release archive structure and dSYM
+        run: |
+          archive_info="$XCODE_ARCHIVE/Info.plist"
+          if [ ! -f "$archive_info" ]; then
+            echo "Archive Info.plist is missing." >&2
+            exit 1
+          fi
+          application_path="$(
+            /usr/libexec/PlistBuddy \
+              -c "Print :ApplicationProperties:ApplicationPath" \
+              "$archive_info"
+          )"
+          app_path="$XCODE_ARCHIVE/Products/$application_path"
+          app_info="$app_path/Info.plist"
+          main_binary="$app_path/Merian"
+          main_dsym="$XCODE_ARCHIVE/dSYMs/Merian.app.dSYM"
+          main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"
+
+          for required_path in \
+            "$app_info" \
+            "$main_binary" \
+            "$main_dsym" \
+            "$main_dsym_binary" \
+            "$app_path/PlugIns/MerianExploreWidget.appex" \
+            "$app_path/PlugIns/MerianMessagesExtension.appex" \
+            "$app_path/Watch/MerianWatch.app"; do
+            if [ ! -e "$required_path" ]; then
+              echo "Release archive is missing $required_path." >&2
+              exit 1
+            fi
+          done
+
+          project_version="$(
+            awk '$1 == "MARKETING_VERSION:" { print $2; exit }' project.yml
+          )"
+          project_build="$(
+            awk '$1 == "CURRENT_PROJECT_VERSION:" { print $2; exit }' project.yml
+          )"
+          archive_version="$(
+            /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app_info"
+          )"
+          archive_build="$(
+            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$app_info"
+          )"
+          if [ "$archive_version" != "$project_version" ] \
+            || [ "$archive_build" != "$project_build" ]; then
+            echo "Archive is ${archive_version} (${archive_build}); project.yml is ${project_version} (${project_build})." >&2
+            exit 1
+          fi
+
+          app_uuids="${RUNNER_TEMP}/ios-release-app-uuids.txt"
+          dsym_uuids="${RUNNER_TEMP}/ios-release-dsym-uuids.txt"
+          dwarfdump --uuid "$main_binary" \
+            | awk '{ print $2 }' \
+            | sort > "$app_uuids"
+          dwarfdump --uuid "$main_dsym_binary" \
+            | awk '{ print $2 }' \
+            | sort > "$dsym_uuids"
+          if [ ! -s "$app_uuids" ] || [ ! -s "$dsym_uuids" ]; then
+            echo "Could not extract UUIDs from the main app and dSYM binaries." >&2
+            exit 1
+          fi
+          if ! diff -u "$app_uuids" "$dsym_uuids"; then
+            echo "Main app and dSYM UUIDs do not match." >&2
+            exit 1
+          fi
+
+          archive_kib="$(du -sk "$XCODE_ARCHIVE" | awk '{ print $1 }')"
+          main_binary_sha256="$(shasum -a 256 "$main_binary" | awk '{ print $1 }')"
+          jq -n \
+            --arg source_sha "$GITHUB_SHA" \
+            --arg version "$archive_version" \
+            --arg build "$archive_build" \
+            --arg application_path "$application_path" \
+            --arg main_binary_sha256 "$main_binary_sha256" \
+            --arg xcode "$(xcodebuild -version | paste -sd ' ' -)" \
+            --argjson archive_bytes "$((archive_kib * 1024))" \
+            '{
+              source_sha: $source_sha,
+              version: $version,
+              build: $build,
+              configuration: "Release",
+              signing: "disabled-validation-only",
+              application_path: $application_path,
+              archive_bytes: $archive_bytes,
+              main_binary_sha256: $main_binary_sha256,
+              xcode: $xcode,
+              verified_embedded_products: [
+                "MerianExploreWidget.appex",
+                "MerianMessagesExtension.appex",
+                "MerianWatch.app"
+              ],
+              dsym_uuid_match: true
+            }' > "$XCODE_EVIDENCE"
+
+          {
+            echo ""
+            echo "### Current-SHA iOS Release archive"
+            echo ""
+            echo "- Source SHA: \`$GITHUB_SHA\`"
+            echo "- Version/build: \`${archive_version} (${archive_build})\`"
+            echo "- Archive size: \`$((archive_kib * 1024)) bytes\`"
+            echo "- Main dSYM UUIDs: verified"
+            echo "- Signing: disabled (compile/archive validation only)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          df -h "$RUNNER_TEMP"
+
+      - name: Print Release archive failure diagnostics
+        if: failure()
+        run: |
+          diagnostics="${RUNNER_TEMP}/ios-release-archive-diagnostics.txt"
+          if [ -f "$XCODE_BUILD_LOG" ]; then
+            grep -E \
+              "error:|fatal error:|xcodebuild: error|The following build commands failed|No space left on device" \
+              "$XCODE_BUILD_LOG" > "$diagnostics" || true
+            if [ ! -s "$diagnostics" ]; then
+              tail -n 180 "$XCODE_BUILD_LOG" > "$diagnostics"
+            fi
+          else
+            echo "No xcodebuild archive log was produced." > "$diagnostics"
+          fi
+          {
+            echo ""
+            echo "#### Release archive diagnostics"
+            echo ""
+            echo '```text'
+            head -n 180 "$diagnostics"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          df -h "$RUNNER_TEMP" || true
+
+      - name: Upload Release archive evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-release-archive-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-release-archive-evidence.json
+            ${{ runner.temp }}/ios-ci-release-prep.json
+            ${{ runner.temp }}/ios-archive-xcode-version.txt
+            ${{ runner.temp }}/ios-release-app-uuids.txt
+            ${{ runner.temp }}/ios-release-dsym-uuids.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload current-SHA validation archive
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-unsigned-release-archive-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/Merian.xcarchive
+          if-no-files-found: error
+          compression-level: 0
+          include-hidden-files: true
+          retention-days: 7
+
+      - name: Upload Release archive failure bundle
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-release-archive-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-release-archive.xcresult
+            ${{ runner.temp }}/ios-release-archive-xcodebuild.log
+            ${{ runner.temp }}/ios-archive-package-resolution.log
+            ${{ runner.temp }}/ios-release-archive-diagnostics.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  production-readiness:
+    name: Production readiness
+    needs:
+      - scope
+      - ios-unit-tests
+      - ios-release-archive
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Enforce iOS verification result
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          SHOULD_RUN: ${{ needs.scope.outputs.should_run }}
+          SCOPE_REASON: ${{ needs.scope.outputs.reason }}
+          UNIT_TEST_RESULT: ${{ needs.ios-unit-tests.result }}
+          RELEASE_ARCHIVE_RESULT: ${{ needs.ios-release-archive.result }}
+        run: |
+          {
+            echo "### iOS production-readiness decision"
+            echo ""
+            echo "- Scope job: \`${SCOPE_RESULT}\`"
+            echo "- macOS verification required: \`${SHOULD_RUN:-unknown}\`"
+            echo "- Scope reason: ${SCOPE_REASON:-unavailable}"
+            echo "- Full unit tests: \`${UNIT_TEST_RESULT}\`"
+            echo "- Current-SHA Release archive: \`${RELEASE_ARCHIVE_RESULT}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$SCOPE_RESULT" != "success" ]; then
+            echo "The iOS scope job did not succeed." >&2
+            exit 1
+          fi
+
+          if [ "$SHOULD_RUN" != "true" ]; then
+            if [ "$UNIT_TEST_RESULT" != "skipped" ] \
+              || [ "$RELEASE_ARCHIVE_RESULT" != "skipped" ]; then
+              echo "macOS jobs ran unexpectedly for an out-of-scope change." >&2
+              exit 1
+            fi
+            echo "No iOS build input changed; the required check reports success."
+            exit 0
+          fi
+
+          if [ "$UNIT_TEST_RESULT" != "success" ] \
+            || [ "$RELEASE_ARCHIVE_RESULT" != "success" ]; then
+            echo "iOS unit tests and the current-SHA Release archive must both pass." >&2
+            exit 1
+          fi
+
+          echo "The exact workflow SHA passed full iOS unit tests and Release archive validation."

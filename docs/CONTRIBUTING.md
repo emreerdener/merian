@@ -26,7 +26,10 @@ Before contributing, please review our core architectural tenets. Refactoring co
 
 ## Setting Up the Development Environment
 
-1.  **Xcode**: Use Xcode 16 or later. The app deploys to iOS 17.2+, but the codebase relies on Swift 6-era concurrency diagnostics and modern SDK APIs such as `AVCaptureEventInteraction`.
+1.  **Xcode**: Use Xcode 26.6 to match the compiled CI and Release archive
+    baseline. The app deploys to iOS 17.2+, but the codebase relies on Swift
+    6-era concurrency diagnostics and modern SDK APIs such as
+    `AVCaptureEventInteraction`.
 2.  **Supabase CLI**: For testing edge functions locally, you will need the Supabase CLI installed.
 3.  **Project Generation**: `project.yml` is the source of truth. `Merian.xcodeproj` is committed for convenience, but you should regenerate it after changing targets, packages, entitlements, build settings, or source-group layout:
     ```bash
@@ -46,7 +49,24 @@ Before contributing, please review our core architectural tenets. Refactoring co
 
 ## Testing Protocol
 
-- **Swift/iOS**: All `@MainActor` lifecycle boundaries must not block the main thread.
+- **Swift/iOS**: All `@MainActor` lifecycle boundaries must not block the main
+  thread. Before opening a pull request, run the source-level CI contracts:
+  ```bash
+  make validate-ios-project
+  make validate-ios-versioning
+  make validate-ios-migration-guardrails
+  make test-ios-ci-tooling
+  ```
+  Relevant iOS, watch, Xcode project, configuration, and build-tooling changes
+  then enter `.github/workflows/ios-build-and-test.yml`. Its macOS jobs compile
+  both shared test bundles, execute the complete `merianTests` target, and
+  create an unsigned Release archive from the exact workflow SHA using only
+  `Package.resolved` versions.
+  Repository rules must require
+  `iOS Build and Test / Production readiness`; do not require the conditional
+  macOS jobs or replace the pull-request trigger with workflow-level path
+  filters. UI tests, signed distribution, and physical hardware checks remain
+  separate gates.
 - **Supabase Functions and Tooling**: You must write and validate code natively
   using Deno testing frameworks. Before opening a PR targeting
   `services/supabase`, run:

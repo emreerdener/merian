@@ -176,6 +176,76 @@ boundaries:
 }
 ```
 
+## Compiled iOS CI Gate
+
+`.github/workflows/ios-build-and-test.yml` is the authoritative compiled
+verification gate for iOS changes. It reports a stable
+`iOS Build and Test / Production readiness` check on every pull request so the
+repository ruleset can require it without leaving unrelated pull requests
+pending. A fail-closed scope job starts the macOS work for:
+
+- anything under `apps/ios/` or the embedded companion under `apps/watch/`;
+- either generated Xcode project, `project.yml`, tracked build configuration,
+  SwiftLint configuration, or iOS build scripts;
+- every merge-queue commit and every manual dispatch.
+
+Do not replace that design with workflow-level pull-request path filters.
+GitHub does not report a completed required check when an entire workflow is
+skipped by path filtering. The in-workflow scope job also avoids GitHub's
+path-filter changed-file ceiling and treats an unresolved event range as
+in-scope rather than silently skipping verification.
+
+Two independent `macos-26` jobs use the reviewed Xcode 26.6 toolchain and the
+checked-in `Package.resolved` file:
+
+1. **Full iOS unit tests** resolves only locked package versions, compiles the
+   generated-project source membership against `project.yml`, compiles the app
+   plus both shared test bundles with `build-for-testing`, and executes the
+   complete `merianTests` target with `test-without-building`. This prevents a
+   newly added Swift or Objective-C file from escaping compilation when the
+   committed Xcode project was not regenerated. It also compiles
+   `merianUITests` so UI-test-only changes cannot silently break, but UI tests
+   remain a separate runtime gate. The unit-test selector does not select or
+   skip any suite. Xcode process-level parallel testing is disabled because
+   several hardware, networking, and persistence suites exercise shared
+   singletons. The result gate fails if Xcode returns success without a
+   `Passed` result, a non-empty test run, and at least one passed test case from
+   each critical concurrency boundary: `CameraManagerTests`,
+   `InferenceEngineTests`, `OfflineQueueManagerTests`, and
+   `SyncStateManagerTests`.
+2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
+   resolves the same lockfile, and runs a generic-device Release archive with
+   signing disabled. It requires production-shaped RevenueCat client
+   configuration, verifies app/widget/Messages/watch embedding, checks the
+   version and build against `project.yml`, and requires the main app dSYM UUID
+   to match the compiled binary. Signing is disabled only because hosted CI has
+   no distribution identity; this is compile, link, archive, and dSYM
+   validation—not a distributable App Store artifact.
+
+The final Production readiness job uses `if: always()` and requires both macOS
+jobs to succeed whenever scope says the build is relevant. For an unrelated
+change it requires both to be skipped and reports success. Repository and merge
+queue rules should require only the stable final check, not either conditional
+macOS job.
+
+Successful `main` and manual runs retain the unsigned validation archive for
+seven days. Every run retains compact SHA/toolchain/test or archive evidence for
+fourteen days; failed runs also retain the raw `.xcresult`, package-resolution
+log, and `xcodebuild` log. The validation archive must never be exported or
+uploaded to App Store Connect.
+
+The cheap workflow contracts run with:
+
+```bash
+make test-ios-ci-tooling
+```
+
+Those tests lock the fail-closed scope, immutable action pins, exact-SHA
+checkout, generated-project source membership, full-target unit-test selectors,
+merge-queue trigger, Release archive, embedded-product/dSYM checks, and
+unconditional final decision. They do not replace the macOS compile or
+simulator execution.
+
 ## Core Suites
 
 Tests are organized under `apps/ios/MerianTests/Core` and
@@ -273,18 +343,19 @@ MerianTests/
   sanitized `recovery-manifest.json` output, startup diagnostic rescue flags,
   and a source-scan boundary that prevents store recovery from referencing
   `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
-  The focused CI lane is `.github/workflows/ios-startup-safety.yml`; it runs
+  The focused drift lane is `.github/workflows/ios-startup-safety.yml`; it runs
   both `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup
   safe mode and schema-upgrade failures are caught together. The cheap
   `.github/workflows/ios-project-guardrails.yml` lane runs
   `make validate-ios-project` and `make validate-ios-migration-guardrails`
   first, so known-bad source shapes fail on Ubuntu before the slower macOS
   simulator job spends time resolving packages, building, or booting a
-  simulator. Startup Safety is path-filtered to startup/schema/recovery
-  surfaces, manual dispatch, and the daily drift check; broad iOS UI changes do
-  not automatically enter the simulator lane. Workflow/tooling-only changes can
-  start the Startup Safety workflow to validate cheap guardrails, but the
-  simulator steps are skipped unless startup runtime files changed.
+  simulator. Startup Safety remains path-filtered to
+  startup/schema/recovery surfaces, manual dispatch, and the daily drift check;
+  broad iOS changes instead enter the full compiled gate described above.
+  Workflow/tooling-only changes can start the Startup Safety workflow to
+  validate cheap guardrails, but its simulator steps are skipped unless startup
+  runtime files changed.
   - Source-level migration guardrails fail if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
@@ -562,7 +633,10 @@ MerianTests/
   request is committed into `stagedCapture.images`) and the failure path
   (`isStagingRefinement` drops back to `false` without appending a stale image).
   This gives deterministic coverage over refinement staging behavior without
-  simulator-driven UI automation.
+  simulator-driven UI automation. The complete unit target, including these
+  camera-generation tests plus `InferenceEngineTests`,
+  `OfflineQueueManagerTests`, and `SyncStateManagerTests`, runs in
+  `.github/workflows/ios-build-and-test.yml` for every relevant source change.
 - **`MediaPreparationActorTests.swift`**: Pins the production still-image
   contract directly: file URL inputs return bounded inference/display payloads,
   metrics stay within byte and dimension limits, avatar/crop previews return

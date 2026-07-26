@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -10,6 +10,7 @@ help:
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
+	@printf "  make test-ios-ci-tooling              Test iOS build scope and workflow invariants\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
 	@printf "  make generate-edge-dto-contract       Regenerate Identify Swift DTOs from the executable contract\n"
 	@printf "  make validate-edge-dto-contract       Validate the Identify runtime/schema/generated-Swift contract\n"
@@ -39,6 +40,11 @@ validate-ios-versioning:
 
 test-ios-versioning:
 	bash scripts/test-ios-versioning.sh
+
+test-ios-ci-tooling:
+	bash scripts/test-ci-detect-ios-build-source-changes.sh
+	bash scripts/test-ios-build-and-test-workflow.sh
+	bash scripts/test-validate-ios-critical-test-results.sh
 
 validate-ios-migration-guardrails:
 	bash scripts/check-ios-migration-source-guardrails.sh

@@ -84,6 +84,12 @@ then updates `project.yml`, regenerates `Merian.xcodeproj`, and writes
 `build/ios-release-prep.json`. The marker is intentionally ignored by git and
 exists only to prove that the local archive was deliberately prepared.
 
+Commit the tracked `project.yml` and generated-project changes, push them, and
+wait for `iOS Build and Test / Production readiness` to pass on that exact
+commit before creating the signed distribution archive. A green run for an
+earlier commit, even with the same semantic version, is not release evidence.
+The repository ruleset and merge queue should require that final check.
+
 RevenueCat product configuration is a separate release gate. Open the paywall
 with the production SDK key and confirm the dashboard-selected current offering
 returns packages mapped to both `pro_week` and `pro_annual`. The client logs an
@@ -126,6 +132,44 @@ does not match `project.yml`. It warns, but does not block, if the resolved
 Store prefix, or does not look like an iOS production SDK key beginning with
 `appl_`. Set `MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1` for export/release
 checks that should fail on non-production RevenueCat config.
+
+### Current-SHA CI Archive Gate
+
+`.github/workflows/ios-build-and-test.yml` independently archives the exact
+`GITHUB_SHA` with Release optimization on the generic iOS device destination.
+It uses Xcode 26.6, resolves only the checked-in `Package.resolved` versions,
+and disables signing because distribution credentials do not belong on
+untrusted pull-request runners. The job verifies the app version/build,
+embedded widget, Messages extension, watch app, main binary, and matching dSYM
+UUIDs. Its evidence JSON records the source SHA and binary hash.
+
+CI creates an ephemeral version/build marker solely to exercise the same
+archive preflight. That marker has `ci_validation_only: true`, is stored as
+workflow evidence, and does not satisfy the ignored local
+`build/ios-release-prep.json` requirement. The unsigned CI archive is retained
+for seven days after successful `main` and manual runs for inspection only. It
+cannot prove distribution signing, provisioning, APNs entitlements, StoreKit,
+physical camera behavior, or App Store export, and it must never be submitted
+to App Store Connect.
+
+Before TestFlight/App Store export, require all of the following for the exact
+release commit:
+
+1. `iOS Build and Test / Production readiness` is green; its Full unit tests
+   and Current-SHA Release archive jobs both succeeded.
+2. `make prepare-ios-release VERSION=x.y.z` produced the matching local prep
+   marker and all tracked version/project changes are committed.
+3. A fresh locally signed archive from that clean commit passes the signing,
+   entitlement, RevenueCat, physical-device, and purchase smoke gates below.
+
+Require only the unconditional Production readiness job in GitHub repository
+rules. The two macOS jobs are conditional and are expected to report skipped
+for unrelated pull requests.
+
+If the intended release SHA contains no iOS build input and the two macOS jobs
+were skipped, manually dispatch `iOS Build and Test` on that ref. A green
+out-of-scope Production readiness decision is safe for merging, but it is not
+current-SHA archive evidence and does not satisfy the release checklist above.
 
 If Xcode only shows `Command PhaseScriptExecution failed with a nonzero exit
 code`, expand the `Release Versioning Preflight` log. A missing marker means the

@@ -147,6 +147,17 @@ Recent schema milestones:
   source-specific plans reach V49 first, then advance through the same V50
   stage.
 
+Compiled iOS assurance lives in
+`.github/workflows/ios-build-and-test.yml`. Its fail-closed detector
+(`scripts/ci-detect-ios-build-source-changes.sh`) sends every iOS/watch/project
+build input, merge-queue commit, and manual request to pinned Xcode 26.6 jobs
+that execute the complete unit-test target and independently create an unsigned
+current-SHA Release archive. `scripts/test-ios-build-and-test-workflow.sh` locks
+the full-target selectors, generated-project source-membership check, exact-SHA
+and lockfile behavior, immutable action pins, archive/dSYM checks, and
+unconditional final decision. Repository rules should require only
+`iOS Build and Test / Production readiness`.
+
 Historical schema snapshots V1 through V39 live under
 `apps/ios/Merian/Models/Schema/`. V40 through V50 live in `SchemaVersions.swift`
 alongside the migration plan.
