@@ -570,6 +570,19 @@ BEGIN
             'the multimedia source page ignored its row or completion bound';
     END IF;
 
+    SELECT public.release_export_job_step(
+        bounded_job_id,
+        bounded_token,
+        'archive_generation_failed',
+        TRUE
+    )
+    INTO boolean_result;
+
+    IF NOT boolean_result THEN
+        RAISE EXCEPTION
+            'the bounded source-page fixture could not release its active job';
+    END IF;
+
     INSERT INTO public.export_jobs (
         id,
         user_id,
