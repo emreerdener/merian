@@ -22,7 +22,11 @@ DECLARE
     stored_expiry TIMESTAMPTZ;
     stored_version BIGINT;
     reconciliation_claim RECORD;
+    reconciliation_health RECORD;
     reconciliation_applied BOOLEAN;
+    expired_claim_token UUID;
+    claim_expiry_index_definition TEXT;
+    claim_expiry_index_predicate TEXT;
 BEGIN
     IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
@@ -104,6 +108,49 @@ BEGIN
         RAISE EXCEPTION 'RevenueCat reconciliation RPC has an unsafe ACL';
     END IF;
 
+    IF NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_revenuecat_reconciliation_health()',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_revenuecat_reconciliation_health()',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.get_revenuecat_reconciliation_health()',
+        'EXECUTE'
+    ) THEN
+        RAISE EXCEPTION
+            'RevenueCat reconciliation health RPC has an unsafe ACL';
+    END IF;
+
+    SELECT
+        pg_catalog.PG_GET_INDEXDEF(index_row.indexrelid),
+        pg_catalog.PG_GET_EXPR(
+            index_row.indpred,
+            index_row.indrelid
+        )
+    INTO STRICT
+        claim_expiry_index_definition,
+        claim_expiry_index_predicate
+    FROM pg_catalog.pg_index AS index_row
+    JOIN pg_catalog.pg_class AS index_class
+      ON index_class.oid = index_row.indexrelid
+    JOIN pg_catalog.pg_namespace AS namespace_row
+      ON namespace_row.oid = index_class.relnamespace
+    WHERE namespace_row.nspname = 'internal'
+      AND index_class.relname =
+            'revenuecat_reconciliation_claim_expiry_idx';
+
+    IF claim_expiry_index_definition NOT LIKE
+            '%(claim_expires_at, merian_user_id)%'
+       OR claim_expiry_index_predicate <>
+            '(claim_token IS NOT NULL)' THEN
+        RAISE EXCEPTION
+            'RevenueCat expired leases lack the expected partial index';
+    END IF;
+
     INSERT INTO auth.users (
         instance_id,
         id,
@@ -181,6 +228,43 @@ BEGIN
     INTO STRICT initial_entitlement_version
     FROM public.users AS users
     WHERE users.id = destination_user_id;
+
+    expired_claim_token := extensions.gen_random_uuid();
+    UPDATE internal.revenuecat_reconciliation_queue AS queue
+    SET next_reconcile_at = pg_catalog.NOW() - INTERVAL '2 hours',
+        claim_token = expired_claim_token,
+        claimed_at = pg_catalog.NOW() - INTERVAL '3 minutes',
+        claim_expires_at = pg_catalog.NOW() - INTERVAL '1 minute'
+    WHERE queue.merian_user_id = destination_user_id;
+
+    SELECT *
+    INTO STRICT reconciliation_health
+    FROM public.get_revenuecat_reconciliation_health();
+
+    IF reconciliation_health.due_count <> 1
+       OR reconciliation_health.expired_claim_count <> 1
+       OR reconciliation_health.oldest_due_at IS NULL
+       OR reconciliation_health.oldest_due_age_seconds < 7190 THEN
+        RAISE EXCEPTION
+            'RevenueCat backlog health did not expose the expired lease';
+    END IF;
+
+    SELECT *
+    INTO STRICT reconciliation_claim
+    FROM public.claim_revenuecat_reconciliations(1);
+
+    IF reconciliation_claim.user_id <> destination_user_id
+       OR reconciliation_claim.claim_token = expired_claim_token
+       OR reconciliation_claim.claim_expires_at <= pg_catalog.NOW() THEN
+        RAISE EXCEPTION
+            'RevenueCat expired lease was not reclaimed and fenced';
+    END IF;
+
+    PERFORM public.fail_revenuecat_reconciliation(
+        reconciliation_claim.user_id,
+        reconciliation_claim.claim_token,
+        'lease_reclaim_test'
+    );
 
     SELECT *
     INTO STRICT transition
@@ -628,7 +712,7 @@ END;
 $test$;
 
 SELECT extensions.pass(
-    'RevenueCat deliveries are idempotent, ordered, transferred atomically, and service-owned'
+    'RevenueCat delivery and reconciliation are ordered, lease-fenced, indexed, and service-owned'
 );
 SELECT * FROM extensions.finish();
 ROLLBACK;

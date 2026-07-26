@@ -1,0 +1,161 @@
+import {
+  assertEquals,
+  assertStringIncludes,
+  assertThrows,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  assertRevenueCatReconciliationHealth,
+  buildRevenueCatMonitorSummary,
+  parseRevenueCatMonitorArgs,
+  renderRevenueCatMonitorMarkdown,
+  revenueCatBacklogStatus,
+  type RevenueCatReconciliationHealth,
+  shouldFailRevenueCatMonitor,
+} from "./monitor_revenuecat_reconciliation.ts";
+
+const HEALTHY: RevenueCatReconciliationHealth = {
+  generated_at: "2026-07-26T03:30:00.000Z",
+  due_count: 0,
+  expired_claim_count: 0,
+  oldest_due_at: null,
+  oldest_due_age_seconds: null,
+};
+
+Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
+  assertEquals(parseRevenueCatMonitorArgs([]), {
+    warningAfterMinutes: 30,
+    criticalAfterMinutes: 60,
+    failOn: "warning",
+    summaryJsonPath: null,
+    summaryMarkdownPath: null,
+  });
+  assertEquals(
+    parseRevenueCatMonitorArgs([
+      "--warning-after-minutes=45",
+      "--critical-after-minutes",
+      "90",
+      "--fail-on",
+      "critical",
+      "--summary-json=/tmp/revenuecat.json",
+      "--summary-md",
+      "/tmp/revenuecat.md",
+    ]),
+    {
+      warningAfterMinutes: 45,
+      criticalAfterMinutes: 90,
+      failOn: "critical",
+      summaryJsonPath: "/tmp/revenuecat.json",
+      summaryMarkdownPath: "/tmp/revenuecat.md",
+    },
+  );
+});
+
+Deno.test("parseRevenueCatMonitorArgs rejects unsafe thresholds and arguments", () => {
+  assertThrows(() =>
+    parseRevenueCatMonitorArgs([
+      "--warning-after-minutes",
+      "60",
+      "--critical-after-minutes",
+      "60",
+    ])
+  );
+  assertThrows(() =>
+    parseRevenueCatMonitorArgs(["--critical-after-minutes", "0"])
+  );
+  assertThrows(() => parseRevenueCatMonitorArgs(["--fail-on", "always"]));
+  assertThrows(() => parseRevenueCatMonitorArgs(["--unknown", "value"]));
+});
+
+Deno.test("assertRevenueCatReconciliationHealth validates one consistent row", () => {
+  const backlog = {
+    ...HEALTHY,
+    due_count: 7,
+    expired_claim_count: 1,
+    oldest_due_at: "2026-07-26T02:45:00.000Z",
+    oldest_due_age_seconds: 2_700,
+  };
+  assertEquals(assertRevenueCatReconciliationHealth([backlog]), backlog);
+  assertThrows(() => assertRevenueCatReconciliationHealth([]));
+  assertThrows(() =>
+    assertRevenueCatReconciliationHealth([{
+      ...HEALTHY,
+      due_count: 1,
+    }])
+  );
+  assertThrows(() =>
+    assertRevenueCatReconciliationHealth([{
+      ...HEALTHY,
+      due_count: -1,
+    }])
+  );
+});
+
+Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
+  assertEquals(revenueCatBacklogStatus(HEALTHY, 30, 60), "ok");
+  assertEquals(
+    revenueCatBacklogStatus(
+      { ...HEALTHY, expired_claim_count: 1 },
+      30,
+      60,
+    ),
+    "warning",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      {
+        ...HEALTHY,
+        due_count: 1,
+        oldest_due_at: "2026-07-26T03:00:00.000Z",
+        oldest_due_age_seconds: 30 * 60,
+      },
+      30,
+      60,
+    ),
+    "warning",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      {
+        ...HEALTHY,
+        due_count: 1,
+        oldest_due_at: "2026-07-26T02:30:00.000Z",
+        oldest_due_age_seconds: 60 * 60,
+      },
+      30,
+      60,
+    ),
+    "critical",
+  );
+});
+
+Deno.test("shouldFailRevenueCatMonitor honors the configured severity", () => {
+  assertEquals(shouldFailRevenueCatMonitor("ok", "warning"), false);
+  assertEquals(shouldFailRevenueCatMonitor("warning", "warning"), true);
+  assertEquals(shouldFailRevenueCatMonitor("warning", "critical"), false);
+  assertEquals(shouldFailRevenueCatMonitor("critical", "critical"), true);
+  assertEquals(shouldFailRevenueCatMonitor("critical", "never"), false);
+});
+
+Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action", () => {
+  const health: RevenueCatReconciliationHealth = {
+    ...HEALTHY,
+    due_count: 7,
+    expired_claim_count: 1,
+    oldest_due_at: "2026-07-26T02:45:00.000Z",
+    oldest_due_age_seconds: 2_700,
+  };
+  const summary = buildRevenueCatMonitorSummary(
+    health,
+    parseRevenueCatMonitorArgs([]),
+    new Date("2026-07-26T03:30:00.000Z"),
+  );
+  const markdown = renderRevenueCatMonitorMarkdown(summary);
+
+  assertEquals(summary.status, "warning");
+  assertEquals(summary.failure_policy.should_fail, true);
+  assertStringIncludes(markdown, "# RevenueCat Reconciliation Health");
+  assertStringIncludes(markdown, "- Due rows: `7`");
+  assertStringIncludes(markdown, "- Expired claims: `1`");
+  assertStringIncludes(markdown, "- Oldest due age: `2700s`");
+  assertStringIncludes(markdown, "Do not edit subscription tiers directly");
+});

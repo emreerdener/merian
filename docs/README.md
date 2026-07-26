@@ -37,9 +37,10 @@ as their permanent engineering identity.
   configured bearer credential, raw-body HMAC, and server API key. Supabase
   reconciles authoritative CustomerInfo through a durable event ledger and
   per-user ordering watermark; duplicate, delayed, or partially failed transfer
-  delivery cannot directly rewrite access. The production deploy workflow
-  validates and synchronizes all three backend credentials before function
-  deployment.
+  delivery cannot directly rewrite access. The scheduled repair worker drains
+  small leased waves against a runtime cutoff, with indexed lease recovery and
+  an independent oldest-due-age alert. The production deploy workflow validates
+  and synchronizes all three backend credentials before function deployment.
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override

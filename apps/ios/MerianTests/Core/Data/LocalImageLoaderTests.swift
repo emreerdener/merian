@@ -109,6 +109,43 @@ struct LocalImageLoaderTests {
         #expect(!RemoteImageRetryPolicy.shouldRetry(urlErrorCode: .cancelled))
     }
 
+    @Test func localScanMediaRecoveryReconnectsPromotedNameToDocumentsFile() throws {
+        let scanId = "2a3ab44a-0981-44b8-85da-f873cc04725f"
+        let localFileName = "0B9FC7CE-D81E-4031-979A-454DC9B7DFA7_scan.webp"
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let localURL = temporaryDirectory.appendingPathComponent(localFileName)
+        #expect(FileManager.default.createFile(atPath: localURL.path, contents: Data()))
+
+        let remoteURL = try #require(URL(
+            string: "https://media.merian.app/public_uploads/free/user/\(scanId)_\(localFileName)?width=900"
+        ))
+        let recoveredURL = LocalScanMediaRecoveryResolver.existingLocalImageURL(
+            for: remoteURL,
+            documentsDirectory: temporaryDirectory
+        )
+
+        #expect(recoveredURL == localURL)
+    }
+
+    @Test func localScanMediaRecoveryRejectsNonCaptureAndUnsafeURLs() throws {
+        let externalURL = try #require(URL(string: "https://example.com/public_uploads/free/user/image.webp"))
+        let avatarURL = try #require(URL(string: "https://media.merian.app/avatars/user/image.webp"))
+        let nonImageURL = try #require(URL(
+            string: "https://media.merian.app/public_uploads/pro/user/recording.wav"
+        ))
+
+        #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: externalURL).isEmpty)
+        #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: avatarURL).isEmpty)
+        #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: nonImageURL).isEmpty)
+    }
+
     @Test func similarSpeciesDownloadsAreRestoredToSourceOrder() {
         let completionOrder: [(index: Int, value: String?)] = [
             (index: 2, value: "third"),

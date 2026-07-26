@@ -1277,13 +1277,20 @@ internal tables have RLS enabled and no direct grants; the
 `internal.require_service_role()` and are allowlisted only to `service_role`.
 
 Migration `20260725052338_reconcile_revenuecat_subscribers.sql` adds a durable
-authoritative repair queue. `reconcile-revenuecat-subscribers` runs every 15
-minutes, leases at most ten customers, limits provider concurrency to three,
-and applies a snapshot only when it is newer than the user's transactional
-watermark. Pro users are revisited every six hours and free users every 24
-hours. Webhook handling also advances affected subjects' due times. Historical
-seven-day purchases are not newly granted by background reconciliation, so a
-refund cannot be resurrected from CustomerInfo history.
+authoritative repair queue. Migration
+`20260726031502_scale_revenuecat_reconciliation.sql` makes the 15-minute worker
+drain repeated six-customer `SKIP LOCKED` waves until empty or its 60-second
+start-work cutoff, while provider concurrency remains three. It also indexes
+expired claimed rows. A snapshot applies only when newer than the user's
+transactional watermark. Pro users are revisited every six hours and free users
+every 24 hours. Webhook handling also advances affected subjects' due times.
+Historical seven-day purchases are not newly granted by background
+reconciliation, so a refund cannot be resurrected from CustomerInfo history.
+
+The service-only `get_revenuecat_reconciliation_health()` RPC returns due
+count, expired-claim count, and oldest due age. A separate GitHub monitor checks
+it every 15 minutes, alerts after 30 minutes or on any expired lease, and marks
+60 minutes critical.
 
 The scheduled `expire-subscription-passes` worker remains a fail-safe whenever
 any timed recurring, grace-period, or pass grant reaches

@@ -1341,7 +1341,8 @@ expiration rule.
 ### RevenueCat Webhook Release Gate
 
 Migrations `20260723201500_secure_revenuecat_webhook_delivery.sql` and
-`20260725052338_reconcile_revenuecat_subscribers.sql` must land before the
+`20260725052338_reconcile_revenuecat_subscribers.sql`, followed by
+`20260726031502_scale_revenuecat_reconciliation.sql`, must land before the
 hardened `revenuecat-webhook` and `reconcile-revenuecat-subscribers` bundles.
 Populate and configure the credentials before merging the first deployment:
 
@@ -1367,14 +1368,16 @@ Run the complete preflight:
 ```bash
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions,services/supabase/config.toml,.github/workflows/deploy.yml \
+  --allow-read=services/supabase/functions,services/supabase/scripts,services/supabase/config.toml,.github/workflows \
   services/supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
   services/supabase/functions/_shared/subscriptionPass_test.ts \
   services/supabase/functions/revenuecat-webhook/handler_test.ts \
   services/supabase/functions/revenuecat-webhook/index_test.ts \
   services/supabase/functions/revenuecat-webhook/signature_test.ts \
   services/supabase/functions/revenuecat-webhook/subscriber_test.ts \
-  services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts
+  services/supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
+  services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
+  services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
@@ -1438,6 +1441,25 @@ SELECT
 FROM internal.revenuecat_reconciliation_queue AS queue
 WHERE queue.merian_user_id = '<test-user-uuid>'::UUID;
 
+SELECT *
+FROM public.get_revenuecat_reconciliation_health();
+
+SELECT
+    index_class.relname,
+    PG_GET_INDEXDEF(index_row.indexrelid) AS index_definition,
+    PG_GET_EXPR(index_row.indpred, index_row.indrelid) AS predicate
+FROM pg_index AS index_row
+JOIN pg_class AS index_class
+  ON index_class.oid = index_row.indexrelid
+JOIN pg_namespace AS namespace_row
+  ON namespace_row.oid = index_class.relnamespace
+WHERE namespace_row.nspname = 'internal'
+  AND index_class.relname IN (
+      'revenuecat_reconciliation_due_idx',
+      'revenuecat_reconciliation_claim_expiry_idx'
+  )
+ORDER BY index_class.relname;
+
 SELECT
     checks.routine_signature,
     HAS_FUNCTION_PRIVILEGE(
@@ -1461,6 +1483,7 @@ FROM (
         ('public.apply_revenuecat_customer_state(text,bigint,text,text,bigint,jsonb)'),
         ('public.schedule_revenuecat_reconciliation(jsonb)'),
         ('public.claim_revenuecat_reconciliations(integer)'),
+        ('public.get_revenuecat_reconciliation_health()'),
         ('public.apply_revenuecat_reconciliation(uuid,uuid,bigint,text,timestamp with time zone)'),
         ('public.fail_revenuecat_reconciliation(uuid,uuid,text)')
 ) AS checks(routine_signature)
@@ -1469,7 +1492,7 @@ ORDER BY checks.routine_signature;
 ROLLBACK;
 ```
 
-Expected ACLs are `false`, `false`, `true` for both rows. Redeliver the same
+Expected ACLs are `false`, `false`, `true` for every row. Redeliver the same
 RevenueCat test event: the ledger row count for its ID must remain one, the HTTP
 outcome must be `duplicate`, and no second CustomerInfo request should appear in
 Edge logs. Compare the projected tier with the RevenueCat CustomerInfo shown for
@@ -1479,12 +1502,22 @@ may have a null expiry. `pro_week` must have an expiry exactly seven days after
 its authoritative purchase time.
 
 Confirm the active `reconcile_revenuecat_subscribers_every_fifteen_minutes`
-cron, then invoke the service-only route once. Its aggregate response must
-report no unpersisted failures, its queue claim must be released, and an
-equal/older CustomerInfo snapshot must report stale without changing the tier.
-Temporarily suppressing a staging webhook and allowing the sweep to observe a
-newer authoritative snapshot is the missed-delivery recovery smoke test. Pro
-rows should next be due in roughly six hours and free rows in roughly 24 hours.
+cron and its 120-second `pg_net` timeout, then invoke the service-only route
+once. It must process repeated six-row waves rather than stop after one wave.
+Its aggregate response must report no unpersisted failures, its queue claims
+must be released, and an equal/older CustomerInfo snapshot must report stale
+without changing the tier. Temporarily suppressing a staging webhook and
+allowing the sweep to observe a newer authoritative snapshot is the
+missed-delivery recovery smoke test. Pro rows should next be due in roughly six
+hours and free rows in roughly 24 hours.
+
+Confirm the `RevenueCat Reconciliation Health Monitor` workflow is enabled for
+the Production environment. Dispatch it once with the default 30/60-minute
+thresholds and `fail_on=warning`; the summary artifact should be `ok` with no
+expired claim. During an alert, inspect the structured
+`revenuecat_reconciliation_health` Edge event, `last_error_code`, and
+`attempt_count`. Restore RevenueCat/database availability and let claim-fenced
+retries drain the queue. Never clear leases or edit user tiers manually.
 
 Also exercise the configured RevenueCat restore/transfer behavior with two
 disposable test customers. The single `TRANSFER` event must show
@@ -2307,6 +2340,22 @@ runs use:
 
 The scheduled job uploads JSON/Markdown summary artifacts, writes a GitHub job
 summary, and commits the running checklist when a real import changes it.
+
+## RevenueCat Reconciliation Health Automation
+
+The **RevenueCat Reconciliation Health Monitor** runs at minutes 7, 22, 37, and
+52, after the quarter-hour database dispatches. It resolves the production
+service-role key at runtime through the Supabase CLI and calls only the
+aggregate `get_revenuecat_reconciliation_health()` RPC. No subscriber identity
+is written to logs or artifacts.
+
+Scheduled runs warn and fail at an oldest due age of 30 minutes, become critical
+at 60 minutes, and warn immediately on any expired lease. A monitor request has
+a 15-second deadline and 64 KiB response ceiling. A failed run therefore means
+the queue is overdue, a worker lease expired, or the monitor could not read
+health. Start with the structured reconciliation health event and queue error
+codes described in the RevenueCat release gate; preserve claim fencing and let
+the durable worker recover.
 
 ## Scan Media Health Automation
 

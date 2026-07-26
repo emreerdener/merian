@@ -140,6 +140,86 @@ enum RemoteImageRetryPolicy {
     }
 }
 
+enum LocalScanMediaRecoveryResolver {
+    private static let mediaHost = "media.merian.app"
+    private static let durableScanMediaPathPrefixes = [
+        "/public_uploads/free/",
+        "/public_uploads/pro/"
+    ]
+    private static let supportedImageExtensions: Set<String> = [
+        "heic", "heif", "jpeg", "jpg", "png", "tif", "tiff", "webp"
+    ]
+
+    static func existingLocalImageURL(
+        for remoteURL: URL,
+        documentsDirectory: URL = .documentsDirectory,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        for fileName in candidateFileNames(for: remoteURL) {
+            let candidateURL = documentsDirectory.appendingPathComponent(
+                fileName,
+                isDirectory: false
+            )
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(
+                atPath: candidateURL.path,
+                isDirectory: &isDirectory
+            ), !isDirectory.boolValue else {
+                continue
+            }
+            return candidateURL
+        }
+        return nil
+    }
+
+    static func candidateFileNames(for remoteURL: URL) -> [String] {
+        guard remoteURL.scheme?.lowercased() == "https",
+              remoteURL.host?.lowercased() == mediaHost,
+              durableScanMediaPathPrefixes.contains(where: {
+                  remoteURL.path.lowercased().hasPrefix($0)
+              }) else {
+            return []
+        }
+
+        let publicFileName = remoteURL.lastPathComponent
+        guard isSafeImageFileName(publicFileName) else { return [] }
+
+        var candidates = [publicFileName]
+
+        // Current staging names are `{scanId}_{Documents filename}`. Promotion
+        // preserves that basename, while the surviving local file keeps only
+        // the Documents filename.
+        if let separator = publicFileName.firstIndex(of: "_") {
+            let scanId = String(publicFileName[..<separator])
+            let localFileName = String(publicFileName[publicFileName.index(after: separator)...])
+            if UUID(uuidString: scanId) != nil,
+               isSafeImageFileName(localFileName),
+               localFileName != publicFileName {
+                candidates.append(localFileName)
+            }
+        }
+
+        return candidates
+    }
+
+    private static func isSafeImageFileName(_ fileName: String) -> Bool {
+        guard !fileName.isEmpty,
+              fileName != ".",
+              fileName != "..",
+              fileName == (fileName as NSString).lastPathComponent,
+              supportedImageExtensions.contains(
+                  (fileName as NSString).pathExtension.lowercased()
+              ) else {
+            return false
+        }
+
+        return fileName.range(
+            of: #"^[A-Za-z0-9_.-]+$"#,
+            options: .regularExpression
+        ) != nil
+    }
+}
+
 private actor RemoteImageLoadDiagnostics {
     static let shared = RemoteImageLoadDiagnostics()
 
@@ -175,6 +255,14 @@ private actor RemoteImageLoadDiagnostics {
         guard shouldLog(key: "\(host)|decode") else { return }
         MerianLog.network.error(
             "LocalImageLoader: remote media decode failed host=\(host, privacy: .public)"
+        )
+    }
+
+    func recordLocalRecovery(url: URL) {
+        let host = sanitizedHost(for: url)
+        guard shouldLog(key: "\(host)|local-recovery") else { return }
+        MerianLog.network.info(
+            "LocalImageLoader: recovered durable scan image from Documents host=\(host, privacy: .public)"
         )
     }
 
@@ -262,6 +350,16 @@ actor LocalImageLoader {
         let fetchTask = Task.detached(priority: .userInitiated) { () -> UIImage? in
             // 3. Remote URL Execution (if 'imagePath' is actually a cloud URL payload directly)
             if let safePath = safeImagePath, safePath.lowercased().starts(with: "http"), let remoteUrl = URL(string: safePath) {
+                if let localURL = LocalScanMediaRecoveryResolver.existingLocalImageURL(for: remoteUrl),
+                   let localImage = await LocalImageLoader.decodeImage(
+                       url: localURL,
+                       cacheKey: cacheKey,
+                       maxSize: CGFloat(maxDimension)
+                   ) {
+                    await RemoteImageLoadDiagnostics.shared.recordLocalRecovery(url: remoteUrl)
+                    return localImage
+                }
+
                 if let networkImage = await LocalImageLoader.fetchRemote(url: remoteUrl, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                     return networkImage
                 }

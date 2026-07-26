@@ -245,8 +245,10 @@ cleanup, and removes login access only after database cleanup is verified.
   authoritative subscriber state, and applies idempotent, monotonically ordered
   `free` ↔ `pro` transitions. Transfers reconcile source and destination in one
   transaction. Recurring/grace expiry is persisted, timed access has a local
-  expiry fail-safe, and a durable scheduled CustomerInfo sweep repairs missed
-  deliveries. Existing scan media remains in place.
+  expiry fail-safe, and a durable scheduled CustomerInfo sweep deadline-drains
+  small leased waves to repair missed deliveries. Expired leases are indexed,
+  and an independent monitor alerts on oldest due age. Existing scan media
+  remains in place.
 - Free receives one primary scan per UTC day. Pro removes the ordinary product
   cap and receives Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple
   Watch logging, expedition mode, and offline queue; database fair-use ceilings

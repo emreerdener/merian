@@ -249,11 +249,14 @@ alone to decide access.
    policy and is never stored as paid Pro. Tier changes do not relocate scan media: both
    `public_uploads/free/` and `public_uploads/pro/` are durable prefixes.
 7. **Missed-delivery repair**: A private durable queue invokes
-   `reconcile-revenuecat-subscribers` every 15 minutes. It leases at most ten
-   linked customers, fetches with concurrency three, and applies only a newer
-   authoritative snapshot under its claim token. Pro users are revisited every
-   six hours and free users every 24 hours. The sweep cannot newly grant
-   historical `pro_week` history after a revoked/free watermark.
+   `reconcile-revenuecat-subscribers` every 15 minutes. It drains repeated
+   six-customer lease waves until empty or a runtime cutoff, fetches with
+   concurrency three, and applies only a newer authoritative snapshot under its
+   claim token. Expired leases have a supporting partial index. Pro users are
+   revisited every six hours and free users every 24 hours. A separate
+   oldest-due-age monitor alerts at 30 minutes and becomes critical at 60. The
+   sweep cannot newly grant historical `pro_week` history after a revoked/free
+   watermark.
 
 RevenueCat delivers webhooks at least once, so a `200` response may report
 `applied`, `duplicate`, `stale`, `mixed`, or `ignored`, together with subject,

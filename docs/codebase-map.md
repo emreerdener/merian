@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-07-22.
+Last reviewed: 2026-07-25.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -379,8 +379,11 @@ Data lifecycle, identity, and exports:
   `signature.ts`, `subscriber.ts`, and `db.ts` keep those boundaries
   independently testable.
 - `reconcile-revenuecat-subscribers` — scheduled service-role repair worker
-  that leases a durable queue and applies newer authoritative CustomerInfo
-  snapshots when webhook delivery is missed.
+  that deadline-drains small durable queue leases and applies newer
+  authoritative CustomerInfo snapshots when webhook delivery is missed;
+  `db.ts` also owns the service-only backlog-health read used by
+  `services/supabase/scripts/monitor_revenuecat_reconciliation.ts` and its
+  scheduled GitHub monitor.
 - `get-filtered-discovery-feed`
 
 Scheduled/background workers:

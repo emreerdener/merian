@@ -1,0 +1,135 @@
+name: RevenueCat Reconciliation Health Monitor
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub scheduled jobs may be delayed under load.
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      warning_after_minutes:
+        description: Oldest due age that produces a warning.
+        required: true
+        default: "30"
+        type: choice
+        options:
+          - "15"
+          - "30"
+          - "45"
+      critical_after_minutes:
+        description: Oldest due age that produces a critical result.
+        required: true
+        default: "60"
+        type: choice
+        options:
+          - "60"
+          - "90"
+          - "120"
+      fail_on:
+        description: Monitor severity that should fail the workflow.
+        required: true
+        default: warning
+        type: choice
+        options:
+          - warning
+          - critical
+          - never
+
+concurrency:
+  group: revenuecat-reconciliation-health-monitor
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    environment: Production
+
+    env:
+      PROJECT_ID: qlarqavoqhkuwzmevrmf
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
+        with:
+          deno-version: v2.x
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.109.1
+
+      - name: Validate monitor secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
+
+      - name: Load Supabase service-role key
+        id: service-role
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          api_keys_json="$(supabase projects api-keys --project-ref "$PROJECT_ID" --output json)"
+          service_role_key="$(
+            echo "$api_keys_json" | jq -r '
+              (if type == "array" then . else (.api_keys // .keys // []) end)[]
+              | select((((.name // .key_name // .type // .id // "") | ascii_downcase) == "service_role")
+                or (((.name // .key_name // .type // .id // "") | ascii_downcase) | contains("service")))
+              | (.api_key // .apiKey // .apikey // .key // .value // empty)
+            ' | head -n 1
+          )"
+
+          if [ -z "$service_role_key" ] || [ "$service_role_key" = "null" ]; then
+            echo "Unable to resolve Supabase service-role key from project API keys."
+            exit 1
+          fi
+
+          echo "::add-mask::$service_role_key"
+          echo "key=$service_role_key" >> "$GITHUB_OUTPUT"
+
+      - name: Run RevenueCat reconciliation health monitor
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ steps.service-role.outputs.key }}
+          SUPABASE_URL: https://${{ env.PROJECT_ID }}.supabase.co
+          INPUT_WARNING_AFTER_MINUTES: ${{ inputs.warning_after_minutes || '30' }}
+          INPUT_CRITICAL_AFTER_MINUTES: ${{ inputs.critical_after_minutes || '60' }}
+          INPUT_FAIL_ON: ${{ inputs.fail_on || 'warning' }}
+        run: |
+          summary_json="${RUNNER_TEMP}/revenuecat-reconciliation-health.json"
+          summary_md="${RUNNER_TEMP}/revenuecat-reconciliation-health.md"
+          warning_after="${INPUT_WARNING_AFTER_MINUTES:-30}"
+          critical_after="${INPUT_CRITICAL_AFTER_MINUTES:-60}"
+          fail_on="${INPUT_FAIL_ON:-warning}"
+
+          set +e
+          deno run --allow-net --allow-env --allow-write \
+            services/supabase/scripts/monitor_revenuecat_reconciliation.ts \
+            --warning-after-minutes "$warning_after" \
+            --critical-after-minutes "$critical_after" \
+            --fail-on "$fail_on" \
+            --summary-json "$summary_json" \
+            --summary-md "$summary_md"
+          exit_code=$?
+          set -e
+
+          if [ -f "$summary_md" ]; then
+            cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$exit_code"
+
+      - name: Upload RevenueCat reconciliation health summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: revenuecat-reconciliation-health-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/revenuecat-reconciliation-health.json
+            ${{ runner.temp }}/revenuecat-reconciliation-health.md
+          if-no-files-found: warn
+          retention-days: 30

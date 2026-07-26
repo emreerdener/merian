@@ -6638,11 +6638,15 @@ is capped at 256 KiB.
 `/reconcile-revenuecat-subscribers` is not a client API. The 15-minute
 `pg_cron` call sends `POST {}` with the complete service-role bearer. The route
 also requires a configured `sk_` RevenueCat server key and accepts no user ID,
-lookup ID, tier, or limit from HTTP.
+lookup ID, tier, or limit from HTTP. Its `pg_net` response timeout is 120
+seconds.
 
-The private queue leases at most ten due linked customers for two minutes.
-CustomerInfo lookups run with concurrency three and reuse the same 10-second,
-2 MiB provider boundary as webhook processing. A claim-token-fenced
+The private queue leases six due linked customers per short
+`FOR UPDATE SKIP LOCKED` wave for two minutes. The worker repeats waves until
+empty or until its 60-second monotonic start-work cutoff; the remaining 30
+seconds are reserved for the final bounded wave, writes, and health read.
+CustomerInfo lookups run with concurrency three and reuse the same 10-second, 2
+MiB provider boundary as webhook processing. A claim-token-fenced
 `apply_revenuecat_reconciliation(...)` updates access only when
 `request_date_ms` is newer than the transactional customer watermark. Pro users
 are next due in six hours and free users in 24 hours; transient failures use
@@ -6659,6 +6663,22 @@ from restoring access. Its response is aggregate only:
   "reconciled": 3,
   "applied": 1,
   "stale": 2,
-  "failed": 0
+  "failed": 0,
+  "claimBatches": 2,
+  "queueDrained": true,
+  "runtimeDeadlineReached": false,
+  "healthStatus": "ok",
+  "health": {
+    "generatedAt": "2026-07-26T03:30:00.000Z",
+    "dueCount": 0,
+    "expiredClaimCount": 0,
+    "oldestDueAt": null,
+    "oldestDueAgeSeconds": null
+  }
 }
 ```
+
+`get_revenuecat_reconciliation_health()` is a separate service-role-only Data
+API RPC. It returns one aggregate row and no customer identity. The scheduled
+GitHub monitor invokes it directly, warning when oldest due age reaches 30
+minutes or any claim expires and marking 60 minutes critical.

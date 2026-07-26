@@ -1532,21 +1532,30 @@ The surrounding export suite is intentionally split by boundary:
   the provider but receive a durable ignored receipt; and both sides of a
   transfer are reconciled before one mutation call.
 - **`_tests/revenueCatWebhookCoverage.test.ts`**: Source contract that keeps the
-  processing order, bounded reconciliation route/configuration, and all three
-  GitHub/Supabase secret bindings present.
+  processing order, deadline-driven reconciliation route/configuration,
+  independent backlog monitor, and all three GitHub/Supabase secret bindings
+  present.
 - **`_tests/revenueCatWebhookMigrationContract.test.ts`**: Static SQL contract
   for the unique event ledger, per-event subject table, ordering watermark,
   snapshot-primary ordering, deterministic multi-user row locks, durable
-  reconciliation queue/leases/backoff, 15-minute cron, service-only
+  reconciliation queue/leases/backoff, expired-claim partial index,
+  oldest-due health RPC, 15-minute cron timeout, service-only
   duplicate/mutation/reconciliation RPCs, RLS, and explicit revocations.
-- **`reconcile-revenuecat-subscribers/worker_test.ts`**: Proves ten-claim and
-  three-fetch bounds, newer-snapshot application, stale handling, durable
-  failure release, and the guard that prevents a background sweep from newly
-  granting historical non-renewing pass history.
+- **`reconcile-revenuecat-subscribers/db_test.ts`**: Validates each bounded
+  claim wave and rejects malformed or inconsistent queue-health responses.
+- **`reconcile-revenuecat-subscribers/worker_test.ts`**: Proves repeated waves
+  drain beyond the former ten-record ceiling, stop at the monotonic cutoff,
+  retain the three-fetch concurrency bound, apply newer snapshots, release
+  durable failures, and prevent a background sweep from newly granting
+  historical non-renewing pass history.
+- **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
+  minute age thresholds, expired-lease warning, fail policy, response schema,
+  CLI safety, and operator summary.
 - **`tests/revenuecat_webhook_security.sql`**: Executable pgTAP coverage for ACLs,
   direct-table isolation, duplicate delivery, a delayed expiration after
   renewal, a delayed purchase after refund, snapshot-primary ordering,
-  reconciliation claim/application fencing, event-ID/payload conflict, atomic
+  reconciliation claim/application fencing, indexed expired-lease reclamation,
+  backlog-health telemetry, event-ID/payload conflict, atomic
   transfer of source and destination, a deleted transfer source with a live
   destination, ambiguous-alias rejection, missing-user failure, and
   entitlement-version advancement. Keep this test in the

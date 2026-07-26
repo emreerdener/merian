@@ -11,6 +11,10 @@ const reconciliationMigrationUrl = new URL(
   "../../migrations/20260725052338_reconcile_revenuecat_subscribers.sql",
   import.meta.url,
 );
+const reconciliationScaleMigrationUrl = new URL(
+  "../../migrations/20260726031502_scale_revenuecat_reconciliation.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -120,5 +124,40 @@ Deno.test("RevenueCat snapshots outrank event time and reconcile periodically", 
   assert(
     !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
     "PostgreSQL conditional expressions cannot be schema-qualified.",
+  );
+});
+
+Deno.test("RevenueCat reconciliation drains against a deadline and exposes indexed backlog health", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(reconciliationScaleMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "CREATE INDEX revenuecat_reconciliation_claim_expiry_idx ON internal.revenuecat_reconciliation_queue ( claim_expires_at, merian_user_id ) INCLUDE (next_reconcile_at) WHERE claim_token IS NOT NULL",
+      "p_limit INTEGER DEFAULT 6",
+      "WHERE queue.claim_token IS NOT NULL AND queue.claim_expires_at <= pg_catalog.NOW()",
+      "FOR UPDATE SKIP LOCKED",
+      "CREATE OR REPLACE FUNCTION public.get_revenuecat_reconciliation_health()",
+      "SECURITY DEFINER SET search_path = '' SET statement_timeout = '5s'",
+      "PERFORM internal.require_service_role()",
+      "queue.claim_token IS NULL AND queue.next_reconcile_at <= clock.observed_at",
+      "queue.claim_token IS NOT NULL AND queue.claim_expires_at <= clock.observed_at",
+      "oldest_due_age_seconds BIGINT",
+      "REVOKE ALL ON FUNCTION public.get_revenuecat_reconciliation_health() FROM PUBLIC, anon, authenticated, service_role",
+      "GRANT EXECUTE ON FUNCTION public.get_revenuecat_reconciliation_health() TO service_role",
+      "'public.get_revenuecat_reconciliation_health()'",
+      "reconcile_revenuecat_subscribers_every_fifteen_minutes",
+      "timeout_milliseconds := 120000",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST|EXTRACT)\s*\(/i.test(
+      sql,
+    ),
+    "PostgreSQL conditional and extraction expressions cannot be schema-qualified.",
   );
 });

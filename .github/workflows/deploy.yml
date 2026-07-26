@@ -179,6 +179,8 @@ jobs:
             supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
+            supabase/scripts/monitor_revenuecat_reconciliation.ts \
+            supabase/scripts/monitor_revenuecat_reconciliation_test.ts \
             supabase/scripts/function_dependency_tools.ts \
             supabase/scripts/function_dependency_tools_test.ts \
             supabase/scripts/plan_function_deploy.ts \
@@ -198,6 +200,8 @@ jobs:
             supabase/functions/replay-scan-ingestion/index.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
             supabase/functions/revenuecat-webhook/index.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
             supabase/functions/species-observation-stats/index.ts \
             supabase/functions/species-observation-stats/db.test.ts \
             supabase/functions/species-observation-stats/security.test.ts \
@@ -259,6 +263,7 @@ jobs:
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/scripts/audit_privileged_routine_acl_test.ts \
             supabase/scripts/monitor_scan_media_health_test.ts \
+            supabase/scripts/monitor_revenuecat_reconciliation_test.ts \
             supabase/functions/explore-post-chat/prompt_test.ts \
             supabase/functions/insight-chat/guards_test.ts \
             supabase/functions/insight-chat/prompt_test.ts \
@@ -293,13 +298,16 @@ jobs:
       - name: Test RevenueCat webhook boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/config.toml,../.github/workflows/deploy.yml \
+            --allow-read=supabase/functions,supabase/scripts,supabase/config.toml,../.github/workflows \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_shared/subscriptionPass_test.ts \
             supabase/functions/revenuecat-webhook/handler_test.ts \
             supabase/functions/revenuecat-webhook/index_test.ts \
             supabase/functions/revenuecat-webhook/signature_test.ts \
-            supabase/functions/revenuecat-webhook/subscriber_test.ts
+            supabase/functions/revenuecat-webhook/subscriber_test.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
+            supabase/scripts/monitor_revenuecat_reconciliation_test.ts
 
       - name: Test Darwin Core export boundary
         run: |

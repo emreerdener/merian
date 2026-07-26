@@ -488,12 +488,21 @@ non-expiring lifetime entitlement. The expiry worker can therefore remove access
 even if RevenueCat never delivers the final expiration webhook.
 
 The service-only `reconcile-revenuecat-subscribers` route is invoked every 15
-minutes. A durable queue leases at most ten customer records per call, bounds
-provider concurrency to three, and applies only newer CustomerInfo snapshots
-under the claim token. Pro users reconcile every six hours and free users every
-24 hours; webhook processing also advances the due time for affected subjects.
-This authoritative sweep repairs missed deliveries without granting a historical
-seven-day pass after a refund.
+minutes. A durable queue leases six-record `FOR UPDATE SKIP LOCKED` waves and
+keeps draining until empty or the 60-second start-work cutoff. Provider
+concurrency remains three, and only newer CustomerInfo snapshots apply under
+the claim token. A claimed-row partial index supports expired-lease cleanup.
+Pro users reconcile every six hours and free users every 24 hours; webhook
+processing also advances the due time for affected subjects. This authoritative
+sweep repairs missed deliveries without granting a historical seven-day pass
+after a refund.
+
+The service-only `get_revenuecat_reconciliation_health()` RPC reports due and
+expired-claim counts plus oldest due age. A separate pinned-action GitHub
+monitor checks it every 15 minutes, fails on a 30-minute warning by default,
+and marks 60 minutes critical. It uses the existing Production
+`SUPABASE_ACCESS_TOKEN` to resolve the service-role key; no additional monitor
+secret is required.
 
 Keep `revenueCatWebhookCoverage.test.ts`,
 `revenueCatWebhookMigrationContract.test.ts`, the route's focused unit tests,
@@ -602,10 +611,10 @@ fix the reported name mismatch; never update a numeric expected-function count.
 
 The checked-in `deno task test` is the canonical complete function source and
 unit suite. Its read allowlist includes the function tree plus the migration,
-Supabase config, deployment-workflow, and waitlist-route surfaces inspected by
-security contract tests. Deployment CI runs it after migrating the disposable
-database so database-backed cases cannot silently skip. Do not replace it in CI
-with a selected test subset.
+monitor-script, Supabase config, deployment-workflow, and waitlist-route
+surfaces inspected by security contract tests. Deployment CI runs it after
+migrating the disposable database so database-backed cases cannot silently
+skip. Do not replace it in CI with a selected test subset.
 
 Run it directly:
 

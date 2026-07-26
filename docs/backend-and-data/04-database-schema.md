@@ -2755,11 +2755,20 @@ private tables.
 linked Merian user. It stores the RevenueCat lookup ID, next due time, bounded
 attempt/backoff state, a two-minute claim token/lease, last provider snapshot,
 and last successful reconciliation. The 15-minute cron invokes the service-only
-worker, which claims at most ten rows and limits CustomerInfo concurrency to
-three. Pro users are rescheduled for six hours and free users for 24 hours.
-Only a snapshot newer than `internal.revenuecat_customer_state` can change
-access. Webhook processing schedules affected subjects transactionally.
-Background reconciliation never newly grants a historical seven-day pass.
+worker, which repeatedly claims six-row `FOR UPDATE SKIP LOCKED` waves until
+empty or its runtime start-work cutoff and limits CustomerInfo concurrency to
+three. The due-row partial index supports unclaimed selection; a second partial
+index led by `claim_expires_at` supports expired-lease cleanup without scanning
+future or unclaimed rows. Pro users are rescheduled for six hours and free users
+for 24 hours. Only a snapshot newer than
+`internal.revenuecat_customer_state` can change access. Webhook processing
+schedules affected subjects transactionally. Background reconciliation never
+newly grants a historical seven-day pass.
+
+`public.get_revenuecat_reconciliation_health()` is a service-role-only
+`SECURITY DEFINER` routine with an empty search path and an in-body caller
+check. It reports due/expired counts and oldest due age through the two partial
+indexes; API roles retain no direct queue access.
 
 ### `internal.account_deletion_jobs`
 

@@ -115,12 +115,20 @@ forever. Every identified account therefore has a private durable row in
 `internal.revenuecat_reconciliation_queue`. A webhook also schedules each
 resolved CustomerInfo identity after its event transaction commits.
 
-`reconcile-revenuecat-subscribers` runs every 15 minutes, claims at most ten
-customers under two-minute UUID leases, and performs at most three CustomerInfo
-requests concurrently. A strictly newer `request_date_ms` may update tier and
+`reconcile-revenuecat-subscribers` runs every 15 minutes. It claims six-customer
+waves under two-minute UUID leases, performs at most three CustomerInfo requests
+concurrently, and continues draining until the queue is empty or its 60-second
+start-work cutoff is reached. Thirty seconds remain for the final bounded wave,
+writes, and health read. A strictly newer `request_date_ms` may update tier and
 expiry; an older snapshot is audited as stale. Successful Pro customers are
 rechecked after six hours and free customers after 24 hours. Provider/database
 failures release the claim with bounded durable backoff.
+
+Migration `20260726031502_scale_revenuecat_reconciliation.sql` adds a partial
+index for expired claimed rows and a service-only backlog-health RPC. The
+independent `RevenueCat Reconciliation Health Monitor` workflow checks oldest
+due age every 15 minutes, alerts at 30 minutes or on any expired lease, and
+marks 60 minutes critical.
 
 CustomerInfo retains historical non-renewing purchases after refund. To avoid
 restoring a revoked `pro_week`, a periodic claim may grant a detached pass only
@@ -158,14 +166,16 @@ Run the focused unit and source-contract suite:
 ```bash
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions/revenuecat-webhook,.github/workflows/deploy.yml \
+  --allow-read=services/supabase/functions,services/supabase/scripts,.github/workflows \
   services/supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
   services/supabase/functions/_shared/subscriptionPass_test.ts \
   services/supabase/functions/revenuecat-webhook/handler_test.ts \
   services/supabase/functions/revenuecat-webhook/index_test.ts \
   services/supabase/functions/revenuecat-webhook/signature_test.ts \
   services/supabase/functions/revenuecat-webhook/subscriber_test.ts \
-  services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts
+  services/supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
+  services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
+  services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \

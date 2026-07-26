@@ -36,7 +36,9 @@ TestFlight, App Store, support, and QA.
   atomically instead of relying on a follow-up lifecycle event. Recurring and
   grace-period expirations are now durable, and a scheduled authoritative
   subscriber sweep repairs a missed webhook without restoring refunded pass
-  history.
+  history. That sweep now drains repeated leased waves against a runtime
+  deadline instead of stopping after ten users, indexes expired leases, and has
+  an independent oldest-due-age alert.
 - Hardened every server JSON endpoint against oversized or malformed streamed
   bodies and replaced internal exception details with stable request-correlated
   errors. The public beta waitlist now requires a verified security challenge,

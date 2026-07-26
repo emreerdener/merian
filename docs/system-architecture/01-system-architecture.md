@@ -272,8 +272,10 @@ single-responsibility functions under `/services/supabase/functions/`.
     or delayed delivery; transfer source and destination projections share one
     atomic transaction.
   - `/reconcile-revenuecat-subscribers`: Fifteen-minute service-role repair
-    worker that leases a durable queue, bounds CustomerInfo concurrency, and
-    applies only a newer authoritative snapshot after a missed delivery.
+    worker that deadline-drains small leased `SKIP LOCKED` waves, bounds
+    CustomerInfo concurrency, and applies only a newer authoritative snapshot
+    after a missed delivery. An indexed service-only health RPC plus independent
+    scheduled monitor alerts on expired leases and oldest due age.
 
 ### 5. Continuous Gamification Ecosystem (`GamificationManager`)
 
