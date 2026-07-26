@@ -417,6 +417,16 @@ struct MerianApp: App {
             SpeciesPreferredNameRepository.migrateLegacyPreferences(modelContext: mainContext)
 
             UITestSeedCoordinator.prepareIfNeeded(container: container)
+
+            if LocalScanMediaRecoveryResolver.hasLegacyRecoveryIndex {
+                let descriptor = FetchDescriptor<LocalScanRecord>()
+                let records = (try? mainContext.fetch(descriptor)) ?? []
+                let recoveryCount = LocalScanMediaRecoveryResolver
+                    .registerRecoveryMappings(for: records)
+                MerianLog.data.info(
+                    "Startup media recovery registered \(recoveryCount, privacy: .public) legacy scan image mapping(s)."
+                )
+            }
         }
         
         // Keep app-hosted test sessions hermetic: no analytics startup, no disk-backed

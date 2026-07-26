@@ -579,28 +579,40 @@ schema-v2 or newer responses whose canonical UUID/name matches its request.
 Successful public responses do not vary by Authorization, preserving shared
 cache reuse instead of creating per-token origin traffic.
 
-### Testing Edge Functions
+### Testing Supabase Functions and Tooling
 
-Before opening a PR targeting `services/supabase/functions`, run formatting,
-linting, dependency-policy validation, and type checking:
+Before opening a PR targeting `services/supabase`, gate both deployable
+functions and repository tooling:
 
 ```bash
-cd services/supabase/functions
-deno fmt --check
-deno lint --config deno.json
-deno task test
-cd ../../..
+deno fmt --check services/supabase/functions services/supabase/scripts
+deno lint --config services/supabase/functions/deno.json \
+  services/supabase/functions services/supabase/scripts
+make test-supabase-tooling
+(cd services/supabase/functions && deno task test)
+
 deno run --allow-read=services/supabase \
   services/supabase/scripts/sync_function_deno_configs.ts --check
 deno run --allow-read=services/supabase \
   services/supabase/scripts/validate_function_dependencies.ts
-deno test --frozen --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase \
-  services/supabase/scripts/function_dependency_tools_test.ts
 deno check --frozen \
   --config services/supabase/functions/<function>/deno.json \
   services/supabase/functions/<function>/index.ts
 ```
+
+`test_supabase_tooling.sh` dynamically type-checks every standard script and
+runs every standard `*_test.ts`, including the ghost-user audit and cleanup
+suites. It then tests and executes the Identify compiler-AST validator under its
+isolated frozen config, syntax-checks every shell script, and runs every
+`*_test.sh`. New conventionally named tooling tests therefore enter the gate
+without editing CI.
+
+The current canonical comparison resolves 31 unique TypeScript schema
+properties (22 top-level) and 36 direct Swift `EdgeResponse` properties.
+`ai_reasoning` and `extracted_visual_traits` are the only reviewed top-level
+schema exceptions because iOS receives reasoning under `insight_data` and does
+not decode server-retained visual traits. Update counts/floors only alongside an
+intentional contract change and its tests.
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh

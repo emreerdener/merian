@@ -1,5 +1,6 @@
 import CoreImage
 import Foundation
+import SQLite3
 import SwiftUI
 
 enum ExternalReferenceImagePolicy {
@@ -149,13 +150,19 @@ enum LocalScanMediaRecoveryResolver {
     private static let supportedImageExtensions: Set<String> = [
         "heic", "heif", "jpeg", "jpg", "png", "tif", "tiff", "webp"
     ]
+    private static let registry = LocalScanMediaRecoveryRegistry()
+    private static let legacyIndex = LegacyScanMediaRecoveryIndex()
 
     static func existingLocalImageURL(
         for remoteURL: URL,
         documentsDirectory: URL = .documentsDirectory,
         fileManager: FileManager = .default
     ) -> URL? {
-        for fileName in candidateFileNames(for: remoteURL) {
+        let registeredFileName = registry.fileName(for: remoteURL)
+        let fileNames = [registeredFileName].compactMap { $0 } +
+            candidateFileNames(for: remoteURL)
+
+        for fileName in fileNames {
             let candidateURL = documentsDirectory.appendingPathComponent(
                 fileName,
                 isDirectory: false
@@ -170,6 +177,96 @@ enum LocalScanMediaRecoveryResolver {
             return candidateURL
         }
         return nil
+    }
+
+    static var hasLegacyRecoveryIndex: Bool {
+        legacyIndex.hasRecords
+    }
+
+    @discardableResult
+    static func registerRecoveryMappings(
+        for records: [LocalScanRecord],
+        documentsDirectory: URL = .documentsDirectory,
+        fileManager: FileManager = .default
+    ) -> Int {
+        registerRecoveryMappings(
+            records.map {
+                CurrentScanRecoveryMedia(
+                    scanID: $0.id,
+                    timestamp: $0.timestamp,
+                    coverImagePath: $0.coverImagePath,
+                    items: $0.serializedCapturedMediaItems
+                )
+            },
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+    }
+
+    @discardableResult
+    static func registerRecoveryMappings(
+        for responses: [HistoricalScanResponse],
+        documentsDirectory: URL = .documentsDirectory,
+        fileManager: FileManager = .default
+    ) -> Int {
+        registerRecoveryMappings(
+            responses.map { response in
+                let items = CapturedMediaSnapshot.cloudHydratedItems(
+                    capturedMediaItems: response.captured_media,
+                    imageStorageURLs: response.image_storage_urls,
+                    videoStorageURLs: response.video_storage_urls
+                )
+                return CurrentScanRecoveryMedia(
+                    scanID: response.id,
+                    timestamp: historicalDate(response.created_at),
+                    coverImagePath: CapturedMediaSnapshot(
+                        items: items
+                    ).primaryImagePath ??
+                        response.image_storage_urls?.first,
+                    items: items
+                )
+            },
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+    }
+
+    @discardableResult
+    static func registerRecoveryMapping(
+        remoteURL: URL,
+        localFileName: String
+    ) -> Bool {
+        guard !candidateFileNames(for: remoteURL).isEmpty,
+              isSafeImageFileName(localFileName) else {
+            return false
+        }
+        return registry.register(remoteURL: remoteURL, fileName: localFileName)
+    }
+
+    static func resetRegisteredRecoveryMappingsForTesting() {
+        registry.reset()
+    }
+
+    @discardableResult
+    static func registerTimestampRecoveryMappingsForTesting(
+        scanID: String,
+        timestamp: Date,
+        remoteImageURLs: [URL],
+        documentsDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> Int {
+        registerTimestampRecoveryMappings(
+            [
+                TimestampScanRecoveryCandidate(
+                    scanID: scanID,
+                    timestamp: timestamp,
+                    remoteImageURLs: remoteImageURLs
+                )
+            ],
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager,
+            requiresLegacyIndex: false
+        )
     }
 
     static func candidateFileNames(for remoteURL: URL) -> [String] {
@@ -217,6 +314,541 @@ enum LocalScanMediaRecoveryResolver {
             of: #"^[A-Za-z0-9_.-]+$"#,
             options: .regularExpression
         ) != nil
+    }
+
+    private static func registerRecoveryMappings(
+        _ currentScans: [CurrentScanRecoveryMedia],
+        documentsDirectory: URL,
+        fileManager: FileManager
+    ) -> Int {
+        guard legacyIndex.hasRecords else { return 0 }
+
+        var registeredCount = 0
+        for currentScan in currentScans {
+            guard let legacyRecord = legacyIndex.record(
+                for: currentScan.scanID
+            ) else {
+                continue
+            }
+
+            let legacySnapshot = CapturedMediaSnapshot(
+                jsonString: legacyRecord.capturedMediaJSON
+            )
+            let currentSnapshot = CapturedMediaSnapshot(
+                items: currentScan.items
+            )
+
+            if let remoteURL = durableRemoteImageURL(
+                from: currentScan.coverImagePath
+            ), let localFileName = existingLocalImageFileName(
+                from: legacyRecord.coverImagePath,
+                documentsDirectory: documentsDirectory,
+                fileManager: fileManager
+            ), registry.register(
+                remoteURL: remoteURL,
+                fileName: localFileName
+            ) {
+                registeredCount += 1
+            }
+
+            registeredCount += registerAlignedReferences(
+                legacySnapshot.imageReferences,
+                currentSnapshot.imageReferences,
+                documentsDirectory: documentsDirectory,
+                fileManager: fileManager
+            )
+            registeredCount += registerAlignedReferences(
+                legacySnapshot.videoThumbnailReferences,
+                currentSnapshot.videoThumbnailReferences,
+                documentsDirectory: documentsDirectory,
+                fileManager: fileManager
+            )
+        }
+
+        let timestampCandidates = currentScans.compactMap { currentScan
+            -> TimestampScanRecoveryCandidate? in
+            guard legacyIndex.record(for: currentScan.scanID) == nil,
+                  let timestamp = currentScan.timestamp else {
+                return nil
+            }
+
+            let snapshot = CapturedMediaSnapshot(items: currentScan.items)
+            let rawReferences = [currentScan.coverImagePath] +
+                snapshot.imageReferences.map(\.serializedPath) +
+                snapshot.videoThumbnailReferences.map(\.serializedPath)
+            var seenURLs = Set<String>()
+            let remoteImageURLs = rawReferences.compactMap {
+                durableRemoteImageURL(from: $0)
+            }.filter {
+                seenURLs.insert($0.absoluteString).inserted
+            }
+            guard !remoteImageURLs.isEmpty else { return nil }
+
+            return TimestampScanRecoveryCandidate(
+                scanID: currentScan.scanID,
+                timestamp: timestamp,
+                remoteImageURLs: remoteImageURLs
+            )
+        }
+        registeredCount += registerTimestampRecoveryMappings(
+            timestampCandidates,
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+        return registeredCount
+    }
+
+    private static func registerTimestampRecoveryMappings(
+        _ scans: [TimestampScanRecoveryCandidate],
+        documentsDirectory: URL,
+        fileManager: FileManager,
+        requiresLegacyIndex: Bool = true
+    ) -> Int {
+        guard !requiresLegacyIndex || legacyIndex.hasRecords else { return 0 }
+
+        var usedFileNames = registry.registeredFileNames
+        for scan in scans {
+            for remoteURL in scan.remoteImageURLs {
+                if let localURL = existingLocalImageURL(
+                    for: remoteURL,
+                    documentsDirectory: documentsDirectory,
+                    fileManager: fileManager
+                ) {
+                    usedFileNames.insert(localURL.lastPathComponent)
+                }
+            }
+        }
+
+        var availableGroups = timestampRecoveryGroups(
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+        var registeredCount = 0
+
+        for scan in scans.sorted(by: { $0.timestamp < $1.timestamp }) {
+            // A direct filename or rescue-store match is stronger than time.
+            guard !scan.remoteImageURLs.contains(where: {
+                existingLocalImageURL(
+                    for: $0,
+                    documentsDirectory: documentsDirectory,
+                    fileManager: fileManager
+                ) != nil
+            }) else {
+                continue
+            }
+
+            let candidates = availableGroups.indices.filter { index in
+                let group = availableGroups[index]
+                let delay = scan.timestamp.timeIntervalSince(
+                    group.modificationDate
+                )
+                return group.fileNames.count == scan.remoteImageURLs.count &&
+                    (0 ... 60).contains(delay) &&
+                    group.fileNames.allSatisfy {
+                        !usedFileNames.contains($0)
+                    }
+            }.sorted {
+                availableGroups[$0].modificationDate >
+                    availableGroups[$1].modificationDate
+            }
+
+            guard let selectedIndex = candidates.first else { continue }
+            if candidates.count > 1 {
+                let selectedDate = availableGroups[selectedIndex]
+                    .modificationDate
+                let nextDate = availableGroups[candidates[1]]
+                    .modificationDate
+                guard selectedDate.timeIntervalSince(nextDate) >= 3 else {
+                    continue
+                }
+            }
+
+            let group = availableGroups[selectedIndex]
+            let groupRegistrationCount = zip(
+                scan.remoteImageURLs,
+                group.fileNames
+            ).reduce(into: 0) { count, pair in
+                let (remoteURL, fileName) = pair
+                if registry.register(
+                    remoteURL: remoteURL,
+                    fileName: fileName
+                ) {
+                    count += 1
+                }
+            }
+            guard groupRegistrationCount == group.fileNames.count else {
+                continue
+            }
+
+            registeredCount += groupRegistrationCount
+            usedFileNames.formUnion(group.fileNames)
+            availableGroups.remove(at: selectedIndex)
+        }
+        return registeredCount
+    }
+
+    private static func timestampRecoveryGroups(
+        documentsDirectory: URL,
+        fileManager: FileManager
+    ) -> [TimestampScanRecoveryFileGroup] {
+        let resourceKeys: Set<URLResourceKey> = [
+            .contentModificationDateKey,
+            .isRegularFileKey
+        ]
+        guard let urls = try? fileManager.contentsOfDirectory(
+            at: documentsDirectory,
+            includingPropertiesForKeys: Array(resourceKeys),
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var entriesBySecond: [Int: [TimestampScanRecoveryFileEntry]] = [:]
+        for url in urls {
+            let fileName = url.lastPathComponent
+            guard isSafeImageFileName(fileName),
+                  let role = timestampRecoveryRole(for: fileName),
+                  let values = try? url.resourceValues(
+                      forKeys: resourceKeys
+                  ),
+                  values.isRegularFile == true,
+                  let modificationDate = values.contentModificationDate else {
+                continue
+            }
+            let second = Int(
+                modificationDate.timeIntervalSince1970.rounded(.down)
+            )
+            entriesBySecond[second, default: []].append(
+                TimestampScanRecoveryFileEntry(
+                    fileName: fileName,
+                    modificationDate: modificationDate,
+                    role: role
+                )
+            )
+        }
+
+        return entriesBySecond.values.compactMap { entries in
+            let primaryEntries = entries.filter { $0.role == .primary }
+            guard primaryEntries.count == 1 else { return nil }
+
+            let additionalEntries = entries.compactMap { entry
+                -> (index: Int, entry: TimestampScanRecoveryFileEntry)? in
+                guard case .additional(let index) = entry.role else {
+                    return nil
+                }
+                return (index, entry)
+            }.sorted { $0.index < $1.index }
+            guard additionalEntries.enumerated().allSatisfy({
+                $0.offset + 1 == $0.element.index
+            }) else {
+                return nil
+            }
+
+            let primary = primaryEntries[0]
+            return TimestampScanRecoveryFileGroup(
+                modificationDate: primary.modificationDate,
+                fileNames: [primary.fileName] +
+                    additionalEntries.map(\.entry.fileName)
+            )
+        }.sorted { $0.modificationDate < $1.modificationDate }
+    }
+
+    private static func timestampRecoveryRole(
+        for fileName: String
+    ) -> TimestampScanRecoveryFileRole? {
+        let stem = (fileName as NSString).deletingPathExtension.lowercased()
+        if stem.hasSuffix("_scan") {
+            return .primary
+        }
+
+        guard let match = stem.range(
+            of: #"_additional_([1-9][0-9]*)$"#,
+            options: .regularExpression
+        ) else {
+            return nil
+        }
+        let suffix = stem[match]
+        guard let separator = suffix.lastIndex(of: "_"),
+              let index = Int(suffix[suffix.index(after: separator)...]) else {
+            return nil
+        }
+        return .additional(index)
+    }
+
+    private static func historicalDate(_ timestamp: String?) -> Date? {
+        guard let timestamp else { return nil }
+        return DateUtilities.iso8601FractionalFormatter.date(from: timestamp)
+            ?? DateUtilities.iso8601Formatter.date(from: timestamp)
+    }
+
+    private static func registerAlignedReferences(
+        _ legacyReferences: [StoredMediaReference],
+        _ currentReferences: [StoredMediaReference],
+        documentsDirectory: URL,
+        fileManager: FileManager
+    ) -> Int {
+        guard legacyReferences.count == currentReferences.count else {
+            return 0
+        }
+
+        var registeredCount = 0
+        for (legacyReference, currentReference) in zip(
+            legacyReferences,
+            currentReferences
+        ) {
+            guard let remoteURL = durableRemoteImageURL(
+                from: currentReference.serializedPath
+            ), let localFileName = existingLocalImageFileName(
+                from: legacyReference.serializedPath,
+                documentsDirectory: documentsDirectory,
+                fileManager: fileManager
+            ), registry.register(
+                remoteURL: remoteURL,
+                fileName: localFileName
+            ) else {
+                continue
+            }
+            registeredCount += 1
+        }
+        return registeredCount
+    }
+
+    private static func durableRemoteImageURL(from rawValue: String?) -> URL? {
+        guard let rawValue,
+              let url = URL(string: rawValue),
+              !candidateFileNames(for: url).isEmpty else {
+            return nil
+        }
+        return url
+    }
+
+    private static func existingLocalImageFileName(
+        from rawValue: String?,
+        documentsDirectory: URL,
+        fileManager: FileManager
+    ) -> String? {
+        guard let rawValue,
+              !rawValue.lowercased().hasPrefix("http://"),
+              !rawValue.lowercased().hasPrefix("https://") else {
+            return nil
+        }
+
+        let fileName = (rawValue as NSString).lastPathComponent
+        guard isSafeImageFileName(fileName) else { return nil }
+
+        let fileURL = documentsDirectory.appendingPathComponent(
+            fileName,
+            isDirectory: false
+        )
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(
+            atPath: fileURL.path,
+            isDirectory: &isDirectory
+        ), !isDirectory.boolValue else {
+            return nil
+        }
+        return fileName
+    }
+}
+
+private struct CurrentScanRecoveryMedia {
+    let scanID: String
+    let timestamp: Date?
+    let coverImagePath: String?
+    let items: [SerializedMediaItem]
+}
+
+private struct TimestampScanRecoveryCandidate {
+    let scanID: String
+    let timestamp: Date
+    let remoteImageURLs: [URL]
+}
+
+private struct TimestampScanRecoveryFileGroup {
+    let modificationDate: Date
+    let fileNames: [String]
+}
+
+private struct TimestampScanRecoveryFileEntry {
+    let fileName: String
+    let modificationDate: Date
+    let role: TimestampScanRecoveryFileRole
+}
+
+private enum TimestampScanRecoveryFileRole: Equatable {
+    case primary
+    case additional(Int)
+}
+
+private struct LegacyScanMediaRecoveryRecord {
+    let coverImagePath: String?
+    let capturedMediaJSON: String?
+}
+
+private final class LocalScanMediaRecoveryRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fileNamesByRemoteURL: [String: String] = [:]
+
+    func fileName(for remoteURL: URL) -> String? {
+        guard let key = canonicalKey(for: remoteURL) else { return nil }
+        return lock.withLock {
+            fileNamesByRemoteURL[key]
+        }
+    }
+
+    @discardableResult
+    func register(remoteURL: URL, fileName: String) -> Bool {
+        guard let key = canonicalKey(for: remoteURL) else { return false }
+        return lock.withLock {
+            if fileNamesByRemoteURL[key] != nil {
+                return false
+            }
+            fileNamesByRemoteURL[key] = fileName
+            return true
+        }
+    }
+
+    var registeredFileNames: Set<String> {
+        lock.withLock {
+            Set(fileNamesByRemoteURL.values)
+        }
+    }
+
+    func reset() {
+        lock.withLock {
+            fileNamesByRemoteURL.removeAll()
+        }
+    }
+
+    private func canonicalKey(for url: URL) -> String? {
+        guard var components = URLComponents(
+            url: url,
+            resolvingAgainstBaseURL: false
+        ) else {
+            return nil
+        }
+        components.query = nil
+        components.fragment = nil
+        return components.url?.absoluteString
+    }
+}
+
+private final class LegacyScanMediaRecoveryIndex: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cachedRecords: [String: LegacyScanMediaRecoveryRecord]?
+
+    var hasRecords: Bool {
+        !records().isEmpty
+    }
+
+    func record(for scanID: String) -> LegacyScanMediaRecoveryRecord? {
+        records()[scanID.lowercased()]
+    }
+
+    private func records() -> [String: LegacyScanMediaRecoveryRecord] {
+        lock.withLock {
+            if let cachedRecords {
+                return cachedRecords
+            }
+            let loadedRecords = loadRecords()
+            cachedRecords = loadedRecords
+            return loadedRecords
+        }
+    }
+
+    private func loadRecords(
+        applicationSupportDirectory: URL = .applicationSupportDirectory,
+        fileManager: FileManager = .default
+    ) -> [String: LegacyScanMediaRecoveryRecord] {
+        let rescueRoot = applicationSupportDirectory.appendingPathComponent(
+            "store-rescue",
+            isDirectory: true
+        )
+        guard let archiveDirectories = try? fileManager.contentsOfDirectory(
+            at: rescueRoot,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return [:]
+        }
+
+        let storeURLs = archiveDirectories
+            .map {
+                $0.appendingPathComponent("default.store", isDirectory: false)
+            }
+            .filter { fileManager.fileExists(atPath: $0.path) }
+            .sorted { $0.path > $1.path }
+
+        var recordsByID: [String: LegacyScanMediaRecoveryRecord] = [:]
+        for storeURL in storeURLs {
+            for (scanID, record) in readRecords(from: storeURL)
+                where recordsByID[scanID] == nil {
+                recordsByID[scanID] = record
+            }
+        }
+        return recordsByID
+    }
+
+    private func readRecords(
+        from storeURL: URL
+    ) -> [String: LegacyScanMediaRecoveryRecord] {
+        var database: OpaquePointer?
+        let openResult = sqlite3_open_v2(
+            storeURL.path,
+            &database,
+            SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,
+            nil
+        )
+        guard openResult == SQLITE_OK, let database else {
+            if database != nil {
+                sqlite3_close(database)
+            }
+            return [:]
+        }
+        defer { sqlite3_close(database) }
+
+        let query = """
+        SELECT ZID, ZCOVERIMAGEPATH, ZCAPTUREDMEDIAJSON
+        FROM ZLOCALSCANRECORD
+        WHERE ZID IS NOT NULL
+        """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(
+            database,
+            query,
+            -1,
+            &statement,
+            nil
+        ) == SQLITE_OK, let statement else {
+            return [:]
+        }
+        defer { sqlite3_finalize(statement) }
+
+        var recordsByID: [String: LegacyScanMediaRecoveryRecord] = [:]
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let scanID = stringValue(
+                from: statement,
+                column: 0
+            )?.lowercased() else {
+                continue
+            }
+            recordsByID[scanID] = LegacyScanMediaRecoveryRecord(
+                coverImagePath: stringValue(from: statement, column: 1),
+                capturedMediaJSON: stringValue(from: statement, column: 2)
+            )
+        }
+        return recordsByID
+    }
+
+    private func stringValue(
+        from statement: OpaquePointer,
+        column: Int32
+    ) -> String? {
+        guard sqlite3_column_type(statement, column) != SQLITE_NULL,
+              let text = sqlite3_column_text(statement, column) else {
+            return nil
+        }
+        return String(cString: text)
     }
 }
 

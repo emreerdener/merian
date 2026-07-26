@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -11,6 +11,7 @@ help:
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
+	@printf "  make test-supabase-tooling            Run complete discovery-based Supabase tooling tests\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
 	@printf "  make test-supabase-privileged-routines Validate privileged-routine, account-deletion, Ghost-merge, AI-quota, DwC-A, RevenueCat, species-stats, and waitlist catalogs locally\n"
 	@printf "  make audit-supabase-privileged-routines Audit MERIAN_DATABASE_URL and fail on drift\n"
@@ -39,6 +40,9 @@ test-ios-versioning:
 
 validate-ios-migration-guardrails:
 	bash scripts/check-ios-migration-source-guardrails.sh
+
+test-supabase-tooling:
+	bash services/supabase/scripts/test_supabase_tooling.sh
 
 validate-supabase-migrations:
 	deno test --config services/supabase/functions/deno.json \

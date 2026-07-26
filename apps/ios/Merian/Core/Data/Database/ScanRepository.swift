@@ -423,6 +423,14 @@ actor HistoricalDatabaseActor {
     /// - Returns: The number of new `LocalScanRecord` rows inserted from this page.
     @discardableResult
     func reconcileScanPage(responses: [HistoricalScanResponse]) -> Int {
+        let recoveryCount = LocalScanMediaRecoveryResolver
+            .registerRecoveryMappings(for: responses)
+        if recoveryCount > 0 {
+            MerianLog.data.info(
+                "Historical media recovery registered \(recoveryCount, privacy: .public) scan image mapping(s)."
+            )
+        }
+
         let responseIds = responses.map { $0.id }
         var existingIds = Set<String>()
         

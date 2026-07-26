@@ -244,6 +244,11 @@ Shared identify helpers under
 `services/supabase/functions/_shared/identify/` own cross-route contracts for
 schema, thresholds, cache hydration, database writes, media resolution,
 moderation, latency-oriented database RPCs, and subject classification.
+`services/supabase/scripts/validate_edge_dtos.ts` compiler-parses the canonical
+shared response schema, resolves its local spreads/nested properties, applies
+fail-closed coverage floors, and compares generated top-level fields with the
+iOS `EdgeResponse` boundary. Its focused test, Deno config, and lock keep the
+compiler dependency in deployment tooling rather than deployable functions.
 `latencyDb.ts` owns the atomic ingestion-setup and dictionary-hydration calls;
 `subjectClassification.ts` is the
 processed-material boundary: visual and describe routes call it before
@@ -415,6 +420,9 @@ Each function also has a generated local `deno.json` backed by
 `sync_function_deno_configs.ts`, `validate_function_dependencies.ts`,
 `plan_function_deploy.ts`, and `deploy_function_batches.sh`; CI uses that graph
 to type-check deploy-time configs and select transitive runtime consumers. The
+discovery-based `test_supabase_tooling.sh` runner type-checks every standard
+TypeScript script, runs every `*_test.ts`, exercises the isolated DTO validator,
+and syntax-checks/tests shell tooling without a hand-maintained test list. The
 inventory above is descriptive rather than a second source of truth:
 `function_dependency_tools_test.ts` requires exact name-for-name parity between
 `config.toml` and discoverable function graphs without hard-coding a fleet

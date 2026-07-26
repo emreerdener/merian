@@ -134,6 +134,104 @@ struct LocalImageLoaderTests {
         #expect(recoveredURL == localURL)
     }
 
+    @Test func localScanMediaRecoveryUsesRegisteredScanIDMappingWhenCloudNameChanged() throws {
+        let localFileName = "\(UUID().uuidString)_scan.webp"
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        defer {
+            LocalScanMediaRecoveryResolver
+                .resetRegisteredRecoveryMappingsForTesting()
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+
+        let localURL = temporaryDirectory.appendingPathComponent(localFileName)
+        #expect(FileManager.default.createFile(
+            atPath: localURL.path,
+            contents: Data([0x01])
+        ))
+
+        let remoteURL = try #require(URL(
+            string: "https://media.merian.app/public_uploads/pro/user/\(UUID().uuidString).webp"
+        ))
+        #expect(LocalScanMediaRecoveryResolver.registerRecoveryMapping(
+            remoteURL: remoteURL,
+            localFileName: localFileName
+        ))
+
+        let recoveredURL = LocalScanMediaRecoveryResolver.existingLocalImageURL(
+            for: URL(string: "\(remoteURL.absoluteString)?width=900")!,
+            documentsDirectory: temporaryDirectory
+        )
+
+        #expect(recoveredURL == localURL)
+    }
+
+    @Test func localScanMediaRecoveryUsesHighConfidenceWriteTimestampGroup() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        defer {
+            LocalScanMediaRecoveryResolver
+                .resetRegisteredRecoveryMappingsForTesting()
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+
+        let primaryName = "\(UUID().uuidString)_scan.webp"
+        let additionalName = "\(UUID().uuidString)_additional_1.webp"
+        let primaryURL = temporaryDirectory.appendingPathComponent(primaryName)
+        let additionalURL = temporaryDirectory.appendingPathComponent(additionalName)
+        #expect(FileManager.default.createFile(
+            atPath: primaryURL.path,
+            contents: Data([0x01])
+        ))
+        #expect(FileManager.default.createFile(
+            atPath: additionalURL.path,
+            contents: Data([0x02])
+        ))
+
+        let writtenAt = Date(timeIntervalSince1970: 1_784_748_461)
+        try FileManager.default.setAttributes(
+            [.modificationDate: writtenAt],
+            ofItemAtPath: primaryURL.path
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: writtenAt],
+            ofItemAtPath: additionalURL.path
+        )
+
+        let remoteURLs = try [
+            #require(URL(
+                string: "https://media.merian.app/public_uploads/pro/user/\(UUID().uuidString).webp"
+            )),
+            #require(URL(
+                string: "https://media.merian.app/public_uploads/pro/user/\(UUID().uuidString).webp"
+            ))
+        ]
+        #expect(LocalScanMediaRecoveryResolver
+            .registerTimestampRecoveryMappingsForTesting(
+                scanID: UUID().uuidString,
+                timestamp: writtenAt.addingTimeInterval(16),
+                remoteImageURLs: remoteURLs,
+                documentsDirectory: temporaryDirectory
+            ) == 2)
+
+        #expect(LocalScanMediaRecoveryResolver.existingLocalImageURL(
+            for: remoteURLs[0],
+            documentsDirectory: temporaryDirectory
+        ) == primaryURL)
+        #expect(LocalScanMediaRecoveryResolver.existingLocalImageURL(
+            for: remoteURLs[1],
+            documentsDirectory: temporaryDirectory
+        ) == additionalURL)
+    }
+
     @Test func localImageLoaderRecoversExploreFallbackURLFromDocuments() async throws {
         let scanId = UUID().uuidString
         let localFileName = "\(UUID().uuidString)_scan.png"

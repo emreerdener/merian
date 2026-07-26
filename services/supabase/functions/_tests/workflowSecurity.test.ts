@@ -73,3 +73,30 @@ Deno.test("only the checklist-writing workflow requests repository write access"
 
   assertEquals(writers, ["import-community-taxonomy.yml"]);
 });
+
+Deno.test("production deploy invokes the complete Supabase tooling gate", async () => {
+  const deployWorkflow = await Deno.readTextFile(
+    new URL("deploy.yml", workflowsDirectory),
+  );
+
+  assertMatch(
+    deployWorkflow,
+    /- "apps\/ios\/Merian\/Core\/AI\/InferenceEdgeDTOs\.swift"/,
+    "Swift DTO changes must trigger the contract gate.",
+  );
+  assertMatch(
+    deployWorkflow,
+    /- name: Gate whole-tree Supabase formatting\n\s+run: deno fmt --check supabase\/functions supabase\/scripts/,
+    "Production deploy must format-gate functions and tooling.",
+  );
+  assertMatch(
+    deployWorkflow,
+    /- name: Gate whole-tree Supabase TypeScript lint\n\s+run: \|\n\s+deno lint --config supabase\/functions\/deno\.json \\\n\s+supabase\/functions \\\n\s+supabase\/scripts/,
+    "Production deploy must lint functions and tooling.",
+  );
+  assertMatch(
+    deployWorkflow,
+    /- name: Test complete Supabase tooling suite\n\s+run: bash supabase\/scripts\/test_supabase_tooling\.sh/,
+    "Production deploy must invoke the discovery-based tooling test gate.",
+  );
+});

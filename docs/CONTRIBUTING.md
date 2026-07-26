@@ -47,10 +47,15 @@ Before contributing, please review our core architectural tenets. Refactoring co
 ## Testing Protocol
 
 - **Swift/iOS**: All `@MainActor` lifecycle boundaries must not block the main thread.
-- **Edge Functions**: You must write and validate code natively using Deno testing frameworks. Before opening a PR targeting `services/supabase/functions`, run:
+- **Supabase Functions and Tooling**: You must write and validate code natively
+  using Deno testing frameworks. Before opening a PR targeting
+  `services/supabase`, run:
   ```bash
-  cd services/supabase/functions
-  deno task test
+  deno fmt --check services/supabase/functions services/supabase/scripts
+  deno lint --config services/supabase/functions/deno.json \
+    services/supabase/functions services/supabase/scripts
+  make test-supabase-tooling
+  (cd services/supabase/functions && deno task test)
   ```
   `services/supabase/functions/deno.json` owns reviewed dependency pins. Each
   deployable function has a generated local `deno.json` that uses the shared
@@ -62,17 +67,17 @@ Before contributing, please review our core architectural tenets. Refactoring co
     services/supabase/scripts/sync_function_deno_configs.ts --check
   deno run --allow-read=services/supabase \
     services/supabase/scripts/validate_function_dependencies.ts
-  deno test --frozen --config services/supabase/functions/deno.json \
-    --allow-read=services/supabase \
-    services/supabase/scripts/function_dependency_tools_test.ts
   deno check --frozen \
     --config services/supabase/functions/<function>/deno.json \
     services/supabase/functions/<function>/index.ts
   ```
-  The planner test compares the complete `[functions.<name>]` set in
-  `config.toml` with the complete set of discoverable function graphs. Add or
-  retire the reported route correctly; do not maintain a numeric fleet-size
-  assertion.
+  `test_supabase_tooling.sh` discovers every standard script source and
+  `_test.ts` file, including the ghost-user audit and cleanup suites, rather
+  than maintaining a selected list. It also runs the isolated Identify DTO
+  validator and every shell-tooling test. The planner test compares the
+  complete `[functions.<name>]` set in `config.toml` with the complete set of
+  discoverable function graphs. Add or retire the reported route correctly; do
+  not maintain a numeric fleet-size assertion.
   New deployed functions should call `Deno.serve(...)` directly and avoid
   direct runtime URL/npm/JSR imports; route packages through the root manifest,
   regenerate function-local configs, and use local shared helpers such as

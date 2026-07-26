@@ -43,6 +43,21 @@ explicit `SUPABASE_DB_TEST_URL` makes an unavailable database a test failure.
 CI must run the complete task rather than substituting a hand-selected subset
 whose permissions happen to pass.
 
+The complete repository-tooling suite is a separate discovery-based gate:
+
+```bash
+deno fmt --check services/supabase/functions services/supabase/scripts
+deno lint --config services/supabase/functions/deno.json \
+  services/supabase/functions services/supabase/scripts
+make test-supabase-tooling
+```
+
+`test_supabase_tooling.sh` type-checks every standard TypeScript script and
+runs every conventionally named `*_test.ts`, so the ghost-user audit and
+cleanup tests cannot fall out of CI through list drift. It separately exercises
+the frozen compiler-AST DTO validator, syntax-checks every shell script, and
+runs every `*_test.sh`. `tooling_gate_test.ts` protects that discovery policy.
+
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
 workflow-level permissions, secret references outside individual steps, and
@@ -1343,17 +1358,38 @@ and detail seeking still behaves as documented.
 
 ### `validate_edge_dtos.ts`
 
-- **AST Protection**: Before every production Edge rollout, AI Agents and
-  developers run this script to syntactically trace the Deno
-  `merianResponseSchema` and diff it against the properties in
-  `InferenceEdgeDTOs.swift`. This proactively halts deployments if a UI variable
-  drifts out of sync.
-- **`LookalikeSummary` shape check**: The script must assert that
-  `EnrichData.similar_species` is typed as `LookalikeSummary[]` and that
-  `LookalikeSummary` exposes all four fields: `scientific_name`, `common_name`,
-  `reference_image_url`, `iucn_red_list_status`. This guards against the
-  response schema accidentally reverting to the legacy
-  `{ lookalike_species: string[] }` wrapper shape.
+- **Canonical AST source**: The validator reads
+  `services/supabase/functions/_shared/identify/schema.ts`, locates the exported
+  `getMerianResponseSchema` factory with the pinned TypeScript compiler AST, and
+  resolves local identifiers, returned object literals, and property spreads
+  such as `...sharedProperties()`. It also walks nested `properties`, array
+  `items`, and composition arrays. It must not infer the schema by scanning an
+  Edge entrypoint or by matching source text with a regular expression.
+- **Fail-closed assurance**: The production policy requires at least 30 unique
+  schema properties, 20 top-level schema properties, 34 direct Swift
+  `EdgeResponse` properties, and the required biological, identity, candidate,
+  quality, pet, and interaction sentinels. Zero fields, a count below any floor,
+  an unresolved properties object, a missing sentinel, or an unsupported
+  property-map member fails validation before the DTO diff can pass. If the
+  canonical contract intentionally becomes smaller, update the schema, policy
+  floor, regression fixture, and this documentation in the same review.
+- **Boundary direction**: Every generated top-level field must have a direct
+  `EdgeResponse` declaration. `ai_reasoning` and
+  `extracted_visual_traits` are explicit exceptions: reasoning is delivered to
+  iOS under `insight_data`, while visual traits are retained server-side.
+  Additions to this exception set require a documented protocol decision.
+- **Deployment gate**: `deploy.yml` invokes the complete discovery-based
+  `test_supabase_tooling.sh` suite before any migration or Edge deployment; the
+  suite runs both the focused validator regression and the real repository
+  comparison. Changes to either the shared schema or `InferenceEdgeDTOs.swift`
+  trigger the workflow. The tool has a separate frozen Deno config/lock so the
+  TypeScript compiler is a CI-only dependency and cannot enter a deployable
+  Edge Function graph.
+- **Enrich response coverage**: `EnrichData.similar_species` and
+  `SimilarSpeciesEntry` are a separate endpoint contract. Their additive
+  metadata and legacy decoding behavior are covered by
+  `InferenceEngineTests`, `MerianNetworkClientTests`, and the focused
+  `enrich-scan` Deno tests rather than this Identify schema validator.
 - **Lookalike relation metadata**: Swift and Deno tests cover the additive
   `reason`, `visual_traits`, `confidence`, source/review, direction, and order
   fields. Older payloads and cached `lookalikesData` blobs without those keys

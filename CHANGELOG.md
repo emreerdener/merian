@@ -98,8 +98,13 @@ TestFlight, App Store, support, and QA.
   Sharp versions, and web CI blocks current or future high/critical dependency
   findings instead of treating the documented audit as optional.
 - Hardened production workflows with immutable action commit pins, explicit
-  read-only permissions, step-scoped secrets, whole-tree formatting/lint, and
-  the complete recursive Edge test suite against the disposable database.
+  read-only permissions, step-scoped secrets, whole-tree Supabase
+  function/tooling formatting and lint, a discovery-based complete script test
+  gate including ghost-user maintenance, and the complete recursive Edge test
+  suite against the disposable database.
+  Identify schema/Swift DTO drift now uses the canonical shared schema through
+  a fail-closed compiler-AST deployment gate instead of a path-sensitive text
+  scan that could silently validate zero fields.
 
 ### Species Dictionary
 

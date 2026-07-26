@@ -57,21 +57,25 @@ The workflow performs the following steps:
    are missing; if either webhook credential is shorter than 32 characters; if
    the DwC-A key is invalid Base64 or decodes below 32 bytes; or if an
    explicitly configured AI quota HMAC override is shorter than 32 characters.
-5. Validates whole-tree Edge Function formatting and lint, then shared runtime
-   type checks. Deployment/provider secrets are scoped only to the individual
-   steps that consume them; they are not job-wide environment values and are
-   never persisted through `GITHUB_ENV`.
+5. Validates whole-tree formatting and TypeScript lint across both Edge
+   Functions and `services/supabase/scripts`, then runs the discovery-based
+   complete tooling gate. That gate type-checks every standard script, runs
+   every `*_test.ts` (including ghost-user audit and cleanup), exercises the
+   isolated DTO validator, and syntax-checks/tests shell tooling.
+   Deployment/provider secrets are scoped only to the individual steps that
+   consume them; they are not job-wide environment values and are never
+   persisted through `GITHUB_ENV`.
 6. Confirms exact set parity between function entrypoints and
    `[functions.<name>]` entries, then verifies every function has a current
    generated local `deno.json`, only approved aliased runtime imports, and a
    graph fully represented by the shared frozen `dependencies.lock`; finally it
    type-checks all entrypoints with the exact local config Supabase will
    discover.
-7. Runs focused workflow-policy, shared-helper, deployment-planner, AI quota,
-   RevenueCat webhook, DwC-A claim/stream/idempotency, and static
-   migration-contract tests. The migration execution contract enumerates every
-   SQL migration and rejects pipeline-incompatible concurrent index DDL. The
-   species-count contract separately requires its explicit
+7. Runs focused workflow-policy, shared-helper, AI quota, RevenueCat webhook,
+   DwC-A claim/stream/idempotency, and static migration-contract tests in
+   addition to the complete tooling gate. The migration execution contract
+   enumerates every SQL migration and rejects pipeline-incompatible concurrent
+   index DDL. The species-count contract separately requires its explicit
    `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover ordering.
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
@@ -143,6 +147,16 @@ The graph/configuration test compares the sorted function names discovered from
 retiring a function changes the fleet naturally, while a missing or stale
 configuration entry fails with the differing names. Do not repair this class of
 failure by changing a count.
+
+Run the complete Supabase tooling preflight from any working directory with:
+
+```bash
+make test-supabase-tooling
+```
+
+The runner discovers TypeScript and shell tests by naming convention. Do not
+replace it with a selected list in CI; use the targeted commands below only to
+diagnose a planner or dependency-graph failure.
 
 For a planner or graph-parity failure, run:
 
@@ -2526,73 +2540,11 @@ Only use the local path when GitHub Actions is unavailable.
 ```bash
 cd /Users/emreerdener/Developer/merian
 
-deno check --config services/supabase/functions/deno.json \
-  services/supabase/functions/_shared/auth.ts \
-  services/supabase/functions/_shared/claimsAuth.ts \
-  services/supabase/functions/_shared/edgeHandler.ts \
-  services/supabase/functions/_shared/http.ts \
-  services/supabase/functions/_shared/aws.ts \
-  services/supabase/functions/_shared/aws_test.ts \
-  services/supabase/functions/_shared/mediaBudgets.ts \
-  services/supabase/functions/_shared/mediaBudgets_test.ts \
-  services/supabase/functions/_shared/encoding.ts \
-  services/supabase/functions/_shared/concurrency.ts \
-  services/supabase/functions/_shared/concurrency_test.ts \
-  services/supabase/functions/_shared/identify/latencyDb.ts \
-  services/supabase/functions/_shared/identify/latencyDb_test.ts \
-  services/supabase/functions/_shared/scanIngestionCompatibility.ts \
-  services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
-  services/supabase/functions/_shared/scanIngestionIntents_test.ts \
-  services/supabase/functions/_shared/scanIngestionJobs_test.ts \
-  services/supabase/functions/_tests/auth.test.ts \
-  services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
-  services/supabase/functions/_tests/migrationMediaContract.test.ts \
-  services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
-  services/supabase/scripts/audit_privileged_routine_acl.ts \
-  services/supabase/scripts/audit_privileged_routine_acl_test.ts \
-  services/supabase/scripts/monitor_scan_media_health.ts \
-  services/supabase/scripts/monitor_scan_media_health_test.ts \
-  services/supabase/functions/generate-upload-urls/index.ts \
-  services/supabase/functions/generate-upload-urls/storage_test.ts \
-  services/supabase/functions/update-public-avatar/index.ts \
-  services/supabase/functions/update-public-display-name/index.ts \
-  services/supabase/functions/identify-multimodal/index.ts \
-  services/supabase/functions/identify-multimodal/index.test.ts \
-  services/supabase/functions/update-scan-context/index.ts \
-  services/supabase/functions/insight-chat/index.ts \
-  services/supabase/functions/scan-media-health/index.ts \
-  services/supabase/functions/auto-purge-nonbio/index.ts \
-  services/supabase/functions/delete-scan/index.ts \
-  services/supabase/functions/replay-scan-ingestion/index.ts
-
-deno test --config services/supabase/functions/deno.json \
-  --allow-read=docs/contracts \
-  --allow-read=services/supabase/functions/identify-multimodal/index.ts \
-  services/supabase/functions/_shared/aws_test.ts \
-  services/supabase/functions/_shared/mediaBudgets_test.ts \
-  services/supabase/functions/_shared/concurrency_test.ts \
-  services/supabase/functions/_shared/identify/latencyDb_test.ts \
-  services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
-  services/supabase/functions/_shared/scanIngestionIntents_test.ts \
-  services/supabase/functions/_shared/scanIngestionJobs_test.ts \
-  services/supabase/functions/_tests/auth.test.ts \
-  services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
-  services/supabase/scripts/audit_privileged_routine_acl_test.ts \
-  services/supabase/scripts/monitor_scan_media_health_test.ts \
-  services/supabase/functions/update-public-avatar/avatar_test.ts \
-  services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
-  services/supabase/functions/identify-multimodal/index.test.ts \
-  services/supabase/functions/insight-chat/guards_test.ts \
-  services/supabase/functions/insight-chat/prompt_test.ts \
-  services/supabase/functions/scan-media-health/health_test.ts \
-  services/supabase/functions/replay-scan-ingestion/worker_test.ts \
-  services/supabase/functions/generate-upload-urls/storage_test.ts
-
-deno test --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/migrations \
-  services/supabase/functions/_tests/migrationMediaContract.test.ts \
-  services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts
-
+deno fmt --check services/supabase/functions services/supabase/scripts
+deno lint --config services/supabase/functions/deno.json \
+  services/supabase/functions services/supabase/scripts
+make test-supabase-tooling
+(cd services/supabase/functions && deno task test)
 make validate-supabase-migrations
 make test-supabase-privileged-routines
 ```

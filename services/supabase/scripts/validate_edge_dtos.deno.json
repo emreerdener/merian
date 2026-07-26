@@ -1,0 +1,10 @@
+{
+  "lock": {
+    "path": "./validate_edge_dtos.dependencies.lock",
+    "frozen": true
+  },
+  "minimumDependencyAge": "P1D",
+  "imports": {
+    "typescript": "npm:typescript@6.0.3"
+  }
+}

@@ -321,6 +321,7 @@ struct ScansSheetView: View {
 
     private func refreshThumbnailPipeline() {
         let records = searchManager.allScans
+        LocalScanMediaRecoveryResolver.registerRecoveryMappings(for: records)
         prefetchLeadingThumbnails(from: records)
         enqueueRecoverableCloudImages(from: records)
 
