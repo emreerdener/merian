@@ -8,6 +8,14 @@ const toolingGatePath = new URL(
   "test_supabase_tooling.sh",
   scriptsDirectory,
 );
+const dtoContractGatePath = new URL(
+  "validate_edge_dto_contract.sh",
+  scriptsDirectory,
+);
+const iosProjectGuardrailPath = new URL(
+  "../../../.github/workflows/ios-project-guardrails.yml",
+  scriptsDirectory,
+);
 
 Deno.test("Supabase tooling gate discovers every standard TypeScript test", async () => {
   const gate = await Deno.readTextFile(toolingGatePath);
@@ -36,11 +44,22 @@ Deno.test("Supabase tooling gate discovers every standard TypeScript test", asyn
 });
 
 Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", async () => {
-  const gate = await Deno.readTextFile(toolingGatePath);
+  const [gate, dtoContractGate] = await Promise.all([
+    Deno.readTextFile(toolingGatePath),
+    Deno.readTextFile(dtoContractGatePath),
+  ]);
 
   assertMatch(
     gate,
+    /bash services\/supabase\/scripts\/validate_edge_dto_contract\.sh/,
+  );
+  assertMatch(
+    dtoContractGate,
     /--config services\/supabase\/scripts\/validate_edge_dtos\.deno\.json[\s\S]*services\/supabase\/scripts\/validate_edge_dtos_test\.ts/,
+  );
+  assertMatch(
+    dtoContractGate,
+    /dto_validator_read_allowlist="[^"]*apps\/ios\/Merian"/,
   );
   assertMatch(
     gate,
@@ -49,5 +68,23 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   assertMatch(
     gate,
     /shell_tests=\(services\/supabase\/scripts\/\*_test\.sh\)/,
+  );
+});
+
+Deno.test("iOS project guardrail runs the DTO contract gate for all app sources", async () => {
+  const workflow = await Deno.readTextFile(iosProjectGuardrailPath);
+
+  assertMatch(workflow, /- "apps\/ios\/\*\*"/);
+  assertMatch(
+    workflow,
+    /- "services\/supabase\/functions\/_shared\/identify\/schema\.ts"/,
+  );
+  assertMatch(
+    workflow,
+    /uses: denoland\/setup-deno@[0-9a-f]{40}/,
+  );
+  assertMatch(
+    workflow,
+    /run: bash services\/supabase\/scripts\/validate_edge_dto_contract\.sh/,
   );
 });

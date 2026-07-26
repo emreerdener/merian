@@ -377,7 +377,18 @@ extension SpeciesData {
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(edgeRes.alternative_common_names)
-        self.petIdentification = edgeRes.pet_identification?.isDisplayable == true ? edgeRes.pet_identification : nil
+        if let petDTO = edgeRes.pet_identification {
+            let petIdentification = PetIdentification(
+                speciesGroup: petDTO.speciesGroup,
+                label: petDTO.label,
+                labelType: petDTO.labelType,
+                confidenceScore: petDTO.confidenceScore,
+                evidence: petDTO.evidence
+            )
+            self.petIdentification = petIdentification.isDisplayable ? petIdentification : nil
+        } else {
+            self.petIdentification = nil
+        }
         self.candidates = isBiological ? edgeRes.candidates.map { entries in
             entries.map { 
                 let splitCandidateCommon = $0.common_name?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines)

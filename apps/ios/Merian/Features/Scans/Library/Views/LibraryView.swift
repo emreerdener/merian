@@ -15,6 +15,7 @@ struct LibraryView: View {
     let filterCategories: [String]
     let isSearchFocused: Bool
     var queuedScans: [QueuedScanSnapshot] = []
+    var exploreMediaIncidents: [ExploreMediaIncident] = []
 
     // MARK: - Component Callbacks
     var isSelectionMode: Bool = false
@@ -151,8 +152,17 @@ struct LibraryView: View {
         .id(ScansTab.library)
     }
 
-    @ViewBuilder
     private var libraryHeader: some View {
+        VStack(spacing: 8) {
+            if !exploreMediaIncidents.isEmpty {
+                exploreMediaIncidentBanner
+            }
+            libraryFilterHeader
+        }
+    }
+
+    @ViewBuilder
+    private var libraryFilterHeader: some View {
         if searchManager.searchQuery.isEmpty && !isSearchFocused {
             CategoryFilterBar(
                 items: filterCategories,
@@ -196,8 +206,68 @@ struct LibraryView: View {
         }
     }
 
+    private var exploreMediaIncidentBanner: some View {
+        let quarantinedCount = exploreMediaIncidents.filter {
+            $0.mediaHealthStatus == .quarantined
+        }.count
+        let title = quarantinedCount > 0
+            ? "\(quarantinedCount) Explore \(quarantinedCount == 1 ? "post" : "posts") hidden"
+            : "Explore media needs attention"
+        let message = quarantinedCount > 0
+            ? "Unavailable media was hidden, but your posts, likes, and comments are safe. We’ll restore each post automatically after repair."
+            : "Unavailable items were hidden while healthy media remains public. We’ll restore them automatically after repair."
+
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.icloud.fill")
+                .font(.title3)
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 4)
+
+            Button("Review") {
+                reviewFirstMediaIncident()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(12)
+        .background(
+            Color.orange.opacity(0.1),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.orange.opacity(0.22), lineWidth: 1)
+        }
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .combine)
+    }
+
     private var headerTitle: String {
         searchManager.searchQuery.isEmpty ? "Search library" : "Search results"
+    }
+
+    private func reviewFirstMediaIncident() {
+        guard let incident = exploreMediaIncidents.first else { return }
+        if let record = localScanRecord(id: incident.scanId) {
+            onSelect(record)
+            return
+        }
+
+        withAnimation {
+            toastMessage = "No local copy is available. We’ll keep checking for a restored cloud copy."
+        }
     }
 
     private func openQueuedScan(_ snapshot: QueuedScanSnapshot) {

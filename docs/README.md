@@ -93,6 +93,21 @@ as their permanent engineering identity.
   actions with owner/runbook/sample hints for each issue code. Canonical scan
   media refresh rebuilds standalone audio rows from `captured_media` and
   `audio_storage_urls`; it never requires replacing the durable R2 recording.
+- **Cloud media ownership and deletion safety**: Supabase Postgres stores scan,
+  post, and media-reference metadata; Cloudflare R2 stores the referenced image
+  bytes. A database URL is not an object backup. Account-prefix erasure is
+  claimable only from a matching `storage_pending` private deletion job after
+  relational cleanup, with live profiles and owned scans acting as hard vetoes.
+  The July 2026 account-scoped image-loss mitigation is present in the
+  repository, but production verification and device-assisted recovery remain
+  incomplete. See the
+  [incident report](./incidents/2026-07-account-scoped-r2-image-loss.md).
+- **Explore media-loss contract**: An unavailable object never auto-deletes or
+  auto-unpublishes a post. Two spaced direct R2-origin `404` checks confirm
+  loss; bad items are omitted, all-missing posts are reversibly quarantined,
+  engagement is preserved, owners receive a recovery queue, and verified
+  repair automatically restores ordinary public visibility. See
+  [`backend-and-data/12-explore-media-health-and-quarantine.md`](./backend-and-data/12-explore-media-health-and-quarantine.md).
 - **Public audio poster contract**: Approved standalone WAV shares generate a
   deterministic spectrogram PNG beside the durable R2 recording. The URL is
   saved in both normalized scan media and the post-owned Explore snapshot, so
@@ -126,6 +141,13 @@ as their permanent engineering identity.
 - **[`/codebase-map.md`](./codebase-map.md)** — Current target, folder, schema,
   SwiftData actor, feature, Edge Function, and testing inventory for this repo
   state.
+
+### Incidents
+
+- **[`/incidents/2026-07-account-scoped-r2-image-loss.md`](./incidents/2026-07-account-scoped-r2-image-loss.md)**
+  — Confirmed evidence, leading cause, containment, device-assisted recovery,
+  unresolved scope, and production exit criteria for the July 2026
+  account-scoped R2 image-loss incident.
 
 ### Product
 
@@ -178,7 +200,8 @@ as their permanent engineering identity.
   and Explore Community Identification versioned taxonomy, consensus jobs,
   projections, and request tables, atomic ingestion setup/dictionary RPCs,
   deferred scan-context staging, and the private admin/review/audit schema plus
-  canonical AI usage ledger.
+  canonical AI usage ledger, storage-erasure claim fencing, and atomic owned
+  scan-image reference repair.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,
@@ -187,7 +210,8 @@ as their permanent engineering identity.
   `/species-observation-stats`, `/report-user`, the internal admin RPC surface,
   Explore detail similar species, and internal cron workers such as Merian
   reference-image refresh, diagnostic `Server-Timing`, and
-  `/update-scan-context`.
+  `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
+  inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — CI-first Supabase deployment path, required GitHub secrets, local emergency
   fallback, frozen function-local dependency configs, dependency-aware batched
@@ -208,6 +232,10 @@ as their permanent engineering identity.
   — Internal admin setup and operations: environment, owner bootstrap,
   deployment ordering, production smoke tests, price maintenance, recovery,
   incident response, rollback, and troubleshooting.
+- **[`/backend-and-data/12-explore-media-health-and-quarantine.md`](./backend-and-data/12-explore-media-health-and-quarantine.md)**
+  — Canonical product and engineering contract for direct-origin media health,
+  reversible public quarantine, owner notification, automatic recovery,
+  explicit deletion, monitoring, and production rollout.
 
 ### Features & Hardware
 

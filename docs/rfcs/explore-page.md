@@ -369,14 +369,22 @@ current mixed-media design uses post-owned media snapshots.
 
 Implications:
 
-- Shared Explore posts are not guaranteed to live forever.
-- Free-tier posts may naturally age out when the underlying scan media expires.
-- Likes and comments can remain attached to the post record, but the post should be hidden whenever media is no longer available.
-- "Any imported or captured photo in the scan library is shareable" in V1 means any eligible image-backed scan whose media is currently available.
+- Durable free- and Pro-tier post media does not receive an age-based R2
+  lifecycle expiry.
+- A display/CDN failure never changes publication state.
+- Two spaced direct R2-origin `404` checks confirm a primary object as missing.
+  Confirmed-missing items are omitted; an all-missing post is reversibly
+  system-quarantined across Feed, Map, profile/search, detail, and public share.
+- System quarantine never sets `unshared_at` or deletes the post, likes,
+  comments, reports, or audit history.
+- Verified repair restores normal projection automatically if the author has
+  not unpublished and moderation has not removed the post.
 
-Future upgrade path:
-
-- If Explore later needs durable public permanence, we can add a dedicated Explore media path without replacing the `explore_posts` wrapper model.
+The owner receives one incident notification plus a persistent Scan Library
+recovery banner. Reference artwork must not replace missing observation
+evidence. The authoritative state machine, recovery limits, security controls,
+and rollout gate are in
+[`docs/backend-and-data/12-explore-media-health-and-quarantine.md`](../backend-and-data/12-explore-media-health-and-quarantine.md).
 
 ## Data Model Recommendation
 

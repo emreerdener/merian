@@ -6,6 +6,17 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Media Reliability
+
+- Explore no longer leaves an all-missing observation as a blank public post.
+  Confirmed-missing items are hidden individually, and an all-missing post is
+  reversibly hidden while its post record, likes, and comments remain safe.
+- Added a persistent Scan Library recovery banner plus one incident
+  notification. A repaired cloud image automatically restores the affected
+  Explore media; successful restoration is reported quietly in app.
+- Scan deletion confirmations now state that deleting a published scan also
+  permanently removes its linked Explore post, likes, and comments.
+
 ### Brand
 
 - Merian is now Naturebook. The name is new; your scans, account,
@@ -72,6 +83,11 @@ TestFlight, App Store, support, and QA.
   become ownerless tombstones with exact location and free-form notes removed,
   rather than relying on a synthetic login/profile identity. Delayed ingestion
   replay treats those tombstones as terminal and cannot invoke AI for them.
+- Fenced account-level R2 erasure against stale or orphaned storage markers.
+  The database now requires the matching private deletion job to have completed
+  relational cleanup, and refuses a storage claim while a live profile or any
+  owned scan remains. Historical queue state alone can no longer authorize an
+  active account's free/Pro prefix sweep.
 - Fixed offline retry/result callbacks that could pass their in-memory token
   checks and still overwrite a newer SwiftData generation. Queue claims now
   persist their UUID atomically, and retries, cancellation, result saves, and
@@ -104,7 +120,13 @@ TestFlight, App Store, support, and QA.
   suite against the disposable database.
   Identify schema/Swift DTO drift now uses the canonical shared schema through
   a fail-closed compiler-AST deployment gate instead of a path-sensitive text
-  scan that could silently validate zero fields.
+  scan that could silently validate zero fields. The gate resolves local
+  TypeScript bindings by compiler symbol rather than global identifier text,
+  scans the production Swift source graph for extension-based custom decoders,
+  and requires explicit numeric schema bounds before accepting Swift integer
+  types. A lightweight iOS guardrail now runs the same contract gate for every
+  app source change, so an extension-only decoder change cannot wait until the
+  next backend deployment to be detected.
 
 ### Species Dictionary
 
@@ -127,6 +149,13 @@ TestFlight, App Store, support, and QA.
 
 ### Media & Performance
 
+- Added account-scoped recovery for a durable scan image whose cloud object is
+  missing but whose original app Documents file survives. Naturebook can
+  reconnect exact filename, preserved rescue-store, and tightly constrained
+  timestamp evidence, render the local copy immediately, then verify the 404,
+  upload a new owner object, and atomically repair both Scan Library and Explore
+  references. Files without a high-confidence surviving match are left
+  unresolved instead of being paired speculatively.
 - Fixed a scan's own photo appearing again as a reference image in Insight and
   Explore post galleries. Other Naturebook observations and eligible Wikipedia
   and GBIF references remain available.

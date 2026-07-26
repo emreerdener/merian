@@ -245,10 +245,18 @@ Shared identify helpers under
 schema, thresholds, cache hydration, database writes, media resolution,
 moderation, latency-oriented database RPCs, and subject classification.
 `services/supabase/scripts/validate_edge_dtos.ts` compiler-parses the canonical
-shared response schema, resolves its local spreads/nested properties, applies
-fail-closed coverage floors, and compares generated top-level fields with the
-iOS `EdgeResponse` boundary. Its focused test, Deno config, and lock keep the
-compiler dependency in deployment tooling rather than deployable functions.
+shared response schema, resolves its local spreads/nested properties and
+required arrays through lexical TypeScript symbols, applies fail-closed coverage
+floors, and structurally compares the complete client-visible graph with the
+iOS `EdgeResponse` boundary,
+including its dedicated pet-identification wire DTO. The comparison covers
+arrays, bounded numeric types, requiredness, nullability, nested structs, and
+coding-key aliases. It separately scans the production Swift source graph for
+extensions of schema-backed DTOs so custom decoding cannot hide outside the
+declaration file. Swift-only response fields must be recorded as reviewed server-added
+paths rather than silently escaping the comparison. Its focused test, Deno
+config, and lock keep the compiler dependency in deployment tooling rather than
+deployable functions.
 `latencyDb.ts` owns the atomic ingestion-setup and dictionary-hydration calls;
 `subjectClassification.ts` is the
 processed-material boundary: visual and describe routes call it before
@@ -359,10 +367,15 @@ Data lifecycle, identity, and exports:
   account-erasure state machine; retained scans become
   personal-data-cleared ownerless tombstones, all canonical R2 prefixes receive
   a cursor-persisted sweep and delayed empty verification pass, and only then
-  may Auth be deleted.
+  may Auth be deleted. The SQL storage claim requires the matching cleaned-up
+  `storage_pending` private job and vetoes live profiles or owned scans.
 - `reconcile-account-deletions` — scheduled service-role worker that leases and
   resumes incomplete relational, storage, and Auth deletion work without
   accepting caller-selected user IDs.
+- `repair-scan-image` — owner-authenticated R2 inspection and missing-image
+  repair; promotes one surviving staging image and atomically replaces its exact
+  URL across active scan, captured-media, normalized-media, and matching
+  owner-post Explore metadata.
 - `delete-scan`
 - `flag-issue` — disputed-identification review only; writes `flagged_reviews`
   and marks the scan for review
@@ -435,7 +448,9 @@ size.
 | Scan ingestion jobs and intents | `services/supabase/migrations/20260705120000_add_scan_ingestion_jobs.sql`, `services/supabase/migrations/20260705130000_extend_scan_ingestion_jobs_media_manifest.sql`, `services/supabase/migrations/20260705140000_add_scan_ingestion_intents.sql`, `services/supabase/migrations/20260705150000_schedule_scan_ingestion_replay.sql`, `services/supabase/migrations/20260707143157_cap_scan_ingestion_replay_attempts.sql`, `services/supabase/functions/_shared/scanIngestionJobs.ts`, `services/supabase/functions/_shared/scanIngestionIntents.ts`, `services/supabase/functions/_shared/scanIngestionCompatibility.ts`, `services/supabase/functions/identify-multimodal/`, `services/supabase/functions/check-scan-status/`, `services/supabase/functions/replay-scan-ingestion/`, `services/supabase/functions/_tests/scanMediaIngestionContract.test.ts` | Durable server-side state ledger, sanitized replay intent, and scheduled replay dispatcher for accepted scan ingestion attempts. The multimodal path claims and updates job state through inference, media promotion, scan insert, completion, and failure; claims include upload-session ids and a normalized media-manifest checksum so retries can be tied back to the exact media shape. Compatibility scan-producing endpoints write the same ledger before returning success, with staged image/audio and text-only intents shaped for multimodal replay. The paired intent row stores telemetry/descriptors/staged keys without raw media bytes, marking inline-media requests as non-resumable. The replay worker claims due resumable staged media/audio/video or text-only jobs and re-invokes the multimodal path with the same `client_scan_id`, capped at 10 server replay claims before `failed_terminal / server_replay_limit_reached`; status polling keeps `found` / `not_found` compatibility while exposing optional job details for retry and ops visibility. The media-ingestion contract test matrix locks these guarantees across image, audio, text-only, video, status, repair, and Explore-share seams. |
 | Identification latency and deferred context | `services/supabase/migrations/20260715153946_reduce_identification_latency_round_trips.sql`, `services/supabase/functions/_shared/identify/latencyDb.ts`, `services/supabase/functions/identify-multimodal/`, `services/supabase/functions/update-scan-context/`, `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`, `apps/ios/Merian/Features/Capture/Submission/ViewModels/Analysis.swift` | Keeps the durable queue/auth gates while shortening the non-model critical path. One service-role RPC claims ingestion and records its sanitized intent before Gemini; eligible biological results use at most one RPC to hydrate cached primary/candidate dictionary data afterward. For eligible live-camera still scans, the client gives weather/geocoding 150 ms, avoids simultaneous inline/background uploads, and patches late owner context through the staged-context table/trigger; gallery, audio-bearing, and video submissions remain behaviorally unchanged. Diagnostic headers and structured metrics cover tap-to-render without exposing scan/user/species/location identifiers. Model selection and all generation settings remain unchanged. |
 | Scan media assets               | `services/supabase/migrations/20260705100000_add_scan_media_assets.sql`, `services/supabase/migrations/20260710120000_add_explore_audio_moderation.sql`, `services/supabase/migrations/20260711143348_repair_scan_media_assets_audio_constraints.sql`, `services/supabase/migrations/20260711171512_backfill_missing_ready_audio_assets.sql`, `services/supabase/functions/_shared/scanMediaAssets.ts`, `services/supabase/functions/identify-multimodal/`, `services/supabase/functions/reconcile-scan-media-assets/`, `services/supabase/functions/scan-media-health/` | Normalized image/video/audio lifecycle. Standalone audio is promoted into `audio_storage_urls`, `captured_media`, and ready owner-scoped audio assets; extracted video audio remains inference-only. The explicit constraint repair upgrades early production tables that `CREATE TABLE IF NOT EXISTS` could not reshape, and the follow-up refresh migration makes audio part of the canonical RPC and backfills durable recordings that lack normalized rows. Repair and health paths retain their existing staged-media responsibilities. |
+| Owned scan image recovery       | `services/supabase/migrations/20260726041109_fence_storage_erasure_claims.sql`, `services/supabase/migrations/20260726041338_repair_owned_scan_image_references.sql`, `services/supabase/functions/repair-scan-image/`, `apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift`, `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Prevents stale storage outbox rows from authorizing live-account prefix erasure, reconnects strongly evidenced Documents files to missing durable URLs, renders recovered files locally, and restores verified-missing cloud references through owner-scoped staging promotion plus one atomic metadata transaction. Production deployment and recovered-object coverage remain independently verifiable states. |
 | Explore post media              | `services/supabase/migrations/20260703130000_add_explore_post_media.sql`, `services/supabase/migrations/20260710120000_add_explore_audio_moderation.sql`, `services/supabase/migrations/20260711055524_add_explore_audio_moderation_attestations.sql`, `services/supabase/functions/_shared/explorePostMedia.ts`, `services/supabase/functions/_shared/exploreComposerMedia.ts`, `services/supabase/functions/_shared/audioModeration.ts`, `services/supabase/functions/_shared/audioSpectrogram.ts`, `services/supabase/functions/share-scan-to-explore/`, `services/supabase/functions/request-community-identification/`, `services/supabase/functions/update-explore-field-notes/`, `services/supabase/functions/backfill-explore-audio-spectrograms/` | Post-owned image/video/audio snapshots. Audible media must have a matching content-addressed attestation or pass the dedicated Gemini speech/non-speech classifier under the authoritative quota boundary before share, Community-request, or edit replacement; changed bytes, model, or policy contract force re-moderation. Approved WAV audio gets a deterministic persisted spectrogram poster shared by web and normalized media; a bounded service-role repair worker fills historical blanks while unsupported legacy codecs keep playback and the icon fallback. Legacy local audio can be repaired through owner-scoped staging into `audio_storage_urls`, canonical `captured_media`, and normalized assets before the same gate runs. Failed attempts create no pending/public media state; maps, widgets, profile grids, and compact previews remain thumbnail-first. |
+| Explore media health            | `services/supabase/migrations/20260726144647_add_explore_media_quarantine_lifecycle.sql`, `services/supabase/migrations/20260726144754_implement_explore_media_quarantine_state_machine.sql`, `services/supabase/functions/reconcile-explore-media-health/`, `services/supabase/functions/get-explore-media-incidents/`, `services/supabase/functions/ingest-r2-media-events/`, `docs/backend-and-data/12-explore-media-health-and-quarantine.md` | Direct signed R2-origin checks confirm unexpected primary-object loss only after two spaced `404` responses. Public projections omit confirmed-missing items and reversibly quarantine all-missing posts while preserving author intent and engagement. Owner incidents, repair-triggered restoration, audit runs, optional event acceleration, and read-only verifier credentials are one compatibility contract. |
 
 ## Internal admin surface
 
@@ -471,6 +486,9 @@ Swift unit tests live under `apps/ios/MerianTests/` and cover:
   focused Explore routing, plus private completed-scan ID decoding for
   item-specific catalog/detail thumbnails.
 - Core AI, network, security, hardware, analytics, utilities, and data actors.
+- Scan-media recovery filename safety, rescue-store alignment, constrained
+  timestamp grouping, authenticated cloud inspection/repair DTOs, and
+  one-device local fallback behavior.
 - Profile achievements, heatmap/stats, Explore, Species Dictionary, species
   observation stats, Messages sharing, Insights, Scans, and onboarding view
   models.
@@ -494,6 +512,12 @@ RPC's ACL, constraints, duplicate behavior, and transactional rate ceilings.
 Web parser, email, proxy, HMAC, and Turnstile behavior is covered by
 `apps/web/lib/*.test.ts`.
 
+Missing-image repair coverage spans
+`repair-scan-image/{validation,worker}_test.ts`,
+`_tests/{accountDeletionMigrationContract,migrationMediaContract}.test.ts`,
+`tests/{account_deletion_security,scan_image_repair_security}.sql`, and the iOS
+`LocalImageLoaderTests`/`MerianNetworkClientTests`.
+
 ## Documentation Maintenance Checklist
 
 When changing the codebase, update docs in the same change if any of these move:
@@ -502,6 +526,8 @@ When changing the codebase, update docs in the same change if any of these move:
 - App target deployment versions, entitlements, packages, or XcodeGen targets.
 - Edge Function request/response bodies, auth policy, config entries, or storage
   lifecycle behavior.
+- Destructive queue claim authority, live-owner vetoes, account-isolation
+  canaries, recovery coverage, or incident exit criteria.
 - Capture modes, offline queue state transitions, media staging, or field-notes
   ownership.
 - Feature module names, file paths, or view-model/actor ownership.

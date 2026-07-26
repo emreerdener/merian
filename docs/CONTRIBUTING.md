@@ -90,6 +90,13 @@ Before contributing, please review our core architectural tenets. Refactoring co
   zero-downtime index on a populated production table, follow the supervised
   pre-deploy procedure in the Supabase deployment runbook and keep an
   idempotent ordinary index statement for clean environments.
+- **Destructive queues and migrations**: Before making historical rows newly
+  actionable, audit their provenance and prove the SQL claim derives authority
+  from the current durable workflow—not queue age/status alone. Add a live-owner
+  veto test, an owner-isolation canary, aggregate post-deploy invariants, and a
+  recovery/rollback contract. Incident documentation must separately report
+  repository mitigation, production deployment, runtime verification, and data
+  recovery.
 
 ## Submitting a Pull Request 🚀
 

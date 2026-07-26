@@ -2900,6 +2900,16 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreNotificationsResponse.self, from: data).data
     }
 
+    func getExploreMediaIncidents() async throws -> [ExploreMediaIncident] {
+        let functionUrl = try endpointURL("get-explore-media-incidents")
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: Data("{}".utf8)
+        )
+        return try makeExploreDecoder().decode(ExploreMediaIncidentsResponse.self, from: data).data
+    }
+
     func getUnreadExploreNotificationCount() async throws -> Int {
         let functionUrl = try endpointURL("get-explore-unread-notification-count")
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: Data("{}".utf8))

@@ -1890,7 +1890,13 @@ constraint in the Deno schema.
 > reality and avoid visual pareidolia. `insight_data.ai_reasoning` is always
 > present for biological subjects because it is the Gemini vision model's
 > per-scan reasoning about the specific photo submitted. LLM field caps are
-> enforced in `index.ts` after scientific name sanitization: `colors`,
+> declared in the structured model contract and enforced again in `index.ts`
+> after scientific name sanitization. All model `NUMBER` fields use explicit
+> `0...1` bounds. Image-quality integer bounds are `1...10` for `sharpness`,
+> `framing`, and `diagnostic_utility`, and `0...100` for `overall_score`;
+> `individual_count` is `1...99999`. The DTO deployment validator requires
+> finite bounds for every numeric schema before accepting the corresponding
+> Swift wire type. Runtime caps remain defense in depth: `colors`,
 > `extracted_visual_traits`, and `ecological_interactions` are each capped at 10
 > items; `ai_reasoning` is truncated to 2000 characters; `individual_count` is
 > validated as a positive integer <= 99999; client-supplied `estimated_size_cm`
@@ -4019,10 +4025,12 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
 ```
 
 - `limit` defaults to `50` and is capped server-side.
-- The read path mirrors Explore visibility rules: unshared posts, tombstoned
-  scans, posts with no remaining media, shadowbanned owners, blocked actors, and
-  soft-deleted comments are filtered out. Post `location_sharing` controls
-  public location fields, not notification visibility.
+- The ordinary activity read path mirrors Explore visibility rules: unshared
+  posts, tombstoned scans, quarantined/media-less posts, shadowbanned owners,
+  blocked actors, and soft-deleted comments are filtered out. Owner-scoped
+  `media_missing` and `media_restored` lifecycle rows remain visible even while
+  the affected post is quarantined. Post `location_sharing` controls public
+  location fields, not notification visibility.
 - Follow notifications are validated against an active follow relationship and
   blocked or shadowbanned actors are filtered out.
 - Community Identification notifications include `community_request_id` plus
@@ -4030,6 +4038,8 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
   to the Community request detail instead of regular post detail.
 - Field trip activity notifications include `field_trip_publication_id`; the
   client routes them to `FieldTripPublicationDetailView`.
+- `media_missing` routes to Scan Library recovery. `media_restored` routes to
+  ordinary post detail when the post remains published.
 - Pagination is cursor-based on `(updated_at DESC, notification_id DESC)`.
   Follow-up page requests send:
 
@@ -4365,6 +4375,8 @@ devices with `comment_mentions_enabled` enabled; regular Explore activity pushes
 use `explore_enabled`. Community Identification pushes include
 `communityRequestId` and use `community_identifications_enabled`. The in-app
 notification row is still retained even when the related push toggle is off.
+`media_missing` uses the ordinary Explore preference and dispatches only when
+the incident row is first inserted. `media_restored` remains in app only.
 
 Preferred species display names are not part of the Explore endpoint payload.
 The iOS client syncs `user_species_preferences` directly through PostgREST under
@@ -5578,6 +5590,10 @@ prevent IDOR vulnerabilities.
    staging, avatars, and exports prefixes in 50-key pages. After at least 25
    hours it repeats all five prefixes from the beginning. Only an empty delayed
    verification pass transactionally advances the account to `auth_pending`.
+   A storage row is claimable only when the matching private job is
+   `storage_pending` with completed cleanup and incomplete storage, and no live
+   public profile or scan ownership remains. An outbox row by itself never
+   authorizes R2 deletion.
 6. Only `auth_pending` may call
    `supabaseAdmin.auth.admin.deleteUser(user.id)`. HTTP `404` and exact Auth
    code `user_not_found` are treated as idempotent success.
@@ -5627,6 +5643,264 @@ backoff make crashes and lost responses resumable.
 
 ---
 
+## Deno `/repair-scan-image` Edge Node
+
+Inspects an active owned scan-image reference and, when the referenced R2 object
+is missing, promotes a surviving local image and atomically repairs its cloud
+metadata. The same transaction updates matching Scan Library and Explore media
+references.
+
+### Request Payloads
+
+Inspection:
+
+```json
+{
+  "source_url": "https://media.merian.app/public_uploads/free/{userId}/old.webp"
+}
+```
+
+Repair after the client obtains a signed upload URL and uploads the surviving
+file:
+
+```json
+{
+  "source_url": "https://media.merian.app/public_uploads/free/{userId}/old.webp",
+  "restored_object_key": "staging/{userId}/repair_uuid.webp"
+}
+```
+
+`source_url` must be an HTTPS `media.merian.app` URL under one durable
+`public_uploads/free|pro/{owner}/` image key, with no query or fragment.
+`restored_object_key` is optional; when present it must be one image directly
+under the authenticated user's exact staging prefix. The JWT identity—not a
+body field—selects the owner.
+
+`config.toml` uses `verify_jwt = false` for this app-facing route, so the
+function must retain `withEdgeHandler` as its custom live-user authentication
+boundary. Disabling the gateway check does not make inspection or repair
+public.
+
+### Inspection Response
+
+```json
+{
+  "data": {
+    "status": "healthy"
+  }
+}
+```
+
+`status` is:
+
+- `healthy`: an active scan owned by the caller references the URL and the
+  source object exists;
+- `missing`: the owned reference exists but R2 returns 404; or
+- `not_referenced`: no active scan owned by the caller references the URL.
+
+Inspection does not upload, promote, rewrite, or delete media.
+
+### Repair Response
+
+```json
+{
+  "data": {
+    "status": "repaired",
+    "replacement_url": "https://media.merian.app/public_uploads/pro/{userId}/repair_uuid.webp",
+    "updated_scan_count": 1,
+    "updated_post_media_count": 1
+  }
+}
+```
+
+The repair boundary:
+
+1. rejects the request while account deletion is active;
+2. confirms an active owned scan references the exact source URL;
+3. `HEAD`s the source and restored staging objects;
+4. deletes the redundant staging upload and returns `healthy` without metadata
+   changes if the source has recovered;
+5. otherwise promotes the staging image into the caller's current durable
+   free/Pro prefix;
+6. validates the promoted owner prefix; and
+7. invokes service-only `repair_owned_scan_image_reference` to replace the
+   exact URL across scan arrays, recursive captured-media JSON, normalized scan
+   assets, and owner Explore snapshots in one transaction. Matching Explore
+   media health is reset to `healthy` in that transaction, allowing projection
+   and owner incident state to restore automatically.
+
+If metadata persistence fails, the function attempts to delete the newly
+promoted object. The old missing URL is not changed until the atomic metadata
+transaction succeeds.
+
+### Error Contract
+
+- `400`: invalid source URL or restored staging key.
+- `401`: missing/invalid authenticated user.
+- `404`: repair requested for a source not referenced by an active owned scan.
+- `409 account_deletion_in_progress`: destructive account cleanup is active.
+- `409`: the restored staging object does not exist.
+- `503`: R2 source status could not be verified.
+- `500`: promotion, atomic persistence, or an unexpected internal boundary
+  failed; provider details, keys, and SQL errors are not returned.
+
+This endpoint is a recovery mechanism, not a general media replacement API.
+See the
+[July 2026 account-scoped R2 image-loss incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
+
+---
+
+## Deno `/get-explore-media-incidents` Edge Node
+
+Returns only the authenticated owner's active degraded or quarantined Explore
+media incidents. The function uses custom JWT authentication and derives the
+owner UUID; no target-user field is accepted.
+
+Request:
+
+```json
+{}
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "post_id": "uuid",
+      "scan_id": "uuid",
+      "species_common_name": "White-winged Dove",
+      "media_health_status": "quarantined",
+      "missing_media_count": 2,
+      "total_media_count": 2,
+      "media_quarantined_at": "2026-07-26T12:10:00.000Z",
+      "media_health_updated_at": "2026-07-26T12:10:00.000Z",
+      "missing_media_urls": [
+        "https://media.merian.app/public_uploads/pro/{owner}/one.webp",
+        "https://media.merian.app/public_uploads/pro/{owner}/two.webp"
+      ]
+    }
+  ]
+}
+```
+
+`media_health_status` is `degraded` or `quarantined`. Unpublished, moderated,
+tombstoned, and healthy records are excluded. The backing definer RPC verifies
+`auth.uid() = self_id` for authenticated direct use, while the Edge boundary
+uses service role only with the auth-derived UUID.
+
+The iOS Scan Library refreshes this response on entry, foreground, connection
+changes, and library repair events. A failed refresh retains the last in-memory
+incident state instead of falsely claiming recovery.
+
+---
+
+## Deno `/reconcile-explore-media-health` Edge Node
+
+Scheduled service-role worker for direct R2-origin health verification.
+
+Request:
+
+```json
+{
+  "limit": 200,
+  "leaseSeconds": 300
+}
+```
+
+- Authentication requires the complete non-empty service-role bearer value.
+- `limit` is clamped to `1...500`.
+- `leaseSeconds` is clamped to `30...600`.
+- Primary and distinct-poster `HEAD` requests run in parallel per row within a
+  global 24-media-row concurrency cap (at most 48 simultaneous `HEAD`
+  requests); a five-minute lease covers the bounded provider-timeout envelope.
+- The request cannot specify media IDs, post IDs, object keys, or owner IDs.
+- Every primary/poster URL must resolve to a direct durable free/Pro key for
+  the owner already attached to the leased database row. Cross-owner,
+  temporary-prefix, nested, and arbitrary keys fail closed.
+- Each leased primary URL receives a signed S3-origin `HEAD`. A distinct
+  thumbnail receives an auxiliary check.
+- Primary `404` maps to `missing`; `2xx` maps to `healthy`; timeouts, non-404
+  failures, invalid URLs, and provider errors map to `retryable_error`.
+- A thumbnail `404` is recorded and omitted but does not mark a healthy primary
+  video/audio object as missing.
+- Two `missing` outcomes at least five minutes apart are required before
+  `health_status = missing`.
+
+Response:
+
+```json
+{
+  "success": true,
+  "claimed": 37,
+  "healthy": 34,
+  "missingObservations": 2,
+  "retryableErrors": 1,
+  "errorCount": 0,
+  "omittedErrors": 0,
+  "errors": []
+}
+```
+
+Every invocation attempts to write
+`explore_media_health_reconciliation_runs`. Per-row result failures are
+reported as at most 50 private structured samples with fixed reason codes;
+complete URLs/provider messages are never persisted or returned.
+`errorCount` remains the authoritative total and `omittedErrors` reports
+truncated samples. Any failure produces `partial_failure` audit status.
+Configuration or lease-claim failures attempt a fixed-code `failed` audit row
+before the endpoint returns its generic internal error.
+
+---
+
+## Deno `/ingest-r2-media-events` Edge Node
+
+Accepts trusted Cloudflare Queue batches as reconciliation hints. It never
+changes media health directly.
+
+Headers:
+
+```http
+X-Merian-R2-Event-Secret: <dedicated random secret, at least 32 characters>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "object_keys": [
+    "public_uploads/pro/{owner}/one.webp"
+  ]
+}
+```
+
+- One to 100 unique direct durable free/Pro object keys are accepted.
+- Staging, export, quarantine, avatar, nested, traversal, and arbitrary keys are
+  rejected.
+- The Cloudflare consumer must not receive or forward the Supabase service-role
+  key.
+- Create and delete events both make matching health rows due now. The event is
+  not treated as existence or deletion proof.
+- Queue messages are acknowledged only after a `2xx` response.
+
+Response:
+
+```json
+{
+  "success": true,
+  "accepted_key_count": 1,
+  "matched_media_count": 2
+}
+```
+
+The canonical state, projection, communication, recovery, and operations
+contract for all three endpoints is
+[Explore Media Health and Quarantine](./12-explore-media-health-and-quarantine.md).
+
+---
+
 ## Deno `/delete-scan` Edge Node
 
 Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
@@ -5650,11 +5924,14 @@ Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
    cleanly.
 4. Compares the fetched `scan.user_id === user.id`. A mismatch natively returns
    `403 Forbidden` as an explicit IDOR trap.
-5. Deletes all Cloudflare R2 objects referenced in `image_storage_urls` and
-   `video_storage_urls` via the `AwsClient`, avoiding 404 errors from namespace
-   duplication. Public `explore_post_media` rows are hidden or removed with the
-   backing scan/post cleanup path.
-6. Deletes the Postgres row.
+5. Deletes approved owned Cloudflare R2 objects referenced by the scan and its
+   generated public thumbnails, tolerating already-missing objects.
+6. Deletes the Postgres scan row. The linked Explore post, likes, comments, and
+   media snapshots are permanently removed through foreign-key cascades.
+
+This explicit owner action is destructive and must be preceded by client copy
+that names the linked Explore/engagement deletion. Operational media quarantine
+never invokes this endpoint.
 
 ---
 

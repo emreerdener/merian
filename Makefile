@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning validate-ios-migration-guardrails validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -11,6 +11,7 @@ help:
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
+	@printf "  make validate-edge-dto-contract       Validate Identify schema against the complete iOS DTO source graph\n"
 	@printf "  make test-supabase-tooling            Run complete discovery-based Supabase tooling tests\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
 	@printf "  make test-supabase-privileged-routines Validate privileged-routine, account-deletion, Ghost-merge, AI-quota, DwC-A, RevenueCat, species-stats, and waitlist catalogs locally\n"
@@ -41,6 +42,9 @@ test-ios-versioning:
 validate-ios-migration-guardrails:
 	bash scripts/check-ios-migration-source-guardrails.sh
 
+validate-edge-dto-contract:
+	bash services/supabase/scripts/validate_edge_dto_contract.sh
+
 test-supabase-tooling:
 	bash services/supabase/scripts/test_supabase_tooling.sh
 
@@ -51,6 +55,7 @@ validate-supabase-migrations:
 		services/supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
 		services/supabase/functions/_tests/completeEdgeDatabaseRepairMigrationContract.test.ts \
 		services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+		services/supabase/functions/_tests/exploreMediaQuarantineMigrationContract.test.ts \
 		services/supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
 		services/supabase/functions/_tests/migrationExecutionContract.test.ts \
 		services/supabase/functions/_tests/migrationMediaContract.test.ts \
@@ -64,6 +69,7 @@ test-supabase-privileged-routines:
 	supabase --workdir $(SUPABASE_WORKDIR) db push --local
 	supabase --workdir $(SUPABASE_WORKDIR) test db --local \
 		services/supabase/tests/account_deletion_security.sql \
+		services/supabase/tests/explore_media_quarantine_security.sql \
 		services/supabase/tests/ghost_profile_merge_security.sql \
 		services/supabase/tests/privileged_routine_security.sql \
 		services/supabase/tests/ai_quota_security.sql \

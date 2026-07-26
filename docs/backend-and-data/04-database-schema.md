@@ -1636,17 +1636,26 @@ Manual-share public feed wrapper around `scans`. Added in migration
   map.
 - `like_count` / `comment_count` (INT): Denormalized counters maintained by
   triggers.
+- `media_health_status` (TEXT): System-owned aggregate: `healthy`, `degraded`,
+  or `quarantined`. It never overwrites `unshared_at` or `moderated_at`.
+- `missing_media_count` / `total_media_count` (INT): Trigger-maintained media
+  health counts.
+- `media_health_updated_at` / `media_quarantined_at` /
+  `media_last_recovered_at` (TIMESTAMPTZ, nullable where applicable): Incident
+  and automatic-recovery audit timestamps.
 
 **Post media rule**: Explore no longer reads media directly from
 `scans.image_storage_urls` at response time. Sharing snapshots safe public image
 and video URLs into `explore_post_media`, while `hero_image_url` remains the
 backward-compatible cover thumbnail on `explore_posts`. If the scan is
-tombstoned, unshared, auto-purged, moderated unsafe, or later loses public scan
-media, cleanup flows remove or hide the corresponding public post media. Scan
-geoprivacy no longer hides the post itself; post-level `location_sharing`
-controls public location output. Share-state reads also require at least one
-`explore_post_media` row before returning a post as feed-visible, so partial
-post rows left by failed media writes are hidden until sharing succeeds.
+tombstoned, unshared, auto-purged, or moderated unsafe, existing lifecycle rules
+remove or hide it. Unexpected object loss does not delete or unpublish it:
+confirmed-missing items are omitted and an all-missing post is reversibly
+quarantined while engagement remains. Scan geoprivacy no longer hides the post
+itself; post-level `location_sharing` controls public location output.
+Share-state reads also require at least one usable `explore_post_media` row
+before returning a post as feed-visible, so partial post rows left by failed
+media writes are hidden until sharing succeeds.
 
 ### `scan_media_assets`
 
@@ -1758,6 +1767,26 @@ collected after their TTL. A generated row and its promoted capture-upload audit
 row may share the same scan position; consumers should select by lifecycle
 source/status rather than assuming `(scan_id, order_index)` identifies one row.
 
+Migration
+`20260726041338_repair_owned_scan_image_references.sql` adds service-only
+`public.repair_owned_scan_image_reference(user_id, source_url,
+replacement_url)`. After the Edge layer verifies R2 state, one transaction
+replaces only the exact missing URL across:
+
+- active owned `scans.image_storage_urls`;
+- recursively nested string values in `scans.captured_media`;
+- owner-scoped `scan_media_assets.url` and `thumbnail_url`, including the new
+  durable `storage_key` and repair metadata; and
+- `explore_post_media.url` and `thumbnail_url` for posts owned by the same
+  user.
+
+The RPC rejects invalid/non-canonical URLs, replacement keys outside the
+owner's durable free/Pro prefixes, and sources with no owned scan or Explore
+reference. It calls `internal.require_service_role()`, has an empty search path,
+and grants execution only through the central service-role routine allowlist.
+The owner-authenticated `/repair-scan-image` function is the only app-facing
+caller; clients cannot invoke this RPC directly.
+
 Operational note: `20260705110000_schedule_scan_media_asset_reconciliation.sql`
 also repairs early deployed `scan_media_assets` tables that were created before
 the final lifecycle columns existed. It backfills `source` before creating the
@@ -1803,11 +1832,25 @@ migration `20260703130000_add_explore_post_media.sql`.
   Public playback starts muted; audio requires explicit viewer action. Snapshot
   writers copy this from ready media rows or from the `captured_media` video
   audio reference; legacy URL-array video sources default false.
+- `health_status` (TEXT): `healthy`, `suspected_missing`, or `missing`.
+  `missing` requires two service-recorded direct R2-origin `404` observations
+  at least five minutes apart.
+- `health_checked_at`, `missing_first_observed_at`, `missing_confirmed_at`,
+  `recovered_at` (TIMESTAMPTZ, nullable): Origin-check lifecycle evidence.
+- `consecutive_missing_checks` (INT): Bounded non-negative observation count.
+- `next_health_check_at` (TIMESTAMPTZ): Indexed due time for the service lease
+  queue.
+- `last_health_http_status` /
+  `last_thumbnail_health_http_status` (INT, nullable): Last direct primary and
+  auxiliary-object response. A thumbnail `404` removes the poster from public
+  JSON but does not hide a playable primary media object.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Snapshot lifecycle timestamps.
 
 `public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
-detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
-grid, and compact surfaces normally use `hero_image_url`. The author-post RPC
+detail, author, hashtag, map, and Community ID read paths, excluding only
+confirmed-missing primary objects and confirmed-missing auxiliary thumbnails.
+Map, widget, profile grid, and compact surfaces normally use `hero_image_url`.
+The author-post RPC
 also projects `reference_thumbnail_url` from normalized/legacy species imagery;
 iOS profile and other compact Explore grids prefer it for audio-backed posts and
 add a waveform badge. Feed/detail playback remains media-item-driven. In-app
@@ -1830,6 +1873,42 @@ post snapshot also references them. `delete-scan` reads thumbnail URLs from both
 deduplicates them with source media, and deletes only approved
 `public_uploads/free/` or `public_uploads/pro/` R2 keys. This prevents a partial
 thumbnail-row update from orphaning the deterministic PNG.
+
+### Explore media-health internals and reconciliation audit
+
+Migration
+`20260726144754_implement_explore_media_quarantine_state_machine.sql` adds:
+
+- `internal.explore_media_health_check_claims`: private short leases keyed by
+  media row and UUID claim token. API roles have no direct table privileges.
+- `internal.explore_media_health_history`: private continuity rows keyed by
+  `(post_id, kind, url)`. Before-delete and before-insert triggers preserve
+  health when `refresh_explore_post_media` rebuilds a snapshot.
+- `public.explore_media_health_reconciliation_runs`: service-written audit rows
+  with run status, claimed/healthy/missing/retryable/error counts, timestamps,
+  and bounded structured errors.
+
+Service-only RPCs:
+
+- `claim_explore_media_health_checks(limit, lease_seconds)` leases due media
+  from active posts with `FOR UPDATE SKIP LOCKED`.
+- `record_explore_media_health_check(media_id, claim_token, outcome, ...)`
+  validates the live lease and applies the health state machine.
+- `expedite_explore_media_health_checks(object_keys)` accepts authenticated R2
+  event hints and makes matching rows due without treating the event as proof.
+
+`get_owned_explore_media_incidents(self_id)` is executable by authenticated and
+service roles, but its definer body requires `auth.uid() = self_id` for ordinary
+callers. It returns only the owner's active degraded/quarantined posts. The Edge
+boundary derives `self_id` from the verified JWT.
+
+`internal.refresh_explore_post_media_health` maintains aggregate post state.
+Its triggers create one `media_missing` notification when an incident begins,
+replace it with `media_restored` after full recovery, and preserve author,
+moderation, and engagement state.
+
+The full visibility, recovery, security, and operations contract is
+[Explore Media Health and Quarantine](./12-explore-media-health-and-quarantine.md).
 
 ### `explore_post_hashtags`
 
@@ -1975,6 +2054,8 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - Partial unique indexes on `(user_id, community_request_id, type)` guarantee
   one active notification row per recipient/request for each Community
   notification type.
+- Partial unique indexes on `(user_id, post_id, type)` for `media_missing` and
+  `media_restored` guarantee one lifecycle row per owner/post/type.
 - Row Level Security allows users to `SELECT` and `UPDATE` only their own
   notification rows.
 
@@ -2008,7 +2089,8 @@ in migration `20260427010000_add_explore_notifications.sql`.
   newly inserted visible post-backed rows and for like/comment-reaction
   aggregate updates where `action_count` increased. It also dispatches Community
   request notifications and Community aggregate updates where `action_count`
-  increased. It intentionally skips `type = 'follow'`.
+  increased. It dispatches `media_missing` on incident insertion and
+  intentionally skips `type IN ('follow', 'media_restored')`.
 
 ### `user_push_devices`
 
@@ -2807,6 +2889,15 @@ The separate service-only storage transitions are
 `fail_pending_storage_deletion(uuid,uuid,text)`. They lease and advance one
 bounded R2 prefix page under a UUID claim token.
 
+Migration `20260726041109_fence_storage_erasure_claims.sql` makes the private
+account job—not the public outbox row—the authority for every destructive
+storage claim. `claim_pending_storage_deletions` now inner-joins the same
+owner's job at `storage_pending`, requires non-null
+`cleanup_completed_at` and null `storage_completed_at`, and rejects candidates
+while any matching `public.users` row or owned `public.scans` row exists. An
+orphaned, old, reset, or manually due outbox row is inert. This fence is a
+required invariant, not an optional worker-side preflight.
+
 `trg_reject_account_deletion_profile_recreation` runs before inserts on
 `public.users` and rejects the original UUID while an active job exists. This
 prevents Auth metadata triggers or backend upserts from recreating the profile
@@ -3428,7 +3519,9 @@ Tracks locally synchronized species scans for the Scans library.
   images only. Kept separate from scan images to prevent duplication in the UI
   Image Carousel).
 - `isLocallyArchived`: Bool (Legacy/backward-compatible flag for records whose
-  visual payload was previously copied into local Documents storage).
+  visual payload was previously copied into local Documents storage. This local
+  presentation flag is unrelated to `store-rescue` directories and does not
+  mean an R2 object was moved to an archive tier).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`,
   `taxonomyFamily`, `taxonomyGenus`: String? (Linnaean taxonomy fields added in
   `MerianSchemaV3`, enabling background semantic discovery without relying on
@@ -3613,6 +3706,13 @@ waits at least 25 hours and repeats every prefix from the beginning. Only an
 empty delayed verification pass sets `status = 'completed'` and wakes the
 corresponding account job. Existing unconsumed markers are reset to the new
 sweep contract during migration.
+
+That historical reset is why claim authorization must not be inferred from
+outbox state. Migration `20260726041109_fence_storage_erasure_claims.sql`
+requires the matching tombstoned `storage_pending` private job and adds live
+profile/owned-scan vetoes to the SQL claim itself. See the
+[July 2026 incident report](../incidents/2026-07-account-scoped-r2-image-loss.md)
+for the failure mode that established this invariant.
 
 ### `PendingCloudDeletionTask`
 

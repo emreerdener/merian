@@ -53,15 +53,17 @@ The workflow performs the following steps:
    every checked-in workflow, rejects job-scoped secret references, and limits
    `contents: write` to the taxonomy checklist workflow that commits its result.
 3. Installs the exact reviewed Deno `2.9.2` runtime and Supabase CLI `2.109.1`.
-4. Fails fast if required deployment, RevenueCat, or DwC-A pseudonym credentials
-   are missing; if either webhook credential is shorter than 32 characters; if
-   the DwC-A key is invalid Base64 or decodes below 32 bytes; or if an
-   explicitly configured AI quota HMAC override is shorter than 32 characters.
+4. Fails fast if required deployment, RevenueCat, DwC-A pseudonym, or dedicated
+   R2 Object Read credentials are missing; if either webhook credential is
+   shorter than 32 characters; if the DwC-A key is invalid Base64 or decodes
+   below 32 bytes; or if an explicitly configured AI quota HMAC override is
+   shorter than 32 characters.
 5. Validates whole-tree formatting and TypeScript lint across both Edge
    Functions and `services/supabase/scripts`, then runs the discovery-based
    complete tooling gate. That gate type-checks every standard script, runs
    every `*_test.ts` (including ghost-user audit and cleanup), exercises the
-   isolated DTO validator, and syntax-checks/tests shell tooling.
+   isolated structural DTO validator across its canonical TypeScript schema and
+   Swift nested/coding-key boundaries, and syntax-checks/tests shell tooling.
    Deployment/provider secrets are scoped only to the individual steps that
    consume them; they are not job-wide environment values and are never
    persisted through `GITHUB_ENV`.
@@ -80,8 +82,9 @@ The workflow performs the following steps:
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the account deletion, privileged-routine, AI quota, RevenueCat,
-   DwC-A, species-count, public-species-stats, and waitlist pgTAP catalog gates.
+   and runs the account deletion, Explore media quarantine,
+   privileged-routine, AI quota, RevenueCat, DwC-A, species-count,
+   public-species-stats, and waitlist pgTAP catalog gates.
    It then invokes the checked-in recursive `deno task test` with an explicit
    database URL, so route-local tests cannot be omitted by a curated CI list and
    database-backed tests cannot silently skip.
@@ -103,12 +106,14 @@ The workflow performs the following steps:
     `Production` environment to Supabase Edge secrets.
 16. Synchronizes the required version-1 DwC-A pseudonym HMAC key from the GitHub
     `Production` environment to Supabase Edge secrets.
-17. Deploys the planned functions in bounded batches. A failed batch is retried
+17. Synchronizes required bucket-scoped R2 Object Read credentials and the
+    optional R2 event-ingress secret to Supabase Edge.
+18. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-18. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
-    endpoint, and a dry-run bounded GBIF import with the production service-role
-    credential.
+19. Smoke-tests the Community Taxonomy status endpoint, scan-media health,
+    a one-item Explore direct-origin reconciliation, and a dry-run bounded GBIF
+    import with the production service-role credential.
 
 Local and CI database rebuilds require Supabase CLI `2.109.0` or newer, and CI
 pins `2.109.1`. The migration history itself remains compatible with
@@ -814,8 +819,9 @@ positive data, preserve negative caching, and fix forward.
 
 Migrations `20260725030308_durable_account_deletion.sql`,
 `20260725035737_repair_tombstone_profile_seed.sql`,
-`20260725041308_ownerless_account_deletion_tombstones.sql`, and
-`20260725052337_enforce_account_storage_erasure.sql`, plus `safe-delete`,
+`20260725041308_ownerless_account_deletion_tombstones.sql`,
+`20260725052337_enforce_account_storage_erasure.sql`, and
+`20260726041109_fence_storage_erasure_claims.sql`, plus `safe-delete`,
 `reconcile-account-deletions`, `generate-upload-urls`, and
 `replay-scan-ingestion`, form one release unit. No new secret is required: the
 reaper uses the existing Supabase service-role and R2 values.
@@ -854,6 +860,8 @@ migrations:
   verification sweep;
 - prevents new signed uploads while deletion is active;
 - adds `storage_pending` and requires completed storage before `auth_pending`;
+- makes every storage claim require the matching cleaned-up
+  `storage_pending` private job while vetoing live profiles and owned scans;
 - installs service-only account and storage claim/advance/failure RPCs; and
 - schedules `reconcile_account_deletions_every_five_minutes`.
 
@@ -952,12 +960,64 @@ SELECT
 FROM public.pending_storage_deletions
 GROUP BY status, phase
 ORDER BY status, phase;
+
+WITH claim_definition AS (
+    SELECT pg_catalog.LOWER(
+        pg_catalog.PG_GET_FUNCTIONDEF(
+            'public.claim_pending_storage_deletions(integer)'::REGPROCEDURE
+        )
+    ) AS body
+)
+SELECT
+    pg_catalog.POSITION(
+        'inner join internal.account_deletion_jobs' IN body
+    ) > 0 AS joins_private_job,
+    pg_catalog.POSITION(
+        'deletion_job.status = ''storage_pending''' IN body
+    ) > 0 AS requires_storage_pending,
+    pg_catalog.POSITION(
+        'deletion_job.cleanup_completed_at is not null' IN body
+    ) > 0 AS requires_cleanup,
+    pg_catalog.POSITION(
+        'from public.users as live_user' IN body
+    ) > 0 AS vetoes_live_profile,
+    pg_catalog.POSITION(
+        'from public.scans as owned_scan' IN body
+    ) > 0 AS vetoes_owned_scans
+FROM claim_definition;
+
+SELECT COUNT(*) AS fenced_due_storage_rows
+FROM public.pending_storage_deletions AS deletion
+LEFT JOIN internal.account_deletion_jobs AS deletion_job
+  ON deletion_job.user_id = deletion.target_user_id
+WHERE deletion.status IN ('pending', 'processing')
+  AND deletion.next_attempt_at <= NOW()
+  AND (
+    deletion_job.status IS DISTINCT FROM 'storage_pending'
+    OR deletion_job.cleanup_completed_at IS NULL
+    OR deletion_job.storage_completed_at IS NOT NULL
+    OR EXISTS (
+      SELECT 1
+      FROM public.users AS live_user
+      WHERE live_user.id = deletion.target_user_id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.scans AS owned_scan
+      WHERE owned_scan.user_id = deletion.target_user_id
+    )
+  );
 ```
 
 Expected: at least one validated restrictive profile/Auth foreign key, a
 nullable scan owner plus validated ownerless check, zero invalid ownerless
 scans, zero legacy sentinel scans/profiles, zero synthetic all-zero Auth users,
-and the active cron.
+all five claim-fence booleans true, and the active cron.
+
+`fenced_due_storage_rows` is an audit count, not an expected-zero correctness
+gate. A nonzero result can identify historical outbox rows that the new routine
+correctly leaves inert. Review those rows under restricted operator access; do
+not sweep their prefixes or make them actionable merely to clear the count.
 
 Smoke-test with a staging-only account that owns at least one scan. Confirm:
 
@@ -969,11 +1029,14 @@ Smoke-test with a staging-only account that owns at least one scan. Confirm:
 4. anonymous table access does not return the tombstoned scan;
 5. the original public profile is absent and one storage job exists with all
    five canonical prefixes;
-6. recreating the original public profile while the job is active is rejected;
-7. a new upload-signing request is rejected while deletion is active;
-8. Auth remains present through `storage_pending`, and disappears only after an
+6. before deletion, a deliberately stale/orphaned outbox row for a separate
+   live fixture account cannot be returned by
+   `claim_pending_storage_deletions`;
+7. recreating the original public profile while the job is active is rejected;
+8. a new upload-signing request is rejected while deletion is active;
+9. Auth remains present through `storage_pending`, and disappears only after an
    empty delayed verification pass permits `auth_pending`; and
-9. the terminal job is `completed` with `user_id IS NULL`.
+10. the terminal job is `completed` with `user_id IS NULL`.
 
 Alert on `account_deletion_attempt_deferred`,
 `account_deletion_reconciliation_deferred`, `account_storage_erasure_deferred`,
@@ -987,6 +1050,198 @@ service-role or owner session.
 Do not roll back by dropping the private table, unique outbox index, or cron;
 that would discard deletion intent. Fix forward while keeping the reaper
 available.
+
+#### Account-scoped image-loss containment and repair
+
+The July 2026 incident response adds two migrations and one Edge Function:
+
+- `20260726041109_fence_storage_erasure_claims.sql` is the containment boundary
+  and must reach Postgres before any further reconciliation invocation is
+  trusted;
+- `20260726041338_repair_owned_scan_image_references.sql` installs the atomic
+  metadata repair RPC; and
+- `repair-scan-image` exposes owner-authenticated inspection and repair.
+
+The normal workflow order—migrations before Edge bundles—is required. The SQL
+claim fence protects against the existing worker immediately after migration;
+it is not dependent on deploying a new worker bundle. If the five-prefix
+migration is present but the fence migration is absent, treat account-storage
+reconciliation as unsafe and apply the forward fence immediately. If deployment
+is blocked, pause only the named account-deletion reconciliation cron under the
+normal reviewed change-control procedure, record its prior state, and restore it
+only after all claim-fence booleans below are true. Do not drop the job or
+discard deletion intent.
+
+Before deployment, retain successful output from:
+
+```bash
+cd services/supabase/functions
+deno task test
+cd ../../..
+
+make validate-supabase-migrations
+
+supabase --workdir services db start
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/account_deletion_security.sql \
+  services/supabase/tests/scan_image_repair_security.sql
+```
+
+After deployment:
+
+1. confirm both migration versions are recorded;
+2. require all five claim-definition booleans above to be true;
+3. record and review `fenced_due_storage_rows` without printing UUIDs or keys;
+4. verify a stale outbox row for a live staging fixture remains unclaimable;
+5. call `/repair-scan-image` without `restored_object_key` for one healthy, one
+   missing, and one unreferenced owned fixture URL;
+6. repair one missing staging fixture and verify the new durable R2 object,
+   ordered scan array, captured-media path, normalized asset, and Explore
+   snapshot;
+7. repeat the repair request and prove it is safe/idempotent; and
+8. review request-correlated logs for promotion or rollback failures without
+   retaining raw object keys in public incident notes.
+
+Repository mitigation, production deployment, production runtime verification,
+and recovered-object coverage are separate status fields. Do not call the
+incident resolved merely because the migration and function exist in `main`.
+The canonical evidence, leading cause, recovery limits, and exit criteria are
+in the
+[July 2026 incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
+
+#### Explore media-health and reversible-quarantine release gate
+
+Ship the Explore response to unexpected object loss as one compatibility unit:
+
+1. `20260726144647_add_explore_media_quarantine_lifecycle.sql` commits the two
+   enum values separately;
+2. `20260726144754_implement_explore_media_quarantine_state_machine.sql` adds
+   item/post health, private leases and continuity, projection gates,
+   notifications, owner/service RPCs, audit rows, repair reset, and the
+   five-minute cron;
+3. deploy `reconcile-explore-media-health`,
+   `get-explore-media-incidents`, and `ingest-r2-media-events`;
+4. redeploy `send-push-notification`;
+5. verify Vault has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then
+   configure bucket-scoped Object Read credentials in
+   `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` at the GitHub and
+   Supabase boundaries;
+6. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
+   GitHub/Supabase and the trusted Cloudflare Queue consumer; and
+7. release the iOS owner banner, notification routes, repair refresh, and scan
+   deletion warning only after the backend owner endpoint is available.
+
+Do not combine the enum migration into the state-machine transaction:
+PostgreSQL cannot safely use a newly added enum value in the same transaction.
+The state-machine migration initializes existing rows as healthy/due and does
+not claim historical loss without R2 evidence.
+
+Pre-deploy:
+
+```bash
+make validate-supabase-migrations
+
+deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/reconcile-explore-media-health/worker_test.ts
+
+supabase --workdir services db start
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/explore_media_quarantine_security.sql \
+  services/supabase/tests/scan_image_repair_security.sql
+```
+
+Use a disposable database for the integration tests. The tracked local
+configuration uses the current `[inbucket]` section expected by the pinned
+Supabase CLI.
+
+Post-deploy structural checks:
+
+```sql
+SELECT version
+FROM supabase_migrations.schema_migrations
+WHERE version IN ('20260726144647', '20260726144754')
+ORDER BY version;
+
+SELECT
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'service_role',
+    'public.claim_explore_media_health_checks(integer,integer)',
+    'EXECUTE'
+  ) AS service_can_claim,
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'authenticated',
+    'public.claim_explore_media_health_checks(integer,integer)',
+    'EXECUTE'
+  ) AS client_can_claim,
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'authenticated',
+    'public.get_owned_explore_media_incidents(uuid)',
+    'EXECUTE'
+  ) AS owner_can_list_incidents;
+
+SELECT jobname, schedule, active
+FROM cron.job
+WHERE jobname = 'reconcile_explore_media_health_every_five_minutes';
+```
+
+Require two versions, `service_can_claim = true`, `client_can_claim = false`,
+`owner_can_list_incidents = true`, and one active `*/5 * * * *` cron row.
+
+Staging smoke matrix:
+
+1. publish a two-image fixture and verify Feed, Map, author profile, detail,
+   notifications, and public share agree;
+2. delete one fixture object through the reviewed staging storage path;
+3. verify the first direct check yields `suspected_missing` and leaves the item
+   public;
+4. after at least five minutes, verify the second direct `404` yields
+   `missing`, the item is omitted, and the post remains public as `degraded`;
+5. delete the second fixture object and repeat confirmation; verify
+   `quarantined`, every public surface omits the post, and the owner endpoint,
+   in-app notification, push, and Scan Library banner expose recovery;
+6. verify the post row, `unshared_at`, likes, and comments are unchanged;
+7. restore one object and run reconciliation; verify the post automatically
+   returns as degraded;
+8. restore the second object; verify healthy state, one in-app
+   `media_restored`, no restore push, and no owner banner;
+9. mark the fixture author-unpublished and prove a later healthy check does not
+   republish it; and
+10. run `refresh_explore_post_media` while the fixture is quarantined and prove
+    the private continuity ledger preserves both missing statuses.
+
+Review recent run health without printing media URLs:
+
+```sql
+SELECT
+  started_at,
+  finished_at,
+  status,
+  claimed_count,
+  healthy_count,
+  missing_observation_count,
+  retryable_error_count,
+  error_count
+FROM public.explore_media_health_reconciliation_runs
+ORDER BY started_at DESC
+LIMIT 20;
+```
+
+Alert when no successful run exists in 15 minutes, oldest due active media is
+over 15 minutes, leases expire repeatedly, result recording fails, or confirmed
+loss rises suddenly. A Cloudflare event may make a row due but is never proof;
+scheduled direct-origin reconciliation is the correctness path.
+
+Rollback is fix-forward. Do not clear `missing`, set posts healthy in bulk,
+delete notifications, or rewrite `unshared_at`. If the worker bundle is faulty,
+pause only `reconcile_explore_media_health_every_five_minutes`, preserve item
+and audit state, deploy the correction, then resume the same job. Existing
+quarantined posts remain preserved while checks are paused.
+
+Canonical product, schema, API, security, recovery, and monitoring details are
+in
+[Explore Media Health and Quarantine](./12-explore-media-health-and-quarantine.md).
 
 #### Run 1461 partial-production recovery
 
@@ -2242,11 +2497,14 @@ secret set into either Vercel project.
 | `REVENUECAT_SECRET_API_KEY`         | Synchronized by the workflow to Supabase Edge only            |
 | `REVENUECAT_WEBHOOK_SECRET`         | Synchronized by the workflow to Supabase Edge only            |
 | `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Synchronized by the workflow to Supabase Edge only            |
+| `R2_READ_ACCESS_KEY_ID`             | Synchronized by the workflow to Supabase Edge only            |
+| `R2_READ_SECRET_ACCESS_KEY`         | Synchronized by the workflow to Supabase Edge only            |
+| `R2_EVENT_WEBHOOK_SECRET`           | Optional; synchronized to Supabase Edge for R2 event hints     |
 | `SUPABASE_ACCESS_TOKEN`             | Used by the GitHub runner to operate the Supabase CLI         |
 | `SUPABASE_DB_URL`                   | Used by the GitHub runner for database migration/audit access |
 | `SUPABASE_DB_PASSWORD`              | Used only by the runner's alternative pooler connection path  |
 
-None of these seven values belongs in Vercel. The public-web Vercel contract is
+None of these values belongs in Vercel. The public-web Vercel contract is
 the explicit table in **Public Web Waitlist Release** above and
 [`apps/web/.env.example`](../../apps/web/.env.example). Do not confuse its
 `SUPABASE_URL` HTTPS API endpoint with the privileged `SUPABASE_DB_URL`
@@ -2277,6 +2535,15 @@ Set these in the repository's GitHub Actions secrets:
 - `REVENUECAT_SECRET_API_KEY` — required `sk_` secret server API key for
   authoritative CustomerInfo reads in the same RevenueCat project. This is not
   the public iOS `REVENUECAT_API_KEY`.
+- `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` — required,
+  bucket-scoped Cloudflare R2 Object Read credentials. The deploy workflow
+  synchronizes them to Supabase Edge; audit that the token cannot write or
+  delete objects.
+- `R2_EVENT_WEBHOOK_SECRET` (optional) — at least 32 high-entropy characters.
+  When present, the deploy workflow validates and synchronizes it to Supabase;
+  configure the identical value in only the trusted Cloudflare Queue consumer.
+  Omit it to disable event acceleration safely. The five-minute scheduled
+  direct-origin reconciliation remains authoritative.
 - One database connection path:
   - Preferred: `SUPABASE_DB_URL` — full percent-encoded Postgres connection
     string for migration pushes. Copy the Supabase shared pooler session-mode
@@ -2594,7 +2861,7 @@ a migration failure. The GitHub workflow intentionally avoids that status lookup
 by requiring an explicit database connection and using `db push --db-url`
 instead. Direct Supabase database hosts can resolve to IPv6-only addresses; use
 the pooler connection string in CI when a runner cannot reach IPv6. The local
-configuration uses the current `[local_smtp]` section. It also keeps Apple Auth
+configuration uses the current `[inbucket]` section. It also keeps Apple Auth
 enabled for integration testing, so local CLI commands need
 `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` in the environment. Schema-only CI scopes
 an explicit non-secret placeholder to the individual CLI steps; it never
@@ -2677,6 +2944,11 @@ rollback procedures are in
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- For an Explore media-health release, complete the structural checks and
+  staging smoke matrix in **Explore media-health and reversible-quarantine
+  release gate**. Require public-surface agreement, preserved author/engagement
+  state, spaced direct-origin confirmation, and automatic repair recovery
+  before calling the release complete.
 - For `20260725045544_repair_complete_edge_database_contracts.sql`, verify a
   resolved Community request without `explore_published_at` is absent from the
   feed and species-sightings RPC, then publish it with the owner flow and verify
@@ -2809,7 +3081,12 @@ After deployment:
   `20260528120000_add_custom_public_avatars.sql`.
 - Inspect Cloudflare R2 lifecycle rules against `docs/r2-lifecycle.json`,
   confirm the seven-day incomplete-multipart abort rule is enabled, and confirm
-  there is no enabled expiration rule for `avatars/`.
+  there is no enabled expiration rule for `public_uploads/free/`,
+  `public_uploads/pro/`, or `avatars/`.
+- After any account-deletion migration, require all five claim-definition
+  booleans above to be true before trusting the scheduled reaper. Record the
+  fenced-due-row audit count separately, and prove a stale storage marker for a
+  live staging fixture remains unclaimable.
 - Run one staging purge or safe delete and inspect Edge logs for bounded R2
   fanout, delete failures, duration spikes, and memory pressure.
 - Upload a custom avatar, then run/inspect scan purge flows and confirm the

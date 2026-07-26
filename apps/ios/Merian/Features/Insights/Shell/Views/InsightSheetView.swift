@@ -105,7 +105,7 @@ struct InsightSheetView: View {
         } message: {
             Text(viewModel.queuedContext != nil
                 ? "Are you sure you want to cancel this upload? The scan will be permanently deleted from your device."
-                : "Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
+                : "This permanently removes the scan, photo, and cloud data. If it is published to Explore, that post, its likes, and its comments will also be permanently removed.")
         }
         .alert("Photos saved", isPresented: $viewModel.state.showSaveSuccessAlert) {
             Button("OK", role: .cancel) { }

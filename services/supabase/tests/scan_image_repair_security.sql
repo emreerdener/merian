@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 
 BEGIN;
-SELECT extensions.plan(4);
+SELECT extensions.plan(6);
 
 INSERT INTO auth.users (
     instance_id,
@@ -98,16 +98,43 @@ INSERT INTO public.explore_post_media (
     kind,
     url,
     thumbnail_url,
-    order_index
+    order_index,
+    health_status,
+    missing_first_observed_at,
+    missing_confirmed_at,
+    consecutive_missing_checks,
+    last_health_http_status,
+    last_thumbnail_health_http_status
 )
-VALUES (
-    '00000000-0000-0000-0000-000000000631',
-    '00000000-0000-0000-0000-000000000621',
-    'image',
-    'https://media.merian.app/public_uploads/free/00000000-0000-0000-0000-000000000601/missing.webp',
-    'https://media.merian.app/public_uploads/free/00000000-0000-0000-0000-000000000601/missing.webp',
-    0
-);
+VALUES
+    (
+        '00000000-0000-0000-0000-000000000631',
+        '00000000-0000-0000-0000-000000000621',
+        'image',
+        'https://media.merian.app/public_uploads/free/00000000-0000-0000-0000-000000000601/missing.webp',
+        'https://media.merian.app/public_uploads/free/00000000-0000-0000-0000-000000000601/missing.webp',
+        0,
+        'missing',
+        pg_catalog.NOW() - INTERVAL '10 minutes',
+        pg_catalog.NOW() - INTERVAL '5 minutes',
+        2,
+        404,
+        404
+    ),
+    (
+        '00000000-0000-0000-0000-000000000632',
+        '00000000-0000-0000-0000-000000000621',
+        'video',
+        'https://media.merian.app/public_uploads/free/00000000-0000-0000-0000-000000000601/missing-video.mp4',
+        'https://media.merian.app/public_uploads/free/00000000-0000-0000-0000-000000000601/missing.webp',
+        1,
+        'missing',
+        pg_catalog.NOW() - INTERVAL '10 minutes',
+        pg_catalog.NOW() - INTERVAL '5 minutes',
+        2,
+        404,
+        404
+    );
 
 SET LOCAL ROLE service_role;
 SELECT public.repair_owned_scan_image_reference(
@@ -160,6 +187,35 @@ SELECT extensions.ok(
           AND thumbnail_url = 'https://media.merian.app/public_uploads/pro/00000000-0000-0000-0000-000000000601/repaired.webp'
     ),
     'the owned Explore media snapshot is repaired atomically'
+);
+
+SELECT extensions.ok(
+    EXISTS (
+        SELECT 1
+        FROM public.explore_post_media
+        WHERE id = '00000000-0000-0000-0000-000000000631'
+          AND health_status = 'healthy'
+          AND missing_first_observed_at IS NULL
+          AND missing_confirmed_at IS NULL
+          AND consecutive_missing_checks = 0
+          AND last_health_http_status = 200
+    ),
+    'a successful repair atomically clears the Explore media quarantine state'
+);
+
+SELECT extensions.ok(
+    EXISTS (
+        SELECT 1
+        FROM public.explore_post_media
+        WHERE id = '00000000-0000-0000-0000-000000000632'
+          AND thumbnail_url = 'https://media.merian.app/public_uploads/pro/00000000-0000-0000-0000-000000000601/repaired.webp'
+          AND health_status = 'missing'
+          AND missing_confirmed_at IS NOT NULL
+          AND consecutive_missing_checks = 2
+          AND last_health_http_status = 404
+          AND last_thumbnail_health_http_status = 200
+    ),
+    'repairing only an auxiliary poster never marks its missing primary video healthy'
 );
 
 SELECT * FROM extensions.finish();

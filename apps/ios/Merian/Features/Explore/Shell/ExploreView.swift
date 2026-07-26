@@ -787,6 +787,12 @@ struct ExploreView: View {
     }
 
     private func openNotification(_ notification: ExploreNotification) async {
+        if notification.type == .mediaMissing {
+            viewModel.dismissNotifications()
+            AppEventPublisher.shared.send(.requestOpenScansLibraryIntent)
+            return
+        }
+
         if notification.type.isCommunityNotification,
            let requestId = notification.communityRequestId {
             viewModel.dismissNotifications()

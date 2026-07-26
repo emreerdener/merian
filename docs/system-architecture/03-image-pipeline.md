@@ -305,9 +305,110 @@ Every `set(_:forKey:)` call computes the pixel-area cost (`width × height × 4 
 
 ## Historical / Remote Images (Rehydration)
 
-When a user reinstalls the app or signs in on a new device, `LocalScanRecord.localImagePath` contains a Cloudflare R2 URL rather than a local filename. `LocalImageLoader` handles this transparently — it detects the `http://` prefix and routes through `fetchNetworkFallback`, which downloads to a temp file, downsamples to the caller-provided `maxDimension` (no longer hardcoded), caches in RAM, and deletes the temp file.
+Supabase Postgres stores scan rows, Explore snapshots, and the URLs that connect
+them to media. Cloudflare R2 stores the image bytes. A surviving
+`image_storage_urls` or `explore_post_media.url` value is only a reference; it
+does not prove that the R2 object still exists and cannot reconstruct deleted
+bytes.
 
-This means the grid renders correctly with cloud images immediately. Legacy locally archived scans whose media was previously copied into `documentsDirectory` still load from disk through the same local-image path.
+When a user reinstalls the app or signs in on a new device,
+`LocalScanRecord.localImagePath` can contain a Cloudflare R2 URL rather than a
+local filename. `LocalImageLoader` handles this transparently. For an eligible
+durable Naturebook URL, it first checks the local recovery resolver, then
+downloads from R2 if no surviving local file is known. Network media is
+downsampled to the caller-provided `maxDimension`, cached in RAM, and decoded
+away from the main actor. Legacy records that already contain local filenames
+continue to load directly from Documents.
+
+### Local scan-media recovery
+
+`LocalScanMediaRecoveryResolver` reconnects a durable
+`public_uploads/free|pro/{owner}/...` URL to a surviving image in the app's
+Documents directory. It refuses unrelated hosts, avatars, non-image files,
+unsafe filenames, query/fragment identity drift, and path traversal. Recovery
+evidence is evaluated in this order:
+
+1. the public basename and the current `{scanId}_{localFilename}` promotion
+   convention;
+2. scan-ID and media-order alignment against read-only databases preserved
+   under `Library/Application Support/store-rescue/`; and
+3. high-confidence timestamp groups only for current scans absent from the
+   rescue index.
+
+Timestamp groups require one `_scan` image plus contiguous `_additional_N`
+images written in the same second, an exact media-count match, a write timestamp
+from zero to 60 seconds before the scan row, at least a three-second lead over
+the next candidate, and one-to-one file use across the complete matching pass.
+A direct filename or rescue-store match always wins. Nearest-time matching
+without these constraints is not permitted.
+
+The registry is process-local and is rebuilt at startup, during historical
+sync, and before Scan Library thumbnail prefetch. It does not rewrite cloud
+metadata by itself. Its first responsibility is to render a strongly matched
+surviving local file instead of a missing remote object.
+
+### Cloud repair from a recovered local file
+
+When the device is online, Scan Library collects only remote URLs that resolve
+to surviving local files and sends them to `CloudScanImageRepairActor`. The
+actor:
+
+1. asks authenticated `/repair-scan-image` to inspect the owned source;
+2. stops when the source is healthy or no longer referenced;
+3. uploads an eligible local file to a newly signed owner-scoped staging key
+   only when the source is confirmed missing; and
+4. asks the same endpoint to promote the object and atomically replace the exact
+   URL in scan, normalized-media, captured-media, and Explore snapshot
+   metadata.
+
+The server derives ownership from the JWT, verifies both object states, and
+rolls back a newly promoted object if metadata repair fails. Client failures
+pause the in-memory queue for 15 minutes rather than spinning. Local rendering
+is therefore possible before cloud repair completes; a visible image on one
+device is not proof that the R2 object or Explore snapshot has been restored.
+
+See the
+[July 2026 account-scoped R2 image-loss incident report](../incidents/2026-07-account-scoped-r2-image-loss.md)
+for current recovery coverage and unresolved limits.
+
+### Published Explore media-health projection
+
+Remote rendering failure is not storage-loss authority. Explore uses a
+server-owned, direct-origin lifecycle:
+
+1. active post media is leased in bounded batches every five minutes;
+2. a signed R2-origin `HEAD` checks the primary key and any distinct auxiliary
+   thumbnail;
+3. one primary `404` becomes `suspected_missing`;
+4. a second primary `404` at least five minutes later becomes `missing`;
+5. public media JSON omits confirmed-missing primaries and confirmed-missing
+   auxiliary thumbnails;
+6. post health becomes `degraded` while any primary remains, or `quarantined`
+   when none remains; and
+7. a later healthy origin check or successful atomic repair restores projection
+   automatically.
+
+Timeouts, `5xx`, auth/credential errors, malformed URLs, CDN responses, and
+client image-loader errors only schedule retry. A thumbnail is auxiliary: its
+confirmed `404` removes the poster but cannot hide a playable video/audio
+primary. An image whose thumbnail and primary are the same URL follows primary
+health.
+
+Quarantine is not a file move and does not use the temporary R2
+`quarantine/` prefix. It is reversible Postgres projection state independent
+from author unpublish and moderation. The post, likes, comments, reports, and
+health evidence remain. Reference artwork is never substituted for missing
+observation evidence.
+
+The Scan Library owner banner consumes `/get-explore-media-incidents`.
+Reviewing a linked local scan can activate the strongly matched device repair
+above. A repair updates the exact scan and Explore references and resets health
+in one transaction. Repeated origin checks alone cannot recreate bytes if no
+recoverable copy exists.
+
+See
+[Explore Media Health and Quarantine](../backend-and-data/12-explore-media-health-and-quarantine.md)
+for the full state, communication, security, monitoring, and rollout contract.
 
 ---
 
@@ -333,6 +434,7 @@ The same file-backed rule now applies to explore-media restore. `MerianNetworkCl
 | `ExternalImageImportStore` | `Core/Data/Images/` | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and pre-preparation EXIF extraction |
 | `MediaPreparationActor` | `Core/Data/Images/` | File-backed still-image preparation; owns inference/display encoding and budget metrics |
 | `FileIOActor` | `Core/Data/Database/` | Disk reads/writes; isolated from Main and SwiftData actors |
-| `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; exact external-reference URL policy; RAM cache hits; request coalescing; local/remote routing |
+| `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; exact external-reference URL policy; scan-media recovery registry/rescue/timestamp matching; RAM cache hits; request coalescing; local/remote routing |
+| `CloudScanImageRepairActor` | `Core/Data/Images/LocalImageLoader.swift` | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images |
 | `ImageCache` | `Core/Data/Images/` | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap |
 | `ArchiveManager` | `Core/Data/Images/` | `@MainActor` coordinator for generated dataset archive ZIP downloads |

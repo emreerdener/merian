@@ -120,6 +120,8 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
   is_live_capture: { type: SchemaType.BOOLEAN },
   confidence_score: {
     type: SchemaType.NUMBER,
+    minimum: 0,
+    maximum: 1,
     description:
       "Calibrated confidence in the primary identification (0.0–1.0). " +
       "ANCHORS: " +
@@ -137,7 +139,11 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
       type: SchemaType.OBJECT,
       properties: {
         scientific_name: { type: SchemaType.STRING },
-        confidence_score: { type: SchemaType.NUMBER },
+        confidence_score: {
+          type: SchemaType.NUMBER,
+          minimum: 0,
+          maximum: 1,
+        },
         distinguishing_feature: {
           type: SchemaType.STRING,
           description:
@@ -156,10 +162,26 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
   image_quality: {
     type: SchemaType.OBJECT,
     properties: {
-      sharpness: { type: SchemaType.INTEGER },
-      framing: { type: SchemaType.INTEGER },
-      diagnostic_utility: { type: SchemaType.INTEGER },
-      overall_score: { type: SchemaType.INTEGER },
+      sharpness: {
+        type: SchemaType.INTEGER,
+        minimum: 1,
+        maximum: 10,
+      },
+      framing: {
+        type: SchemaType.INTEGER,
+        minimum: 1,
+        maximum: 10,
+      },
+      diagnostic_utility: {
+        type: SchemaType.INTEGER,
+        minimum: 1,
+        maximum: 10,
+      },
+      overall_score: {
+        type: SchemaType.INTEGER,
+        minimum: 0,
+        maximum: 100,
+      },
     },
     required: ["sharpness", "framing", "diagnostic_utility", "overall_score"],
     description:
@@ -186,6 +208,8 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
       },
       confidence_score: {
         type: SchemaType.NUMBER,
+        minimum: 0,
+        maximum: 1,
         description:
           "Confidence in this pet-specific label from visible morphology only.",
       },
@@ -282,6 +306,8 @@ export const getMerianResponseSchema = (
       },
       invasive_confidence: {
         type: SchemaType.NUMBER,
+        minimum: 0,
+        maximum: 1,
         nullable: true,
         description:
           "Biological subjects only. Confidence from 0.0 to 1.0 for the invasive-status assessment, separate from identification confidence. Null when location evidence is insufficient or subject is non-biological.",
@@ -343,6 +369,8 @@ export const getMerianResponseSchema = (
       },
       sex_confidence: {
         type: SchemaType.NUMBER,
+        minimum: 0,
+        maximum: 1,
         nullable: true,
         description:
           "Confidence in the sex annotation from direct evidence only, 0.0–1.0. Null when sex is null, not_applicable, or cannot_determine.",
@@ -355,6 +383,8 @@ export const getMerianResponseSchema = (
       },
       individual_count: {
         type: SchemaType.INTEGER,
+        minimum: 1,
+        maximum: 99999,
         nullable: true,
         description:
           "Number of distinct individuals of the primary species visible. Null when impossible to estimate or for non-biological subjects.",

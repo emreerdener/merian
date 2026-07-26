@@ -79,6 +79,14 @@ authenticated in-product report write.
    without route-specific CSS classes or custom page chrome.
 
 Visual media on the detail route is rendered in canonical `order_index` order.
+Confirmed-missing items are absent from that ordered snapshot. If every primary
+item is confirmed missing, `get_explore_post` and
+`get_explore_post_detail` both return no row: the permalink and its social
+metadata resolve to the same non-indexable not-found response as other hidden
+posts. The retained post becomes visible at the same URL after verified repair;
+the web app never reconstructs it from direct table reads or substitutes
+species reference artwork for missing observation evidence.
+
 The active video slide autoplays muted and inline with native browser controls;
 it loops continuously while selected, and leaving the slide pauses and rewinds
 it. Autoplay failure leaves the poster and controls available for user-initiated playback.
@@ -100,9 +108,10 @@ shape is unchanged, so this protection applies to web independently of the iOS
 client rollout.
 
 If the RPC returns no visible row—including when a post is unshared,
-administratively hidden, tombstoned, blocked, or otherwise privacy-filtered—the
-route returns a not-found page and marks metadata as non-indexable. The route
-must not render stale content or metadata from a prior request. Approved
+administratively hidden, media-quarantined, tombstoned, blocked, or otherwise
+privacy-filtered—the route returns a not-found page and marks metadata as
+non-indexable. The route must not render stale content or metadata from a prior
+request. Approved
 audio-only posts are public and indexable:
 WAV posts render the persisted spectrogram in the audio-focused post header,
 Open Graph metadata, and Twitter metadata, while the public home grid uses the

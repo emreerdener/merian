@@ -23,6 +23,9 @@ Merian.
 | `REVENUECAT_WEBHOOK_SECRET`         | GitHub `Production` secret synchronized to Supabase Edge | Random webhook Authorization credential; never use the public iOS key |
 | `REVENUECAT_WEBHOOK_SIGNING_SECRET` | GitHub `Production` secret synchronized to Supabase Edge | RevenueCat raw-body HMAC key; never log, commit, or expose to clients |
 | `REVENUECAT_SECRET_API_KEY`         | GitHub `Production` secret synchronized to Supabase Edge | `sk_` server API credential for authoritative CustomerInfo reads; distinct from `REVENUECAT_API_KEY` |
+| `R2_READ_ACCESS_KEY_ID`             | GitHub `Production` secret synchronized to Supabase Edge | Dedicated bucket-scoped read-only credential for direct-origin media verification |
+| `R2_READ_SECRET_ACCESS_KEY`         | GitHub `Production` secret synchronized to Supabase Edge | Secret half of the dedicated verifier credential; never reuse upload/delete authority |
+| `R2_EVENT_WEBHOOK_SECRET`           | GitHub `Production` secret synchronized to Supabase Edge | High-entropy shared secret for optional Cloudflare R2 event hints |
 | `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret or server-side web env only     | Never in iOS bundle or browser-exposed web config                                      |
 | `Merian_HasAuthenticatedOAuth`      | `KeychainManager` (`kSecClassGenericPassword`)       | Security-sensitive auth flag, migrated from `UserDefaults` on first run                |
 | `Merian_PendingGhostProfileMerge`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)     | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
@@ -53,6 +56,9 @@ destinations:
 | `REVENUECAT_SECRET_API_KEY` | The deploy workflow synchronizes it to Supabase Edge for authoritative subscriber reads | No |
 | `REVENUECAT_WEBHOOK_SECRET` | The deploy workflow synchronizes it to Supabase Edge for webhook Authorization | No |
 | `REVENUECAT_WEBHOOK_SIGNING_SECRET` | The deploy workflow synchronizes it to Supabase Edge for raw-body signature verification | No |
+| `R2_READ_ACCESS_KEY_ID` | The deploy workflow synchronizes it to Supabase Edge for signed, read-only R2-origin verification | No |
+| `R2_READ_SECRET_ACCESS_KEY` | The deploy workflow synchronizes it to Supabase Edge as the verifier credential secret | No |
+| `R2_EVENT_WEBHOOK_SECRET` | The deploy workflow synchronizes it to Supabase Edge when optional R2 event acceleration is enabled | No |
 | `SUPABASE_ACCESS_TOKEN` | Authenticates the Supabase CLI running in GitHub Actions | No |
 | `SUPABASE_DB_URL` | Preferred direct PostgreSQL connection used by migration and catalog-audit steps | No |
 | `SUPABASE_DB_PASSWORD` | Used only by the alternative GitHub database connection path | No |
@@ -126,6 +132,16 @@ environment variable.**
   with `sk_`, used only to read authoritative CustomerInfo after a verified
   webhook. It is not the app-facing `REVENUECAT_API_KEY`; never place a server
   key in an `.xcconfig`, app bundle, Test Store configuration, or support log.
+- `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` — a required,
+  bucket-scoped read-only S3 credential used only by
+  `reconcile-explore-media-health` for signed direct-origin `HEAD` requests.
+  The verifier fails closed when either value is absent and never falls back to
+  upload, write, or delete credentials. Rotate the pair together and keep it
+  out of every client and Vercel environment.
+- `R2_EVENT_WEBHOOK_SECRET` — an independent random value of at least 32
+  characters used to authenticate optional Cloudflare R2 event notifications
+  at `ingest-r2-media-events`. Events only expedite a scheduled origin check;
+  they never directly mark media missing, hide a post, or restore it.
 - `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side
   web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`,
   and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as

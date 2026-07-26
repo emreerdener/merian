@@ -35,6 +35,7 @@ struct ScansSheetView: View {
     /// fetch time means SwiftData deletions never affect what the grid has already captured.
     @State private var queuedScans: [QueuedScanSnapshot] = []
     @State private var lastQueuedPipelineKickAt = Date.distantPast
+    @State private var exploreMediaIncidents: [ExploreMediaIncident] = []
 
     @Environment(\.modelContext) private var modelContext
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
@@ -107,6 +108,9 @@ struct ScansSheetView: View {
         .task(id: queuedRefreshTaskID) { @MainActor in
             await refreshQueuedScansUntilCancelled()
         }
+        .task(id: exploreMediaIncidentRefreshID) { @MainActor in
+            await refreshExploreMediaIncidents()
+        }
     }
 
     private var navigationStack: some View {
@@ -157,6 +161,7 @@ struct ScansSheetView: View {
                     searchManager: searchManager,
                     filterCategories: filterCategories,
                     queuedScans: queuedScans,
+                    exploreMediaIncidents: exploreMediaIncidents,
                     isSearchFocused: $isSearchFocused,
                     onScanSelected: { record in
                         navigationPath.append(ScanInsightRoute(scanId: record.id))
@@ -258,6 +263,7 @@ struct ScansSheetView: View {
     private func handleScenePhaseChange(_ newPhase: ScenePhase) {
         guard newPhase == .active else { return }
         refreshLibraryAndQueue()
+        Task { await refreshExploreMediaIncidents() }
         if !queuedScans.isEmpty {
             kickQueuedScanPipeline(reason: "scenePhase")
         }
@@ -265,6 +271,7 @@ struct ScansSheetView: View {
 
     private func handleLibraryDidUpdate() {
         refreshLibraryAndQueue()
+        Task { await refreshExploreMediaIncidents() }
         if !queuedScans.isEmpty {
             kickQueuedScanPipeline(reason: "libraryDidUpdate")
         }
@@ -388,6 +395,28 @@ struct ScansSheetView: View {
         queuedScans.map(\.id).sorted().joined(separator: "|")
     }
 
+    private var exploreMediaIncidentRefreshID: String {
+        let userId = SupabaseManager.shared.currentUser?.id.uuidString.lowercased() ?? "guest"
+        return "\(userId)|\(offlineQueueManager.isOnline)|\(scenePhase)"
+    }
+
+    @MainActor
+    private func refreshExploreMediaIncidents() async {
+        guard offlineQueueManager.isOnline,
+              SupabaseManager.shared.isAuthenticated else {
+            exploreMediaIncidents = []
+            return
+        }
+
+        do {
+            exploreMediaIncidents = try await MerianNetworkClient.shared.getExploreMediaIncidents()
+        } catch {
+            MerianLog.network.error(
+                "ScansSheetView: failed to refresh Explore media incidents: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
     /// Fetches the current `OfflineQueuedScan` list directly from the model context and
     /// converts it to `[QueuedScanSnapshot]` — value-type copies that are immune to
     /// SwiftData object deletion.
@@ -506,6 +535,7 @@ private struct LibraryTabContent: View {
     @Bindable var searchManager: ScansManager
     let filterCategories: [String]
     let queuedScans: [QueuedScanSnapshot]
+    let exploreMediaIncidents: [ExploreMediaIncident]
     @Binding var isSearchFocused: Bool
     let onScanSelected: (LocalScanRecord) -> Void
     @Binding var selectedQueuedScanForInsight: QueuedScanContext?
@@ -521,6 +551,7 @@ private struct LibraryTabContent: View {
             filterCategories: filterCategories,
             isSearchFocused: isSearchFocused,
             queuedScans: queuedScans,
+            exploreMediaIncidents: exploreMediaIncidents,
             isSelectionMode: searchManager.isSelectionMode,
             isSelected: { scan in searchManager.selectedScans.contains(scan.id) },
             onSelect: { scan in

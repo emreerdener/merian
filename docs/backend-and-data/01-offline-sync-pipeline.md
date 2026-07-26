@@ -1201,9 +1201,14 @@ app recovers foreground state (`AppDIContainer.handleActivePhase`).
 
 Historical scans restore their Cloudflare R2 URLs directly into `localImagePath`
 and `additionalImagePaths` when the physical photo is absent locally.
-`LocalImageLoader` evaluates HTTP boundaries implicitly, treating remote R2 URLs
-exactly like local `URL.documentsDirectory` paths — routing async cache fetches
-transparently so the user downloads only what is on screen.
+`LocalImageLoader` evaluates HTTP boundaries implicitly. Eligible durable R2
+URLs first consult the process-local recovery registry for a surviving
+Documents file established by exact filename, read-only rescue-store alignment,
+or constrained timestamp grouping. Without a match, the loader routes the
+bounded async network fetch transparently so the user downloads only what is on
+screen. A local recovery hit can enqueue authenticated cloud repair that
+promotes a new object and atomically updates Scan and Explore references; it
+does not change offline-queue inference ownership.
 
 ### SwiftData Typealias UI Quirks
 

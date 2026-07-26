@@ -479,7 +479,12 @@ provider dispatch:
   with `nullable: true` and are absent from the `required` array.
   `scientific_name` and `common_name` are likewise `nullable: true` to support
   identifiable geological subjects (rocks, minerals) while permitting omission
-  for generic debris.
+  for generic debris. Every numeric model property carries explicit finite
+  bounds: confidence values are `0...1`, image-quality dimensions are
+  `1...10` with `overall_score` at `0...100`, and `individual_count` is
+  `1...99999`. The schema/Swift deployment validator rejects unbounded
+  numerics, integer ranges that do not fit their Swift representation, and
+  non-Double JSON `NUMBER` wire mappings.
 - **Two-Call Identification Architecture (Optimised TTFM)**: Every scan follows
   a two-stage pipeline designed for absolute lowest "Time-To-First-Meaning"
   (latency from shutter to first UI render):

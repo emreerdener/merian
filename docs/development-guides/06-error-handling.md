@@ -133,6 +133,13 @@ to write.
 | Network timeout (Free user)                               | Paywall sheet presented via `TriggerPaywall` notification                                                                                                                                                     |
 | R2 upload failure (missing source file)                   | Queued scan remains visible with needs-attention copy plus retry/cancel actions                                                                                                                               |
 | R2 upload transient failure                               | Queued scan remains saved locally with persisted next retry time                                                                                                                                              |
+| Durable scan-image URL returns R2/CDN 404 with no local match | Scan/post metadata remains; the image surface shows a retryable unavailable fallback. Do not label the record archived, hide it from owner history, or delete the relational row as a display fix. |
+| Durable scan-image URL has a strongly matched local file | Render the local file immediately and enqueue owner-authenticated cloud inspection/repair while online; local visibility is not cloud-restoration confirmation. |
+| Cloud scan-image repair fails                             | Preserve the local file and metadata, pause the process-local repair queue for 15 minutes, log a sanitized request-correlated failure, and retry after the dependency/deployment recovers. |
+| Explore media receives one direct R2-origin 404           | Mark only `suspected_missing`; retain public projection and schedule a confirmation no earlier than five minutes later. |
+| Some Explore primary media is confirmed missing          | Omit confirmed-missing items, keep the post public as `degraded`, preserve engagement, and expose owner recovery state. |
+| All Explore primary media is confirmed missing           | Reversibly quarantine every public projection; preserve author publish state, row, likes, comments, reports, and recovery evidence. |
+| Explore origin check times out or returns non-404 failure | Record a retryable result. Never turn transport, credentials, `5xx`, CDN, or client failure into confirmed loss. |
 | SwiftData save failure during deletion                    | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted)                                                                                        |
 | SwiftData store corruption at startup                     | Store artifacts are quarantined, a support manifest is written, store-aware persistent open is retried once, and the user sees "Library Repaired" if recovery succeeds                                        |
 | SwiftData schema migration failure at startup             | Legacy store artifacts are archived under `store-rescue/`, a fresh persistent current-schema store opens, and the user sees "Library Rebuilt" with `legacy_store_rescued` telemetry; safe mode is only used if rescue fails |
@@ -147,6 +154,18 @@ feedback rather than broadening `MerianError`, because they occur before a scan
 or network request exists. Temporary quota/capacity states are not errors and
 must not delete the Application Support inbox copy. See
 `docs/features-and-hardware/26-photos-share-import.md`.
+
+The `store-rescue` archive in the startup rows above is a local SQLite support
+copy. It does not set cloud scan state or call R2. See the
+[July 2026 account-scoped R2 image-loss incident report](../incidents/2026-07-account-scoped-r2-image-loss.md)
+for the distinct local-store and cloud-object failure boundaries.
+
+Media-health state is server-owned. Image-loader callbacks must not write
+`missing`, set `unshared_at`, remove engagement, or substitute reference art.
+Verified repair or a later direct healthy check restores system quarantine
+automatically, but it cannot override a later author unpublish or moderation
+hide. See
+[Explore Media Health and Quarantine](../backend-and-data/12-explore-media-health-and-quarantine.md).
 
 ---
 

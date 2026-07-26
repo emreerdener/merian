@@ -115,6 +115,34 @@ reference:
 This boundary preserves the signed-in account and keeps public Explore ownership
 attached to the cloud user even when local SwiftData needs repair.
 
+## “Archived” Terminology and Cloud-Media Boundary
+
+`store-rescue` **archives local SQLite artifacts for support**. It does not:
+
+- set every scan's `isLocallyArchived` flag;
+- delete a Supabase scan or Explore post;
+- call Cloudflare R2; or
+- remove an object under `public_uploads/free/` or
+  `public_uploads/pro/`.
+
+Likewise, a Scan Library “Visuals archived” placeholder describes the local
+record/presentation state; it is not evidence that cloud bytes were moved into
+an R2 archive tier. R2 has no product “archived scan” state.
+
+A migration rescue can still make an image problem more visible: the fresh
+SwiftData store rehydrates cloud rows containing R2 URLs, so the device depends
+on those URLs unless a surviving Documents file can be reconnected. If the R2
+object is independently missing, the rehydrated row remains but image loading
+returns 404.
+
+`LocalScanMediaRecoveryResolver` may read preserved `store-rescue` databases
+with read-only SQLite access to align the old local filename/media order with
+the same current scan ID. That is a separate post-startup media-recovery lane;
+it never mutates the rescued database. See
+[`system-architecture/03-image-pipeline.md`](../system-architecture/03-image-pipeline.md)
+and the
+[July 2026 incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
+
 ## Telemetry
 
 `MerianApp` emits `StartupStoreRecovery` after `AppTelemetry.initialize()` with

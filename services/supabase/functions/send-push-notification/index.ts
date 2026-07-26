@@ -105,6 +105,21 @@ function communityDisplayName(payload: ExplorePushNotificationPayload): string {
 function buildNotificationCopy(
   payload: ExplorePushNotificationPayload,
 ): NotificationCopy {
+  if (payload.type === "media_missing") {
+    return {
+      title: "Media is unavailable on an Explore post",
+      body:
+        "Open your Scan Library. The post and engagement are preserved while we try to restore it.",
+    };
+  }
+
+  if (payload.type === "media_restored") {
+    return {
+      title: "Your Explore post is back",
+      body: "Its media was restored automatically.",
+    };
+  }
+
   if (payload.type === "community_identification_added") {
     return {
       title: "Someone suggested an ID for your request",

@@ -962,6 +962,9 @@ actor CloudScanImageRepairActor {
             MerianLog.network.info(
                 "Cloud scan image repair restored \(result.updatedScanCount, privacy: .public) scan record(s) and \(result.updatedPostMediaCount, privacy: .public) Explore media record(s)."
             )
+            await MainActor.run {
+                ScanLibraryEvents.postLibraryDidUpdate()
+            }
         }
     }
 

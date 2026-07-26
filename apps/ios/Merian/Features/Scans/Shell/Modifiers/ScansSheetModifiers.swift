@@ -69,7 +69,7 @@ struct ScansSheetModifiers: ViewModifier {
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This will permanently remove these discoveries and all associated visuals from your history.")
+                Text("This permanently removes these discoveries and their visuals. Any published Explore posts, likes, and comments linked to them will also be permanently removed.")
             }
             .alert(
                 "Selection limit reached",

@@ -10,6 +10,22 @@ struct EdgeResponseWrapper: Codable {
     let data: EdgeResponse
 }
 
+struct PetIdentificationDTO: Codable {
+    let speciesGroup: String
+    let label: String
+    let labelType: String
+    let confidenceScore: Double
+    let evidence: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case speciesGroup = "species_group"
+        case label
+        case labelType = "label_type"
+        case confidenceScore = "confidence_score"
+        case evidence
+    }
+}
+
 /// Exact JSON schema returned by the identify Edge Function.
 struct EdgeResponse: Codable {
     let scan_id: String?
@@ -77,7 +93,7 @@ struct EdgeResponse: Codable {
     /// The primary common_name value is always excluded from this array.
     let alternative_common_names: [String]?
 
-    let pet_identification: PetIdentification?
+    let pet_identification: PetIdentificationDTO?
 
     /// Per-scan alternative candidates output by the model when it was genuinely uncertain.
     /// Only present when `confidence_score` is below the tier's `diagnosticTrigger` threshold.

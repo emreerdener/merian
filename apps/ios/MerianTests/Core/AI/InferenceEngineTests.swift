@@ -466,7 +466,7 @@ struct InferenceEngineTests {
         
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
-            scanId: "test_scan_123",
+            scanId: "00000000-0000-4000-8000-00000000e123",
             commonName: "Raccoon",
             scientificName: "Procyon lotor",
             insightData: InsightData(aiReasoning: "A mammal.", hazardType: "none"),

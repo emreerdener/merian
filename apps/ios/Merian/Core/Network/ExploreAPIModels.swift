@@ -1367,6 +1367,29 @@ struct ExploreNotificationsResponse: Decodable {
     let data: [ExploreNotification]
 }
 
+enum ExploreMediaHealthStatus: String, Decodable, Equatable, Sendable {
+    case degraded
+    case quarantined
+}
+
+struct ExploreMediaIncident: Decodable, Identifiable, Equatable, Sendable {
+    let postId: String
+    let scanId: String
+    let speciesCommonName: String
+    let mediaHealthStatus: ExploreMediaHealthStatus
+    let missingMediaCount: Int
+    let totalMediaCount: Int
+    let mediaQuarantinedAt: String?
+    let mediaHealthUpdatedAt: String
+    let missingMediaUrls: [String]
+
+    var id: String { postId }
+}
+
+struct ExploreMediaIncidentsResponse: Decodable {
+    let data: [ExploreMediaIncident]
+}
+
 struct ExploreUnreadNotificationCountResponse: Decodable {
     let unreadCount: Int
 }

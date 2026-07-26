@@ -15,7 +15,9 @@ export interface ExplorePushNotificationPayload {
     | "comment_mention"
     | "community_identification_added"
     | "community_request_resolved"
-    | "community_identification_helped";
+    | "community_identification_helped"
+    | "media_missing"
+    | "media_restored";
   action_count: number;
   reaction_emoji: string | null;
   comment_body: string | null;

@@ -256,6 +256,10 @@ the critical path.
 are promoted by `/update-public-avatar` after a user-owned staged upload and are
 deleted only by the avatar replacement helper for the same user. Scan purge,
 moderation rollback, and storage lifecycle jobs must not target `avatars/`.
+The explicit account-erasure state machine is the only owner-prefix exception:
+after relational cleanup, its fenced five-prefix job also removes that owner's
+avatars. Neither `public_uploads/free/`, `public_uploads/pro/`, nor `avatars/`
+may have an age-based expiration lifecycle rule.
 
 ### Two Promotion Paths
 
@@ -393,6 +397,23 @@ excluded from feed, map, profile, detail, notification, community, and public
 web projections through the shared `moderated_at IS NULL` visibility contract.
 All review reads and transitions are audited, and raw report text is never
 placed in application logs or URLs.
+
+### Operational media quarantine is not moderation
+
+`explore_posts.media_health_status = 'quarantined'` means every primary
+observation object was confirmed missing by two spaced direct R2-origin checks.
+It is system-owned availability state, not a safety judgment, strike, report
+outcome, or moderator action.
+
+Media reconciliation must not set `moderated_at`, resolve/reopen a review case,
+increment abuse strikes, or delete report evidence. Conversely, restoring media
+does not clear `moderated_at` or republish content the author has unpublished.
+Public projections require all independent visibility conditions to pass.
+
+Do not use reference imagery to make a missing observation appear intact.
+Confirmed-missing evidence is omitted; all-missing posts are preserved for the
+owner and removed from public projection. See
+[Explore Media Health and Quarantine](../backend-and-data/12-explore-media-health-and-quarantine.md).
 
 ### Internal review operating contract
 

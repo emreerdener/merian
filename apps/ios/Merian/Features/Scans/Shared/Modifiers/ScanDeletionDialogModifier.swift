@@ -35,7 +35,7 @@ struct ScanDeletionDialogModifier: ViewModifier {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will permanently remove the discovery and all associated visuals from your history.")
+                Text("This permanently removes the discovery and its visuals. If it is published to Explore, that post, its likes, and its comments will also be permanently removed.")
             }
     }
 }

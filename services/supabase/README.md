@@ -89,11 +89,13 @@ boundary.
 Migration `20260725030308_durable_account_deletion.sql` establishes durable
 deletion intake. Migration `20260725052337_enforce_account_storage_erasure.sql`
 completes the private `pending → storage_pending → auth_pending → completed`
-state machine. `/safe-delete` persists intent before destructive work, then a
-five-minute claim-fenced transaction writes the idempotent storage job,
-tombstones relational data, and verifies that the public profile and original
-scan ownership are gone. Auth Admin deletion is forbidden until R2 erasure is
-durably verified.
+state machine. Migration
+`20260726041109_fence_storage_erasure_claims.sql` makes that private state
+machine the sole authority for destructive storage claims. `/safe-delete`
+persists intent before destructive work, then a five-minute claim-fenced
+transaction writes the idempotent storage job, tombstones relational data, and
+verifies that the public profile and original scan ownership are gone. Auth
+Admin deletion is forbidden until R2 erasure is durably verified.
 
 Migration `20260725035737_repair_tombstone_profile_seed.sql` is an intentional
 no-op compatibility bridge for production run 1461, where the attempted
@@ -124,6 +126,13 @@ verification pass marks storage complete and transactionally wakes the account
 job. Listing and deletion have explicit deadlines and bounded response bodies;
 claims, progress, and failures are token-fenced and retryable.
 
+The SQL claim itself inner-joins the corresponding private job at
+`storage_pending`, requires completed relational cleanup and incomplete
+storage, and vetoes any target that still has a live public profile or owned
+scan. A historical, orphaned, reset, or manually due
+`pending_storage_deletions` row is inert. Worker code must not weaken or replace
+this database authorization boundary.
+
 Every retry repeats the idempotent relational cleanup before considering Auth
 deletion. It also clears compatibility media URLs, structured captured-media
 references, exact coordinates/elevation, semantic location, device
@@ -146,6 +155,82 @@ Coverage lives in `_tests/safeDelete.test.ts`,
 `_tests/accountDeletionMigrationContract.test.ts`, and
 `tests/account_deletion_security.sql`, with R2 worker coverage in
 `functions/safe-delete/storageWorker_test.ts`.
+
+### Owned Scan Image Recovery Boundary
+
+Cloud media has two layers: Supabase Postgres stores owner/scan/post metadata
+and public URLs, while Cloudflare R2 stores the referenced bytes. A surviving
+URL does not imply that its object exists.
+
+Migration
+`20260726041338_repair_owned_scan_image_references.sql` and
+`repair-scan-image` restore a missing durable image from a surviving local
+owner copy:
+
+- shared authentication derives the user from the JWT and fails closed while
+  account deletion is active;
+- inspection requires an active scan owned by that user to reference the exact
+  canonical source URL;
+- R2 `HEAD` distinguishes healthy from missing media before any upload is
+  promoted;
+- a restored key must be a direct image child of the same user's staging
+  prefix;
+- promotion creates a new durable key under the user's current free/Pro prefix;
+- one service-only transaction replaces the exact URL in scan arrays,
+  recursive captured-media JSON, normalized media assets, and matching
+  owner-post Explore snapshots; and
+- persistence failure triggers best-effort deletion of the newly promoted
+  object.
+
+The endpoint returns `healthy`, `missing`, or `not_referenced` for inspection
+and `healthy` or `repaired` for a repair request. It is not a general media
+replacement API and cannot select a target user from HTTP.
+
+Coverage lives in `functions/repair-scan-image/worker_test.ts`,
+`functions/repair-scan-image/validation_test.ts`,
+`_tests/migrationMediaContract.test.ts`,
+`tests/scan_image_repair_security.sql`, and the iOS
+`MerianNetworkClientTests`/`LocalImageLoaderTests` recovery suites. Operational
+deployment and incident exit criteria are in
+[`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../docs/backend-and-data/06-supabase-deployment-runbook.md)
+and the
+[July 2026 incident report](../../docs/incidents/2026-07-account-scoped-r2-image-loss.md).
+
+### Explore Media Health and Reversible Quarantine
+
+Migrations `20260726144647` and `20260726144754` preserve published posts when
+primary media is unexpectedly absent:
+
+- `reconcile-explore-media-health` leases bounded active rows and performs
+  signed direct R2-origin `HEAD` with required, bucket-scoped read-only
+  `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY`;
+- one primary `404` is only suspected; a second at least five minutes later
+  confirms missing;
+- confirmed-missing items are omitted, while an all-missing post becomes
+  system `quarantined` without changing author or moderation state;
+- `get-explore-media-incidents` returns only the verified owner's active
+  recovery queue;
+- optional `ingest-r2-media-events` batches make rows due under
+  `R2_EVENT_WEBHOOK_SECRET` but never confirm state;
+- owner repair atomically resets item health and restores ordinary projection;
+  and
+- one incident push/in-app row is replaced by an in-app-only restore row after
+  full recovery.
+
+The private continuity ledger preserves health across the existing
+DELETE+INSERT snapshot refresh. The worker never deletes R2 objects, posts,
+likes, or comments.
+
+Coverage lives in
+`functions/reconcile-explore-media-health/worker_test.ts`,
+`functions/ingest-r2-media-events/validation_test.ts`,
+`_tests/exploreMediaQuarantineMigrationContract.test.ts`,
+`tests/explore_media_quarantine_security.sql`, and
+`tests/scan_image_repair_security.sql`.
+
+The canonical product, architecture, API, security, monitoring, and deployment
+contract is
+[Explore Media Health and Quarantine](../../docs/backend-and-data/12-explore-media-health-and-quarantine.md).
 
 ### Darwin Core Export Boundary
 
@@ -589,6 +674,7 @@ deno fmt --check services/supabase/functions services/supabase/scripts
 deno lint --config services/supabase/functions/deno.json \
   services/supabase/functions services/supabase/scripts
 make test-supabase-tooling
+make validate-edge-dto-contract
 (cd services/supabase/functions && deno task test)
 
 deno run --allow-read=services/supabase \
@@ -607,12 +693,37 @@ isolated frozen config, syntax-checks every shell script, and runs every
 `*_test.sh`. New conventionally named tooling tests therefore enter the gate
 without editing CI.
 
+`validate_edge_dto_contract.sh` is the shared isolated entrypoint used by both
+the backend deployment workflow and the lightweight iOS project guardrail.
+Consequently, an extension-only decoder change anywhere under
+`apps/ios/Merian` is checked immediately without causing a production backend
+deployment.
+
 The current canonical comparison resolves 31 unique TypeScript schema
 properties (22 top-level) and 36 direct Swift `EdgeResponse` properties.
+It structurally validates 35 schema paths across nested objects, arrays,
+primitive types, requiredness, nullability, numeric bounds, and active
+coding-key aliases. TypeScript identifiers are resolved by their lexical
+compiler symbols, so an unrelated shadowed declaration cannot replace the
+canonical schema binding. The real comparison also scans every production iOS
+Swift source file for extensions of a schema-backed DTO; extension-based custom
+decoders or coding-key declarations fail closed rather than escaping the
+single-file DTO comparison.
+`InferenceEdgeDTOs.swift` owns the complete response graph, including a dedicated
+pet-identification wire DTO with standard snake-case `CodingKeys`; decoded
+values are mapped into the separate domain `PetIdentification` afterward.
+Changes to the wire DTO file trigger the deployment gate.
+Every schema `INTEGER` and `NUMBER` field must declare finite `minimum` and
+`maximum` values. Integer bounds must also be JavaScript-safe and fit the
+selected Swift integer representation. JSON `NUMBER` wire values map only to
+Swift `Double`; narrower or differently encoded numeric DTO types require an
+intentional contract-model change rather than an implicit compatibility guess.
 `ai_reasoning` and `extracted_visual_traits` are the only reviewed top-level
 schema exceptions because iOS receives reasoning under `insight_data` and does
-not decode server-retained visual traits. Update counts/floors only alongside an
-intentional contract change and its tests.
+not decode server-retained visual traits. Swift-only fields populated from
+request telemetry, cache hydration, or post-model enrichment are maintained as
+an explicit reviewed server-added path set. Update either exception set or the
+counts/floors only alongside an intentional contract change and its tests.
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh
@@ -824,7 +935,7 @@ make validate-supabase-migrations
 Use Supabase CLI `2.109.0` or newer; CI pins `2.109.1`. The repository keeps
 every migration compatible with fresh-schema statement-pipeline replay rather
 than depending on CLI-specific handling for concurrent index DDL. The minimum
-also recognizes the `[local_smtp]` configuration used by this project. Confirm
+also recognizes the current `[inbucket]` configuration used by this project. Confirm
 the local version before database verification:
 
 ```bash

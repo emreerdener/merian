@@ -722,7 +722,17 @@ Short video scans can extract a companion WAV through `AVAssetReader` / `AVAsset
 ### File System Sandboxing Limits (`LocalImageLoader`)
 When grid interfaces ingest hundreds of locally un-cached APFS identifiers, executing synchronous `FileManager` and `UIImage(contentsOfFile:)` loads stutters the main thread and trips OS memory caps. Merian abstracts this through the isolated `LocalImageLoader` actor. It manages multi-tier RAM lookups and detached request coalescing, then admits `ImageDownsampler.downsample()` work through the asynchronous four-permit pool onto the dedicated ImageIO queue. Uncached `CGImageSourceCreateWithURL` fallback loads are removed, forcing the OS to honor `[kCGImageSourceShouldCache: false]` and CGImageSource size scaling, protecting device RAM.
 
-The loader also implements a recursive network fallback pipeline to handle missing cloud images (e.g. user deletion, moderation removal, historical cleanup, or transient CDN failure) or failed local disk fetches. `LocalImageLoader` splits the aggregated `fallbackUrl` by commas and cascades through R2, Wikipedia, and GBIF URLs sequentially, swallowing 404 errors and falling back to displaying the "Visuals archived" icon. This runs without blocking the Main Thread or leaking RAM.
+The loader also implements local recovery plus a recursive network fallback
+pipeline. For an eligible durable R2 URL, `LocalImageLoader` first asks
+`LocalScanMediaRecoveryResolver` for a strongly matched surviving Documents
+file. A local hit renders immediately and queues owner-authenticated cloud
+inspection/repair. Without a local hit, the loader splits aggregated
+`fallbackUrl` values and cascades through permitted R2, Wikipedia, and GBIF URLs
+sequentially. A terminal failure displays the “Visuals archived” placeholder
+without spinning, but that label is a presentation fallback—not an R2 archive
+class. Recovery matching, one-to-one timestamp constraints, and atomic
+Scan/Explore repair are defined in
+[`03-image-pipeline.md`](./03-image-pipeline.md).
 
 The loader protects against "thundering herd" memory leaks. If the UI queries a missing image URL before cache limits evaluate, it tracks in-flight executions inside an `[String: Task<UIImage?, Never>]` dictionary, reducing duplicate loads to a single instance. To address an actor reentrancy vulnerability at the `await` suspension point, `LocalImageLoader` checks `if activeTasks[cacheKey] == fetchTask` inside its teardown `defer` block, ensuring concurrent task overwrites cannot cause an earlier task to wipe a newer active network request from the dictionary. `loadImage` returns `nil` when path strings are empty, rather than binding fresh `UUID` strings that previously bypassed cache logic and inflated `NSCache` allocations indefinitely.
 

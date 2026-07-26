@@ -19,10 +19,13 @@ export const R2_MEDIA_PREFIXES = {
   avatars: "avatars/",
 } as const;
 
-export function getS3Client(): AwsClient {
+export function getS3Client(
+  accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID") ?? "",
+  secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "",
+): AwsClient {
   return new AwsClient({
-    accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID") ?? "",
-    secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "",
+    accessKeyId,
+    secretAccessKey,
     region: "auto",
   });
 }
@@ -34,6 +37,29 @@ export function getR2Config(): R2Config {
 
   return {
     s3Client: getS3Client(),
+    bucketName,
+    endpoint,
+  };
+}
+
+export function getR2ReadConfig(): R2Config {
+  const accountId = Deno.env.get("R2_ACCOUNT_ID") ?? "";
+  const bucketName = Deno.env.get("R2_BUCKET_NAME") ?? "";
+  const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
+  const accessKeyId = Deno.env.get("R2_READ_ACCESS_KEY_ID") ?? "";
+  const secretAccessKey = Deno.env.get("R2_READ_SECRET_ACCESS_KEY") ?? "";
+
+  if (
+    !accountId ||
+    !bucketName ||
+    !accessKeyId ||
+    !secretAccessKey
+  ) {
+    throw new Error("Required R2 read configuration is missing.");
+  }
+
+  return {
+    s3Client: getS3Client(accessKeyId, secretAccessKey),
     bucketName,
     endpoint,
   };
@@ -273,7 +299,12 @@ export async function headR2Object(
 ): Promise<Response> {
   const { s3Client, bucketName, endpoint } = config;
   const headUrl = `${endpoint}/${bucketName}/${key}`;
-  return await s3Client.fetch(new Request(headUrl, { method: "HEAD" }));
+  return await s3Client.fetch(
+    new Request(headUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(R2_OBJECT_REQUEST_TIMEOUT_MS),
+    }),
+  );
 }
 
 export async function putR2Object(

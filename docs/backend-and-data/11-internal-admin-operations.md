@@ -318,6 +318,45 @@ write-path incidents. Independent best-effort failures emit structured
 affected operation/time window, repair only from durable token metadata, use the
 idempotent source key, and keep the repaired rows labeled accurately.
 
+### Account-scoped media loss
+
+The internal admin browser is not an R2 console and has no service-role repair
+capability. If one owner's Scan Library and Explore images fail while other
+owners' media loads:
+
+1. preserve scan/post rows, media URLs, request IDs, and the incident window;
+2. distinguish CDN/R2 404 from transport or feed-projection failure;
+3. run the aggregate deletion-claim fence/audit checks in the
+   [Supabase deployment runbook](./06-supabase-deployment-runbook.md#account-scoped-image-loss-containment-and-repair);
+4. do not hide/moderate posts, mark scans archived, sweep a prefix, or delete
+   relational rows as a display fix; and
+5. track containment, production deployment, runtime verification, and
+   recovered-object coverage independently.
+
+After the Explore media-health release, use its origin-verified state instead of
+manual moderation:
+
+1. review recent `explore_media_health_reconciliation_runs` counters and worker
+   logs without copying raw owner keys into tickets;
+2. confirm two spaced direct-origin observations before accepting `missing`;
+3. verify degraded posts expose remaining media and quarantined posts disappear
+   from every canonical public projection;
+4. verify the owner incident queue remains available and post/engagement rows
+   remain intact;
+5. restore only from a strongly matched owner file or reviewed recovery source;
+   and
+6. let a healthy result clear system quarantine automatically, while preserving
+   any author unpublish or moderation hide.
+
+Do not bulk-set health to healthy, fabricate observation evidence with species
+reference art, or delete an unrecoverable quarantined record to make metrics
+green. The canonical procedure is
+[Explore Media Health and Quarantine](./12-explore-media-health-and-quarantine.md).
+
+The active incident evidence, leading cause, device recovery limits, and exit
+criteria are in the
+[July 2026 account-scoped R2 image-loss report](../incidents/2026-07-account-scoped-r2-image-loss.md).
+
 ## Rollback
 
 - The admin frontend can be rolled back or removed from DNS independently; this

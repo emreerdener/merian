@@ -259,7 +259,21 @@ cleanup, and removes login access only after database cleanup is verified.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5 Flash against stored scan evidence only; the same function also generates short, scan-specific prompt chips from private text context.
 
 ### Evidence Retention
-- Biological scan media is durable regardless of subscription tier. Temporary staging, quarantine, and export objects still expire quickly, and non-biological scans are cleaned up after the retention window.
+- Biological scan media is intended to be durable regardless of subscription
+  tier. Supabase Postgres stores scan/post rows and R2 URLs; Cloudflare R2 stores
+  the referenced bytes. A surviving database URL is not an object backup.
+  Temporary staging, quarantine, and export objects still expire quickly, while
+  durable free/Pro upload and avatar prefixes must have no age-based expiration.
+  Non-biological scans are cleaned up after the retention window.
+- When a durable object is independently missing but a strongly matched
+  Documents file survives, the app can render the local copy and use an
+  owner-authenticated promotion plus one metadata transaction to repair both
+  Scan Library and matching Explore references.
+- Explore media loss never auto-deletes or auto-unpublishes a post. Two spaced
+  direct R2-origin `404` checks confirm a primary object as missing. The public
+  projection omits only bad items and reversibly quarantines an all-missing
+  post while preserving its row, publication intent, likes, and comments.
+  Verified repair automatically restores ordinary visibility.
 
 ### Privacy
 - Geoprivacy is enforced server-side: `obscured` rounds coordinates to ~10km; `private` strips location entirely. Endangered species coordinates are automatically offset by 50km regardless of user setting.
@@ -272,7 +286,10 @@ cleanup, and removes login access only after database cleanup is verified.
 - Account deletion preserves login access through relational anonymization and
   cursor-persisted R2 erasure. It waits for a delayed empty verification sweep
   before removing Auth, and a scheduled reaper resumes every phase after a
-  crash.
+  crash. The database refuses an R2 storage claim unless the matching private
+  deletion job is `storage_pending` after relational cleanup, and vetoes the
+  claim while a live profile or owned scan remains. An outbox row alone is
+  never deletion authority.
 
 ---
 
@@ -451,7 +468,9 @@ Extended architecture documentation lives in `docs/`:
 | `docs/backend-and-data/` | Edge function contracts, database schema, offline sync, API contracts |
 | `docs/backend-and-data/10-internal-admin.md` | Internal admin architecture, security boundary, roles, metrics, moderation, and AI ledger |
 | `docs/backend-and-data/11-internal-admin-operations.md` | Internal admin setup, deployment, access recovery, pricing, and incident runbook |
+| `docs/backend-and-data/12-explore-media-health-and-quarantine.md` | Reversible Explore media-loss policy, origin verification, owner communication, recovery, security, and rollout |
 | `docs/development-guides/` | Core managers reference, app lifecycle, testing strategy |
+| `docs/incidents/` | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria |
 | `docs/rfcs/active-capture-goal-context.md` | Long-term source-agnostic Capture goal architecture and extension contract |
 
 ---

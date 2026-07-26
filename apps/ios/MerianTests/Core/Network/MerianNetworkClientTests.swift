@@ -1053,6 +1053,97 @@ struct MerianNetworkClientTests {
         ])
     }
 
+    @Test func testExploreMediaIncidentsAndLifecycleNotificationsDecode() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        let incidentData = Data("""
+        {
+          "data": [
+            {
+              "post_id": "post-1",
+              "scan_id": "scan-1",
+              "species_common_name": "White-winged Dove",
+              "media_health_status": "quarantined",
+              "missing_media_count": 2,
+              "total_media_count": 2,
+              "media_quarantined_at": "2026-07-26T12:10:00Z",
+              "media_health_updated_at": "2026-07-26T12:10:00Z",
+              "missing_media_urls": [
+                "https://media.merian.app/public_uploads/pro/user/one.webp",
+                "https://media.merian.app/public_uploads/pro/user/two.webp"
+              ]
+            }
+          ]
+        }
+        """.utf8)
+        let incidentResponse = try decoder.decode(
+            ExploreMediaIncidentsResponse.self,
+            from: incidentData
+        )
+
+        #expect(incidentResponse.data[0].id == "post-1")
+        #expect(incidentResponse.data[0].mediaHealthStatus == .quarantined)
+        #expect(incidentResponse.data[0].missingMediaUrls.count == 2)
+
+        let notificationData = Data("""
+        {
+          "data": [
+            {
+              "notification_id": "missing-1",
+              "post_id": "post-1",
+              "community_request_id": null,
+              "field_trip_publication_id": null,
+              "type": "media_missing",
+              "comment_id": null,
+              "parent_comment_id": null,
+              "reaction_emoji": null,
+              "triggering_user_id": null,
+              "triggering_user_name": null,
+              "comment_body": null,
+              "recent_actor_names": [],
+              "action_count": 1,
+              "is_read": false,
+              "is_reply_to_viewer_comment": false,
+              "community_taxon_common_name": null,
+              "community_taxon_scientific_name": null,
+              "community_request_display_name": null,
+              "created_at": "2026-07-26T12:10:00Z",
+              "updated_at": "2026-07-26T12:10:00Z"
+            },
+            {
+              "notification_id": "restored-1",
+              "post_id": "post-1",
+              "community_request_id": null,
+              "field_trip_publication_id": null,
+              "type": "media_restored",
+              "comment_id": null,
+              "parent_comment_id": null,
+              "reaction_emoji": null,
+              "triggering_user_id": null,
+              "triggering_user_name": null,
+              "comment_body": null,
+              "recent_actor_names": [],
+              "action_count": 1,
+              "is_read": false,
+              "is_reply_to_viewer_comment": false,
+              "community_taxon_common_name": null,
+              "community_taxon_scientific_name": null,
+              "community_request_display_name": null,
+              "created_at": "2026-07-26T12:20:00Z",
+              "updated_at": "2026-07-26T12:20:00Z"
+            }
+          ]
+        }
+        """.utf8)
+        let notificationResponse = try decoder.decode(
+            ExploreNotificationsResponse.self,
+            from: notificationData
+        )
+
+        #expect(notificationResponse.data.map(\.type) == [.mediaMissing, .mediaRestored])
+    }
+
     @Test func testExploreMapResponseToleratesMediaOnlyPostsWithoutHeroImages() throws {
         let data = """
         {

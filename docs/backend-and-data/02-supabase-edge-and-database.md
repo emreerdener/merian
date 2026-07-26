@@ -318,6 +318,60 @@ maps each issue code to an owner, next step, runbook, and sample-field hint, so
 production drift triage starts from the generated report instead of raw table
 inspection.
 
+## Owned Missing-Image Repair (`repair-scan-image`)
+
+Supabase Postgres owns scan/post metadata and public media references;
+Cloudflare R2 owns the referenced object bytes. `repair-scan-image` restores the
+connection when an active owned scan still references a durable image that R2
+reports missing and the client has a strongly matched surviving local file.
+
+The app first performs an authenticated inspection request containing only the
+canonical `source_url`. The function derives the owner from the verified JWT,
+requires an active owned scan reference, and performs an R2 `HEAD`. It returns
+`healthy`, `missing`, or `not_referenced` without mutating state.
+
+For a confirmed missing object, the app obtains an ordinary owner-bound signed
+upload URL, uploads the local file to
+`staging/{sameUser}/repair_...`, and repeats the request with
+`restored_object_key`. The function verifies both object states, promotes the
+staging image into a new durable key for the owner's current tier, validates
+that owner prefix, and calls service-only
+`repair_owned_scan_image_reference`. One transaction replaces the exact URL
+across scan arrays, recursive captured-media JSON, normalized media rows, and
+matching Explore snapshots owned by the same account. A persistence failure
+causes best-effort deletion of the new promoted object.
+
+The route fails closed while account deletion is active, never accepts a target
+user ID from HTTP, and is not a general image-editing/replacement API. Local
+file discovery and confidence constraints are documented in
+[`system-architecture/03-image-pipeline.md`](../system-architecture/03-image-pipeline.md).
+
+## Explore Media Health (`reconcile-explore-media-health`)
+
+Published observation availability is verified separately from client display
+and from author/moderation state. The service-role worker leases due active
+`explore_post_media` rows, performs signed direct R2-origin `HEAD` requests with
+required bucket-scoped read-only credentials, and records every result through
+a claim-token-fenced RPC.
+
+One `404` creates `suspected_missing`; a second direct `404` at least five
+minutes later confirms `missing`. Transport errors, timeouts, credential
+failures, `5xx`, and CDN/client errors only retry. Public projections omit a
+confirmed-missing item and hide an all-missing post as system
+`quarantined`—without setting `unshared_at`, changing moderation, or deleting
+the post and engagement.
+
+`get-explore-media-incidents` exposes only the authenticated owner's active
+recovery queue. `ingest-r2-media-events` accepts optional trusted event batches
+under a dedicated secret and merely advances due time. Scheduled origin checks
+are the source of truth. A successful `/repair-scan-image` metadata transaction
+resets matching item health and public projection restores automatically if
+ordinary publication rules still pass.
+
+The canonical product decision, state machine, user communication, security,
+monitoring, and rollout contract is
+[`12-explore-media-health-and-quarantine.md`](./12-explore-media-health-and-quarantine.md).
+
 ## The Public Avatar Promotion Node (`update-public-avatar`)
 
 The `/update-public-avatar` Edge Function promotes a staged, user-owned image
@@ -1516,7 +1570,13 @@ statement for deterministic clean rebuilds.
 
 ## Storage Economics & Evidence Retention
 
-Biological scan media is durable regardless of subscription tier. Migration
+Cloudflare R2 stores biological media bytes. Supabase Postgres stores the
+relational scan/post/media rows and URLs that reference those objects. A
+surviving URL is not a byte-level backup and must not be treated as proof that
+an object remains available.
+
+Biological scan media is intended to be durable regardless of subscription
+tier. Migration
 `20260616130000_disable_free_tier_media_expiration.sql` retired the earlier
 free-tier media expiration policy and the targeted domesticated-media purge.
 Successful biological sightings keep their image evidence unless the user
@@ -1535,7 +1595,9 @@ never renders. This reduces per-row payload size by approximately 60% at scale.
 
 **Graceful Degradation**: Scans whose media is missing because of user deletion,
 moderation, historical cleanup, or transient CDN failure render the archived
-visual placeholder rather than looping on a `ProgressView`.
+visual placeholder rather than looping on a `ProgressView`. “Archived” is a
+presentation fallback, not an R2 archive class and not proof that the object can
+be restored from Cloudflare.
 
 ### Automated 30-Day Non-Biological Purge
 
@@ -1615,11 +1677,12 @@ Dashboard under **Settings -> Object Lifecycle** and mirrored in
    - **Prefix:** `exports/`
    - **Action:** Delete objects after `1` day
 
-Do not add an expiration lifecycle rule for `avatars/`. User profile pictures
-are durable public media and are deleted only by the avatar replacement helper
-after a new same-user custom avatar has been promoted. Deno tests load
-`docs/r2-lifecycle.json` and fail if any enabled expiration rule targets the
-`avatars/` prefix.
+Do not add an expiration lifecycle rule for `public_uploads/free/`,
+`public_uploads/pro/`, or `avatars/`. Scan images and user profile pictures are
+durable public media; deletions occur only through an authorized application
+workflow. Deno tests load `docs/r2-lifecycle.json` and reject avatar expiration;
+the deployment runbook additionally requires an operator check for all three
+durable prefixes.
 
 ## Internal Review, Feedback, and Admin Boundary
 
@@ -1720,6 +1783,8 @@ updated or deleted through ordinary service-role writes.
 adds durable deletion intake, and migration
 `20260725052337_enforce_account_storage_erasure.sql` completes the private
 `pending → storage_pending → auth_pending → completed` state machine.
+Migration `20260726041109_fence_storage_erasure_claims.sql` makes that private
+job the mandatory authority for every R2 claim.
 `/safe-delete` first persists an idempotent `pending` receipt, then claims it
 with a five-minute UUID lease. The claim writes the storage job, invokes
 `apply_user_tombstone`, verifies that no public profile or scan still references
@@ -1728,6 +1793,13 @@ Admin API remains forbidden until storage verification advances the account job
 to `auth_pending`. This ordering guarantees that any relational or R2 failure
 leaves the login identity available for retry instead of stranding personal
 data behind an inaccessible account.
+
+The SQL storage claim inner-joins the corresponding private job at
+`storage_pending`, requires completed relational cleanup and incomplete
+storage, and rejects the target while a matching `public.users` row or owned
+`public.scans` row exists. Historical outbox rows may survive an interrupted
+old workflow; queue status, age, due time, or a reset marker alone can never
+authorize an account-prefix sweep.
 
 Relational cleanup also clears every compatibility media URL, captured-media
 reference, exact coordinate/elevation, semantic-location value, device
@@ -2027,8 +2099,9 @@ when the foreground request or client never returns. The legacy
 
 ## Required and Optional Edge Function Secrets
 
-For a production deployment, the following secrets MUST be set in the Supabase
-Vault via the CLI (`supabase secrets set KEY=VALUE`):
+For a production deployment, the following required secrets and documented
+optional controls are set in the Supabase Edge secret store via the CLI
+(`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
@@ -2044,8 +2117,20 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
   while Gemini is unavailable; cache misses remain rejected when this secret is
   absent.
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
-- **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants
-  backend write access to the R2 Storage bucket.
+- **`R2_ACCOUNT_ID` / `R2_BUCKET_NAME`**: Select the exact Cloudflare account
+  and production media bucket.
+- **`R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`**: Grants existing promotion
+  and reviewed deletion workers their required bucket access. Do not use these
+  values in clients or Cloudflare event consumers.
+- **`R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY`**: Required
+  bucket-scoped Object Read credentials used by
+  `reconcile-explore-media-health` for direct signed origin `HEAD`. The worker
+  does not fall back to existing promotion/deletion credentials; audit that
+  this token cannot write or delete.
+- **`R2_EVENT_WEBHOOK_SECRET`** (optional): At least 32 high-entropy characters
+  shared only with the trusted Cloudflare Queue consumer. It accelerates checks
+  and is not object-state authority; when absent, event ingress fails closed
+  while scheduled reconciliation remains correct.
 - **`REVENUECAT_WEBHOOK_SECRET`**: At least 32 random characters used for the
   RevenueCat webhook's configured Authorization header. Constant-time
   comparison is the first ingress check.

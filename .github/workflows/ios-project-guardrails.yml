@@ -17,6 +17,12 @@ on:
       - "scripts/ci-run-summary.sh"
       - "scripts/test-ios-versioning.sh"
       - "scripts/validate-ios-versioning.sh"
+      - "services/supabase/functions/_shared/identify/schema.ts"
+      - "services/supabase/scripts/validate_edge_dto_contract.sh"
+      - "services/supabase/scripts/validate_edge_dtos.deno.json"
+      - "services/supabase/scripts/validate_edge_dtos.dependencies.lock"
+      - "services/supabase/scripts/validate_edge_dtos.ts"
+      - "services/supabase/scripts/validate_edge_dtos_test.ts"
   push:
     branches:
       - main
@@ -35,6 +41,12 @@ on:
       - "scripts/ci-run-summary.sh"
       - "scripts/test-ios-versioning.sh"
       - "scripts/validate-ios-versioning.sh"
+      - "services/supabase/functions/_shared/identify/schema.ts"
+      - "services/supabase/scripts/validate_edge_dto_contract.sh"
+      - "services/supabase/scripts/validate_edge_dtos.deno.json"
+      - "services/supabase/scripts/validate_edge_dtos.dependencies.lock"
+      - "services/supabase/scripts/validate_edge_dtos.ts"
+      - "services/supabase/scripts/validate_edge_dtos_test.ts"
   workflow_dispatch:
 
 concurrency:
@@ -54,6 +66,11 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
+        with:
+          deno-version: v2.x
+
       - name: Summarize workflow context
         env:
           WORKFLOW_PURPOSE: "Fast iOS source guardrails: validate generated project resources and migration-source invariants without booting a simulator."
@@ -68,3 +85,6 @@ jobs:
 
       - name: Validate SwiftData migration source guardrails
         run: make validate-ios-migration-guardrails
+
+      - name: Validate Identify Edge DTO contract
+        run: bash services/supabase/scripts/validate_edge_dto_contract.sh

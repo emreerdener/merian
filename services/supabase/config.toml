@@ -88,7 +88,7 @@ api_url = "http://127.0.0.1"
 
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
-[local_smtp]
+[inbucket]
 enabled = true
 # Port to use for the email testing server web interface.
 port = 54324
@@ -596,6 +596,15 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.repair-scan-image]
+verify_jwt = false
+
+[functions.reconcile-explore-media-health]
+verify_jwt = false
+
+[functions.get-explore-media-incidents]
+verify_jwt = false
+
+[functions.ingest-r2-media-events]
 verify_jwt = false
 
 [functions.get-explore-notifications]

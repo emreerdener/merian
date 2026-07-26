@@ -46,19 +46,7 @@ deno test --frozen \
   --allow-read=services/supabase,.github/workflows \
   "${tooling_tests[@]}"
 
-dto_validator_env_allowlist="TSC_WATCHFILE,TSC_NONPOLLING_WATCHER,TSC_WATCHDIRECTORY,NODE_INSPECTOR_IPC,VSCODE_INSPECTOR_OPTIONS,TSC_WATCH_POLLINGINTERVAL_LOW,TSC_WATCH_POLLINGINTERVAL_MEDIUM,TSC_WATCH_POLLINGINTERVAL_HIGH,TSC_WATCH_POLLINGCHUNKSIZE_LOW,TSC_WATCH_POLLINGCHUNKSIZE_MEDIUM,TSC_WATCH_POLLINGCHUNKSIZE_HIGH,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_LOW,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_MEDIUM,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_HIGH,NODE_ENV"
-dto_validator_read_allowlist="services/supabase/functions/_shared/identify/schema.ts,apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift"
-
-deno test --frozen \
-  --config services/supabase/scripts/validate_edge_dtos.deno.json \
-  --allow-env="$dto_validator_env_allowlist" \
-  --allow-read="$dto_validator_read_allowlist" \
-  services/supabase/scripts/validate_edge_dtos_test.ts
-deno run --frozen \
-  --config services/supabase/scripts/validate_edge_dtos.deno.json \
-  --allow-env="$dto_validator_env_allowlist" \
-  --allow-read="$dto_validator_read_allowlist" \
-  services/supabase/scripts/validate_edge_dtos.ts
+bash services/supabase/scripts/validate_edge_dto_contract.sh
 
 shell_sources=(services/supabase/scripts/*.sh)
 shell_tests=(services/supabase/scripts/*_test.sh)

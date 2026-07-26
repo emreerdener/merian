@@ -31,6 +31,11 @@ flowchart TD
     L([Messages Extension]) -->|Reads scan cache| N
 ```
 
+Postgres is authoritative for relational ownership, scan/post state, and media
+URLs. R2 is authoritative for the object bytes at those URLs. Neither layer is
+a backup of the other: a retained row cannot reconstruct a deleted object, and
+an orphaned object does not reconstruct its relational context.
+
 ## Core Architectural Pillars
 
 ### 1. Dependency Injection (`AppDIContainer`)
@@ -204,10 +209,25 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/safe-delete`: Persists a private deletion job, atomically tombstones and
     clears ownership/personal fields from retained observations, verifies
     relational data, then cursor-sweeps every canonical R2 prefix and performs
-    a delayed empty verification pass before removing Auth.
+    a delayed empty verification pass before removing Auth. The database claim
+    requires the matching cleaned-up `storage_pending` job and rejects live
+    profiles or owned scans; the storage outbox is never sufficient authority.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
     claim-token fencing, persisted storage cursors, backoff, and idempotent
     Auth-not-found recovery.
+  - `/repair-scan-image`: Owner-authenticated inspection and recovery for a
+    verified-missing durable scan image. It promotes a surviving local copy and
+    atomically updates scan, normalized-media, captured-media, and matching
+    Explore metadata.
+  - `/reconcile-explore-media-health`: Five-minute service-role verifier that
+    uses bucket-scoped read-only credentials and two spaced direct R2-origin
+    `404` responses before marking primary media missing. Confirmed-missing
+    items leave public projections; all-missing posts are reversibly
+    quarantined without changing author intent or engagement.
+  - `/get-explore-media-incidents`: Owner-authenticated recovery queue for
+    degraded and quarantined published posts.
+  - `/ingest-r2-media-events`: Optional dedicated-secret event accelerator;
+    create/delete events only make rows due and never establish object state.
   - `/auto-purge-nonbio`: Automated webhook/cron job trimming non-biological
     captures while preserving biological sighting evidence.
 - **Public Species Content**

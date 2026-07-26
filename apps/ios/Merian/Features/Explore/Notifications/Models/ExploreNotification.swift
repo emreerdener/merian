@@ -10,6 +10,8 @@ enum ExploreNotificationType: String, Decodable {
     case communityIdentificationAdded = "community_identification_added"
     case communityRequestResolved = "community_request_resolved"
     case communityIdentificationHelped = "community_identification_helped"
+    case mediaMissing = "media_missing"
+    case mediaRestored = "media_restored"
     case fieldTripComment = "field_trip_comment"
     case fieldTripReply = "field_trip_reply"
     case fieldTripFollowedPublication = "field_trip_followed_publication"
@@ -24,6 +26,8 @@ enum ExploreNotificationType: String, Decodable {
              .commentReply,
              .commentMention,
              .follow,
+             .mediaMissing,
+             .mediaRestored,
              .fieldTripComment,
              .fieldTripReply,
              .fieldTripFollowedPublication:
@@ -43,10 +47,13 @@ enum ExploreNotificationType: String, Decodable {
              .follow,
              .communityIdentificationAdded,
              .communityRequestResolved,
-             .communityIdentificationHelped:
+             .communityIdentificationHelped,
+             .mediaMissing,
+             .mediaRestored:
             return false
         }
     }
+
 }
 
 struct ExploreNotification: Decodable, Identifiable, Equatable {

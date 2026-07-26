@@ -425,7 +425,12 @@ after both relational and storage verification succeed. Transient failures are
 resumed automatically. After immediate completion or durable acceptance, the
 client signs out locally and removes its local store.
 
-Deleting an individual scan uses an owner-bound `/delete-scan` path that removes owned media and then the database record. Deletion user experience should clearly separate local removal, server completion, and any legally required residual anonymized records.
+Deleting an individual scan uses an owner-bound `/delete-scan` path that removes
+owned media and then the database record. Because the scan owns its Explore
+post, explicit deletion also permanently removes that post, its likes, and its
+comments. Every deletion confirmation must say so before proceeding. Deletion
+user experience should clearly separate local removal, server completion, and
+any legally required residual anonymized records.
 
 ## 10.4 Analytics privacy boundary
 
@@ -521,11 +526,46 @@ The former "Archive Safety Protocol" and domesticated-media purge description ar
 
 ## 14.3 Storage safety
 
+- Supabase Postgres owns scan/post metadata and R2 URLs; Cloudflare R2 owns the
+  referenced bytes. A metadata row is not an object backup.
 - Upload authorization is owner-bound and size-bound.
 - Public promotion follows moderation and processing.
 - Deletion paths reconcile database and object-store state.
+- Account-prefix deletion requires a matching private deletion job after
+  relational cleanup. Live profiles and owned scans veto storage claims; a
+  queue/outbox row alone is never deletion authority.
+- Missing-object recovery may promote a strongly matched surviving owner file
+  and must repair scan and Explore references atomically.
 - Staging and quarantine remain short lived.
+- Durable free/Pro uploads and avatars must not receive age-based lifecycle
+  expiration.
 - Client UI must not invent retention promises from bucket prefixes.
+
+The July 2026 account-scoped image-loss mitigation is implemented in the
+repository, but production verification and complete data recovery are tracked
+separately in the
+[incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
+
+## 14.4 Published Explore media loss - Implemented, production-gated
+
+Unexpected media loss is an operational state, not an author unpublish,
+moderation action, or reason to destroy engagement:
+
+- one client/CDN failure remains retryable;
+- two direct R2-origin `404` checks at least five minutes apart confirm loss;
+- a post with some usable media remains public without confirmed-missing items;
+- a post with no usable media is reversibly hidden from Feed, Map, search,
+  profile, detail, and public share surfaces;
+- the row, likes, comments, reports, and author publication intent remain;
+- the owner gets one incident notification and a persistent Scan Library
+  recovery banner; and
+- verified repair automatically restores visibility when author and moderation
+  state still allow publication.
+
+Reference artwork must never replace missing observation evidence. The
+canonical policy, state machine, communication contract, and rollout gate are
+in
+[Explore Media Health and Quarantine](../backend-and-data/12-explore-media-health-and-quarantine.md).
 
 # 15. Backend and data architecture
 

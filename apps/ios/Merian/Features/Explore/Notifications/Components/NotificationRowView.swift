@@ -102,6 +102,10 @@ struct NotificationRowView: View {
             return "checkmark.seal.fill"
         case .communityIdentificationHelped:
             return "sparkles"
+        case .mediaMissing:
+            return "exclamationmark.triangle.fill"
+        case .mediaRestored:
+            return "checkmark.icloud.fill"
         case .fieldTripComment:
             return "map.fill"
         case .fieldTripReply:
@@ -131,6 +135,10 @@ struct NotificationRowView: View {
             return .green
         case .communityIdentificationHelped:
             return .indigo
+        case .mediaMissing:
+            return .orange
+        case .mediaRestored:
+            return .green
         case .fieldTripComment:
             return .blue
         case .fieldTripReply:
@@ -160,6 +168,10 @@ struct NotificationRowView: View {
             return Color.green.opacity(0.12)
         case .communityIdentificationHelped:
             return Color.indigo.opacity(0.12)
+        case .mediaMissing:
+            return Color.orange.opacity(0.14)
+        case .mediaRestored:
+            return Color.green.opacity(0.12)
         case .fieldTripComment:
             return Color.blue.opacity(0.12)
         case .fieldTripReply:
@@ -210,6 +222,10 @@ struct NotificationRowView: View {
             return "Your Community request was identified."
         case .communityIdentificationHelped:
             return "Your ID helped resolve a request."
+        case .mediaMissing:
+            return "Media is unavailable on one of your Explore posts."
+        case .mediaRestored:
+            return "Your Explore post is back."
         case .fieldTripComment:
             let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
             return "\(actorName) commented on your outing."
@@ -237,6 +253,10 @@ struct NotificationRowView: View {
             return nil
         case .communityIdentificationAdded, .communityRequestResolved, .communityIdentificationHelped:
             return communityDisplayName()
+        case .mediaMissing:
+            return "The post and engagement are safe while we try to restore its media."
+        case .mediaRestored:
+            return "Its media was restored automatically."
         case .fieldTripComment, .fieldTripReply:
             return trimmed(notification.commentBody)
         case .fieldTripFollowedPublication:

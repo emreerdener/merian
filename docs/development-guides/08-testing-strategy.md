@@ -413,11 +413,13 @@ MerianTests/
   dimensions refresh after a targeted mutation, confirm selected values are
   normalized without changing matching semantics, and exercise rapid targeted
   reindexes so a superseded task cannot drop another document.
-- **`LocalImageLoaderTests.swift`**: Explicitly locks concurrent network payload
-  boundaries using overarching `TaskGroup`s. Asserts `fetchNetworkFallback`
-  deduplicates asynchronous URL fetches seamlessly to prevent multi-grid render
-  flooding. The async decode permit tests also prove concurrency remains bounded
-  and a cancelled waiter cannot consume the next released slot.
+- **`LocalImageLoaderTests.swift`**: Locks concurrent network payload
+  boundaries and request coalescing to prevent multi-grid fetch flooding. The
+  async decode permit tests prove concurrency remains bounded and a cancelled
+  waiter cannot consume the next released slot. Recovery cases cover promoted
+  basename compatibility, registered scan-ID mapping after cloud renaming,
+  high-confidence timestamp groups, Explore fallback rendering from Documents,
+  and rejection of unrelated/unsafe URLs.
 - **`OfflineQueueManagerTests.swift`**: Mocks queue payload insertions.
   - **In-Memory Isolation**: Spins up a `@MainActor ModelContext` with
     `.isStoredInMemoryOnly = true` to isolate test data from the user's real
@@ -922,7 +924,9 @@ Durable account deletion has seven complementary checks:
   upload-signing fence, profile-recreation guard, terminal UUID minimization,
   service-only ACLs, five-minute cron, the failed-version no-op bridge,
   ownerless-tombstone constraint, the Auth/profile foreign key, and the absence
-  of synthetic user creation.
+  of synthetic user creation. It also requires the storage-claim SQL to join a
+  matching cleaned-up `storage_pending` private job and to veto live profiles
+  and owned scans.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and
@@ -931,6 +935,8 @@ Durable account deletion has seven complementary checks:
   and personal fields cleared, no all-zero profile exists, active deletion
   blocks profile resurrection, retries preserve `auth_pending`, final
   completion erases the direct UUID, and duplicate completion is idempotent.
+  Before deletion begins, the same fixture inserts a stale storage outbox row
+  for its live owner and proves the claim RPC cannot return it.
 - `safe-delete/storageWorker_test.ts` proves one bounded page per claim,
   delete concurrency behavior, empty-prefix advancement, delayed verification,
   idempotent 404 deletion, retry persistence, and claim-token propagation.
@@ -943,6 +949,61 @@ Durable account deletion has seven complementary checks:
 
 Run the pgTAP fixture only against the disposable local stack. It inserts and
 deletes Auth fixtures inside a transaction and rolls everything back.
+
+Owned scan-image recovery has five complementary boundaries:
+
+- `repair-scan-image/validation_test.ts` accepts one canonical durable source
+  and one owner staging key, then rejects an unrelated host, avatar/nested/query
+  source variants, traversal/nested/non-image staging keys, and a key outside
+  the exact authenticated owner prefix.
+- `repair-scan-image/worker_test.ts` proves inspection never touches R2 for an
+  unreferenced URL, identifies a referenced 404 as missing, checks the old and
+  restored objects before promotion, returns atomic update counts, and rolls
+  back a new durable object after persistence failure.
+- `_tests/migrationMediaContract.test.ts` statically requires exact recursive
+  replacement across scan arrays, captured-media JSON, normalized assets, and
+  owner Explore snapshots plus the service-only grant/allowlist boundary.
+- `tests/scan_image_repair_security.sql` executes one transaction against the
+  disposable catalog and proves media order preservation, exact JSON string
+  replacement without substring damage, normalized storage-key repair, and
+  atomic Explore snapshot repair plus health-state reset.
+- iOS `LocalImageLoaderTests` and `MerianNetworkClientTests` cover safe local
+  filename compatibility, rescue-store scan-ID mapping, constrained timestamp
+  grouping, unsafe/unrelated URL rejection, authenticated inspection/repair
+  DTOs, and request payloads.
+
+Do not replace the timestamp tests with a nearest-file assertion. Test fixtures
+must cover exact media-count matching, the 60-second one-way window, a
+three-second candidate margin, contiguous `_additional_N` roles, direct/rescue
+precedence, and one-to-one file use. A local render is not enough: production
+acceptance separately verifies the durable object and both Scan Library and
+Explore metadata after repair.
+
+Explore media quarantine has four complementary boundaries:
+
+- `reconcile-explore-media-health/worker_test.ts` proves direct primary `404`,
+  retryable `5xx`, distinct auxiliary poster checking without hiding a healthy
+  video, and one recorded result per live lease.
+- `_tests/exploreMediaQuarantineMigrationContract.test.ts` locks independent
+  author/system state, canonical projection gates, two spaced confirmations,
+  service/owner ACLs, notification lifecycle, in-app-only restoration, repair
+  reset, and snapshot health continuity.
+- `tests/explore_media_quarantine_security.sql` runs the complete healthy →
+  degraded → quarantined → degraded → healthy state path against disposable
+  Postgres. It proves partial omission, all-surface canonical hiding,
+  preservation of publication intent, continuity across media snapshot
+  refresh, automatic republish after repair, notification replacement, and
+  private/service authorization.
+- The iOS target build plus notification/library tests must cover decoding both
+  new notification types, owner incident DTOs, missing navigation to Scan
+  Library, restored navigation to post detail, persistent banner copy, refresh
+  after repair, and explicit scan-deletion cascade warning.
+
+Never make a test pass by updating health directly to healthy in production.
+Fixtures may drive direct states transactionally, but staging acceptance must
+create/delete controlled R2 objects and observe the two leased origin checks.
+The release matrix is in
+[Explore Media Health and Quarantine](../backend-and-data/12-explore-media-health-and-quarantine.md).
 
 Incremental species-count maintenance has two complementary checks:
 
@@ -1361,10 +1422,14 @@ and detail seeking still behaves as documented.
 - **Canonical AST source**: The validator reads
   `services/supabase/functions/_shared/identify/schema.ts`, locates the exported
   `getMerianResponseSchema` factory with the pinned TypeScript compiler AST, and
-  resolves local identifiers, returned object literals, and property spreads
-  such as `...sharedProperties()`. It also walks nested `properties`, array
-  `items`, and composition arrays. It must not infer the schema by scanning an
-  Edge entrypoint or by matching source text with a regular expression.
+  resolves local identifiers through the compiler `TypeChecker`, returned
+  object literals, and property spreads such as `...sharedProperties()`.
+  Lexical symbols—not a global name table—own every value lookup; ambiguous
+  declarations and unsupported aliases fail closed. It also walks nested
+  `properties`, array `items`, required arrays and their spreads. Schema
+  composition fails closed until the structural compatibility model explicitly
+  supports it. The tool must not infer the schema by scanning an Edge entrypoint
+  or by matching source text with a regular expression.
 - **Fail-closed assurance**: The production policy requires at least 30 unique
   schema properties, 20 top-level schema properties, 34 direct Swift
   `EdgeResponse` properties, and the required biological, identity, candidate,
@@ -1373,16 +1438,44 @@ and detail seeking still behaves as documented.
   property-map member fails validation before the DTO diff can pass. If the
   canonical contract intentionally becomes smaller, update the schema, policy
   floor, regression fixture, and this documentation in the same review.
-- **Boundary direction**: Every generated top-level field must have a direct
-  `EdgeResponse` declaration. `ai_reasoning` and
-  `extracted_visual_traits` are explicit exceptions: reasoning is delivered to
-  iOS under `insight_data`, while visual traits are retained server-side.
-  Additions to this exception set require a documented protocol decision.
-- **Deployment gate**: `deploy.yml` invokes the complete discovery-based
-  `test_supabase_tooling.sh` suite before any migration or Edge deployment; the
-  suite runs both the focused validator regression and the real repository
-  comparison. Changes to either the shared schema or `InferenceEdgeDTOs.swift`
-  trigger the workflow. The tool has a separate frozen Deno config/lock so the
+- **Structural compatibility**: Every generated client-visible field must
+  resolve to a Swift property through its declaration or an active
+  `CodingKey`. Primitive and array types must match recursively. A non-optional
+  Swift property is legal only when the schema field is required and non-null;
+  Swift may otherwise be more permissive by decoding a guaranteed value
+  optionally. The validator also rejects non-optional nested Swift properties
+  that disappeared from their schema object. Any optional Swift-only field in a
+  schema-backed object must likewise be listed as an intentional server-added
+  path; this records request telemetry, cache hydration, and post-model
+  enrichment as explicit protocol decisions instead of validator blind spots.
+  Ordinary synthesized `CodingKeys` aliases are resolved structurally. The
+  declaration parser remains isolated to `InferenceEdgeDTOs.swift`, while a
+  balanced-token scan of every production iOS Swift file finds extensions
+  targeting any schema-backed DTO. A custom `init(from:)` in either the
+  declaration or an extension fails closed because arbitrary decoder data flow
+  cannot be proven; coding-key enums declared in extensions likewise fail until
+  their semantics are explicitly modeled. Comments, ordinary/multiline strings,
+  and raw strings are masked before extension discovery. Keep wire DTOs,
+  including `PetIdentificationDTO`, inside `InferenceEdgeDTOs.swift` and map
+  them into domain models after decoding. Every `INTEGER` and `NUMBER` schema
+  must declare finite `minimum` and `maximum` bounds. Integer bounds must be
+  JavaScript-safe and fit the selected signed/unsigned Swift type; JSON
+  `NUMBER` maps only to Swift `Double`, avoiding silent Float, CGFloat, or
+  Decimal narrowing. `ai_reasoning` and
+  `extracted_visual_traits` are explicit top-level schema exceptions: reasoning
+  is delivered to iOS under `insight_data`, while visual traits are retained
+  server-side. Additions to either exception set require a documented protocol
+  decision.
+- **CI gates**: `deploy.yml` invokes the complete discovery-based
+  `test_supabase_tooling.sh` suite before any migration or Edge deployment,
+  while `ios-project-guardrails.yml` invokes the isolated
+  `validate_edge_dto_contract.sh` lane for every iOS source change. Both run the
+  focused validator regression and the real repository comparison. The read
+  allowlist includes the production iOS source root so extensions outside the
+  declaration file are covered. Shared-schema/tooling changes trigger both
+  lanes; arbitrary app Swift changes trigger the lightweight iOS guardrail
+  without initiating a production backend deployment. The tool has a separate
+  frozen Deno config/lock so the
   TypeScript compiler is a CI-only dependency and cannot enter a deployable
   Edge Function graph.
 - **Enrich response coverage**: `EnrichData.similar_species` and
@@ -1519,7 +1612,8 @@ The surrounding export suite is intentionally split by boundary:
   best-effort abort after a failed part or completion.
 - `_shared/aws_test.ts` loads `docs/r2-lifecycle.json` and requires the global
   seven-day incomplete-multipart abort rule while continuing to reject any
-  expiration rule for durable avatars.
+  expiration rule for durable avatars. Deployment smoke checks separately
+  require no expiration rule for durable free uploads or Pro uploads.
 - `mail_test.ts` locks the job-scoped Resend idempotency key, bounded reply
   parsing, and transient versus terminal error classification.
 - `worker_test.ts` proves duplicate deliveries do no work, the database claim is
