@@ -18,7 +18,10 @@ as their permanent engineering identity.
   and AASA compatibility host.
 - **Internal admin**: isolated Next.js + Mantine app in `apps/admin/`, intended
   for `admin.naturebook.earth`; Google OAuth + TOTP AAL2 and narrow database RPCs
-  only. See [`backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)
+  only. Its frozen dependency graph, syntax-aware public-environment allowlist,
+  required GitHub quality check, and required Vercel Deployment Check form an
+  independent production gate. See
+  [`backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)
   and the
   [`backend-and-data/11-internal-admin-operations.md`](./backend-and-data/11-internal-admin-operations.md)
   operator runbook.
@@ -227,11 +230,13 @@ as their permanent engineering identity.
   telemetry, and verification.
 - **[`/backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)**
   — Private admin architecture: Google/TOTP session boundary, RBAC, admin RPCs,
-  grouped review and feedback workflows, audit trail, metrics, and AI ledger.
+  grouped review and feedback workflows, audit trail, metrics, AI ledger,
+  browser hardening, and dependency/CI invariants.
 - **[`/backend-and-data/11-internal-admin-operations.md`](./backend-and-data/11-internal-admin-operations.md)**
   — Internal admin setup and operations: environment, owner bootstrap,
-  deployment ordering, production smoke tests, price maintenance, recovery,
-  incident response, rollback, and troubleshooting.
+  dependency upgrades, required GitHub/Vercel checks, deployment ordering,
+  production smoke tests, price maintenance, recovery, incident response,
+  rollback, and troubleshooting.
 - **[`/backend-and-data/12-explore-media-health-and-quarantine.md`](./backend-and-data/12-explore-media-health-and-quarantine.md)**
   — Canonical product and engineering contract for direct-origin media health,
   reversible public quarantine, owner notification, automatic recovery,

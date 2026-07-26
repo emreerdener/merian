@@ -26,6 +26,37 @@ rejects arbitrary hosts, staging paths, credentials, and unsupported formats.
 Browser verification should cover Boost → Boosted → original transitions because
 Web Audio context activation cannot be proven by TypeScript alone.
 
+The private admin app in `apps/admin/` has an independent production gate:
+
+```bash
+cd apps/admin
+npm ci
+npm run audit:dependencies
+npm test
+npm run typecheck
+npm run build
+```
+
+Run the complete sequence for admin authentication, AAL2/RBAC, Server Actions,
+moderation, access, reporting, or dependency changes.
+`lib/admin-foundation.test.ts` scans the complete production TypeScript source
+graph with the TypeScript parser, rejects executable service-role/secret-key
+references, rejects computed or whole-object `process.env` access, and
+enumerates every environment read against the exact public allowlist. It also
+checks the active `.env.example` keys and placeholders, so a safety comment is
+not mistaken for executable credential use.
+`lib/dependency-security.test.ts` rejects frozen Next.js, PostCSS, or Sharp
+versions below the reviewed floors and protects the CI command order.
+`.github/workflows/admin-quality.yml` runs the frozen install, live
+high-severity audit, tests, TypeScript check, and production build for every
+pull request and every affected `main` push. It intentionally avoids pull-request
+path filters so a required check always reports. A high/critical advisory or
+unavailable audit registry blocks this high-sensitivity deployment.
+Configure the repository ruleset to require
+`Naturebook Admin Quality / test`, then add the same GitHub Action as a required
+Vercel Deployment Check. Checked-in workflow YAML creates the check but does
+not itself prevent a direct merge or production promotion.
+
 The complete Supabase Edge source/unit suite is the checked-in Deno task:
 
 ```bash

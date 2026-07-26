@@ -3010,10 +3010,24 @@ deno test \
 
 cd apps/admin
 npm ci
-npm run typecheck
+npm run audit:dependencies
 npm test
+npm run typecheck
 npm run build
 ```
+
+The `.github/workflows/admin-quality.yml` job must pass this same ordered
+application sequence before the separately hosted admin deployment. It reports
+for every pull request so it can be required reliably, and on affected pushes
+to `main`. Its live audit fails on high/critical findings or registry failure,
+while the admin dependency-security test also enforces reviewed Next.js,
+PostCSS, and Sharp floors directly from the committed lockfile. A green backend
+deployment workflow does not substitute for this admin gate.
+The repository ruleset must require `Naturebook Admin Quality / test`, and the
+separate admin Vercel project must add that GitHub Action as a required
+Deployment Check. Workflow YAML alone does not block a merge, direct
+deployment, Force Promote, or manual deployment. Verify Vercel is releasing the
+exact checked commit.
 
 After the migration, query grants as a non-owner runtime role or run the pgTAP
 security suite against the candidate database. `anon` must not execute admin

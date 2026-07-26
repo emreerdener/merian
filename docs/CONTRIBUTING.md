@@ -84,6 +84,22 @@ Before contributing, please review our core architectural tenets. Refactoring co
   `_shared/encoding.ts` where available. The fleet uses one exact Supabase SDK.
   Keep `_shared/claimsAuth.ts` out of `_shared/edgeHandler.ts` because claims
   verification is an opt-in route policy, not because it uses another SDK.
+- **Internal Admin**: Before opening a pull request that changes `apps/admin`,
+  and before deploying it, run the complete frozen production gate:
+  ```bash
+  cd apps/admin
+  npm ci
+  npm run audit:dependencies
+  npm test
+  npm run typecheck
+  npm run build
+  ```
+  `Naturebook Admin Quality / test` reports for every pull request so it can be
+  required by the repository ruleset. The separate admin Vercel project must
+  add that GitHub Action as a required Deployment Check and hold production
+  promotion until the exact commit passes. Never add a service-role/secret key,
+  direct database URL, provider credential, computed `process.env` access, or
+  whole-object environment access to this browser-facing project.
 - **Database migrations**: Run `make validate-supabase-migrations` before a
   local reset or deployment. Migration SQL must be replayable by
   `supabase db start`; do not check in concurrent index DDL. For a

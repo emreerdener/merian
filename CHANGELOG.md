@@ -127,6 +127,12 @@ TestFlight, App Store, support, and QA.
   transitive overrides now replace Next.js's vulnerable PostCSS and Sharp
   versions, and web CI blocks current or future high/critical dependency
   findings instead of treating the documented audit as optional.
+- Patched the separately deployed internal-admin dependency graph and added an
+  independent quality check. Admin changes now use a frozen install, reject
+  reviewed-vulnerable Next.js/PostCSS/Sharp versions, block live high/critical
+  audit findings, and must pass syntax-aware secret-boundary tests, type-check,
+  and a production build. The production contract requires that check in both
+  GitHub repository rules and Vercel Deployment Checks before promotion.
 - Hardened production workflows with immutable action commit pins, explicit
   read-only permissions, step-scoped secrets, whole-tree Supabase
   function/tooling formatting and lint, a discovery-based complete script test

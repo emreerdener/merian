@@ -13,7 +13,8 @@ moderation projections require:
 
 1. Review by a current owner or designated security reviewer.
 2. A fresh migration reset and both admin pgTAP suites.
-3. Admin test, typecheck, and production build.
+3. A frozen admin dependency install, blocking high-severity audit, unit tests,
+   type-check, and production build.
 4. Public-web and relevant iOS verification when public projections or reporting
    contracts change.
 5. A recorded rollout and rollback decision. Never solve an incident by adding
@@ -150,10 +151,53 @@ deno test \
 
 cd apps/admin
 npm ci
-npm run typecheck
+npm run audit:dependencies
 npm test
+npm run typecheck
 npm run build
 ```
+
+The same ordered application gate runs in
+`.github/workflows/admin-quality.yml` for every pull request and every affected
+push to `main`. Pull requests are intentionally not path-filtered so the
+required check always reports. Do not deploy from a commit whose admin-quality
+job was skipped, cancelled, or failed. The registry-backed audit is
+intentionally blocking: high/critical findings and an unavailable audit
+registry both stop the admin release. `lib/dependency-security.test.ts`
+independently checks the frozen Next.js, PostCSS, and Sharp versions and
+protects the workflow sequence from silent drift.
+
+In the GitHub repository ruleset, require
+`Naturebook Admin Quality / test` as a
+[status check](https://docs.github.com/en/pull-requests/reference/status-checks)
+before a pull request can merge. In the separate admin Vercel project's
+[Deployment Checks](https://vercel.com/docs/deployment-checks) settings, add
+that GitHub Action and mark it required. Vercel may build the production
+deployment while the check runs, but must not promote it to
+`admin.naturebook.earth` until the exact commit passes. The checked-in workflow
+creates a status check; it cannot make itself required or prevent Force
+Promote/direct manual promotion. Record and verify these two external controls
+during initial setup and after changing GitHub or Vercel integration settings.
+
+The current production graph, reviewed on 2026-07-26, is:
+
+- Next.js 16.2.12, pinned exactly above the
+  [Server Actions DoS patched floor](https://github.com/vercel/next.js/security/advisories/GHSA-m99w-x7hq-7vfj);
+- PostCSS 8.5.18, pinned exactly and enforced for Next.js transitively at the
+  [path-traversal patched floor](https://github.com/advisories/GHSA-r28c-9q8g-f849);
+  and
+- Sharp 0.35.3, enforced through the Next.js override, following the
+  [libvips advisory recommendation](https://github.com/advisories/GHSA-f88m-g3jw-g9cj)
+  and including its optional native packages.
+
+For a dependency update, change the manifest and committed lockfile together,
+review all resolved and optional-native package changes, and run the complete
+registry-backed gate. Keep the PostCSS/Sharp overrides until a reviewed stable
+Next.js release declares equal or newer dependencies. A high/critical finding
+may not be bypassed by changing the audit threshold, deleting the floor test,
+or using Vercel Force Promote. Any exceptional waiver needs an owner/security
+review, documented reachability and compensating controls, an expiry date, and
+a follow-up issue before production promotion.
 
 If public Explore projections or `/report-user` changed, also run the public-web
 test/typecheck/build and the relevant iOS network test plus an unsigned simulator
@@ -175,11 +219,14 @@ Use the normal CI deployment workflow when possible. The required order is:
    immediately to minimize an instrumentation gap.
 5. Deploy the iOS author-profile reporting UI and public Explore/web projection
    consumers.
-6. Deploy `apps/admin` as its own project with Root Directory `apps/admin` and
+6. Confirm GitHub reports the required `Naturebook Admin Quality / test` check
+   passed its frozen install, dependency audit, tests, type-check, and
+   production build, and confirm Vercel is deploying that exact checked commit.
+7. Deploy `apps/admin` as its own project with Root Directory `apps/admin` and
    attach only `admin.naturebook.earth`.
-7. Configure the exact production Auth redirect, verify Google sign-in and TOTP,
+8. Configure the exact production Auth redirect, verify Google sign-in and TOTP,
    and bootstrap the first owner if this is the initial release.
-8. Run the production smoke tests below before announcing availability.
+9. Run the production smoke tests below before announcing availability.
 
 For a manual emergency database/function deployment, use the established
 commands in [`06-supabase-deployment-runbook.md`](./06-supabase-deployment-runbook.md).
@@ -367,6 +414,10 @@ criteria are in the
 
 - The admin frontend can be rolled back or removed from DNS independently; this
   does not require deleting database state.
+- Roll back only to a commit whose frozen graph remains above the reviewed
+  dependency floors and whose required Admin Quality and Vercel Deployment
+  Checks passed. If no safe prior frontend exists, remove the admin domain or
+  hold promotion rather than Force Promote a vulnerable/red build.
 - Edge writers may be rolled back to a compatible prior version, but keep the
   ledger schema and grants in place.
 - Do not down-migrate by dropping `internal`, audit rows, notes, review grouping,
@@ -385,6 +436,9 @@ criteria are in the
 | User loops through MFA | Factor status, `currentLevel`, fresh token after verify, browser cookie domain |
 | “Start a new Google session” | Internal session is idle/expired/revoked; sign out and begin a new OAuth session |
 | Mutation says invalid origin | `NEXT_PUBLIC_ADMIN_ORIGIN`, reverse-proxy `Host`/`X-Forwarded-Host`, browser `Origin` |
+| Dependency audit cannot reach registry | Expected fail-closed release stop; restore registry/network availability and rerun the same commit |
+| Dependency floor test fails | Review the resolved lockfile graph and restore/upgrade the explicit Next.js, PostCSS, or Sharp pin/override; never weaken the floor |
+| Vercel build is ready but domain is not promoted | Confirm the exact commit's required `Naturebook Admin Quality / test` Deployment Check is present and successful |
 | Direct table read fails | Expected; use an authorized RPC, never add browser table grants |
 | Aggregate appears stale | Five-minute authorized cache; use the Refresh control |
 | Queue appears stale | Queue is uncached; check filters/cursor and the 30-second refresh |

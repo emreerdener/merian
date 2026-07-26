@@ -75,6 +75,11 @@ The `apps/admin` Vercel project receives only
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
 `NEXT_PUBLIC_ADMIN_ORIGIN`. It must not receive a service-role key, a direct
 database credential, or any GitHub deployment/Edge provider secret.
+`apps/admin/lib/admin-foundation.test.ts` parses the complete production
+TypeScript graph, rejects privileged credential names plus computed/whole-object
+`process.env` access, and allows only these public keys. The Admin Quality
+workflow supplies non-secret CI placeholders; real production values exist only
+in the separate admin Vercel project.
 
 Removing or changing a Vercel environment variable takes effect only in a new
 deployment. Preview deployments that need functional backend access must use

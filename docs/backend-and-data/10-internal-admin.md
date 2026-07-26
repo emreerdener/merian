@@ -36,6 +36,16 @@ The following rules are release blockers:
 - Email, report text, prompts, responses, private coordinates, and chat content
   must not appear in application logs, URL parameters, analytics, or error
   telemetry.
+- Production syntax may read only the three documented public environment
+  variables. Computed or whole-object `process.env` access and executable
+  service-role/secret-key references are release blockers.
+- The committed dependency graph pins the reviewed Next.js/PostCSS releases and
+  overrides Next.js's Sharp dependency to a patched release. Frozen install,
+  blocking high-severity audit, unit tests, type-check, and production build
+  must pass as one ordered gate.
+- GitHub must require `Naturebook Admin Quality / test`, and Vercel must add the
+  same Action as a required Deployment Check before production domain
+  promotion. Force Promote is emergency authority, not a normal bypass.
 
 Supabase's SSR package stores the Auth session in cookies and uses the PKCE
 callback flow. Supabase currently labels `@supabase/ssr` as beta, so dependency
@@ -323,6 +333,23 @@ surface. Sensitive identifiers belong in POST bodies or opaque route segments,
 not query strings; user search is a server action and therefore does not put
 email in the URL.
 
+The npm supply-chain boundary is the committed `package-lock.json`, installed
+with `npm ci` following the
+[Supabase npm security guidance](https://supabase.com/docs/guides/security/npm-security).
+The current reviewed graph uses Next.js 16.2.12, PostCSS 8.5.18, and Sharp
+0.35.3. `lib/dependency-security.test.ts` rejects resolved versions below the
+reviewed floors and protects the CI command order;
+`lib/admin-foundation.test.ts` parses the production TypeScript graph and
+enumerates executable environment reads against the public allowlist. The live
+registry audit remains mandatory because static floors cover known reviewed
+packages, not every present or future advisory.
+
+The quality workflow reports on every pull request so its required status is
+always available. On affected `main` pushes it revalidates the exact production
+candidate. Vercel may build that candidate concurrently, but its required
+Deployment Check must prevent assignment to `admin.naturebook.earth` until the
+matching GitHub check passes.
+
 ## V1 exclusions
 
 V1 does not provide CSV/bulk export, bulk moderation, permanent bans, account
@@ -351,3 +378,6 @@ directly.
 - Database security tests: `services/supabase/tests/admin_foundation_security.sql`
 - Review/AI behavior tests: `services/supabase/tests/admin_review_ai.sql`
 - Static migration contract: `services/supabase/functions/_tests/adminFoundationMigration.test.ts`
+- Admin application security tests: `apps/admin/lib/admin-foundation.test.ts`
+  and `apps/admin/lib/dependency-security.test.ts`
+- Admin production gate: `.github/workflows/admin-quality.yml`

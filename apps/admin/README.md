@@ -62,10 +62,47 @@ npm run dev
 Before opening a pull request or deploying:
 
 ```bash
-npm run typecheck
+npm ci
+npm run audit:dependencies
 npm test
+npm run typecheck
 npm run build
 ```
+
+`.github/workflows/admin-quality.yml` runs `npm ci` followed by that complete
+sequence for every pull request and every affected `main` push. It deliberately
+reports on every pull request so GitHub can require a stable check without
+path-filtered changes remaining pending. The currently protected graph pins
+Next.js 16.2.12 and PostCSS 8.5.18 and overrides Next.js's private Sharp
+dependency to 0.35.3. `lib/dependency-security.test.ts`
+rejects a lockfile below those floors or a workflow that drops or reorders the
+frozen install, blocking audit, tests, type-check, and production build. Keep
+the overrides until a reviewed Next.js release declares equal or newer
+transitive versions; do not remove them merely because the direct PostCSS
+dependency is current.
+
+Repository and deployment controls must make
+`Naturebook Admin Quality / test` a required check before any change can merge
+or reach the production Vercel project. The workflow file creates the check but
+cannot make itself required. Add that GitHub Action as a required Vercel
+Deployment Check so a production build is not promoted to the custom domain
+until the exact commit's check passed; never treat Force Promote or a direct
+manual deployment as routine bypass authority.
+
+When changing dependencies:
+
+1. Update `package.json` and regenerate the committed `package-lock.json`.
+2. Review every lockfile version/source change, including optional native Sharp
+   packages.
+3. Run the complete command sequence above with registry access.
+4. Confirm the pull request reports `Naturebook Admin Quality / test`.
+5. Confirm the production deployment remains held until its required Vercel
+   Deployment Check passes for that exact commit.
+
+Do not waive a high/critical audit result by weakening `audit:dependencies`,
+removing a floor test, or using Force Promote. A time-limited exception requires
+a documented reachability analysis, owner/security approval, compensating
+controls, and an explicit removal date.
 
 ## First-owner bootstrap
 

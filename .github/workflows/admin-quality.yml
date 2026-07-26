@@ -1,0 +1,58 @@
+name: Naturebook Admin Quality
+
+on:
+  # Report this check for every pull request so GitHub can safely require it.
+  # Path-filtered required workflows can remain pending when GitHub skips them.
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/admin-quality.yml"
+      - "apps/admin/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: naturebook-admin-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/admin
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
+      NEXT_PUBLIC_ADMIN_ORIGIN: https://admin.naturebook.earth
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/admin/package-lock.json
+
+      - name: Install frozen dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm run audit:dependencies
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build production admin app
+        run: npm run build

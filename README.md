@@ -417,6 +417,15 @@ npm ci
 npm run dev
 ```
 
+Admin changes receive an independent quality check from
+`.github/workflows/admin-quality.yml`, which performs a frozen install,
+high-severity dependency audit, unit tests, TypeScript checking, and a
+production build. To make that check a release gate, GitHub repository rules
+and the admin Vercel project must require
+`Naturebook Admin Quality / test`, with the GitHub Action added as a required
+Vercel Deployment Check. The workflow file creates the check but does not
+independently block a direct merge or production promotion.
+
 The admin app accepts only the public Supabase URL/key and requires an existing
 Google Auth user, private admin membership, and verified TOTP AAL2. Never add a
 service-role key or analytics token to this deployment. See

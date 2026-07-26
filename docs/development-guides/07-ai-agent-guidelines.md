@@ -56,6 +56,13 @@ The public web app lives outside the iOS source tree in `apps/web/`. It uses Nex
 React, and Mantine for server-rendered public pages. Keep service-role secrets
 server-side only and run the web checks from `docs/development-guides/08-testing-strategy.md`
 when changing web routes.
+The private admin app is a separate browser-facing trust boundary in
+`apps/admin/`. It receives only the three documented `NEXT_PUBLIC_` values and
+must never import or recreate a service-role/secret-key client. Do not introduce
+computed or whole-object `process.env` access. Run its frozen install, blocking
+dependency audit, tests, type-check, and production build; preserve the required
+`Naturebook Admin Quality / test` GitHub check and Vercel Deployment Check.
+
 - `MerianLog` lives at `Core/MerianLog.swift`.
 - `SearchDatabaseActor` lives with `ScansManager` in `Features/Scans/Library/ViewModels/ScansManager.swift` because it is an implementation detail of the Scans library search index.
 - The Sendable advanced-filter projection and detached predicate engine live in

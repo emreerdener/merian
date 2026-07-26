@@ -451,7 +451,12 @@ inventory above is descriptive rather than a second source of truth:
 - `apps/admin/`: isolated Next.js + Mantine SSR admin for
   `admin.naturebook.earth`, with Google OAuth, TOTP AAL2, role-aware navigation,
   strict response headers, CSRF/origin-checked Server Actions, and no
-  service-role key.
+  service-role key. Its dependency-security tests and
+  `.github/workflows/admin-quality.yml` enforce a frozen install, reviewed
+  Next.js/PostCSS/Sharp floors, blocking dependency audit, tests, type-check,
+  and production build for every pull request and affected `main` changes.
+  Repository rules must require the resulting status, and the separate Vercel
+  project must use it as a required Deployment Check before domain promotion.
 - `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`:
   internal membership/session/audit/review/feedback/pricing schema, narrow admin
   RPCs, reversible post moderation, and canonical AI usage ledger.
