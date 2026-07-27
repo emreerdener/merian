@@ -186,8 +186,6 @@ Deno.test("DwC-A backlog monitor shares route defaults and emits bounded artifac
       "EXPORT_BACKLOG_CRITICAL_AGE_SECONDS",
       "EXPORT_BACKLOG_WARNING_COUNT",
       "EXPORT_BACKLOG_CRITICAL_COUNT",
-      "MAXIMUM_RESPONSE_BYTES",
-      "RESPONSE_DEADLINE_MS",
       "get_dwca_export_queue_health",
     ]
   ) {

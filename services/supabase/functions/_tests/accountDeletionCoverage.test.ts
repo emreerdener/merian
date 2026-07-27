@@ -177,8 +177,8 @@ Deno.test("account deletion health alert is independent of the database reaper",
 
   for (
     const fragment of [
-      "/rest/v1/rpc/get_account_deletion_health",
-      "serviceRoleRequestHeaders",
+      '"get_account_deletion_health"',
+      "createServiceRoleClientFromEnvironment",
       "reaper_cron_active",
       "reaper_credentials_configured",
       "orphaned_storage_job_count",

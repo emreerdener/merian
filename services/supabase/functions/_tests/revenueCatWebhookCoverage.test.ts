@@ -148,9 +148,8 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
 
   for (
     const fragment of [
-      "/rest/v1/rpc/get_revenuecat_reconciliation_health",
-      "RESPONSE_DEADLINE_MS = 15_000",
-      "MAXIMUM_RESPONSE_BYTES = 64 * 1_024",
+      '"get_revenuecat_reconciliation_health"',
+      "createServiceRoleClientFromEnvironment",
       'values.get("warning-after-minutes") ?? "30"',
       'values.get("critical-after-minutes") ?? "60"',
       'values.get("fail-on") ?? "warning"',
@@ -173,7 +172,6 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
   ) {
     assertStringIncludes(workflow, fragment);
   }
-  assertStringIncludes(script, "serviceRoleRequestHeaders(");
 });
 
 Deno.test("RevenueCat production secrets are fail-closed and synchronized", async () => {
