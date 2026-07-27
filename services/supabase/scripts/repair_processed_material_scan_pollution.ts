@@ -251,7 +251,7 @@ async function restJson<T>(
   const response = await fetch(url, {
     method: options.method ?? "GET",
     headers: {
-      ...serviceRoleRequestHeaders(serviceRoleKey),
+      ...serviceRoleRequestHeaders(serviceRoleKey, "database"),
       "Content-Type": "application/json",
       "Prefer": "return=representation",
     },

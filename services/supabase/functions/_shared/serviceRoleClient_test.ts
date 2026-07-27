@@ -136,8 +136,15 @@ async function authAdminRequestHeaders(
   return requestHeaders;
 }
 
-Deno.test("serviceRoleRequestHeaders carries server keys in both headers", () => {
+Deno.test("serviceRoleRequestHeaders handles edge function opaque key transport by default", () => {
   assertEquals(serviceRoleRequestHeaders(CURRENT_SECRET_KEY), {
+    apikey: CURRENT_SECRET_KEY,
+    "x-supabase-server-key": CURRENT_SECRET_KEY,
+  });
+});
+
+Deno.test("serviceRoleRequestHeaders applies Bearer token for database destination", () => {
+  assertEquals(serviceRoleRequestHeaders(CURRENT_SECRET_KEY, "database"), {
     apikey: CURRENT_SECRET_KEY,
     Authorization: `Bearer ${CURRENT_SECRET_KEY}`,
   });

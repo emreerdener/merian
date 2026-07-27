@@ -55,6 +55,7 @@ export function serverApiKeyOptionsFromEnvironment(): ServiceRoleAuthOptions {
 
 export function serviceRoleRequestHeaders(
   serverApiKey: string,
+  destination: "database" | "functions" | "auth" | "storage" = "functions",
 ): Record<string, string> {
   if (!isSupportedServerApiKey(serverApiKey)) {
     throw new ServerApiKeyConfigurationError(
@@ -64,8 +65,18 @@ export function serviceRoleRequestHeaders(
 
   const headers: Record<string, string> = {
     apikey: serverApiKey,
-    Authorization: `Bearer ${serverApiKey}`,
   };
+
+  if (serverApiKey.startsWith("sb_secret_")) {
+    if (destination === "functions") {
+      headers["x-supabase-server-key"] = serverApiKey;
+    } else {
+      headers.Authorization = `Bearer ${serverApiKey}`;
+    }
+  } else {
+    headers.Authorization = `Bearer ${serverApiKey}`;
+  }
+
   return headers;
 }
 

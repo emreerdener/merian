@@ -20,7 +20,7 @@ export function createServiceRoleFetchTransport(
   serverApiKey: string,
   fetchImplementation: typeof fetch = fetch,
 ): typeof fetch {
-  requireServerApiKey({
+  const validatedServerApiKey = requireServerApiKey({
     envServerApiKey: serverApiKey,
   });
   const deadlineTransport = createDeadlineFetchTransport(
@@ -28,7 +28,31 @@ export function createServiceRoleFetchTransport(
     fetchImplementation,
   );
 
-  return deadlineTransport;
+  return (input, init) => {
+    let isFunction = false;
+    if (typeof input === "string") {
+      isFunction = input.includes("/functions/v1/");
+    } else if (input instanceof URL) {
+      isFunction = input.href.includes("/functions/v1/");
+    } else if (input instanceof Request) {
+      isFunction = input.url.includes("/functions/v1/");
+    }
+
+    if (isFunction && validatedServerApiKey.startsWith("sb_secret_")) {
+      const initHeaders = init && "headers" in init
+        ? (init.headers as HeadersInit)
+        : undefined;
+      const sourceHeaders = initHeaders ??
+        (input instanceof Request ? input.headers : undefined);
+      const headers = new Headers(sourceHeaders);
+      if (headers.get("Authorization") === `Bearer ${validatedServerApiKey}`) {
+        headers.delete("Authorization");
+      }
+      headers.set("x-supabase-server-key", validatedServerApiKey);
+      return deadlineTransport(input, { ...init, headers });
+    }
+    return deadlineTransport(input, init);
+  };
 }
 
 /**

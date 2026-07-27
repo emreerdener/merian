@@ -864,7 +864,7 @@ async function fetchJson<T>(
 
 export function adminApiHeaders(adminApiKey: string): HeadersInit {
   return {
-    ...serviceRoleRequestHeaders(adminApiKey),
+    ...serviceRoleRequestHeaders(adminApiKey, "auth"),
     "Content-Type": "application/json",
   };
 }
