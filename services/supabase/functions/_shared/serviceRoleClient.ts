@@ -49,9 +49,9 @@ export function createServiceRoleFetchTransport(
         headers.delete("Authorization");
       }
       headers.set("x-supabase-server-key", validatedServerApiKey);
-      return deadlineTransport(input, { ...init, headers });
+      return deadlineTransport(input, { ...init, headers } as any);
     }
-    return deadlineTransport(input, init);
+    return deadlineTransport(input, init as any);
   };
 }
 
