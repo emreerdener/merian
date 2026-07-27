@@ -19,7 +19,16 @@ serveEdge(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const auth = authorizeServiceRoleRequestFromEnvironment(req);
   if (!auth.ok) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
+    const rawKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
+    return jsonResponse({ 
+      error: "Unauthorized", 
+      debug: {
+        hasSecretKeys: !!rawKeys,
+        keysLength: rawKeys?.length,
+        hasLegacyKey: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+        authReason: auth.reason,
+      }
+    }, 401);
   }
 
   try {

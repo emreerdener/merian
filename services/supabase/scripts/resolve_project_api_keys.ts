@@ -60,6 +60,7 @@ function uniqueCandidateKeys(candidates: KeyCandidate[]): string[] {
 
 export function resolveProjectApiKeys(
   payload: unknown,
+  preferLegacy: boolean = false,
 ): ResolvedProjectApiKeys {
   if (!Array.isArray(payload)) {
     throw new Error("Supabase Management API returned an invalid key list.");
@@ -82,28 +83,28 @@ export function resolveProjectApiKeys(
       serverCandidates.push({
         key,
         name,
-        priority: name === "default" ? 0 : 1,
+        priority: preferLegacy ? 2 : (name === "default" ? 0 : 1),
       });
     } else if (
       type === "legacy" &&
       name === "service_role" &&
       isLegacyJwt(key)
     ) {
-      serverCandidates.push({ key, name, priority: 2 });
+      serverCandidates.push({ key, name, priority: preferLegacy ? 0 : 2 });
     }
 
     if (type === "publishable" && isOpaqueKey(key, "sb_publishable_")) {
       publicCandidates.push({
         key,
         name,
-        priority: name === "default" ? 0 : 1,
+        priority: preferLegacy ? 2 : (name === "default" ? 0 : 1),
       });
     } else if (
       type === "legacy" &&
       name === "anon" &&
       isLegacyJwt(key)
     ) {
-      publicCandidates.push({ key, name, priority: 2 });
+      publicCandidates.push({ key, name, priority: preferLegacy ? 0 : 2 });
     }
   }
 
@@ -162,6 +163,7 @@ async function readBoundedResponse(response: Response): Promise<string> {
 export async function fetchRevealedProjectApiKeys(
   projectRef: string,
   accessToken: string,
+  preferLegacy: boolean = false,
   fetchImplementation: typeof fetch = fetch,
 ): Promise<ResolvedProjectApiKeys> {
   if (!/^[a-z0-9]{20}$/.test(projectRef)) {
@@ -205,26 +207,38 @@ export async function fetchRevealedProjectApiKeys(
     } catch {
       throw new Error("Supabase Management API returned invalid key JSON.");
     }
-    return resolveProjectApiKeys(payload);
+    return resolveProjectApiKeys(payload, preferLegacy);
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function projectRefArgument(args: string[]): string {
-  if (args.length !== 2 || args[0] !== "--project-ref" || !args[1]) {
+function parseArguments(args: string[]): { projectRef: string; preferLegacy: boolean } {
+  let projectRef = "";
+  let preferLegacy = false;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--project-ref" && i + 1 < args.length) {
+      projectRef = args[i + 1];
+      i++;
+    } else if (args[i] === "--prefer-legacy") {
+      preferLegacy = true;
+    }
+  }
+
+  if (!projectRef) {
     throw new Error(
-      "Usage: resolve_project_api_keys.ts --project-ref <project-ref>",
+      "Usage: resolve_project_api_keys.ts --project-ref <project-ref> [--prefer-legacy]",
     );
   }
-  return args[1];
+  return { projectRef, preferLegacy };
 }
 
 if (import.meta.main) {
   try {
-    const projectRef = projectRefArgument(Deno.args);
+    const { projectRef, preferLegacy } = parseArguments(Deno.args);
     const accessToken = Deno.env.get("SUPABASE_ACCESS_TOKEN") ?? "";
-    const keys = await fetchRevealedProjectApiKeys(projectRef, accessToken);
+    const keys = await fetchRevealedProjectApiKeys(projectRef, accessToken, preferLegacy);
     console.log(JSON.stringify(keys));
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

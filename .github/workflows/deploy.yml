@@ -619,18 +619,6 @@ jobs:
           echo "::add-mask::$server_api_key"
           echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
 
-      - name: Synchronize active secret keys to Edge Functions
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
-          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: |
-          if [[ "$SUPABASE_SERVER_API_KEY" == sb_secret_* ]]; then
-            supabase secrets set \
-              "SUPABASE_SECRET_KEYS={\"default\":\"${SUPABASE_SERVER_API_KEY}\"}" \
-              --project-ref "$PROJECT_ID"
-          fi
-
       - name: Deploy affected Edge Functions
         if: steps.function-plan.outputs.count != '0'
         env:
@@ -681,7 +669,7 @@ jobs:
             if ! [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
               echo "Production smoke request ${endpoint} returned HTTP ${status}." >&2
               jq -c \
-                'if type == "object" then {error, code, request_id} else {error: "Non-object response"} end' \
+                'if type == "object" then {error, code, request_id, debug} else {error: "Non-object response"} end' \
                 "$smoke_response_file" >&2 2>/dev/null || true
               return 1
             fi
