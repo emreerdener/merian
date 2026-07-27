@@ -35,6 +35,82 @@ assert_count() {
     || fail "Expected $expected_count occurrence(s) of '$text'; found $actual_count."
 }
 
+assert_action_release() {
+  local action_path="$1"
+  local expected_count="$2"
+  local required_major="$3"
+  local actual_count
+  local compliant_count
+  local release_count
+
+  read -r actual_count compliant_count release_count < <(
+    awk \
+      -v action_path="$action_path" \
+      -v required_major="$required_major" '
+        $1 == "uses:" {
+          prefix = action_path "@"
+          if (index($2, prefix) != 1) {
+            next
+          }
+
+          actual_count += 1
+          ref = substr($2, length(prefix) + 1)
+          version = $4
+          valid_ref = ref ~ /^[0-9a-f]{40}$/
+          version_pattern = "^v" required_major "\\.[0-9]+\\.[0-9]+$"
+          valid_version = version ~ version_pattern
+          if (valid_ref && $3 == "#" && valid_version) {
+            compliant_count += 1
+          }
+          releases[$2 " " version] = 1
+        }
+        END {
+          for (release in releases) {
+            release_count += 1
+          }
+          printf "%d %d %d\n",
+            actual_count,
+            compliant_count,
+            release_count
+        }
+      ' "$workflow"
+  )
+
+  [[ "$actual_count" == "$expected_count" ]] \
+    || fail \
+      "Expected $expected_count occurrence(s) of '$action_path'; found $actual_count."
+  [[ "$compliant_count" == "$expected_count" ]] \
+    || fail \
+      "Every '$action_path' use must have a full SHA and v$required_major.x.y comment."
+  [[ "$release_count" == "1" ]] \
+    || fail "Every '$action_path' use must share one reviewed release."
+}
+
+assert_actions_share_release() {
+  local first_action="$1"
+  local second_action="$2"
+  local first_release
+  local second_release
+
+  first_release="$(
+    awk -v action_path="$first_action" '
+      $1 == "uses:" && index($2, action_path "@") == 1 {
+        print substr($2, length(action_path) + 2), $4
+      }
+    ' "$workflow" | sort -u
+  )"
+  second_release="$(
+    awk -v action_path="$second_action" '
+      $1 == "uses:" && index($2, action_path "@") == 1 {
+        print substr($2, length(action_path) + 2), $4
+      }
+    ' "$workflow" | sort -u
+  )"
+
+  [[ -n "$first_release" && "$first_release" == "$second_release" ]] \
+    || fail "'$first_action' and '$second_action' must share one release."
+}
+
 assert_no_runner_context_in_job_env() {
   local checked_workflow="$1"
   if ! awk '
@@ -72,12 +148,14 @@ assert_count 1 "bash scripts/check-ios-project-source-membership.sh"
 assert_count 1 "bash scripts/test-ios-project-source-membership.sh"
 assert_contains "fetch-depth: 0"
 assert_count 3 "persist-credentials: false"
-# Lock the reviewed Node.js 24 action releases as well as requiring immutable
-# refs below. This prevents a valid old SHA from restoring a deprecated runtime.
-assert_count 3 "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2"
-assert_count 2 "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0"
-assert_count 1 "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0"
-assert_count 5 "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"
+# Lock the reviewed Node.js 24 action major releases while allowing Dependabot
+# to advance commit-pinned patch/minor releases. Major upgrades remain an
+# explicit review boundary.
+assert_action_release "actions/checkout" 3 6
+assert_action_release "actions/cache/restore" 2 6
+assert_action_release "actions/cache/save" 1 6
+assert_action_release "actions/upload-artifact" 5 7
+assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
 assert_contains "Compile app and shared test targets"
