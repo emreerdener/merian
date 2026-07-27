@@ -9,17 +9,6 @@ import {
   renderCsv,
 } from "./audit_ghost_users.ts";
 
-const LEGACY_SERVICE_ROLE_KEY = [
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-  "eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ",
-  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-].join(".");
-const fakeCurrentSecretKey = (label: string) =>
-  ["sb", "secret", label, "a".repeat(20)].join("_");
-const CURRENT_SECRET_KEY = fakeCurrentSecretKey("current");
-const EXPLICIT_SECRET_KEY = fakeCurrentSecretKey("explicit");
-const DEFAULT_SECRET_KEY = fakeCurrentSecretKey("default");
-const WORKER_SECRET_KEY = fakeCurrentSecretKey("worker");
 
 Deno.test("protected ghost merge sources are never classified as empty", () => {
   const activityByUserId = new Map<string, ActivityCounts>();
