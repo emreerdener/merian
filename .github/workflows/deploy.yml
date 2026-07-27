@@ -584,20 +584,6 @@ jobs:
             "R2_READ_SECRET_ACCESS_KEY=$R2_READ_SECRET_ACCESS_KEY" \
             --project-ref "$PROJECT_ID"
 
-      - name: Deploy affected Edge Functions
-        if: steps.function-plan.outputs.count != '0'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: |
-          bash supabase/scripts/deploy_function_batches.sh \
-            "${{ steps.function-plan.outputs.plan_file }}" \
-            "$PROJECT_ID"
-
-      - name: Confirm no Edge Function deploy is required
-        if: steps.function-plan.outputs.count == '0'
-        run: echo "No Edge Function runtime or dependency changes were detected."
-
       - name: Load Supabase API keys for authorization smoke tests
         id: service-role
         env:
@@ -632,6 +618,32 @@ jobs:
 
           echo "::add-mask::$server_api_key"
           echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
+
+      - name: Synchronize active secret keys to Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          if [[ "$SUPABASE_SERVER_API_KEY" == sb_secret_* ]]; then
+            supabase secrets set \
+              "SUPABASE_SECRET_KEYS={\"default\":\"${SUPABASE_SERVER_API_KEY}\"}" \
+              --project-ref "$PROJECT_ID"
+          fi
+
+      - name: Deploy affected Edge Functions
+        if: steps.function-plan.outputs.count != '0'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          bash supabase/scripts/deploy_function_batches.sh \
+            "${{ steps.function-plan.outputs.plan_file }}" \
+            "$PROJECT_ID"
+
+      - name: Confirm no Edge Function deploy is required
+        if: steps.function-plan.outputs.count == '0'
+        run: echo "No Edge Function runtime or dependency changes were detected."
 
       - name: Smoke test production backend endpoints
         env:
