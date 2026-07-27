@@ -121,6 +121,7 @@ struct InsightFullscreenImageCarousel: View {
                 path: path,
                 fallbackImageUrl: nil,
                 contentMode: .fit,
+                unavailableContext: .originalPhoto,
                 onImageLoadFailed: nil
             )
         case .videoPath(let path):

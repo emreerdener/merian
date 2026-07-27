@@ -402,6 +402,13 @@ Deno.test("privileged clients and internal calls use the shared API-key transpor
     serviceClient,
     "createServiceRoleClientFromEnvironmentWithOptions(",
   );
+  assertStringIncludes(serviceClient, "invokeServiceRoleJson<");
+  assertStringIncludes(
+    serviceClient,
+    "ServiceRoleFunctionInvocationError",
+  );
+  assertStringIncludes(serviceClient, '"X-Merian-Handler"');
+  assertStringIncludes(serviceClient, "Response body withheld.");
   assertStringIncludes(serviceAuth, "apikey: serverApiKey");
   assert(
     !serviceAuth.includes("x-supabase-server-key"),
@@ -551,6 +558,11 @@ Deno.test("operational callers use exact server-key discovery and shared transpo
       !script.includes('"Authorization": `Bearer ${'),
       `${scriptUrl.pathname} must use the shared API-key transport policy.`,
     );
+  }
+
+  for (const functionCallerUrl of [importScriptUrl, scanMediaScriptUrl]) {
+    const script = await Deno.readTextFile(functionCallerUrl);
+    assertStringIncludes(script, "invokeServiceRoleJson");
   }
 
   for (

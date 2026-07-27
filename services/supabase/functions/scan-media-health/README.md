@@ -102,7 +102,11 @@ is immediately actionable without opening the endpoint source. It also renders a
 visible **Sample Preview** table with the first sample row for each issue code;
 download the JSON artifact or expand the per-issue sample blocks for the full
 sample set. Manual dispatch can use `fail_on = warning` for stricter validation
-or `fail_on = never` when collecting a non-gating diagnostic snapshot.
+or `fail_on = never` when collecting a non-gating diagnostic snapshot. Read-only
+calls retry bounded transient network, routing, propagation, rate-limit, and
+server failures up to six attempts. A final failure exposes only the numeric
+status, bounded SDK failure class, and fixed handler-marker presence; it cancels
+and withholds the operational body and never prints a request ID or credential.
 
 ## Validation
 

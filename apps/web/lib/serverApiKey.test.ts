@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveServerApiKeySources } from "./serverApiKey.ts";
+import {
+  resolveServerApiKeySources,
+  type ServerApiKeyResolution,
+} from "./serverApiKey.ts";
 
 const LEGACY_SERVICE_ROLE_KEY = [
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
@@ -127,6 +130,60 @@ test("valid web server sources isolate malformed lower-priority migration fallba
     }),
     { ok: true, key: DEFAULT_SECRET_KEY },
   );
+});
+
+test("web server-key sources preserve strict precedence across every configuration state", () => {
+  type SourceState = "absent" | "valid" | "invalid";
+  const sourceStates: SourceState[] = ["absent", "valid", "invalid"];
+
+  for (const explicit of sourceStates) {
+    for (const named of sourceStates) {
+      for (const legacy of sourceStates) {
+        const resolution = resolveServerApiKeySources({
+          explicitServerApiKey: explicit === "valid"
+            ? EXPLICIT_SECRET_KEY
+            : explicit === "invalid"
+            ? INVALID_SECRET_KEY
+            : "",
+          platformSecretKeys: named === "valid"
+            ? JSON.stringify({ default: DEFAULT_SECRET_KEY })
+            : named === "invalid"
+            ? "{"
+            : "",
+          legacyServiceRoleKey: legacy === "valid"
+            ? LEGACY_SERVICE_ROLE_KEY
+            : legacy === "invalid"
+            ? DEFAULT_SECRET_KEY
+            : "",
+        });
+
+        const expected: ServerApiKeyResolution = explicit !== "absent"
+          ? explicit === "valid" ? { ok: true, key: EXPLICIT_SECRET_KEY } : {
+            ok: false,
+            reason: "invalid_server_api_key_configuration",
+          }
+          : named === "valid"
+          ? { ok: true, key: DEFAULT_SECRET_KEY }
+          : legacy !== "absent"
+          ? legacy === "valid" ? { ok: true, key: LEGACY_SERVICE_ROLE_KEY } : {
+            ok: false,
+            reason: "invalid_server_api_key_configuration",
+          }
+          : named === "invalid"
+          ? {
+            ok: false,
+            reason: "invalid_server_api_key_configuration",
+          }
+          : { ok: false, reason: "missing_server_api_key" };
+
+        assert.deepEqual(
+          resolution,
+          expected,
+          `Resolution failed for ${explicit}/${named}/${legacy}`,
+        );
+      }
+    }
+  }
 });
 
 test("web server resolution never normalizes malformed credentials", () => {

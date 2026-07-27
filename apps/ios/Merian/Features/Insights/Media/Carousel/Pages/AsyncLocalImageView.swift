@@ -8,6 +8,7 @@ struct AsyncLocalImageView: View {
     var contentMode: ContentMode = .fill
     var fillHeight: Bool = false
     var isArchivedVisual: Bool = false
+    var unavailableContext: UnavailableVisualContext = .generic
     var onImageLoaded: (() -> Void)?
     var onImageLoadFailed: (() -> Void)?
 
@@ -23,7 +24,10 @@ struct AsyncLocalImageView: View {
                     if isArchivedVisual {
                         ArchivedVisualsView()
                     } else {
-                        UnavailableVisualsView(isOffline: !offlineQueueManager.isOnline)
+                        UnavailableVisualsView(
+                            isOffline: hasRemoteVisualSource && !offlineQueueManager.isOnline,
+                            context: unavailableContext
+                        )
                     }
                 } else {
                     ProgressView()

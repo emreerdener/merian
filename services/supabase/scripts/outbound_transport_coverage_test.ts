@@ -92,6 +92,7 @@ Deno.test("taxonomy import bounds its long-running function invocation", async (
       "createServiceRoleClientFromEnvironmentWithOptions({",
       "requestTimeoutMs: IMPORT_REQUEST_TIMEOUT_MS",
       "maximumResponseBytes: IMPORT_MAXIMUM_RESPONSE_BYTES",
+      "invokeServiceRoleJson<T>(",
     ]
   ) {
     assertStringIncludes(source, fragment);

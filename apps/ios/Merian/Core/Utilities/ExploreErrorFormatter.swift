@@ -13,6 +13,10 @@ enum ExploreErrorFormatter {
         let message: String?
     }
 
+    static func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
+
     static func message(for error: Error) -> String {
         if let merianError = error as? MerianError {
             switch merianError {

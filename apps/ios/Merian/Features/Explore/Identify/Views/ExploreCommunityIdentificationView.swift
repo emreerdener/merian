@@ -1285,6 +1285,7 @@ private struct CommunityTaxonomySearchSheet: View {
     @State private var results: [CommunityTaxonSearchResult] = []
     @State private var isSearching = false
     @State private var errorMessage: String?
+    @State private var activeSearchId: UUID?
 
     var body: some View {
         NavigationStack {
@@ -1360,27 +1361,44 @@ private struct CommunityTaxonomySearchSheet: View {
         .buttonStyle(.plain)
     }
 
+    @MainActor
     private func search() async {
+        let searchId = UUID()
+        activeSearchId = searchId
+
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             results = []
             errorMessage = nil
+            isSearching = false
             return
         }
 
         isSearching = true
-        defer { isSearching = false }
+        errorMessage = nil
+        defer {
+            if activeSearchId == searchId {
+                isSearching = false
+            }
+        }
 
         do {
             try await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled else { return }
-            results = try await MerianNetworkClient.shared.searchCommunityTaxa(
+            let searchResults = try await MerianNetworkClient.shared.searchCommunityTaxa(
                 query: trimmed,
                 taxonomyVersionId: taxonomyVersionId
             )
-            errorMessage = results.isEmpty ? "No matching taxa found." : nil
-        } catch is CancellationError {
+            try Task.checkCancellation()
+            guard activeSearchId == searchId else { return }
+
+            results = searchResults
+            errorMessage = searchResults.isEmpty ? "No matching taxa found." : nil
         } catch {
+            guard activeSearchId == searchId,
+                  !ExploreErrorFormatter.isCancellation(error),
+                  !Task.isCancelled else {
+                return
+            }
             errorMessage = ExploreErrorFormatter.message(for: error)
         }
     }

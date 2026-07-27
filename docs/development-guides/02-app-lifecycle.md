@@ -44,8 +44,7 @@ phase changes never resample the preference. Because the Capture workspace is
 still the root, this is an initial sheet presentation rather than a second app
 root or an architectural mode switch. Camera startup is suppressed while that
 sheet is visible; dismissing it restores the configured Scan, Record, or
-Describe mode. The Explore sheet's appearance also sets
-`AppSettings.hasSeenExploreNewChip`.
+Describe mode.
 
 Launch presentation precedence is:
 

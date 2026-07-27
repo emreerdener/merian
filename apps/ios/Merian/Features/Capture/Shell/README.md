@@ -38,9 +38,7 @@ activation and foreground returns do not reevaluate it.
 
 An initially presented Explore sheet must not start the camera underneath it.
 After dismissal, the workspace restores the user's configured Scan, Record, or
-Describe mode and starts only the hardware that mode requires. Explore's
-appearance also sets `AppSettings.hasSeenExploreNewChip` so an automatically
-opened feed does not leave the one-time **New** chip behind.
+Describe mode and starts only the hardware that mode requires.
 
 Generic launch Explore is the lowest-priority route. Photos/Files image imports
 dismiss it before staging and crop. Explore-post, community-request, scan, and

@@ -93,6 +93,8 @@ Deno.test("credential documentation preserves the format-aware header contract",
       "compares the exact local key's SHA-256 digest",
       "`scripts/verify_edge_secret_digest.ts`",
       "Positive smoke requests retry bounded transient deployment statuses for up to six attempts.",
+      "Operational JSON Function calls also pass through `invokeServiceRoleJson(...)`.",
+      "It withholds response bodies, request IDs, variable header values, and credentials.",
       "`20260727183356_restore_identity_first_media_incident_guard.sql`",
     ]
   ) {
@@ -234,6 +236,14 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
   assertStringIncludes(
     runbook,
     "`scan-media-health-summary-<run_number>-attempt-<run_attempt>`",
+  );
+  assertStringIncludes(
+    runbook,
+    "Because this endpoint is read-only, transient network, routing, authorization-propagation, rate-limit, and server statuses receive at most six attempts",
+  );
+  assertStringIncludes(
+    runbook,
+    "A final invocation failure reports only HTTP status, bounded SDK failure class, and whether the fixed `X-Merian-Handler: 1` marker was present",
   );
   assertStringIncludes(
     runbook,

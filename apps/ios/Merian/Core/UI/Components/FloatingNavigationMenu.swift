@@ -52,7 +52,6 @@ struct FloatingNavigationMenuButton: View {
     var isDisabled: Bool = false
     var isSelected: Bool = false
     var showBadge: Bool = false
-    var chipText: String?
 
     var body: some View {
         Button(action: action) {
@@ -72,20 +71,6 @@ struct FloatingNavigationMenuButton: View {
                                 .fill(Color.red)
                                 .frame(width: 8, height: 8)
                                 .offset(x: 4, y: -2)
-                        }
-
-                        if let chipText {
-                            Text(chipText)
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.green)
-                                )
-                                .fixedSize()
-                                .offset(x: 16, y: -10)
                         }
                     }
 

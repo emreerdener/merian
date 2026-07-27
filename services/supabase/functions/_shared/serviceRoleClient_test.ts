@@ -1,5 +1,6 @@
 import {
   assertEquals,
+  assertRejects,
   assertThrows,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
@@ -11,6 +12,8 @@ import {
   createServiceRoleClient,
   createServiceRoleClientWithOptions,
   createServiceRoleFetchTransport,
+  invokeServiceRoleJson,
+  ServiceRoleFunctionInvocationError,
 } from "./serviceRoleClient.ts";
 
 const CURRENT_SECRET_KEY = [
@@ -215,6 +218,116 @@ Deno.test("opaque SDK Function transport passes the shared request boundary", as
       ok: true,
       serverApiKey: CURRENT_SECRET_KEY,
     },
+  );
+});
+
+Deno.test("privileged JSON Function invocation returns parsed success data", async () => {
+  const client = createServiceRoleClient(
+    "https://project.supabase.co",
+    CURRENT_SECRET_KEY,
+    () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+  );
+
+  assertEquals(
+    await invokeServiceRoleJson<{ success: true }>(
+      client,
+      "internal-worker",
+      {},
+    ),
+    { success: true },
+  );
+});
+
+Deno.test("privileged JSON Function failures expose only safe routing metadata", async () => {
+  for (
+    const [handlerHeader, reachedMerianHandler] of [
+      ["1", true],
+      [null, false],
+    ] as const
+  ) {
+    let bodyCancelled = false;
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (handlerHeader) headers.set("X-Merian-Handler", handlerHeader);
+    const client = createServiceRoleClient(
+      "https://project.supabase.co",
+      CURRENT_SECRET_KEY,
+      () =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    JSON.stringify({
+                      error: "sensitive internal failure",
+                      credential: CURRENT_SECRET_KEY,
+                    }),
+                  ),
+                );
+              },
+              cancel() {
+                bodyCancelled = true;
+              },
+            }),
+            { status: 401, headers },
+          ),
+        ),
+    );
+
+    const error = await assertRejects(
+      () => invokeServiceRoleJson(client, "internal-worker", {}),
+      ServiceRoleFunctionInvocationError,
+      "HTTP 401",
+    );
+    assertEquals(error.functionName, "internal-worker");
+    assertEquals(error.status, 401);
+    assertEquals(error.reachedMerianHandler, reachedMerianHandler);
+    assertEquals(error.failureName, "FunctionsHttpError");
+    assertEquals(error.message.includes("Response body withheld"), true);
+    assertEquals(error.message.includes("sensitive internal failure"), false);
+    assertEquals(error.message.includes(CURRENT_SECRET_KEY), false);
+    assertEquals(bodyCancelled, true);
+  }
+});
+
+Deno.test("privileged JSON Function fetch failures withhold the upstream error", async () => {
+  const client = createServiceRoleClient(
+    "https://project.supabase.co",
+    CURRENT_SECRET_KEY,
+    () =>
+      Promise.reject(
+        new TypeError(`sensitive network failure: ${CURRENT_SECRET_KEY}`),
+      ),
+  );
+
+  const error = await assertRejects(
+    () => invokeServiceRoleJson(client, "internal-worker", {}),
+    ServiceRoleFunctionInvocationError,
+    "HTTP status unavailable",
+  );
+  assertEquals(error.status, null);
+  assertEquals(error.reachedMerianHandler, false);
+  assertEquals(error.failureName, "FunctionsFetchError");
+  assertEquals(error.message.includes("sensitive network failure"), false);
+  assertEquals(error.message.includes(CURRENT_SECRET_KEY), false);
+});
+
+Deno.test("privileged JSON Function invocation rejects unsafe route names", async () => {
+  const client = createServiceRoleClient(
+    "https://project.supabase.co",
+    CURRENT_SECRET_KEY,
+    () => Promise.resolve(new Response("{}")),
+  );
+
+  await assertRejects(
+    () => invokeServiceRoleJson(client, "../internal-worker", {}),
+    TypeError,
+    "Invalid Edge Function name",
   );
 });
 

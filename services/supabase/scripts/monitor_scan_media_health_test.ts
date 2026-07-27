@@ -1,18 +1,24 @@
 import {
   assertEquals,
+  assertRejects,
   assertStringIncludes,
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   assertSuccessfulHealthResponse,
   buildMonitorSummary,
+  fetchDeployedScanMediaHealth,
+  isRetryableScanMediaHealthInvocationFailure,
   issueActionFor,
   parseMonitorArgs,
   renderMonitorMarkdown,
+  type ScanMediaHealthInvocationOptions,
   type ScanMediaHealthResponse,
   shouldFailForPolicy,
 } from "./monitor_scan_media_health.ts";
+import { ServiceRoleFunctionInvocationError } from "../functions/_shared/serviceRoleClient.ts";
 
 Deno.test("parseMonitorArgs applies production monitor defaults and aliases", () => {
   assertEquals(parseMonitorArgs([]), {
@@ -64,6 +70,97 @@ Deno.test("shouldFailForPolicy fails only at the configured severity", () => {
   assertEquals(shouldFailForPolicy("warning", "warning"), true);
   assertEquals(shouldFailForPolicy("critical", "warning"), true);
   assertEquals(shouldFailForPolicy("critical", "never"), false);
+});
+
+Deno.test("scan media health retries only safe transient invocation failures", () => {
+  for (const status of [401, 404, 408, 425, 429, 500, 502, 503, 504]) {
+    assertEquals(
+      isRetryableScanMediaHealthInvocationFailure(
+        new ServiceRoleFunctionInvocationError(
+          "scan-media-health",
+          status,
+          status === 500,
+          "FunctionsHttpError",
+        ),
+      ),
+      true,
+    );
+  }
+  assertEquals(
+    isRetryableScanMediaHealthInvocationFailure(
+      new ServiceRoleFunctionInvocationError(
+        "scan-media-health",
+        null,
+        false,
+        "FunctionsFetchError",
+      ),
+    ),
+    true,
+  );
+  assertEquals(
+    isRetryableScanMediaHealthInvocationFailure(
+      new ServiceRoleFunctionInvocationError(
+        "scan-media-health",
+        403,
+        true,
+        "FunctionsHttpError",
+      ),
+    ),
+    false,
+  );
+});
+
+Deno.test("scan media health monitor retries transient reads with bounded backoff", async () => {
+  const expected = healthResponse();
+  let attempts = 0;
+  const waits: number[] = [];
+  const invoke: NonNullable<ScanMediaHealthInvocationOptions["invoke"]> = <T>(
+    _supabase: SupabaseClient,
+    _functionName: string,
+    _body: Record<string, unknown>,
+  ): Promise<T> => {
+    attempts += 1;
+    if (attempts < 3) {
+      return Promise.reject(
+        new ServiceRoleFunctionInvocationError(
+          "scan-media-health",
+          401,
+          false,
+          "FunctionsHttpError",
+        ),
+      );
+    }
+    return Promise.resolve(expected as T);
+  };
+
+  assertEquals(
+    await fetchDeployedScanMediaHealth(
+      null as unknown as SupabaseClient,
+      {},
+      {
+        maximumAttempts: 3,
+        invoke,
+        wait: (milliseconds) => {
+          waits.push(milliseconds);
+          return Promise.resolve();
+        },
+      },
+    ),
+    expected,
+  );
+  assertEquals(attempts, 3);
+  assertEquals(waits, [2_000, 4_000]);
+
+  await assertRejects(
+    () =>
+      fetchDeployedScanMediaHealth(
+        null as unknown as SupabaseClient,
+        {},
+        { maximumAttempts: 0, invoke },
+      ),
+    TypeError,
+    "maximumAttempts must be between 1 and 6",
+  );
 });
 
 Deno.test("assertSuccessfulHealthResponse validates endpoint shape", () => {

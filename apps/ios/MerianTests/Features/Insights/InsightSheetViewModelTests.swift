@@ -1393,9 +1393,34 @@ struct InsightSheetViewModelTests {
         )
 
         #expect(pages.map(\.referenceAttributionLabel) == ["Naturebook", "Wikipedia", "GBIF"])
+        #expect(pages.map(\.imageOrigin) == [.reference, .reference, .reference])
     }
 
-    @Test func testUnavailableCarouselImagesMoveToTheBackWithoutDroppingTheirReferences() {
+    @Test func testOriginalPhotoUnavailablePresentationExplainsRetainedIdentification() {
+        let presentation = UnavailableVisualContext.originalPhoto.presentation(isOffline: false)
+
+        #expect(presentation.systemImage == "photo.badge.exclamationmark")
+        #expect(presentation.title == "Original photo unavailable")
+        #expect(presentation.message == "We couldn’t load your photo, but your identification is still available.")
+        #expect(
+            presentation.accessibilityLabel
+                == "Original photo unavailable. We couldn’t load your photo, but your identification is still available."
+        )
+    }
+
+    @Test func testRemoteOriginalPhotoUnavailablePresentationExplainsOfflineRetry() {
+        let presentation = UnavailableVisualContext.originalPhoto.presentation(isOffline: true)
+
+        #expect(presentation.systemImage == "wifi.slash")
+        #expect(presentation.title == "Original photo unavailable")
+        #expect(presentation.message == "Reconnect to load your photo. Your identification is still available.")
+        #expect(
+            presentation.accessibilityLabel
+                == "Original photo unavailable while offline. Reconnect to load your photo. Your identification is still available."
+        )
+    }
+
+    @Test func testFailedUserImageIsHiddenAfterReferenceLoads() {
         let unavailablePath = "documents/unavailable.webp"
         let availablePath = "documents/available.webp"
         let videoPath = "documents/observation.mp4"
@@ -1415,20 +1440,126 @@ struct InsightSheetViewModelTests {
             onDescriptionTap: nil
         )
 
-        let reorderedPages = CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
             sourcePages,
-            unavailableIdentifiers: [unavailablePath]
+            unavailableIdentifiers: [unavailablePath],
+            loadedReferenceIdentifiers: [referenceURL]
         )
 
-        #expect(reorderedPages.map(\.id) == [
+        #expect(visiblePages.map(\.id) == [
             "image-\(availablePath)",
             "video-\(videoPath)",
-            "reference-\(referenceURL)",
-            "image-\(unavailablePath)"
+            "reference-\(referenceURL)"
         ])
-        #expect(reorderedPages[1].id == sourcePages[1].id, "Non-image carousel slots must remain stable")
-        #expect(reorderedPages.contains { $0.imageIdentifier == unavailablePath })
+        #expect(visiblePages[1].id == sourcePages[1].id, "Non-image carousel slots must remain stable")
+        #expect(!visiblePages.contains { $0.imageIdentifier == unavailablePath })
         #expect(media.items.contains(.image(unavailablePath)))
+    }
+
+    @Test func testFailedUserImageRemainsWithoutUsableReferences() {
+        let unavailablePath = "documents/unavailable.webp"
+
+        for referenceState in [ReferenceState.empty, .loading] {
+            let sourcePages = CarouselPageBuilder.buildPages(
+                for: ActiveScanMedia(
+                    items: [.image(unavailablePath)],
+                    referenceState: referenceState
+                ),
+                referenceWikipediaUrl: nil,
+                onImageFailure: { _ in },
+                onDescriptionTap: nil
+            )
+            let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+                sourcePages,
+                unavailableIdentifiers: [unavailablePath],
+                loadedReferenceIdentifiers: []
+            )
+
+            #expect(visiblePages.contains { $0.imageIdentifier == unavailablePath })
+        }
+    }
+
+    @Test func testFailedUserImageRemainsUntilAReferenceLoads() {
+        let unavailablePath = "documents/unavailable.webp"
+        let referenceURL = "https://example.com/reference.webp"
+        let media = ActiveScanMedia(
+            items: [.image(unavailablePath)],
+            referenceState: .loaded([referenceURL])
+        )
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: media,
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [unavailablePath],
+            loadedReferenceIdentifiers: []
+        )
+
+        #expect(visiblePages.contains { $0.imageIdentifier == unavailablePath })
+        #expect(visiblePages.contains { $0.imageIdentifier == referenceURL })
+    }
+
+    @Test func testFailedUserImageReturnsWhenEveryReferenceFails() {
+        let unavailablePath = "documents/unavailable.webp"
+        let referenceURL = "https://example.com/reference.webp"
+        let media = ActiveScanMedia(
+            items: [.image(unavailablePath)],
+            referenceState: .loaded([referenceURL])
+        )
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: media,
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let hiddenPages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [unavailablePath],
+            loadedReferenceIdentifiers: [referenceURL]
+        )
+        let restoredPages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [unavailablePath, referenceURL],
+            loadedReferenceIdentifiers: []
+        )
+
+        #expect(!hiddenPages.contains { $0.imageIdentifier == unavailablePath })
+        #expect(restoredPages.contains { $0.imageIdentifier == unavailablePath })
+    }
+
+    @Test func testRemovedSelectedUserImagePrefersLoadedReference() {
+        let unavailablePath = "documents/unavailable.webp"
+        let availablePath = "documents/available.webp"
+        let referenceURL = "https://example.com/reference.webp"
+        let media = ActiveScanMedia(
+            items: [.image(unavailablePath), .image(availablePath)],
+            referenceState: .loaded([referenceURL])
+        )
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: media,
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [unavailablePath],
+            loadedReferenceIdentifiers: [referenceURL]
+        )
+
+        let selectedIndex = CarouselSelectionResolver.selectedIndex(
+            preserving: "image-\(unavailablePath)",
+            previousSelectedIndex: 0,
+            in: visiblePages,
+            loadedReferenceIdentifiers: [referenceURL]
+        )
+
+        #expect(visiblePages[selectedIndex].id == "reference-\(referenceURL)")
     }
 
     @Test func testAvailableLiveImageMovesAheadOfUnavailablePersistedImage() {
@@ -1445,12 +1576,13 @@ struct InsightSheetViewModelTests {
             onDescriptionTap: nil
         )
 
-        let reorderedPages = CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
             sourcePages,
-            unavailableIdentifiers: [unavailablePath]
+            unavailableIdentifiers: [unavailablePath],
+            loadedReferenceIdentifiers: []
         )
 
-        #expect(reorderedPages.map(\.id) == [
+        #expect(visiblePages.map(\.id) == [
             "liveImage-\(liveImageData.hashValue)",
             "image-\(unavailablePath)"
         ])
@@ -1630,6 +1762,53 @@ struct InsightSheetViewModelTests {
             "reference-https://example.com/reference.jpg"
         ])
         #expect(presentation?.initialSelectedIndex == 1)
+    }
+
+    @Test func testInsightImageGalleryMatchesVisibleCarouselOrder() {
+        let unavailablePath = "documents/unavailable.webp"
+        let availablePath = "documents/available.webp"
+        let videoPath = "documents/observation.mp4"
+        let referenceURL = "https://example.com/reference.webp"
+        let media = ActiveScanMedia(
+            items: [
+                .image(unavailablePath),
+                .video(videoPath),
+                .image(availablePath)
+            ],
+            referenceState: .loaded([referenceURL])
+        )
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: media,
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [unavailablePath],
+            loadedReferenceIdentifiers: [referenceURL]
+        )
+
+        let presentation = InsightImageGalleryBuilder.presentation(
+            for: media,
+            referenceWikipediaUrl: nil,
+            selectedCarouselPageID: "reference-\(referenceURL)",
+            orderedCarouselPageIDs: visiblePages.map(\.id)
+        )
+        let hiddenPresentation = InsightImageGalleryBuilder.presentation(
+            for: media,
+            referenceWikipediaUrl: nil,
+            selectedCarouselPageID: "image-\(unavailablePath)",
+            orderedCarouselPageIDs: visiblePages.map(\.id)
+        )
+
+        #expect(presentation?.items.map(\.id) == [
+            "image-\(availablePath)",
+            "video-\(videoPath)",
+            "reference-\(referenceURL)"
+        ])
+        #expect(presentation?.initialSelectedIndex == 2)
+        #expect(hiddenPresentation == nil)
     }
 
     @Test func testInsightImageGalleryPresentationIncludesSelectedVideoPage() {

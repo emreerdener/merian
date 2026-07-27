@@ -56,16 +56,30 @@ enum FieldTripTemplatePresentation {
         return "Observe \(targetCount) local species often found in your own backyard."
     }
 
+    static func statusTitle(for template: FieldTripTemplate) -> String {
+        if template.isStopped {
+            return "Stopped"
+        }
+
+        switch template.catalogState {
+        case .completed:
+            return "Completed"
+        case .inProgress:
+            return "Active"
+        case .incomplete:
+            return "Not started"
+        }
+    }
+
     static func cardTags(
         for template: FieldTripTemplate,
         locationLabel: String?
     ) -> [FieldTripTemplateTagPresentation] {
         var tags: [FieldTripTemplateTagPresentation] = []
 
-        let isStarted = template.catalogState != .incomplete
         tags.append(.init(
             kind: .status,
-            title: isStarted ? "Started" : "Not started"
+            title: statusTitle(for: template)
         ))
 
         if let progress = template.viewerProgress {

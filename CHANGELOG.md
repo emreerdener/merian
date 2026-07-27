@@ -49,6 +49,9 @@ TestFlight, App Store, support, and QA.
 
 ### Beta Operations
 
+- Fixed the proactive feedback survey so restored account history cannot open it
+  during startup. Eligible returning testers can now be prompted only after
+  another successful biological scan and dismissal of its result sheet.
 - Consolidated the Supabase server credential and database release contract.
   Opaque project keys now use only standard `apikey` transport, every real
   public project key is a required negative deployment smoke control, and
@@ -60,7 +63,10 @@ TestFlight, App Store, support, and QA.
   slot cannot veto an exact valid key or enter the accepted candidate set.
   Bounded propagation retries and endpoint-aware diagnostics replace opaque
   final Function/Data API errors with safe handler-versus-router or
-  PostgREST-specific guidance.
+  PostgREST-specific guidance. Scheduled JSON Function callers now preserve the
+  same safe status and fixed handler-marker classification instead of reducing
+  failures to the SDK's generic non-2xx message; the read-only scan-media
+  monitor also retries only bounded transient failures.
 - Closed the remaining exposed-table security gap for Explore comment reactions,
   revoked unsafe global and `public`-schema default table/sequence privileges,
   and added static plus live catalog enforcement for RLS and PostgreSQL 17

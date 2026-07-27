@@ -27,3 +27,11 @@ views share the same order and count, and an all-duplicate loaded reference set
 becomes `.empty` instead of leaving an empty reference page or page indicator.
 The rule is scoped to the exact scan, not the author: Naturebook imagery from
 another scan remains eligible, as do unrelated Wikipedia and GBIF images.
+
+Image-load availability is tracked per scan and distinguishes captured user
+photos from reference imagery. A failed user photo remains as the hero fallback
+while references are absent, loading, or failing. Once at least one reference
+image renders successfully, failed user-photo pages are removed from the inline
+carousel and fullscreen gallery. Pagination and selection are derived from this
+visible page order; if every reference later becomes unavailable, the failed
+user-photo fallback returns so the hero never becomes empty.

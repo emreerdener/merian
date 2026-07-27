@@ -89,8 +89,6 @@ enum UserDefaultsKeys {
     static let captureModeOrder = "captureModeOrder"
     /// Whether the user has seen the one-time Explore onboarding prompt.
     static let hasSeenExploreOnboarding = "hasSeenExploreOnboarding"
-    /// Whether the user has dismissed the one-time Explore tab "New" chip.
-    static let hasSeenExploreNewChip = "hasSeenExploreNewChip"
     /// Whether the user has dismissed the Explore Identify requests banner.
     static let hasDismissedIdentifyRequestsBanner = "hasDismissedIdentifyRequestsBanner"
     /// Whether the user has dismissed the Explore Identify activity banner.
@@ -1211,9 +1209,6 @@ final class AppSettings {
     var hasSeenExploreOnboarding: Bool {
         didSet { persistBool(hasSeenExploreOnboarding, oldValue: oldValue, key: UserDefaultsKeys.hasSeenExploreOnboarding) }
     }
-    var hasSeenExploreNewChip: Bool {
-        didSet { persistBool(hasSeenExploreNewChip, oldValue: oldValue, key: UserDefaultsKeys.hasSeenExploreNewChip) }
-    }
     var hasUnseenExplorePost: Bool {
         didSet { persistBool(hasUnseenExplorePost, oldValue: oldValue, key: UserDefaultsKeys.hasUnseenExplorePost) }
     }
@@ -1304,7 +1299,6 @@ final class AppSettings {
             UserDefaultsKeys.isExploreCommentMentionNotificationsEnabled: true,
             UserDefaultsKeys.isCommunityIdentificationNotificationsEnabled: true,
             UserDefaultsKeys.hasSeenExploreOnboarding: false,
-            UserDefaultsKeys.hasSeenExploreNewChip: false,
             UserDefaultsKeys.hasUnseenExplorePost: false,
             UserDefaultsKeys.lastSeenExplorePostSharedAt: "",
             UserDefaultsKeys.feedbackSurveyDismissedCampaignId: "",
@@ -1343,7 +1337,6 @@ final class AppSettings {
             forKey: UserDefaultsKeys.isCommunityIdentificationNotificationsEnabled
         )
         hasSeenExploreOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
-        hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
         hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)
         lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
         feedbackSurveyDismissedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveyDismissedCampaignId) ?? ""
@@ -1413,7 +1406,6 @@ final class AppSettings {
             forKey: UserDefaultsKeys.isCommunityIdentificationNotificationsEnabled
         )
         hasSeenExploreOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
-        hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
         hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)
         lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
         feedbackSurveyDismissedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveyDismissedCampaignId) ?? ""

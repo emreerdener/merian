@@ -462,6 +462,11 @@ private struct GBIFMedia: Decodable {
             speciesData,
             persistedMediaItems: persistedMediaItems
         )
+        if speciesData.isBiological, let completedScanId = speciesData.scanId {
+            AppEventPublisher.shared.send(
+                .foregroundBiologicalScanCompleted(scanId: completedScanId)
+            )
+        }
         return true
     }
 

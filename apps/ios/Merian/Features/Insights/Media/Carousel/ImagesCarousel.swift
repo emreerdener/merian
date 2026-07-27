@@ -29,6 +29,7 @@ struct CarouselPageBuilder {
                     id: "liveImage-\(data.hashValue)",
                     mediaKind: .visual,
                     view: AnyView(LiveCapturePageView(data: data)),
+                    imageOrigin: .user,
                     focusRegion: focusRegion
                 ))
             case .image(let path):
@@ -38,10 +39,11 @@ struct CarouselPageBuilder {
                     AsyncLocalImageView(
                         path: path,
                         fallbackImageUrl: nil,
+                        unavailableContext: .originalPhoto,
                         onImageLoaded: { onImageSuccess(path) },
                         onImageLoadFailed: { onImageFailure(path) }
                     )
-                ), imageIdentifier: path, focusRegion: focusRegion))
+                ), imageIdentifier: path, imageOrigin: .user, focusRegion: focusRegion))
             case .description(let context):
                 pages.append(CarouselPageItem(
                     id: "description-\(context.serialized())",
@@ -101,7 +103,10 @@ struct CarouselPageBuilder {
                         onImageLoaded: { onImageSuccess(urlString) },
                         onImageLoadFailed: { onImageFailure(urlString) }
                     )
-                ), imageIdentifier: urlString, referenceAttributionLabel: source.label))
+                ),
+                imageIdentifier: urlString,
+                imageOrigin: .reference,
+                referenceAttributionLabel: source.label))
             }
         }
         
@@ -194,11 +199,19 @@ struct InsightImageGalleryBuilder {
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?,
         selectedCarouselPageID: String?,
+        orderedCarouselPageIDs: [String]? = nil,
         isVideoMuted: Bool = true
     ) -> InsightImageGalleryPresentation? {
         guard let selectedCarouselPageID else { return nil }
 
-        let items = buildItems(for: activeMedia, referenceWikipediaUrl: referenceWikipediaUrl)
+        let allItems = buildItems(for: activeMedia, referenceWikipediaUrl: referenceWikipediaUrl)
+        let itemsByID = Dictionary(
+            allItems.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let items = orderedCarouselPageIDs.map { pageIDs in
+            pageIDs.compactMap { itemsByID[$0] }
+        } ?? allItems
         guard let selectedIndex = items.firstIndex(where: { $0.id == selectedCarouselPageID }) else {
             return nil
         }
@@ -216,6 +229,11 @@ enum CarouselMediaKind: Equatable {
     case audio
     case video
     case description
+}
+
+enum CarouselImageOrigin: Equatable {
+    case user
+    case reference
 }
 
 enum InsightCarouselMediaInteractionPolicy {
@@ -528,6 +546,7 @@ struct CarouselPageItem: Identifiable, Equatable {
     let mediaKind: CarouselMediaKind
     let view: AnyView
     let imageIdentifier: String?
+    let imageOrigin: CarouselImageOrigin?
     let referenceAttributionLabel: String?
     let focusRegion: NormalizedImageFocusRegion?
 
@@ -536,6 +555,7 @@ struct CarouselPageItem: Identifiable, Equatable {
         mediaKind: CarouselMediaKind,
         view: AnyView,
         imageIdentifier: String? = nil,
+        imageOrigin: CarouselImageOrigin? = nil,
         referenceAttributionLabel: String? = nil,
         focusRegion: NormalizedImageFocusRegion? = nil
     ) {
@@ -543,17 +563,50 @@ struct CarouselPageItem: Identifiable, Equatable {
         self.mediaKind = mediaKind
         self.view = view
         self.imageIdentifier = imageIdentifier
+        self.imageOrigin = imageOrigin
         self.referenceAttributionLabel = referenceAttributionLabel
         self.focusRegion = focusRegion
     }
 
     static func == (lhs: CarouselPageItem, rhs: CarouselPageItem) -> Bool {
-        lhs.id == rhs.id && lhs.focusRegion == rhs.focusRegion
+        lhs.id == rhs.id
+            && lhs.imageOrigin == rhs.imageOrigin
+            && lhs.focusRegion == rhs.focusRegion
     }
 }
 
-enum CarouselImageAvailabilityOrdering {
-    static func movingUnavailableImagesToBack(
+enum CarouselImageAvailabilityPolicy {
+    static func visiblePages(
+        _ pages: [CarouselPageItem],
+        unavailableIdentifiers: Set<String>,
+        loadedReferenceIdentifiers: Set<String>
+    ) -> [CarouselPageItem] {
+        let orderedPages = movingUnavailableImagesToBack(
+            pages,
+            unavailableIdentifiers: unavailableIdentifiers
+        )
+        let hasLoadedReference = orderedPages.contains { page in
+            guard page.imageOrigin == .reference,
+                  let identifier = page.imageIdentifier else {
+                return false
+            }
+            return loadedReferenceIdentifiers.contains(identifier)
+                && !unavailableIdentifiers.contains(identifier)
+        }
+        guard hasLoadedReference else {
+            return orderedPages
+        }
+
+        return orderedPages.filter { page in
+            guard page.imageOrigin == .user,
+                  let identifier = page.imageIdentifier else {
+                return true
+            }
+            return !unavailableIdentifiers.contains(identifier)
+        }
+    }
+
+    private static func movingUnavailableImagesToBack(
         _ pages: [CarouselPageItem],
         unavailableIdentifiers: Set<String>
     ) -> [CarouselPageItem] {
@@ -579,6 +632,34 @@ enum CarouselImageAvailabilityOrdering {
             reorderedPages[index] = page
         }
         return reorderedPages
+    }
+}
+
+enum CarouselSelectionResolver {
+    static func selectedIndex(
+        preserving selectedPageID: String?,
+        previousSelectedIndex: Int,
+        in pages: [CarouselPageItem],
+        loadedReferenceIdentifiers: Set<String>
+    ) -> Int {
+        guard !pages.isEmpty else { return 0 }
+
+        if let selectedPageID,
+           let preservedIndex = pages.firstIndex(where: { $0.id == selectedPageID }) {
+            return preservedIndex
+        }
+
+        if let loadedReferenceIndex = pages.firstIndex(where: { page in
+            guard page.imageOrigin == .reference,
+                  let identifier = page.imageIdentifier else {
+                return false
+            }
+            return loadedReferenceIdentifiers.contains(identifier)
+        }) {
+            return loadedReferenceIndex
+        }
+
+        return max(0, min(previousSelectedIndex, pages.count - 1))
     }
 }
 
@@ -640,14 +721,15 @@ struct ImagesCarousel: View {
     @State private var isVideoMuted = true
     @State private var videoPlaybackCoordinator = InsightCarouselVideoPlaybackCoordinator()
     @State private var unavailableImageIdentifiers: Set<String> = []
+    @State private var loadedReferenceImageIdentifiers: Set<String> = []
 
     // MARK: - Body
     var body: some View {
         Group {
-            if activeMedia.totalItems > 0 {
+            if !carouselPages.isEmpty {
                 GeometryReader { geometry in
                     NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
-                        // scanId only — activeMedia.totalItems changes async when validHistoricImagePaths resolves.
+                        // scanId only — page identities change async as media and references resolve.
                         // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
                         .id(scanId ?? "null")
                         .ignoresSafeArea(.all, edges: .top)
@@ -693,14 +775,16 @@ struct ImagesCarousel: View {
             selectedIndex = 0
             isVideoMuted = true
             unavailableImageIdentifiers.removeAll()
+            loadedReferenceImageIdentifiers.removeAll()
         }
     }
 
     // MARK: - Page Construction
     private var carouselPages: [CarouselPageItem] {
-        CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+        CarouselImageAvailabilityPolicy.visiblePages(
             sourceCarouselPages,
-            unavailableIdentifiers: unavailableImageIdentifiers
+            unavailableIdentifiers: unavailableImageIdentifiers,
+            loadedReferenceIdentifiers: loadedReferenceImageIdentifiers
         )
     }
 
@@ -745,11 +829,18 @@ struct ImagesCarousel: View {
     }
 
     private func handleVisualImageTap() {
-        let selectedPageID = carouselPages[safe: selectedIndex]?.id
+        let pages = carouselPages
+        guard let selectedPage = pages[safe: selectedIndex] else { return }
+        if let imageIdentifier = selectedPage.imageIdentifier,
+           unavailableImageIdentifiers.contains(imageIdentifier) {
+            return
+        }
+
         guard let presentation = InsightImageGalleryBuilder.presentation(
             for: activeMedia,
             referenceWikipediaUrl: referenceWikipediaUrl,
-            selectedCarouselPageID: selectedPageID,
+            selectedCarouselPageID: selectedPage.id,
+            orderedCarouselPageIDs: pages.map(\.id),
             isVideoMuted: isVideoMuted
         ) else { return }
 
@@ -769,35 +860,36 @@ struct ImagesCarousel: View {
         let previousPages = carouselPages
         let selectedPage = previousPages[safe: selectedIndex]
         var nextUnavailableIdentifiers = unavailableImageIdentifiers
-        let didChange: Bool
+        var nextLoadedReferenceIdentifiers = loadedReferenceImageIdentifiers
+        let imageOrigin = sourceCarouselPages.first(where: {
+            $0.imageIdentifier == identifier
+        })?.imageOrigin
+        var didChange = false
 
         if isUnavailable {
-            didChange = nextUnavailableIdentifiers.insert(identifier).inserted
+            didChange = nextUnavailableIdentifiers.insert(identifier).inserted || didChange
+            didChange = nextLoadedReferenceIdentifiers.remove(identifier) != nil || didChange
         } else {
-            didChange = nextUnavailableIdentifiers.remove(identifier) != nil
+            didChange = nextUnavailableIdentifiers.remove(identifier) != nil || didChange
+            if imageOrigin == .reference {
+                didChange = nextLoadedReferenceIdentifiers.insert(identifier).inserted || didChange
+            }
         }
         guard didChange else { return }
 
-        let reorderedPages = CarouselImageAvailabilityOrdering.movingUnavailableImagesToBack(
+        let updatedPages = CarouselImageAvailabilityPolicy.visiblePages(
             sourceCarouselPages,
-            unavailableIdentifiers: nextUnavailableIdentifiers
+            unavailableIdentifiers: nextUnavailableIdentifiers,
+            loadedReferenceIdentifiers: nextLoadedReferenceIdentifiers
         )
         unavailableImageIdentifiers = nextUnavailableIdentifiers
-
-        if isUnavailable,
-           selectedPage?.imageIdentifier == identifier,
-           let firstAvailableVisualIndex = reorderedPages.firstIndex(where: { page in
-               guard page.mediaKind == .visual else { return false }
-               guard let imageIdentifier = page.imageIdentifier else {
-                   return page.id != "reference-loading"
-               }
-               return !nextUnavailableIdentifiers.contains(imageIdentifier)
-           }) {
-            selectedIndex = firstAvailableVisualIndex
-        } else if let selectedPage,
-                  let preservedIndex = reorderedPages.firstIndex(where: { $0.id == selectedPage.id }) {
-            selectedIndex = preservedIndex
-        }
+        loadedReferenceImageIdentifiers = nextLoadedReferenceIdentifiers
+        selectedIndex = CarouselSelectionResolver.selectedIndex(
+            preserving: selectedPage?.id,
+            previousSelectedIndex: selectedIndex,
+            in: updatedPages,
+            loadedReferenceIdentifiers: nextLoadedReferenceIdentifiers
+        )
     }
 }
 
@@ -1249,10 +1341,11 @@ private extension ImagesCarousel {
 
     @ViewBuilder
     var paginationDots: some View {
+        let pageCount = carouselPages.count
         ZStack {
-            if activeMedia.totalItems > 1 {
+            if pageCount > 1 {
                 HStack(spacing: 8) {
-                    ForEach(0..<activeMedia.totalItems, id: \.self) { index in
+                    ForEach(0..<pageCount, id: \.self) { index in
                         Circle()
                             .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.4))
                             .frame(width: 6, height: 6)
@@ -1271,6 +1364,6 @@ private extension ImagesCarousel {
                 ))
             }
         }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: activeMedia.totalItems)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: pageCount)
     }
 }

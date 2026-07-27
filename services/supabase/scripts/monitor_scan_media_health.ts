@@ -15,11 +15,28 @@
  *     --summary-md /tmp/scan-media-health.md
  */
 
-import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";
+import {
+  createServiceRoleClientFromEnvironmentWithOptions,
+  invokeServiceRoleJson,
+  ServiceRoleFunctionInvocationError,
+} from "../functions/_shared/serviceRoleClient.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MONITOR_REQUEST_TIMEOUT_MS = 15_000;
 const MONITOR_MAXIMUM_RESPONSE_BYTES = 2 * 1_024 * 1_024;
+const MONITOR_MAXIMUM_ATTEMPTS = 6;
+const MONITOR_RETRY_DELAY_MS = 2_000;
+const RETRYABLE_MONITOR_STATUSES = new Set([
+  401,
+  404,
+  408,
+  425,
+  429,
+  500,
+  502,
+  503,
+  504,
+]);
 
 export type MonitorFailurePolicy = "critical" | "warning" | "never";
 export type ScanMediaHealthStatus = "ok" | "warning" | "critical";
@@ -89,6 +106,12 @@ export interface ScanMediaHealthIncidentAction {
   sample_hint: string;
 }
 
+export interface ScanMediaHealthInvocationOptions {
+  maximumAttempts?: number;
+  invoke?: typeof invokeServiceRoleJson;
+  wait?: (milliseconds: number) => Promise<void>;
+}
+
 if (import.meta.main) {
   const exitCode = await runMonitor(Deno.args);
   Deno.exit(exitCode);
@@ -101,7 +124,7 @@ export async function runMonitor(rawArgs: string[]): Promise<number> {
     maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
   });
 
-  const health = await postJson(
+  const health = await fetchDeployedScanMediaHealth(
     supabase,
     {
       limit: args.limit,
@@ -125,20 +148,63 @@ export async function runMonitor(rawArgs: string[]): Promise<number> {
   return 0;
 }
 
-async function postJson(
+export async function fetchDeployedScanMediaHealth(
   supabase: SupabaseClient,
   body: Record<string, unknown>,
+  options: ScanMediaHealthInvocationOptions = {},
 ): Promise<ScanMediaHealthResponse> {
-  const { data, error } = await supabase.functions.invoke(
-    "scan-media-health",
-    { body },
-  );
+  const maximumAttempts = options.maximumAttempts ?? MONITOR_MAXIMUM_ATTEMPTS;
+  if (
+    !Number.isSafeInteger(maximumAttempts) ||
+    maximumAttempts < 1 ||
+    maximumAttempts > MONITOR_MAXIMUM_ATTEMPTS
+  ) {
+    throw new TypeError(
+      `maximumAttempts must be between 1 and ${MONITOR_MAXIMUM_ATTEMPTS}.`,
+    );
+  }
+  const invoke = options.invoke ?? invokeServiceRoleJson;
+  const wait = options.wait ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
 
-  if (error) {
-    throw new Error(`scan-media-health returned an error: ${error.message}`);
+  for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+    try {
+      const data = await invoke<ScanMediaHealthResponse>(
+        supabase,
+        "scan-media-health",
+        body,
+      );
+      return assertSuccessfulHealthResponse(data);
+    } catch (error) {
+      if (
+        !(error instanceof ServiceRoleFunctionInvocationError) ||
+        !isRetryableScanMediaHealthInvocationFailure(error) ||
+        attempt === maximumAttempts
+      ) {
+        throw error;
+      }
+
+      const delay = attempt * MONITOR_RETRY_DELAY_MS;
+      console.error(
+        `${error.message} Retrying in ${
+          delay / 1_000
+        }s (attempt ${attempt}/${maximumAttempts}).`,
+      );
+      await wait(delay);
+    }
   }
 
-  return assertSuccessfulHealthResponse(data);
+  throw new Error("scan-media-health retry loop terminated unexpectedly.");
+}
+
+export function isRetryableScanMediaHealthInvocationFailure(
+  error: ServiceRoleFunctionInvocationError,
+): boolean {
+  return error.status === null ||
+    error.failureName === "FunctionsFetchError" ||
+    error.failureName === "FunctionsRelayError" ||
+    RETRYABLE_MONITOR_STATUSES.has(error.status);
 }
 
 export function buildMonitorSummary(

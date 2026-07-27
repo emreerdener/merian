@@ -89,7 +89,11 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   Storage, Functions, and Auth Admin calls. Operational monitors use the options
   factory to retain a 15-second deadline and an explicit streaming response
   ceiling (64 KiB for aggregate health, 2 MiB for detailed scan-media samples).
-  Transport and in-routine authorization remain independent: migration
+  JSON Function callers use `invokeServiceRoleJson(...)`: a non-2xx response
+  reports only its numeric status, bounded SDK failure class, and the fixed
+  `X-Merian-Handler: 1` routing marker before canceling the body. It never logs
+  the upstream body, request ID, or credential. Transport and in-routine
+  authorization remain independent: migration
   `20260727010340_fix_service_role_authorization_guard.sql` lets
   `internal.require_service_role()` recognize either the legacy JWT claim or
   PostgREST's protected standard `service_role` setting for an opaque key. It

@@ -10,11 +10,98 @@ import {
 import { timingSafeCompare } from "./http.ts";
 
 const SUPABASE_SERVICE_REQUEST_TIMEOUT_MS = 30_000;
+const EDGE_FUNCTION_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SAFE_FAILURE_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
+const MERIAN_HANDLER_HEADER = "X-Merian-Handler";
 
 export interface ServiceRoleClientTransportOptions {
   fetchImplementation?: typeof fetch;
   requestTimeoutMs?: number;
   maximumResponseBytes?: number;
+}
+
+export class ServiceRoleFunctionInvocationError extends Error {
+  constructor(
+    readonly functionName: string,
+    readonly status: number | null,
+    readonly reachedMerianHandler: boolean,
+    readonly failureName: string,
+  ) {
+    const statusMessage = status === null
+      ? "HTTP status unavailable"
+      : `HTTP ${status}`;
+    const handlerMessage = reachedMerianHandler
+      ? "Merian handler reached"
+      : "Merian handler not confirmed";
+    super(
+      `${functionName} invocation failed (${statusMessage}; ${handlerMessage}; ${failureName}). Response body withheld.`,
+    );
+    this.name = "ServiceRoleFunctionInvocationError";
+  }
+}
+
+function safeFailureName(error: unknown): string {
+  const candidate = error instanceof Error ? error.name : typeof error;
+  return SAFE_FAILURE_NAME_PATTERN.test(candidate)
+    ? candidate
+    : "UnknownFailure";
+}
+
+function invocationResponse(
+  response: Response | undefined,
+  error: unknown,
+): Response | undefined {
+  if (response instanceof Response) return response;
+  if (!error || typeof error !== "object") return undefined;
+  const context = (error as { context?: unknown }).context;
+  return context instanceof Response ? context : undefined;
+}
+
+/**
+ * Invokes a JSON Edge Function through the privileged SDK client while
+ * preserving only safe failure metadata.
+ *
+ * FunctionsHttpError keeps the upstream Response in `context`; logging the
+ * whole SDK error can therefore expose an internal response body. This helper
+ * records only the fixed handler marker, numeric status, and bounded error
+ * class, then cancels the untrusted body before throwing.
+ */
+export async function invokeServiceRoleJson<T>(
+  supabase: SupabaseClient,
+  functionName: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  if (!EDGE_FUNCTION_NAME_PATTERN.test(functionName)) {
+    throw new TypeError("Invalid Edge Function name.");
+  }
+
+  const { data, error, response } = await supabase.functions.invoke<T>(
+    functionName,
+    { body },
+  );
+  if (!error) return data as T;
+
+  const failedResponse = invocationResponse(response, error);
+  const status = failedResponse &&
+      Number.isInteger(failedResponse.status) &&
+      failedResponse.status >= 100 &&
+      failedResponse.status <= 599
+    ? failedResponse.status
+    : null;
+  const reachedMerianHandler =
+    failedResponse?.headers.get(MERIAN_HANDLER_HEADER) === "1";
+  try {
+    await failedResponse?.body?.cancel("response body withheld");
+  } catch {
+    // Status and the fixed marker are sufficient for safe classification.
+  }
+
+  throw new ServiceRoleFunctionInvocationError(
+    functionName,
+    status,
+    reachedMerianHandler,
+    safeFailureName(error),
+  );
 }
 
 /**

@@ -2,6 +2,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
   isCurrentPublishableKey,
   isLegacyAnonJwt,
+  type PublicApiKeyResolution,
   resolvePublicApiKeys,
 } from "./publishableKey.ts";
 
@@ -113,6 +114,56 @@ Deno.test("public resolver isolates malformed legacy fallback from a valid hoste
       acceptedPublicApiKeys: [DEFAULT_PUBLISHABLE_KEY],
     },
   );
+});
+
+Deno.test("public-key sources preserve resolution invariants across every configuration state", () => {
+  type SourceState = "absent" | "valid" | "invalid";
+  const sourceStates: SourceState[] = ["absent", "valid", "invalid"];
+
+  for (const named of sourceStates) {
+    for (const legacy of sourceStates) {
+      const resolution = resolvePublicApiKeys({
+        envPublishableKeys: named === "valid"
+          ? JSON.stringify({ default: DEFAULT_PUBLISHABLE_KEY })
+          : named === "invalid"
+          ? "{"
+          : "",
+        envAnonKey: legacy === "valid"
+          ? LEGACY_ANON_KEY
+          : legacy === "invalid"
+          ? legacyJwt("service_role")
+          : "",
+      });
+
+      const expected: PublicApiKeyResolution = named === "valid"
+        ? {
+          ok: true,
+          publicApiKey: DEFAULT_PUBLISHABLE_KEY,
+          acceptedPublicApiKeys: [
+            DEFAULT_PUBLISHABLE_KEY,
+            ...(legacy === "valid" ? [LEGACY_ANON_KEY] : []),
+          ],
+        }
+        : legacy === "valid"
+        ? {
+          ok: true,
+          publicApiKey: LEGACY_ANON_KEY,
+          acceptedPublicApiKeys: [LEGACY_ANON_KEY],
+        }
+        : named === "invalid" || legacy === "invalid"
+        ? {
+          ok: false,
+          reason: "invalid_publishable_key_configuration",
+        }
+        : { ok: false, reason: "no_configured_keys" };
+
+      assertEquals(
+        resolution,
+        expected,
+        `Resolution failed for ${named}/${legacy}`,
+      );
+    }
+  }
 });
 
 Deno.test("public resolver never normalizes malformed scalar credentials", () => {

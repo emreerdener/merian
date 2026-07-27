@@ -49,6 +49,27 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testExistingBiologicalHistoryDoesNotPresentFeedbackSurveyOnLaunch() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: [
+                "-seedAchievementDetailFlow",
+                "-feedbackSurveyDismissedCampaignId", "ui_test_none",
+                "-feedbackSurveySubmittedCampaignId", "ui_test_none"
+            ]
+        )
+
+        let shutter = app.buttons["CaptureShutter"]
+        XCTAssertTrue(shutter.waitForExistence(timeout: 8.0), "Camera shutter did not render")
+
+        let feedbackIntro = app.staticTexts["Help us improve"]
+        XCTAssertFalse(
+            feedbackIntro.waitForExistence(timeout: 2.5),
+            "Restored biological scan history presented the proactive survey during launch"
+        )
+        XCTAssertTrue(shutter.isHittable, "Launch history should not leave a survey over the capture workspace")
+    }
+
+    @MainActor
     func testAudioFirstLaunchSelectsRecordMode() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: ["-captureModeOrder", "audio,visual,describe"]

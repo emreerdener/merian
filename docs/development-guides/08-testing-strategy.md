@@ -1112,13 +1112,22 @@ production checks:
   dictionary entry, or opaque key placed only in the legacy variable.
   Cross-source cases prove a malformed scalar or dictionary never vetoes an
   exact key from another valid source, never becomes a candidate itself, and
-  still fails configuration when no valid key matches.
+  still fails configuration when no valid key matches. An exhaustive 243-state
+  matrix covers every absent, valid, and malformed combination across the five
+  server-key sources and locks both inbound authorization and outbound
+  precedence. The publishable-key and web-admin resolver suites apply the same
+  exhaustive state-combination check to their smaller source sets.
 - `_shared/serviceRoleClient_test.ts` executes PostgREST, Storage, Functions,
   and Auth Admin requests through an intercepted transport. It proves
   `sb_secret_...` keys are sent only as `apikey`, legacy service-role JWTs
   retain their required Bearer header, and `fetch(Request)` metadata or
   unrelated user access tokens are not discarded. It also proves the final SDK
-  transport attaches a hard request deadline.
+  transport attaches a hard request deadline. Function-invocation regressions
+  prove non-2xx responses retain only status, bounded failure class, and fixed
+  handler-marker presence while the body and credential stay private.
+- `scripts/monitor_scan_media_health_test.ts` proves the read-only production
+  monitor retries only reviewed transient Function failures, caps attempts at
+  six, and uses bounded 2/4/6/8/10-second backoff.
 - `_tests/serviceRoleAuthCoverage.test.ts` inventories every production
   authorization boundary, rejects database/network capability probes, permits
   direct Supabase client construction only at the reviewed public/user or

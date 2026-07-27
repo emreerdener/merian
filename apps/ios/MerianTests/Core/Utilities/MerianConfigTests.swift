@@ -41,6 +41,12 @@ struct MerianConfigTests {
 @Suite("Explore Error Formatter Tests")
 struct ExploreErrorFormatterTests {
 
+    @Test func taskAndURLSessionCancellationsAreSilent() {
+        #expect(ExploreErrorFormatter.isCancellation(CancellationError()))
+        #expect(ExploreErrorFormatter.isCancellation(URLError(.cancelled)))
+        #expect(!ExploreErrorFormatter.isCancellation(URLError(.timedOut)))
+    }
+
     @Test func duplicateScanPrimaryKeyErrorsUseShareRecoveryCopy() {
         let message = ExploreErrorFormatter.message(for: MerianError.httpError(
             statusCode: 409,

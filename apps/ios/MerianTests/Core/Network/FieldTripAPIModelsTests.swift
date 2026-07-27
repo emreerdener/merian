@@ -904,13 +904,21 @@ struct FieldTripAPIModelsTests {
         )
     }
 
-    @Test func fieldTripCardTagsPreserveLockedAccessAndOptionalLocation() {
+    @Test func fieldTripCardTagsReflectLifecycleAndPreserveMetadata() {
         let locked = makeCardTemplate(viewerHasAccess: false, isProOnly: true)
-        let privateStarted = makeCardTemplate(
+        let privateActive = makeCardTemplate(
             activeProgress: makeCardProgress(completedCount: 0, targetCount: 4)
+        )
+        let stopped = makeCardTemplate(
+            stoppedProgress: makeCardProgress(
+                completedCount: 0,
+                targetCount: 4,
+                stoppedAt: "2026-07-18T12:30:00Z"
+            )
         )
         let published = makeCardTemplate(
             activeProgress: makeCardProgress(
+                isComplete: true,
                 completedCount: 4,
                 targetCount: 4,
                 publicationId: "publication-backyard"
@@ -945,18 +953,27 @@ struct FieldTripAPIModelsTests {
         )
         #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
         #expect(unlocatedTags.allSatisfy { $0.kind != .visibility })
-        let privateStartedTags = FieldTripTemplatePresentation.cardTags(
-            for: privateStarted,
+        let privateActiveTags = FieldTripTemplatePresentation.cardTags(
+            for: privateActive,
             locationLabel: nil
         )
         #expect(
-            privateStartedTags.map(\.title) == [
-                "Started", "Private", "Starter", "Level 1"
+            privateActiveTags.map(\.title) == [
+                "Active", "Private", "Starter", "Level 1"
             ]
         )
         #expect(
-            privateStartedTags.first(where: { $0.kind == .visibility })?.systemImage ==
+            privateActiveTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.slash.fill"
+        )
+        let stoppedTags = FieldTripTemplatePresentation.cardTags(
+            for: stopped,
+            locationLabel: nil
+        )
+        #expect(
+            stoppedTags.map(\.title) == [
+                "Stopped", "Private", "Starter", "Level 1"
+            ]
         )
         let publishedTags = FieldTripTemplatePresentation.cardTags(
             for: published,
@@ -964,7 +981,7 @@ struct FieldTripAPIModelsTests {
         )
         #expect(
             publishedTags.map(\.title) == [
-                "Started", "Public", "Starter", "Level 1"
+                "Completed", "Public", "Starter", "Level 1"
             ]
         )
         #expect(

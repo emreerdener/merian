@@ -114,10 +114,12 @@ struct FeedbackSurveyPromptPolicy {
         campaignId: String = FeedbackSurveyCampaign.currentId,
         completedScanCount: Int,
         hasCompletedOnboarding: Bool,
+        hasForegroundBiologicalScanCompletion: Bool,
         dismissedCampaignId: String,
         submittedCampaignId: String
     ) -> Bool {
         guard hasCompletedOnboarding else { return false }
+        guard hasForegroundBiologicalScanCompletion else { return false }
         guard completedScanCount >= FeedbackSurveyCampaign.meaningfulCompletedScanCount else { return false }
         guard dismissedCampaignId != campaignId else { return false }
         guard submittedCampaignId != campaignId else { return false }

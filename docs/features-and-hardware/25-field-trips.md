@@ -155,9 +155,11 @@ migration filenames may still use `objective` or `challenge`:
   **Start an outing** with **Backyard Safari · 4 goals**.
 - Standard catalog cards show an accent progress ring beside the title and a
   current-level subtitle: **Observe {target count} local species often found in
-  your own backyard.** The thumbnail strip remains horizontally scrollable,
-  followed by Pro access when locked, difficulty, current level, public/private
-  publication status, and an optional privacy-filtered city/state tag.
+  your own backyard.** The thumbnail strip remains horizontally scrollable and
+  is followed by the lifecycle status (**Not started**, **Active**, **Stopped**,
+  or **Completed**), public/private publication status when progress exists, Pro
+  access when locked, difficulty, current level, and an optional privacy-filtered
+  city/state tag.
 
 ## Difficulty
 

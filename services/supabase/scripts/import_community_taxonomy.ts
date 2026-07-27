@@ -14,7 +14,10 @@
  *     --target birds --limit 100 --page-count 20 --update-checklist
  */
 
-import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";
+import {
+  createServiceRoleClientFromEnvironmentWithOptions,
+  invokeServiceRoleJson,
+} from "../functions/_shared/serviceRoleClient.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const IMPORT_REQUEST_TIMEOUT_MS = 3 * 60 * 1_000;
@@ -120,16 +123,7 @@ async function postJson<T>(
   functionName: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(
-    functionName,
-    { body },
-  );
-
-  if (error) {
-    throw new Error(`${functionName} returned an error: ${error.message}`);
-  }
-
-  return data as T;
+  return await invokeServiceRoleJson<T>(supabase, functionName, body);
 }
 
 function printSummary(

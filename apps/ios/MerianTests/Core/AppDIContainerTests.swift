@@ -56,7 +56,6 @@ struct AppDIContainerTests {
         #expect(settings.hasUnseenScan == false)
         #expect(settings.hasPromptedForNotificationsPostIdent == false)
         #expect(settings.hasSeenExploreOnboarding == false)
-        #expect(settings.hasSeenExploreNewChip == false)
         #expect(settings.hasUnseenExplorePost == false)
         #expect(settings.lastSeenExplorePostSharedAt.isEmpty)
         #expect(settings.suppressInferenceBanners == false)
@@ -64,7 +63,6 @@ struct AppDIContainerTests {
         settings.hasUnseenScan = true
         settings.hasPromptedForNotificationsPostIdent = true
         settings.hasSeenExploreOnboarding = true
-        settings.hasSeenExploreNewChip = true
         settings.hasUnseenExplorePost = true
         settings.lastSeenExplorePostSharedAt = "2026-05-09T12:34:56Z"
         settings.suppressInferenceBanners = true
@@ -72,7 +70,6 @@ struct AppDIContainerTests {
         #expect(defaults.bool(forKey: UserDefaultsKeys.hasUnseenScan))
         #expect(defaults.bool(forKey: UserDefaultsKeys.hasPromptedForNotificationsPostIdent))
         #expect(defaults.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding))
-        #expect(defaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip))
         #expect(defaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost))
         #expect(defaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) == "2026-05-09T12:34:56Z")
         #expect(defaults.bool(forKey: UserDefaultsKeys.suppressInferenceBanners))

@@ -98,6 +98,17 @@ selection retains strict precedence so a malformed configured override cannot
 silently fall through. Equivalent migration-source isolation is enforced in the
 public Edge key resolver and the public web server-key resolver.
 
+An overlapping Scan Media Health Monitor run then demonstrated a separate
+observability regression introduced when operational callers moved from direct
+HTTP to `supabase.functions.invoke(...)`: the SDK reduced every non-2xx
+response to `Edge Function returned a non-2xx status code`, and the wrapper
+discarded the attached response status and fixed handler marker. The shared
+`invokeServiceRoleJson(...)` boundary now cancels and withholds the response
+body while retaining only safe status, bounded SDK failure class, and
+`X-Merian-Handler: 1` presence. The read-only scan-media monitor makes six
+bounded attempts for reviewed transient statuses; mutating taxonomy imports use
+the same safe diagnostics without automatic replay.
+
 ## Rejected Workarounds and Durable Lessons
 
 Several diagnostic changes proposed during the incident were not valid

@@ -169,7 +169,12 @@ For a server-only worker or status route, the handler:
 final fetch adapter removes only supabase-js's exact inherited
 `Authorization: Bearer <opaque secret key>` fallback. It preserves a different
 user JWT and all unrelated caller headers. PostgREST, Storage, Functions, and
-Auth Admin therefore share one format-aware transport.
+Auth Admin therefore share one format-aware transport. Operational JSON
+Function calls also pass through `invokeServiceRoleJson(...)`. On failure it
+cancels the response body and exposes only the numeric status, bounded SDK
+failure class, and whether the fixed `X-Merian-Handler: 1` marker was present.
+It withholds response bodies, request IDs, variable header values, and
+credentials.
 
 Database authorization remains a second boundary. A server-exposed privileged
 RPC must still be allowlisted, have an empty fixed `search_path`, and call

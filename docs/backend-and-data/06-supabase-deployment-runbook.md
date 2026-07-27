@@ -3222,8 +3222,14 @@ The **Scan Media Health Monitor** workflow runs every 30 minutes and can also be
 started manually from GitHub Actions. It resolves a revealed production server
 key through `resolve_project_api_keys.ts` and the Management API, then calls
 `/scan-media-health` with format-aware standard headers. The request has a
-15-second deadline and a 2 MiB streaming response ceiling. It writes JSON and
-Markdown summary artifacts and appends the Markdown report to the job summary.
+15-second deadline and a 2 MiB streaming response ceiling. Because this
+endpoint is read-only, transient network, routing, authorization-propagation,
+rate-limit, and server statuses receive at most six attempts with a bounded
+2/4/6/8/10-second backoff. A final invocation failure reports only HTTP status,
+bounded SDK failure class, and whether the fixed `X-Merian-Handler: 1` marker
+was present; the body, request ID, variable headers, and credential remain
+withheld. It writes JSON and Markdown summary artifacts and appends the Markdown
+report to the job summary after a successful endpoint response.
 The Markdown report includes an **Incident Actions** table that maps each issue
 code to an owner, next step, runbook, and sample-field hint; use that table as
 the first triage view before opening raw database rows. It also includes a

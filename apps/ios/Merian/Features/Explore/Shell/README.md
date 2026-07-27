@@ -25,8 +25,7 @@ reevaluated on foreground returns.
 The generic feed is the lowest-priority launch route. Photos/Files imports
 dismiss it in favor of staging and crop, while deep links and tapped
 notifications replace it with their requested post, community request, scan, or
-library route. `CameraSheetRouter` marks `hasSeenExploreNewChip` when Explore
-appears, including this automatic presentation.
+library route.
 
 ## Field trip milestone routing
 

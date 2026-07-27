@@ -103,6 +103,7 @@ struct CaptureWorkspaceView: View {
     @State private var hasEvaluatedFeedbackSurveyPrompt = false
     @State private var feedbackSurveyPromptPending = false
     @State private var feedbackSurveyPresentedProactively = false
+    @State private var feedbackSurveyForegroundCompletionScanId: String?
 
     /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
     /// scrollPosition(id:) never writes captureMode directly — eliminating the "onChange(of:
@@ -662,6 +663,10 @@ struct CaptureWorkspaceView: View {
                 if inferenceEngine.historicHydrationTask != nil || inferenceEngine.speciesData != nil {
                     viewModel.activeSheet = .insight
                 }
+            case .foregroundBiologicalScanCompleted(let scanId):
+                if !hasEvaluatedFeedbackSurveyPrompt {
+                    feedbackSurveyForegroundCompletionScanId = scanId
+                }
             case .exploreShareStateChanged:
                 Task {
                     await MessageScanShareCacheWriter.refresh(
@@ -781,28 +786,47 @@ struct CaptureWorkspaceView: View {
             String(messageShareCacheRecords.count),
             String(appSettings.hasCompletedOnboarding),
             appSettings.feedbackSurveyDismissedCampaignId,
-            appSettings.feedbackSurveySubmittedCampaignId
+            appSettings.feedbackSurveySubmittedCampaignId,
+            feedbackSurveyForegroundCompletionScanId ?? "",
+            String(feedbackSurveyForegroundCompletionIsReflectedInHistory)
         ].joined(separator: "|")
+    }
+
+    private var feedbackSurveyForegroundCompletionIsReflectedInHistory: Bool {
+        guard let scanId = feedbackSurveyForegroundCompletionScanId else {
+            return false
+        }
+        return messageShareCacheRecords.contains {
+            $0.id.caseInsensitiveCompare(scanId) == .orderedSame
+        }
     }
 
     private func armFeedbackSurveyPromptIfEligible() async {
         guard !hasEvaluatedFeedbackSurveyPrompt else { return }
+        guard feedbackSurveyForegroundCompletionIsReflectedInHistory else {
+            return
+        }
         // swiftlint:disable:next todo
         // TODO(referral): When referral tracking is ready, evaluate a one-time
         // `hasSeenReferralPromptAfterSixthScan` gate here after the 6th completed
         // biological scan, then present only after no insight or other sheet is active.
-        guard FeedbackSurveyPromptPolicy.shouldPrompt(
+        let shouldPrompt = FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: messageShareCacheRecords.count,
             hasCompletedOnboarding: appSettings.hasCompletedOnboarding,
+            hasForegroundBiologicalScanCompletion: true,
             dismissedCampaignId: appSettings.feedbackSurveyDismissedCampaignId,
             submittedCampaignId: appSettings.feedbackSurveySubmittedCampaignId
-        ) else {
+        )
+
+        guard shouldPrompt else {
+            feedbackSurveyForegroundCompletionScanId = nil
             return
         }
 
         hasEvaluatedFeedbackSurveyPrompt = true
         feedbackSurveyPromptPending = true
         await presentPendingFeedbackSurveyIfReady()
+        feedbackSurveyForegroundCompletionScanId = nil
     }
 
     private func presentPendingFeedbackSurveyIfReady() async {

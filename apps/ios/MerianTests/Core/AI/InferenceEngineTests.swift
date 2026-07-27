@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftData
 import Testing
@@ -243,6 +244,13 @@ struct InferenceEngineTests {
         )
 
         let engine = InferenceEngine()
+        var completedScanIds: [String] = []
+        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+            if case .foregroundBiologicalScanCompleted(let scanId) = event {
+                completedScanIds.append(scanId)
+            }
+        }
+        defer { completionCancellable.cancel() }
 
         // Act
         engine.load(from: record)
@@ -261,6 +269,7 @@ struct InferenceEngineTests {
         // which filters out non-existent disk paths — cannot assert file paths in the unit test sandbox.
 
         #expect(engine.isProcessing == false, "Processing state should return to false synchronously")
+        #expect(completedScanIds.isEmpty, "Viewing historical scan data must not publish a foreground completion")
     }
 
     @Test func testLoadFromLocalScanRecordWithNilConfidenceDoesNotDefaultToPerfectMatch() async throws {
@@ -1327,6 +1336,13 @@ struct InferenceEngineTests {
     @Test func successfulResultCommitPublishesCompleteRevealState() {
         let engine = InferenceEngine()
         let scanId = "synchronized-result"
+        var completedScanIds: [String] = []
+        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+            if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
+                completedScanIds.append(completedScanId)
+            }
+        }
+        defer { completionCancellable.cancel() }
         let focusRegion = NormalizedImageFocusRegion(
             x: 0.2,
             y: 0.25,
@@ -1374,11 +1390,59 @@ struct InferenceEngineTests {
         #expect(engine.activeMedia.focusRegionsBySourceIndex[0] == focusRegion)
         #expect(engine.activeMedia.totalItems == 3)
         #expect(engine.isProcessing == false)
+        #expect(completedScanIds == [scanId])
+    }
+
+    @Test func nonBiologicalResultCommitDoesNotPublishForegroundCompletion() {
+        let engine = InferenceEngine()
+        let scanId = "non-biological-result"
+        let attemptGeneration = UUID()
+        var completedScanIds: [String] = []
+        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+            if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
+                completedScanIds.append(completedScanId)
+            }
+        }
+        defer { completionCancellable.cancel() }
+
+        engine.activeScanId = scanId
+        engine.activeLiveInferenceAttemptGeneration = attemptGeneration
+        engine.isProcessing = true
+
+        let didCommit = engine.commitSuccessfulResult(
+            for: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: nil,
+            speciesData: SpeciesData(
+                scanId: scanId,
+                commonName: "Non-biological subject",
+                scientificName: "Non-biological subject",
+                insightData: InsightData(
+                    aiReasoning: "No biological subject was detected.",
+                    hazardType: "none"
+                ),
+                confidenceScore: 0.91,
+                isBiological: false,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "unknown"
+            )
+        )
+
+        #expect(didCommit)
+        #expect(completedScanIds.isEmpty)
     }
 
     @Test func staleResultCommitCannotOverwriteCurrentScan() {
         let engine = InferenceEngine()
         let currentAttemptGeneration = UUID()
+        var completedScanIds: [String] = []
+        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+            if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
+                completedScanIds.append(completedScanId)
+            }
+        }
+        defer { completionCancellable.cancel() }
         engine.activeScanId = "current-scan"
         engine.activeLiveInferenceAttemptGeneration =
             currentAttemptGeneration
@@ -1411,6 +1475,7 @@ struct InferenceEngineTests {
         #expect(engine.activeMedia.items == [.liveImage(Data([0x02]))])
         #expect(engine.activeMedia.referenceState == .empty)
         #expect(engine.isProcessing)
+        #expect(completedScanIds.isEmpty)
     }
 
     @Test func staleAttemptForSameScanCannotOverwriteReplacementGeneration() {
@@ -1744,6 +1809,13 @@ struct InferenceEngineTests {
         let scanId =
             "released-background-presentation-\(UUID().uuidString.lowercased())"
         let releasedGeneration = UUID()
+        var completedScanIds: [String] = []
+        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+            if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
+                completedScanIds.append(completedScanId)
+            }
+        }
+        defer { completionCancellable.cancel() }
         manager.foregroundInferenceGenerations.removeValue(forKey: scanId)
         engine.activeScanId = scanId
         engine.activeLiveInferenceAttemptGeneration =
@@ -1787,6 +1859,7 @@ struct InferenceEngineTests {
         #expect(engine.activeScanId == nil)
         #expect(engine.activeLiveInferenceAttemptGeneration == nil)
         #expect(engine.activeForegroundInferenceGeneration == nil)
+        #expect(completedScanIds.isEmpty)
     }
 
     /// Tests the generation-fenced defer block used by both live pipelines.

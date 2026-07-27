@@ -45,6 +45,9 @@ enum AppEvent {
         entryPoint: RefinementEntryPoint = .standard
     )
 
+    /// Dispatched after a current foreground inference durably completes with a biological result.
+    case foregroundBiologicalScanCompleted(scanId: String)
+
     /// Dispatched to open the scans sheet and push the non-biological collection.
     case requestOpenNonBiologicalScansIntent
     /// Dispatched from external integrations to open the main scan library sheet.

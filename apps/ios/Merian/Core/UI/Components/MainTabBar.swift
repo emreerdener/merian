@@ -19,11 +19,9 @@ struct MainTabBar: View {
                 accessibilityIdentifier: "MainTabBar_Explore",
                 action: {
                     HapticManager.shared.triggerSheetSpring()
-                    appSettings.hasSeenExploreNewChip = true
                     isExploreOpen = true
                 },
-                showBadge: appSettings.hasUnseenExplorePost || hasUnreadExploreNotifications,
-                chipText: appSettings.hasUnseenExplorePost || hasUnreadExploreNotifications || appSettings.hasSeenExploreNewChip ? nil : "NEW"
+                showBadge: appSettings.hasUnseenExplorePost || hasUnreadExploreNotifications
             )
 
             // 2. Local Taxonomy Library

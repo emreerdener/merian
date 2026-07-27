@@ -12,10 +12,19 @@ struct FeedbackSurveyTests {
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
     }
 
-    @Test func promptPolicyRequiresOnboardingMeaningfulUseAndNoPriorCampaignAction() {
+    @Test func promptPolicyRequiresForegroundCompletionOnboardingAndMeaningfulUse() {
         #expect(FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: 3,
             hasCompletedOnboarding: true,
+            hasForegroundBiologicalScanCompletion: true,
+            dismissedCampaignId: "",
+            submittedCampaignId: ""
+        ))
+
+        #expect(!FeedbackSurveyPromptPolicy.shouldPrompt(
+            completedScanCount: 3,
+            hasCompletedOnboarding: true,
+            hasForegroundBiologicalScanCompletion: false,
             dismissedCampaignId: "",
             submittedCampaignId: ""
         ))
@@ -23,6 +32,7 @@ struct FeedbackSurveyTests {
         #expect(!FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: 2,
             hasCompletedOnboarding: true,
+            hasForegroundBiologicalScanCompletion: true,
             dismissedCampaignId: "",
             submittedCampaignId: ""
         ))
@@ -30,6 +40,7 @@ struct FeedbackSurveyTests {
         #expect(!FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: 3,
             hasCompletedOnboarding: false,
+            hasForegroundBiologicalScanCompletion: true,
             dismissedCampaignId: "",
             submittedCampaignId: ""
         ))
@@ -39,6 +50,7 @@ struct FeedbackSurveyTests {
         #expect(!FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: 3,
             hasCompletedOnboarding: true,
+            hasForegroundBiologicalScanCompletion: true,
             dismissedCampaignId: FeedbackSurveyCampaign.currentId,
             submittedCampaignId: ""
         ))
@@ -46,6 +58,7 @@ struct FeedbackSurveyTests {
         #expect(!FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: 3,
             hasCompletedOnboarding: true,
+            hasForegroundBiologicalScanCompletion: true,
             dismissedCampaignId: "",
             submittedCampaignId: FeedbackSurveyCampaign.currentId
         ))

@@ -7,6 +7,7 @@ import {
   requireServerApiKey,
   resolveServerApiKey,
   ServerApiKeyConfigurationError,
+  type ServiceRoleAuthOptions,
 } from "../_shared/serviceRoleAuth.ts";
 
 const LEGACY_SERVICE_ROLE_KEY = [
@@ -499,6 +500,162 @@ Deno.test("malformed higher-priority outbound sources never silently fall throug
     }),
     { ok: false, reason: "invalid_secret_key_configuration" },
   );
+});
+
+Deno.test("server-key sources preserve authorization and outbound invariants across every configuration state", () => {
+  type SourceState = "absent" | "valid" | "invalid";
+  const sourceStates: SourceState[] = ["absent", "valid", "invalid"];
+  const validSourceKeys = [
+    EXPLICIT_SECRET_KEY,
+    SYNCHRONIZED_SECRET_KEY,
+    DEFAULT_SECRET_KEY,
+    WORKER_SECRET_KEY,
+    LEGACY_SERVICE_ROLE_KEY,
+  ];
+
+  function optionsFor(states: SourceState[]): ServiceRoleAuthOptions {
+    const [explicit, synchronized, named, singular, legacy] = states;
+    return {
+      envServerApiKey: explicit === "valid"
+        ? EXPLICIT_SECRET_KEY
+        : explicit === "invalid"
+        ? INVALID_SECRET_KEY
+        : "",
+      envSynchronizedServerApiKey: synchronized === "valid"
+        ? SYNCHRONIZED_SECRET_KEY
+        : synchronized === "invalid"
+        ? INVALID_SECRET_KEY
+        : "",
+      envSecretKeys: named === "valid"
+        ? JSON.stringify({ default: DEFAULT_SECRET_KEY })
+        : named === "invalid"
+        ? "{"
+        : "",
+      envSecretKey: singular === "valid"
+        ? WORKER_SECRET_KEY
+        : singular === "invalid"
+        ? LEGACY_SERVICE_ROLE_KEY
+        : "",
+      envServiceRoleKey: legacy === "valid"
+        ? LEGACY_SERVICE_ROLE_KEY
+        : legacy === "invalid"
+        ? DEFAULT_SECRET_KEY
+        : "",
+    };
+  }
+
+  for (const explicit of sourceStates) {
+    for (const synchronized of sourceStates) {
+      for (const named of sourceStates) {
+        for (const singular of sourceStates) {
+          for (const legacy of sourceStates) {
+            const states = [
+              explicit,
+              synchronized,
+              named,
+              singular,
+              legacy,
+            ];
+            const options = optionsFor(states);
+            const validIndexes = states.flatMap((state, index) =>
+              state === "valid" ? [index] : []
+            );
+            const hasInvalidSource = states.includes("invalid");
+            const preferredValidKey = validIndexes.length > 0
+              ? validSourceKeys[validIndexes[0]]
+              : null;
+
+            for (const validIndex of validIndexes) {
+              const key = validSourceKeys[validIndex];
+              const headers: Record<string, string> = key.startsWith(
+                  "sb_secret_",
+                )
+                ? { apikey: key }
+                : {
+                  apikey: key,
+                  Authorization: `Bearer ${key}`,
+                };
+              assertEquals(
+                authorizeServiceRoleRequest(request(headers), options),
+                {
+                  ok: true,
+                  serverApiKey: preferredValidKey as string,
+                },
+                `Exact valid source ${validIndex} failed for ${
+                  states.join("/")
+                }`,
+              );
+            }
+
+            assertEquals(
+              authorizeServiceRoleRequest(
+                request({ Authorization: "Bearer unmatched-user-token" }),
+                options,
+              ),
+              hasInvalidSource
+                ? {
+                  ok: false,
+                  reason: "invalid_secret_key_configuration",
+                }
+                : validIndexes.length === 0
+                ? { ok: false, reason: "no_configured_keys" }
+                : { ok: false, reason: "token_mismatch" },
+              `Unmatched request was misclassified for ${states.join("/")}`,
+            );
+
+            const outbound = resolveServerApiKey(options);
+            let expectedOutbound: ReturnType<typeof resolveServerApiKey>;
+            if (explicit !== "absent") {
+              expectedOutbound = explicit === "valid"
+                ? { ok: true, serverApiKey: EXPLICIT_SECRET_KEY }
+                : {
+                  ok: false,
+                  reason: "invalid_secret_key_configuration",
+                };
+            } else if (synchronized !== "absent") {
+              expectedOutbound = synchronized === "valid"
+                ? { ok: true, serverApiKey: SYNCHRONIZED_SECRET_KEY }
+                : {
+                  ok: false,
+                  reason: "invalid_secret_key_configuration",
+                };
+            } else if (named === "valid") {
+              expectedOutbound = {
+                ok: true,
+                serverApiKey: DEFAULT_SECRET_KEY,
+              };
+            } else if (singular !== "absent") {
+              expectedOutbound = singular === "valid"
+                ? { ok: true, serverApiKey: WORKER_SECRET_KEY }
+                : {
+                  ok: false,
+                  reason: "invalid_secret_key_configuration",
+                };
+            } else if (legacy !== "absent") {
+              expectedOutbound = legacy === "valid"
+                ? { ok: true, serverApiKey: LEGACY_SERVICE_ROLE_KEY }
+                : {
+                  ok: false,
+                  reason: "invalid_secret_key_configuration",
+                };
+            } else {
+              expectedOutbound = named === "invalid"
+                ? {
+                  ok: false,
+                  reason: "invalid_secret_key_configuration",
+                }
+                : { ok: false, reason: "no_configured_keys" };
+            }
+            assertEquals(
+              outbound,
+              expectedOutbound,
+              `Outbound resolution failed for ${states.join("/")}`,
+            );
+          }
+        }
+      }
+    }
+  }
 });
 
 Deno.test("malformed configured values are never normalized into valid candidates", () => {

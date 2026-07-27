@@ -48,9 +48,6 @@ struct CameraSheetRouter: ViewModifier {
                             initialTab: viewModel.pendingExploreShowsFieldTrips ? .fieldTrips : .feed
                         )
                             .id(viewModel.explorePresentationIdentity)
-                            .onAppear {
-                                appSettings.hasSeenExploreNewChip = true
-                            }
                             .onDisappear {
                                 viewModel.pendingExplorePostId = nil
                                 viewModel.pendingSpeciesDictionaryRoute = nil
