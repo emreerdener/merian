@@ -3527,7 +3527,7 @@ private struct FieldTripTemplateSkeletonCard: View {
             .scrollDisabled(true)
             .padding(.bottom, 12)
 
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            Capsule()
                 .fill(Color.secondary.opacity(0.12))
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
