@@ -213,7 +213,9 @@ export async function fetchRevealedProjectApiKeys(
   }
 }
 
-function parseArguments(args: string[]): { projectRef: string; preferLegacy: boolean } {
+function parseArguments(
+  args: string[],
+): { projectRef: string; preferLegacy: boolean } {
   let projectRef = "";
   let preferLegacy = false;
 
@@ -238,7 +240,11 @@ if (import.meta.main) {
   try {
     const { projectRef, preferLegacy } = parseArguments(Deno.args);
     const accessToken = Deno.env.get("SUPABASE_ACCESS_TOKEN") ?? "";
-    const keys = await fetchRevealedProjectApiKeys(projectRef, accessToken, preferLegacy);
+    const keys = await fetchRevealedProjectApiKeys(
+      projectRef,
+      accessToken,
+      preferLegacy,
+    );
     console.log(JSON.stringify(keys));
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
