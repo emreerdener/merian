@@ -64,10 +64,8 @@ export function serviceRoleRequestHeaders(
 
   const headers: Record<string, string> = {
     apikey: serverApiKey,
+    Authorization: `Bearer ${serverApiKey}`,
   };
-  if (!serverApiKey.startsWith("sb_secret_")) {
-    headers.Authorization = `Bearer ${serverApiKey}`;
-  }
   return headers;
 }
 

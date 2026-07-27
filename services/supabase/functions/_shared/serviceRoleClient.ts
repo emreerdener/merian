@@ -28,27 +28,7 @@ export function createServiceRoleFetchTransport(
     fetchImplementation,
   );
 
-  return (input, init) => {
-    if (!validatedServerApiKey.startsWith("sb_secret_")) {
-      return deadlineTransport(input, init);
-    }
-
-    // A Request object inherits its headers unless init.headers explicitly
-    // replaces them. Preserve that behavior while inspecting the exact
-    // credential supabase-js supplied.
-    const initHeaders = init && "headers" in init
-      ? init.headers as HeadersInit
-      : undefined;
-    const sourceHeaders = initHeaders ??
-      (input instanceof Request ? input.headers : undefined);
-    const headers = new Headers(sourceHeaders);
-    if (
-      headers.get("Authorization") === `Bearer ${validatedServerApiKey}`
-    ) {
-      headers.delete("Authorization");
-    }
-    return deadlineTransport(input, { ...init, headers });
-  };
+  return deadlineTransport;
 }
 
 /**

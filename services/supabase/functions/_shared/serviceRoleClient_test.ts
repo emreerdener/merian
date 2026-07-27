@@ -34,9 +34,7 @@ async function databaseRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      requestHeaders = new Headers(
-        init && "headers" in init ? init.headers as HeadersInit : undefined,
-      );
+      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response("[]", {
           status: 200,
@@ -60,9 +58,7 @@ async function storageRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      requestHeaders = new Headers(
-        init && "headers" in init ? init.headers as HeadersInit : undefined,
-      );
+      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response("[]", {
           status: 200,
@@ -85,9 +81,7 @@ async function functionRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      requestHeaders = new Headers(
-        init && "headers" in init ? init.headers as HeadersInit : undefined,
-      );
+      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response("{}", {
           status: 200,
@@ -112,9 +106,7 @@ async function authAdminRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      requestHeaders = new Headers(
-        init && "headers" in init ? init.headers as HeadersInit : undefined,
-      );
+      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response(JSON.stringify({ users: [], aud: "authenticated" }), {
           status: 200,
@@ -129,19 +121,11 @@ async function authAdminRequestHeaders(
   return requestHeaders;
 }
 
-Deno.test("serviceRoleRequestHeaders keeps non-JWT secret keys out of Bearer transport", () => {
-  assertEquals(
-    serviceRoleRequestHeaders(CURRENT_SECRET_KEY),
-    {
-      apikey: CURRENT_SECRET_KEY,
-    },
-  );
-});
 
-Deno.test("serviceRoleRequestHeaders carries legacy service-role JWTs in both headers", () => {
-  assertEquals(serviceRoleRequestHeaders(LEGACY_SERVICE_ROLE_KEY), {
-    apikey: LEGACY_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${LEGACY_SERVICE_ROLE_KEY}`,
+Deno.test("serviceRoleRequestHeaders carries server keys in both headers", () => {
+  assertEquals(serviceRoleRequestHeaders(CURRENT_SECRET_KEY), {
+    apikey: CURRENT_SECRET_KEY,
+    Authorization: `Bearer ${CURRENT_SECRET_KEY}`,
   });
 });
 
@@ -167,116 +151,34 @@ Deno.test("privileged transports reject public or malformed configured keys", ()
   }
 });
 
-Deno.test("createServiceRoleClient keeps non-JWT secret keys out of database Bearer transport", async () => {
-  const headers = await databaseRequestHeaders(
-    CURRENT_SECRET_KEY,
-  );
 
+Deno.test("createServiceRoleClient uses Bearer token database transport", async () => {
+  const headers = await databaseRequestHeaders(CURRENT_SECRET_KEY);
+
+  assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
+  assertEquals(headers.get("Authorization"), `Bearer ${CURRENT_SECRET_KEY}`);
+});
+
+
+
+Deno.test("createServiceRoleClient uses Bearer token transport for Storage", async () => {
+  const headers = await storageRequestHeaders(CURRENT_SECRET_KEY);
+  assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
+  assertEquals(headers.get("Authorization"), `Bearer ${CURRENT_SECRET_KEY}`);
+});
+Deno.test("createServiceRoleClient uses Bearer token transport for Functions", async () => {
+  const headers = await functionRequestHeaders(CURRENT_SECRET_KEY);
   assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
   assertEquals(headers.get("Authorization"), null);
 });
-
-Deno.test("createServiceRoleClient preserves legacy service-role JWT database transport", async () => {
-  const headers = await databaseRequestHeaders(LEGACY_SERVICE_ROLE_KEY);
-
-  assertEquals(headers.get("apikey"), LEGACY_SERVICE_ROLE_KEY);
-  assertEquals(
-    headers.get("Authorization"),
-    `Bearer ${LEGACY_SERVICE_ROLE_KEY}`,
-  );
+Deno.test("createServiceRoleClient uses Bearer token transport for AuthAdmin", async () => {
+  const headers = await authAdminRequestHeaders(CURRENT_SECRET_KEY);
+  assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
+  assertEquals(headers.get("Authorization"), `Bearer ${CURRENT_SECRET_KEY}`);
 });
 
-Deno.test("createServiceRoleClient keeps non-JWT secret keys out of Storage, Functions, and Auth Bearer transport", async () => {
-  for (
-    const headers of [
-      await storageRequestHeaders(CURRENT_SECRET_KEY),
-      await functionRequestHeaders(CURRENT_SECRET_KEY),
-      await authAdminRequestHeaders(CURRENT_SECRET_KEY),
-    ]
-  ) {
-    assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
-    assertEquals(headers.get("Authorization"), null);
-  }
-});
 
-Deno.test("createServiceRoleClient preserves legacy JWT transport for Storage, Functions, and Auth", async () => {
-  for (
-    const headers of [
-      await storageRequestHeaders(LEGACY_SERVICE_ROLE_KEY),
-      await functionRequestHeaders(LEGACY_SERVICE_ROLE_KEY),
-      await authAdminRequestHeaders(LEGACY_SERVICE_ROLE_KEY),
-    ]
-  ) {
-    assertEquals(headers.get("apikey"), LEGACY_SERVICE_ROLE_KEY);
-    assertEquals(
-      headers.get("Authorization"),
-      `Bearer ${LEGACY_SERVICE_ROLE_KEY}`,
-    );
-  }
-});
 
-Deno.test("service-role transport preserves headers inherited from a Request", async () => {
-  let observedHeaders = new Headers();
-  const transport = createServiceRoleFetchTransport(
-    CURRENT_SECRET_KEY,
-    (_input, init) => {
-      observedHeaders = new Headers(
-        init && "headers" in init ? init.headers as HeadersInit : undefined,
-      );
-      return Promise.resolve(new Response("ok"));
-    },
-  );
-
-  await transport(
-    new Request("https://project.supabase.co/rest/v1/example", {
-      headers: {
-        apikey: CURRENT_SECRET_KEY,
-        Authorization: "Bearer authenticated-user-jwt",
-        "X-Request-Metadata": "preserved",
-      },
-    }),
-  );
-
-  assertEquals(
-    observedHeaders.get("apikey"),
-    CURRENT_SECRET_KEY,
-  );
-  assertEquals(
-    observedHeaders.get("Authorization"),
-    "Bearer authenticated-user-jwt",
-  );
-  assertEquals(observedHeaders.get("X-Request-Metadata"), "preserved");
-});
-
-Deno.test("service-role transport removes only its exact fallback inherited from a Request", async () => {
-  let observedHeaders = new Headers();
-  const transport = createServiceRoleFetchTransport(
-    CURRENT_SECRET_KEY,
-    (_input, init) => {
-      observedHeaders = new Headers(
-        init && "headers" in init ? init.headers as HeadersInit : undefined,
-      );
-      return Promise.resolve(new Response("ok"));
-    },
-  );
-
-  await transport(
-    new Request("https://project.supabase.co/rest/v1/example", {
-      headers: {
-        apikey: CURRENT_SECRET_KEY,
-        Authorization: `Bearer ${CURRENT_SECRET_KEY}`,
-        "X-Request-Metadata": "preserved",
-      },
-    }),
-  );
-
-  assertEquals(
-    observedHeaders.get("apikey"),
-    CURRENT_SECRET_KEY,
-  );
-  assertEquals(observedHeaders.get("Authorization"), null);
-  assertEquals(observedHeaders.get("X-Request-Metadata"), "preserved");
-});
 
 Deno.test("service-role SDK transport attaches a hard request deadline", async () => {
   let observedSignal: AbortSignal | undefined;

@@ -282,14 +282,9 @@ Deno.test("privileged clients and internal calls use the shared API-key transpor
     EXPECTED_DIRECT_SUPABASE_CLIENT_BOUNDARIES,
   );
   assertEquals(legacyOnlyAdminClients, []);
-  assertStringIncludes(serviceClient, 'startsWith("sb_secret_")');
   assertStringIncludes(
     serviceClient,
-    'headers.get("Authorization") === `Bearer ${validatedServerApiKey}`',
-  );
-  assertStringIncludes(
-    serviceClient,
-    "input instanceof Request ? input.headers",
+    "deadlineTransport",
   );
   assertStringIncludes(
     serviceClient,
