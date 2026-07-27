@@ -105,7 +105,8 @@ jobs:
           fail_on="${INPUT_FAIL_ON:-warning}"
 
           set +e
-          deno run --allow-net --allow-env --allow-write \
+          deno run --config services/supabase/functions/deno.json \
+            --allow-net --allow-env --allow-write \
             services/supabase/scripts/monitor_revenuecat_reconciliation.ts \
             --warning-after-minutes "$warning_after" \
             --critical-after-minutes "$critical_after" \

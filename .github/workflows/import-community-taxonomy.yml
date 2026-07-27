@@ -146,7 +146,8 @@ jobs:
             args+=(--update-checklist)
           fi
 
-          deno run --allow-net --allow-env --allow-read --allow-write \
+          deno run --config services/supabase/functions/deno.json \
+            --allow-net --allow-env --allow-read --allow-write \
             services/supabase/scripts/import_community_taxonomy.ts \
             "${args[@]}"
 

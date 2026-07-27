@@ -9,7 +9,6 @@ import {
   renderCsv,
 } from "./audit_ghost_users.ts";
 
-
 Deno.test("protected ghost merge sources are never classified as empty", () => {
   const activityByUserId = new Map<string, ActivityCounts>();
   addProtectedGhostMergeActivity(activityByUserId, [

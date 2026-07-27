@@ -93,11 +93,13 @@ audit-supabase-privileged-routines:
 		--enforce
 
 audit-ghost-users:
-	deno run --allow-net --allow-env --allow-read --allow-write \
+	deno run --config services/supabase/functions/deno.json \
+		--allow-net --allow-env --allow-read --allow-write \
 		services/supabase/scripts/audit_ghost_users.ts $(ARGS)
 
 cleanup-ghost-users:
-	deno run --allow-net --allow-env --allow-read --allow-write \
+	deno run --config services/supabase/functions/deno.json \
+		--allow-net --allow-env --allow-read --allow-write \
 		services/supabase/scripts/cleanup_ghost_users.ts $(ARGS)
 
 db-push:
