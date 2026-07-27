@@ -387,8 +387,7 @@ Deno.test("operational callers use exact server-key discovery and shared transpo
     ]
   ) {
     const script = await Deno.readTextFile(scriptUrl);
-    assertStringIncludes(script, "serviceRoleRequestHeaders(");
-    assertStringIncludes(script, "requireServerApiKeyFromEnvironment()");
+    assertStringIncludes(script, "createServiceRoleClientFromEnvironment(");
     assert(
       !script.includes('"Authorization": `Bearer ${'),
       `${scriptUrl.pathname} must use the shared API-key transport policy.`,
