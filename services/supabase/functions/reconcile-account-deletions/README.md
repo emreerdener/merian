@@ -2,7 +2,8 @@
 
 Service-only worker for durable account erasure. The
 `reconcile_account_deletions_every_five_minutes` database cron invokes this
-route with the Supabase service-role bearer credential.
+route with a platform-managed current or legacy server credential. Opaque keys
+use `apikey` only; legacy JWT keys use both supported headers.
 
 Each invocation leases at most 100 due jobs through
 `claim_account_deletion_jobs`. For every `pending` or `auth_pending` claim, the
@@ -23,9 +24,10 @@ The cleanup is deliberately repeated on Auth retries, and a database trigger
 rejects public-profile recreation while the job is active. Together these close
 the interval between relational cleanup and the external Auth operation.
 
-The endpoint accepts only `POST`, uses bounded JSON parsing, and compares the
-full `Authorization: Bearer <service-role-key>` value in constant time. It never
-accepts a user ID in its body.
+The endpoint accepts only `POST`, uses bounded JSON parsing, and timing-safely
+matches one exact current or legacy server key through the shared request
+boundary. Opaque keys are accepted only in `apikey`; legacy JWTs use matching
+`apikey` and Bearer headers. It never accepts a user ID in its body.
 
 ## Independent health alert
 
@@ -41,13 +43,13 @@ setting. This boolean checks only that the effective URL and credential are
 nonblank; it does not validate their destination, authority, or equality with
 the Edge secret.
 
-The cron currently transports the exact Vault `SUPABASE_SERVICE_ROLE_KEY` as a
-bearer token, and this endpoint compares it with its injected Edge value.
-Consequently that Vault value must remain the exact legacy service-role JWT for
-this path. A modern opaque `sb_secret_...` server key is valid for the
-independent monitor's `apikey` request, but is not interchangeable with the
-reaper's bearer-only credential. Migrate this endpoint and cron together before
-legacy-key retirement; never rotate only one side.
+Migration `20260727013416_future_proof_server_key_boundaries.sql` applies the
+shared database `pg_net` transport policy to this cron. An opaque
+`sb_secret_...` Vault value is sent only in `apikey`; a legacy service-role JWT
+is sent in both `apikey` and Bearer Authorization. This endpoint compares the
+received credential with the platform-managed current and legacy server-key
+sets. Rotate the Vault value and project key together; never rotate only one
+side.
 
 `.github/workflows/account-deletion-health-monitor.yml` runs every five minutes
 at a different offset and reads the RPC with a server key resolved through the

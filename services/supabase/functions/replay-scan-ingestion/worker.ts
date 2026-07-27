@@ -1,7 +1,14 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 import { logStructuredError, runBackground } from "../_shared/edgeHandler.ts";
-import { serviceRoleRequestHeaders } from "../_shared/serviceRoleAuth.ts";
+import {
+  fetchWithDeadline,
+  readResponseTextWithinLimit,
+} from "../_shared/outbound.ts";
+import {
+  requireServerApiKeyFromEnvironment,
+  serviceRoleRequestHeaders,
+} from "../_shared/serviceRoleAuth.ts";
 import {
   claimReplayableScanIngestionJobs,
   fetchReplayScans,
@@ -15,6 +22,12 @@ export const DEFAULT_REPLAY_LIMIT = 5;
 export const MAX_REPLAY_LIMIT = 50;
 export const DEFAULT_REPLAY_LEASE_SECONDS = 300;
 export const DEFAULT_REPLAY_RETRY_AFTER_MINUTES = 5;
+export const REPLAY_IDENTIFY_TIMEOUT_MS = 120_000;
+export const REPLAY_LEASE_SAFETY_MARGIN_MS = 30_000;
+export const MINIMUM_REPLAY_LEASE_SECONDS = Math.ceil(
+  (REPLAY_IDENTIFY_TIMEOUT_MS + REPLAY_LEASE_SAFETY_MARGIN_MS) / 1000,
+);
+const REPLAY_ERROR_RESPONSE_LIMIT_BYTES = 8 * 1024;
 
 export interface ReplayScanIngestionOptions {
   limit?: number;
@@ -220,21 +233,31 @@ export async function invokeIdentifyMultimodalReplay(input: {
   payload: Record<string, unknown>;
   userId: string;
   replayAttemptCount: number;
-}): Promise<void> {
-  const response = await fetch(input.identifyUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...serviceRoleRequestHeaders(input.serviceRoleKey),
-      "X-Merian-Internal-Replay": "scan-ingestion",
-      "X-Merian-Replay-User-Id": input.userId,
-      "X-Merian-Replay-Attempt": String(input.replayAttemptCount),
+}, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetchWithDeadline(
+    input.identifyUrl,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...serviceRoleRequestHeaders(input.serviceRoleKey),
+        "X-Merian-Internal-Replay": "scan-ingestion",
+        "X-Merian-Replay-User-Id": input.userId,
+        "X-Merian-Replay-Attempt": String(input.replayAttemptCount),
+      },
+      body: JSON.stringify(input.payload),
     },
-    body: JSON.stringify(input.payload),
-  });
+    {
+      fetcher,
+      timeoutMs: REPLAY_IDENTIFY_TIMEOUT_MS,
+    },
+  );
 
   if (!response.ok) {
-    const text = await response.text().catch(() => "");
+    const text = await readResponseTextWithinLimit(
+      response,
+      REPLAY_ERROR_RESPONSE_LIMIT_BYTES,
+    ).catch(() => "");
     throw new Error(
       `identify-multimodal replay failed: ${response.status} ${text}`.slice(
         0,
@@ -242,6 +265,7 @@ export async function invokeIdentifyMultimodalReplay(input: {
       ),
     );
   }
+  await response.body?.cancel().catch(() => undefined);
 }
 
 async function dispatchRow(
@@ -310,7 +334,7 @@ export async function replayScanIngestion(
   const leaseSeconds = clampInteger(
     options.leaseSeconds,
     DEFAULT_REPLAY_LEASE_SECONDS,
-    30,
+    MINIMUM_REPLAY_LEASE_SECONDS,
     30 * 60,
   );
   const retryAfterMinutes = clampInteger(
@@ -321,8 +345,8 @@ export async function replayScanIngestion(
   );
   const identifyUrl = options.identifyUrl ??
     `${Deno.env.get("SUPABASE_URL") ?? ""}/functions/v1/identify-multimodal`;
-  const serviceRoleKey = options.serviceRoleKey ??
-    (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+  const serviceRoleKey = options.serviceRoleKey?.trim() ||
+    requireServerApiKeyFromEnvironment();
 
   const claimJobs = dependencies.claimJobs ?? claimReplayableScanIngestionJobs;
   const fetchScans = dependencies.fetchScans ?? fetchReplayScans;

@@ -110,15 +110,20 @@ Deno.test("moderation media fetch enforces exact host and preserves video MIME",
     "not an approved Naturebook media URL",
   );
 
+  let receivedSignal: AbortSignal | undefined;
+  const fetcher = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    receivedSignal = init?.signal ?? undefined;
+    return Promise.resolve(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: { "content-type": "video/mp4" },
+      }),
+    );
+  }) as typeof fetch;
   const result = await fetchBoundedModerationMedia(
     "https://media.merian.app/public_uploads/pro/clip.mp4",
-    () =>
-      Promise.resolve(
-        new Response(new Uint8Array([1, 2, 3]), {
-          headers: { "content-type": "video/mp4" },
-        }),
-      ),
+    fetcher,
   );
+  assertEquals(receivedSignal instanceof AbortSignal, true);
   assertEquals(result.mimeType, "video/mp4");
   assertEquals(result.bytes.byteLength, 3);
 });

@@ -37,8 +37,9 @@ Web runtime config:
 - `NEXT_PUBLIC_SITE_URL` should be `https://naturebook.earth` in production.
 - `NEXT_PUBLIC_SUPPORT_EMAIL` should be `support@naturebook.earth` in
   production.
-- `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never expose it through a
-  `NEXT_PUBLIC_` variable or client component. Its only web owner is
+- Supabase server keys are server-only. Prefer `SUPABASE_SERVER_API_KEY`;
+  `SUPABASE_SERVICE_ROLE_KEY` is migration-only. Never expose either through a
+  `NEXT_PUBLIC_` variable or client component. Their only web owner is
   `apps/web/lib/supabaseAdmin.ts`, guarded by `server-only`; `supabasePublic.ts`
   contains the anonymous projection client.
 
@@ -286,6 +287,24 @@ counters, ten-minute fenced reservation leases, charged failed-retry state,
 automatic stale refund, and API-role privilege revocations. Coverage lives in
 `_tests/aiQuotaCoverage.test.ts`, `_tests/aiQuotaMigrationContract.test.ts`, and
 `tests/ai_quota_security.sql`.
+
+Privileged database routine execution:
+
+- `services/supabase/migrations/20260723144640_harden_privileged_routine_execution.sql`
+  owns the deny-by-default public-definer ACL catalog, fixed empty search paths,
+  owner-safe defaults, and caller-check requirement.
+- `services/supabase/migrations/20260727010340_fix_service_role_authorization_guard.sql`
+  keeps the service-only in-function check compatible with legacy JWT keys and
+  PostgREST role impersonation for opaque server keys without changing grants.
+- `services/supabase/migrations/20260727013416_future_proof_server_key_boundaries.sql`
+  adds the private key-format-aware `pg_net` header policy, migrates installed
+  HTTP routines and persisted cron commands, and repairs mixed user/service
+  dispatch in the owner media-incident routine.
+- `services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts`,
+  `services/supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts`,
+  `services/supabase/tests/privileged_routine_security.sql`, and
+  `services/supabase/scripts/audit_privileged_routine_acl.ts` provide static,
+  disposable-catalog, and production read-only enforcement respectively.
 
 Server species-count projection:
 

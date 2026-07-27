@@ -4,8 +4,8 @@ Internal cron worker that promotes high-quality, currently published Explore
 post media into `species_reference_images` with `source = "merian"`.
 
 The worker is service-role only. `verify_jwt = false` is intentional so `pg_net`
-can call it; the function validates
-`Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with a timing-safe compare.
+can call it; the function timing-safely validates one exact platform-managed
+current or legacy server key. Opaque keys use `apikey` only.
 
 ## Request
 

@@ -1,5 +1,12 @@
+import {
+  fetchWithDeadline,
+  readResponseJsonWithinLimit,
+} from "../_shared/outbound.ts";
+
 export const GBIF_BIRDS_TAXON_KEY = 212;
 export const GBIF_BIRDS_SCIENTIFIC_NAME = "Aves";
+const GBIF_IMPORT_REQUEST_TIMEOUT_MS = 6_000;
+const GBIF_IMPORT_RESPONSE_LIMIT_BYTES = 4 * 1024 * 1024;
 
 export interface GbifTaxonomyImportTarget {
   slug: "birds";
@@ -68,15 +75,20 @@ export async function fetchGbifTaxonomyImportPage(
   url.searchParams.set("offset", String(offset));
   url.searchParams.set("limit", String(limit));
 
-  const response = await fetcher(url, {
-    headers: { "Accept": "application/json" },
-    signal: AbortSignal.timeout(6000),
-  });
+  const response = await fetchWithDeadline(
+    url,
+    { headers: { "Accept": "application/json" } },
+    { fetcher, timeoutMs: GBIF_IMPORT_REQUEST_TIMEOUT_MS },
+  );
   if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
     throw new Error(`GBIF species search failed with HTTP ${response.status}.`);
   }
 
-  const json = await response.json();
+  const json = await readResponseJsonWithinLimit(
+    response,
+    GBIF_IMPORT_RESPONSE_LIMIT_BYTES,
+  );
   if (!json || typeof json !== "object" || Array.isArray(json)) {
     throw new Error("GBIF species search returned an invalid response.");
   }

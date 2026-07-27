@@ -266,8 +266,8 @@ The feature is not production-complete until all of the following are true:
 
 - both migrations are applied in order;
 - all three new Edge Functions and the updated push function are deployed;
-- the scheduled job can read `SUPABASE_URL` and
-  `SUPABASE_SERVICE_ROLE_KEY` from Vault;
+- the scheduled job can read `SUPABASE_URL` and an active current or legacy
+  server key from the reviewed Vault slot;
 - R2 read credentials are present for direct signed `HEAD`;
 - if event acceleration is enabled, `R2_EVENT_WEBHOOK_SECRET` is configured at
   both trusted boundaries and the Cloudflare Queue consumer acknowledges only

@@ -49,6 +49,11 @@ Several utilities are shared across all Edge Functions via
   and requires a JSON object by default. Routes select a 16 KiB `small`, 64 KiB
   `standard`, 1 MiB `bulk`, or reviewed media-specific limit; production
   handlers must not call `req.json()` or `req.text()` directly.
+- **`outbound.ts`**: The outbound networking boundary. It combines caller
+  cancellation with a hard provider deadline and exposes bounded strict-UTF-8
+  text/JSON response readers. Production modules cannot call global or injected
+  fetch transports directly; CI inventories the remaining signed R2 client calls
+  and requires their deadline-bound `Request` adapters.
 - **`edgeHandler.ts`**: Wraps endpoints natively using `withEdgeHandler()`,
   automatically intercepting CORS `OPTIONS` preflights and Deno SDK JWT
   extraction layers, eliminating boilerplate. Exposes `runBackground(task)` via
@@ -82,8 +87,9 @@ Several utilities are shared across all Edge Functions via
   reference imagery, GBIF match taxonomy, Wikipedia extracts, and vernacular
   name synonyms. GBIF vernacular names
   (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) are fetched in
-  parallel with occurrence imagery behind a shared `AbortSignal.timeout(2500)`
-  guard. The result is normalised to Title Case, deduplicated, and filtered to
+  parallel with occurrence imagery behind the shared 2.5-second outbound
+  deadline. Provider JSON is streamed through a 256 KiB ceiling before parsing.
+  The result is normalised to Title Case, deduplicated, and filtered to
   English-only entries before being returned as
   `alternativeCommonNames: string[]`. This array is written to
   `species_dictionary.alternative_common_names` during the Cache Miss enrichment
@@ -98,12 +104,13 @@ Several utilities are shared across all Edge Functions via
 - **`posthog.ts`**: A headless telemetry ingestion pipeline executing
   asynchronous `node-fetch` style queries to log per-scan events to PostHog for
   behavioral analytics (conversion funnel, scan frequency, species discovery
-  rate). PostHog receives token counters for funnel/debug slicing, including
-  video-attributed counters on video-backed multimodal scans, but authoritative
-  LLM token cost analytics are owned by Supabase SQL queries in
-  `services/supabase/analytics/` (see below). Scan inference cost queries read
-  `scans`; Insight chat cost queries read assistant rows in
-  `insight_chat_messages`.
+  rate). Capture is best-effort behind a 2.5-second hard deadline so telemetry
+  cannot consume an unbounded share of Edge wall-clock time. PostHog receives
+  token counters for funnel/debug slicing, including video-attributed counters
+  on video-backed multimodal scans, but authoritative LLM token cost analytics
+  are owned by Supabase SQL queries in `services/supabase/analytics/` (see
+  below). Scan inference cost queries read `scans`; Insight chat cost queries
+  read assistant rows in `insight_chat_messages`.
 - **`aiQuota.ts`**: The paid-provider boundary. It validates UUID idempotency
   keys, derives a daily-rotating HMAC of the proxy-observed address, and calls
   the service-only `reserve_ai_quota` RPC. That atomic transaction resolves the
@@ -130,7 +137,9 @@ Several utilities are shared across all Edge Functions via
   `quarantine/`, and `exports/` are temporary; `public_uploads/free/` and
   `public_uploads/pro/` are scan media; `avatars/` is durable public profile
   media. Scan cleanup code must call `deleteScanMediaR2Objects(...)` so it
-  filters to scan-media URLs only. Avatar replacement must call
+  filters to scan-media URLs only. Every executed R2 object request carries a
+  hard deadline, including batch delete, copy, upload, list, and staged
+  inference-media reads. Avatar replacement must call
   `deleteAvatarR2Object(...)`, which accepts only `avatars/{sameUserId}/...`
   URLs.
 - **`mediaBudgets.ts`**: Centralizes Edge media limits and reusable validation
@@ -284,6 +293,11 @@ calls, scan-ingestion moderation, playback-video promotion, scan insertion,
 separate fail-closed classifier owned by `share-scan-to-explore`. Existing
 complete scan rows are marked complete without replay; existing incomplete video
 rows are left retryable for media reconciliation or local-video repair.
+
+The downstream multimodal invocation has a 120-second hard deadline and reads a
+failed response through an 8 KiB ceiling. Database claims are clamped to at
+least 150 seconds, so the request deadline always leaves a 30-second settlement
+margin before another worker can replace the lease.
 
 Legacy scan-producing endpoints (`identify`, `identify-describe`, and
 `audio-spec`) write compatibility `scan_ingestion_jobs` and
@@ -513,8 +527,8 @@ The `/identify` Edge Function acts as the inference proxy:
 8. **Enrichment & Reference Imagery**: Wikipedia (deep-linked URLs and paragraph
    extracts), GBIF Occurrence (verified field imagery), and GBIF vernacular
    names (`alternative_common_names`) lookups run concurrently via
-   `Promise.allSettled()` behind `AbortSignal.timeout(2500)` guards. The
-   vernacular names result is stored in
+   `Promise.allSettled()` behind the shared 2.5-second outbound deadline and 256
+   KiB JSON response ceiling. The vernacular names result is stored in
    `species_dictionary.alternative_common_names` and returned as
    `alternative_common_names` in the identify response on Cache Hit. The
    ingestion pipeline writes verified image URLs into both the legacy
@@ -768,8 +782,8 @@ records fresh provenance rows.
 Key rules:
 
 - `verify_jwt = false` is configured for `pg_net` compatibility, but every
-  request must include `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and
-  is checked with `timingSafeCompare`.
+  request must carry one exact platform-managed current or legacy server key and
+  is checked with `timingSafeCompare`. Opaque keys use `apikey` only.
 - The scheduled job `refresh_species_content_hourly` runs at minute 17 every
   hour with `{ "limit": 25 }`; manual service-role calls may use `dry_run`,
   `as_of`, `limit`, and `content_keys`.
@@ -806,8 +820,8 @@ each job succeeded or failed.
 Key rules:
 
 - `verify_jwt = false` is configured for `pg_net` compatibility, but every
-  request must include `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and
-  is checked with `timingSafeCompare`.
+  request must carry one exact platform-managed current or legacy server key and
+  is checked with `timingSafeCompare`. Opaque keys use `apikey` only.
 - The scheduled job runs with `{ "limit": 12 }`; manual service-role calls may
   use `dry_run`, `as_of`, `limit`, and `content_groups`.
 - Refresh work runs with a concurrency cap of 2 to avoid stampeding Gemini.
@@ -825,8 +839,8 @@ published Explore media into public species dictionary galleries with
 Key rules:
 
 - `verify_jwt = false` is configured for `pg_net` compatibility, but every
-  request must include `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and
-  is checked with `timingSafeCompare`.
+  request must carry one exact platform-managed current or legacy server key and
+  is checked with `timingSafeCompare`. Opaque keys use `apikey` only.
 - The scheduled job `refresh_merian_reference_images_hourly` runs at minute 37
   every hour with
   `{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
@@ -1270,14 +1284,17 @@ Explore feed rows. Delivery fanout is bounded with
 `mapWithConcurrencyLimit(devices, 8,
 ...)` so one notification row cannot launch
 unbounded APNs requests and device state writes from a single V8 isolate. The
-device-token table checks a 32...512 character length separately from its
-hex-only regex. A `{32,512}` PostgreSQL regex bound is invalid because the
-engine caps repetition bounds at 255; migration
-`20260720174209_fix_push_device_token_constraint.sql` corrects the original
-constraint without weakening token validation. The combined 32...512 regex in
-`register-push-device/index.ts` is still valid JavaScript and remains the Edge
-Function request-boundary check. This repair changes only the database and does
-not require a function redeployment. A healthy deployment has both
+individual APNs request has a 10-second hard deadline and reads provider
+diagnostics through a 4 KiB ceiling. `apns-collapse-id` is the durable
+notification UUID, so a retry of the same notification is collapsed by APNs
+instead of being presented twice. The device-token table checks a 32...512
+character length separately from its hex-only regex. A `{32,512}` PostgreSQL
+regex bound is invalid because the engine caps repetition bounds at 255;
+migration `20260720174209_fix_push_device_token_constraint.sql` corrects the
+original constraint without weakening token validation. The combined 32...512
+regex in `register-push-device/index.ts` is still valid JavaScript and remains
+the Edge Function request-boundary check. This repair changes only the database
+and does not require a function redeployment. A healthy deployment has both
 `user_push_devices_device_token_format_check` and
 `user_push_devices_device_token_length_check` present and validated.
 
@@ -1522,8 +1539,9 @@ that operate on anonymous IDFV boundaries:
     GitHub Actions, or another trusted server caller can reach the Deno runtime,
     then enforce an exact platform-managed service credential inside Deno with
     `timingSafeCompare`. Boundaries using `_shared/serviceRoleAuth.ts` compare
-    against `SUPABASE_SERVICE_ROLE_KEY` and the named `sb_secret_...` values in
-    `SUPABASE_SECRET_KEYS`; they do not use table reachability or an RLS result
+    against `SUPABASE_SERVER_API_KEY`, named `sb_secret_...` values in
+    `SUPABASE_SECRET_KEYS`, and the migration-only
+    `SUPABASE_SERVICE_ROLE_KEY` fallback; they do not use table reachability or an RLS result
     as proof. A legacy JWT key may be sent as Bearer (normally with the same
     `apikey`); a current non-JWT secret key must be sent only as `apikey`.
     Conflicting credentials fail closed, and accepted request values are never
@@ -1892,11 +1910,11 @@ job resume—never to delete Auth manually.
 Configuration readiness mirrors the worker's exact Vault-first, NULL-only
 fallback: a present but blank Vault value is unhealthy and cannot be masked by
 the legacy app setting. The boolean proves only that the effective URL and key
-are nonblank. The worker's current transport is stricter: cron sends the exact
-legacy `SUPABASE_SERVICE_ROLE_KEY` JWT as a bearer token and the Edge route
-compares that full value. The independent monitor may use a modern opaque server
-key in `apikey`; operators must not substitute that key into the bearer-only
-Vault entry without migrating the cron and handler together.
+are nonblank. Migration `20260727013416_future_proof_server_key_boundaries.sql`
+applies one private header builder to installed `pg_net` routines and persisted
+cron commands. Opaque `sb_secret_...` values are sent only in `apikey`; legacy
+service-role JWTs are sent in both `apikey` and Bearer Authorization. The Edge
+route compares either format against its platform-managed environment set.
 
 On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
 sign-out for the current device, tears down the local SQLite database via
@@ -2069,6 +2087,16 @@ if an ACL is later broadened by mistake. Internal helpers such as follow
 reparenting and database-wide Explore-media refresh receive no Data API role
 grant.
 
+Migration `20260727010340_fix_service_role_authorization_guard.sql` keeps the
+in-function service check compatible with both supported server-key paths. A
+legacy service-role JWT is visible to `auth.role()`. An opaque secret key is not
+a JWT; PostgREST instead impersonates `service_role`, which the helper reads
+from the protected standard `role` setting. Direct `postgres` or `service_role`
+database sessions remain available for migrations and incident repair. The RPC
+grant and the in-function check are independent defenses: fixing key-format
+compatibility does not broaden the allowlist, and a caller-controlled header or
+custom GUC is never an authority source.
+
 Every public definer has `search_path = ''`; application relations, custom
 types, and extension operators are schema-qualified. PostgreSQL function
 defaults for the `postgres` migration owner are also owner-only, both globally
@@ -2090,6 +2118,14 @@ metadata triggers also refresh the projection at the database boundary. Ghost
 merge transfers scan and Explore post ownership before refreshing the target
 identity, so the new account owns every denormalized row before the ghost is
 purged.
+
+Scan Library quick-share and the full Insight composer both use
+`/share-scan-to-explore`, whose first maintenance write is this service-only
+author refresh. A logged `service_role authorization required` failure at that
+point indicates a server migration/key-path mismatch, not that the signed-in
+user lacks permission to share the scan. The compatibility migration must be
+present in the target database; no client service key or iOS rebuild is part of
+the fix.
 
 Migration `20260720042641_optimize_explore_author_maintenance.sql` defines both
 maintenance RPCs as `SECURITY DEFINER SET search_path = ''`, fully qualifies

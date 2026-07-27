@@ -1,10 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import { serveEdge } from "../_shared/edgeHandler.ts";
+import { createServiceRoleClientFromEnvironment } from "../_shared/serviceRoleClient.ts";
 import { createRevenueCatWebhookHandler } from "./handler.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+const supabaseAdmin = createServiceRoleClientFromEnvironment(supabaseUrl);
 
 const handler = createRevenueCatWebhookHandler({
   supabaseAdmin,

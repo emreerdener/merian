@@ -109,13 +109,14 @@ summaries without user identifiers. Treat a failed scheduled run itself as an
 operational alert; GitHub scheduling is intentionally independent of the
 database reaper.
 
-Credential handling is intentionally asymmetric today. The database cron reads
-`SUPABASE_SERVICE_ROLE_KEY` from Vault and sends that exact legacy JWT as a
-bearer token; the reconciler compares the complete bearer value with its Edge
-secret. The independent monitor can instead use a modern `sb_secret_...` server
-key in `apikey`. Do not replace only the Vault value with an opaque server key:
-that makes the reaper return `401`. A blank Vault value also wins over the
-legacy app-setting fallback and is reported as critical. The aggregate
+Credential handling follows the same key-format policy on both paths. The
+database cron reads the effective server key from Vault and
+`internal.server_api_request_headers(text)` sends a current `sb_secret_...`
+value only in `apikey`, or a validated legacy HS256 `service_role` JWT in both
+`apikey` and Bearer Authorization. The independent monitor uses the same rule. A
+publishable, anon/user, malformed, or blank value fails closed rather than being
+formatted as privileged transport. A blank Vault value also wins over the legacy
+app-setting fallback and is reported as critical. The aggregate
 `reaper_credentials_configured` value verifies nonblank effective values, not a
 successful request. Manually dispatch the monitor after deployment and inspect
 recent reaper cron requests to validate both independent paths.

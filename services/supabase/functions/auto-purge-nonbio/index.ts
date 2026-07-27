@@ -1,12 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
 import { serveEdge } from "../_shared/edgeHandler.ts";
 import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
-import {
-  corsHeaders,
-  publicErrorResponse,
-  timingSafeCompare,
-} from "../_shared/http.ts";
+import { corsHeaders, publicErrorResponse } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 
 import { deleteScansBulk, fetchStaleNonBioScans } from "./db.ts";
 
@@ -28,20 +25,18 @@ serveEdge(async (req: Request) => {
     return jsonResponse({ error: "Method Not Allowed" }, 405);
   }
 
-  // 1. Authenticate the Webhook via Service Role Key natively
   step = "auth";
-  const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
-  const providedAuth = req.headers.get("Authorization") ?? "";
-
-  // Defend against timing attacks determining API key length
-  if (!timingSafeCompare(providedAuth, expectedAuth)) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+    const supabaseAdmin = createServiceRoleClient(
+      supabaseUrl,
+      auth.serverApiKey,
+    );
 
     // 2. Query non-biological scans older than 30 days
     step = "fetch_stale_nonbio_scans";

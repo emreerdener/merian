@@ -64,7 +64,12 @@ npm ci
 Required server-side variables:
 
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- One privileged Supabase server key:
+  `SUPABASE_SERVER_API_KEY=sb_secret_...` is preferred. The
+  platform-managed `SUPABASE_SECRET_KEYS` dictionary is also supported when
+  present; `SUPABASE_SERVICE_ROLE_KEY` remains a legacy service-role JWT
+  migration fallback. The server-only client rejects public or malformed values
+  and gives every Supabase SDK request a 30-second hard deadline.
 - `WAITLIST_IP_HASH_SECRET` — at least 32 random characters. Generate a
   dedicated value; do not reuse a Supabase, Turnstile, or application secret.
 - `TURNSTILE_SECRET_KEY` — server-side secret for the production Cloudflare
@@ -99,8 +104,8 @@ Optional server/public fallback variables:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-The service role key must stay server-side only. Do not prefix it with
-`NEXT_PUBLIC_`.
+Every privileged server-key format must stay server-side only. Do not prefix
+one with `NEXT_PUBLIC_`.
 
 ### Environment Ownership Boundary
 
@@ -166,7 +171,11 @@ Supabase clients have two explicit trust levels:
 
 - `lib/supabasePublic.ts` contains only the anonymous public projection client.
 - `lib/supabaseAdmin.ts` imports `server-only` and is the sole owner of
-  `SUPABASE_SERVICE_ROLE_KEY`.
+  privileged server-key environment access. `lib/serverApiKey.ts` validates
+  platform-shaped `sb_secret_...` values, including a URL-safe opaque suffix of
+  at least 20 characters, and complete legacy HS256 `service_role` JWTs before
+  a client can be created; a publishable, anon, user, truncated placeholder, or
+  malformed value fails closed.
 
 Do not merge these modules or export an admin-capable default client. Server
 routes must import the admin module directly, while public projection readers

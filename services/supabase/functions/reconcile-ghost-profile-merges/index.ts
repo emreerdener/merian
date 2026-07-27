@@ -1,10 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { serveEdge } from "../_shared/edgeHandler.ts";
-import {
-  corsHeaders,
-  parseJsonBody,
-  timingSafeCompare,
-} from "../_shared/http.ts";
+import { corsHeaders, parseJsonBody } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { reconcileGhostProfileMerges } from "./worker.ts";
 
 function jsonResponse(payload: unknown, status: number): Response {
@@ -34,12 +31,8 @@ serveEdge(async (req: Request) => {
     return jsonResponse({ error: "Method not allowed." }, 405);
   }
 
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const providedAuth = req.headers.get("Authorization") ?? "";
-  if (
-    !serviceRoleKey ||
-    !timingSafeCompare(providedAuth, `Bearer ${serviceRoleKey}`)
-  ) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
@@ -50,16 +43,9 @@ serveEdge(async (req: Request) => {
   if (body instanceof Response) return body;
 
   try {
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      serviceRoleKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      },
+      auth.serverApiKey,
     );
     const result = await reconcileGhostProfileMerges(
       supabaseAdmin,

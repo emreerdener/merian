@@ -3,10 +3,14 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
+ *   SUPABASE_SERVICE_ROLE_KEY fallback
  */
 
-import { serviceRoleRequestHeaders } from "../functions/_shared/serviceRoleAuth.ts";
+import {
+  requireServerApiKeyFromEnvironment,
+  serviceRoleRequestHeaders,
+} from "../functions/_shared/serviceRoleAuth.ts";
 
 export type AccountDeletionFailurePolicy = "critical" | "warning" | "never";
 export type AccountDeletionStatus = "ok" | "warning" | "critical";
@@ -83,16 +87,7 @@ export async function runAccountDeletionMonitor(
 ): Promise<number> {
   const args = parseAccountDeletionMonitorArgs(rawArgs);
   const supabaseUrl = requiredEnv("SUPABASE_URL").trim().replace(/\/$/, "");
-  const serverApiKey = (
-    Deno.env.get("SUPABASE_SERVER_API_KEY") ??
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-      ""
-  ).trim();
-  if (!serverApiKey) {
-    throw new Error(
-      "Missing required environment variable: SUPABASE_SERVER_API_KEY",
-    );
-  }
+  const serverApiKey = requireServerApiKeyFromEnvironment();
 
   const health = await fetchAccountDeletionHealth(
     `${supabaseUrl}/rest/v1/rpc/get_account_deletion_health`,

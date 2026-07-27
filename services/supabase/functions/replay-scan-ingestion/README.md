@@ -38,12 +38,13 @@ The worker is scheduled every five minutes by
 
 It uses `verify_jwt = false` at the gateway, then requires service-role
 authorization inside the function. The request credential must exactly match the
-platform-managed legacy `SUPABASE_SERVICE_ROLE_KEY` or a named `sb_secret_...`
-value in `SUPABASE_SECRET_KEYS`; no database capability probe is used. Send a
-named non-JWT secret only in `apikey`. Legacy callers normally send the same
-service-role JWT in Authorization and `apikey`; mismatched headers are rejected.
-The replay worker uses the server environment key—not the accepted request
-value—for database access and its internal multimodal invocation.
+explicit `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value in
+`SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
+fallback; no database capability probe is used. Send a named non-JWT secret only
+in `apikey`. Legacy callers normally send the same service-role JWT in
+Authorization and `apikey`; mismatched headers are rejected. The replay worker
+uses the server environment key—not the accepted request value—for database
+access and its internal multimodal invocation.
 
 Optional POST body:
 
@@ -61,6 +62,12 @@ dispatches replay attempts through `EdgeRuntime.waitUntil` so the scheduler
 returns quickly while the existing multimodal endpoint owns inference,
 moderation, promotion, insert idempotency, and video durability gates.
 
+The downstream multimodal request has a hard 120-second deadline. Claims are
+therefore clamped to a minimum 150-second lease, preserving a 30-second
+settlement margin even when a manual caller requests a shorter lease. A failed
+downstream response is consumed through an 8 KiB streaming ceiling before any
+diagnostic text is retained.
+
 ## Rules
 
 - Only staged media/audio/video or description-only intents marked
@@ -68,6 +75,8 @@ moderation, promotion, insert idempotency, and video durability gates.
 - Completed and terminal jobs are never replayed.
 - Replay attempt headers are accepted only on the service-role path, are bounded
   to 1–10, and participate in quota idempotency.
+- A replay lease must outlive the downstream request deadline plus its
+  settlement margin.
 - Over-budget intents are terminal-marked in bounded batches using the same
   claim window as normal replay work.
 - A cloud scan row that already has all required video media is marked complete

@@ -15,9 +15,8 @@ plus any explicit service-role calls to
 
 - `verify_jwt = false` in `services/supabase/config.toml` so `pg_net` can invoke
   the function.
-- The function still requires
-  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and compares it with
-  `timingSafeCompare`.
+- The function still requires one exact current or legacy server key through
+  `_shared/serviceRoleAuth.ts`; opaque keys use `apikey` only.
 - It is not an iOS or public web endpoint.
 
 ## Request

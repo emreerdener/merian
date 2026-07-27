@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import { serveEdge } from "../_shared/edgeHandler.ts";
 import {
   corsHeaders,
@@ -6,6 +5,7 @@ import {
   publicErrorResponse,
   timingSafeCompare,
 } from "../_shared/http.ts";
+import { createServiceRoleClientFromEnvironment } from "../_shared/serviceRoleClient.ts";
 import { parseDurableObjectKeys } from "./validation.ts";
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -40,9 +40,8 @@ serveEdge(async (req: Request) => {
   }
 
   try {
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClientFromEnvironment(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
     const { data, error } = await supabaseAdmin.rpc(
       "expedite_explore_media_health_checks",

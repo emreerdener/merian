@@ -1,10 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { serveEdge } from "../_shared/edgeHandler.ts";
-import {
-  publicErrorResponse,
-  requestIdFor,
-  timingSafeCompare,
-} from "../_shared/http.ts";
+import { publicErrorResponse, requestIdFor } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { processRevenueCatReconciliations } from "./worker.ts";
 
 serveEdge(async (request: Request): Promise<Response> => {
@@ -20,16 +17,9 @@ serveEdge(async (request: Request): Promise<Response> => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const revenueCatApiKey = Deno.env.get("REVENUECAT_SECRET_API_KEY") ?? "";
-  const providedAuthorization = request.headers.get("Authorization") ?? "";
-  if (
-    serviceRoleKey.length === 0 ||
-    !timingSafeCompare(
-      providedAuthorization,
-      `Bearer ${serviceRoleKey}`,
-    )
-  ) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(request);
+  if (!auth.ok) {
     return publicErrorResponse(
       request,
       401,
@@ -50,9 +40,10 @@ serveEdge(async (request: Request): Promise<Response> => {
   }
 
   try {
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const supabaseAdmin = createServiceRoleClient(
+      supabaseUrl,
+      auth.serverApiKey,
+    );
     const result = await processRevenueCatReconciliations(
       supabaseAdmin,
       revenueCatApiKey,

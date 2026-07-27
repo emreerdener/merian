@@ -4,7 +4,7 @@
  * This script is dry-run by default. Execute mode requires:
  *   - a fresh audit snapshot JSON
  *   - SUPABASE_URL
- *   - SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY
+ *   - a supported current server API key or legacy service-role fallback
  *   - --execute
  *   - --confirm-delete-likely-empty-ghosts
  */

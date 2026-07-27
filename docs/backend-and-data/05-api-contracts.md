@@ -73,6 +73,20 @@ and deployment runbook. The distributed IP claim runs before Turnstile; the
 tighter verified-attempt and global-growth transaction runs only after a valid
 challenge.
 
+## Fleet-Wide Outbound Provider Contract
+
+Production Edge modules use `services/supabase/functions/_shared/outbound.ts`
+rather than invoking global or injected fetch transports. Every outbound
+provider call carries a hard deadline that is combined with caller cancellation.
+Text and JSON responses are streamed through endpoint-specific byte ceilings
+before decoding or parsing. Signed R2 requests are the only direct
+client-transport calls; CI enumerates those adapter modules and verifies each
+call receives a deadline-bound `Request`.
+
+Telemetry follows the same rule even though it is best-effort. PostHog capture
+has a 2.5-second deadline. A timeout or oversized provider diagnostic is logged
+privately and does not become a raw public API error.
+
 ## Deno `/field-trips` Edge Node
 
 `/field-trips` is an action-based Explore-adjacent social endpoint. It is
@@ -1089,10 +1103,10 @@ storing media bytes.
 
 ## Deno `/reconcile-scan-media-assets` Internal Worker
 
-This endpoint is not called by iOS. It is invoked hourly by pg_cron with
-`Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`. Supabase gateway JWT
+This endpoint is not called by iOS. It is invoked hourly by pg_cron with one
+exact platform-managed current or legacy server key. Supabase gateway JWT
 verification is disabled so pg_net can reach the function, and the function
-performs service-role key validation internally.
+performs service-key validation internally. Opaque keys use `apikey` only.
 
 Optional request payload:
 
@@ -1139,12 +1153,12 @@ row.
 ## Deno `/replay-scan-ingestion` Internal Worker
 
 This endpoint is not called by iOS. It is invoked every five minutes by pg_cron
-with `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`. Supabase gateway JWT
-verification is disabled so pg_net can reach the function, and the function
-performs local exact service-key validation internally. Manual callers may
-instead send an exact named `sb_secret_...` value in `apikey` only. The route
-never uses a database/RLS result as proof, rejects mixed credentials, and uses
-its server environment key for database and downstream multimodal calls.
+with one exact platform-managed current or legacy server key. Supabase gateway
+JWT verification is disabled so pg_net can reach the function, and the function
+performs local exact service-key validation internally. Opaque keys use `apikey`
+only. The route never uses a database/RLS result as proof, rejects mixed
+credentials, and uses its server environment key for database and downstream
+multimodal calls.
 
 Optional request payload:
 
@@ -1190,6 +1204,11 @@ excludes over-budget intents from new replay work and marks the paired
 `stage = 'server_replay_limit_reached'` in the same bounded claim window, so a
 permanently broken replay payload cannot churn forever.
 
+The internal `/identify-multimodal` invocation has a 120-second hard deadline.
+`leaseSeconds` is clamped to at least 150 seconds, reserving 30 seconds for
+durable failure settlement before a replacement claim is possible. Non-success
+diagnostics are retained only within an 8 KiB streamed response ceiling.
+
 Compatibility scan-producing endpoints (`/identify`, `/identify-describe`, and
 `/audio-spec`) also write `scan_ingestion_jobs` plus sanitized
 `scan_ingestion_intents` before returning success. Those intents set
@@ -1208,12 +1227,13 @@ inference against an already-created scan row.
 
 ## Deno `/scan-media-health` Internal Status
 
-Read-only service-role endpoint for media durability observability. Supabase
+Read-only service-key endpoint for media durability observability. Supabase
 gateway JWT verification is disabled for automation reachability, and the
-function validates the exact platform-managed `SUPABASE_SERVICE_ROLE_KEY`
-(legacy Bearer plus matching `apikey`) or a named `sb_secret_...` value in
-`apikey` only before querying. It never treats a successful database/RLS
-response as proof and does not reuse the request credential for database access.
+function validates an exact key from the shared current-or-legacy server-key
+resolver before querying. Opaque `sb_secret_...` keys are valid only in
+`apikey`; legacy service-role JWTs use matching `apikey` and Bearer headers. It
+never treats a successful database/RLS response as proof and does not reuse the
+request credential for database access.
 
 Optional request payload:
 
@@ -3552,6 +3572,24 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 
 ### `/share-scan-to-explore` and `/unshare-explore-post`
 
+- Both Scan Library quick-share and the full Insight composer call
+  `/share-scan-to-explore` with the signed-in user's access token.
+  `withEdgeHandler` authenticates that user, and the route verifies scan
+  ownership and share eligibility. Only then does its server-side admin client
+  call service-only author-maintenance and publication RPCs. The iOS client
+  never receives or submits a service-role key.
+- Privileged database execution has two layers. The exact RPC signature must be
+  granted to `service_role` through `internal.privileged_routine_grants`, and
+  the routine body calls `internal.require_service_role()`. Migration
+  `20260727010340_fix_service_role_authorization_guard.sql` lets that helper
+  recognize either a legacy JWT claim or PostgREST's protected `service_role`
+  impersonation for an opaque server key; it does not add an `authenticated`
+  grant.
+- `service_role authorization required` in Edge/database logs is an internal
+  deployment or server-key compatibility failure, not a scan-eligibility
+  rejection or a user-facing `401`/`403`. Apply the compatibility migration and
+  verify the service-only ACL. Never recover by granting the maintenance RPC to
+  the user role or putting a service key in the app.
 - `share-scan-to-explore` creates or reactivates a manual-share Explore post for
   an eligible biological scan with shareable public media. If a scan's public
   media URLs expired but the client can provide owner-scoped
@@ -3657,9 +3695,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 
 Service-role-only `POST` worker for historical standalone WAV
 `explore_post_media` rows with a null/blank thumbnail. `verify_jwt = false`
-allows the service-role credential through the gateway; the function still
-performs an explicit timing-safe comparison against `SUPABASE_SERVICE_ROLE_KEY`.
-It must never be called by iOS or public web code.
+allows server automation through the gateway; the function still requires an
+exact environment-managed credential through `_shared/serviceRoleAuth.ts`.
+Current `sb_secret_...` keys use `apikey` only; legacy service-role JWTs may use
+matching Bearer and `apikey` transport. It must never be called by iOS or public
+web code.
 
 Request:
 
@@ -4438,7 +4478,10 @@ use `explore_enabled`. Community Identification pushes include
 `communityRequestId` and use `community_identifications_enabled`. The in-app
 notification row is still retained even when the related push toggle is off.
 `media_missing` uses the ordinary Explore preference and dispatches only when
-the incident row is first inserted. `media_restored` remains in app only.
+the incident row is first inserted. `media_restored` remains in app only. Each
+APNs delivery has a 10-second deadline, a 4 KiB diagnostic-body ceiling, and an
+`apns-collapse-id` equal to the durable notification UUID. Replaying the same
+notification therefore does not intentionally create a second presented push.
 
 Preferred species display names are not part of the Explore endpoint payload.
 The iOS client syncs `user_species_preferences` directly through PostgREST under
@@ -5621,12 +5664,12 @@ for refreshing public provider identity when no merge is required. It returns
 ### Durable Auth cleanup
 
 `/reconcile-ghost-profile-merges` is not a client API. A five-minute `pg_cron`
-job calls it with the service-role bearer credential; the function uses
-`verify_jwt = false` only so that server credential can reach Deno, then
-performs an exact timing-safe comparison. It leases at most 100 merged receipts,
-deletes the obsolete anonymous Auth users, and records each claim-token-bound
-outcome. HTTP 404 and exact Auth code `user_not_found` are idempotent cleanup
-success.
+job calls it with one exact platform-managed current or legacy server key; the
+function uses `verify_jwt = false` only so that server credential can reach
+Deno, then performs an exact timing-safe comparison. It leases at most 100
+merged receipts, deletes the obsolete anonymous Auth users, and records each
+claim-token-bound outcome. HTTP 404 and exact Auth code `user_not_found` are
+idempotent cleanup success.
 
 ---
 
@@ -5702,20 +5745,22 @@ drops all local SQLite `ModelContext` state through
 ### Service-only reaper
 
 `/reconcile-account-deletions` accepts a bounded optional `{ "limit": n }`
-object and authenticates the complete service-role bearer value with a
-timing-safe comparison. It never accepts a target UUID. Each invocation performs
-a bounded account pass, bounded storage pages, and, when storage verification
-completes, one final account pass. It returns only aggregate `account_claimed`,
-`account_completed`, `account_deferred`, `waiting_for_storage`,
-`storage_claimed`, `storage_completed`, and `storage_deferred` counts. Claim
-expiry, persisted prefix cursors, delayed verification, idempotent
-Auth-not-found handling, and database-calculated backoff make crashes and lost
-responses resumable.
+object and authenticates one exact platform-managed current or legacy server key
+with a timing-safe comparison. Opaque keys use `apikey` only; legacy
+service-role JWTs use matching `apikey` and Bearer headers. It never accepts a
+target UUID. Each invocation performs a bounded account pass, bounded storage
+pages, and, when storage verification completes, one final account pass. It
+returns only aggregate `account_claimed`, `account_completed`,
+`account_deferred`, `waiting_for_storage`, `storage_claimed`,
+`storage_completed`, and `storage_deferred` counts. Claim expiry, persisted
+prefix cursors, delayed verification, idempotent Auth-not-found handling, and
+database-calculated backoff make crashes and lost responses resumable.
 
-The scheduled caller currently sends the exact legacy
-`SUPABASE_SERVICE_ROLE_KEY` JWT from Vault. A modern opaque `sb_secret_...`
-server key cannot be substituted into this bearer-only contract; the cron and
-handler must be migrated together before legacy-key retirement.
+The scheduled caller reads its key from Vault and delegates header construction
+to `internal.server_api_request_headers(...)`. A modern opaque `sb_secret_...`
+key is sent only in `apikey`; a legacy service-role JWT is sent in both
+supported headers. The Vault value must be one of the project's active server
+keys.
 
 ### Service-only deletion health RPC
 
@@ -6216,10 +6261,11 @@ This empty-body contract is also bounded by the shared small JSON reader.
 
 ### Security & Enforcement
 
-- Authenticates the Postgres origin by verifying that
-  `Authorization: Bearer <token>` timing-safely matches
-  `SUPABASE_SERVICE_ROLE_KEY`. The route accepts only `POST`, uses the shared
-  small bounded JSON reader, and returns stable request-correlated errors.
+- Authenticates the Postgres origin by exact comparison with an
+  environment-managed current or legacy server key. Current `sb_secret_...`
+  keys use `apikey` only; legacy service-role JWTs may use matching Bearer and
+  `apikey` transport. The route accepts only `POST`, uses the shared small
+  bounded JSON reader, and returns stable request-correlated errors.
 - Treats `job_id` only as an opaque wake-up identifier and never reads the
   deprecated user/scope/precision rollout hints. Status, pseudonym version, and
   object-key fields are absent from the webhook contract.
@@ -6405,9 +6451,9 @@ Manual service-role calls may also include:
 ### Authentication Enforcement
 
 - `verify_jwt = false` is configured for `pg_net` compatibility.
-- The function still requires
-  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and validates it with
-  `timingSafeCompare`.
+- The function still requires one exact platform-managed current or legacy
+  server key and validates it with `timingSafeCompare`; opaque keys use `apikey`
+  only.
 - Non-POST requests return `405`.
 
 ### Refresh Behavior
@@ -6481,9 +6527,10 @@ imports or Community ID publish flows.
 
 - `verify_jwt = false` is configured for service-role calls.
 - The function still requires an exact platform-managed service credential:
-  `SUPABASE_SERVICE_ROLE_KEY` via legacy Bearer transport (normally with the
-  same `apikey`), or a named `sb_secret_...` value from `SUPABASE_SECRET_KEYS`
-  in `apikey` only. Conflicting headers fail closed. Taxonomy table reachability
+  `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
+  `SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
+  fallback. Current keys use `apikey` only; legacy JWTs use matching `apikey`
+  and Bearer transport. Conflicting headers fail closed. Taxonomy table reachability
   and RLS-filtered results are never authorization evidence. Database reads use
   the server environment key, not the accepted request value.
 - Non-POST requests return `405`.
@@ -6574,9 +6621,10 @@ in v1.
 
 - `verify_jwt = false` is configured for service-role calls.
 - The function still requires an exact platform-managed service credential:
-  `SUPABASE_SERVICE_ROLE_KEY` via legacy Bearer transport (normally with the
-  same `apikey`), or a named `sb_secret_...` value from `SUPABASE_SECRET_KEYS`
-  in `apikey` only. Conflicting headers fail closed. Taxonomy table reachability
+  `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
+  `SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
+  fallback. Current keys use `apikey` only; legacy JWTs use matching `apikey`
+  and Bearer transport. Conflicting headers fail closed. Taxonomy table reachability
   and RLS-filtered results are never authorization evidence. Privileged database
   work uses the server environment key, not the accepted request value.
 - Non-POST requests return `405`.
@@ -6697,9 +6745,9 @@ Manual service-role calls may also include:
 ### Authentication Enforcement
 
 - `verify_jwt = false` is configured for `pg_net` compatibility.
-- The function still requires
-  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and validates it with
-  `timingSafeCompare`.
+- The function still requires one exact platform-managed current or legacy
+  server key and validates it with `timingSafeCompare`; opaque keys use `apikey`
+  only.
 - Non-POST requests return `405`.
 
 ### Refresh Behavior
@@ -6810,9 +6858,8 @@ No JSON body is required. The cron trigger issues an empty POST request.
 
 ### Authentication Enforcement
 
-- Enforces strict cron authorization via `timingSafeCompare` against a
-  `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` Authorization header. Returns `401` if
-  invalid.
+- Enforces strict cron authorization via `timingSafeCompare` against one exact
+  platform-managed current or legacy server key. Returns `401` if invalid.
 - Prevents accidental `GET` evaluations by aggressively validating
   `req.method === "POST"`.
 
@@ -7108,9 +7155,10 @@ rejected before database access. The request body is capped at 256 KiB.
 ### Service-only authoritative reconciliation
 
 `/reconcile-revenuecat-subscribers` is not a client API. The 15-minute `pg_cron`
-call sends `POST {}` with the complete service-role bearer. The route also
-requires a configured `sk_` RevenueCat server key and accepts no user ID, lookup
-ID, tier, or limit from HTTP. Its `pg_net` response timeout is 120 seconds.
+call sends `POST {}` with one exact platform-managed current or legacy server
+key. The route also requires a configured `sk_` RevenueCat server key and
+accepts no user ID, lookup ID, tier, or limit from HTTP. Its `pg_net` response
+timeout is 120 seconds.
 
 The private queue leases six due linked customers per short
 `FOR UPDATE SKIP LOCKED` wave for two minutes. The worker repeats waves until

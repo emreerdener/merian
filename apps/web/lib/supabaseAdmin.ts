@@ -1,27 +1,47 @@
 import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
+import { resolveServerApiKeySources } from "./serverApiKey";
 
 type AdminSupabaseConfig = {
   url: string;
   key: string;
 };
 
+const SUPABASE_SERVER_REQUEST_TIMEOUT_MS = 30_000;
+
 function getAdminSupabaseConfig(): AdminSupabaseConfig | null {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  return url && key ? { url, key } : null;
+  const url = process.env.SUPABASE_URL?.trim();
+  const resolution = resolveServerApiKeySources({
+    explicitServerApiKey: process.env.SUPABASE_SERVER_API_KEY,
+    platformSecretKeys: process.env.SUPABASE_SECRET_KEYS,
+    legacyServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  });
+  return url && resolution.ok ? { url, key: resolution.key } : null;
 }
 
-function createModernSecretKeyFetch(key: string): typeof fetch {
+function createServerSupabaseFetch(key: string): typeof fetch {
   return async (input, init) => {
-    const headers = new Headers(init?.headers);
+    const sourceHeaders = init?.headers ??
+      (input instanceof Request ? input.headers : undefined);
+    const headers = new Headers(sourceHeaders);
 
-    if (headers.get("Authorization") === `Bearer ${key}`) {
+    if (
+      key.startsWith("sb_secret_") &&
+      headers.get("Authorization") === `Bearer ${key}`
+    ) {
       headers.delete("Authorization");
     }
 
-    return fetch(input, { ...init, headers });
+    const callerSignal = init?.signal ??
+      (input instanceof Request ? input.signal : undefined);
+    const deadlineSignal = AbortSignal.timeout(
+      SUPABASE_SERVER_REQUEST_TIMEOUT_MS,
+    );
+    const signal = callerSignal
+      ? AbortSignal.any([callerSignal, deadlineSignal])
+      : deadlineSignal;
+    return fetch(input, { ...init, headers, signal });
   };
 }
 
@@ -35,9 +55,7 @@ export function createAdminSupabaseClient() {
       autoRefreshToken: false,
     },
     global: {
-      fetch: config.key.startsWith("sb_secret_")
-        ? createModernSecretKeyFetch(config.key)
-        : undefined,
+      fetch: createServerSupabaseFetch(config.key),
     },
   });
 }

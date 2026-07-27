@@ -345,7 +345,14 @@ async function invokeTestHandler(
   const originalError = console.error;
   console.error = () => {};
   Deno.env.set("SUPABASE_URL", "https://test-project.supabase.co");
-  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key");
+  Deno.env.set(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    [
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+      "eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ].join("."),
+  );
 
   try {
     return await withEdgeHandler(

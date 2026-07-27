@@ -10,8 +10,8 @@ import {
 } from "../_shared/edgeHandler.ts";
 import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
 import { corsHeaders } from "../_shared/http.ts";
-import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
-import { createServiceRoleDataClient } from "../_shared/serviceRoleClient.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
 import {
@@ -2222,10 +2222,7 @@ async function tryHandleInternalReplayRequest(
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const auth = authorizeServiceRoleRequest(req, {
-    envServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    envSecretKeys: Deno.env.get("SUPABASE_SECRET_KEYS") ?? "",
-  });
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
   if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
@@ -2244,7 +2241,7 @@ async function tryHandleInternalReplayRequest(
     return jsonResponse({ error: "Invalid replay attempt." }, 400);
   }
 
-  const supabaseAdmin = createServiceRoleDataClient(
+  const supabaseAdmin = createServiceRoleClient(
     supabaseUrl,
     auth.serverApiKey,
   );

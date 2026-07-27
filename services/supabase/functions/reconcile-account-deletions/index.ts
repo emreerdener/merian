@@ -1,14 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
 import {
   jsonResponse,
   logStructuredError,
   serveEdge,
 } from "../_shared/edgeHandler.ts";
-import {
-  corsHeaders,
-  parseJsonBody,
-  timingSafeCompare,
-} from "../_shared/http.ts";
+import { corsHeaders, parseJsonBody } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { processAccountDeletionJobs } from "../safe-delete/worker.ts";
 import { processPendingStorageDeletions } from "../safe-delete/storageWorker.ts";
 
@@ -22,12 +19,8 @@ serveEdge(async (req: Request) => {
     });
   }
 
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const providedAuth = req.headers.get("Authorization") ?? "";
-  if (
-    !serviceRoleKey ||
-    !timingSafeCompare(providedAuth, `Bearer ${serviceRoleKey}`)
-  ) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
@@ -37,16 +30,9 @@ serveEdge(async (req: Request) => {
   });
   if (body instanceof Response) return body;
 
-  const supabaseAdmin = createClient(
+  const supabaseAdmin = createServiceRoleClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    serviceRoleKey,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    },
+    auth.serverApiKey,
   );
   const firstPass = await processAccountDeletionJobs(supabaseAdmin, {
     limit: parseLimit(body),

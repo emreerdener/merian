@@ -18,8 +18,10 @@ SCAN_ID=<scan-uuid> DRY_RUN=true deno run --allow-net --allow-env \
 ```
 
 Remove `DRY_RUN=true` to write the resolved label. Omit `SCAN_ID` for the
-resumable, paginated full backfill. The script requires `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY`, rate-limits Nominatim requests, and updates only
+resumable, paginated full backfill. The script requires `SUPABASE_URL` and a
+server key resolved from `SUPABASE_SERVER_API_KEY`, platform
+`SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
+fallback. It rate-limits Nominatim requests and updates only
 scans that have exact coordinates and a missing semantic location. Existing
 database triggers sanitize the scan label and reproject every linked Explore
 post while preserving its saved post-level location-sharing choice.
@@ -83,9 +85,10 @@ The workflow performs the following steps:
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and runs the account deletion, Explore media quarantine, privileged-routine,
-   AI quota, RevenueCat, DwC-A, species-count, public-species-stats, and
-   waitlist pgTAP catalog gates. It then invokes the checked-in recursive
+   and discovers every `services/supabase/tests/*.sql` pgTAP fixture through
+   `test_database_catalogs.sh`. An empty fixture directory or any failed catalog
+   test blocks deployment; there is no curated SQL allowlist to forget when a
+   new security contract is added. It then invokes the checked-in recursive
    `deno task test` with an explicit database URL, so route-local tests cannot
    be omitted by a curated CI list and database-backed tests cannot silently
    skip.
@@ -212,6 +215,13 @@ the exact authenticated/service entries in `internal.privileged_routine_grants`.
 Every authenticated entry has a caller-bound check; every service entry calls
 `internal.require_service_role()`.
 
+Migration `20260727010340_fix_service_role_authorization_guard.sql` is the
+server-key compatibility layer for that in-function check. It preserves legacy
+JWT detection, adds PostgREST's protected standard `role` signal for opaque
+secret keys, and retains direct migration/repair sessions. It does not change
+the execution allowlist. Apply it before privileged-route smoke tests; do not
+recover availability by broadening a public RPC grant.
+
 Before a manual production push, run:
 
 ```bash
@@ -239,6 +249,10 @@ For an independent SQL spot-check, use an owner connection:
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL search_path TO pg_catalog;
 
+WITH probe AS (
+    SELECT
+        'sb_' || 'secret_probe_' || REPEAT('a', 20) AS server_api_key
+)
 SELECT
     function_row.oid::REGPROCEDURE::TEXT AS signature,
     owner_row.rolname AS owner,
@@ -284,6 +298,110 @@ paths, caller checks in every exposed routine, owner-safe defaults, no API-role
 schema creation, and no non-`postgres` application definer owner. Counts may
 change as reviewed RPCs are added; the allowlist, not a hard-coded count, is the
 source of truth.
+
+After applying the compatibility migration, run this read-only owner check in
+the target environment:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+SELECT
+    POSITION(
+        'auth.role() IS DISTINCT FROM ''service_role'''
+        IN function_row.prosrc
+    ) > 0 AS checks_legacy_jwt_role,
+    POSITION(
+        'CURRENT_SETTING(''role'', TRUE)'
+        IN function_row.prosrc
+    ) > 0 AS checks_postgrest_role,
+    POSITION(
+        'SESSION_USER NOT IN (''postgres'', ''service_role'')'
+        IN function_row.prosrc
+    ) > 0 AS permits_repair_sessions,
+    NOT HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.refresh_public_author_identity(uuid)',
+        'EXECUTE'
+    ) AS authenticated_cannot_refresh_author,
+    HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.refresh_public_author_identity(uuid)',
+        'EXECUTE'
+    ) AS service_role_can_refresh_author
+FROM pg_proc AS function_row
+WHERE function_row.oid =
+    'internal.require_service_role()'::REGPROCEDURE;
+
+ROLLBACK;
+```
+
+Require one row with all five booleans `true`. Then share one eligible scan from
+the Scan Library and one through the full Insight composer. Both paths must
+complete without `service_role authorization required` in Edge/database logs.
+The immediate guard repair is database-only and does not require an iOS rebuild.
+The complete server-key migration also deploys every function batch that imports
+the shared resolver/client and the server-only web app.
+
+After `20260727013416_future_proof_server_key_boundaries.sql`, run the broader
+catalog check:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL search_path TO pg_catalog;
+
+SELECT
+    TO_REGPROCEDURE(
+        'internal.server_api_request_headers(text)'
+    ) IS NOT NULL AS sql_header_policy_exists,
+    internal.server_api_request_headers(probe.server_api_key) =
+        JSONB_BUILD_OBJECT(
+            'Content-Type',
+            'application/json',
+            'apikey',
+            probe.server_api_key
+        )
+        AS opaque_key_uses_apikey_only,
+    NOT EXISTS (
+        SELECT 1
+        FROM pg_proc AS function_row
+        JOIN pg_namespace AS namespace_row
+          ON namespace_row.oid = function_row.pronamespace
+        WHERE namespace_row.nspname IN ('public', 'internal')
+          AND function_row.prosrc ~* 'net[.]http_post'
+          AND function_row.prosrc ~*
+              '''Bearer ''[[:space:]]*[|][|][[:space:]]*service_role_key'
+    ) AS routines_have_no_bearer_only_server_key,
+    NOT EXISTS (
+        SELECT 1
+        FROM cron.job
+        WHERE active
+          AND command ~* 'net[.]http_post'
+          AND command ~*
+              '''Bearer ''[[:space:]]*[|][|][[:space:]]*service_role_key'
+    ) AS active_cron_has_no_bearer_only_server_key,
+    NOT EXISTS (
+        SELECT 1
+        FROM pg_proc AS function_row
+        JOIN pg_namespace AS namespace_row
+          ON namespace_row.oid = function_row.pronamespace
+        WHERE namespace_row.nspname = 'public'
+          AND function_row.prosecdef
+          AND function_row.prosrc ~*
+              'auth[.]role[(][)][[:space:]]*=[[:space:]]*''service_role'''
+    ) AS definers_have_no_jwt_only_service_dispatch
+FROM probe;
+
+ROLLBACK;
+```
+
+Require all five booleans `true`. In addition to both share entry points, smoke
+identity refresh after an Explore comment, Field Trip mutation, Community
+request, and ghost-profile merge. Exercise one internal route and
+`get_owned_explore_media_incidents(uuid)` with the current opaque key, and prove
+a real anon/publishable key receives `401` from the internal route. See the
+[July 2026 server-key incident report](../incidents/2026-07-server-key-authorization-mismatch.md)
+for the full affected-surface and legacy-key shutdown checklist.
 
 Treat a pre-deploy `PUBLIC` or `anon` finding as an active security incident.
 Apply the reviewed hardening migration as soon as an owner connection is
@@ -825,18 +943,20 @@ Migrations `20260725030308_durable_account_deletion.sql`,
 `20260725041308_ownerless_account_deletion_tombstones.sql`,
 `20260725052337_enforce_account_storage_erasure.sql`,
 `20260726041109_fence_storage_erasure_claims.sql`, and
-`20260727001630_monitor_account_deletion_health.sql`, plus `safe-delete`,
-`reconcile-account-deletions`, `generate-upload-urls`, and
+`20260727001630_monitor_account_deletion_health.sql`, plus the shared server-key
+transport migration `20260727013416_future_proof_server_key_boundaries.sql`,
+`safe-delete`, `reconcile-account-deletions`, `generate-upload-urls`, and
 `replay-scan-ingestion`, form one release unit. No new secret is required: the
 reaper uses the existing Supabase service-role and R2 values, and the
 independent GitHub monitor resolves a server key with the existing
 `SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` values in Vault (or the documented app-setting
-fallback); missing values now produce a critical monitor result. Its current
-bearer-only route requires the Vault key to match the exact legacy service-role
-JWT injected into the Edge function. Do not replace only that Vault value with a
-modern `sb_secret_...` server key; migrate the cron and handler authentication
-contract together first.
+an active server key in the compatibility-named `SUPABASE_SERVICE_ROLE_KEY`
+Vault slot (or the documented app-setting fallback); missing values now produce
+a critical monitor result. Its current
+transport sends a modern `sb_secret_...` Vault key only in `apikey`, or a legacy
+service-role JWT in both `apikey` and Bearer Authorization. The value must match
+an active project server key. Do not replace only the Vault value; rotate it and
+the project key together.
 
 The `20260725035737` file is an explicit executable no-op. It is a compatibility
 bridge for production run 1461, where its superseded public-only sentinel insert
@@ -1170,7 +1290,8 @@ Ship the Explore response to unexpected object loss as one compatibility unit:
    `ingest-r2-media-events`;
 5. redeploy `get-explore-author-profile`, `get-explore-author-posts`, and
    `send-push-notification`;
-6. verify Vault has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then
+6. verify Vault has `SUPABASE_URL` and an active current or legacy server key
+   in the compatibility-named `SUPABASE_SERVICE_ROLE_KEY` slot, then
    configure bucket-scoped Object Read credentials in `R2_READ_ACCESS_KEY_ID` /
    `R2_READ_SECRET_ACCESS_KEY` at the GitHub and Supabase boundaries;
 7. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
@@ -2017,7 +2138,7 @@ textiles, leather goods, or man-made objects to biological species rows, run the
 audit script in dry-run mode first:
 
 ```sh
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+SUPABASE_URL=... SUPABASE_SERVER_API_KEY=... \
   deno run --allow-net --allow-env \
   services/supabase/scripts/repair_processed_material_scan_pollution.ts
 ```
@@ -2025,7 +2146,7 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
 Review every planned row before applying:
 
 ```sh
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+SUPABASE_URL=... SUPABASE_SERVER_API_KEY=... \
   deno run --allow-net --allow-env \
   services/supabase/scripts/repair_processed_material_scan_pollution.ts --apply
 ```
@@ -2270,8 +2391,9 @@ compatibility request field that lets the caller nominate `ghost_user_id` or
 
 ### Preflight and local verification
 
-Confirm Vault has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; the scheduled
-worker reads those exact names. Confirm the function entries are:
+Confirm Vault has `SUPABASE_URL` and an active current or legacy server key in
+the compatibility-named `SUPABASE_SERVICE_ROLE_KEY` slot; the scheduled worker
+reads those exact names. Confirm the function entries are:
 
 ```toml
 [functions.merge-ghost-profile]
@@ -2515,16 +2637,19 @@ and `submit_beta_waitlist_signup(...)` exist.
    | `WAITLIST_IP_HASH_SECRET`        | Dedicated value generated above; at least 32 random characters |
    | `WAITLIST_TRUSTED_IP_HEADER`     | `x-vercel-forwarded-for`                                       |
    | `SUPABASE_URL`                   | Production project URL                                         |
-   | `SUPABASE_SERVICE_ROLE_KEY`      | Production server-only service-role key                        |
+   | `SUPABASE_SERVER_API_KEY`        | Preferred current server-only `sb_secret_...` key              |
+   | `SUPABASE_SERVICE_ROLE_KEY`      | Legacy service-role JWT migration fallback only                |
 
    Vercel owns and overwrites `x-vercel-forwarded-for` at the application
    ingress. If the app moves behind another proxy, explicitly choose one
    allowlisted header and configure the trusted ingress to overwrite it; never
    accept a client-appended forwarding chain.
 
-Do not put the Turnstile secret, waitlist HMAC secret, or Supabase service-role
-key in a `NEXT_PUBLIC_` variable, source file, build log, or support ticket.
-Only the Turnstile site key is public.
+Do not put the Turnstile secret, waitlist HMAC secret, or either privileged
+Supabase server-key format in a `NEXT_PUBLIC_` variable, source file, build log,
+or support ticket. Only the Turnstile site key is public. Configure the current
+key when available; do not configure a publishable key or anon/user JWT in
+either privileged variable. The server resolver rejects those values.
 
 ### Verification and deployment order
 
@@ -2758,9 +2883,10 @@ GitHub `Production` is their deploy source and the workflow synchronizes them to
 Supabase. The complete Edge-secret inventory is documented in
 `docs/backend-and-data/02-supabase-edge-and-database.md`.
 
-Internal routes using `_shared/serviceRoleAuth.ts` authorize locally against the
-platform-provided `SUPABASE_SERVICE_ROLE_KEY` and named values in
-`SUPABASE_SECRET_KEYS`; they must never probe a table to infer authority. Legacy
+Internal routes using `_shared/serviceRoleAuth.ts` authorize locally against
+`SUPABASE_SERVER_API_KEY`, named values in `SUPABASE_SECRET_KEYS`, and the
+migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback; they must never probe a
+table to infer authority. Legacy
 service-role JWT callers send the same value in Bearer Authorization and
 `apikey`. Named `sb_secret_...` keys are non-JWT and are sent only in `apikey`.
 The deployment smoke step retrieves every available real anon/publishable
@@ -2871,10 +2997,11 @@ Configuration health follows the reaper's Vault-first, NULL-only fallback
 exactly. A blank Vault entry is therefore critical even when a legacy app
 setting is populated; update or remove the blank Vault entry instead of relying
 on fallback. The independent monitor may use an opaque server key through
-`apikey`; the database reaper still requires the exact legacy service-role JWT
-through `Authorization`. A successful manual monitor dispatch verifies the
-health RPC and monitoring credential, but operators must also inspect recent
-reaper cron runs to confirm the separate bearer path succeeds.
+`apikey`; the database reaper supports the same current/legacy formats through
+the private database header builder. A successful manual monitor dispatch
+verifies the health RPC and monitoring credential, but operators must also
+inspect recent reaper cron runs to confirm the separate Vault-backed path
+succeeds.
 
 A failed run means the state machine is overdue, unhealthy, misconfigured, or
 the monitor could not read aggregate health. Use the incident procedure in the
@@ -3347,15 +3474,19 @@ After deployment:
   `field_trip_activity_notifications` and the in-app Explore activity feed.
 - For Explore author-maintenance releases, apply
   `20260720042641_optimize_explore_author_maintenance.sql` before deploying the
-  affected write and read functions. Confirm `PUBLIC`, `anon`, and
+  affected write and read functions, and require
+  `20260727010340_fix_service_role_authorization_guard.sql` in any environment
+  using the hardened service-role boundary. Confirm `PUBLIC`, `anon`, and
   `authenticated` cannot execute `refresh_public_author_identity(uuid)` or
   `repair_explore_post_ownership_for_user(uuid)`, while `service_role` can. Run
   `_tests/exploreIdentityDb.test.ts` with an explicit `SUPABASE_DB_TEST_URL`;
   verify a second converged refresh preserves the user row version. Smoke-test
   one feed/profile read and confirm it performs no maintenance RPC, then share
-  or comment once and confirm the public author projection is current. During
-  ghost-merge QA, verify scans and Explore posts move to the target account
-  before the identity refresh and ghost purge.
+  from both the Scan Library and the Insight composer and confirm the public
+  author projection is current. Neither share may log
+  `service_role authorization required`. During ghost-merge QA, verify scans and
+  Explore posts move to the target account before the identity refresh and ghost
+  purge.
 - For video-upload contract releases, confirm `scan_media_assets.scan_id` and
   `scan_media_assets.url` are nullable in production
   (`information_schema.columns.is_nullable = YES`) before expecting six-file

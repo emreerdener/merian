@@ -3,7 +3,8 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SERVER_API_KEY, SUPABASE_SECRET_KEYS, SUPABASE_SECRET_KEY,
+ *   or legacy SUPABASE_SERVICE_ROLE_KEY
  *
  * Optional:
  *   MERIAN_GHOST_USER_ALLOWLIST=/path/to/allowlist.txt
@@ -16,6 +17,11 @@
  *     --snapshot-csv /tmp/merian-ghost-user-audit.csv \
  *     --summary-md /tmp/merian-ghost-user-audit.md
  */
+
+import {
+  resolveServerApiKey,
+  serviceRoleRequestHeaders,
+} from "../functions/_shared/serviceRoleAuth.ts";
 
 type UUID = string;
 
@@ -857,16 +863,10 @@ async function fetchJson<T>(
 }
 
 export function adminApiHeaders(adminApiKey: string): HeadersInit {
-  const headers: Record<string, string> = {
-    "apikey": adminApiKey,
+  return {
+    ...serviceRoleRequestHeaders(adminApiKey),
     "Content-Type": "application/json",
   };
-
-  if (!adminApiKey.startsWith("sb_secret_")) {
-    headers.Authorization = `Bearer ${adminApiKey}`;
-  }
-
-  return headers;
 }
 
 async function loadAllowlist(path: string | null): Promise<Set<string>> {
@@ -1117,7 +1117,9 @@ function printHelpAndExit(): never {
 
 Required env:
   SUPABASE_URL
-  SUPABASE_SECRET_KEY       Preferred current Supabase admin key name.
+  SUPABASE_SERVER_API_KEY   Preferred explicit server key.
+  SUPABASE_SECRET_KEYS      Platform-managed current secret-key dictionary.
+  SUPABASE_SECRET_KEY       Current manually managed secret-key fallback.
   SUPABASE_SERVICE_ROLE_KEY Legacy fallback for older projects.
 
 Options:
@@ -1140,17 +1142,24 @@ function requiredEnv(name: string): string {
 export function requiredAdminApiKey(
   environment: Record<string, string>,
 ): string {
+  const explicitKey = normalizeAdminApiKey(
+    environment.SUPABASE_SERVER_API_KEY,
+  );
   const secretKey = normalizeAdminApiKey(environment.SUPABASE_SECRET_KEY);
-  if (secretKey) return secretKey;
-
   const serviceRoleKey = normalizeAdminApiKey(
     environment.SUPABASE_SERVICE_ROLE_KEY,
   );
-  if (serviceRoleKey) return serviceRoleKey;
-
-  throw new Error(
-    "SUPABASE_SECRET_KEY is required. SUPABASE_SERVICE_ROLE_KEY is also accepted for legacy projects.",
-  );
+  const result = resolveServerApiKey({
+    envServerApiKey: explicitKey ?? secretKey ?? "",
+    envSecretKeys: environment.SUPABASE_SECRET_KEYS,
+    envServiceRoleKey: serviceRoleKey ?? "",
+  });
+  if (!result.ok) {
+    throw new Error(
+      `A supported Supabase server API key is required: ${result.reason}.`,
+    );
+  }
+  return result.serverApiKey;
 }
 
 function normalizeAdminApiKey(value: string | undefined): string | null {
@@ -1158,6 +1167,7 @@ function normalizeAdminApiKey(value: string | undefined): string | null {
   if (!trimmed) return null;
 
   return trimmed
+    .replace(/^SUPABASE_SERVER_API_KEY=/, "")
     .replace(/^SUPABASE_SECRET_KEY=/, "")
     .replace(/^SUPABASE_SERVICE_ROLE_KEY=/, "")
     .replace(/^['"]|['"]$/g, "")

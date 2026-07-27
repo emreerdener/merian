@@ -1,3 +1,8 @@
+import {
+  fetchWithDeadline,
+  readResponseJsonWithinLimit,
+} from "../_shared/outbound.ts";
+
 export interface GbifCommunityTaxon {
   gbif_taxon_key: number;
   accepted_gbif_taxon_key: number | null;
@@ -21,6 +26,8 @@ export interface GbifCommunityTaxon {
 }
 
 type Fetcher = typeof fetch;
+const GBIF_SUGGEST_REQUEST_TIMEOUT_MS = 2_500;
+const GBIF_SUGGEST_RESPONSE_LIMIT_BYTES = 256 * 1024;
 
 const ACCEPTED_RANKS = new Set([
   "kingdom",
@@ -51,13 +58,20 @@ export async function fetchGbifCommunityTaxa(
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(cappedLimit));
 
-  const response = await fetcher(url, {
-    headers: { "Accept": "application/json" },
-    signal: AbortSignal.timeout(2500),
-  });
-  if (!response.ok) return [];
+  const response = await fetchWithDeadline(
+    url,
+    { headers: { "Accept": "application/json" } },
+    { fetcher, timeoutMs: GBIF_SUGGEST_REQUEST_TIMEOUT_MS },
+  );
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    return [];
+  }
 
-  const json = await response.json();
+  const json = await readResponseJsonWithinLimit(
+    response,
+    GBIF_SUGGEST_RESPONSE_LIMIT_BYTES,
+  );
   if (!Array.isArray(json)) return [];
 
   const taxa: GbifCommunityTaxon[] = [];

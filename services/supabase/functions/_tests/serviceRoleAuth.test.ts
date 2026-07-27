@@ -1,9 +1,35 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
+import {
+  assertEquals,
+  assertThrows,
+} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import {
+  authorizeServiceRoleRequest,
+  requireServerApiKey,
+  resolveServerApiKey,
+  ServerApiKeyConfigurationError,
+} from "../_shared/serviceRoleAuth.ts";
 
-const LEGACY_SERVICE_ROLE_KEY = "legacy-service-role-key";
-const DEFAULT_SECRET_KEY = "sb_secret_default-key";
-const WORKER_SECRET_KEY = "sb_secret_worker-key";
+const LEGACY_SERVICE_ROLE_KEY = [
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+  "eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ",
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+].join(".");
+const LEGACY_ANON_KEY = [
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+  "eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJhbm9uIn0",
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+].join(".");
+const SHORT_SIGNATURE_SERVICE_ROLE_KEY = [
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+  "eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ",
+  "placeholder",
+].join(".");
+const fakeCurrentSecretKey = (label: string) =>
+  ["sb", "secret", label, "a".repeat(20)].join("_");
+const DEFAULT_SECRET_KEY = fakeCurrentSecretKey("default-key");
+const WORKER_SECRET_KEY = fakeCurrentSecretKey("worker-key");
+const EXPLICIT_SECRET_KEY = fakeCurrentSecretKey("explicit-key");
+const INVALID_SECRET_KEY = `${fakeCurrentSecretKey("invalid")}!`;
 const SECRET_KEYS = JSON.stringify({
   default: DEFAULT_SECRET_KEY,
   worker: WORKER_SECRET_KEY,
@@ -49,7 +75,7 @@ Deno.test("authorizeServiceRoleRequest rejects public API credentials", () => {
   for (
     const unprivilegedToken of [
       "sb_publishable_public-key",
-      "legacy-anon-jwt",
+      LEGACY_ANON_KEY,
     ]
   ) {
     const result = authorizeServiceRoleRequest(
@@ -198,6 +224,104 @@ Deno.test("authorizeServiceRoleRequest supports named-secret-only server configu
     ok: true,
     serverApiKey: DEFAULT_SECRET_KEY,
   });
+});
+
+Deno.test("server-key resolution prefers an explicit deployment key, then the named default", () => {
+  assertEquals(
+    resolveServerApiKey({
+      envServerApiKey: EXPLICIT_SECRET_KEY,
+      envSecretKeys: SECRET_KEYS,
+      envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+    }),
+    { ok: true, serverApiKey: EXPLICIT_SECRET_KEY },
+  );
+  assertEquals(
+    resolveServerApiKey({
+      envSecretKeys: SECRET_KEYS,
+      envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+    }),
+    { ok: true, serverApiKey: DEFAULT_SECRET_KEY },
+  );
+});
+
+Deno.test("server-key resolution supports legacy-only rollout and fails without a key", () => {
+  assertEquals(
+    resolveServerApiKey({
+      envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+    }),
+    { ok: true, serverApiKey: LEGACY_SERVICE_ROLE_KEY },
+  );
+  assertEquals(
+    resolveServerApiKey({}),
+    { ok: false, reason: "no_configured_keys" },
+  );
+  assertEquals(
+    resolveServerApiKey({ envSecretKeys: "{" }),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+});
+
+Deno.test("server-key resolution rejects unprivileged or malformed configured keys", () => {
+  for (
+    const invalidOptions of [
+      { envServerApiKey: "sb_publishable_public-key" },
+      { envServerApiKey: "sb_secret_placeholder" },
+      { envServerApiKey: INVALID_SECRET_KEY },
+      { envServerApiKey: LEGACY_ANON_KEY },
+      { envServerApiKey: "not-a-server-key" },
+      { envServiceRoleKey: LEGACY_ANON_KEY },
+      { envServiceRoleKey: SHORT_SIGNATURE_SERVICE_ROLE_KEY },
+      { envServiceRoleKey: "not-a-jwt" },
+    ]
+  ) {
+    assertEquals(
+      resolveServerApiKey(invalidOptions),
+      { ok: false, reason: "invalid_secret_key_configuration" },
+    );
+  }
+});
+
+Deno.test("authorization fails closed when a public key is placed in a privileged variable", () => {
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({ apikey: "sb_publishable_public-key" }),
+      { envServerApiKey: "sb_publishable_public-key" },
+    ),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({
+        Authorization: `Bearer ${LEGACY_ANON_KEY}`,
+        apikey: LEGACY_ANON_KEY,
+      }),
+      { envServiceRoleKey: LEGACY_ANON_KEY },
+    ),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+});
+
+Deno.test("required server-key resolution fails with a typed configuration error", () => {
+  const error = assertThrows(
+    () => requireServerApiKey({}),
+    ServerApiKeyConfigurationError,
+    "no_configured_keys",
+  );
+  assertEquals(error.reason, "no_configured_keys");
+});
+
+Deno.test("authorizeServiceRoleRequest accepts an exact explicit deployment key", () => {
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({ apikey: EXPLICIT_SECRET_KEY }),
+      {
+        envServerApiKey: EXPLICIT_SECRET_KEY,
+        envSecretKeys: SECRET_KEYS,
+        envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+      },
+    ),
+    { ok: true, serverApiKey: EXPLICIT_SECRET_KEY },
+  );
 });
 
 Deno.test("authorizeServiceRoleRequest rejects requests when no server key is configured", () => {

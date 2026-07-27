@@ -9,6 +9,7 @@ import {
   hmacClientAddressForPurpose,
   resolveClientAddressHashSecret,
 } from "../_shared/clientAddress.ts";
+import { resolveServerApiKeyFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -74,9 +75,10 @@ export async function resolveSpeciesObservationStatsSecurityContext(
 ): Promise<SpeciesObservationStatsSecurityContext> {
   let secret: string;
   try {
+    const serverKey = resolveServerApiKeyFromEnvironment();
     secret = resolveClientAddressHashSecret({
       platformSecretKey: Deno.env.get("SUPABASE_SECRET_KEY"),
-      serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+      serviceRoleKey: serverKey.ok ? serverKey.serverApiKey : undefined,
     });
   } catch (error) {
     if (!(error instanceof ClientAddressHashError)) throw error;

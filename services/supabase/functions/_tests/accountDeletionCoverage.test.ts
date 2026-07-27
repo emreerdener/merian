@@ -87,7 +87,9 @@ Deno.test("account deletion reaper is service-only, bounded, and deployed", asyn
 
   for (
     const fragment of [
-      "timingSafeCompare(providedAuth, `Bearer ${serviceRoleKey}`)",
+      "authorizeServiceRoleRequestFromEnvironment(req)",
+      "createServiceRoleClient(",
+      "auth.serverApiKey",
       'limit: "small"',
       "allowEmpty: true",
       "processAccountDeletionJobs(supabaseAdmin",

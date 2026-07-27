@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
+import { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./auth.ts";
 import {
   corsHeaders,
@@ -9,6 +9,8 @@ import {
   PublicHttpError,
   requestIdFor,
 } from "./http.ts";
+import { requireServerApiKeyFromEnvironment } from "./serviceRoleAuth.ts";
+import { createServiceRoleClient } from "./serviceRoleClient.ts";
 
 export { jsonResponse };
 
@@ -79,9 +81,9 @@ export async function withEdgeHandler(
   }
 
   try {
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      requireServerApiKeyFromEnvironment(),
     );
 
     const authStart = performance.now();

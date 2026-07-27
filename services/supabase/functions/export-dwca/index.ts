@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import { serveEdge } from "../_shared/edgeHandler.ts";
 import {
   corsHeaders,
@@ -6,8 +5,9 @@ import {
   parseJsonBody,
   publicErrorResponse,
   requestIdFor,
-  timingSafeCompare,
 } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { ExportWorkerError } from "./types.ts";
 import { drainExportJobs, type ExportDrainStep } from "./drain.ts";
 
@@ -27,15 +27,8 @@ serveEdge(async (req: Request) => {
     );
   }
 
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const providedAuthorization = req.headers.get("Authorization") ?? "";
-  if (
-    !serviceKey ||
-    !timingSafeCompare(
-      providedAuthorization,
-      `Bearer ${serviceKey}`,
-    )
-  ) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
+  if (!auth.ok) {
     return publicErrorResponse(
       req,
       401,
@@ -62,16 +55,9 @@ serveEdge(async (req: Request) => {
 
   const requestId = requestIdFor(req);
   try {
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      serviceKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      },
+      auth.serverApiKey,
     );
     const result = await drainExportJobs(
       supabaseAdmin,

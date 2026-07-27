@@ -159,7 +159,11 @@ attribution-approved image.
 Required server-side values:
 
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SERVER_API_KEY` — preferred current `sb_secret_...` key. A
+  platform-managed `SUPABASE_SECRET_KEYS` dictionary is also supported when
+  present.
+- `SUPABASE_SERVICE_ROLE_KEY` — legacy service-role JWT migration fallback
+  only; it is not required when a current key source is configured.
 - `WAITLIST_IP_HASH_SECRET` — dedicated high-entropy server secret used only to
   derive daily rotating waitlist IP HMACs.
 - `WAITLIST_TRUSTED_IP_HEADER` — `x-vercel-forwarded-for` for the production
@@ -185,7 +189,12 @@ Optional fallback values:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_PUBLIC_VIEWER_ID`
 
-`SUPABASE_SERVICE_ROLE_KEY` must never be prefixed with `NEXT_PUBLIC_`, rendered into HTML, committed to the repo, or used from client components. It is only acceptable inside server-rendered route code or server-only helpers.
+No privileged Supabase key may be prefixed with `NEXT_PUBLIC_`, rendered into
+HTML, committed to the repo, or used from client components. It is acceptable
+only inside server-rendered route code or server-only helpers. The server
+resolver accepts current `sb_secret_...` values or legacy HS256
+`service_role` JWTs and rejects publishable, anon/user, or malformed
+configuration.
 
 This allowlist is intentionally unrelated to the GitHub deployment secret set.
 Do not add `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_URL`,
@@ -395,7 +404,7 @@ npm run audit:dependencies
 
 Local waitlist submissions need a Turnstile test widget and matching test
 secret. Never put a production Turnstile secret or
-`SUPABASE_SERVICE_ROLE_KEY` in a `NEXT_PUBLIC_` variable. An absent or
+privileged Supabase server key in a `NEXT_PUBLIC_` variable. An absent or
 inconsistent CAPTCHA, hostname, proxy-header, HMAC, or service-role
 configuration fails closed with `503`; it never falls back to a direct table
 upsert.

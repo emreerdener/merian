@@ -235,6 +235,10 @@ is overdue, leases expire, or the erasure backlog breaches its SLA.
   budget before rejection. Unexpected server failures return a generic public
   code while provider, schema, and implementation details remain in
   request-correlated server logs.
+- Outbound Edge calls combine caller cancellation with provider deadlines and
+  stream response bodies through endpoint-specific ceilings before parsing.
+  CI rejects production modules that bypass the reviewed HTTP or signed-R2
+  adapters.
 
 ### Identity & Monetization
 - Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at launch).

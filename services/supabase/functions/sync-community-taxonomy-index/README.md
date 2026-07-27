@@ -30,10 +30,11 @@ Headers:
   `apikey: <SUPABASE_SERVICE_ROLE_KEY>`
 - Named non-JWT project secret: `apikey: <sb_secret_...>` only
 
-The worker accepts only an exact platform-managed environment match:
-`SUPABASE_SERVICE_ROLE_KEY` or one of the values in `SUPABASE_SECRET_KEYS`. It
-does not infer authority from taxonomy table reachability or an RLS-filtered
-result. Conflicting Authorization/apikey credentials fail closed.
+The worker accepts only an exact match from the shared resolver:
+`SUPABASE_SERVER_API_KEY`, a value in `SUPABASE_SECRET_KEYS`, or the
+migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback. It does not infer authority
+from taxonomy table reachability or an RLS-filtered result. Conflicting
+Authorization/apikey credentials fail closed.
 
 Body fields are optional:
 
@@ -121,7 +122,7 @@ Preferred local operator path:
 
 ```bash
 SUPABASE_URL="https://qlarqavoqhkuwzmevrmf.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+SUPABASE_SERVER_API_KEY="$SUPABASE_SERVER_API_KEY" \
 deno run --allow-net --allow-env --allow-read --allow-write \
   services/supabase/scripts/import_community_taxonomy.ts \
   --target birds --limit 100 --page-count 3 --update-checklist
@@ -137,7 +138,7 @@ Raw Edge Function fallback:
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{"target":"birds","limit":100,"page_count":1,"dry_run":true}'
 ```
@@ -147,7 +148,7 @@ curl -sS \
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{"target":"birds","limit":100,"page_count":1}'
 ```
@@ -157,7 +158,7 @@ curl -sS \
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/community-taxonomy-status" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{"view":"coverage","target":"birds","import_run_limit":10,"job_limit":1}'
 ```
@@ -167,12 +168,15 @@ curl -sS \
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{"target":"birds","offset":150,"limit":100,"page_count":1}'
 ```
 
 Keep rollout batches at `page_count = 1...3` until status checks remain stable.
-After several clean runs, scheduled imports may use `page_count = 20` for the
-Birds target. Increase beyond manual defaults only when `gbif_bounded_birds`
-import runs, coverage counts, and `next_import_offset` advance as expected.
+These preferred commands use a current `sb_secret_...` key. During legacy-key
+migration only, send the same JWT in both `apikey` and
+`Authorization: Bearer ...`. After several clean runs, scheduled imports may use
+`page_count = 20` for the Birds target. Increase beyond manual defaults only
+when `gbif_bounded_birds` import runs, coverage counts, and `next_import_offset`
+advance as expected.

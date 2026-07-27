@@ -224,6 +224,7 @@ Deno.test("periodic repair cannot restore a pass after a free watermark", () => 
 Deno.test("CustomerInfo fetch uses the server API key and validates the snapshot", async () => {
   let requestedUrl = "";
   let requestedAuthorization = "";
+  let requestedSignal: AbortSignal | null | undefined;
   const fakeFetch = ((
     input: string | URL | Request,
     init?: RequestInit,
@@ -231,6 +232,7 @@ Deno.test("CustomerInfo fetch uses the server API key and validates the snapshot
     requestedUrl = String(input);
     requestedAuthorization = new Headers(init?.headers).get("Authorization") ??
       "";
+    requestedSignal = init?.signal;
     return Promise.resolve(
       new Response(
         JSON.stringify({
@@ -253,6 +255,7 @@ Deno.test("CustomerInfo fetch uses the server API key and validates the snapshot
     "https://api.revenuecat.com/v1/subscribers/user%2Fwith%20spaces",
   );
   assertEquals(requestedAuthorization, "Bearer sk_test_secret");
+  assertEquals(requestedSignal instanceof AbortSignal, true);
   assertEquals(result.requestDateMs, SNAPSHOT_MS);
 });
 

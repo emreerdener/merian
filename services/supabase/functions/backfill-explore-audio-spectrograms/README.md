@@ -5,18 +5,22 @@ Service-role-only repair worker for published standalone-audio media whose
 deterministic PNG beside the durable WAV in R2, updates the post snapshot, and
 also updates the matching `scan_media_assets` row so later shares can reuse it.
 
-The endpoint accepts only `POST` and compares the bearer token to
-`SUPABASE_SERVICE_ROLE_KEY` with the shared timing-safe helper. It is configured
-with `verify_jwt = false` only so modern service-role credentials reach the
-function; the explicit in-function check remains mandatory. Never call this
-worker from iOS or the public web app.
+The endpoint accepts only `POST` and compares one exact current or legacy server
+key with the shared timing-safe helper. It is configured with
+`verify_jwt = false` so opaque keys can reach the function through `apikey`;
+legacy JWT keys use both supported headers. The explicit in-function check
+remains mandatory. Never call this worker from iOS or the public web app.
 
 ```bash
 curl -X POST "$SUPABASE_URL/functions/v1/backfill-explore-audio-spectrograms" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"limit":50}'
 ```
+
+The preferred example uses a current `sb_secret_...` key. During legacy-key
+migration only, send the same legacy JWT in both `apikey` and
+`Authorization: Bearer ...`.
 
 Repeat while `generated_count` is greater than zero. The worker selects WAV
 candidates only; legacy non-WAV clips retain the existing volume-icon fallback

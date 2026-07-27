@@ -6,6 +6,9 @@ import {
   validateVerifiedClaims,
 } from "./auth.ts";
 import { corsHeaders } from "./http.ts";
+import { createDeadlineFetchTransport } from "./outbound.ts";
+
+const SUPABASE_CLAIMS_REQUEST_TIMEOUT_MS = 15_000;
 
 function unauthorizedClaimsResponse(message: string): Response {
   return new Response(
@@ -47,7 +50,14 @@ export async function requireClaimsAuth(
   const supabaseClient = createClaimsClient(
     supabaseUrl,
     Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-    { global: { headers: { Authorization: `Bearer ${bearerToken}` } } },
+    {
+      global: {
+        fetch: createDeadlineFetchTransport(
+          SUPABASE_CLAIMS_REQUEST_TIMEOUT_MS,
+        ),
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      },
+    },
   );
   const { data, error } = await supabaseClient.auth.getClaims(bearerToken);
   if (error || !data?.claims) {

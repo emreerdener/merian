@@ -4,6 +4,30 @@ Creates or reactivates the current user's Explore post for one eligible scan.
 The endpoint shares the post content; post-level location visibility is stored
 separately from the backing scan's `geoprivacy`.
 
+## Authorization Boundary
+
+Scan Library quick-share and the full Insight composer use this same endpoint.
+The client sends only the signed-in user's access token. `withEdgeHandler`
+authenticates that user, and the route binds scan ownership and share
+eligibility to the resulting user ID; the iOS app never receives a service-role
+key.
+
+After those user checks, the server-side admin client refreshes the public
+author projection and invokes other reviewed publication helpers.
+`refresh_public_author_identity(uuid)` and the other privileged database RPCs
+remain granted only to `service_role`, and each service-exposed definer calls
+`internal.require_service_role()`. Migration
+`20260727010340_fix_service_role_authorization_guard.sql` lets that helper
+recognize both legacy service-role JWT claims and PostgREST's protected
+`service_role` impersonation for opaque secret keys without broadening any RPC
+grant.
+
+If Edge/database logs contain `service_role authorization required`, the failure
+is a server migration/key-path regression, not a scan-level permission denial.
+Verify that the compatibility migration is applied and that `service_role`—not
+`authenticated`—has the reviewed RPC grant. Do not add a service key to the
+client or grant the maintenance RPC to users.
+
 ## Request
 
 ```json
@@ -219,9 +243,12 @@ coordinates with `coordinate_visibility = "obscured"`.
 ## Local Verification
 
 ```sh
+make validate-supabase-migrations
+make test-supabase-privileged-routines
 deno check --config services/supabase/functions/deno.json services/supabase/functions/share-scan-to-explore/index.ts
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/communityIdentificationDb.test.ts
 ```
 
 DB integration tests require a running local Supabase Postgres instance at the
-configured test URL.
+configured test URL. The privileged-routine catalog fixture must run only
+against the disposable local database; never substitute `--linked`.

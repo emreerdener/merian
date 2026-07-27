@@ -6,6 +6,13 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Explore
+
+- Fixed Scan Library observations being denied when sharing to Explore after
+  server-side routine authorization hardening.
+- Field Chat now preserves a confidence-focused prompt for identifications below
+  70% confidence, even when generated suggestions fill the available chips.
+
 ### Media Reliability
 
 - Explore no longer leaves an all-missing observation as a blank public post.
@@ -64,14 +71,32 @@ TestFlight, App Store, support, and QA.
   errors. The public beta waitlist now requires a verified security challenge,
   applies transactional per-network and global growth limits, and keeps raw
   network addresses out of storage and logs.
+- Added hard deadlines to outbound Edge requests and streamed byte ceilings to
+  provider diagnostics and enrichment JSON. Replay claims now outlive their
+  downstream inference deadline, APNs retries share a collapse identifier, and
+  CI rejects production modules that bypass the reviewed transport adapters.
+- Database CI now discovers and executes every checked-in pgTAP catalog fixture
+  instead of maintaining a selected list, so adding a new authorization or data
+  integrity contract automatically makes it deployment-blocking.
 - Closed an internal-worker authorization bypass where an RLS-filtered,
-  successful empty table read was mistaken for service-role authority. The six
-  shared boundaries now accept only an exact platform-managed service key,
-  reject mixed credentials, keep caller credentials out of downstream database
-  clients, and deny real anon/publishable keys in the production smoke suite.
-  Operational callers now retrieve revealed current secret keys through the
-  Management API, use API-key-only transport, reject masked key representations,
-  and fall back only to the exact legacy service-role key.
+  successful empty table read was mistaken for service-role authority. Every
+  shared internal boundary now accepts only an exact platform-managed service
+  key, rejects mixed credentials, keeps caller credentials out of downstream
+  database clients, and denies real anon/publishable keys in the production smoke
+  suite. Operational callers now retrieve revealed current secret keys through
+  the Management API, use API-key-only transport, reject masked key
+  representations, and fall back only to the exact legacy service-role key.
+- Privileged Edge, webhook, and public-data clients now resolve the
+  platform-managed current secret-key dictionary through one factory. Opaque
+  keys stay out of Bearer transport across database, Storage, Functions, and
+  Auth Admin calls, while inherited request metadata and real user access tokens
+  remain intact.
+- Migrated all twenty internal service request boundaries, installed `pg_net`
+  routines, persisted HTTP cron commands, the server-only web client, and
+  operator repair/audit tools to the same current/legacy key policy. Mixed
+  user/service database routines now dispatch on bound user identity instead of
+  a JWT-only service-role claim, with static, catalog, and read-only production
+  audits preventing regressions.
 - Made scientific exports safe to retry and bounded in memory. Duplicate workers
   now compete for one database lease, stale attempts cannot publish over the
   winner, and scan rows advance through short cursor-persisted CSV, assembly,

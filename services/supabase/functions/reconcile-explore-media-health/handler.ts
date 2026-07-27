@@ -7,7 +7,7 @@ import {
   publicErrorResponse,
 } from "../_shared/http.ts";
 import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
-import { createServiceRoleDataClient } from "../_shared/serviceRoleClient.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import {
   reconcileExploreMediaHealth,
   type ReconcileExploreMediaHealthOptions,
@@ -26,8 +26,9 @@ type CreateAdminClient = (
 
 export interface ReconcileExploreMediaHealthHandlerOptions {
   supabaseUrl: string;
-  envServiceRoleKey: string;
-  envSecretKeys: string;
+  envServerApiKey?: string;
+  envServiceRoleKey?: string;
+  envSecretKeys?: string;
   createAdminClient?: CreateAdminClient;
   reconcile?: Reconcile;
 }
@@ -45,7 +46,7 @@ function defaultCreateAdminClient(
   supabaseUrl: string,
   token: string,
 ): SupabaseClient {
-  return createServiceRoleDataClient(supabaseUrl, token);
+  return createServiceRoleClient(supabaseUrl, token);
 }
 
 export function createReconcileExploreMediaHealthHandler(
@@ -64,6 +65,7 @@ export function createReconcileExploreMediaHealthHandler(
     }
 
     const auth = authorizeServiceRoleRequest(req, {
+      envServerApiKey: options.envServerApiKey,
       envServiceRoleKey: options.envServiceRoleKey,
       envSecretKeys: options.envSecretKeys,
     });

@@ -1,8 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
+import { createServiceRoleClientFromEnvironment } from "../_shared/serviceRoleClient.ts";
 import {
   fetchAllSpeciesDictionaryTree,
   fetchSpeciesDictionary,
@@ -39,9 +39,8 @@ serveEdge(async (req: Request) => {
     if (parsedBody instanceof Response) return parsedBody;
 
     const parsedRequest = parseSpeciesDictionaryRequest(parsedBody);
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClientFromEnvironment(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     if (parsedRequest.mode === "catalog") {

@@ -7,6 +7,10 @@ const migrationUrl = new URL(
   "../../migrations/20260723144640_harden_privileged_routine_execution.sql",
   import.meta.url,
 );
+const serviceRoleGuardFixUrl = new URL(
+  "../../migrations/20260727010340_fix_service_role_authorization_guard.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -117,4 +121,21 @@ Deno.test("service allowlist is coupled to in-function authorization", async () 
     sql,
     "WHERE allowlist.role_name = 'service_role' AND language_row.lanname = 'plpgsql' AND function_row.prosrc NOT LIKE '%internal.require_service_role()%'",
   );
+});
+
+Deno.test("service-role guard supports JWT and opaque server keys", async () => {
+  const sql = normalized(await Deno.readTextFile(serviceRoleGuardFixUrl));
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION internal.require_service_role()",
+      "auth.role() IS DISTINCT FROM 'service_role'",
+      "pg_catalog.CURRENT_SETTING('role', TRUE) IS DISTINCT FROM 'service_role'",
+      "SESSION_USER NOT IN ('postgres', 'service_role')",
+      "RAISE EXCEPTION 'service_role authorization required'",
+      "REVOKE ALL ON FUNCTION internal.require_service_role() FROM PUBLIC, anon, authenticated, service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
 });

@@ -3,7 +3,8 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
+ *   SUPABASE_SERVICE_ROLE_KEY fallback
  *
  * Example:
  *   deno run --allow-net --allow-env --allow-write \
@@ -12,7 +13,10 @@
  *     --summary-md /tmp/scan-media-health.md
  */
 
-import { serviceRoleRequestHeaders } from "../functions/_shared/serviceRoleAuth.ts";
+import {
+  requireServerApiKeyFromEnvironment,
+  serviceRoleRequestHeaders,
+} from "../functions/_shared/serviceRoleAuth.ts";
 
 export type MonitorFailurePolicy = "critical" | "warning" | "never";
 export type ScanMediaHealthStatus = "ok" | "warning" | "critical";
@@ -90,16 +94,7 @@ if (import.meta.main) {
 export async function runMonitor(rawArgs: string[]): Promise<number> {
   const args = parseMonitorArgs(rawArgs);
   const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const serverApiKey = (
-    Deno.env.get("SUPABASE_SERVER_API_KEY") ??
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-      ""
-  ).trim();
-  if (!serverApiKey) {
-    throw new Error(
-      "Missing required environment variable: SUPABASE_SERVER_API_KEY",
-    );
-  }
+  const serverApiKey = requireServerApiKeyFromEnvironment();
   const health = await postJson(
     `${supabaseUrl}/functions/v1/scan-media-health`,
     {

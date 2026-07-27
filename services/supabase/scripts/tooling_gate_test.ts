@@ -20,6 +20,14 @@ const deployWorkflowPath = new URL(
   "../../../.github/workflows/deploy.yml",
   scriptsDirectory,
 );
+const databaseCatalogGatePath = new URL(
+  "test_database_catalogs.sh",
+  scriptsDirectory,
+);
+const makefilePath = new URL(
+  "../../../Makefile",
+  scriptsDirectory,
+);
 
 Deno.test("Supabase tooling gate discovers every standard TypeScript test", async () => {
   const gate = await Deno.readTextFile(toolingGatePath);
@@ -58,6 +66,10 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
     /bash services\/supabase\/scripts\/validate_edge_dto_contract\.sh/,
   );
   assertMatch(
+    gate,
+    /bash services\/supabase\/scripts\/check_secret_shaped_literals\.sh/,
+  );
+  assertMatch(
     dtoContractGate,
     /--config services\/supabase\/scripts\/validate_edge_dtos\.deno\.json[\s\S]*services\/supabase\/scripts\/validate_edge_dtos_test\.ts/,
   );
@@ -76,6 +88,69 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   assertMatch(
     gate,
     /shell_tests=\(services\/supabase\/scripts\/\*_test\.sh\)/,
+  );
+  assertMatch(
+    gate,
+    /--allow-read=services\/supabase,\.github\/workflows,Makefile/,
+  );
+});
+
+Deno.test("database catalog gate discovers every SQL fixture", async () => {
+  const [gate, workflow, makefile] = await Promise.all([
+    Deno.readTextFile(databaseCatalogGatePath),
+    Deno.readTextFile(deployWorkflowPath),
+    Deno.readTextFile(makefilePath),
+  ]);
+  const databaseTests: string[] = [];
+  const databaseTestsDirectory = new URL(
+    "../tests/",
+    scriptsDirectory,
+  );
+  for await (const entry of Deno.readDir(databaseTestsDirectory)) {
+    if (entry.isFile && entry.name.endsWith(".sql")) {
+      databaseTests.push(entry.name);
+    }
+  }
+
+  assert(
+    databaseTests.length > 0,
+    "The database catalog suite must not be empty.",
+  );
+  assertMatch(
+    gate,
+    /catalog_tests=\(services\/supabase\/tests\/\*\.sql\)/,
+  );
+  assertMatch(
+    gate,
+    /if \[ "\$\{#catalog_tests\[@\]\}" -eq 0 \]/,
+  );
+  assertMatch(gate, /SUPABASE_TELEMETRY_DISABLED/);
+  assertMatch(
+    gate,
+    /\^Files=\$\{expected_file_count\}, Tests=\[1-9\]\[0-9\]\*,/,
+  );
+  assertMatch(gate, /\^Result: PASS/);
+  for (const testFile of databaseTests) {
+    assert(
+      !gate.includes(testFile),
+      `${testFile} must be discovered rather than explicitly selected.`,
+    );
+  }
+  assertMatch(
+    workflow,
+    /run: bash supabase\/scripts\/test_database_catalogs\.sh/,
+  );
+  assert(
+    !workflow.includes("supabase test db --local"),
+    "The deploy workflow must delegate catalog discovery to the shared gate.",
+  );
+  assertMatch(
+    makefile,
+    /test-supabase-privileged-routines:[\s\S]*bash services\/supabase\/scripts\/test_database_catalogs\.sh/,
+  );
+  assert(
+    !makefile.includes("services/supabase/tests/account_deletion_security.sql"),
+    "The local make target must not maintain a selected catalog list.",
   );
 });
 
@@ -124,4 +199,9 @@ Deno.test("production deploy reports aggregate Explore publication health", asyn
     workflow,
     /publication_health_response[\s\S]*affected_author_count[\s\S]*missing_media_item_count/,
   );
+  assertMatch(
+    workflow,
+    /owned_incidents_response[\s\S]*post_server_json[\s\S]*get_owned_explore_media_incidents/,
+  );
+  assertMatch(workflow, /--connect-timeout 10[\s\S]*--max-time 60/);
 });

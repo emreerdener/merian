@@ -26,6 +26,7 @@ function routine(
     has_empty_search_path: true,
     has_authenticated_caller_check: true,
     has_service_role_caller_check: false,
+    has_jwt_only_service_role_dispatch: false,
     ...overrides,
   };
 }
@@ -70,6 +71,7 @@ Deno.test("catalog audit reports every privilege boundary failure", () => {
     service_role_can_execute: true,
     has_empty_search_path: false,
     has_authenticated_caller_check: false,
+    has_jwt_only_service_role_dispatch: true,
   });
   const report = buildAuditReport(
     snapshot({
@@ -110,6 +112,9 @@ Deno.test("catalog audit reports every privilege boundary failure", () => {
     "public.reviewed(uuid)",
   ]);
   assertEquals(report.violations.missing_authenticated_caller_checks, [
+    "public.reviewed(uuid)",
+  ]);
+  assertEquals(report.violations.jwt_only_service_role_dispatch, [
     "public.reviewed(uuid)",
   ]);
   assertEquals(report.violations.stale_or_missing_allowlist_grants, [

@@ -157,6 +157,19 @@ orphaned object does not reconstruct its relational context.
   entitlement, applies the operation's model policy, and consumes idempotent
   UTC-day/user/IP counters. Database errors and missing user rows fail closed;
   the iOS local meter is advisory.
+- Privileged database RPCs stay behind the authenticated Edge API; no
+  service-role credential ships to Apple clients. Reviewed
+  `SECURITY DEFINER` signatures are allowlisted for `service_role`, and their
+  bodies independently verify either the legacy JWT role or PostgREST's
+  protected role impersonation used by opaque server keys. The two layers
+  prevent a key-format compatibility repair from widening direct client
+  execution.
+- All Edge server-key selection flows through `serviceRoleAuth.ts`, and all
+  privileged supabase-js construction flows through `serviceRoleClient.ts`.
+  Opaque keys use `apikey` only; legacy service-role JWTs retain dual
+  `apikey`/Bearer transport during migration. The database equivalent is the
+  private `internal.server_api_request_headers(text)` helper, applied to both
+  installed `pg_net` routines and persisted `pg_cron` command text.
 - `Task.checkCancellation()` boundaries are injected inside `InferenceEngine`
   before transferring `URLSession` data payloads to Cloudflare R2. If the iOS
   Watchdog or the user cancels a processing scan, execution aborts immediately

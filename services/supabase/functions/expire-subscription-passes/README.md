@@ -18,7 +18,7 @@ runs.
 ## Flow
 
 1. `pg_cron` invokes `/functions/v1/expire-subscription-passes` hourly.
-2. The function authenticates with the service-role bearer token.
+2. The function authenticates one exact current or legacy platform server key.
 3. It selects users where `subscription_tier = 'pro'` and
    `subscription_expires_at <= now()`.
 4. Each candidate receives a conditional update that repeats the tier,

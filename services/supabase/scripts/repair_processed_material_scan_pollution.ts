@@ -4,7 +4,7 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SERVER_API_KEY (or platform-managed/legacy fallback)
  *
  * Dry run:
  *   deno run --allow-net --allow-env \
@@ -14,6 +14,12 @@
  *   deno run --allow-net --allow-env \
  *     services/supabase/scripts/repair_processed_material_scan_pollution.ts --apply
  */
+
+import {
+  resolveServerApiKey,
+  serverApiKeyOptionsFromEnvironment,
+  serviceRoleRequestHeaders,
+} from "../functions/_shared/serviceRoleAuth.ts";
 
 interface RepairArgs {
   apply: boolean;
@@ -90,7 +96,11 @@ if (import.meta.main) {
 export async function runRepair(rawArgs: string[]): Promise<number> {
   const args = parseArgs(rawArgs);
   const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const key = resolveServerApiKey(serverApiKeyOptionsFromEnvironment());
+  if (!key.ok) {
+    throw new Error(`Missing server API key: ${key.reason}`);
+  }
+  const serviceRoleKey = key.serverApiKey;
 
   const candidates = await fetchCandidateScans(
     supabaseUrl,
@@ -241,8 +251,7 @@ async function restJson<T>(
   const response = await fetch(url, {
     method: options.method ?? "GET",
     headers: {
-      "Authorization": `Bearer ${serviceRoleKey}`,
-      "apikey": serviceRoleKey,
+      ...serviceRoleRequestHeaders(serviceRoleKey),
       "Content-Type": "application/json",
       "Prefer": "return=representation",
     },

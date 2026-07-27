@@ -256,6 +256,73 @@ struct InsightChatTests {
         #expect(chips.contains("What makes this ID uncertain?"))
     }
 
+    @Test func lowConfidenceSuggestionChipsReserveConfidenceCategory() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings.", hazardType: "none"),
+            confidenceScore: 0.62
+        )
+        let viewModel = InsightChatViewModel()
+        viewModel.suggestedPrompts = [
+            InsightChatPromptSuggestion(text: "Which milkweed clues matter?", category: "ecology"),
+            InsightChatPromptSuggestion(text: "Which wing vein should I inspect?", category: "evidence"),
+            InsightChatPromptSuggestion(text: "Is this habitat typical?", category: "habitat")
+        ]
+
+        #expect(viewModel.suggestionChips(for: species, timestamp: nil) == [
+            "Which milkweed clues matter?",
+            "Which wing vein should I inspect?",
+            "What makes this ID uncertain?"
+        ])
+    }
+
+    @Test func lowConfidenceSuggestionChipsKeepServerConfidencePrompt() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings.", hazardType: "none"),
+            confidenceScore: 0.62
+        )
+        let viewModel = InsightChatViewModel()
+        viewModel.suggestedPrompts = [
+            InsightChatPromptSuggestion(text: "Which milkweed clues matter?", category: "ecology"),
+            InsightChatPromptSuggestion(text: "Why is this match uncertain?", category: "confidence"),
+            InsightChatPromptSuggestion(text: "Is this habitat typical?", category: "habitat")
+        ]
+
+        #expect(viewModel.suggestionChips(for: species, timestamp: nil) == [
+            "Which milkweed clues matter?",
+            "Why is this match uncertain?",
+            "Is this habitat typical?"
+        ])
+    }
+
+    @Test func lowConfidenceSuggestionChipsDoNotCrowdOutLateServerConfidencePrompt() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings.", hazardType: "none"),
+            confidenceScore: 0.62
+        )
+        let viewModel = InsightChatViewModel()
+        viewModel.suggestedPrompts = [
+            InsightChatPromptSuggestion(text: "Which milkweed clues matter?", category: "ecology"),
+            InsightChatPromptSuggestion(text: "Which wing vein should I inspect?", category: "evidence"),
+            InsightChatPromptSuggestion(text: "Is this habitat typical?", category: "habitat"),
+            InsightChatPromptSuggestion(text: "Why is this match uncertain?", category: "confidence")
+        ]
+
+        #expect(viewModel.suggestionChips(for: species, timestamp: nil) == [
+            "Which milkweed clues matter?",
+            "Which wing vein should I inspect?",
+            "Why is this match uncertain?"
+        ])
+    }
+
     @Test func testInsightChatDecodesSnakeCasePayloadAndDates() throws {
         let json = """
         {

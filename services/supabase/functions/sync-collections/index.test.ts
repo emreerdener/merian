@@ -5,9 +5,10 @@ import {
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
 /**
- * Mocks the Supabase environment and Edge Function handler inputs
- * to trace strictly whether payload attributes map to the PostgrestBuilder properly
- * and whether any Postgres schema validations instantly reject the upsert payload format.
+ * Exercises the request-to-upsert mapping without conditionally writing to an
+ * arbitrary Supabase environment. Database schema and authorization behavior
+ * belong to the disposable pgTAP catalog; unit tests must never turn missing
+ * credentials into a passing "live" integration test.
  */
 
 // A mock of the exact payload structure the Swift client `SyncCollectionPayload` generates:
@@ -24,7 +25,7 @@ const mockClientPayload = {
 };
 
 // Simulated mock mapping of Edge function logic:
-Deno.test("Edge Function Payload Mapping & Upsert Validation", async () => {
+Deno.test("Edge Function payload maps to the collection upsert contract", () => {
   // 1. Initial extraction
   const collections = mockClientPayload.collections;
   assert(Array.isArray(collections), "Collections is not an array");
@@ -66,37 +67,6 @@ Deno.test("Edge Function Payload Mapping & Upsert Validation", async () => {
     assert(
       record.created_at.endsWith("Z"),
       "created_at must be UTC Z-suffixed",
-    );
-  }
-
-  // 4. Test actual Supabase SDK initialization if environment permits:
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-  if (supabaseUrl && supabaseKey) {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
-    const upsertResult = await supabaseAdmin.from("collections").upsert(
-      mappedUpsertPayload,
-      { onConflict: "id" },
-    );
-
-    if (upsertResult.error) {
-      console.error("Live DB Exception:", upsertResult.error);
-      throw new Error(`DB Error: ${JSON.stringify(upsertResult.error)}`);
-    }
-
-    console.log("Upsert succeeded! Payload is database schema compliant.");
-
-    // Cleanup mock inserted record gracefully
-    await supabaseAdmin.from("collections").delete().eq(
-      "id",
-      mappedUpsertPayload[0].id,
-    );
-  } else {
-    console.warn(
-      "Skipping live database test: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env variables missing. Please run with --env.",
     );
   }
 });

@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import {
   corsHeaders,
   jsonResponse,
@@ -10,6 +9,7 @@ import {
   serveEdge,
 } from "../_shared/edgeHandler.ts";
 import { readRequestJsonWithinBudget } from "../_shared/mediaBudgets.ts";
+import { createServiceRoleClientFromEnvironment } from "../_shared/serviceRoleClient.ts";
 import {
   fetchSpeciesObservationStats,
   parseSpeciesObservationStatsQuery,
@@ -69,9 +69,8 @@ serveEdge(async (req: Request) => {
       );
     }
 
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClientFromEnvironment(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
     const securityContext = await resolveSpeciesObservationStatsSecurityContext(
       req,

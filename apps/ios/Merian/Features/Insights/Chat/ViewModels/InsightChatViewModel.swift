@@ -391,17 +391,51 @@ final class InsightChatViewModel {
         let sentTexts = Set(sentAndPendingPromptTexts)
         var seen = Set<String>()
         var chips: [String] = []
+        let availableConfidencePrompt = suggestedPrompts.first { prompt in
+            let key = normalizedPromptKey(prompt.text)
+            return prompt.category == "confidence"
+                && !key.isEmpty
+                && !sentTexts.contains(key)
+        }
+        let localConfidencePrompt = "What makes this ID uncertain?"
+        let localConfidenceKey = normalizedPromptKey(localConfidencePrompt)
+        let requiredConfidencePrompt: String? = if speciesData.confidenceScore < 0.7 {
+            availableConfidencePrompt?.text
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? (!sentTexts.contains(localConfidenceKey) ? localConfidencePrompt : nil)
+        } else {
+            nil
+        }
+        let requiredConfidenceKey = requiredConfidencePrompt.map(normalizedPromptKey)
+        let ordinaryChipLimit = requiredConfidencePrompt == nil ? 3 : 2
+        var ordinaryChipCount = 0
+        var includedRequiredConfidencePrompt = false
 
         for prompt in suggestedPrompts.map(\.text) + fallbackChips {
             let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-            let key = trimmed.lowercased()
+            let key = normalizedPromptKey(trimmed)
             guard !trimmed.isEmpty,
                   !sentTexts.contains(key),
                   seen.insert(key).inserted else {
                 continue
             }
-            chips.append(trimmed)
-            if chips.count == 3 { break }
+
+            if key == requiredConfidenceKey {
+                chips.append(trimmed)
+                includedRequiredConfidencePrompt = true
+            } else if ordinaryChipCount < ordinaryChipLimit {
+                chips.append(trimmed)
+                ordinaryChipCount += 1
+            }
+
+            if ordinaryChipCount == ordinaryChipLimit,
+               requiredConfidencePrompt == nil || includedRequiredConfidencePrompt {
+                break
+            }
+        }
+
+        if !includedRequiredConfidencePrompt, let requiredConfidencePrompt {
+            chips.append(requiredConfidencePrompt)
         }
 
         return chips
@@ -997,6 +1031,10 @@ final class InsightChatViewModel {
         }
 
         return unique
+    }
+
+    private func normalizedPromptKey(_ prompt: String) -> String {
+        prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private static func normalizedConcernText(_ text: String) -> String {

@@ -8,35 +8,36 @@ Merian.
 
 ## Storage Decision Matrix
 
-| Data type                           | Storage                                              | Reason                                                                                 |
-| ----------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Supabase JWT (access token)         | Supabase GoTrue SDK (internal Keychain)              | Managed automatically by the SDK                                                       |
-| Supabase anonymous session          | Supabase GoTrue SDK (internal Keychain)              | Managed automatically by the SDK                                                       |
-| Extension cache                     | App Group `group.app.merian.shared`                  | Non-secret coordination data shared by the app, Messages extension, and Explore widget |
-| RevenueCat customer ID              | RevenueCat SDK (internal)                            | Logged in with the Supabase Auth UUID; SDK-managed locally                             |
-| `SUPABASE_ANON_KEY`                 | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
-| `REVENUECAT_API_KEY`                | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret; production export should use an iOS `appl_` key     |
-| `POSTHOG_API_KEY`                   | `Config.xcconfig` → `MerianEnvironment.swift`        | Read-only build config, not secret                                                     |
-| `GEMINI_API_KEY`                    | Supabase Edge secret only                            | Never in iOS bundle                                                                    |
-| `AI_QUOTA_IP_HASH_SECRET`           | Optional GitHub Production override synchronized to Supabase Edge | Dedicated HMAC key for rotating network quota buckets; never in clients or logs |
-| `DWCA_PSEUDONYM_HMAC_KEY_V1`       | GitHub `Production` secret synchronized to Supabase Edge | Base64 32-byte-or-longer HMAC key for versioned global-export user pseudonyms |
-| `REVENUECAT_WEBHOOK_SECRET`         | GitHub `Production` secret synchronized to Supabase Edge | Random webhook Authorization credential; never use the public iOS key |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | GitHub `Production` secret synchronized to Supabase Edge | RevenueCat raw-body HMAC key; never log, commit, or expose to clients |
-| `REVENUECAT_SECRET_API_KEY`         | GitHub `Production` secret synchronized to Supabase Edge | `sk_` server API credential for authoritative CustomerInfo reads; distinct from `REVENUECAT_API_KEY` |
-| `R2_READ_ACCESS_KEY_ID`             | GitHub `Production` secret synchronized to Supabase Edge | Dedicated bucket-scoped read-only credential for direct-origin media verification |
-| `R2_READ_SECRET_ACCESS_KEY`         | GitHub `Production` secret synchronized to Supabase Edge | Secret half of the dedicated verifier credential; never reuse upload/delete authority |
-| `R2_EVENT_WEBHOOK_SECRET`           | GitHub `Production` secret synchronized to Supabase Edge | High-entropy shared secret for optional Cloudflare R2 event hints |
-| `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Never in iOS bundle or browser-exposed web config                         |
-| `Merian_HasAuthenticatedOAuth`      | `KeychainManager` (`kSecClassGenericPassword`)       | Security-sensitive auth flag, migrated from `UserDefaults` on first run                |
-| `Merian_PendingGhostProfileMerge`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)     | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
-| Device IDFV (`Merian_Device_IDFV`)  | `DeviceIdentityManager` (`kSecClassGenericPassword`) | Persisted across reinstalls within the same vendor group                               |
-| `hasCompletedOnboarding`            | `UserDefaults`                                       | Non-sensitive preference                                                               |
-| `isAchievementNotificationsEnabled` | `UserDefaults`                                       | Non-sensitive preference                                                               |
-| `Merian_UnlockedSpeciesCount`       | `UserDefaults`                                       | Non-sensitive gamification counter                                                     |
-| `Merian_UnlockedAchievements`       | `UserDefaults`                                       | Non-sensitive gamification set                                                         |
-| `firstFieldTripAchievementProgress.v1.{accountId}` | `UserDefaults`                          | Non-sensitive account-scoped completion date and typed Field trip destination cache   |
-| User geoprivacy preference          | Supabase `users` table                               | Server-authoritative preference                                                        |
-| Local free-scan meter               | `UserDefaults`                                       | Advisory UX only; authoritative entitlement/quota is in Supabase                       |
+| Data type                                          | Storage                                                                       | Reason                                                                                                             |
+| -------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Supabase JWT (access token)                        | Supabase GoTrue SDK (internal Keychain)                                       | Managed automatically by the SDK                                                                                   |
+| Supabase anonymous session                         | Supabase GoTrue SDK (internal Keychain)                                       | Managed automatically by the SDK                                                                                   |
+| Extension cache                                    | App Group `group.app.merian.shared`                                           | Non-secret coordination data shared by the app, Messages extension, and Explore widget                             |
+| RevenueCat customer ID                             | RevenueCat SDK (internal)                                                     | Logged in with the Supabase Auth UUID; SDK-managed locally                                                         |
+| `SUPABASE_ANON_KEY`                                | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
+| `REVENUECAT_API_KEY`                               | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift`       | Read-only build config, not secret; production export should use an iOS `appl_` key                                |
+| `POSTHOG_API_KEY`                                  | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
+| `GEMINI_API_KEY`                                   | Supabase Edge secret only                                                     | Never in iOS bundle                                                                                                |
+| `AI_QUOTA_IP_HASH_SECRET`                          | Optional GitHub Production override synchronized to Supabase Edge             | Dedicated HMAC key for rotating network quota buckets; never in clients or logs                                    |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`                       | GitHub `Production` secret synchronized to Supabase Edge                      | Base64 32-byte-or-longer HMAC key for versioned global-export user pseudonyms                                      |
+| `REVENUECAT_WEBHOOK_SECRET`                        | GitHub `Production` secret synchronized to Supabase Edge                      | Random webhook Authorization credential; never use the public iOS key                                              |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET`                | GitHub `Production` secret synchronized to Supabase Edge                      | RevenueCat raw-body HMAC key; never log, commit, or expose to clients                                              |
+| `REVENUECAT_SECRET_API_KEY`                        | GitHub `Production` secret synchronized to Supabase Edge                      | `sk_` server API credential for authoritative CustomerInfo reads; distinct from `REVENUECAT_API_KEY`               |
+| `R2_READ_ACCESS_KEY_ID`                            | GitHub `Production` secret synchronized to Supabase Edge                      | Dedicated bucket-scoped read-only credential for direct-origin media verification                                  |
+| `R2_READ_SECRET_ACCESS_KEY`                        | GitHub `Production` secret synchronized to Supabase Edge                      | Secret half of the dedicated verifier credential; never reuse upload/delete authority                              |
+| `R2_EVENT_WEBHOOK_SECRET`                          | GitHub `Production` secret synchronized to Supabase Edge                      | High-entropy shared secret for optional Cloudflare R2 event hints                                                  |
+| `SUPABASE_SERVER_API_KEY` / `SUPABASE_SECRET_KEYS` | Supabase Edge or server-side web env only                                      | Current opaque privileged key sources; never in iOS bundle or browser-exposed web config                           |
+| `SUPABASE_SERVICE_ROLE_KEY`                        | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                       |
+| `Merian_HasAuthenticatedOAuth`                     | `KeychainManager` (`kSecClassGenericPassword`)                                | Security-sensitive auth flag, migrated from `UserDefaults` on first run                                            |
+| `Merian_PendingGhostProfileMerge`                  | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
+| Device IDFV (`Merian_Device_IDFV`)                 | `DeviceIdentityManager` (`kSecClassGenericPassword`)                          | Persisted across reinstalls within the same vendor group                                                           |
+| `hasCompletedOnboarding`                           | `UserDefaults`                                                                | Non-sensitive preference                                                                                           |
+| `isAchievementNotificationsEnabled`                | `UserDefaults`                                                                | Non-sensitive preference                                                                                           |
+| `Merian_UnlockedSpeciesCount`                      | `UserDefaults`                                                                | Non-sensitive gamification counter                                                                                 |
+| `Merian_UnlockedAchievements`                      | `UserDefaults`                                                                | Non-sensitive gamification set                                                                                     |
+| `firstFieldTripAchievementProgress.v1.{accountId}` | `UserDefaults`                                                                | Non-sensitive account-scoped completion date and typed Field trip destination cache                                |
+| User geoprivacy preference                         | Supabase `users` table                                                        | Server-authoritative preference                                                                                    |
+| Local free-scan meter                              | `UserDefaults`                                                                | Advisory UX only; authoritative entitlement/quota is in Supabase                                                   |
 
 ---
 
@@ -50,36 +51,38 @@ target application's documented environment contract names it.
 The backend deployment secrets commonly shown together in GitHub have these
 destinations:
 
-| GitHub `Production` variable | Deployment/runtime purpose | Copy to Vercel? |
-| --- | --- | --- |
-| `DWCA_PSEUDONYM_HMAC_KEY_V1` | The deploy workflow synchronizes it to Supabase Edge for global DwC-A export pseudonyms | No |
-| `REVENUECAT_SECRET_API_KEY` | The deploy workflow synchronizes it to Supabase Edge for authoritative subscriber reads | No |
-| `REVENUECAT_WEBHOOK_SECRET` | The deploy workflow synchronizes it to Supabase Edge for webhook Authorization | No |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | The deploy workflow synchronizes it to Supabase Edge for raw-body signature verification | No |
-| `R2_READ_ACCESS_KEY_ID` | The deploy workflow synchronizes it to Supabase Edge for signed, read-only R2-origin verification | No |
-| `R2_READ_SECRET_ACCESS_KEY` | The deploy workflow synchronizes it to Supabase Edge as the verifier credential secret | No |
-| `R2_EVENT_WEBHOOK_SECRET` | The deploy workflow synchronizes it to Supabase Edge when optional R2 event acceleration is enabled | No |
-| `SUPABASE_ACCESS_TOKEN` | Authenticates deployment tooling and lets independent health monitors resolve a production server API key through the Supabase Management API | No |
-| `SUPABASE_DB_URL` | Preferred direct PostgreSQL connection used by migration and catalog-audit steps | No |
-| `SUPABASE_DB_PASSWORD` | Used only by the alternative GitHub database connection path | No |
+| GitHub `Production` variable        | Deployment/runtime purpose                                                                                                                    | Copy to Vercel? |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`        | The deploy workflow synchronizes it to Supabase Edge for global DwC-A export pseudonyms                                                       | No              |
+| `REVENUECAT_SECRET_API_KEY`         | The deploy workflow synchronizes it to Supabase Edge for authoritative subscriber reads                                                       | No              |
+| `REVENUECAT_WEBHOOK_SECRET`         | The deploy workflow synchronizes it to Supabase Edge for webhook Authorization                                                                | No              |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | The deploy workflow synchronizes it to Supabase Edge for raw-body signature verification                                                      | No              |
+| `R2_READ_ACCESS_KEY_ID`             | The deploy workflow synchronizes it to Supabase Edge for signed, read-only R2-origin verification                                             | No              |
+| `R2_READ_SECRET_ACCESS_KEY`         | The deploy workflow synchronizes it to Supabase Edge as the verifier credential secret                                                        | No              |
+| `R2_EVENT_WEBHOOK_SECRET`           | The deploy workflow synchronizes it to Supabase Edge when optional R2 event acceleration is enabled                                           | No              |
+| `SUPABASE_ACCESS_TOKEN`             | Authenticates deployment tooling and lets independent health monitors resolve a production server API key through the Supabase Management API | No              |
+| `SUPABASE_DB_URL`                   | Preferred direct PostgreSQL connection used by migration and catalog-audit steps                                                              | No              |
+| `SUPABASE_DB_PASSWORD`              | Used only by the alternative GitHub database connection path                                                                                  | No              |
 
 The public `apps/web` Vercel project has its own allowlist in
 [`apps/web/.env.example`](../../apps/web/.env.example). In particular,
 `SUPABASE_URL` is the HTTPS project API endpoint used by server code; it is not
 `SUPABASE_DB_URL`, which is a privileged PostgreSQL connection string. The
-public-web project receives `SUPABASE_SERVICE_ROLE_KEY` only as a sensitive,
-server-side value for its reviewed server routes. It must never appear in a
-`NEXT_PUBLIC_` variable or in the separately deployed admin project.
+public-web project receives a current opaque key as the sensitive, server-side
+`SUPABASE_SERVER_API_KEY` for its reviewed server routes. A legacy
+`SUPABASE_SERVICE_ROLE_KEY` is supported only during migration. Neither may
+appear in a `NEXT_PUBLIC_` variable or in the separately deployed admin
+project. The web resolver rejects publishable keys, anon/user JWTs, malformed
+JWTs, and malformed platform dictionaries before constructing a client.
 
-The `apps/admin` Vercel project receives only
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
-`NEXT_PUBLIC_ADMIN_ORIGIN`. It must not receive a service-role key, a direct
-database credential, or any GitHub deployment/Edge provider secret.
-`apps/admin/lib/admin-foundation.test.ts` parses the complete production
-TypeScript graph, rejects privileged credential names plus computed/whole-object
-`process.env` access, and allows only these public keys. The Admin Quality
-workflow supplies non-secret CI placeholders; real production values exist only
-in the separate admin Vercel project.
+The `apps/admin` Vercel project receives only `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_ADMIN_ORIGIN`. It must not
+receive a service-role key, a direct database credential, or any GitHub
+deployment/Edge provider secret. `apps/admin/lib/admin-foundation.test.ts`
+parses the complete production TypeScript graph, rejects privileged credential
+names plus computed/whole-object `process.env` access, and allows only these
+public keys. The Admin Quality workflow supplies non-secret CI placeholders;
+real production values exist only in the separate admin Vercel project.
 
 Removing or changing a Vercel environment variable takes effect only in a new
 deployment. Preview deployments that need functional backend access must use
@@ -120,8 +123,8 @@ environment variable.**
 - `DWCA_PSEUDONYM_HMAC_KEY_V1` — required dedicated key for global Darwin Core
   export attribution pseudonyms. It is Base64 encoded and must decode to at
   least 32 random bytes. Each job pins a numeric version; rotation adds a new
-  secret and advances the database default only after code can read both.
-  Never replace bytes under an existing version or derive this value from
+  secret and advances the database default only after code can read both. Never
+  replace bytes under an existing version or derive this value from
   `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, or a provider key.
 - `REVENUECAT_WEBHOOK_SECRET` — at least 32 random characters configured as the
   secret portion of RevenueCat's `Authorization: Bearer <value>` header and as a
@@ -139,45 +142,60 @@ environment variable.**
   key in an `.xcconfig`, app bundle, Test Store configuration, or support log.
 - `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` — a required,
   bucket-scoped read-only S3 credential used only by
-  `reconcile-explore-media-health` for signed direct-origin `HEAD` requests.
-  The verifier fails closed when either value is absent and never falls back to
-  upload, write, or delete credentials. Rotate the pair together and keep it
-  out of every client and Vercel environment.
+  `reconcile-explore-media-health` for signed direct-origin `HEAD` requests. The
+  verifier fails closed when either value is absent and never falls back to
+  upload, write, or delete credentials. Rotate the pair together and keep it out
+  of every client and Vercel environment.
 - `R2_EVENT_WEBHOOK_SECRET` — an independent random value of at least 32
-  characters used to authenticate optional Cloudflare R2 event notifications
-  at `ingest-r2-media-events`. Events only expedite a scheduled origin check;
-  they never directly mark media missing, hide a post, or restore it.
-- `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets, reviewed Vault
-  cron values, or server-side web deployment secrets only. Never in the iOS
-  app, never in `Config.xcconfig`, and never in a `NEXT_PUBLIC_` variable.
-  Internal cron/webhook workers such as
-  `refresh-species-content`, `refresh-species-model-content`,
-  `refresh-merian-reference-images`, and `auto-purge-nonbio` may receive it only
-  as a server-to-server
-  `Authorization: Bearer ...` header from `pg_net`/Vault. The Next.js web app
+  characters used to authenticate optional Cloudflare R2 event notifications at
+  `ingest-r2-media-events`. Events only expedite a scheduled origin check; they
+  never directly mark media missing, hide a post, or restore it.
+- Supabase server API keys — current `SUPABASE_SECRET_KEYS` /
+  `SUPABASE_SERVER_API_KEY` values and the migration-only
+  `SUPABASE_SERVICE_ROLE_KEY` fallback live in Supabase Edge secrets, reviewed
+  Vault cron values, or server-side web deployment secrets only. Never in the
+  iOS app, never in `Config.xcconfig`, and never in a `NEXT_PUBLIC_` variable.
+  Current explicit keys must be platform-shaped: `sb_secret_`, followed by a
+  URL-safe opaque suffix of at least 20 characters. A legacy fallback must be
+  an HS256 JWT whose role is exactly `service_role` and whose base64url
+  signature is complete. Placing a publishable, anon, user, truncated
+  placeholder, or malformed value in a privileged variable fails closed.
+  Internal
+  cron/webhook workers such as `refresh-species-content`,
+  `refresh-species-model-content`, `refresh-merian-reference-images`, and
+  `auto-purge-nonbio` may receive one only through the shared key-format-aware
+  `pg_net`/Vault header policy. An opaque key uses `apikey` only; a legacy JWT
+  uses `apikey` plus Bearer Authorization. The Next.js web app
   may read it only through `apps/web/lib/supabaseAdmin.ts`, which imports
-  `server-only`. Public projection readers use
-  `apps/web/lib/supabasePublic.ts` and cannot acquire service-role authority.
-  Keep these modules separate and never re-export an admin-capable default
-  client.
+  `server-only`. Public projection readers use `apps/web/lib/supabasePublic.ts`
+  and cannot acquire service-role authority. Keep these modules separate and
+  never re-export an admin-capable default client.
 
-  Account deletion currently has two distinct server-key transports:
+  API-key transport and database authorization are separate boundaries. A legacy
+  service-role JWT may populate `auth.role()` when used through its supported
+  Bearer path. A modern opaque `sb_secret_...` value belongs in `apikey`; the
+  gateway/PostgREST maps it to the `service_role` database role, which
+  privileged routines verify through PostgREST's protected standard `role`
+  setting. SQL must never inspect or compare the secret itself, and no
+  server-key format belongs in iOS. See Supabase's
+  [API-key guide](https://supabase.com/docs/guides/getting-started/api-keys) and
+  PostgREST's
+  [transaction-scoped role settings](https://postgrest.org/en/stable/references/transactions.html).
 
-  - the database reaper reads `SUPABASE_SERVICE_ROLE_KEY` from Vault and sends
-    the exact legacy service-role JWT in `Authorization: Bearer ...`;
-    `reconcile-account-deletions` compares the complete value with its injected
-    Edge secret;
-  - the independent GitHub health monitor resolves a production server key
-    through the Management API. It can use a modern opaque `sb_secret_...` key
-    in `apikey`, or the exact legacy key with matching legacy headers.
-
-  These credentials are not drop-in replacements for each other. A present but
-  blank Vault value wins over the legacy app-setting fallback and makes
-  configuration health critical. Update or delete a blank Vault row; do not
-  expect fallback. Before disabling legacy service-role keys, migrate the
-  reaper's cron and Edge handler together to an explicit server-key contract.
-  Supabase's current key formats and legacy-key transition are documented in
+  Account deletion has two independently resolved server-key paths. The database
+  reaper reads its value from Vault; the GitHub health monitor resolves its
+  value through the Management API. Both use the same transport rule after
+  migration `20260727013416_future_proof_server_key_boundaries.sql`: opaque
+  `sb_secret_...` values belong only in `apikey`, while legacy service-role JWTs
+  use both `apikey` and Bearer Authorization. A present but blank Vault value
+  wins over the legacy app-setting fallback and makes configuration health
+  critical. Update or delete a blank Vault row; do not expect fallback. Rotate a
+  Vault key and the corresponding project key together. Supabase's current key
+  formats and legacy-key transition are documented in
   [Understanding API keys](https://supabase.com/docs/guides/getting-started/api-keys).
+  The complete affected-surface checklist and production exit criteria are in
+  the
+  [July 2026 server-key incident report](../incidents/2026-07-server-key-authorization-mismatch.md).
 - `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is
   injected via `Config.xcconfig` into `MerianEnvironment.swift`.
 - `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `GIDClientID`, and
@@ -239,8 +257,8 @@ never use a service-role/secret key as the matching client key.
 ## KeychainManager
 
 `KeychainManager.shared` is a thin wrapper over `Security.framework` for storing
-`Bool`, UTF-8 `String`, and raw `Data` values as
-`kSecClassGenericPassword` items.
+`Bool`, UTF-8 `String`, and raw `Data` values as `kSecClassGenericPassword`
+items.
 
 ```swift
 // Default accessibility: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -256,10 +274,10 @@ This migration is one-shot.
 
 Currently stored keys:
 
-| Key | Type | Accessibility | Purpose |
-| --- | --- | --- | --- |
-| `Merian_HasAuthenticatedOAuth` | `Bool` | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; used by `MerianNetworkClient` to decide whether a 401 triggers re-auth or Ghost regeneration |
-| `Merian_PendingGhostProfileMerge` | JSON `Data` | `WhenUnlockedThisDeviceOnly` | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades |
+| Key                               | Type        | Accessibility                    | Purpose                                                                                                                                                             |
+| --------------------------------- | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Merian_HasAuthenticatedOAuth`    | `Bool`      | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; used by `MerianNetworkClient` to decide whether a 401 triggers re-auth or Ghost regeneration |
+| `Merian_PendingGhostProfileMerge` | JSON `Data` | `WhenUnlockedThisDeviceOnly`     | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades          |
 
 The merge queue is persisted and read back successfully before the app switches
 away from the anonymous session. A newer handoff replaces only another handoff
@@ -269,10 +287,10 @@ discarding the readable original if that Keychain write fails.
 
 Completion removes one queue item only after server success or the terminal
 codes `handoff_expired` and `handoff_invalid`. Network errors,
-`auth_cleanup_pending`, `merge_temporarily_unavailable`, and
-`handoff_forbidden` remain retryable. Sign-out cancels the in-flight task but
-does not erase proofs; a task-generation token prevents an older cancelled task
-from clearing the handle for a newer session.
+`auth_cleanup_pending`, `merge_temporarily_unavailable`, and `handoff_forbidden`
+remain retryable. Sign-out cancels the in-flight task but does not erase proofs;
+a task-generation token prevents an older cancelled task from clearing the
+handle for a newer session.
 
 `ThisDeviceOnly` items do not migrate through backups or device transfer. Never
 copy the merge proof into `UserDefaults`, logs, analytics, crash metadata, an

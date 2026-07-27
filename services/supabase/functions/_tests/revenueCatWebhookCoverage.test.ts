@@ -91,14 +91,19 @@ Deno.test("RevenueCat has a deadline-draining leased periodic CustomerInfo sweep
 
   for (
     const fragment of [
-      "timingSafeCompare(",
-      "`Bearer ${serviceRoleKey}`",
+      "authorizeServiceRoleRequestFromEnvironment(",
+      "createServiceRoleClient(",
+      "auth.serverApiKey",
       "processRevenueCatReconciliations(",
       "REVENUECAT_SECRET_API_KEY",
     ]
   ) {
     assertStringIncludes(index, fragment);
   }
+  assert(
+    !index.includes('Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")'),
+    "The reconciler must not bypass the shared server-key resolver.",
+  );
   for (
     const fragment of [
       "CLAIM_BATCH_SIZE = 6",

@@ -1,4 +1,4 @@
-import { getR2Config } from "../aws.ts";
+import { getR2Config, r2RequestWithDeadline } from "../aws.ts";
 import { jsonResponse, logStructuredError } from "../edgeHandler.ts";
 import { encodeBase64 } from "../encoding.ts";
 import {
@@ -148,7 +148,9 @@ export async function resolveAudioBuffers(
     r2Config = r2Config ?? getR2Config();
     const r2Url =
       `${r2Config.endpoint}/${r2Config.bucketName}/${audioR2ObjectKey}`;
-    const response = await r2Config.s3Client.fetch(r2Url);
+    const response = await r2Config.s3Client.fetch(
+      r2RequestWithDeadline(r2Url),
+    );
     if (!response.ok) {
       logStructuredError(options.r2FetchFailedEvent, {
         user_id: options.userId,
@@ -159,6 +161,7 @@ export async function resolveAudioBuffers(
         response,
         audioR2ObjectKey,
       ) ?? { message: "Failed to load staged audio.", status: 502 };
+      await response.body?.cancel().catch(() => undefined);
       return {
         audioBuffers: [],
         errorResponse: jsonResponse(
@@ -243,7 +246,9 @@ export async function resolveImagePayloads(
 
     const r2Responses = await Promise.allSettled(
       r2ObjectKeys.map((key: string) =>
-        s3Client.fetch(`${endpoint}/${bucketName}/${key}`)
+        s3Client.fetch(
+          r2RequestWithDeadline(`${endpoint}/${bucketName}/${key}`),
+        )
       ),
     );
 
@@ -262,6 +267,7 @@ export async function resolveImagePayloads(
       }
       const r2Response = result.value as Response;
       if (!r2Response.ok) {
+        await r2Response.body?.cancel().catch(() => undefined);
         throw new Error(
           `Failed to fetch an image from R2: ${r2Response.statusText}`,
         );

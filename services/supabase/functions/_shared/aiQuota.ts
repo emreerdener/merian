@@ -7,6 +7,7 @@ import {
 } from "./clientAddress.ts";
 import { logStructuredError } from "./edgeHandler.ts";
 import { PublicHttpError } from "./http.ts";
+import { resolveServerApiKeyFromEnvironment } from "./serviceRoleAuth.ts";
 import type { TierResolution } from "./entitlement.ts";
 
 const UUID_PATTERN =
@@ -190,10 +191,11 @@ export function resolveQuotaIpHashSecret(input: {
 }
 
 async function quotaIpHash(req: Request): Promise<string> {
+  const serverKey = resolveServerApiKeyFromEnvironment();
   const secret = resolveQuotaIpHashSecret({
     dedicatedSecret: Deno.env.get("AI_QUOTA_IP_HASH_SECRET"),
-    platformSecretKey: Deno.env.get("SUPABASE_SECRET_KEY"),
-    serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    platformSecretKey: Deno.env.get("SUPABASE_SECRET_KEY") ??
+      (serverKey.ok ? serverKey.serverApiKey : undefined),
   });
   const hash = await hmacClientAddress(
     clientAddressForQuota(req.headers),

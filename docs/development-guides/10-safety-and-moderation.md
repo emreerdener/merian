@@ -74,7 +74,8 @@ When selected media contains standalone audio or an audio-bearing playback
 video, `/share-scan-to-explore` treats moderation as a precondition. Before any
 Explore post or public-media snapshot is created or reactivated, the function:
 
-1. downloads the selected media with a 12 MB hard cap and computes SHA-256;
+1. downloads the selected media from the exact approved host with a 15-second
+   deadline and 12 MB hard cap, then computes SHA-256;
 2. reuses a matching content-addressed attestation only when checksum, model,
    and publication-policy version all match;
 3. on a cache miss, sends the bounded bytes inline to a dedicated

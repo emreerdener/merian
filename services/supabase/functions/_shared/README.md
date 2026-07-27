@@ -43,27 +43,59 @@ multiple functions need the same behavior and the ownership boundary is clear.
   SDK, but keeping this policy out of `edgeHandler.ts` prevents an implicit
   fleet-wide authentication change. Internal replay keeps its separate
   timing-safe service credential path.
-- **`serviceRoleAuth.ts`**: Fail-closed request authentication for the six
-  internal worker/status boundaries that share this policy. It compares one
-  unambiguous request credential against the platform-managed legacy
-  `SUPABASE_SERVICE_ROLE_KEY` and every named `sb_secret_...` value in
-  `SUPABASE_SECRET_KEYS`; it never infers authority from a database query, RLS
-  result, JWT claim, or network capability probe. Legacy JWT keys may use Bearer
-  transport; non-JWT secret keys belong only in `apikey`. Callers must use the
-  server-managed environment key—not the accepted request value—for privileged
-  database clients and internal function calls. The shared request-header helper
-  applies the same current/legacy key transport to operational scripts.
-- **`serviceRoleClient.ts`**: Creates privileged data-plane Supabase clients
-  (not Auth clients) from that authenticated environment key. It disables
-  supabase-js's API-key-as-Bearer fallback for `sb_secret_...` credentials while
-  preserving the legacy service-role JWT transport required by older projects.
+- **`serviceRoleAuth.ts`**: Fail-closed request authentication and canonical key
+  resolution for every internal worker/status boundary that shares this policy.
+  It prefers an explicit `SUPABASE_SERVER_API_KEY`, then the platform-managed
+  named `sb_secret_...` values in `SUPABASE_SECRET_KEYS`, and retains
+  `SUPABASE_SERVICE_ROLE_KEY` only as a migration fallback. It never infers
+  authority from a database query, RLS result, JWT claim, or network capability
+  probe. Key configuration is classified separately: current values must have a
+  platform-shaped `sb_secret_` prefix plus a URL-safe opaque suffix of at least
+  20 characters, while a legacy fallback must be an HS256 JWT with role
+  `service_role` and a complete 43-character base64url signature. Publishable,
+  anon/user, truncated placeholder, and malformed configured values fail closed.
+  Legacy JWT keys may use Bearer transport; non-JWT secret keys belong only in
+  `apikey`. Callers must use the server-managed environment key—not the accepted
+  request value—for privileged database clients and internal function calls. The
+  shared request-header helper applies the same current/legacy key transport to
+  operational scripts.
+- **`serviceRoleClient.ts`**: Creates privileged PostgREST, Storage, Functions,
+  and Auth Admin clients from an authenticated or environment-resolved server
+  key. Its final fetch adapter removes only supabase-js's exact
+  API-key-as-Bearer fallback for `sb_secret_...` credentials, preserves all
+  unrelated request headers and user access tokens, and retains legacy
+  service-role JWT transport for older projects. Production code must use this
+  factory rather than constructing an admin `createClient(...)` directly. Every
+  SDK request carries a 30-second hard deadline, including PostgREST, Storage,
+  Functions, and Auth Admin calls. Transport and in-routine authorization remain
+  independent: migration
+  `20260727010340_fix_service_role_authorization_guard.sql` lets
+  `internal.require_service_role()` recognize either the legacy JWT claim or
+  PostgREST's protected standard `service_role` setting for an opaque key. It
+  does not broaden any RPC execution grant. Migration
+  `20260727013416_future_proof_server_key_boundaries.sql` applies the equivalent
+  private header policy to installed `pg_net` routines and persisted cron
+  commands.
+- **`outbound.ts`**: Canonical outbound HTTP deadline and response-budget
+  adapter. `fetchWithDeadline(...)` combines a caller cancellation signal with a
+  hard timeout; `readResponseTextWithinLimit(...)` and
+  `readResponseJsonWithinLimit(...)` reject declared or streamed oversized
+  provider bodies before parsing. `createDeadlineFetchTransport(...)` applies
+  the same ownership rule to Supabase SDK clients; authenticated user/claims
+  lookups use a 15-second ceiling. Production code must not invoke global or
+  injected fetch transports directly.
+- **`gemini.ts`**: The only permitted Google GenAI client boundary. Its
+  SDK-owned HTTP transport has a 90-second hard timeout so model calls cannot
+  wait for the Edge worker shutdown ceiling.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
   and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
-  internally so lifecycle workers do not run unbounded delete fanout. Prefix
-  helpers classify `staging/`, `quarantine/`, and `exports/` as temporary,
-  `public_uploads/free|pro/` as scan media, and `avatars/` as durable profile
-  media. Scan purge flows must use `deleteScanMediaR2Objects(...)`; avatar
-  replacement must use `deleteAvatarR2Object(...)` with the owning user ID.
+  internally so lifecycle workers do not run unbounded delete fanout. Every
+  executed object request carries a hard deadline, including batch delete, copy,
+  upload, list, and inference-media reads. Prefix helpers classify `staging/`,
+  `quarantine/`, and `exports/` as temporary, `public_uploads/free|pro/` as scan
+  media, and `avatars/` as durable profile media. Scan purge flows must use
+  `deleteScanMediaR2Objects(...)`; avatar replacement must use
+  `deleteAvatarR2Object(...)` with the owning user ID.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
   `Content-Length` prechecks. The shared staging cap is six files so one video
@@ -113,7 +145,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
   enrichment, species refresh, and dictionary paths. All returned reference
   image URLs pass through `externalImagePolicy.ts` before the enrichment object
-  is returned.
+  is returned. Provider requests use the shared 2.5-second deadline and parse
+  JSON only within a 256 KiB streaming response ceiling.
 - **`externalImagePolicy.ts`**: Exact third-party reference-media denylist. The
   current rule suppresses every resized/query variant below
   `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` while leaving other
@@ -140,7 +173,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
   checks and telemetry. It reads `users` on every call, includes the monotonic
   `entitlement_version`, and returns `503 ai_entitlement_unavailable` on a query
   error or missing row. Edge isolate memory is never an entitlement authority.
-- **`posthog.ts`**: Best-effort PostHog HTTP capture helpers.
+- **`posthog.ts`**: Best-effort PostHog HTTP capture helpers with a 2.5-second
+  deadline so telemetry cannot consume request-critical Edge wall-clock time.
 - **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`
   pass, including the 7-day duration. The webhook derives purchase time from
   authoritative CustomerInfo `non_subscriptions`, never directly from an event.

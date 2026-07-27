@@ -1,9 +1,13 @@
 import { User } from "@supabase/supabase-js";
+import { fetchWithDeadline } from "./outbound.ts";
+
+const POSTHOG_REQUEST_TIMEOUT_MS = 2_500;
 
 export async function trackPostHogEvent(
   userOrId: string | User,
   event: string,
   properties: Record<string, unknown> = {},
+  fetcher: typeof fetch = fetch,
 ) {
   const apiKey = Deno.env.get("POSTHOG_API_KEY");
   if (!apiKey) {
@@ -35,22 +39,30 @@ export async function trackPostHogEvent(
   }
 
   try {
-    const res = await fetch("https://us.i.posthog.com/capture/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: apiKey,
-        event: event,
-        distinct_id: userId,
-        properties: payload,
-      }),
-    });
+    const res = await fetchWithDeadline(
+      "https://us.i.posthog.com/capture/",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: apiKey,
+          event: event,
+          distinct_id: userId,
+          properties: payload,
+        }),
+      },
+      {
+        fetcher,
+        timeoutMs: POSTHOG_REQUEST_TIMEOUT_MS,
+      },
+    );
 
     if (!res.ok) {
       console.error(
         `PostHog event '${event}' failed: ${res.status} ${res.statusText}`,
       );
     }
+    await res.body?.cancel().catch(() => undefined);
   } catch (err) {
     console.error(`PostHog fetch error for event '${event}':`, err);
   }

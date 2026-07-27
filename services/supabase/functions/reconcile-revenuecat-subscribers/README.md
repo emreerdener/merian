@@ -7,8 +7,9 @@ is not a browser or iOS API.
 ## Contract
 
 - `config.toml` sets `verify_jwt = false` only so `pg_net` can reach the
-  function. The handler accepts `POST` and timing-safely compares the complete
-  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` value.
+  function. The handler accepts `POST` and timing-safely compares one exact
+  platform-managed server key. Opaque keys use `apikey` only; legacy
+  service-role JWTs use matching `apikey` and Bearer headers.
 - Each claim RPC leases one six-row private queue wave for two minutes with
   `FOR UPDATE SKIP LOCKED`. The worker keeps claiming small waves until the
   queue is empty or its monotonic start-work cutoff is reached; there is no

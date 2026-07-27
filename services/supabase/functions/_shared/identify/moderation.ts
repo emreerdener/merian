@@ -1,9 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
 import { SafetyRating } from "@google/genai";
 
-import { copyR2Object, deleteR2Object, getR2Config } from "../aws.ts";
+import {
+  copyR2Object,
+  deleteR2Object,
+  getR2Config,
+  R2_OBJECT_REQUEST_TIMEOUT_MS,
+} from "../aws.ts";
 import { logStructuredError } from "../edgeHandler.ts";
 import { decodeBase64 } from "../encoding.ts";
+import { fetchWithDeadline } from "../outbound.ts";
+import { createServiceRoleClientFromEnvironment } from "../serviceRoleClient.ts";
 
 type PromotionR2Config = ReturnType<typeof getR2Config>;
 
@@ -67,12 +73,21 @@ export async function promoteSafeMedia(
           body: arrayBuffer as unknown as BodyInit,
         });
         const signedUpload = await signRequest(uploadReq);
-        const uploadRes = await fetchImpl(signedUpload);
+        const uploadRes = await fetchWithDeadline(
+          signedUpload,
+          {},
+          {
+            fetcher: fetchImpl,
+            timeoutMs: R2_OBJECT_REQUEST_TIMEOUT_MS,
+          },
+        );
         if (!uploadRes.ok) {
+          await uploadRes.body?.cancel().catch(() => undefined);
           throw new Error(
             `Failed to upload base64 image to R2: ${uploadRes.status} ${uploadRes.statusText}`,
           );
         }
+        await uploadRes.body?.cancel().catch(() => undefined);
         promotedKeys.push(publicUploadKey);
         index++;
       }
@@ -143,8 +158,7 @@ export async function evaluateAndProcessPayload(
 
     const r2Config = getR2Config();
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createServiceRoleClientFromEnvironment(supabaseUrl);
 
     // 2. Unsafe flow — purge staging image and escalate abuse strike
     if (isUnsafe) {

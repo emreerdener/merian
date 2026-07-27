@@ -24,8 +24,8 @@ Status: UUID-based iOS/Edge/web routing and readable public slugs implemented.
 Why it matters: scientific names can change, collide across stale caches, or be
 corrected after review. Stable dictionary IDs let the app route by identity
 while still displaying canonical names. Because slugs are descriptive and are
-not stored or queried, name corrections require no migration and cannot break
-an existing UUID link.
+not stored or queried, name corrections require no migration and cannot break an
+existing UUID link.
 
 ## Scope 2 — Normalize Reference Images
 
@@ -82,9 +82,9 @@ manual curation tools still planned.
 - [x] Build the scheduled refresh worker that consumes
       `get_species_content_refresh_queue(...)` and selectively refreshes stale
       content.
-- [x] Route new and existing sparse dictionary rows into `species_enrichment_jobs`
-      with missing `gbif_wikipedia_reference`, `habitat`, `lookalikes`, and
-      `group_tags` work.
+- [x] Route new and existing sparse dictionary rows into
+      `species_enrichment_jobs` with missing `gbif_wikipedia_reference`,
+      `habitat`, `lookalikes`, and `group_tags` work.
 - [x] Build the scheduled model-heavy refresh worker for habitat prose,
       lookalikes, and group tags.
 - [ ] Add curation tools that can write `manual_curation` provenance with no
@@ -93,7 +93,8 @@ manual curation tools still planned.
 Current rules:
 
 - `refresh-species-content` runs hourly through `pg_cron`/`pg_net`,
-  authenticating with `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`.
+  authenticating one exact current or legacy server key. Opaque keys use
+  `apikey` only.
 - The worker caps each invocation at 100 rows, with the scheduled run using
   `limit = 25`.
 - Species refreshes run with a concurrency cap of 4 to stay within Edge runtime
@@ -101,8 +102,8 @@ Current rules:
 - V1 refreshes only externally authoritative fields: alternate common names,
   taxonomy, Wikipedia URL/overview, GBIF taxon key, and reference images.
 - `refresh-species-model-content` runs through the same service-role cron
-  pattern with `limit = 12` and claims `habitat`, `lookalikes`, and
-  `group_tags` jobs.
+  pattern with `limit = 12` and claims `habitat`, `lookalikes`, and `group_tags`
+  jobs.
 - New species dictionary inserts enqueue only missing enrichment groups with
   `source_trigger = 'species_dictionary_insert'`; the sparse-row backfill uses
   `source_trigger = 'species_dictionary_sparse_backfill'`.
@@ -147,8 +148,8 @@ Why it matters: iOS and web clients will update on different schedules.
 
 ## Scope 7 — Caching Strategy
 
-Status: implemented for the public Edge response, iOS in-memory route cache,
-and five-minute web revalidation.
+Status: implemented for the public Edge response, iOS in-memory route cache, and
+five-minute web revalidation.
 
 - [x] Add safe HTTP cache headers for public dictionary responses.
 - [x] Add iOS client memoization for recently opened species pages.
@@ -218,8 +219,7 @@ Current rules:
   the existing public profile sheet. The fullscreen viewer's bottom overlay
   shows `@username · Naturebook` without permission wording, while external
   images can show their photographer/license/source credit.
-- Web species pages run
-  `publicWebReferenceImageAttributionIssues(...)` from
+- Web species pages run `publicWebReferenceImageAttributionIssues(...)` from
   `_shared/publicSpeciesProjection.ts` before rendering public reference media,
   omit any image without license and attribution, and do not render lookalike
   thumbnails while their payload lacks those rights fields.
@@ -250,15 +250,15 @@ Current rules:
 - `SpeciesDictionaryNotFound` tracks missing public rows with `entryPoint`.
 - `SpeciesDictionaryRetry` tracks explicit retry taps from error/not-found
   states.
-- `SpeciesDictionaryReferenceImageFallback` tracks dictionary reference-image load
-  failures with `entryPoint` and image `source`.
+- `SpeciesDictionaryReferenceImageFallback` tracks dictionary reference-image
+  load failures with `entryPoint` and image `source`.
 - No event attaches species name, species ID, scan ID, Explore post ID, user
   location, field notes, comments, image URL, or user review state.
 - Prioritization query pattern: group `SpeciesDictionaryPageLoaded` by
   `contentQuality` and `entryPoint` to find sparse surfaces, group
-  `SpeciesDictionaryReferenceImageFallback` by `source` to clean reference imagery, and
-  group `SpeciesDictionaryNotFound`/`Retry` by `entryPoint` to find missing
-  dictionary coverage in launch flows.
+  `SpeciesDictionaryReferenceImageFallback` by `source` to clean reference
+  imagery, and group `SpeciesDictionaryNotFound`/`Retry` by `entryPoint` to find
+  missing dictionary coverage in launch flows.
 
 Why it matters: the dictionary should improve where users actually encounter
 gaps.
@@ -287,12 +287,13 @@ can refine promotion policy.
 Current rules:
 
 - `/refresh-merian-reference-images` runs hourly through `pg_cron`/`pg_net`,
-  authenticating with `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`.
+  authenticating one exact current or legacy server key. Opaque keys use
+  `apikey` only.
 - The scheduled run uses
   `{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 - Public rows use `source = "merian"`,
-  `license = "Used with permission via Naturebook"`, and the author's public Explore
-  label as `attribution`.
+  `license = "Used with permission via Naturebook"`, and the author's public
+  Explore label as `attribution`.
 - External `/refresh-species-content` image refreshes preserve Merian rows and
   cannot delete or demote them.
 

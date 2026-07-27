@@ -59,6 +59,8 @@ Deno.test("promoteSafeMedia rolls back already promoted staging images when a la
 Deno.test("promoteSafeMedia rolls back already uploaded base64 images when a later upload fails", async () => {
   const deletedKeys: string[] = [];
   let uploadCount = 0;
+  let receivedSignal: AbortSignal | undefined;
+  let failedBodyCancelled = false;
 
   await assertRejects(
     () =>
@@ -74,13 +76,23 @@ Deno.test("promoteSafeMedia rolls back already uploaded base64 images when a lat
           r2Config: makeR2Config(),
         },
         {
-          fetchImpl: () => {
+          fetchImpl: (_input, init) => {
             uploadCount += 1;
+            receivedSignal =
+              (init as { signal?: AbortSignal | null } | undefined)?.signal ??
+                undefined;
             if (uploadCount === 1) {
               return Promise.resolve(new Response(null, { status: 200 }));
             }
             return Promise.resolve(
-              new Response(null, { status: 500, statusText: "boom" }),
+              new Response(
+                new ReadableStream({
+                  cancel() {
+                    failedBodyCancelled = true;
+                  },
+                }),
+                { status: 500, statusText: "boom" },
+              ),
             );
           },
           deleteObject: (key) => {
@@ -96,6 +108,8 @@ Deno.test("promoteSafeMedia rolls back already uploaded base64 images when a lat
   assertEquals(deletedKeys, [
     "public_uploads/free/user-456/first.webp",
   ]);
+  assertEquals(receivedSignal instanceof AbortSignal, true);
+  assertEquals(failedBodyCancelled, true);
 });
 
 Deno.test("promoteSafeMedia returns public URLs for a successful staging promotion batch", async () => {

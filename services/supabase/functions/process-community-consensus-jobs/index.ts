@@ -1,13 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
 import { normalizeLimit } from "../_shared/explore.ts";
 import {
   corsHeaders,
   jsonResponse,
   parseJsonBody,
   publicErrorResponse,
-  timingSafeCompare,
 } from "../_shared/http.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 
 serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -18,9 +18,8 @@ serveEdge(async (req: Request) => {
     return jsonResponse({ error: "Method Not Allowed" }, 405);
   }
 
-  const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
-  const providedAuth = req.headers.get("Authorization") ?? "";
-  if (!timingSafeCompare(providedAuth, expectedAuth)) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -32,9 +31,9 @@ serveEdge(async (req: Request) => {
     if (body instanceof Response) return body;
 
     const limit = normalizeLimit(body.limit, 25, 100);
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      auth.serverApiKey,
     );
 
     const { data, error } = await supabaseAdmin.rpc(

@@ -1,12 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
 import { serveEdge } from "../_shared/edgeHandler.ts";
 
 import {
   corsHeaders,
   parseJsonBody,
   publicErrorResponse,
-  timingSafeCompare,
 } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import {
   reconcileScanMediaAssets,
   type ReconcileScanMediaAssetsOptions,
@@ -51,10 +51,8 @@ serveEdge(async (req: Request) => {
     return jsonResponse({ error: "Method Not Allowed" }, 405);
   }
 
-  const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
-  const providedAuth = req.headers.get("Authorization") ?? "";
-
-  if (!timingSafeCompare(providedAuth, expectedAuth)) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -66,8 +64,10 @@ serveEdge(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+    const supabaseAdmin = createServiceRoleClient(
+      supabaseUrl,
+      auth.serverApiKey,
+    );
     const result = await reconcileScanMediaAssets(
       supabaseAdmin,
       parseOptions(body),

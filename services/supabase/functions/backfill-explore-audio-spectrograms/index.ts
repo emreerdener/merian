@@ -1,11 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
 import { serveEdge } from "../_shared/edgeHandler.ts";
 import {
   corsHeaders,
   parseJsonBody,
   publicErrorResponse,
-  timingSafeCompare,
 } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { backfillExploreAudioSpectrograms } from "./worker.ts";
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -23,12 +23,8 @@ serveEdge(async (request) => {
     return jsonResponse({ error: "Method Not Allowed" }, 405);
   }
 
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const providedAuth = request.headers.get("Authorization") ?? "";
-  if (
-    !serviceRoleKey ||
-    !timingSafeCompare(providedAuth, `Bearer ${serviceRoleKey}`)
-  ) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(request);
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -43,9 +39,9 @@ serveEdge(async (request) => {
   }
 
   try {
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createServiceRoleClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      serviceRoleKey,
+      auth.serverApiKey,
     );
     const result = await backfillExploreAudioSpectrograms(
       supabaseAdmin,

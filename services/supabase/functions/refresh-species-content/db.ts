@@ -476,9 +476,9 @@ export function referenceImageRowsFromRefreshCache(
 export async function refreshSpeciesContent(
   plan: SpeciesContentRefreshPlan,
   supabaseAdmin: SupabaseClient,
-  fetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
+  enrichmentFetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
 ): Promise<SpeciesContentRefreshResult> {
-  const externalData = await fetcher(plan.scientificName);
+  const externalData = await enrichmentFetcher(plan.scientificName);
   const refreshUpdate = buildSpeciesDictionaryRefreshUpdate(
     plan.contentKeys,
     externalData,
@@ -537,7 +537,7 @@ export async function refreshSpeciesContent(
 export async function runSpeciesContentRefresh(
   request: SpeciesContentRefreshRequest,
   supabaseAdmin: SupabaseClient,
-  fetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
+  enrichmentFetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
 ): Promise<SpeciesContentRefreshRunResult> {
   if (request.dryRun) {
     const queueRows = await fetchSpeciesContentRefreshQueue(
@@ -581,7 +581,7 @@ export async function runSpeciesContentRefresh(
   const results = await refreshPlansWithConcurrency(
     planning.plans,
     supabaseAdmin,
-    fetcher,
+    enrichmentFetcher,
   );
 
   return {
@@ -602,7 +602,7 @@ export async function runSpeciesContentRefresh(
 async function refreshPlansWithConcurrency(
   plans: SpeciesContentRefreshPlan[],
   supabaseAdmin: SupabaseClient,
-  fetcher: ExternalEnrichmentFetcher,
+  enrichmentFetcher: ExternalEnrichmentFetcher,
 ): Promise<SpeciesContentRefreshResult[]> {
   const results = new Array<SpeciesContentRefreshResult>(plans.length);
   let nextIndex = 0;
@@ -617,7 +617,7 @@ async function refreshPlansWithConcurrency(
         results[index] = await refreshSpeciesContent(
           plan,
           supabaseAdmin,
-          fetcher,
+          enrichmentFetcher,
         );
         await completePlanJobs(plan, results[index], supabaseAdmin);
       } catch (error) {

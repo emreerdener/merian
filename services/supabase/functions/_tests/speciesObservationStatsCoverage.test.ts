@@ -32,7 +32,9 @@ Deno.test("public species stats route retains every resource boundary", async ()
       "claimSpeciesObservationStatsPopulation(",
       "finalizeSpeciesObservationStatsPopulation(",
       ".abortSignal(AbortSignal.timeout(DATABASE_TIMEOUT_MS))",
-      "AbortSignal.timeout(timeoutMs)",
+      "fetchWithDeadline(",
+      "OutboundRequestTimeoutError",
+      "{ fetcher, timeoutMs }",
       "readResponseArrayBufferWithinBudget(",
       "MAX_PROVIDER_RESPONSE_BYTES",
     ]

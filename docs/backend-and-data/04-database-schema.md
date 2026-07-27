@@ -29,6 +29,26 @@ grant remains. It also enforces:
 - owner-only function defaults for the `postgres` migration role, globally and
   in `public`.
 
+Migration `20260727010340_fix_service_role_authorization_guard.sql` updates the
+defense-in-depth `internal.require_service_role()` body without changing that
+allowlist. The helper recognizes a legacy service-role JWT through
+`auth.role()`, PostgREST impersonation for an opaque secret key through the
+protected standard `role` setting (`current_setting('role', true)`), or a
+`postgres`/`service_role` session used for migration or incident repair. These
+are server-side database signals: the helper does not read request headers,
+compare API keys, or trust a caller-defined GUC. API roles cannot execute the
+helper directly, and `authenticated` still has no grant on service-only public
+routines.
+
+Migration `20260727013416_future_proof_server_key_boundaries.sql` adds the
+private `internal.server_api_request_headers(text)` policy for database `pg_net`
+dispatch. It rewrites installed HTTP routines and persisted cron commands so
+opaque `sb_secret_...` keys use `apikey` only and legacy service-role JWTs use
+both supported headers. API roles cannot execute the helper. The same migration
+makes `get_owned_explore_media_incidents(self_id)` choose its service branch
+from server-side identity state, allowing both server-key formats while
+retaining the exact `auth.uid() = self_id` check for ordinary callers.
+
 The schema name `public` means PostgREST may discover a function; it does not
 mean a client can execute it. Trigger functions and internal helpers stay
 unlisted. New privileged RPCs require an exact catalog entry, fully qualified
@@ -2643,16 +2663,21 @@ private Insight `InferenceEngine`.
 
 Configures the automated garbage collection pipeline using `pg_cron` and
 `pg_net`. Schedules an HTTP POST to the `/functions/v1/auto-purge-nonbio` Deno
-node at 03:00 UTC, authenticating via `SUPABASE_SERVICE_ROLE_KEY` from
-`vault.decrypted_secrets`. Bridges logical `is_biological_subject = false`
-database purges with Cloudflare R2 object deletion to prevent storage bloat.
+node at 03:00 UTC, authenticating with the effective server key from
+`vault.decrypted_secrets`. Migration
+`20260727013416_future_proof_server_key_boundaries.sql` upgrades the persisted
+job to key-format-aware headers: current opaque keys use `apikey` only and
+legacy service-role JWTs use matching `apikey` and Bearer transport. The job
+bridges logical `is_biological_subject = false` database purges with Cloudflare
+R2 object deletion to prevent storage bloat.
 
 ### `20260513070000_add_species_content_refresh_worker_schedule.sql`
 
 Adds `public.replace_species_reference_images(...)` and schedules the
 `refresh_species_content_hourly` `pg_cron` job. The job posts to
 `/functions/v1/refresh-species-content` at minute 17 every hour using
-`SUPABASE_SERVICE_ROLE_KEY` from Vault/current settings and a small
+the effective server key from the compatibility-named Vault/current-setting
+slot and a small
 `{ "limit": 25 }` body. The Edge worker consumes
 `get_species_content_refresh_queue(...)`, refreshes externally authoritative
 species fields, and leaves model/curation-backed fields untouched until

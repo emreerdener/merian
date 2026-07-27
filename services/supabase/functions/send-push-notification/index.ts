@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import { importPKCS8, SignJWT } from "jose";
 import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
@@ -8,40 +7,27 @@ import {
   jsonResponse,
   parseJsonBody,
   requireParams,
-  timingSafeCompare,
 } from "../_shared/http.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import {
   clearPushDeviceDeliveryError,
   ExplorePushNotificationPayload,
   fetchEligiblePushDevices,
   fetchExplorePushNotificationPayload,
   markPushDeviceDeliveryFailure,
-  PushDeviceRow,
 } from "./db.ts";
-
-type ApnsEnvironment = "sandbox" | "production";
-
-interface NotificationCopy {
-  title: string;
-  body: string;
-}
-
-interface ApnsFailure {
-  status: number;
-  reason: string;
-}
+import {
+  apnsDeliveryExceptionReason,
+  type NotificationCopy,
+  sendApnsPush,
+} from "./delivery.ts";
 
 const APNS_DELIVERY_CONCURRENCY = 8;
 let cachedApnsBearerToken: { token: string; expiresAtMs: number } | null = null;
 
 function normalizePrivateKey(rawValue: string): string {
   return rawValue.replace(/\\n/g, "\n").trim();
-}
-
-function apnsHost(environment: ApnsEnvironment): string {
-  return environment === "sandbox"
-    ? "https://api.sandbox.push.apple.com"
-    : "https://api.push.apple.com";
 }
 
 function buildLikeTitle(actorNames: string[], actionCount: number): string {
@@ -206,12 +192,6 @@ function isTerminalApnsReason(reason: string): boolean {
   ].includes(reason);
 }
 
-function normalizedBadgeCount(count: number | null | undefined): number {
-  return typeof count === "number" && Number.isFinite(count)
-    ? Math.max(0, Math.trunc(count))
-    : 1;
-}
-
 async function getApnsBearerToken(): Promise<string | null> {
   const now = Date.now();
   if (
@@ -249,68 +229,6 @@ async function getApnsBearerToken(): Promise<string | null> {
   return token;
 }
 
-async function sendApnsPush(
-  device: PushDeviceRow,
-  copy: NotificationCopy,
-  bearerToken: string,
-  apnsTopic: string,
-  notificationId: string,
-  postId: string,
-  communityRequestId: string | null,
-  commentId: string | null,
-  parentCommentId: string | null,
-  notificationType: string,
-  badgeCount: number | null | undefined,
-): Promise<ApnsFailure | null> {
-  const response = await fetch(
-    `${apnsHost(device.environment)}/3/device/${device.device_token}`,
-    {
-      method: "POST",
-      headers: {
-        "authorization": `bearer ${bearerToken}`,
-        "apns-priority": "10",
-        "apns-push-type": "alert",
-        "apns-topic": apnsTopic,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        aps: {
-          alert: copy,
-          badge: normalizedBadgeCount(badgeCount),
-          sound: "default",
-          "thread-id": "explore_activity",
-        },
-        type: "explore_activity",
-        postId,
-        communityRequestId,
-        commentId,
-        parentCommentId,
-        notificationId,
-        notificationType,
-      }),
-    },
-  );
-
-  if (response.ok) {
-    return null;
-  }
-
-  let reason = `HTTP_${response.status}`;
-  try {
-    const body = await response.json() as { reason?: string };
-    if (typeof body.reason === "string" && body.reason.length > 0) {
-      reason = body.reason;
-    }
-  } catch {
-    // Keep the default reason when APNs does not return JSON.
-  }
-
-  return {
-    status: response.status,
-    reason,
-  };
-}
-
 serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -320,9 +238,8 @@ serveEdge(async (req: Request) => {
     return jsonResponse({ error: "Method Not Allowed" }, 405);
   }
 
-  const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
-  const providedAuth = req.headers.get("Authorization") ?? "";
-  if (!timingSafeCompare(providedAuth, expectedAuth)) {
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
+  if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -333,9 +250,9 @@ serveEdge(async (req: Request) => {
   if (paramErr) return paramErr;
 
   const notificationId = requireUuid(body.notification_id, "notification_id");
-  const supabaseAdmin = createClient(
+  const supabaseAdmin = createServiceRoleClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    auth.serverApiKey,
   );
 
   const payload = await fetchExplorePushNotificationPayload(
@@ -422,7 +339,7 @@ serveEdge(async (req: Request) => {
           reason: failure.reason,
         });
       } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
+        const reason = apnsDeliveryExceptionReason(error);
         failures.push({
           deviceId: device.id,
           reason,
@@ -440,6 +357,7 @@ serveEdge(async (req: Request) => {
           device_id: device.id,
           environment: device.environment,
           reason,
+          error_name: error instanceof Error ? error.name : typeof error,
         });
       }
     },

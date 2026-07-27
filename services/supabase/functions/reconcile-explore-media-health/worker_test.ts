@@ -19,6 +19,18 @@ const R2_CONFIG = {
   bucketName: "bucket",
   endpoint: "https://r2.example.test",
 } satisfies R2Config;
+const DEFAULT_SECRET_KEY = [
+  "sb",
+  "secret",
+  "default",
+  "a".repeat(20),
+].join("_");
+const WORKFLOW_SECRET_KEY = [
+  "sb",
+  "secret",
+  "workflow",
+  "a".repeat(20),
+].join("_");
 
 function claim(
   overrides: Partial<ExploreMediaHealthClaim> = {},
@@ -179,10 +191,9 @@ Deno.test("handler accepts an exact configured project secret", async () => {
   };
   const handler = createReconcileExploreMediaHealthHandler({
     supabaseUrl: "https://project.supabase.co",
-    envServiceRoleKey: "legacy-service-role-key",
     envSecretKeys: JSON.stringify({
-      default: "sb_secret_default",
-      workflow: "sb_secret_workflow",
+      default: DEFAULT_SECRET_KEY,
+      workflow: WORKFLOW_SECRET_KEY,
     }),
     createAdminClient: (_supabaseUrl, token) => {
       acceptedToken = token;
@@ -200,7 +211,7 @@ Deno.test("handler accepts an exact configured project secret", async () => {
       {
         method: "POST",
         headers: {
-          apikey: "sb_secret_workflow",
+          apikey: WORKFLOW_SECRET_KEY,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ limit: 1, leaseSeconds: 300 }),
@@ -209,7 +220,7 @@ Deno.test("handler accepts an exact configured project secret", async () => {
   );
 
   assertEquals(response.status, 200);
-  assertEquals(acceptedToken, "sb_secret_default");
+  assertEquals(acceptedToken, DEFAULT_SECRET_KEY);
   assertEquals(receivedOptions, { limit: 1, leaseSeconds: 300 });
   assertEquals(await response.json(), { success: true, ...result });
 });
@@ -218,9 +229,8 @@ Deno.test("handler rejects an unconfigured public project key", async () => {
   let createdAdminClient = false;
   const handler = createReconcileExploreMediaHealthHandler({
     supabaseUrl: "https://project.supabase.co",
-    envServiceRoleKey: "legacy-service-role-key",
     envSecretKeys: JSON.stringify({
-      workflow: "sb_secret_workflow",
+      workflow: WORKFLOW_SECRET_KEY,
     }),
     createAdminClient: () => {
       createdAdminClient = true;

@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2.110.6";
+import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
 
 /**
  * Merian Retroactive Geocoding Migration Script
@@ -12,8 +12,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.110.6";
  *
  * Run with:
  *   export SUPABASE_URL="https://your-supabase-project.supabase.co"
- *   export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
- *   deno run --allow-net --allow-env retroactive_geocoding.ts
+ *   export SUPABASE_SERVER_API_KEY="your-server-api-key"
+ *   deno run --config ../functions/deno.json --allow-net --allow-env retroactive_geocoding.ts
  *
  * Optional controls:
  *   SCAN_ID=<uuid>       Repair one known scan/post.
@@ -21,23 +21,18 @@ import { createClient } from "npm:@supabase/supabase-js@2.110.6";
  */
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TARGET_SCAN_ID = Deno.env.get("SCAN_ID")?.trim();
 const DRY_RUN = Deno.env.get("DRY_RUN")?.toLowerCase() === "true";
 const PAGE_SIZE = 100;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+if (!SUPABASE_URL) {
   console.error(
-    "❌ Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables must be set.",
+    "❌ Error: SUPABASE_URL and a supported server API key must be set.",
   );
   Deno.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    persistSession: false,
-  },
-});
+const supabase = createServiceRoleClientFromEnvironment(SUPABASE_URL);
 
 async function reverseGeocodeNominatim(
   lat: number,

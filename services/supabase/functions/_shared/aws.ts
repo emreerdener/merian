@@ -109,6 +109,27 @@ export function avatarR2KeyFromPublicUrl(
 }
 
 const R2_DELETE_CONCURRENCY = 16;
+const R2_LIST_RESPONSE_LIMIT_BYTES = 256 * 1024;
+const R2_LIST_TIMEOUT_MS = 10_000;
+export const R2_OBJECT_REQUEST_TIMEOUT_MS = 10_000;
+
+export function r2RequestWithDeadline(
+  input: string | URL,
+  init: RequestInit = {},
+  timeoutMs = R2_OBJECT_REQUEST_TIMEOUT_MS,
+): Request {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) {
+    throw new TypeError("R2 timeout must be a positive safe integer.");
+  }
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = init.signal
+    ? AbortSignal.any([init.signal, timeoutSignal])
+    : timeoutSignal;
+  return new Request(input, {
+    ...init,
+    signal,
+  });
+}
 
 export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
   const { s3Client } = r2Config;
@@ -121,11 +142,13 @@ export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
         console.log(`Deleting R2 object: ${url}`);
         const s3Url = getInternalS3Url(url, r2Config);
         const response = await s3Client.fetch(
-          new Request(s3Url, { method: "DELETE" }),
+          r2RequestWithDeadline(s3Url, { method: "DELETE" }),
         );
         if (!response.ok) {
+          await response.body?.cancel().catch(() => undefined);
           throw new Error(`R2 delete returned HTTP ${response.status}`);
         }
+        await response.body?.cancel().catch(() => undefined);
       } catch (e) {
         console.error(`Failed to wipe media at ${url} from Cloudflare R2:`, e);
         failures.push({
@@ -176,7 +199,7 @@ export async function copyR2Object(
   const copyUrl = `${endpoint}/${bucketName}/${targetKey}`;
 
   return await s3Client.fetch(
-    new Request(copyUrl, {
+    r2RequestWithDeadline(copyUrl, {
       method: "PUT",
       headers: {
         "x-amz-copy-source": encodeURI(`/${bucketName}/${sourceKey}`),
@@ -192,16 +215,11 @@ export async function deleteR2Object(
   const { s3Client, bucketName, endpoint } = config;
   const deleteUrl = `${endpoint}/${bucketName}/${key}`;
   return await s3Client.fetch(
-    new Request(deleteUrl, {
+    r2RequestWithDeadline(deleteUrl, {
       method: "DELETE",
-      signal: AbortSignal.timeout(R2_OBJECT_REQUEST_TIMEOUT_MS),
     }),
   );
 }
-
-const R2_LIST_RESPONSE_LIMIT_BYTES = 256 * 1024;
-const R2_LIST_TIMEOUT_MS = 10_000;
-const R2_OBJECT_REQUEST_TIMEOUT_MS = 10_000;
 
 function decodeXmlText(value: string): string {
   return value
@@ -238,10 +256,7 @@ export async function listR2ObjectKeys(
   if (startAfter) listUrl.searchParams.set("start-after", startAfter);
 
   const response = await s3Client.fetch(
-    new Request(listUrl, {
-      method: "GET",
-      signal: AbortSignal.timeout(R2_LIST_TIMEOUT_MS),
-    }),
+    r2RequestWithDeadline(listUrl, { method: "GET" }, R2_LIST_TIMEOUT_MS),
   );
   if (!response.ok) {
     await response.body?.cancel();
@@ -300,9 +315,8 @@ export async function headR2Object(
   const { s3Client, bucketName, endpoint } = config;
   const headUrl = `${endpoint}/${bucketName}/${key}`;
   return await s3Client.fetch(
-    new Request(headUrl, {
+    r2RequestWithDeadline(headUrl, {
       method: "HEAD",
-      signal: AbortSignal.timeout(R2_OBJECT_REQUEST_TIMEOUT_MS),
     }),
   );
 }
@@ -316,7 +330,7 @@ export async function putR2Object(
   const { s3Client, bucketName, endpoint } = config;
   const putUrl = `${endpoint}/${bucketName}/${key}`;
   return await s3Client.fetch(
-    new Request(putUrl, {
+    r2RequestWithDeadline(putUrl, {
       method: "PUT",
       headers: { "Content-Type": contentType },
       body: body as unknown as BodyInit,

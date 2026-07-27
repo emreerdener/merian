@@ -3,7 +3,10 @@ import {
   type PostgrestError,
   type SupabaseClient,
 } from "@supabase/supabase-js";
+import { createDeadlineFetchTransport } from "../_shared/outbound.ts";
 import type { MergeProvider } from "./protocol.ts";
+
+const SUPABASE_USER_REQUEST_TIMEOUT_MS = 30_000;
 
 export type PreparedGhostMergeHandoff = {
   handoffId: string;
@@ -160,7 +163,12 @@ function requestScopedClient(req: Request): SupabaseClient {
         autoRefreshToken: false,
         detectSessionInUrl: false,
       },
-      global: { headers: { Authorization: authorization } },
+      global: {
+        fetch: createDeadlineFetchTransport(
+          SUPABASE_USER_REQUEST_TIMEOUT_MS,
+        ),
+        headers: { Authorization: authorization },
+      },
     },
   );
 }

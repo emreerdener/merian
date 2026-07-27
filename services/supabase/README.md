@@ -84,6 +84,23 @@ prevents unbounded request readers and unwrapped custom entrypoints from
 returning to deployable routes, and locks the shared raw-exception sanitization
 boundary.
 
+### Outbound Provider Boundary
+
+Production HTTP calls use `functions/_shared/outbound.ts`.
+`fetchWithDeadline(...)` combines caller cancellation with a hard timeout;
+bounded text and JSON readers reject both declared and streamed oversized
+responses before decoding or parsing. Global and injected fetch transports are
+not called directly from production modules. Supabase SDK traffic is bounded at
+the transport layer as well: privileged clients use a 30-second hard deadline,
+authenticated user/claims lookups use 15 seconds, and the single shared Google
+GenAI client uses the SDK's 90-second HTTP timeout.
+
+`functions/_tests/outboundDeadlineCoverage.test.ts` enforces this architecture
+and inventories the only remaining direct client transports: signed R2 calls in
+the reviewed AWS, inference-media, and export-storage adapters. Each such call
+must receive `r2RequestWithDeadline(...)` or the export worker's bounded
+`r2Request(...)`.
+
 ### Durable Account Deletion Boundary
 
 Migration `20260725030308_durable_account_deletion.sql` establishes durable
@@ -160,16 +177,17 @@ Vault-first, NULL-only fallback as the reaper, so a blank Vault value cannot be
 masked by a legacy app setting. The readiness boolean proves only that the
 effective URL and key are nonblank. A post-deploy monitor smoke test validates
 the independent health-RPC path; recent successful reaper cron requests validate
-the separate URL and bearer credential.
+the separate URL and key-format-aware credential transport.
 
-The database cron currently sends the Vault `SUPABASE_SERVICE_ROLE_KEY` as
-`Authorization: Bearer ...`, and `reconcile-account-deletions` compares that
-complete value with its injected Edge secret. Therefore this Vault entry must
-remain the exact legacy service-role JWT expected by the function; an opaque
-`sb_secret_...` server key is not a drop-in replacement for this bearer-only
-path. The independent GitHub monitor is different: it can resolve a modern
-opaque server key and sends it in `apikey`. Migrate the reaper to the reviewed
-server-key authentication contract before disabling Supabase legacy keys.
+Migration `20260727013416_future_proof_server_key_boundaries.sql` gives every
+installed database `pg_net` routine and persisted HTTP cron command the same
+transport policy as Deno. Callers read the server key from the existing reviewed
+Vault slot: an opaque `sb_secret_...` value is sent only as `apikey`, while a
+legacy service-role JWT is sent in both `apikey` and Bearer Authorization. The
+migration rewrites deployed catalog state transactionally and fails if any
+active Bearer-only caller remains. Rotate the Vault value and project key
+together; a present but blank Vault row still fails health checks rather than
+falling through.
 
 `.github/workflows/account-deletion-health-monitor.yml` queries that RPC every
 five minutes, offset from the database reaper. It resolves a server API key
@@ -514,6 +532,15 @@ both the static and catalog tests. If a public definer appears under another
 owner (including a Supabase-managed owner), the audit fails; resolve ownership
 or the creator's default privileges explicitly rather than weakening the test.
 
+Migration `20260727010340_fix_service_role_authorization_guard.sql` keeps that
+in-function boundary compatible with both server-key generations. Legacy
+service-role JWTs are recognized through `auth.role()`; opaque `sb_secret_...`
+keys are recognized through PostgREST's protected standard `role` setting.
+Direct `postgres`/`service_role` sessions remain available for migrations and
+incident repair. This migration changes the guard body only; it does not broaden
+the exact RPC allowlist. Do not replace the standard-role check with a
+caller-controlled header or custom GUC.
+
 Catalog validation is semantic, not just migration-syntax validation.
 `supabase db push --local` can succeed while SQL inside a PL/pgSQL routine still
 contains an unresolved catalog function or overload. The pgTAP catalog gate runs
@@ -601,7 +628,7 @@ version; only the two reviewed preference columns remain directly writable.
 
 IP buckets store a daily-rotating, domain-separated HMAC, never a raw address.
 `AI_QUOTA_IP_HASH_SECRET` is an optional dedicated override. When it is absent,
-Edge code uses the built-in server-only Supabase secret/service-role key; an
+Edge code uses the canonically resolved current or legacy server key; an
 explicit override shorter than 32 characters still fails closed. The deploy
 workflow validates and synchronizes the override only when configured.
 
@@ -680,26 +707,39 @@ for fixed search paths and explicit execute privileges.
 
 ### Internal Service Credential Boundary
 
-`functions/_shared/serviceRoleAuth.ts` protects the six internal routes that
-share a common request policy: `community-taxonomy-status`,
-`sync-community-taxonomy-index`, `scan-media-health`, `replay-scan-ingestion`,
-the internal replay branch of `identify-multimodal`, and
-`reconcile-explore-media-health`. Authorization is a local exact comparison
-against `SUPABASE_SERVICE_ROLE_KEY` or a named `sb_secret_...` value supplied by
-the platform in `SUPABASE_SECRET_KEYS`. Successful empty reads, RLS behavior,
-JWT shape, and other capability probes are never evidence of authority.
+`functions/_shared/serviceRoleAuth.ts` protects every internal worker and status
+route that uses the common service-key policy. The static coverage catalog
+currently inventories twenty such boundaries, including taxonomy maintenance,
+media and account reconciliation, RevenueCat reconciliation, replay, push
+delivery, and DwC-A continuation work. Authorization is a local exact comparison
+against the explicit `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value
+supplied by the platform in `SUPABASE_SECRET_KEYS`, or the migration-only
+`SUPABASE_SERVICE_ROLE_KEY` fallback. Successful empty reads, RLS behavior, JWT
+shape, and other capability probes are never evidence of authority.
+
+Configuration is classified before comparison: a current key must have the
+platform `sb_secret_` prefix and a URL-safe opaque suffix of at least 20
+characters, while a legacy fallback must be an HS256 JWT whose role is exactly
+`service_role` and whose 43-character base64url signature is complete. A
+publishable key, anon/user JWT, truncated placeholder, or malformed value in a
+privileged variable fails closed. The server-only web client applies the same
+classification.
 
 Legacy service-role JWTs may use Bearer transport; named non-JWT secret keys
 must use `apikey` only. Mixed Authorization/apikey values are rejected. After
 authorization, the route creates its database client and internal calls with the
 server-managed environment key rather than reflecting the caller's credential.
-The deploy smoke, Community Taxonomy import, and scan-media health workflows use
-`scripts/resolve_project_api_keys.ts` to request revealed values from the
-Management API, prefer the current `default` secret key, fall back only to the
-exact legacy `service_role` key, and use the same shared transport rule. The
-RevenueCat reconciliation-health monitor uses that resolver and transport too.
-Do not replace the resolver with the CLI API-key listing: its hidden secret-key
-representation cannot pass the exact request boundary. Migration
+Public and webhook routes that need admin access resolve that same environment
+key through `serviceRoleClient.ts`; production modules may not construct a
+legacy-key admin client directly. The shared fetch boundary supports PostgREST,
+Storage, Functions, and Auth Admin while keeping opaque keys out of Bearer
+transport. The deploy smoke, Community Taxonomy import, and scan-media health
+workflows use `scripts/resolve_project_api_keys.ts` to request revealed values
+from the Management API, prefer the current `default` secret key, fall back only
+to the exact legacy `service_role` key, and use the same shared transport rule.
+The RevenueCat reconciliation-health monitor uses that resolver and transport
+too. Do not replace the resolver with the CLI API-key listing: its hidden
+secret-key representation cannot pass the exact request boundary. Migration
 `20260726212549_harden_service_role_request_authentication.sql` separately
 revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
 `authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
@@ -715,10 +755,10 @@ one serialized database transaction. The caller cannot nominate either user
 UUID.
 
 The foreground endpoint deletes the obsolete anonymous Auth row after commit.
-`functions/reconcile-ghost-profile-merges/` is the five-minute,
-service-role-only recovery worker for interrupted cleanup. It has
-`verify_jwt = false` solely for `pg_net` compatibility and performs a
-timing-safe service-role bearer comparison in Deno. See the two function READMEs
+`functions/reconcile-ghost-profile-merges/` is the five-minute, service-only
+recovery worker for interrupted cleanup. It has `verify_jwt = false` solely for
+`pg_net` compatibility and uses the shared exact environment-backed request
+policy, accepting an opaque key only in `apikey`. See the two function READMEs
 and the deployment runbook before changing this protocol.
 `tests/ghost_profile_merge_security.sql` runs in the disposable catalog through
 `make test-supabase-privileged-routines` and protects the exact profile/Auth-FK
@@ -778,8 +818,11 @@ deno check --frozen \
 runs every standard `*_test.ts`, including the ghost-user audit and cleanup
 suites. It then tests and executes the executable Identify contract/Swift
 generator under its isolated frozen config, syntax-checks every shell script,
-and runs every `*_test.sh`. New conventionally named tooling tests therefore
-enter the gate without editing CI.
+and runs every `*_test.sh`. It also rejects complete secret-shaped
+`sb_secret_…` literals across repository files before deployment. Tests must
+construct format-valid fake keys from separate fragments, and the gate reports
+filenames rather than matching values. New conventionally named tooling tests
+therefore enter the gate without editing CI.
 
 `validate_edge_dto_contract.sh` is the shared isolated entrypoint used by both
 the backend deployment workflow and the lightweight iOS project guardrail.
@@ -912,17 +955,7 @@ is available:
 ```bash
 make validate-supabase-migrations
 make test-supabase-privileged-routines
-supabase --workdir services db push --local
-supabase --workdir services test db --local \
-  services/supabase/tests/account_deletion_security.sql
-supabase --workdir services test db --local \
-  services/supabase/tests/push_device_registration.sql
-supabase --workdir services test db --local \
-  services/supabase/tests/scan_media_asset_uniqueness.sql
-supabase --workdir services test db --local \
-  services/supabase/tests/species_count_trigger_security.sql
-supabase --workdir services test db --local \
-  services/supabase/tests/species_observation_stats_security.sql
+bash services/supabase/scripts/test_database_catalogs.sh
 ```
 
 Keep the pgTAP fixture local; do not substitute `--linked`. Before deploying a

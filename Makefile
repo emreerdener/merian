@@ -16,7 +16,7 @@ help:
 	@printf "  make validate-edge-dto-contract       Validate the Identify runtime/schema/generated-Swift contract\n"
 	@printf "  make test-supabase-tooling            Run complete discovery-based Supabase tooling tests\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
-	@printf "  make test-supabase-privileged-routines Validate privileged-routine, account-deletion, Ghost-merge, AI-quota, DwC-A, RevenueCat, species-stats, and waitlist catalogs locally\n"
+	@printf "  make test-supabase-privileged-routines Run every checked-in Supabase pgTAP catalog locally\n"
 	@printf "  make audit-supabase-privileged-routines Audit MERIAN_DATABASE_URL and fail on drift\n"
 	@printf "  make audit-ghost-users ARGS='...'     Run read-only Supabase ghost-user audit\n"
 	@printf "  make cleanup-ghost-users ARGS='...'   Dry-run or execute guarded ghost-user cleanup\n"
@@ -76,24 +76,14 @@ validate-supabase-migrations:
 		services/supabase/functions/_tests/migrationMediaContract.test.ts \
 		services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
 		services/supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+		services/supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts \
 		services/supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
 		services/supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
 		services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
 
 test-supabase-privileged-routines:
-	supabase --workdir $(SUPABASE_WORKDIR) db start
-	supabase --workdir $(SUPABASE_WORKDIR) db push --local
-	supabase --workdir $(SUPABASE_WORKDIR) test db --local \
-		services/supabase/tests/account_deletion_security.sql \
-		services/supabase/tests/explore_media_quarantine_security.sql \
-		services/supabase/tests/ghost_profile_merge_security.sql \
-		services/supabase/tests/privileged_routine_security.sql \
-		services/supabase/tests/ai_quota_security.sql \
-		services/supabase/tests/export_dwca_security.sql \
-		services/supabase/tests/revenuecat_webhook_security.sql \
-		services/supabase/tests/species_count_trigger_security.sql \
-		services/supabase/tests/species_observation_stats_security.sql \
-		services/supabase/tests/waitlist_security.sql
+	SUPABASE_TELEMETRY_DISABLED=1 supabase --workdir $(SUPABASE_WORKDIR) db start
+	bash services/supabase/scripts/test_database_catalogs.sh
 
 audit-supabase-privileged-routines:
 	deno run --frozen --config services/supabase/functions/deno.json \

@@ -13,7 +13,23 @@ import {
   listR2ObjectKeys,
   R2_MEDIA_PREFIXES,
   type R2Config,
+  r2RequestWithDeadline,
 } from "./aws.ts";
+
+Deno.test("R2 requests preserve caller cancellation and enforce a deadline", async () => {
+  const callerController = new AbortController();
+  const request = r2RequestWithDeadline(
+    "https://account.r2.cloudflarestorage.com/media-bucket/object",
+    { signal: callerController.signal },
+    5,
+  );
+
+  await new Promise((resolve) =>
+    request.signal.addEventListener("abort", resolve, { once: true })
+  );
+  assertEquals(request.signal.aborted, true);
+  assertEquals(callerController.signal.aborted, false);
+});
 
 Deno.test("listR2ObjectKeys performs a bounded monotonic prefix query", async () => {
   let requestedUrl = "";

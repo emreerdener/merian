@@ -1,10 +1,25 @@
 import {
   assertEquals,
   assertObjectMatch,
+  assertRejects,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-import { buildReplayIdentifyPayload, replayScanIngestion } from "./worker.ts";
+import {
+  buildReplayIdentifyPayload,
+  invokeIdentifyMultimodalReplay,
+  MINIMUM_REPLAY_LEASE_SECONDS,
+  REPLAY_IDENTIFY_TIMEOUT_MS,
+  REPLAY_LEASE_SAFETY_MARGIN_MS,
+  replayScanIngestion,
+} from "./worker.ts";
 import type { ReplayableScanIngestionRow, ReplayScanRow } from "./db.ts";
+
+const CURRENT_SECRET_KEY = [
+  "sb",
+  "secret",
+  "service-role",
+  "a".repeat(20),
+].join("_");
 
 function replayRow(
   overrides: Partial<ReplayableScanIngestionRow> = {},
@@ -96,6 +111,76 @@ Deno.test("buildReplayIdentifyPayload reconstructs top-level multimodal request 
   assertEquals(Array.isArray(payload.observation_contexts), true);
 });
 
+Deno.test("identify replay carries a deadline and bounds provider errors", async () => {
+  let receivedSignal: AbortSignal | undefined;
+  let bodyCancelled = false;
+  const oversizedBody = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(8 * 1024 + 1));
+    },
+    cancel() {
+      bodyCancelled = true;
+    },
+  });
+  const fetcher = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    receivedSignal = init?.signal ?? undefined;
+    return Promise.resolve(
+      new Response(oversizedBody, {
+        status: 502,
+      }),
+    );
+  }) as typeof fetch;
+
+  await assertRejects(
+    () =>
+      invokeIdentifyMultimodalReplay(
+        {
+          identifyUrl: "https://example.test/functions/v1/identify-multimodal",
+          serviceRoleKey: CURRENT_SECRET_KEY,
+          payload: { client_scan_id: "scan-1" },
+          userId: "user-1",
+          replayAttemptCount: 1,
+        },
+        fetcher,
+      ),
+    Error,
+    "identify-multimodal replay failed: 502",
+  );
+
+  assertEquals(receivedSignal instanceof AbortSignal, true);
+  assertEquals(bodyCancelled, true);
+});
+
+Deno.test("replay lease always outlives its identify deadline", async () => {
+  let claimedLeaseSeconds = 0;
+  await replayScanIngestion(
+    {} as never,
+    {
+      identifyUrl: "https://example.test/functions/v1/identify-multimodal",
+      serviceRoleKey: CURRENT_SECRET_KEY,
+      leaseSeconds: 1,
+      awaitInvocations: true,
+    },
+    {
+      claimJobs: (input) => {
+        claimedLeaseSeconds = input.leaseSeconds;
+        return Promise.resolve([]);
+      },
+      fetchScans: () => Promise.resolve([]),
+      markComplete: () => Promise.resolve(),
+      markFailure: () => Promise.resolve(),
+      invokeIdentify: () => Promise.resolve(),
+    },
+  );
+
+  assertEquals(claimedLeaseSeconds, MINIMUM_REPLAY_LEASE_SECONDS);
+  assertEquals(
+    claimedLeaseSeconds * 1000 >=
+      REPLAY_IDENTIFY_TIMEOUT_MS + REPLAY_LEASE_SAFETY_MARGIN_MS,
+    true,
+  );
+});
+
 Deno.test("replayScanIngestion dispatches staged rows through identify", async () => {
   const invoked: unknown[] = [];
   const completed: unknown[] = [];
@@ -105,7 +190,7 @@ Deno.test("replayScanIngestion dispatches staged rows through identify", async (
     {} as never,
     {
       identifyUrl: "https://example.test/functions/v1/identify-multimodal",
-      serviceRoleKey: "service-role",
+      serviceRoleKey: CURRENT_SECRET_KEY,
       awaitInvocations: true,
     },
     {
@@ -160,7 +245,7 @@ Deno.test("replayScanIngestion marks already-complete scan rows complete without
     {} as never,
     {
       identifyUrl: "https://example.test/functions/v1/identify-multimodal",
-      serviceRoleKey: "service-role",
+      serviceRoleKey: CURRENT_SECRET_KEY,
       awaitInvocations: true,
     },
     {
@@ -199,7 +284,7 @@ Deno.test("replayScanIngestion terminates ownerless tombstones without invoking 
     {} as never,
     {
       identifyUrl: "https://example.test/functions/v1/identify-multimodal",
-      serviceRoleKey: "service-role",
+      serviceRoleKey: CURRENT_SECRET_KEY,
       awaitInvocations: true,
     },
     {
@@ -241,7 +326,7 @@ Deno.test("replayScanIngestion leaves existing incomplete video scans for repair
     {} as never,
     {
       identifyUrl: "https://example.test/functions/v1/identify-multimodal",
-      serviceRoleKey: "service-role",
+      serviceRoleKey: CURRENT_SECRET_KEY,
       awaitInvocations: true,
     },
     {

@@ -149,6 +149,11 @@ jobs:
             supabase/functions/_tests/workflowSecurity.test.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/http_test.ts \
+            supabase/functions/_shared/outbound.ts \
+            supabase/functions/_shared/outbound_test.ts \
+            supabase/functions/_shared/posthog.ts \
+            supabase/functions/_shared/external.ts \
+            supabase/functions/_shared/external_test.ts \
             supabase/functions/_shared/mediaBudgets.ts \
             supabase/functions/_shared/mediaBudgets_test.ts \
             supabase/functions/_shared/clientAddress.ts \
@@ -185,12 +190,14 @@ jobs:
             supabase/functions/_tests/exploreMediaQuarantineMigrationContract.test.ts \
             supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
             supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
+            supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
             supabase/functions/_tests/migrationExecutionContract.test.ts \
             supabase/functions/_tests/migrationMediaContract.test.ts \
             supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
             supabase/functions/_tests/serviceRoleAuth.test.ts \
             supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
             supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
+            supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts \
             supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
             supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
             supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
@@ -216,6 +223,7 @@ jobs:
             supabase/functions/insight-chat/index.ts \
             supabase/functions/replay-scan-ingestion/index.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/send-push-notification/delivery_test.ts \
             supabase/functions/revenuecat-webhook/index.ts \
             supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
             supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
@@ -263,8 +271,11 @@ jobs:
             --allow-env \
             --allow-read=supabase/functions,../apps/web \
             supabase/functions/_shared/http_test.ts \
+            supabase/functions/_shared/outbound_test.ts \
+            supabase/functions/_shared/external_test.ts \
             supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
+            supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/identify/latencyDb_test.ts \
@@ -277,6 +288,9 @@ jobs:
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/send-push-notification/delivery_test.ts \
+            supabase/functions/search-community-taxa/gbif.test.ts \
+            supabase/functions/sync-community-taxonomy-index/gbif.test.ts \
             supabase/functions/ingest-r2-media-events/validation_test.ts \
             supabase/functions/reconcile-explore-media-health/worker_test.ts \
             supabase/functions/sync-collections/db_test.ts \
@@ -294,7 +308,8 @@ jobs:
             supabase/functions/_shared/serviceRoleClient_test.ts \
             supabase/functions/_tests/serviceRoleAuth.test.ts \
             supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
-            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts
+            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
+            supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
 
       - name: Test durable account deletion boundary
         run: |
@@ -386,20 +401,7 @@ jobs:
       - name: Validate database security catalogs
         env:
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: |
-          supabase db push --local
-          supabase test db --local \
-            supabase/tests/account_deletion_security.sql \
-            supabase/tests/explore_media_quarantine_security.sql \
-            supabase/tests/ghost_profile_merge_security.sql \
-            supabase/tests/privileged_routine_security.sql \
-            supabase/tests/scan_image_repair_security.sql \
-            supabase/tests/ai_quota_security.sql \
-            supabase/tests/export_dwca_security.sql \
-            supabase/tests/revenuecat_webhook_security.sql \
-            supabase/tests/species_count_trigger_security.sql \
-            supabase/tests/species_observation_stats_security.sql \
-            supabase/tests/waitlist_security.sql
+        run: bash supabase/scripts/test_database_catalogs.sh
 
       - name: Test complete Edge Function suite
         env:
@@ -653,6 +655,8 @@ jobs:
             local status
             if ! status="$(
               curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
                 -o "$smoke_response_file" \
                 -w "%{http_code}" \
                 -X POST "${supabase_url}${endpoint}" \
@@ -688,6 +692,8 @@ jobs:
             denied_response="$RUNNER_TEMP/service-role-auth-denied-${index}.json"
             denied_status="$(
               curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
                 -o "$denied_response" \
                 -w "%{http_code}" \
                 -X POST "${supabase_url}/functions/v1/community-taxonomy-status" \
@@ -749,3 +755,10 @@ jobs:
             and (.[0].missing_media_item_count | type) == "number"
           '
           echo "$publication_health_response" | jq '.[0]'
+
+          owned_incidents_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_owned_explore_media_incidents" \
+              '{"self_id":"00000000-0000-0000-0000-000000000000"}'
+          )"
+          echo "$owned_incidents_response" | jq -e 'type == "array"'

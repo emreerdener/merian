@@ -12,10 +12,11 @@ database receipt remains authoritative and this worker completes the cleanup.
 
 The function is not a user API. Its `config.toml` entry deliberately uses
 `verify_jwt = false` so `pg_net` can reach the handler with the service-role
-credential. The handler then requires an exact
-`Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` match using
-`timingSafeCompare`. No browser or iOS client may call it or receive the
-service-role key.
+credential. The handler then requires an exact platform-managed current or
+legacy server key through `_shared/serviceRoleAuth.ts`. Opaque keys use `apikey`
+only; legacy JWTs use both supported headers. Publishable, anon/user, and
+malformed configured values fail closed. No browser or iOS client may call it or
+receive a server key.
 
 ## Schedule and lease
 
@@ -36,15 +37,19 @@ database merge transaction itself.
 
 ## Manual invocation
 
-Use only a server-side environment:
+Use only a server-side environment. The preferred example uses a current
+`sb_secret_...` key:
 
 ```bash
 curl --fail-with-body \
   -X POST "$SUPABASE_URL/functions/v1/reconcile-ghost-profile-merges" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{"limit":25}'
 ```
+
+During legacy-key migration only, send the same legacy JWT in both `apikey` and
+`Authorization: Bearer ...`.
 
 The response reports `claimed`, `deleted`, `failed`, and per-receipt errors. A
 successful HTTP response can still contain retryable row failures; inspect

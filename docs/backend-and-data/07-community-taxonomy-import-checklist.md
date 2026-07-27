@@ -233,7 +233,7 @@ Preferred operator command:
 
 ```bash
 SUPABASE_URL="https://qlarqavoqhkuwzmevrmf.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+SUPABASE_SERVER_API_KEY="$SUPABASE_SERVER_API_KEY" \
 deno run --allow-net --allow-env --allow-read --allow-write \
   services/supabase/scripts/import_community_taxonomy.ts \
   --target birds --limit 100 --page-count 3 --update-checklist
@@ -243,7 +243,7 @@ Dry run without advancing the cursor:
 
 ```bash
 SUPABASE_URL="https://qlarqavoqhkuwzmevrmf.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+SUPABASE_SERVER_API_KEY="$SUPABASE_SERVER_API_KEY" \
 deno run --allow-net --allow-env --allow-read --allow-write \
   services/supabase/scripts/import_community_taxonomy.ts \
   --target birds --limit 100 --page-count 1 --dry-run
@@ -254,7 +254,7 @@ Fallback Edge Function call:
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{"target":"birds","limit":100,"page_count":1}'
 ```
@@ -264,10 +264,14 @@ Status check:
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/community-taxonomy-status" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "apikey: $SUPABASE_SERVER_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{"view":"coverage","target":"birds","import_run_limit":10,"job_limit":1}'
 ```
+
+These preferred commands use a current `sb_secret_...` key. During legacy-key
+migration only, send the same JWT in both `apikey` and
+`Authorization: Bearer ...`.
 
 Use the service-role database RPC path only if the Edge Function path regresses,
 keep batches small, and update this checklist immediately after each run.

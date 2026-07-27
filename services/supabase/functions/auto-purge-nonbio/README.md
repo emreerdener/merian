@@ -11,11 +11,12 @@ row, maintaining a clean cloud footprint for failed ecology detections.
 To enforce clean routing boundaries, the logic is decoupled:
 
 - **`index.ts`**: The strict HTTP orchestrator. It blocks non-POST verbs and
-  intercepts the `SUPABASE_SERVICE_ROLE_KEY` Authorization payload via explicit
-  `timingSafeCompare` math to block timing attacks attempting to derive API key
-  lengths. It coordinates the date math parsing, collects image, video, and
-  standalone-audio URLs, calls `deleteScanMediaR2Objects` across the Cloudflare
-  bucket, and natively wipes the database IDs. The helper deletes only
+  authorizes only an exact environment-managed key through the shared
+  fail-closed service-key policy. Current opaque keys use `apikey` only; legacy
+  service-role JWTs may use matching Bearer and `apikey` transport. It
+  coordinates the date math parsing, collects image, video, and standalone-audio
+  URLs, calls `deleteScanMediaR2Objects` across the Cloudflare bucket, and
+  natively wipes the database IDs. The helper deletes only
   `public_uploads/free/` and `public_uploads/pro/` scan media; durable
   `avatars/` profile images and temporary prefixes are skipped even if they
   appear in a malformed scan row. R2 deletes are bounded inside `_shared/aws.ts`

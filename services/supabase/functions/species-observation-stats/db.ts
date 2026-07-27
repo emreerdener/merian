@@ -1,6 +1,10 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { readResponseArrayBufferWithinBudget } from "../_shared/mediaBudgets.ts";
 import {
+  fetchWithDeadline,
+  OutboundRequestTimeoutError,
+} from "../_shared/outbound.ts";
+import {
   authorizeSpeciesObservationStatsRequest,
   claimSpeciesObservationStatsPopulation,
   finalizeSpeciesObservationStatsPopulation,
@@ -926,23 +930,26 @@ async function fetchInaturalistJson(
     1,
     Math.min(budget.requestTimeoutMs, remainingMs),
   );
-  const signal = AbortSignal.timeout(timeoutMs);
   let response: Response;
   try {
-    response = await fetcher(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": USER_AGENT,
+    response = await fetchWithDeadline(
+      url,
+      {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": USER_AGENT,
+        },
       },
-      signal,
-    });
+      { fetcher, timeoutMs },
+    );
   } catch (error) {
-    if (signal.aborted) {
+    if (error instanceof OutboundRequestTimeoutError) {
       throw new Error(`iNaturalist ${path} timed out`);
     }
     throw error;
   }
   if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
     throw new Error(`iNaturalist ${path} returned HTTP ${response.status}`);
   }
   const readResult = await readResponseArrayBufferWithinBudget(

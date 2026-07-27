@@ -71,6 +71,10 @@ disposable database is migrated, so database-backed cases execute rather than
 reporting connection skips; its explicit `SUPABASE_DB_TEST_URL` makes an
 unavailable database a test failure. CI must run the complete task rather than
 substituting a hand-selected subset whose permissions happen to pass.
+Pure request-mapping tests, including `sync-collections/index.test.ts`, never
+conditionally write to credentials inherited from the developer shell. Live
+database behavior belongs to the disposable catalog or an explicitly
+configured `SUPABASE_DB_TEST_URL` test that fails when it cannot connect.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -85,8 +89,11 @@ make test-supabase-tooling
 every conventionally named `*_test.ts`, so the ghost-user audit and cleanup
 tests cannot fall out of CI through list drift. It separately exercises the
 frozen executable DTO contract and Swift generator, syntax-checks every shell
-script, and runs every `*_test.sh`. `tooling_gate_test.ts` protects that
-discovery policy.
+script, runs every `*_test.sh`, and rejects complete provider-shaped
+`sb_secret_…` literals anywhere in the repository. Format-valid secret-key
+fixtures must be assembled at runtime from separate fragments; diagnostics
+identify only matching filenames so the gate cannot echo an accidentally
+committed credential. `tooling_gate_test.ts` protects that discovery policy.
 
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
@@ -546,11 +553,12 @@ MerianTests/
   aggregation plus reducer normalization and empty-bucket behavior.
   `InsightChatTests.swift` covers Field chat request/response decoding,
   feedback/summary/prompt-suggestion DTO decoding, local fallback and
-  AI-generated quick prompt merging/filtering, failed outgoing recovery state,
-  deterministic unavailable-state hiding, identification-concern action buckets
-  plus negative examples, and the 600-character draft cap.
-  `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
-  before external cloud/search side effects can run.
+  AI-generated quick prompt merging/filtering, including reserved uncertainty
+  context below 70% confidence and server-provided confidence-category
+  preservation, failed outgoing recovery state, deterministic unavailable-state
+  hiding, identification-concern action buckets plus negative examples, and the
+  600-character draft cap. `UserTagsMutationControllerTests.swift` verifies tag
+  saves commit locally before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
   captures explicitly decouple live sensor leakage (like LiDAR distance vectors
   or view-finder zoom scopes) away from EXIF bounds.
@@ -984,20 +992,33 @@ identify/describe/audio compatibility bridge so staged media and text-only
 requests replay through `/identify-multimodal` while inline media stays redacted
 and non-resumable; `replay-scan-ingestion/worker_test.ts` covers staged payload
 reconstruction, existing complete scan and ownerless-tombstone short-circuiting,
-and incomplete video rows being left for repair instead of duplicate AI replay;
-`reconcile-scan-media-assets/worker_test.ts` covers video repair, abandoned
-media cleanup, active-job waiting, ownership matching by user plus scan id, and
-job completion/failure feedback; `_tests/scanMediaIngestionContract.test.ts` is
-the media-type matrix that keeps image, audio, text-only, and video replay,
-status, repair, and Explore-share contracts aligned;
-`_shared/mediaBudgets_test.ts` and `generate-upload-urls/storage_test.ts` keep
-the staged signing limits, allowed content types, and six-file video batch in
-sync with the documented contract; and `_tests/migrationMediaContract.test.ts`
-checks the scan-media, reconciliation, scanless staged-row repair, video-audio
-metadata backfill, ingestion-job, manifest-checksum, intent-outbox,
-replay-worker migrations, and the APNs device-token constraint repair. Run the
-migration contract test with `--allow-read=services/supabase/migrations` because
-it reads SQL files directly.
+incomplete video rows being left for repair instead of duplicate AI replay, the
+120-second downstream deadline, the 150-second minimum lease invariant, and the
+8 KiB diagnostic-response ceiling; `reconcile-scan-media-assets/worker_test.ts`
+covers video repair, abandoned media cleanup, active-job waiting, ownership
+matching by user plus scan id, and job completion/failure feedback;
+`_tests/scanMediaIngestionContract.test.ts` is the media-type matrix that keeps
+image, audio, text-only, and video replay, status, repair, and Explore-share
+contracts aligned; `_shared/mediaBudgets_test.ts` and
+`generate-upload-urls/storage_test.ts` keep the staged signing limits, allowed
+content types, and six-file video batch in sync with the documented contract;
+and `_tests/migrationMediaContract.test.ts` checks the scan-media,
+reconciliation, scanless staged-row repair, video-audio metadata backfill,
+ingestion-job, manifest-checksum, intent-outbox, replay-worker migrations, and
+the APNs device-token constraint repair. Run the migration contract test with
+`--allow-read=services/supabase/migrations` because it reads SQL files directly.
+
+`_shared/outbound_test.ts` covers combined caller cancellation and hard
+deadlines plus streamed text/JSON response ceilings.
+`_tests/outboundDeadlineCoverage.test.ts` scans every production TypeScript
+module, rejects direct global or injected fetch calls, and locks the complete
+set of signed R2 transport adapters. It also requires the only Google GenAI
+client to configure the reviewed 90-second SDK timeout.
+`send-push-notification/delivery_test.ts` proves APNs requests carry a deadline,
+notification collapse identifier, and bounded provider diagnostics, and maps
+request exceptions to stable non-sensitive failure reasons.
+`_shared/external_test.ts` also proves one oversized provider response cannot
+strand a sibling body or discard valid GBIF taxonomy and vernacular names.
 
 `_tests/migrationExecutionContract.test.ts` enumerates the complete migration
 directory, strips SQL comments, and rejects executable concurrent index DDL.
@@ -1031,12 +1052,18 @@ Privileged routine security has three complementary checks:
 - `_tests/privilegedRoutineMigrationContract.test.ts` statically locks the
   global/schema default revocations, blanket definer revocation, exact
   allowlist, empty search path, caller guards, and bounds on high-impact
-  maintenance routines.
+  maintenance routines. It also locks
+  `20260727010340_fix_service_role_authorization_guard.sql`: legacy
+  `auth.role()` detection, PostgREST's protected standard `role` check,
+  migration/repair sessions, and direct helper revocation.
 - `tests/privileged_routine_security.sql` runs against a fully migrated
   disposable catalog. It compares effective `has_function_privilege()` results
   with `internal.privileged_routine_grants`, inspects direct `pg_proc.proacl`,
   rejects API-role schema creation and allowlist reads, and creates a temporary
-  definer function to prove new functions inherit owner-only execution. It also
+  definer function to prove new functions inherit owner-only execution. A second
+  temporary definer probe simulates PostgREST's `authenticator` session: the
+  `authenticated` role must fail `internal.require_service_role()`, while
+  `service_role` must pass without depending on a JWT claim. The fixture also
   runs `plpgsql_check` against ordinary and trigger definer functions so
   ambiguous identifiers or unresolved names fail the catalog gate. Failures
   report the exact routine signature, source line, SQLSTATE, statement, query,
@@ -1064,22 +1091,28 @@ the transactional pgTAP file at production. Use
 `MERIAN_DATABASE_URL=... make audit-supabase-privileged-routines` for hosted,
 read-only verification instead.
 
-Internal service-key authorization has six complementary checks:
+Internal service-key authorization has complementary unit, static, catalog, and
+production checks:
 
 - `_tests/serviceRoleAuth.test.ts` exercises exact legacy and named-secret
   matching, strict Bearer syntax, non-JWT `apikey` transport, conflicting-header
   rejection, malformed `SUPABASE_SECRET_KEYS`, missing configuration, and
-  representative anon/publishable/authenticated mismatches.
-- `_shared/serviceRoleClient_test.ts` executes PostgREST, Storage, and Functions
-  requests through an intercepted transport and proves `sb_secret_...` keys are
-  sent only as `apikey`, while legacy service-role JWTs retain their required
-  Bearer header.
-- `_tests/serviceRoleAuthCoverage.test.ts` inventories all six production
-  authorization boundaries, rejects any database/network probe in the shared
-  helper, and prevents a caller-supplied credential from being reused for
-  database or internal-function work. It also locks exact server-key discovery
-  and shared current/legacy key transport in the deployment, taxonomy-import,
-  scan-media, and RevenueCat-health callers.
+  representative anon/publishable/authenticated mismatches. It also rejects a
+  publishable key, anon/user JWT, short placeholder, incomplete HS256
+  signature, or malformed value placed in a privileged environment variable.
+- `_shared/serviceRoleClient_test.ts` executes PostgREST, Storage, Functions,
+  and Auth Admin requests through an intercepted transport. It proves
+  `sb_secret_...` keys are sent only as `apikey`, legacy service-role JWTs
+  retain their required Bearer header, and `fetch(Request)` metadata or
+  unrelated user access tokens are not discarded. It also proves the final SDK
+  transport attaches a hard request deadline.
+- `_tests/serviceRoleAuthCoverage.test.ts` inventories every production
+  authorization boundary, rejects database/network capability probes, permits
+  direct Supabase client construction only at the reviewed public/user or
+  shared-factory boundaries, and rejects any legacy-key-only admin client. It
+  also prevents a caller-supplied credential from being reused for database or
+  internal-function work and locks exact server-key discovery in operational
+  callers.
 - `scripts/resolve_project_api_keys_test.ts` proves Management API lookup always
   requests `reveal=true`, prefers the revealed current `default` secret, rejects
   masked or malformed values and loosely named legacy keys, returns every exact
@@ -1088,9 +1121,15 @@ Internal service-key authorization has six complementary checks:
 - `_tests/serviceRoleAuthMigrationContract.test.ts` locks the
   `taxonomy_import_runs` blanket revocation and least-privilege service-role
   grant.
+- `_tests/serverApiKeyBoundaryMigrationContract.test.ts` locks the private SQL
+  header helper, installed-routine and persisted-cron rewrite, mixed
+  user/service identity dispatch, and a forward-only ban on new Bearer-only
+  `pg_net` server-key construction.
 - `tests/privileged_routine_security.sql` verifies the same effective ACL
-  against a fully migrated disposable catalog under real `anon`,
-  `authenticated`, and `service_role` database roles.
+  and transport policy against a fully migrated disposable catalog under real
+  `anon`, `authenticated`, and `service_role` database roles. It scans current
+  routine/cron source and executes the mixed media-incident routine through
+  simulated PostgREST role impersonation.
 - The production deployment smoke retrieves the project's real legacy anon
   and/or current publishable keys and requires `401` from
   `community-taxonomy-status`, then prefers a real current secret key (falling
@@ -1112,7 +1151,8 @@ deno test --frozen --config supabase/functions/deno.json \
   supabase/functions/_shared/serviceRoleClient_test.ts \
   supabase/functions/_tests/serviceRoleAuth.test.ts \
   supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
-  supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts
+  supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
+  supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
 ```
 
 Durable account deletion has eight complementary checks:
@@ -1277,9 +1317,10 @@ Authoritative AI quota and entitlement security has four complementary checks:
   transitions.
 
 The production workflow applies all migrations to a disposable database and runs
-`privileged_routine_security.sql`, `ai_quota_security.sql`, and
-`revenuecat_webhook_security.sql`, and `species_observation_stats_security.sql`.
-Do not replace that catalog execution with source inspection alone.
+`bash services/supabase/scripts/test_database_catalogs.sh`. That gate discovers
+every `services/supabase/tests/*.sql` fixture, rejects an empty suite, and
+prevents a new catalog contract from being omitted by a selected CI list. Do not
+replace executable catalog coverage with source inspection alone.
 
 Public species-observation stats have layered resource-abuse coverage:
 

@@ -4,6 +4,7 @@ import {
   SEVEN_DAY_PASS_PRODUCT_ID,
 } from "../_shared/subscriptionPass.ts";
 import { readByteStreamWithinLimit } from "../_shared/http.ts";
+import { fetchWithDeadline } from "../_shared/outbound.ts";
 import { RevenueCatWebhookEvent } from "./protocol.ts";
 
 const REVENUECAT_API_BASE_URL = "https://api.revenuecat.com/v1";
@@ -216,15 +217,9 @@ export async function fetchRevenueCatCustomerInfo(
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<RevenueCatCustomerInfo> {
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    CUSTOMER_INFO_TIMEOUT_MS,
-  );
-
   let response: Response;
   try {
-    response = await fetchImpl(
+    response = await fetchWithDeadline(
       `${REVENUECAT_API_BASE_URL}/subscribers/${encodeURIComponent(appUserId)}`,
       {
         method: "GET",
@@ -232,11 +227,10 @@ export async function fetchRevenueCatCustomerInfo(
           Accept: "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        signal: controller.signal,
       },
+      { fetcher: fetchImpl, timeoutMs: CUSTOMER_INFO_TIMEOUT_MS },
     );
   } catch (error) {
-    clearTimeout(timeout);
     const detail = error instanceof Error ? error.message : "network failure";
     throw new RevenueCatApiError(
       `RevenueCat CustomerInfo request failed: ${detail}`,
@@ -250,6 +244,7 @@ export async function fetchRevenueCatCustomerInfo(
         response.status === 425 ||
         response.status === 429 ||
         response.status >= 500;
+      await response.body?.cancel().catch(() => undefined);
       throw new RevenueCatApiError(
         `RevenueCat CustomerInfo returned HTTP ${response.status}.`,
         retryable,
@@ -261,6 +256,7 @@ export async function fetchRevenueCatCustomerInfo(
       Number.isFinite(contentLength) &&
       contentLength > MAX_CUSTOMER_INFO_BYTES
     ) {
+      await response.body?.cancel().catch(() => undefined);
       throw new RevenueCatApiError(
         "RevenueCat CustomerInfo response exceeded the size limit.",
         true,
@@ -313,7 +309,5 @@ export async function fetchRevenueCatCustomerInfo(
       `RevenueCat CustomerInfo response failed: ${detail}`,
       true,
     );
-  } finally {
-    clearTimeout(timeout);
   }
 }

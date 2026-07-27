@@ -3,7 +3,8 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
+ *   SUPABASE_SERVICE_ROLE_KEY fallback
  *
  * Example:
  *   deno run --allow-net --allow-env --allow-read --allow-write \
@@ -11,7 +12,10 @@
  *     --target birds --limit 100 --page-count 20 --update-checklist
  */
 
-import { serviceRoleRequestHeaders } from "../functions/_shared/serviceRoleAuth.ts";
+import {
+  requireServerApiKeyFromEnvironment,
+  serviceRoleRequestHeaders,
+} from "../functions/_shared/serviceRoleAuth.ts";
 
 interface ImportArgs {
   target: "birds";
@@ -73,16 +77,7 @@ interface StatusResponse {
 
 const args = parseArgs(Deno.args);
 const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-const serverApiKey = (
-  Deno.env.get("SUPABASE_SERVER_API_KEY") ??
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-    ""
-).trim();
-if (!serverApiKey) {
-  throw new Error(
-    "Missing required environment variable: SUPABASE_SERVER_API_KEY",
-  );
-}
+const serverApiKey = requireServerApiKeyFromEnvironment();
 
 const importResponse = await postJson<ImportResponse>(
   `${supabaseUrl}/functions/v1/sync-community-taxonomy-index`,

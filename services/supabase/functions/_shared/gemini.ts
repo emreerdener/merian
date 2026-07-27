@@ -1,8 +1,13 @@
 import { Content, GoogleGenAI } from "@google/genai";
 
+export const GEMINI_REQUEST_TIMEOUT_MS = 90_000;
+
 // Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
 export const _genAI = new GoogleGenAI({
   apiKey: Deno.env.get("GEMINI_API_KEY")!,
+  httpOptions: {
+    timeout: GEMINI_REQUEST_TIMEOUT_MS,
+  },
 });
 
 /**

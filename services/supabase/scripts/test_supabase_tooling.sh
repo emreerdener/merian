@@ -43,10 +43,11 @@ deno check --frozen \
   "${tooling_sources[@]}"
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase,.github/workflows \
+  --allow-read=services/supabase,.github/workflows,Makefile \
   "${tooling_tests[@]}"
 
 bash services/supabase/scripts/validate_edge_dto_contract.sh
+bash services/supabase/scripts/check_secret_shaped_literals.sh
 
 shell_sources=(services/supabase/scripts/*.sh)
 shell_tests=(services/supabase/scripts/*_test.sh)

@@ -24,6 +24,12 @@ const VIDEO_URL = "https://media.merian.app/public_uploads/pro/user/video.mp4";
 const AUDIO_KEY = "staging/user/audio.wav";
 const IMAGE_KEY = "staging/user/image.webp";
 const VIDEO_KEY = "staging/user/video.mp4";
+const CURRENT_SECRET_KEY = [
+  "sb",
+  "secret",
+  "service-role",
+  "a".repeat(20),
+].join("_");
 
 Deno.test("scan media ingestion contract matrix keeps resumable scan types replayable", async () => {
   const cases = [
@@ -280,7 +286,7 @@ Deno.test("scan media ingestion contract leaves existing incomplete video scans 
     {} as never,
     {
       identifyUrl: "https://example.test/functions/v1/identify-multimodal",
-      serviceRoleKey: "service-role",
+      serviceRoleKey: CURRENT_SECRET_KEY,
       awaitInvocations: true,
     },
     {
@@ -341,7 +347,7 @@ Deno.test("scan media ingestion contract rejects replay payloads without evidenc
     {} as never,
     {
       identifyUrl: "https://example.test/functions/v1/identify-multimodal",
-      serviceRoleKey: "service-role",
+      serviceRoleKey: CURRENT_SECRET_KEY,
       awaitInvocations: true,
     },
     {

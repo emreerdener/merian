@@ -1,5 +1,8 @@
 import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
 import { corsHeaders } from "./http.ts";
+import { createDeadlineFetchTransport } from "./outbound.ts";
+
+const SUPABASE_AUTH_REQUEST_TIMEOUT_MS = 15_000;
 
 export function bearerTokenFromAuthorizationHeader(
   authorizationHeader: string | null,
@@ -44,7 +47,14 @@ export async function requireAuth(
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-    { global: { headers: { Authorization: `Bearer ${bearerToken}` } } },
+    {
+      global: {
+        fetch: createDeadlineFetchTransport(
+          SUPABASE_AUTH_REQUEST_TIMEOUT_MS,
+        ),
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      },
+    },
   );
 
   // Edge Functions are stateless; pass the JWT explicitly instead of relying

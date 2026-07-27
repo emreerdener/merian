@@ -21,6 +21,16 @@ DECLARE
     target_signature TEXT;
     static_issue RECORD;
     trigger_issue RECORD;
+    invalid_server_key TEXT;
+    invalid_server_key_rejected BOOLEAN := FALSE;
+    current_server_key TEXT :=
+        'sb_' || 'secret_catalog_probe_' || pg_catalog.REPEAT('a', 20);
+    legacy_server_key TEXT :=
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
+        || '.'
+        || 'eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ'
+        || '.'
+        || pg_catalog.REPEAT('a', 43);
 BEGIN
     IF EXISTS (
         SELECT 1
@@ -126,6 +136,20 @@ BEGIN
     ) THEN
         RAISE EXCEPTION
             'a service-role definer function lacks caller authorization';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_proc AS function_row
+        INNER JOIN pg_catalog.pg_namespace AS namespace_row
+            ON namespace_row.oid = function_row.pronamespace
+        WHERE namespace_row.nspname = 'public'
+          AND function_row.prosecdef
+          AND function_row.prosrc ~*
+              'auth[.]role[(][)][[:space:]]*=[[:space:]]*''service_role'''
+    ) THEN
+        RAISE EXCEPTION
+            'a public definer routine dispatches on a JWT-only service-role claim';
     END IF;
 
     IF EXISTS (
@@ -388,6 +412,96 @@ BEGIN
             'taxonomy import history does not have its least-privilege service-role ACL';
     END IF;
 
+    IF pg_catalog.TO_REGPROCEDURE(
+        'internal.server_api_request_headers(text)'
+    ) IS NULL THEN
+        RAISE EXCEPTION
+            'the shared pg_net server-key header policy is missing';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            VALUES ('anon'), ('authenticated'), ('service_role')
+        ) AS api_role(role_name)
+        WHERE pg_catalog.HAS_FUNCTION_PRIVILEGE(
+            api_role.role_name,
+            'internal.server_api_request_headers(text)',
+            'EXECUTE'
+        )
+    ) THEN
+        RAISE EXCEPTION
+            'an API role can execute the private pg_net header helper';
+    END IF;
+
+    IF internal.server_api_request_headers(current_server_key)
+       IS DISTINCT FROM pg_catalog.JSONB_BUILD_OBJECT(
+           'Content-Type',
+           'application/json',
+           'apikey',
+           current_server_key
+       )
+       OR internal.server_api_request_headers(legacy_server_key)
+       IS DISTINCT FROM pg_catalog.JSONB_BUILD_OBJECT(
+           'Content-Type',
+           'application/json',
+           'apikey',
+           legacy_server_key,
+           'Authorization',
+           'Bearer ' || legacy_server_key
+       )
+    THEN
+        RAISE EXCEPTION
+            'the shared pg_net header helper violates current/legacy transport';
+    END IF;
+
+    FOREACH invalid_server_key IN ARRAY ARRAY[
+        NULL::TEXT,
+        'sb_publishable_catalog_probe',
+        'sb_secret_placeholder',
+        'sb_' || 'secret_' || pg_catalog.REPEAT('a', 20) || '!',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ.placeholder'
+    ]
+    LOOP
+        invalid_server_key_rejected := FALSE;
+        BEGIN
+            PERFORM internal.server_api_request_headers(invalid_server_key);
+        EXCEPTION
+            WHEN SQLSTATE '22023' THEN
+                invalid_server_key_rejected := TRUE;
+        END;
+        IF NOT invalid_server_key_rejected THEN
+            RAISE EXCEPTION
+                'the shared pg_net header helper accepts invalid key %',
+                invalid_server_key;
+        END IF;
+    END LOOP;
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_proc AS function_row
+        INNER JOIN pg_catalog.pg_namespace AS namespace_row
+            ON namespace_row.oid = function_row.pronamespace
+        WHERE namespace_row.nspname IN ('public', 'internal')
+          AND function_row.prosrc ~* 'net[.]http_post'
+          AND function_row.prosrc ~*
+              '''Bearer ''[[:space:]]*[|][|][[:space:]]*service_role_key'
+    ) THEN
+        RAISE EXCEPTION
+            'an installed pg_net routine still uses Bearer-only server-key transport';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM cron.job
+        WHERE command ~* 'net[.]http_post'
+          AND command ~*
+              '''Bearer ''[[:space:]]*[|][|][[:space:]]*service_role_key'
+    ) THEN
+        RAISE EXCEPTION
+            'a persisted cron command still uses Bearer-only server-key transport';
+    END IF;
+
     IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
         'public.privileged_routine_default_acl_probe()',
@@ -503,8 +617,58 @@ $$;
 
 RESET ROLE;
 
+-- Simulate PostgREST's real connection boundary: the login/session role stays
+-- `authenticator`, while user impersonation is carried by the protected
+-- standard `role` setting. This is the only database signal available to an
+-- opaque `sb_secret_...` key because it has no JWT role claim.
+CREATE FUNCTION public.privileged_routine_role_guard_probe()
+RETURNS VOID
+LANGUAGE PLPGSQL
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    PERFORM internal.require_service_role();
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.privileged_routine_role_guard_probe()
+    TO authenticated, service_role;
+
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+
+DO $$
+BEGIN
+    BEGIN
+        PERFORM public.privileged_routine_role_guard_probe();
+        RAISE EXCEPTION
+            'authenticated PostgREST role unexpectedly passed the service guard';
+    EXCEPTION
+        WHEN SQLSTATE '42501' THEN NULL;
+    END;
+END;
+$$;
+
+RESET ROLE;
+SET LOCAL ROLE service_role;
+
+DO $$
+BEGIN
+    PERFORM public.privileged_routine_role_guard_probe();
+    PERFORM 1
+    FROM public.get_owned_explore_media_incidents(
+        '00000000-0000-0000-0000-000000000000'::UUID
+    )
+    LIMIT 1;
+END;
+$$;
+
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+
 SELECT extensions.pass(
-    'privileged routine ACL, search_path, allowlist, defaults, and batch bounds hold'
+    'privileged routine ACL, search_path, role and key transport guards, allowlist, defaults, and batch bounds hold'
 );
 SELECT * FROM extensions.finish();
 ROLLBACK;

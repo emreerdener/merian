@@ -83,6 +83,41 @@ Deno.test("fetchExternalEnrichment suppresses denied media and promotes the next
   assertEquals(result.referenceImageUrl, safe);
 });
 
+Deno.test("fetchExternalEnrichment isolates oversized media from valid taxonomy and names", async () => {
+  const oversizedMedia = new Uint8Array(256 * 1024 + 1);
+  const fetcher: typeof fetch = (input) => {
+    const url = String(input);
+    if (url.includes("/species/match")) {
+      return Promise.resolve(jsonResponse({
+        usageKey: 123,
+        rank: "SPECIES",
+        kingdom: "Animalia",
+        class: "Aves",
+      }));
+    }
+    if (url.includes("/occurrence/search")) {
+      return Promise.resolve(
+        new Response(oversizedMedia, {
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    }
+    if (url.includes("/vernacularNames")) {
+      return Promise.resolve(jsonResponse({
+        results: [{ language: "eng", vernacularName: "test bird" }],
+      }));
+    }
+    return Promise.resolve(new Response(null, { status: 404 }));
+  };
+
+  const result = await fetchExternalEnrichment("Avis probata", fetcher);
+
+  assertEquals(result.gbifKey, 123);
+  assertEquals(result.gbifTaxonomy?.class, "Aves");
+  assertEquals(result.alternativeCommonNames, ["Test Bird"]);
+  assertEquals(result.referenceImageUrl, null);
+});
+
 Deno.test("fetchExternalEnrichment resolves disambiguation for Rosa to standard description", async () => {
   const result = await fetchExternalEnrichment(
     "Rosa",

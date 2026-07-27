@@ -7,6 +7,7 @@ import { ExportWorkerError } from "./types.ts";
 
 Deno.test("export email uses a job-scoped Resend idempotency key", async () => {
   const captured: { request: Request | null } = { request: null };
+  let receivedSignal: AbortSignal | null | undefined;
   const emailId = await sendExportEmail(
     "user@example.invalid",
     "https://r2.example.invalid/archive.zip?a=1&b=2",
@@ -16,6 +17,8 @@ Deno.test("export email uses a job-scoped Resend idempotency key", async () => {
       from: "Naturebook <exports@example.invalid>",
       fetcher: (input, init) => {
         captured.request = new Request(input, init);
+        receivedSignal = (init as { signal?: AbortSignal | null } | undefined)
+          ?.signal;
         return Promise.resolve(
           new Response(JSON.stringify({ id: "email-1" })),
         );
@@ -29,6 +32,7 @@ Deno.test("export email uses a job-scoped Resend idempotency key", async () => {
     captured.request.headers.get("Idempotency-Key"),
     "dwca-export/00000000-0000-4000-8000-000000000301",
   );
+  assertEquals(receivedSignal instanceof AbortSignal, true);
   const body = await captured.request.json();
   assertEquals(body.to, ["user@example.invalid"]);
   assertEquals(

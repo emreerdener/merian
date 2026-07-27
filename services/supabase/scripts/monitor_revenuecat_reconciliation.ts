@@ -4,10 +4,14 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
+ *   SUPABASE_SERVICE_ROLE_KEY fallback
  */
 
-import { serviceRoleRequestHeaders } from "../functions/_shared/serviceRoleAuth.ts";
+import {
+  requireServerApiKeyFromEnvironment,
+  serviceRoleRequestHeaders,
+} from "../functions/_shared/serviceRoleAuth.ts";
 
 export type RevenueCatMonitorFailurePolicy = "critical" | "warning" | "never";
 export type RevenueCatBacklogStatus = "ok" | "warning" | "critical";
@@ -55,16 +59,7 @@ export async function runRevenueCatMonitor(
 ): Promise<number> {
   const args = parseRevenueCatMonitorArgs(rawArgs);
   const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const serverApiKey = (
-    Deno.env.get("SUPABASE_SERVER_API_KEY") ??
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-      ""
-  ).trim();
-  if (!serverApiKey) {
-    throw new Error(
-      "Missing required environment variable: SUPABASE_SERVER_API_KEY",
-    );
-  }
+  const serverApiKey = requireServerApiKeyFromEnvironment();
   const health = await fetchRevenueCatReconciliationHealth(
     `${supabaseUrl}/rest/v1/rpc/get_revenuecat_reconciliation_health`,
     serverApiKey,

@@ -156,6 +156,9 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-07-server-key-authorization-mismatch.md`](./incidents/2026-07-server-key-authorization-mismatch.md)**
+  — Root cause, fleet-wide credential boundary remediation, watch surfaces, and
+  production exit criteria for the July 2026 opaque-key authorization failure.
 - **[`/incidents/2026-07-account-scoped-r2-image-loss.md`](./incidents/2026-07-account-scoped-r2-image-loss.md)**
   — Confirmed evidence, leading cause, containment, device-assisted recovery,
   unresolved scope, and production exit criteria for the July 2026

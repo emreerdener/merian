@@ -258,7 +258,7 @@ By explicitly decoupling Data mapping from HTTP orchestration natively, the Deno
 backend becomes immediately immune to traditional Node.JS monolith
 "spaghetti-code" scaling failures. Engineers can formally upgrade complex
 PostgREST schemas in `db.ts` without jeopardizing the critical
-`timingSafeCompare` JWT block natively inside `index.ts`.
+shared authentication boundary invoked by `index.ts`.
 
 All shared primitives natively driving API functions (`aws.ts`, `biology.ts`,
 `concurrency.ts`, `encoding.ts`, `http.ts`, `mediaBudgets.ts`, `posthog.ts`,

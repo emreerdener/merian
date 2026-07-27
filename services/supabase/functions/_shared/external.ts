@@ -1,4 +1,35 @@
 import { filterAllowedExternalImageURLs } from "./externalImagePolicy.ts";
+import { fetchWithDeadline, readResponseJsonWithinLimit } from "./outbound.ts";
+
+const EXTERNAL_REQUEST_TIMEOUT_MS = 2_500;
+const EXTERNAL_JSON_RESPONSE_LIMIT_BYTES = 256 * 1024;
+
+async function discardProviderBody(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined);
+}
+
+async function fetchBoundedProviderJson<T>(
+  url: string,
+  fetcher: typeof fetch = fetch,
+): Promise<T | null> {
+  try {
+    const response = await fetchWithDeadline(
+      url,
+      {},
+      { fetcher, timeoutMs: EXTERNAL_REQUEST_TIMEOUT_MS },
+    );
+    if (!response.ok) {
+      await discardProviderBody(response);
+      return null;
+    }
+    return await readResponseJsonWithinLimit<T>(
+      response,
+      EXTERNAL_JSON_RESPONSE_LIMIT_BYTES,
+    );
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Fetches English vernacular names for a species from GBIF using a known usageKey.
@@ -62,17 +93,10 @@ export interface ExternalEnrichmentData {
 export async function fetchGBIFVernacularNames(
   gbifKey: number,
 ): Promise<string[]> {
-  try {
-    const res = await fetch(
-      `https://api.gbif.org/v1/species/${gbifKey}/vernacularNames?limit=30`,
-      { signal: AbortSignal.timeout(2500) },
-    );
-    if (!res.ok) return [];
-    const json = await res.json();
-    return collectEnglishVernacularNames(json.results);
-  } catch {
-    return [];
-  }
+  const json = await fetchBoundedProviderJson<{ results?: unknown }>(
+    `https://api.gbif.org/v1/species/${gbifKey}/vernacularNames?limit=30`,
+  );
+  return collectEnglishVernacularNames(json?.results);
 }
 
 interface WikiSummary {
@@ -83,29 +107,34 @@ interface WikiSummary {
   type: string | null;
 }
 
+interface WikiProviderSummary {
+  content_urls?: { desktop?: { page?: string } };
+  extract?: string;
+  originalimage?: { source?: string };
+  thumbnail?: { source?: string };
+  title?: string;
+  type?: string;
+}
+
 async function fetchWikiSummary(
   title: string,
   fetcher: typeof fetch = fetch,
 ): Promise<WikiSummary | null> {
-  try {
-    const wikiRes = await fetcher(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${
-        encodeURIComponent(title.replace(/ /g, "_"))
-      }`,
-      { signal: AbortSignal.timeout(2500) },
-    );
-    if (!wikiRes.ok) return null;
-    const wikiJson = await wikiRes.json();
-    const url = wikiJson.content_urls?.desktop?.page || null;
-    const extract = wikiJson.extract || null;
-    const img = wikiJson.originalimage?.source ||
-      wikiJson.thumbnail?.source || null;
-    const resTitle = wikiJson.title || null;
-    const type = wikiJson.type || null;
-    return { url, extract, img, title: resTitle, type };
-  } catch {
-    return null;
-  }
+  const wikiJson = await fetchBoundedProviderJson<WikiProviderSummary>(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${
+      encodeURIComponent(title.replace(/ /g, "_"))
+    }`,
+    fetcher,
+  );
+  if (!wikiJson) return null;
+
+  const url = wikiJson.content_urls?.desktop?.page || null;
+  const extract = wikiJson.extract || null;
+  const img = wikiJson.originalimage?.source ||
+    wikiJson.thumbnail?.source || null;
+  const resTitle = wikiJson.title || null;
+  const type = wikiJson.type || null;
+  return { url, extract, img, title: resTitle, type };
 }
 
 export async function fetchExternalEnrichment(
@@ -130,59 +159,68 @@ export async function fetchExternalEnrichment(
         let vernacularNames: string[] = [];
         let rank: string | null = null;
 
-        const gbifRes = await fetcher(
+        const gbifJson = await fetchBoundedProviderJson<
+          Record<string, unknown>
+        >(
           `https://api.gbif.org/v1/species/match?name=${
             encodeURIComponent(scientificName)
           }`,
-          { signal: AbortSignal.timeout(2500) },
+          fetcher,
         );
-        if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
-        const gbifJson = await gbifRes.json();
-        key = gbifJson.usageKey || null;
+        if (!gbifJson) {
+          return {
+            key,
+            urls,
+            vernacularNames,
+            taxonomy: null,
+            rank,
+          };
+        }
+        key = typeof gbifJson.usageKey === "number" ? gbifJson.usageKey : null;
         const taxonomy = gbifTaxonomyFromMatch(gbifJson);
         rank = stringValue(gbifJson.rank);
 
         if (key) {
           // Fetch occurrence images and vernacular names in parallel — both depend on key
-          // but are independent of each other, so concurrent requests halve the wait time.
-          const [mediaOutcome, vernacularOutcome] = await Promise.allSettled([
-            fetcher(
+          // but are independent of each other. Each helper also consumes or
+          // cancels its own body so one malformed response cannot strand the
+          // sibling response or discard otherwise valid enrichment.
+          const [mediaJson, vernacularJson] = await Promise.all([
+            fetchBoundedProviderJson<{
+              results?: Array<{
+                media?: Array<{ type?: unknown; identifier?: unknown }>;
+              }>;
+            }>(
               `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
-              { signal: AbortSignal.timeout(2500) },
+              fetcher,
             ),
-            fetcher(
+            fetchBoundedProviderJson<{ results?: unknown }>(
               `https://api.gbif.org/v1/species/${key}/vernacularNames?language=eng&limit=30`,
-              { signal: AbortSignal.timeout(2500) },
+              fetcher,
             ),
           ]);
 
-          if (mediaOutcome.status === "fulfilled" && mediaOutcome.value.ok) {
-            const mediaJson = await mediaOutcome.value.json();
-            if (mediaJson.results && mediaJson.results.length > 0) {
-              const gbifUrls: string[] = [];
-              for (const result of mediaJson.results) {
-                if (result.media && result.media.length > 0) {
-                  for (const m of result.media) {
-                    if (m.type === "StillImage" && m.identifier) {
-                      gbifUrls.push(m.identifier);
-                      break; // take the primary image from each observation
-                    }
+          if (mediaJson?.results && mediaJson.results.length > 0) {
+            const gbifUrls: string[] = [];
+            for (const result of mediaJson.results) {
+              if (result.media && result.media.length > 0) {
+                for (const m of result.media) {
+                  if (
+                    m.type === "StillImage" &&
+                    typeof m.identifier === "string"
+                  ) {
+                    gbifUrls.push(m.identifier);
+                    break; // take the primary image from each observation
                   }
                 }
               }
-              urls = gbifUrls.slice(0, 4);
             }
+            urls = gbifUrls.slice(0, 4);
           }
 
-          if (
-            vernacularOutcome.status === "fulfilled" &&
-            vernacularOutcome.value.ok
-          ) {
-            const vernacularJson = await vernacularOutcome.value.json();
-            vernacularNames = collectEnglishVernacularNames(
-              vernacularJson.results,
-            );
-          }
+          vernacularNames = collectEnglishVernacularNames(
+            vernacularJson?.results,
+          );
         }
         return { key, urls, vernacularNames, taxonomy, rank };
       })(),

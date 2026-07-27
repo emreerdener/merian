@@ -1,7 +1,7 @@
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
-import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
-import { createServiceRoleDataClient } from "../_shared/serviceRoleClient.ts";
+import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { fetchScanMediaHealth } from "./db.ts";
 import { parseScanMediaHealthRequest } from "./health.ts";
 
@@ -15,10 +15,7 @@ serveEdge(async (req: Request) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const auth = authorizeServiceRoleRequest(req, {
-    envServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    envSecretKeys: Deno.env.get("SUPABASE_SECRET_KEYS") ?? "",
-  });
+  const auth = authorizeServiceRoleRequestFromEnvironment(req);
   if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
@@ -40,7 +37,7 @@ serveEdge(async (req: Request) => {
       );
     }
 
-    const supabaseAdmin = createServiceRoleDataClient(
+    const supabaseAdmin = createServiceRoleClient(
       supabaseUrl,
       auth.serverApiKey,
     );

@@ -29,6 +29,7 @@ export interface RoutineCatalogRow {
   has_empty_search_path: boolean;
   has_authenticated_caller_check: boolean;
   has_service_role_caller_check: boolean;
+  has_jwt_only_service_role_dispatch: boolean;
 }
 
 export interface RoutineGrantRow {
@@ -70,6 +71,7 @@ export interface AuditViolations {
   unsafe_search_path: string[];
   missing_authenticated_caller_checks: string[];
   missing_service_role_caller_checks: string[];
+  jwt_only_service_role_dispatch: string[];
   unsafe_default_privileges: string[];
   public_schema_creators: string[];
   allowlist_table_readers: string[];
@@ -180,6 +182,9 @@ export function buildAuditReport(
           ?.has_service_role_caller_check
       )
       .map((grant) => grant.routine_signature),
+    jwt_only_service_role_dispatch: snapshot.routines
+      .filter((routine) => routine.has_jwt_only_service_role_dispatch)
+      .map((routine) => routine.signature),
     unsafe_default_privileges: snapshot.unsafe_default_privileges.map(
       (grant) =>
         `${grant.creator_role}:${grant.privilege_scope}:${grant.grantee}:${grant.privilege_type}`,
@@ -279,7 +284,10 @@ export async function inspectCatalog(
           ) AS has_authenticated_caller_check,
           function_row.prosrc LIKE
             '%internal.require_service_role()%'
-            AS has_service_role_caller_check
+            AS has_service_role_caller_check,
+          function_row.prosrc ~*
+            'auth[.]role[(][)][[:space:]]*=[[:space:]]*''service_role'''
+            AS has_jwt_only_service_role_dispatch
         FROM pg_catalog.pg_proc AS function_row
         JOIN pg_catalog.pg_namespace AS namespace_row
           ON namespace_row.oid = function_row.pronamespace
