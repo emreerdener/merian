@@ -605,6 +605,17 @@ jobs:
           echo "::add-mask::$server_api_key"
           echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
 
+      - name: Synchronize active server API key to Edge fallback
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MERIAN_SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          : "${MERIAN_SUPABASE_SERVER_API_KEY:?Unable to synchronize the active server API key}"
+          supabase secrets set \
+            "MERIAN_SUPABASE_SERVER_API_KEY=$MERIAN_SUPABASE_SERVER_API_KEY" \
+            --project-ref "$PROJECT_ID"
+
       - name: Deploy affected Edge Functions
         if: steps.function-plan.outputs.count != '0'
         env:
@@ -634,31 +645,84 @@ jobs:
             )
           fi
           smoke_response_file="$RUNNER_TEMP/supabase-production-smoke-response.json"
+          smoke_header_file="$RUNNER_TEMP/supabase-production-smoke-headers.txt"
+          smoke_max_attempts=6
+
+          is_retryable_smoke_status() {
+            case "$1" in
+              401 | 404 | 429 | 500 | 502 | 503 | 504)
+                return 0
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
 
           post_server_json() {
             local endpoint="$1"
             local payload="$2"
             local status
+            local attempt
+            local delay
 
-            if ! status="$(
-              curl -sS \
-                --connect-timeout 10 \
-                --max-time 60 \
-                -o "$smoke_response_file" \
-                -w "%{http_code}" \
-                -X POST "${supabase_url}${endpoint}" \
-                "${server_headers[@]}" \
-                --data "$payload"
-            )"; then
-              echo "Production smoke request could not reach ${endpoint}." >&2
-              return 1
+            for ((attempt = 1; attempt <= smoke_max_attempts; attempt++)); do
+              : > "$smoke_header_file"
+              : > "$smoke_response_file"
+              if status="$(
+                curl -sS \
+                  --connect-timeout 10 \
+                  --max-time 60 \
+                  --dump-header "$smoke_header_file" \
+                  -o "$smoke_response_file" \
+                  -w "%{http_code}" \
+                  -X POST "${supabase_url}${endpoint}" \
+                  "${server_headers[@]}" \
+                  --data "$payload"
+              )"; then
+                if [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+                  cat "$smoke_response_file"
+                  return 0
+                fi
+                if ! is_retryable_smoke_status "$status" ||
+                  [ "$attempt" -eq "$smoke_max_attempts" ]; then
+                  break
+                fi
+                delay=$((attempt * 2))
+                echo "Production smoke request ${endpoint} returned HTTP ${status}; waiting ${delay}s for deployment propagation (attempt ${attempt}/${smoke_max_attempts})." >&2
+              else
+                status="network_error"
+                if [ "$attempt" -eq "$smoke_max_attempts" ]; then
+                  break
+                fi
+                delay=$((attempt * 2))
+                echo "Production smoke request could not reach ${endpoint}; retrying in ${delay}s (attempt ${attempt}/${smoke_max_attempts})." >&2
+              fi
+              sleep "$delay"
+            done
+
+            if [ "$status" = "network_error" ]; then
+              echo "Production smoke request could not reach ${endpoint} after ${attempt} attempts." >&2
+            else
+              echo "Production smoke request ${endpoint} returned HTTP ${status} after ${attempt} attempts." >&2
+              case "$endpoint" in
+                /functions/v1/*)
+                  if grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$' "$smoke_header_file"; then
+                    echo "The response reached a Merian Edge handler; inspect its structured authorization event." >&2
+                  else
+                    echo "The fixed Merian handler marker was absent; inspect the Supabase gateway and Function deployment router." >&2
+                  fi
+                  ;;
+                /rest/v1/*)
+                  echo "This request targeted the Data API; inspect the API gateway, PostgREST RPC grants, and database logs." >&2
+                  ;;
+                *)
+                  echo "Inspect the Supabase gateway and endpoint-specific service logs." >&2
+                  ;;
+              esac
             fi
-            if ! [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
-              echo "Production smoke request ${endpoint} returned HTTP ${status}." >&2
-              echo "Response body withheld because internal endpoints may contain sensitive operational data." >&2
-              return 1
-            fi
-            cat "$smoke_response_file"
+            echo "Response body withheld because internal endpoints may contain sensitive operational data." >&2
+            return 1
           }
 
           public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"

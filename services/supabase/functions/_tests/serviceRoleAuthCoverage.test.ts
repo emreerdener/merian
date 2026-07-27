@@ -163,11 +163,8 @@ Deno.test("every service-role request boundary uses exact environment-backed aut
   for (const path of boundaries) {
     const source = files.find((file) => file.path === path)?.source ?? "";
     if (path === "reconcile-explore-media-health/handler.ts") {
-      assertStringIncludes(source, "authorizeServiceRoleRequest(req,");
-      assertStringIncludes(source, "envServerApiKey:");
-      assertStringIncludes(source, "envServiceRoleKey:");
-      assertStringIncludes(source, "envSecretKey:");
-      assertStringIncludes(source, "envSecretKeys:");
+      assertStringIncludes(source, "extends ServiceRoleAuthOptions");
+      assertStringIncludes(source, "authorizeServiceRoleRequest(req, options)");
     } else {
       assertStringIncludes(
         source,
@@ -216,6 +213,7 @@ Deno.test("production sources cannot introduce a manual legacy-key authorization
       for (
         const environmentRead of [
           'Deno.env.get("SUPABASE_SERVER_API_KEY")',
+          'Deno.env.get("MERIAN_SUPABASE_SERVER_API_KEY")',
           'Deno.env.get("SUPABASE_SECRET_KEYS")',
           'Deno.env.get("SUPABASE_SECRET_KEY")',
           'Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")',
@@ -323,6 +321,8 @@ Deno.test("service-role authorization has no database or network fallback", asyn
       "timingSafeCompare(",
       "envSecretKey",
       "envSecretKeys",
+      "envSynchronizedServerApiKey",
+      'Deno.env.get("MERIAN_SUPABASE_SERVER_API_KEY")',
       'startsWith("sb_secret_")',
       "MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH = 20",
       "HS256_BASE64URL_SIGNATURE_LENGTH = 43",
@@ -415,7 +415,7 @@ Deno.test("privileged clients and internal calls use the shared API-key transpor
   );
 });
 
-Deno.test("reconcile handler receives both platform-managed key sets from its route", async () => {
+Deno.test("reconcile handler receives every shared server-key source from its route", async () => {
   const index = await Deno.readTextFile(reconcileIndexUrl);
 
   assertStringIncludes(index, "serverApiKeyOptionsFromEnvironment()");
@@ -423,17 +423,46 @@ Deno.test("reconcile handler receives both platform-managed key sets from its ro
 
 Deno.test("production smoke tests deny real public project API keys before privileged work", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowUrl);
+  const synchronizedFallbackIndex = workflow.indexOf(
+    "Synchronize active server API key to Edge fallback",
+  );
+  const functionDeployIndex = workflow.indexOf(
+    "Deploy affected Edge Functions",
+  );
   const negativeSmokeIndex = workflow.indexOf(
     "supabase-public-api-keys.json",
   );
   const positiveSmokeIndex = workflow.indexOf("status_response=");
+  const functionFailureDiagnosticIndex = workflow.indexOf("/functions/v1/*)");
+  const handlerMarkerDiagnosticIndex = workflow.indexOf(
+    "grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$'",
+  );
+  const dataApiFailureDiagnosticIndex = workflow.indexOf("/rest/v1/*)");
 
+  assert(synchronizedFallbackIndex >= 0);
+  assert(functionDeployIndex > synchronizedFallbackIndex);
   assert(negativeSmokeIndex >= 0);
   assert(positiveSmokeIndex > negativeSmokeIndex);
+  assert(functionFailureDiagnosticIndex >= 0);
+  assert(handlerMarkerDiagnosticIndex > functionFailureDiagnosticIndex);
+  assert(dataApiFailureDiagnosticIndex > handlerMarkerDiagnosticIndex);
   assertStringIncludes(workflow, "resolve_project_api_keys.ts");
   assertStringIncludes(workflow, "--allow-net=api.supabase.com");
   assertStringIncludes(workflow, "'.server_api_key'");
   assertStringIncludes(workflow, "'.public_api_keys'");
+  assertStringIncludes(
+    workflow,
+    '"MERIAN_SUPABASE_SERVER_API_KEY=$MERIAN_SUPABASE_SERVER_API_KEY"',
+  );
+  assertStringIncludes(workflow, "smoke_max_attempts=6");
+  assertStringIncludes(workflow, "is_retryable_smoke_status()");
+  assertStringIncludes(workflow, "--dump-header");
+  assertStringIncludes(workflow, ': > "$smoke_header_file"');
+  assertStringIncludes(workflow, ': > "$smoke_response_file"');
+  assertStringIncludes(
+    workflow,
+    "This request targeted the Data API; inspect the API gateway, PostgREST RPC grants, and database logs.",
+  );
   assertStringIncludes(
     workflow,
     'if [[ "$SUPABASE_SERVER_API_KEY" != sb_secret_* ]]',

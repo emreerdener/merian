@@ -27,6 +27,7 @@ Merian.
 | `R2_READ_SECRET_ACCESS_KEY`                        | GitHub `Production` secret synchronized to Supabase Edge                      | Secret half of the dedicated verifier credential; never reuse upload/delete authority                              |
 | `R2_EVENT_WEBHOOK_SECRET`                          | GitHub `Production` secret synchronized to Supabase Edge                      | High-entropy shared secret for optional Cloudflare R2 event hints                                                  |
 | `SUPABASE_SERVER_API_KEY` / `SUPABASE_SECRET_KEYS` | Supabase Edge or server-side web env only                                      | Explicit or hosted JSON-dictionary current privileged key sources; never in iOS or browser-exposed config          |
+| `MERIAN_SUPABASE_SERVER_API_KEY`                   | Production-deploy-synchronized Supabase Edge secret                            | Non-reserved copy of the exact revealed active server key; same standard transport, never a custom request header  |
 | `SUPABASE_SECRET_KEY`                              | Local/manual Deno server env only                                              | Singular current-key fallback; not supported by public web and not a replacement for the hosted plural dictionary |
 | `SUPABASE_PUBLISHABLE_KEYS`                        | Supabase Edge server env                                                       | Hosted JSON dictionary for user-scoped project clients; its keys are public but its shape is server runtime config |
 | `SUPABASE_SERVICE_ROLE_KEY`                        | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                       |
@@ -153,13 +154,15 @@ environment variable.**
   `ingest-r2-media-events`. Events only expedite a scheduled origin check; they
   never directly mark media missing, hide a post, or restore it.
 - Supabase server API keys — current `SUPABASE_SECRET_KEYS` /
-  `SUPABASE_SERVER_API_KEY` values, the singular `SUPABASE_SECRET_KEY`
-  local/manual Deno fallback, and the migration-only
+  `SUPABASE_SERVER_API_KEY` values, the deploy-synchronized non-reserved
+  `MERIAN_SUPABASE_SERVER_API_KEY` Edge fallback, the singular
+  `SUPABASE_SECRET_KEY` local/manual Deno fallback, and the migration-only
   `SUPABASE_SERVICE_ROLE_KEY` fallback live in Supabase Edge secrets, reviewed
   Vault cron values, or approved server-side environments only. The public web
   supports the explicit, plural, and legacy sources but deliberately does not
-  support the singular Deno fallback. Never put any server key in the iOS app,
-  `Config.xcconfig`, or a `NEXT_PUBLIC_` variable.
+  support the synchronized Edge fallback or singular Deno fallback. Never put
+  any server key in the iOS app, `Config.xcconfig`, or a `NEXT_PUBLIC_`
+  variable.
 
   Hosted `SUPABASE_SECRET_KEYS` and `SUPABASE_PUBLISHABLE_KEYS` values are JSON
   objects such as `{"default":"<complete key>"}`. A raw key, JSON string,
@@ -168,6 +171,13 @@ environment variable.**
   credential's observed length. The singular `SUPABASE_SECRET_KEY` is a
   separate local/manual source, not a permissible encoding for the plural
   variable.
+
+  The production deploy retrieves the selected active key through the
+  reveal-explicit Management API request, masks it, and refreshes
+  `MERIAN_SUPABASE_SERVER_API_KEY` before deploying Functions. This copy is a
+  controlled workaround for runtime provisioning lag; it does not authorize a
+  custom header and must not be manually renamed to a reserved `SUPABASE_*`
+  secret. Complete a deploy during key overlap before revoking the old key.
 
   Current explicit keys must be platform-shaped: `sb_secret_`, followed by a
   URL-safe opaque suffix of at least 20 characters. A legacy fallback must be

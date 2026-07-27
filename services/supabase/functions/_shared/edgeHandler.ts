@@ -5,6 +5,7 @@ import {
   defaultPublicErrorCode,
   isExplicitPublicErrorResponse,
   jsonResponse,
+  MERIAN_HANDLER_RESPONSE_HEADER,
   publicErrorResponse,
   PublicHttpError,
   requestIdFor,
@@ -263,6 +264,10 @@ function withAuthServerTiming(
     existing ? `${authMetric}, ${existing}` : authMetric,
   );
   headers.set("X-Request-ID", requestId);
+  headers.set(
+    "X-Merian-Handler",
+    MERIAN_HANDLER_RESPONSE_HEADER["X-Merian-Handler"],
+  );
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -273,6 +278,10 @@ function withAuthServerTiming(
 function withRequestMetadata(response: Response, requestId: string): Response {
   const headers = new Headers(response.headers);
   headers.set("X-Request-ID", requestId);
+  headers.set(
+    "X-Merian-Handler",
+    MERIAN_HANDLER_RESPONSE_HEADER["X-Merian-Handler"],
+  );
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -282,7 +291,14 @@ function withRequestMetadata(response: Response, requestId: string): Response {
 
 function safePublicErrorHeaders(response: Response): Record<string, string> {
   const headers: Record<string, string> = {};
-  for (const name of ["Allow", "Server-Timing", "WWW-Authenticate"]) {
+  for (
+    const name of [
+      "Allow",
+      "Server-Timing",
+      "WWW-Authenticate",
+      "X-Merian-Handler",
+    ]
+  ) {
     const value = response.headers.get(name);
     if (value) headers[name] = value;
   }

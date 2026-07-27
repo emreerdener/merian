@@ -3,8 +3,9 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY, SUPABASE_SECRET_KEYS, SUPABASE_SECRET_KEY,
- *   or legacy SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SERVER_API_KEY, deploy-synchronized
+ *   MERIAN_SUPABASE_SERVER_API_KEY, SUPABASE_SECRET_KEYS,
+ *   SUPABASE_SECRET_KEY, or legacy SUPABASE_SERVICE_ROLE_KEY
  *
  * Optional:
  *   MERIAN_GHOST_USER_ALLOWLIST=/path/to/allowlist.txt
@@ -1081,6 +1082,7 @@ function printHelpAndExit(): never {
 Required env:
   SUPABASE_URL
   SUPABASE_SERVER_API_KEY   Preferred explicit server key.
+  MERIAN_SUPABASE_SERVER_API_KEY Production-deploy-synchronized Edge fallback.
   SUPABASE_SECRET_KEYS      Platform-managed current secret-key dictionary.
   SUPABASE_SECRET_KEY       Current manually managed secret-key fallback.
   SUPABASE_SERVICE_ROLE_KEY Legacy fallback for older projects.

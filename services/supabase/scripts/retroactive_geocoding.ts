@@ -19,7 +19,7 @@ import {
  *   export SUPABASE_SERVER_API_KEY="your-server-api-key"
  *   deno run --frozen --config ../functions/deno.json \
  *     --allow-net=your-supabase-project.supabase.co,nominatim.openstreetmap.org \
- *     --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY,SCAN_ID,DRY_RUN \
+ *     --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,MERIAN_SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY,SCAN_ID,DRY_RUN \
  *     retroactive_geocoding.ts
  *
  * Optional controls:

@@ -4,9 +4,10 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, local/manual
- *   SUPABASE_SECRET_KEY, or the migration-only SUPABASE_SERVICE_ROLE_KEY
- *   fallback
+ *   SUPABASE_SERVER_API_KEY, deploy-synchronized
+ *   MERIAN_SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS,
+ *   local/manual SUPABASE_SECRET_KEY, or the migration-only
+ *   SUPABASE_SERVICE_ROLE_KEY fallback
  */
 
 import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";

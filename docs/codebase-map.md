@@ -297,13 +297,18 @@ Supabase project credential boundaries:
   user-scoped clients.
 - `services/supabase/functions/_shared/serviceRoleAuth.ts` owns strict
   server-key source classification, exact internal request matching, and
-  format-aware standard headers.
+  format-aware standard headers. Hosted deploys add the non-reserved
+  `MERIAN_SUPABASE_SERVER_API_KEY` synchronization fallback without changing
+  inbound transport.
 - `services/supabase/functions/_shared/serviceRoleClient.ts` is the only
   privileged SDK factory and removes only an exact inherited opaque-key Bearer
   fallback while preserving real user JWTs.
 - `services/supabase/scripts/resolve_project_api_keys.ts` performs bounded,
   reveal-explicit Management API resolution for positive and real public-key
-  negative smoke controls. The canonical matrix and exit gate are in
+  negative smoke controls. The deploy workflow masks and synchronizes its
+  selected server key before Function deployment, then uses bounded
+  propagation-aware positive smoke retries. The canonical matrix and exit gate
+  are in
   `docs/backend-and-data/13-server-credentials-and-database-release-safety.md`.
 
 Privileged database routine execution:

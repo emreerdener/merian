@@ -1128,6 +1128,10 @@ production checks:
   masked or malformed values and loosely named legacy keys, returns every exact
   public negative-control key, and retains the exact legacy service-role
   fallback.
+- `_tests/serviceRoleAuth.test.ts` proves the non-reserved
+  `MERIAN_SUPABASE_SERVER_API_KEY` hosted fallback accepts only a complete
+  classified server key, remains available during a malformed hosted-dictionary
+  incident, and stays below an explicit CI/local override in key preference.
 - `_tests/serviceRoleAuthMigrationContract.test.ts` locks the
   `taxonomy_import_runs` blanket revocation and least-privilege service-role
   grant.
@@ -1151,11 +1155,19 @@ production checks:
   back to the legacy service-role key) as the positive control. Current secret
   keys are sent only in `apikey`; only legacy JWT keys receive Bearer transport.
   Key retrieval uses the tested Management API resolver because the CLI key-list
-  command does not reveal a callable current secret. Do not create a production
-  user merely to obtain an authenticated JWT for this smoke: exact-value
-  matching is covered deterministically and the disposable catalog exercises the
-  authenticated role. Use a dedicated staging user for end-to-end
-  authenticated-JWT testing when a credential-transport change is under review.
+  command does not reveal a callable current secret. Before deployment, the
+  workflow masks and synchronizes the selected value to
+  `MERIAN_SUPABASE_SERVER_API_KEY`; static coverage requires that ordering.
+  Positive calls make six bounded retries for transient routing/deployment
+  statuses. Final Function failures classify only whether the fixed
+  `X-Merian-Handler: 1` marker was present; Data API failures use separate
+  PostgREST/RPC guidance and never expect a Function marker. Both paths keep the
+  body and request-ID value private and never print a variable header value. Do
+  not create a production user merely to obtain an authenticated JWT for this
+  smoke: exact-value matching is covered deterministically and the disposable
+  catalog exercises the authenticated role. Use a dedicated staging user for
+  end-to-end authenticated-JWT testing when a credential-transport change is
+  under review.
 
 Run the focused Deno tests from `services`:
 

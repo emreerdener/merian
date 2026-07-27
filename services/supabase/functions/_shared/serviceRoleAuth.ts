@@ -18,6 +18,7 @@ export interface ServiceRoleAuthOptions {
   envSecretKey?: string;
   envSecretKeys?: string;
   envServerApiKey?: string;
+  envSynchronizedServerApiKey?: string;
 }
 
 export type ServerApiKeyResult =
@@ -41,7 +42,9 @@ export class ServerApiKeyConfigurationError extends Error {
 /**
  * Reads every supported server-key source in one place.
  *
- * `SUPABASE_SERVER_API_KEY` is an explicit deployment override,
+ * `SUPABASE_SERVER_API_KEY` is an explicit CI/local override,
+ * `MERIAN_SUPABASE_SERVER_API_KEY` is the non-reserved hosted fallback
+ * synchronized by the production deploy,
  * `SUPABASE_SECRET_KEYS` is the platform-managed dictionary of current
  * `sb_secret_...` keys, `SUPABASE_SECRET_KEY` is the local/manual fallback,
  * and `SUPABASE_SERVICE_ROLE_KEY` is the migration fallback for the legacy
@@ -50,6 +53,8 @@ export class ServerApiKeyConfigurationError extends Error {
 export function serverApiKeyOptionsFromEnvironment(): ServiceRoleAuthOptions {
   return {
     envServerApiKey: Deno.env.get("SUPABASE_SERVER_API_KEY") ?? "",
+    envSynchronizedServerApiKey:
+      Deno.env.get("MERIAN_SUPABASE_SERVER_API_KEY") ?? "",
     envSecretKeys: Deno.env.get("SUPABASE_SECRET_KEYS") ?? "",
     envSecretKey: Deno.env.get("SUPABASE_SECRET_KEY") ?? "",
     envServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -224,6 +229,7 @@ function matchesAnyConfiguredKey(
 function preferredServerApiKey(
   legacyServiceRoleKey: string,
   explicitServerApiKey: string,
+  synchronizedServerApiKey: string,
   singularSecretKey: string,
   secretKeyConfiguration: SecretKeyConfigurationResult,
 ): string | null {
@@ -231,6 +237,7 @@ function preferredServerApiKey(
     (entry) => entry.name === "default",
   );
   return explicitServerApiKey ||
+    synchronizedServerApiKey ||
     namedDefault?.key ||
     secretKeyConfiguration.entries[0]?.key ||
     singularSecretKey ||
@@ -243,12 +250,16 @@ export function resolveServerApiKey(
 ): ServerApiKeyResult {
   const legacyServiceRoleKey = options.envServiceRoleKey?.trim() ?? "";
   const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
+  const synchronizedServerApiKey =
+    options.envSynchronizedServerApiKey?.trim() ?? "";
   const singularSecretKey = options.envSecretKey?.trim() ?? "";
   if (
     (legacyServiceRoleKey &&
       !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
       !isSupportedServerApiKey(explicitServerApiKey)) ||
+    (synchronizedServerApiKey &&
+      !isSupportedServerApiKey(synchronizedServerApiKey)) ||
     (singularSecretKey &&
       !isCurrentSecretKey(singularSecretKey))
   ) {
@@ -259,11 +270,12 @@ export function resolveServerApiKey(
     options.envSecretKeys,
   );
 
-  // Explicit, singular, and legacy fallbacks remain available during a
-  // malformed platform-managed dictionary rollout. Unknown named keys still
-  // fail closed.
+  // Explicit, synchronized, singular, and legacy fallbacks remain available
+  // during a malformed platform-managed dictionary rollout. Unknown named
+  // keys still fail closed.
   if (!secretKeyConfiguration.valid) {
     const fallbackKey = explicitServerApiKey ||
+      synchronizedServerApiKey ||
       singularSecretKey ||
       legacyServiceRoleKey;
     return fallbackKey
@@ -274,6 +286,7 @@ export function resolveServerApiKey(
   const serverApiKey = preferredServerApiKey(
     legacyServiceRoleKey,
     explicitServerApiKey,
+    synchronizedServerApiKey,
     singularSecretKey,
     secretKeyConfiguration,
   );
@@ -318,12 +331,16 @@ export function authorizeServiceRoleRequest(
 
   const legacyServiceRoleKey = options.envServiceRoleKey?.trim() ?? "";
   const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
+  const synchronizedServerApiKey =
+    options.envSynchronizedServerApiKey?.trim() ?? "";
   const singularSecretKey = options.envSecretKey?.trim() ?? "";
   if (
     (legacyServiceRoleKey &&
       !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
       !isSupportedServerApiKey(explicitServerApiKey)) ||
+    (synchronizedServerApiKey &&
+      !isSupportedServerApiKey(synchronizedServerApiKey)) ||
     (singularSecretKey &&
       !isCurrentSecretKey(singularSecretKey))
   ) {
@@ -335,6 +352,8 @@ export function authorizeServiceRoleRequest(
       timingSafeCompare(credential.token, legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
       timingSafeCompare(credential.token, explicitServerApiKey)) ||
+    (synchronizedServerApiKey &&
+      timingSafeCompare(credential.token, synchronizedServerApiKey)) ||
     (singularSecretKey &&
       timingSafeCompare(credential.token, singularSecretKey))
   ) {
@@ -347,10 +366,14 @@ export function authorizeServiceRoleRequest(
         ? preferredServerApiKey(
           legacyServiceRoleKey,
           explicitServerApiKey,
+          synchronizedServerApiKey,
           singularSecretKey,
           secretKeyConfiguration,
         ) ?? credential.token
-        : explicitServerApiKey || singularSecretKey || legacyServiceRoleKey,
+        : explicitServerApiKey ||
+          synchronizedServerApiKey ||
+          singularSecretKey ||
+          legacyServiceRoleKey,
     };
   }
 
@@ -364,6 +387,7 @@ export function authorizeServiceRoleRequest(
   if (
     !legacyServiceRoleKey &&
     !explicitServerApiKey &&
+    !synchronizedServerApiKey &&
     !singularSecretKey &&
     secretKeyConfiguration.entries.length === 0
   ) {
@@ -382,6 +406,7 @@ export function authorizeServiceRoleRequest(
   const serverApiKey = preferredServerApiKey(
     legacyServiceRoleKey,
     explicitServerApiKey,
+    synchronizedServerApiKey,
     singularSecretKey,
     secretKeyConfiguration,
   );

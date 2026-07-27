@@ -38,7 +38,8 @@ The worker is scheduled every five minutes by
 
 It uses `verify_jwt = false` at the gateway, then requires service-role
 authorization inside the function. The request credential must exactly match the
-explicit `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value in the JSON
+explicit `SUPABASE_SERVER_API_KEY`, the production-deploy-synchronized
+`MERIAN_SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value in the JSON
 `SUPABASE_SECRET_KEYS` dictionary, the singular `SUPABASE_SECRET_KEY`
 local/manual fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` legacy
 fallback; no database capability probe is used. Send a named non-JWT secret only

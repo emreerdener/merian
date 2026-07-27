@@ -132,7 +132,7 @@ jobs:
           deno run --frozen \
             --config services/supabase/functions/deno.json \
             --allow-net="${PROJECT_ID}.supabase.co" \
-            --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY \
+            --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,MERIAN_SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY \
             --allow-write="$RUNNER_TEMP" \
             services/supabase/scripts/monitor_dwca_export_queue.ts \
             --warning-after-minutes "$warning_after" \

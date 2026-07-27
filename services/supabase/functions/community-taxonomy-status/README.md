@@ -25,7 +25,8 @@ Headers:
 - Named non-JWT project secret: `apikey: <sb_secret_...>` only
 
 The endpoint accepts only an exact match from the shared resolver:
-`SUPABASE_SERVER_API_KEY`, a value in the JSON `SUPABASE_SECRET_KEYS`
+`SUPABASE_SERVER_API_KEY`, the production-deploy-synchronized
+`MERIAN_SUPABASE_SERVER_API_KEY`, a value in the JSON `SUPABASE_SECRET_KEYS`
 dictionary, the singular `SUPABASE_SECRET_KEY` local/manual fallback, or the
 migration-only `SUPABASE_SERVICE_ROLE_KEY` legacy fallback. It does not infer
 authority from taxonomy table reachability or an RLS-filtered result.

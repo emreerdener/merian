@@ -56,26 +56,34 @@ Do not manually replace a platform-managed plural variable with a raw key or a
 JSON string. A plural value that is not an object of correctly classified keys
 is malformed.
 
+Production deploys also synchronize the Management API-resolved active key into
+the non-reserved Edge secret `MERIAN_SUPABASE_SERVER_API_KEY` before deploying
+Functions. This is a deployment fallback for a lagging or malformed hosted
+dictionary, not a new credential class or request header. It contains the same
+complete project server key and follows the same format-aware transport. Never
+attempt to set a built-in `SUPABASE_*` secret through the CLI.
+
 ### Edge Functions and Deno tooling
 
 `functions/_shared/serviceRoleAuth.ts` is the only server-key resolver. Its
 preferred outbound key order is:
 
-1. explicit CI/deployment override `SUPABASE_SERVER_API_KEY`;
-2. `default` from the hosted `SUPABASE_SECRET_KEYS` JSON dictionary;
-3. the first valid named dictionary key in deterministic name order;
-4. singular `SUPABASE_SECRET_KEY` for local/manual environments; then
-5. legacy `SUPABASE_SERVICE_ROLE_KEY`.
+1. explicit CI/local override `SUPABASE_SERVER_API_KEY`;
+2. deploy-synchronized hosted fallback `MERIAN_SUPABASE_SERVER_API_KEY`;
+3. `default` from the hosted `SUPABASE_SECRET_KEYS` JSON dictionary;
+4. the first valid named dictionary key in deterministic name order;
+5. singular `SUPABASE_SECRET_KEY` for local/manual environments; then
+6. legacy `SUPABASE_SERVICE_ROLE_KEY`.
 
 Inbound worker authentication accepts an exact, constant-time match against
 every valid configured server key, so named overlap keys can rotate safely.
 Publishable keys, anon/user JWTs, incomplete placeholders, malformed dictionary
 entries, and an opaque key placed in the legacy variable are rejected.
 
-A separately valid explicit, singular, or legacy fallback can keep a controlled
-environment available while a malformed plural dictionary is corrected.
-Unknown plural entries never become candidates. With no valid fallback,
-configuration fails closed.
+A separately valid explicit, synchronized, singular, or legacy fallback can
+keep a controlled environment available while a malformed plural dictionary is
+corrected. Unknown plural entries never become candidates. With no valid
+fallback, configuration fails closed.
 
 `functions/_shared/publishableKey.ts` separately resolves user-client project
 keys from the hosted `SUPABASE_PUBLISHABLE_KEYS` JSON dictionary, preferring
@@ -106,6 +114,16 @@ CI health checks, taxonomy imports, and deployment smoke tests use
 
 Do not replace this with a CLI key-list command unless the reviewed CLI version
 has an equivalent reveal contract.
+
+The production workflow masks the selected value, synchronizes it to
+`MERIAN_SUPABASE_SERVER_API_KEY`, and only then deploys the selected Function
+fleet. Positive smoke requests retry bounded transient deployment statuses for
+up to six attempts. A final Function failure reports only status and whether the
+fixed `X-Merian-Handler: 1` marker was present: marker present means the request
+reached a Function handler; marker absent points to the gateway or deployment
+router. A final Data API failure is explicitly classified as a PostgREST/RPC
+diagnostic path and does not expect a Function marker. Response bodies and
+request-ID values remain withheld; no variable header value is printed.
 
 ## Edge Function Authentication
 
@@ -268,12 +286,14 @@ this correction released:
    user-FK index inventories.
 3. Build every required large/partitioned FK index through the supervised path,
    verify it, and retry the unchanged migration.
-4. Push migrations, deploy the selected Edge fleet, and deploy the public web
-   bundle from the same reviewed commit.
+4. Push migrations, synchronize `MERIAN_SUPABASE_SERVER_API_KEY`, deploy the
+   selected Edge fleet, and deploy the public web bundle from the same reviewed
+   commit.
 5. Require every real public project key to receive `401` from the internal
    Community Taxonomy status route.
-6. Run the format-aware positive function and PostgREST RPC smoke suite with the
-   resolved server key.
+6. Run the propagation-aware, format-aware positive Function and PostgREST RPC
+   smoke suite with the resolved server key. A retry does not turn a final
+   handler-owned `401` into success; inspect the structured authorization event.
 7. Run the public web/admin frozen install, audit, test, type-check, and
    production-build gates.
 8. Run the Xcode 26.6 iOS simulator/build suites and the corrected stale server
@@ -291,6 +311,7 @@ results, deployment IDs, and monitor links. “Repository corrected” and
 - [Migrating to publishable and secret keys](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys)
 - [Securing the Data API](https://supabase.com/docs/guides/database/hardening-data-api)
 - [Edge Function authorization](https://supabase.com/docs/guides/functions/auth)
+- [Edge Function environment variables](https://supabase.com/docs/guides/functions/secrets)
 - [Database migrations](https://supabase.com/docs/guides/deployment/database-migrations)
 - [May 2026 Data API exposure change](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically)
 - [PostgreSQL privileges](https://www.postgresql.org/docs/17/ddl-priv.html)

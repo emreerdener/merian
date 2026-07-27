@@ -209,6 +209,7 @@ Deno.test("publicErrorResponse does not accept a caller-supplied request id", as
 
   assertEquals(payload.request_id === "attacker-controlled", false);
   assertEquals(response.headers.get("Retry-After"), "30");
+  assertEquals(response.headers.get("X-Merian-Handler"), "1");
   assertEquals(payload.retry_after_seconds, 30);
   assertEquals(isExplicitPublicErrorResponse(response), true);
 });

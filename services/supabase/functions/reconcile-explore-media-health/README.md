@@ -4,9 +4,10 @@ Service-role-only worker for published Explore media.
 
 Gateway JWT verification is disabled because current Supabase project secret
 keys are not JWTs. The handler still fails closed: it accepts the exact server
-key from an explicit `SUPABASE_SERVER_API_KEY`, an exact named `sb_secret_...`
-value in the hosted JSON `SUPABASE_SECRET_KEYS` dictionary, the singular
-`SUPABASE_SECRET_KEY` local/manual fallback, or the legacy
+key from an explicit `SUPABASE_SERVER_API_KEY`, the
+production-deploy-synchronized `MERIAN_SUPABASE_SERVER_API_KEY`, an exact named
+`sb_secret_...` value in the hosted JSON `SUPABASE_SECRET_KEYS` dictionary, the
+singular `SUPABASE_SECRET_KEY` local/manual fallback, or the legacy
 `SUPABASE_SERVICE_ROLE_KEY` migration fallback. It never uses a database/RLS
 result as proof. Legacy keys may use matching `apikey` and Bearer transport;
 non-JWT secret keys must use standard `apikey` only, and mixed credentials fail

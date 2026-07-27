@@ -200,6 +200,7 @@ Deno.test("withEdgeHandler ignores duck-typed exception status and message", asy
   assertEquals(body.error, "The request could not be completed.");
   assertEquals(JSON.stringify(body).includes("database host"), false);
   assertEquals(response.headers.get("X-Request-ID"), body.request_id);
+  assertEquals(response.headers.get("X-Merian-Handler"), "1");
 });
 
 Deno.test("withEdgeHandler preserves explicitly trusted public errors", async () => {
@@ -250,6 +251,16 @@ Deno.test("withEdgeHandler adds stable metadata to returned 4xx errors", async (
   assertEquals(body.code, "invalid_field");
   assertEquals(typeof body.request_id, "string");
   assertEquals(response.headers.get("X-Request-ID"), body.request_id);
+  assertEquals(response.headers.get("X-Merian-Handler"), "1");
+});
+
+Deno.test("withEdgeHandler overwrites the handler marker on success", async () => {
+  const response = await invokeTestHandler(() =>
+    jsonResponse({ ok: true }, 200, { "X-Merian-Handler": "0" })
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("X-Merian-Handler"), "1");
 });
 
 Deno.test("withPublicEdgeHandler applies metadata without auth timing", async () => {
@@ -258,11 +269,12 @@ Deno.test("withPublicEdgeHandler applies metadata without auth timing", async ()
   );
   const response = await withPublicEdgeHandler(
     request,
-    () => jsonResponse({ ok: true }),
+    () => jsonResponse({ ok: true }, 200, { "X-Merian-Handler": "0" }),
   );
 
   assertEquals(response.status, 200);
   assertEquals(typeof response.headers.get("X-Request-ID"), "string");
+  assertEquals(response.headers.get("X-Merian-Handler"), "1");
   assertEquals(response.headers.get("Server-Timing"), null);
 });
 
@@ -282,6 +294,7 @@ Deno.test("withPublicEdgeHandler sanitizes custom-handler exceptions", async () 
     assertEquals(body.code, "internal_error");
     assertEquals(JSON.stringify(body).includes("private provider"), false);
     assertEquals(response.headers.get("X-Request-ID"), body.request_id);
+    assertEquals(response.headers.get("X-Merian-Handler"), "1");
   } finally {
     console.error = originalError;
   }
@@ -312,6 +325,7 @@ Deno.test("withPublicEdgeHandler preserves explicit safe 5xx contracts", async (
   );
   assertEquals(body.retry_after_seconds, 30);
   assertEquals(response.headers.get("Retry-After"), "30");
+  assertEquals(response.headers.get("X-Merian-Handler"), "1");
 });
 
 // ---------------------------------------------------------------------------

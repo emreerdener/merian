@@ -29,6 +29,7 @@ const fakeCurrentSecretKey = (label: string) =>
 const DEFAULT_SECRET_KEY = fakeCurrentSecretKey("default-key");
 const WORKER_SECRET_KEY = fakeCurrentSecretKey("worker-key");
 const EXPLICIT_SECRET_KEY = fakeCurrentSecretKey("explicit-key");
+const SYNCHRONIZED_SECRET_KEY = fakeCurrentSecretKey("synchronized-key");
 const INVALID_SECRET_KEY = `${fakeCurrentSecretKey("invalid")}!`;
 const SECRET_KEYS = JSON.stringify({
   default: DEFAULT_SECRET_KEY,
@@ -227,6 +228,21 @@ Deno.test("authorizeServiceRoleRequest keeps the exact legacy key available duri
   });
 });
 
+Deno.test("authorizeServiceRoleRequest keeps the synchronized hosted key available during platform configuration incidents", () => {
+  const result = authorizeServiceRoleRequest(
+    request({ apikey: SYNCHRONIZED_SECRET_KEY }),
+    {
+      envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+      envSecretKeys: "{",
+    },
+  );
+
+  assertEquals(result, {
+    ok: true,
+    serverApiKey: SYNCHRONIZED_SECRET_KEY,
+  });
+});
+
 Deno.test("authorizeServiceRoleRequest supports the singular local secret-key fallback", () => {
   assertEquals(
     authorizeServiceRoleRequest(
@@ -257,14 +273,23 @@ Deno.test("authorizeServiceRoleRequest supports named-secret-only server configu
   });
 });
 
-Deno.test("server-key resolution prefers an explicit deployment key, then the named default", () => {
+Deno.test("server-key resolution prefers explicit, synchronized, then platform-managed keys", () => {
   assertEquals(
     resolveServerApiKey({
       envServerApiKey: EXPLICIT_SECRET_KEY,
+      envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
       envSecretKeys: SECRET_KEYS,
       envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
     }),
     { ok: true, serverApiKey: EXPLICIT_SECRET_KEY },
+  );
+  assertEquals(
+    resolveServerApiKey({
+      envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+      envSecretKeys: SECRET_KEYS,
+      envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+    }),
+    { ok: true, serverApiKey: SYNCHRONIZED_SECRET_KEY },
   );
   assertEquals(
     resolveServerApiKey({
@@ -317,6 +342,11 @@ Deno.test("server-key resolution rejects unprivileged or malformed configured ke
       { envServerApiKey: INVALID_SECRET_KEY },
       { envServerApiKey: LEGACY_ANON_KEY },
       { envServerApiKey: "not-a-server-key" },
+      { envSynchronizedServerApiKey: "sb_publishable_public-key" },
+      { envSynchronizedServerApiKey: "sb_secret_placeholder" },
+      { envSynchronizedServerApiKey: INVALID_SECRET_KEY },
+      { envSynchronizedServerApiKey: LEGACY_ANON_KEY },
+      { envSynchronizedServerApiKey: "not-a-server-key" },
       { envSecretKey: "sb_publishable_public-key" },
       { envSecretKey: INVALID_SECRET_KEY },
       { envSecretKey: LEGACY_SERVICE_ROLE_KEY },
@@ -373,6 +403,35 @@ Deno.test("authorizeServiceRoleRequest accepts an exact explicit deployment key"
       },
     ),
     { ok: true, serverApiKey: EXPLICIT_SECRET_KEY },
+  );
+});
+
+Deno.test("authorizeServiceRoleRequest accepts an exact synchronized hosted key", () => {
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({ apikey: SYNCHRONIZED_SECRET_KEY }),
+      {
+        envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+        envSecretKeys: SECRET_KEYS,
+        envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+      },
+    ),
+    { ok: true, serverApiKey: SYNCHRONIZED_SECRET_KEY },
+  );
+});
+
+Deno.test("synchronized deployment fallback supports the exact legacy key during overlap", () => {
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({
+        apikey: LEGACY_SERVICE_ROLE_KEY,
+        authorization: `Bearer ${LEGACY_SERVICE_ROLE_KEY}`,
+      }),
+      {
+        envSynchronizedServerApiKey: LEGACY_SERVICE_ROLE_KEY,
+      },
+    ),
+    { ok: true, serverApiKey: LEGACY_SERVICE_ROLE_KEY },
   );
 });
 

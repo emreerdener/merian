@@ -718,15 +718,17 @@ route that uses the common service-key policy. The static coverage catalog
 currently inventories twenty such boundaries, including taxonomy maintenance,
 media and account reconciliation, RevenueCat reconciliation, replay, push
 delivery, and DwC-A continuation work. Authorization is a local exact comparison
-against the explicit `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value
-supplied by the platform in the JSON `SUPABASE_SECRET_KEYS` dictionary, the
-singular `SUPABASE_SECRET_KEY` local/manual fallback, or the migration-only
-`SUPABASE_SERVICE_ROLE_KEY` legacy fallback. Successful empty reads, RLS
-behavior, JWT shape, and other capability probes are never evidence of
-authority. A raw or JSON-string value in the plural variable is malformed and
-never contributes a candidate; only a separately valid explicit, singular, or
-legacy fallback can remain available while the dictionary is corrected. Do not
-compensate with a transport workaround.
+against the explicit `SUPABASE_SERVER_API_KEY`, the deploy-synchronized
+non-reserved Edge fallback `MERIAN_SUPABASE_SERVER_API_KEY`, a named
+`sb_secret_...` value supplied by the platform in the JSON
+`SUPABASE_SECRET_KEYS` dictionary, the singular `SUPABASE_SECRET_KEY`
+local/manual fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` legacy
+fallback. Successful empty reads, RLS behavior, JWT shape, and other capability
+probes are never evidence of authority. A raw or JSON-string value in the plural
+variable is malformed and never contributes a candidate; only a separately
+valid explicit, synchronized, singular, or legacy fallback can remain available
+while the dictionary is corrected. Do not compensate with a transport
+workaround.
 
 Configuration is classified before comparison: a current key must have the
 platform `sb_secret_` prefix and a URL-safe opaque suffix of at least 20
@@ -748,9 +750,16 @@ transport. The deploy smoke, Community Taxonomy import, and scan-media health
 workflows use `scripts/resolve_project_api_keys.ts` to request revealed values
 from the Management API, prefer the current `default` secret key, fall back only
 to the exact legacy `service_role` key, and use the same shared transport rule.
-The RevenueCat reconciliation-health monitor uses that resolver and transport
-too. Do not replace the resolver with the CLI API-key listing: its hidden
-secret-key representation cannot pass the exact request boundary. Migration
+Before Function deployment, the production workflow masks and copies that exact
+value to `MERIAN_SUPABASE_SERVER_API_KEY`; Supabase reserves built-in
+`SUPABASE_*` names, so the fallback must not use one. Positive deployment smoke
+requests make six bounded propagation attempts. Final Function failures report
+only HTTP status plus the presence of the fixed `X-Merian-Handler: 1` marker;
+Data API failures instead identify the PostgREST/RPC diagnostic path without
+expecting a Function header. The RevenueCat reconciliation-health monitor uses
+that resolver and transport too.
+Do not replace the resolver with the CLI API-key listing: its hidden secret-key
+representation cannot pass the exact request boundary. Migration
 `20260726212549_harden_service_role_request_authentication.sql` separately
 revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
 `authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and

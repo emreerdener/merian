@@ -16,12 +16,15 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   `serveEdge(...)` registration, preflight handling, background task dispatch,
   structured operational logging, auth timing, and additive `Server-Timing`
   propagation. Both wrappers assign a server-owned request UUID and add
-  `X-Request-ID` to every response. Expected thrown failures use
-  `PublicHttpError`; explicit safe response failures use
-  `publicErrorResponse(...)`. Audited returned `4xx` application contracts are
-  still supported, while unexpected exceptions become `500 internal_error` and
-  ordinary returned `5xx` bodies keep their status but receive a generic
-  status-derived envelope. Raw exception details remain server-side.
+  `X-Request-ID` to every response. They also overwrite `X-Merian-Handler: 1` on
+  every wrapped response so production smoke failures can distinguish a
+  handler-owned denial from a gateway/router response without exposing the
+  request ID or response body. Expected thrown failures use `PublicHttpError`;
+  explicit safe response failures use `publicErrorResponse(...)`. Audited
+  returned `4xx` application contracts are still supported, while unexpected
+  exceptions become `500 internal_error` and ordinary returned `5xx` bodies keep
+  their status but receive a generic status-derived envelope. Raw exception
+  details remain server-side.
 - **`http.ts`**: CORS headers, JSON responses, parameter validation,
   constant-time comparison helpers, and the canonical bounded request readers.
   `parseJsonBody(...)` is the ordinary object API;
@@ -55,18 +58,21 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   read either environment variable directly.
 - **`serviceRoleAuth.ts`**: Fail-closed request authentication and canonical key
   resolution for every internal worker/status boundary that shares this policy.
-  It prefers an explicit `SUPABASE_SERVER_API_KEY`, then the platform-managed
-  named `sb_secret_...` values in the JSON `SUPABASE_SECRET_KEYS` dictionary,
-  then the singular `SUPABASE_SECRET_KEY` local/manual fallback, and retains
-  `SUPABASE_SERVICE_ROLE_KEY` only as a legacy migration fallback. It never
-  infers authority from a database query, RLS result, JWT claim, or network
-  capability probe. Key configuration is classified separately: current values
-  must have a platform-shaped `sb_secret_` prefix plus a URL-safe opaque suffix
-  of at least 20 characters, while a legacy fallback must be an HS256 JWT with
-  role `service_role` and a complete 43-character base64url signature.
-  Publishable, anon/user, and truncated placeholder values fail closed.
-  Malformed plural entries never become candidates; only a separately valid
-  explicit, singular, or legacy fallback can remain available while the
+  It prefers an explicit CI/local `SUPABASE_SERVER_API_KEY`, then the
+  production-deploy-synchronized non-reserved `MERIAN_SUPABASE_SERVER_API_KEY`,
+  then platform-managed named `sb_secret_...` values in the JSON
+  `SUPABASE_SECRET_KEYS` dictionary, then the singular `SUPABASE_SECRET_KEY`
+  local/manual fallback, and retains `SUPABASE_SERVICE_ROLE_KEY` only as a
+  legacy migration fallback. The synchronized value is the same project key and
+  does not create a custom request header. It never infers authority from a
+  database query, RLS result, JWT claim, or network capability probe. Key
+  configuration is classified separately: current values must have a
+  platform-shaped `sb_secret_` prefix plus a URL-safe opaque suffix of at least
+  20 characters, while a legacy fallback must be an HS256 JWT with role
+  `service_role` and a complete 43-character base64url signature. Publishable,
+  anon/user, and truncated placeholder values fail closed. Malformed plural
+  entries never become candidates; only a separately valid explicit,
+  synchronized, singular, or legacy fallback can remain available while the
   dictionary is corrected. Legacy JWT keys may use Bearer transport; non-JWT
   secret keys belong only in `apikey`. Callers must use the server-managed
   environment key—not the accepted request value—for privileged database clients

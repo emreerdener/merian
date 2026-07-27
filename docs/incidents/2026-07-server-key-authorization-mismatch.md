@@ -60,6 +60,27 @@ A legacy service-role key is a JWT and supports Bearer transport. A current
 protected `service_role` database role. Treating the formats as interchangeable
 caused both false authorization failures and unsafe/unsupported transport.
 
+### Production deploy follow-up
+
+Production deploy run 1529 reached the post-deploy smoke gate after selecting
+and deploying the complete Function fleet, but the exact Management
+API-revealed positive key received `HTTP 401` from
+`community-taxonomy-status`. The negative public-key controls still behaved
+correctly. The withheld response and lack of local hosted-log access mean the
+repository alone cannot distinguish `token_mismatch`,
+`invalid_secret_key_configuration`, a gateway denial, or stale routed code for
+that run.
+
+The gate nevertheless exposed two repository defects: it assumed the
+management-plane key and Function runtime dictionary were already synchronized,
+and it probed immediately without bounded routing-propagation retries. The
+durable correction synchronizes the selected key into the non-reserved
+`MERIAN_SUPABASE_SERVER_API_KEY` Edge fallback before deployment, retains the
+platform-managed dictionary as the canonical overlap source, retries only
+bounded transient statuses, and reports whether the final Function response
+reached a Merian handler through a fixed `X-Merian-Handler: 1` marker without
+exposing a request ID, variable header value, or body.
+
 ## Rejected Workarounds and Durable Lessons
 
 Several diagnostic changes proposed during the incident were not valid
@@ -91,8 +112,9 @@ inspection all pass for the reviewed commit.
 
 ### Canonical Edge and web boundaries
 
-- `functions/_shared/serviceRoleAuth.ts` resolves an explicit
-  `SUPABASE_SERVER_API_KEY`, the named platform JSON dictionary in
+- `functions/_shared/serviceRoleAuth.ts` resolves an explicit CI/local
+  `SUPABASE_SERVER_API_KEY`, the deploy-synchronized non-reserved
+  `MERIAN_SUPABASE_SERVER_API_KEY`, the named platform JSON dictionary in
   `SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
   fallback, and the legacy fallback in one place. Request authorization accepts
   only exact configured values, rejects conflicting credentials, and never
@@ -100,9 +122,9 @@ inspection all pass for the reviewed commit.
   classification rejects publishable keys, anon/user JWTs, truncated
   placeholders, unknown/malformed dictionary entries, and opaque values placed
   in the legacy variable. A malformed dictionary contributes no candidates;
-  only a separately valid explicit, singular, or legacy fallback can remain
-  available while it is corrected. A current key must retain its complete
-  URL-safe opaque suffix; a legacy fallback must be a complete HS256
+  only a separately valid explicit, synchronized, singular, or legacy fallback
+  can remain available while it is corrected. A current key must retain its
+  complete URL-safe opaque suffix; a legacy fallback must be a complete HS256
   `service_role` JWT.
 - `functions/_shared/serviceRoleClient.ts` is the only privileged SDK
   constructor. Its final fetch adapter removes only supabase-js's exact opaque
@@ -151,6 +173,10 @@ inspection all pass for the reviewed commit.
 - The deployment tooling suite discovers production operator scripts and
   rejects global `fetch()` calls that bypass the reviewed SDK or bounded
   provider transport.
+- Static workflow coverage requires fallback synchronization to precede
+  Function deployment and requires bounded smoke retry plus endpoint-aware
+  Function handler/router or Data API/PostgREST classification on final
+  failure.
 
 ## Other Places to Watch
 
@@ -182,19 +208,22 @@ Do not mark this incident resolved until all of the following hold:
 2. Confirm the hosted `SUPABASE_SECRET_KEYS` value is the platform-managed JSON
    dictionary and has not been replaced with a manually configured raw string.
    Validate only its parseable shape and key names; never print its values.
-3. Run the privileged-routine read-only audit in enforcement mode.
-4. Verify no installed HTTP routine or active cron command contains a direct
+3. Confirm the Edge secret inventory includes
+   `MERIAN_SUPABASE_SERVER_API_KEY` by name after the workflow synchronizes it.
+   Never reveal or compare its value.
+4. Run the privileged-routine read-only audit in enforcement mode.
+5. Verify no installed HTTP routine or active cron command contains a direct
    `'Bearer ' || service_role_key` construction.
-5. Put an active server key in the reviewed Vault slot and verify the database
+6. Put an active server key in the reviewed Vault slot and verify the database
    health checks report nonblank URL/key configuration.
-6. During key overlap, smoke one internal service route with the current opaque
+7. During key overlap, smoke one internal service route with the current opaque
    key, optionally repeat with the legacy key, and prove a real anon/publishable
    key receives `401`.
-7. Share one eligible scan from Scan Library and one from the Insight composer.
+8. Share one eligible scan from Scan Library and one from the Insight composer.
    Confirm no `service_role authorization required` error appears.
-8. Smoke Explore comment creation, Field Trip mutation, Community request, and
+9. Smoke Explore comment creation, Field Trip mutation, Community request, and
    ghost-profile merge identity refresh paths.
-9. Disable the legacy key only after all runtime, SQL, web, and operator callers
+10. Disable the legacy key only after all runtime, SQL, web, and operator callers
    pass with the current key.
 
 Never restore availability by granting a maintenance RPC to `authenticated`,

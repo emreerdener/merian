@@ -203,7 +203,7 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
     );
     assertStringIncludes(
       source,
-      "--allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY",
+      "--allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,MERIAN_SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY",
     );
     assertStringIncludes(source, '--allow-write="$RUNNER_TEMP"');
     assertMatch(source, /deno run --frozen/);
@@ -218,6 +218,10 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
   assertStringIncludes(
     importWorkflow,
     '--allow-net="${PROJECT_ID}.supabase.co"',
+  );
+  assertStringIncludes(
+    importWorkflow,
+    "--allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,MERIAN_SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY",
   );
   assertStringIncludes(
     importWorkflow,

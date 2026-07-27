@@ -55,16 +55,18 @@ Edge errors return:
 ```
 
 `X-Request-ID` carries the same UUID and is exposed through CORS. The server
-does not trust an inbound request-ID header. Authenticated routes use
-`withEdgeHandler`; custom-auth, webhook, and intentionally public routes use
-`serveEdge`. Expected thrown failures use `PublicHttpError`, while explicit safe
-response failures use `publicErrorResponse(...)`. Retained returned `4xx`
-contracts must contain only audited validation or caller-state data; the
-boundary validates/adds their stable code and request ID. An arbitrary exception
-is logged privately and becomes `500 internal_error`; an ordinary returned `5xx`
-keeps its status but receives the generic status-derived code/message. Retryable
-public failures may additionally include `retry_after_seconds` and a bounded
-`Retry-After` header.
+does not trust an inbound request-ID header. Every wrapped response also carries
+the fixed, non-secret `X-Merian-Handler: 1` marker. This marker is diagnostic
+metadata for distinguishing a handler response from a gateway/router response;
+it is never authorization evidence. Authenticated routes use `withEdgeHandler`;
+custom-auth, webhook, and intentionally public routes use `serveEdge`. Expected
+thrown failures use `PublicHttpError`, while explicit safe response failures use
+`publicErrorResponse(...)`. Retained returned `4xx` contracts must contain only
+audited validation or caller-state data; the boundary validates/adds their
+stable code and request ID. An arbitrary exception is logged privately and
+becomes `500 internal_error`; an ordinary returned `5xx` keeps its status but
+receives the generic status-derived code/message. Retryable public failures may
+additionally include `retry_after_seconds` and a bounded `Retry-After` header.
 
 The Next.js waitlist API uses the equivalent web envelope with `message` in
 place of `error`. Its 4 KiB request ceiling, CAPTCHA, database rate limits, and
@@ -5992,13 +5994,14 @@ Request:
 
 - Gateway JWT verification is disabled so the endpoint can receive both legacy
   service-role JWTs and current non-JWT project secret keys. The handler accepts
-  only an exact server key resolved from `SUPABASE_SERVER_API_KEY`, the hosted
-  `SUPABASE_SECRET_KEYS` JSON dictionary, the singular
-  `SUPABASE_SECRET_KEY` local/manual fallback, or the legacy
-  `SUPABASE_SERVICE_ROLE_KEY` migration fallback. It never uses a database/RLS
-  result as proof. Missing, conflicting, and mismatched keys receive `401`;
-  ordinary user and publishable keys are not accepted. Worker RPCs use the
-  server environment key rather than the accepted request value.
+  only an exact server key resolved from `SUPABASE_SERVER_API_KEY`, the
+  production-deploy-synchronized `MERIAN_SUPABASE_SERVER_API_KEY`, the hosted
+  `SUPABASE_SECRET_KEYS` JSON dictionary, the singular `SUPABASE_SECRET_KEY`
+  local/manual fallback, or the legacy `SUPABASE_SERVICE_ROLE_KEY` migration
+  fallback. It never uses a database/RLS result as proof. Missing, conflicting,
+  and mismatched keys receive `401`; ordinary user and publishable keys are not
+  accepted. Worker RPCs use the server environment key rather than the accepted
+  request value.
 - `limit` is clamped to `1...500`.
 - `leaseSeconds` is clamped to `30...600`.
 - Primary and distinct-poster `HEAD` requests run in parallel per row within a
@@ -6533,7 +6536,8 @@ imports or Community ID publish flows.
 
 - `verify_jwt = false` is configured for service-role calls.
 - The function still requires an exact platform-managed service credential:
-  `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
+  `SUPABASE_SERVER_API_KEY`, the production-deploy-synchronized
+  `MERIAN_SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
   `SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
   fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback. Current
   keys use `apikey` only; legacy JWTs use matching `apikey` and Bearer
@@ -6628,7 +6632,8 @@ in v1.
 
 - `verify_jwt = false` is configured for service-role calls.
 - The function still requires an exact platform-managed service credential:
-  `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
+  `SUPABASE_SERVER_API_KEY`, the production-deploy-synchronized
+  `MERIAN_SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
   `SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
   fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback. Current
   keys use `apikey` only; legacy JWTs use matching `apikey` and Bearer

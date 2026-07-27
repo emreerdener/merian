@@ -6,7 +6,10 @@ import {
   parseJsonBody,
   publicErrorResponse,
 } from "../_shared/http.ts";
-import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
+import {
+  authorizeServiceRoleRequest,
+  type ServiceRoleAuthOptions,
+} from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import {
   reconcileExploreMediaHealth,
@@ -24,12 +27,9 @@ type CreateAdminClient = (
   token: string,
 ) => SupabaseClient;
 
-export interface ReconcileExploreMediaHealthHandlerOptions {
+export interface ReconcileExploreMediaHealthHandlerOptions
+  extends ServiceRoleAuthOptions {
   supabaseUrl: string;
-  envServerApiKey?: string;
-  envServiceRoleKey?: string;
-  envSecretKey?: string;
-  envSecretKeys?: string;
   createAdminClient?: CreateAdminClient;
   reconcile?: Reconcile;
 }
@@ -65,12 +65,7 @@ export function createReconcileExploreMediaHealthHandler(
       return jsonResponse({ error: "Method Not Allowed" }, 405);
     }
 
-    const auth = authorizeServiceRoleRequest(req, {
-      envServerApiKey: options.envServerApiKey,
-      envServiceRoleKey: options.envServiceRoleKey,
-      envSecretKey: options.envSecretKey,
-      envSecretKeys: options.envSecretKeys,
-    });
+    const auth = authorizeServiceRoleRequest(req, options);
     if (!auth.ok) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }

@@ -4,7 +4,8 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY (or platform-managed/legacy fallback)
+ *   SUPABASE_SERVER_API_KEY, deploy-synchronized
+ *   MERIAN_SUPABASE_SERVER_API_KEY, or a platform-managed/legacy fallback
  *
  * Dry run:
  *   deno run --allow-net --allow-env \

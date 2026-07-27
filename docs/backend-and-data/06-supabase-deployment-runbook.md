@@ -19,13 +19,13 @@ SCAN_ID=<scan-uuid> DRY_RUN=true deno run --allow-net --allow-env \
 
 Remove `DRY_RUN=true` to write the resolved label. Omit `SCAN_ID` for the
 resumable, paginated full backfill. The script requires `SUPABASE_URL` and a
-server key resolved from `SUPABASE_SERVER_API_KEY`, platform
-`SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
-fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback. It
-rate-limits Nominatim requests and updates only scans that have exact
-coordinates and a missing semantic location. Existing database triggers
-sanitize the scan label and reproject every linked Explore post while
-preserving its saved post-level location-sharing choice.
+server key resolved from `SUPABASE_SERVER_API_KEY`, deploy-synchronized
+`MERIAN_SUPABASE_SERVER_API_KEY`, platform `SUPABASE_SECRET_KEYS`, the singular
+`SUPABASE_SECRET_KEY` local/manual fallback, or the migration-only
+`SUPABASE_SERVICE_ROLE_KEY` fallback. It rate-limits Nominatim requests and
+updates only scans that have exact coordinates and a missing semantic location.
+Existing database triggers sanitize the scan label and reproject every linked
+Explore post while preserving its saved post-level location-sharing choice.
 
 ## Production Path
 
@@ -118,16 +118,25 @@ The workflow performs the following steps:
     `Production` environment to Supabase Edge secrets.
 17. Synchronizes required bucket-scoped R2 Object Read credentials and the
     optional R2 event-ingress secret to Supabase Edge.
-18. Deploys the planned functions in bounded batches. A failed batch is retried
+18. Resolves a callable production server key plus every real public project
+    key through the Management API and masks the selected server value.
+19. Synchronizes that exact selected key into the non-reserved
+    `MERIAN_SUPABASE_SERVER_API_KEY` Edge fallback. This closes a management
+    plane/runtime provisioning gap without changing request transport or trying
+    to overwrite a reserved built-in.
+20. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-19. Resolves a callable production server key plus every real public project
-    key through the Management API. Every public key must receive `401` from
-    Community Taxonomy status before the format-aware positive suite
-    smoke-tests internal functions and PostgREST RPCs, including scan-media
-    health, one-item Explore direct-origin reconciliation, and a dry-run bounded
-    GBIF import. Failures report endpoint and status while withholding response
-    bodies.
+21. Requires every public key to receive `401` from Community Taxonomy status
+    before the propagation-aware, format-aware positive suite smoke-tests
+    internal functions and PostgREST RPCs, including scan-media health,
+    one-item Explore direct-origin reconciliation, and a dry-run bounded GBIF
+    import. Positive requests make at most six attempts for transient deployment
+    statuses. Final Function failures report endpoint, status, and only whether
+    the fixed `X-Merian-Handler: 1` marker was present. Final Data API failures
+    are classified separately as PostgREST/RPC diagnostics and do not expect a
+    Function marker. Response bodies and request-ID values remain withheld; no
+    variable header value is printed.
 
 Local and CI database rebuilds use the exact reviewed Supabase CLI `2.109.1`.
 The CLI owns migration transaction and history boundaries. Its normal apply
@@ -2986,6 +2995,15 @@ revealed current key named `default`, then another revealed current secret, and
 falls back only to the exact legacy key named `service_role`. Masked values,
 malformed keys, and partial name matches fail closed.
 
+The deploy workflow then copies the masked selected value to the non-reserved
+Edge secret `MERIAN_SUPABASE_SERVER_API_KEY` before Function deployment.
+Operators do not provision a separate GitHub secret for this fallback: the
+Management API result is its source of truth. Do not rename it to a
+`SUPABASE_*` variable; Supabase reserves those names and rejects CLI writes to
+them. A project-key rotation is incomplete until the new key has been added,
+this deploy workflow has passed with the overlap in place, all Vault and server
+callers have moved, and only then the old key is revoked.
+
 If the Supabase dashboard or Management API is unavailable, do not guess the
 pooler host in production secrets. Wait for the dashboard to recover, or get the
 existing shared-pooler host from another operator who already has access. The
@@ -3004,21 +3022,31 @@ Supabase. The complete Edge-secret inventory is documented in
 `docs/backend-and-data/02-supabase-edge-and-database.md`.
 
 Internal routes using `_shared/serviceRoleAuth.ts` authorize locally against
-`SUPABASE_SERVER_API_KEY`, named values in the hosted
-`SUPABASE_SECRET_KEYS` JSON dictionary, the singular
-`SUPABASE_SECRET_KEY` local/manual fallback, and the migration-only
-`SUPABASE_SERVICE_ROLE_KEY` fallback; they must never probe a table to infer
-authority. Legacy service-role JWT callers send the same value in Bearer
-Authorization and `apikey`. Named `sb_secret_...` keys are non-JWT and are sent
-only in `apikey`. The deployment smoke step retrieves every available real
-anon/publishable project key and requires `community-taxonomy-status` to return
-`401` for each before the real current secret key (or exact legacy service-role
-fallback) is used as the positive control. Current secret keys are sent only in
-`apikey`; legacy JWT keys are sent in both headers. Do not weaken that denial
-check when rotating API keys. Every positive smoke request records the endpoint
-and HTTP status while withholding response bodies, so a route-specific
-authorization failure is distinguishable from an opaque `curl --fail` exit
-without leaking response content.
+`SUPABASE_SERVER_API_KEY`, the deploy-synchronized
+`MERIAN_SUPABASE_SERVER_API_KEY`, named values in the hosted
+`SUPABASE_SECRET_KEYS` JSON dictionary, the singular `SUPABASE_SECRET_KEY`
+local/manual fallback, and the migration-only `SUPABASE_SERVICE_ROLE_KEY`
+fallback; they must never probe a table to infer authority. Legacy service-role
+JWT callers send the same value in Bearer Authorization and `apikey`. Named
+`sb_secret_...` keys are non-JWT and are sent only in `apikey`. The deployment
+smoke step retrieves every available real anon/publishable project key and
+requires `community-taxonomy-status` to return `401` for each before the real
+current secret key (or exact legacy service-role fallback) is used as the
+positive control. Current secret keys are sent only in `apikey`; legacy JWT keys
+are sent in both headers. Do not weaken that denial check when rotating API
+keys.
+
+Positive smoke requests retry `401`, `404`, `429`, `500`, `502`, `503`, and
+`504` with bounded backoff for at most six attempts so routing propagation is
+not mistaken for a final release failure. A final error still fails closed. For
+a `/functions/v1/*` failure, a fixed `X-Merian-Handler: 1` marker means the
+request reached the handler: inspect `community_taxonomy_status_auth_denied`
+and its stable reason in restricted Edge logs. If the marker was absent, inspect
+the Supabase gateway, Function deployment status, and router. A `/rest/v1/*`
+failure is classified as a Data API request instead; inspect the API gateway,
+PostgREST RPC grants, and database logs without expecting a Function marker.
+Never print the response body or `X-Request-ID` value merely to diagnose
+authorization.
 
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only
@@ -3649,6 +3677,11 @@ After deployment:
   anon/publishable project key received `401` from `community-taxonomy-status`.
   A `200` with an empty data set is an authorization failure, not a harmless RLS
   result.
+- Confirm `supabase secrets list --project-ref <ref>` includes
+  `MERIAN_SUPABASE_SERVER_API_KEY` by name after the deploy. Never print or
+  compare its value. A final positive `401` with the fixed
+  `X-Merian-Handler: 1` marker is a handler-owned denial; use the restricted
+  structured auth event rather than bypassing the guard.
 - Confirm `community-taxonomy-status` accepts a service-role request with
   `view = coverage` and returns the Birds coverage target quickly.
 - Confirm `scan-media-health` accepts a service-role request and returns

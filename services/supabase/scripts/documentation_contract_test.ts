@@ -84,10 +84,12 @@ Deno.test("credential documentation preserves the format-aware header contract",
       "Opaque publishable and secret project keys belong only in the standard `apikey` header.",
       "Bearer transport is reserved for a user access JWT or the legacy `service_role` JWT during migration overlap.",
       "`x-supabase-server-key` is not part of the protocol.",
+      "non-reserved Edge secret `MERIAN_SUPABASE_SERVER_API_KEY`",
       "singular `SUPABASE_SECRET_KEY` for local/manual environments",
       "`/v1/projects/<ref>/api-keys?reveal=true`",
       "returns every real current publishable and exact legacy `anon` key for negative smoke controls",
       "creates downstream clients from the environment-resolved key, never from the accepted request value",
+      "Positive smoke requests retry bounded transient deployment statuses for up to six attempts.",
       "`20260727183356_restore_identity_first_media_incident_guard.sql`",
     ]
   ) {
@@ -109,6 +111,10 @@ Deno.test("credential documentation preserves the format-aware header contract",
   assertStringIncludes(
     workerReadme,
     "an explicit `SUPABASE_SERVER_API_KEY`",
+  );
+  assertStringIncludes(
+    workerReadme,
+    "production-deploy-synchronized `MERIAN_SUPABASE_SERVER_API_KEY`",
   );
   assertStringIncludes(
     workerReadme,
@@ -225,6 +231,14 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
   assertStringIncludes(
     runbook,
     "`scan-media-health-summary-<run_number>-attempt-<run_attempt>`",
+  );
+  assertStringIncludes(
+    runbook,
+    "a fixed `X-Merian-Handler: 1` marker means the",
+  );
+  assertStringIncludes(
+    runbook,
+    "PostgREST RPC grants, and database logs without expecting a Function marker.",
   );
   assertStringIncludes(
     agent,

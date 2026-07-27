@@ -53,7 +53,11 @@ TestFlight, App Store, support, and QA.
   Opaque project keys now use only standard `apikey` transport, every real
   public project key is a required negative deployment smoke control, and
   internal failures withhold operational response bodies and all
-  secret-derived diagnostics.
+  secret-derived diagnostics. Production deploys now synchronize the exact
+  revealed active key into a non-reserved Edge fallback before Function rollout
+  and use bounded propagation retries with endpoint-aware diagnostics, reducing
+  runtime-key lag failures and replacing opaque final Function/Data API errors
+  with safe handler-versus-router or PostgREST-specific guidance.
 - Closed the remaining exposed-table security gap for Explore comment reactions,
   revoked unsafe global and `public`-schema default table/sequence privileges,
   and added static plus live catalog enforcement for RLS and PostgreSQL 17

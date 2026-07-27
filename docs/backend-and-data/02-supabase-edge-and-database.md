@@ -1548,7 +1548,8 @@ that operate on anonymous IDFV boundaries:
     GitHub Actions, or another trusted server caller can reach the Deno runtime,
     then enforce an exact platform-managed service credential inside Deno with
     `timingSafeCompare`. Boundaries using `_shared/serviceRoleAuth.ts` compare
-    against `SUPABASE_SERVER_API_KEY`, named `sb_secret_...` values in
+    against the CI/local `SUPABASE_SERVER_API_KEY`, deploy-synchronized
+    `MERIAN_SUPABASE_SERVER_API_KEY`, named `sb_secret_...` values in
     `SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
     fallback, and the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback; they
     do not use table reachability or an RLS result as proof. A legacy JWT key
@@ -2205,13 +2206,20 @@ optional controls are set in the Supabase Edge secret store via the CLI
   **`SUPABASE_ANON_KEY`** and server-only
   **`SUPABASE_SERVICE_ROLE_KEY`**, plus JSON dictionaries
   **`SUPABASE_PUBLISHABLE_KEYS`** and **`SUPABASE_SECRET_KEYS`** containing the
-  project's named current keys. Do not manually duplicate these built-ins.
+  project's named current keys. Do not manually overwrite these built-ins.
   `_shared/publishableKey.ts` resolves the public project key for user-scoped
   clients; `_shared/serviceRoleAuth.ts` independently resolves and exactly
   matches server-only keys. Neither boundary accepts the other key class.
   **`SUPABASE_SECRET_KEY`** is an optional singular current-key fallback for
   local/manual Deno environments; it is not a replacement for the hosted plural
   dictionary.
+- **`MERIAN_SUPABASE_SERVER_API_KEY`**: Non-reserved hosted fallback containing
+  the exact active project server key selected from the reveal-explicit
+  Management API response. The production deploy workflow masks and refreshes
+  it before Function deployment; it is not a separate GitHub secret. It closes
+  runtime provisioning lag without changing the standard `apikey`/legacy
+  Bearer request protocol. A project-key rotation must pass the production
+  deploy during overlap before the old key is revoked.
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
 - **`AI_QUOTA_IP_HASH_SECRET`** (optional override): At least 32 high-entropy

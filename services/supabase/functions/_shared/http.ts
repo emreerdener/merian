@@ -7,8 +7,12 @@ export const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, idempotency-key, x-merian-constrained-network",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
   "Access-Control-Expose-Headers":
-    "Retry-After, Server-Timing, X-Merian-Edge-Region, X-Request-ID",
+    "Retry-After, Server-Timing, X-Merian-Edge-Region, X-Merian-Handler, X-Request-ID",
 };
+
+export const MERIAN_HANDLER_RESPONSE_HEADER = {
+  "X-Merian-Handler": "1",
+} as const;
 
 export const JSON_BODY_LIMITS = {
   small: 16 * 1024,
@@ -175,6 +179,7 @@ export function publicErrorResponse(
     status,
     {
       ...options.extraHeaders,
+      ...MERIAN_HANDLER_RESPONSE_HEADER,
       "Cache-Control": "private, no-store",
       "X-Request-ID": requestId,
       ...(retryAfter ? { "Retry-After": String(retryAfter) } : {}),
