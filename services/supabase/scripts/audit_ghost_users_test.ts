@@ -283,8 +283,6 @@ Deno.test("renderCsv escapes JSON activity source cells", () => {
   assert(csv.includes('"{""scans"":1}"'));
 });
 
-
-
 function emptyActivity(): ActivityCounts {
   return { total: 0, bySource: {} };
 }

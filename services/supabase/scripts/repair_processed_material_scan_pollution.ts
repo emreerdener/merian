@@ -268,4 +268,3 @@ function parseArgs(rawArgs: string[]): RepairArgs {
   }
   return args;
 }
-

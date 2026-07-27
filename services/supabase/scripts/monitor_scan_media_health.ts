@@ -604,4 +604,3 @@ function parseInteger(
   }
   return parsed;
 }
-

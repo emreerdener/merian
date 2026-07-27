@@ -437,4 +437,3 @@ function printSummary(summary: DwcaMonitorSummary): void {
   );
   console.log(`should_fail: ${summary.failure_policy.should_fail}`);
 }
-

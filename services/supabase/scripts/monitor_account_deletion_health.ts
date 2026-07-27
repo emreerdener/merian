@@ -641,4 +641,3 @@ function printSummary(summary: AccountDeletionMonitorSummary): void {
   );
   console.log(`should_fail: ${summary.failure_policy.should_fail}`);
 }
-

@@ -474,7 +474,6 @@ function countViolations(violations: AuditViolations): number {
   }, 0);
 }
 
-
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
   if (!value) throw new Error(`${name} is required.`);

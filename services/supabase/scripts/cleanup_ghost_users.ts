@@ -492,7 +492,6 @@ function parsePositiveInteger(value: string, flag: string): number {
   return parsed;
 }
 
-
 function normalizedText(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }

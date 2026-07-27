@@ -390,4 +390,3 @@ function printSummary(summary: RevenueCatMonitorSummary): void {
   );
   console.log(`should_fail: ${summary.failure_policy.should_fail}`);
 }
-
