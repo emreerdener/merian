@@ -594,7 +594,7 @@ struct FieldTripTemplateDetailView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(
                 template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
-                    ?? "Field trip"
+                    ?? (isLoading ? "Loading..." : "Field trip")
             )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
@@ -1058,7 +1058,7 @@ struct FieldTripChallengeDetailView: View {
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle(viewModel.challenge?.title ?? "Challenge")
+            .navigationTitle(viewModel.challenge?.title ?? (viewModel.isLoading ? "Loading..." : "Challenge"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -1609,7 +1609,19 @@ private struct FieldTripTemplateCard: View {
             }
 
             FieldTripTemplateTagRow(tags: tags)
+                .padding(.bottom, template.catalogState == .incomplete ? 12 : 16)
+
+            if template.catalogState == .incomplete {
+                Button(action: onOpenTemplate) {
+                    Text("View field trip")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal, 16)
                 .padding(.bottom, 16)
+            }
         }
         .frame(maxWidth: .infinity)
         .background {

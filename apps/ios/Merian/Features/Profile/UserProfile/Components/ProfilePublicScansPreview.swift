@@ -440,9 +440,15 @@ private struct ProfilePublishedScansLibraryView: View {
             authorAvatar(url: profileViewModel.userAvatarURL, size: 44)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(profileViewModel.userName ?? profileViewModel.publicAuthorName ?? "Explorer")
-                    .font(.headline)
-                    .lineLimit(1)
+                HStack(alignment: .center, spacing: 6) {
+                    Text(profileViewModel.userName ?? profileViewModel.publicAuthorName ?? "Explorer")
+                        .font(.headline)
+                        .lineLimit(1)
+
+                    if RevenueCatManager.shared.isProActive {
+                        ExploreProBadge()
+                    }
+                }
 
                 if let username = profileViewModel.publicUsernameDisplayName {
                     Text(username)

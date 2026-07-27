@@ -64,6 +64,7 @@ assert_no_runner_context_in_job_env() {
 
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
+assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
 assert_contains "macos-26"
 assert_contains "/Applications/Xcode_26.6.app/Contents/Developer"
 assert_contains "bash scripts/ci-detect-ios-build-source-changes.sh"

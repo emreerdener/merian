@@ -80,7 +80,7 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
     generated,
     /private enum TaxonomyCodingKeys: String, CodingKey/,
   );
-  assert.doesNotMatch(generated, /^        enum CodingKeys/gm);
+  assert.doesNotMatch(generated, /^ {8}enum CodingKeys/gm);
   assert.match(generated, /let confidence_score: Double\?/);
   assert.match(generated, /let individual_count: Int\?/);
   assert.doesNotMatch(generated, /\bUInt8\b/);

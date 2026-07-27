@@ -6,6 +6,7 @@ import UIKit
 /// and dynamically rendering high-fidelity Auth provider payloads seamlessly.
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
+    @Environment(RevenueCatManager.self) private var revenueCatManager: RevenueCatManager?
     @Binding var isShowingAvatarPicker: Bool
     @Binding var isShowingDisplayNameEditor: Bool
     @Binding var isShowingUsernameEditor: Bool
@@ -84,16 +85,26 @@ struct UserProfile: View {
         )
     }
 
+    private var isProActive: Bool {
+        revenueCatManager?.isProActive ?? RevenueCatManager.shared.isProActive
+    }
+
     private var identityHeader: some View {
         HStack(spacing: 12) {
             avatarPicker
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(profileViewModel.displayName)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                HStack(alignment: .center, spacing: 6) {
+                    Text(profileViewModel.displayName)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    if isProActive {
+                        ExploreProBadge()
+                    }
+                }
 
                 Text(profileViewModel.publicUsernameDisplayName ?? "Loading username")
                     .font(.footnote)

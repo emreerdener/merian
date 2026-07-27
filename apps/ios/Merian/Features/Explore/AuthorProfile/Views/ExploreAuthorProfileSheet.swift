@@ -242,7 +242,7 @@ struct ExploreAuthorProfileContent: View {
         switch mode {
         case .profile:
             guard let profile else { return "Profile" }
-            return UserPersona(speciesCount: profile.speciesCount).title
+            return profile.publicUsernameDisplayName ?? "Profile"
         case .library:
             if route.authorUserId.lowercased() == SupabaseManager.shared.currentUser?.id.uuidString.lowercased() {
                 return "Your published scans"
@@ -283,7 +283,7 @@ struct ExploreAuthorProfileContent: View {
                         Label("Report user", systemImage: "flag")
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Profile actions")
             }
@@ -366,20 +366,23 @@ struct ExploreAuthorProfileContent: View {
 
             VStack(spacing: 16) {
                 VStack(spacing: 6) {
-                    Text(profile.profileTitle)
-                        .font(.system(.largeTitle, design: .serif).weight(.bold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityAddTraits(.isHeader)
+                    HStack(alignment: .center, spacing: 6) {
+                        Text(profile.profileTitle)
+                            .font(.system(.largeTitle, design: .serif).weight(.bold))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.center)
+                            .accessibilityAddTraits(.isHeader)
 
-                    if let username = profile.publicUsernameDisplayName,
-                       username != profile.profileTitle {
-                        Text(username)
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                        if shouldShowProBadge(for: profile) {
+                            ExploreProBadge()
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+
+                    Text(UserPersona(speciesCount: profile.speciesCount).title)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 profileSummaryCountsRow(profile)
@@ -387,6 +390,10 @@ struct ExploreAuthorProfileContent: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+    }
+
+    private func shouldShowProBadge(for profile: ExploreAuthorProfile) -> Bool {
+        profile.authorIsPro == true || (isCurrentUserProfile(profile) && RevenueCatManager.shared.isProActive)
     }
 
     private func profileSummaryCountsRow(_ profile: ExploreAuthorProfile) -> some View {

@@ -16,7 +16,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-build-and-test-${{ github.event.pull_request.number || github.ref }}
+  # Pull-request comparisons are cumulative, so a newer PR run can supersede
+  # an older one. Push comparisons cover only that event's commit range and
+  # must remain independent so a later backend-only push cannot cancel the run
+  # responsible for validating an earlier iOS change.
+  group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
