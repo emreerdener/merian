@@ -657,6 +657,15 @@ jobs:
             local endpoint="$1"
             local payload="$2"
             local status
+            
+            local request_headers=("${server_headers[@]}")
+            if [[ "$endpoint" == /rest/v1/* && "$SUPABASE_SERVER_API_KEY" == sb_secret_* ]]; then
+              request_headers+=(
+                -H "apikey: ${SUPABASE_SERVER_API_KEY}"
+                -H "Authorization: Bearer ${SUPABASE_SERVER_API_KEY}"
+              )
+            fi
+
             if ! status="$(
               curl -sS \
                 --connect-timeout 10 \
@@ -664,7 +673,7 @@ jobs:
                 -o "$smoke_response_file" \
                 -w "%{http_code}" \
                 -X POST "${supabase_url}${endpoint}" \
-                "${server_headers[@]}" \
+                "${request_headers[@]}" \
                 --data "$payload"
             )"; then
               echo "Production smoke request could not reach ${endpoint}." >&2

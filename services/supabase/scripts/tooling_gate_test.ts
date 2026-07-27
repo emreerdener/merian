@@ -189,7 +189,7 @@ Deno.test("production deploy reports aggregate Explore publication health", asyn
   );
   assertMatch(
     workflow,
-    /post_server_json\(\)[\s\S]*"\$\{server_headers\[@\]\}"/,
+    /post_server_json\(\)[\s\S]*"\$\{request_headers\[@\]\}"/,
   );
   assertMatch(
     workflow,
