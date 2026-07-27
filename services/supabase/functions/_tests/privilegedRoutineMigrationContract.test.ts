@@ -11,6 +11,10 @@ const serviceRoleGuardFixUrl = new URL(
   "../../migrations/20260727010340_fix_service_role_authorization_guard.sql",
   import.meta.url,
 );
+const trustedIdentityRefreshUrl = new URL(
+  "../../migrations/20260727041215_split_author_identity_refresh_trusted_implementation.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -139,4 +143,33 @@ Deno.test("service-role guard supports JWT and opaque server keys", async () => 
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("trusted identity refresh is split from its guarded API wrapper", async () => {
+  const sql = normalized(await Deno.readTextFile(trustedIdentityRefreshUrl));
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION internal.refresh_public_author_identity( target_user_id UUID )",
+      "SECURITY DEFINER SET search_path = ''",
+      "REVOKE ALL ON FUNCTION internal.refresh_public_author_identity(UUID) FROM PUBLIC, anon, authenticated, service_role",
+      "CREATE OR REPLACE FUNCTION public.refresh_public_author_identity( target_user_id UUID )",
+      "PERFORM internal.require_service_role()",
+      "PERFORM internal.refresh_public_author_identity(target_user_id)",
+      "GRANT EXECUTE ON FUNCTION public.refresh_public_author_identity(UUID) TO service_role",
+      "'internal.perform_ghost_profile_merge(uuid,uuid)'",
+      "'PERFORM internal.refresh_public_author_identity(p_target_user_id);'",
+      "'public.handle_auth_user_updated()'",
+      "'PERFORM internal.refresh_public_author_identity(NEW.id);'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(
+      "GRANT EXECUTE ON FUNCTION internal.refresh_public_author_identity",
+    ),
+    "The trusted implementation must remain inaccessible to API roles.",
+  );
 });

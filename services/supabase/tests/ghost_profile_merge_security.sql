@@ -85,6 +85,21 @@ BEGIN
       'authenticated unexpectedly has a privileged merge or cleanup grant';
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+    FROM (
+      VALUES ('anon'), ('authenticated'), ('service_role')
+    ) AS api_role(role_name)
+    WHERE has_function_privilege(
+      api_role.role_name,
+      'internal.refresh_public_author_identity(uuid)',
+      'EXECUTE'
+    )
+  ) THEN
+    RAISE EXCEPTION
+      'an API role can execute the trusted identity-refresh implementation';
+  END IF;
+
   IF NOT has_function_privilege(
     'service_role',
     'public.claim_ghost_profile_merge_auth_cleanups(integer)',
@@ -719,6 +734,20 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- Exercise both trusted callers after the merge assertions: Auth metadata
+-- updates use the private implementation, while backend callers retain the
+-- guarded public service-role wrapper.
+UPDATE auth.users
+SET raw_user_meta_data =
+      raw_user_meta_data || '{"catalog_identity_refresh_probe":true}'::JSONB
+WHERE id = '00000000-0000-0000-0000-000000000602';
+
+SET LOCAL ROLE service_role;
+SELECT public.refresh_public_author_identity(
+  '00000000-0000-0000-0000-000000000602'
+);
+RESET ROLE;
 
 SELECT extensions.pass(
   'provider-bound handoff rejects takeover and atomically preserves source data'
