@@ -1,6 +1,9 @@
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
-import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import {
+  authorizeServiceRoleRequestFromEnvironment,
+  serverApiKeyOptionsFromEnvironment,
+} from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import {
   fetchCommunityTaxonomyStatus,
@@ -19,16 +22,20 @@ serveEdge(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const auth = authorizeServiceRoleRequestFromEnvironment(req);
   if (!auth.ok) {
-    const rawKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
-    return jsonResponse({
-      error: "Unauthorized",
-      debug: {
-        hasSecretKeys: !!rawKeys,
-        keysLength: rawKeys?.length,
-        hasLegacyKey: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-        authReason: auth.reason,
+    const envOptions = serverApiKeyOptionsFromEnvironment();
+    const rawKeys = envOptions.envSecretKeys;
+    return jsonResponse(
+      {
+        error: "Unauthorized",
+        debug: {
+          hasSecretKeys: !!rawKeys,
+          keysLength: rawKeys?.length,
+          hasLegacyKey: !!envOptions.envServiceRoleKey,
+          authReason: auth.reason,
+        },
       },
-    }, 401);
+      401,
+    );
   }
 
   try {
